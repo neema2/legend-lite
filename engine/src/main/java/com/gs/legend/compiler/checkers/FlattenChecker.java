@@ -3,7 +3,7 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -54,7 +54,7 @@ public class FlattenChecker extends AbstractChecker {
         }
 
         // 3. Validate source has relational schema
-        GenericType.Relation.Schema sourceSchema = source.schema();
+        Type.Schema sourceSchema = source.schema();
         if (sourceSchema == null) {
             throw new PureCompileException("flatten() requires a relational source with a known schema");
         }
@@ -67,14 +67,14 @@ public class FlattenChecker extends AbstractChecker {
         }
 
         // 5. Output schema: same as source, but flattened column → JSON type
-        Map<String, GenericType> resultColumns = new LinkedHashMap<>(sourceSchema.columns());
-        resultColumns.put(colName, GenericType.Primitive.JSON);
+        Map<String, Type> resultColumns = new LinkedHashMap<>(sourceSchema.columns());
+        resultColumns.put(colName, Type.Primitive.JSON);
 
-        var flattenRelType = new GenericType.Relation.Schema(
+        var flattenRelType = new Type.Schema(
                 resultColumns, sourceSchema.dynamicPivotColumns());
         return TypeInfo.builder()
                                 .columnSpecs(List.of(TypeInfo.ColumnSpec.col(colName)))
-                .expressionType(ExpressionType.one(new GenericType.Relation(flattenRelType)))
+                .expressionType(ExpressionType.one(new Type.Relation(flattenRelType)))
                 .build();
     }
 }

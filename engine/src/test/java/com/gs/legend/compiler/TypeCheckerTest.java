@@ -5,7 +5,7 @@ import com.gs.legend.compiled.CompiledExpression;
 import com.gs.legend.model.store.Column;
 import com.gs.legend.model.store.SqlDataType;
 import com.gs.legend.model.store.Table;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 import com.gs.legend.plan.PlanGenerator;
 
 import com.gs.legend.sqlgen.DuckDBDialect;
@@ -60,14 +60,14 @@ class TypeCheckerTest {
         var vs = parse("#>{PersonDatabase.T_PERSON}#");
         var unit = compiler.check(vs);
 
-        GenericType.Relation.Schema rt = unit.typeInfoFor(unit.ast()).schema();
+        Type.Schema rt = unit.typeInfoFor(unit.ast()).schema();
         assertEquals(6, rt.size(), "Should have 6 columns");
-        assertEquals(GenericType.Primitive.STRING, rt.requireColumn("FIRST_NAME"));
-        assertEquals(GenericType.Primitive.STRING, rt.requireColumn("LAST_NAME"));
-        assertEquals(GenericType.Primitive.INTEGER, rt.requireColumn("AGE"));
-        assertEquals(GenericType.Primitive.FLOAT, rt.requireColumn("SALARY"));
-        assertEquals(GenericType.Primitive.STRICT_DATE, rt.requireColumn("HIRE_DATE"));
-        assertEquals(GenericType.Primitive.BOOLEAN, rt.requireColumn("ACTIVE"));
+        assertEquals(Type.Primitive.STRING, rt.requireColumn("FIRST_NAME"));
+        assertEquals(Type.Primitive.STRING, rt.requireColumn("LAST_NAME"));
+        assertEquals(Type.Primitive.INTEGER, rt.requireColumn("AGE"));
+        assertEquals(Type.Primitive.FLOAT, rt.requireColumn("SALARY"));
+        assertEquals(Type.Primitive.STRICT_DATE, rt.requireColumn("HIRE_DATE"));
+        assertEquals(Type.Primitive.BOOLEAN, rt.requireColumn("ACTIVE"));
     }
 
     @Test
@@ -76,10 +76,10 @@ class TypeCheckerTest {
         var unit = compiler.check(vs);
 
         // Filter preserves ALL columns from source
-        GenericType.Relation.Schema rt = unit.typeInfoFor(unit.ast()).schema();
+        Type.Schema rt = unit.typeInfoFor(unit.ast()).schema();
         assertEquals(6, rt.size(), "Filter doesn't change column set");
-        assertEquals(GenericType.Primitive.INTEGER, rt.requireColumn("AGE"));
-        assertEquals(GenericType.Primitive.STRING, rt.requireColumn("FIRST_NAME"));
+        assertEquals(Type.Primitive.INTEGER, rt.requireColumn("AGE"));
+        assertEquals(Type.Primitive.STRING, rt.requireColumn("FIRST_NAME"));
     }
 
     @Test
@@ -111,10 +111,10 @@ class TypeCheckerTest {
         var vs = parse("#>{PersonDatabase.T_PERSON}->rename(~FIRST_NAME, ~NAME)");
         var unit = compiler.check(vs);
 
-        GenericType.Relation.Schema rt = unit.typeInfoFor(unit.ast()).schema();
+        Type.Schema rt = unit.typeInfoFor(unit.ast()).schema();
         assertFalse(rt.hasColumn("FIRST_NAME"), "Old column name should be gone");
         assertTrue(rt.hasColumn("NAME"), "New column name should exist");
-        assertEquals(GenericType.Primitive.STRING, rt.requireColumn("NAME"));
+        assertEquals(Type.Primitive.STRING, rt.requireColumn("NAME"));
     }
 
     @Test
@@ -129,9 +129,9 @@ class TypeCheckerTest {
         var vs = parse("#>{PersonDatabase.T_PERSON}->filter(x|$x.AGE > 18)->sort(asc(~FIRST_NAME))->limit(5)");
         var unit = compiler.check(vs);
 
-        GenericType.Relation.Schema rt = unit.typeInfoFor(unit.ast()).schema();
+        Type.Schema rt = unit.typeInfoFor(unit.ast()).schema();
         assertEquals(6, rt.size(), "Chained ops preserve columns");
-        assertEquals(GenericType.Primitive.INTEGER, rt.requireColumn("AGE"));
+        assertEquals(Type.Primitive.INTEGER, rt.requireColumn("AGE"));
     }
 
     // ========== SQL Generation ==========

@@ -1,7 +1,7 @@
 package com.gs.legend.test;
 
 import com.gs.legend.model.def.ServiceDefinition;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 import com.gs.legend.parser.PureParser;
 import com.gs.legend.service.ServiceRegistry;
 import com.gs.legend.service.ServiceServer;
@@ -347,14 +347,14 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
                 new com.gs.legend.exec.Column("value", "Float", "Float"));
         var rows = java.util.List.of(
                 new com.gs.legend.exec.Row(java.util.List.of(1, "test", true, 42.5)));
-        var schema = new GenericType.Relation.Schema(
-                java.util.Map.of("id", com.gs.legend.plan.GenericType.Primitive.INTEGER,
-                        "name", com.gs.legend.plan.GenericType.Primitive.STRING,
-                        "active", com.gs.legend.plan.GenericType.Primitive.BOOLEAN,
-                        "value", com.gs.legend.plan.GenericType.Primitive.FLOAT),
+        var schema = new Type.Schema(
+                java.util.Map.of("id", com.gs.legend.model.m3.Type.Primitive.INTEGER,
+                        "name", com.gs.legend.model.m3.Type.Primitive.STRING,
+                        "active", com.gs.legend.model.m3.Type.Primitive.BOOLEAN,
+                        "value", com.gs.legend.model.m3.Type.Primitive.FLOAT),
                 java.util.List.of());
         var result = new com.gs.legend.exec.ExecutionResult.TabularResult(
-                columns, rows, schema, new com.gs.legend.plan.GenericType.Relation(schema));
+                columns, rows, schema, new com.gs.legend.model.m3.Type.Relation(schema));
 
         String json = result.toJsonArray();
         System.out.println("JSON: " + json);
@@ -373,12 +373,12 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
                 new com.gs.legend.exec.Column("street", "String", "String"));
         var rows = java.util.List.of(
                 new com.gs.legend.exec.Row(java.util.Arrays.asList("NoAddress", null)));
-        var schema = new GenericType.Relation.Schema(
-                java.util.Map.of("firstName", com.gs.legend.plan.GenericType.Primitive.STRING,
-                        "street", com.gs.legend.plan.GenericType.Primitive.STRING),
+        var schema = new Type.Schema(
+                java.util.Map.of("firstName", com.gs.legend.model.m3.Type.Primitive.STRING,
+                        "street", com.gs.legend.model.m3.Type.Primitive.STRING),
                 java.util.List.of());
         var result = new com.gs.legend.exec.ExecutionResult.TabularResult(
-                columns, rows, schema, new com.gs.legend.plan.GenericType.Relation(schema));
+                columns, rows, schema, new com.gs.legend.model.m3.Type.Relation(schema));
 
         String json = result.toJsonArray();
         System.out.println("JSON with nulls: " + json);
@@ -395,12 +395,12 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
                 new com.gs.legend.exec.Column("lastName", "String", "String"));
         var rows = java.util.List.of(
                 new com.gs.legend.exec.Row(java.util.List.of("Quote\"Test", "Tab\tPerson")));
-        var schema = new GenericType.Relation.Schema(
-                java.util.Map.of("firstName", com.gs.legend.plan.GenericType.Primitive.STRING,
-                        "lastName", com.gs.legend.plan.GenericType.Primitive.STRING),
+        var schema = new Type.Schema(
+                java.util.Map.of("firstName", com.gs.legend.model.m3.Type.Primitive.STRING,
+                        "lastName", com.gs.legend.model.m3.Type.Primitive.STRING),
                 java.util.List.of());
         var result = new com.gs.legend.exec.ExecutionResult.TabularResult(
-                columns, rows, schema, new com.gs.legend.plan.GenericType.Relation(schema));
+                columns, rows, schema, new com.gs.legend.model.m3.Type.Relation(schema));
 
         String json = result.toJsonArray();
         System.out.println("JSON with escaping: " + json);

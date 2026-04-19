@@ -3,7 +3,7 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.List;
 
@@ -40,14 +40,14 @@ public class IfChecker extends AbstractChecker {
 
         // Compile then-branch (param[1]) — thunk body return type
         TypeInfo thenInfo = env.compileExpr(params.get(1), ctx);
-        GenericType resultType = thenInfo.type();
+        Type resultType = thenInfo.type();
 
         // Compile else-branch (param[2]) — thunk body return type
         if (params.size() >= 3) {
             TypeInfo elseInfo = env.compileExpr(params.get(2), ctx);
-            GenericType elseType = elseInfo.type();
+            Type elseType = elseInfo.type();
             if (!resultType.equals(elseType)) {
-                resultType = GenericType.commonSupertype(resultType, elseType);
+                resultType = Type.commonSupertype(resultType, elseType);
             }
         }
 

@@ -23,7 +23,7 @@ import com.gs.legend.exec.ExecutionResult.CollectionResult;
 import com.gs.legend.exec.ExecutionResult.TabularResult;
 import com.gs.legend.exec.ExecutionResult.GraphResult;
 import com.gs.legend.exec.Column;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 import com.gs.legend.server.QueryService;
 
 import org.finos.legend.pure.m3.compiler.Context;
@@ -33,7 +33,6 @@ import org.finos.legend.pure.m3.navigation.M3Properties;
 import org.finos.legend.pure.m3.navigation.PrimitiveUtilities;
 import org.finos.legend.pure.m3.navigation.ProcessorSupport;
 import org.finos.legend.pure.m3.navigation.ValueSpecificationBootstrap;
-import org.finos.legend.pure.m3.navigation.type.Type;
 import org.finos.legend.pure.m4.ModelRepository;
 import org.finos.legend.pure.m4.coreinstance.CoreInstance;
 import org.finos.legend.pure.m4.coreinstance.primitive.date.DateFunctions;
@@ -74,7 +73,7 @@ import java.util.regex.Pattern;
  * Pure expressions are re-escaped, executed via QueryService (compile → SQL → DuckDB),
  * and the typed ExecutionResult is converted back to Pure CoreInstances.
  *
- * All type information flows from GenericType on ExecutionResult — no SQL type inspection.
+ * All type information flows from Type on ExecutionResult — no SQL type inspection.
  */
 public class ExecuteLegendLiteQuery extends NativeFunction {
 
@@ -180,7 +179,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
     }
 
     private CoreInstance handleCollection(CollectionResult result, ProcessorSupport ps) {
-        GenericType elementType = result.returnType();
+        Type elementType = result.returnType();
         var coreInstances = new ArrayList<CoreInstance>();
         for (Object value : result.values()) {
             if (value != null) {
@@ -201,10 +200,10 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
 
     /**
      * Converts a Java value to a raw Pure CoreInstance.
-     * Dispatches on Java type; uses GenericType for BigDecimal disambiguation
+     * Dispatches on Java type; uses Type for BigDecimal disambiguation
      * and class instance creation.
      */
-    private CoreInstance toCoreInstance(Object value, GenericType type, ProcessorSupport ps) {
+    private CoreInstance toCoreInstance(Object value, Type type, ProcessorSupport ps) {
         if (value instanceof Boolean b) {
             return modelRepository.newBooleanCoreInstance(b);
         }
@@ -218,20 +217,20 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             return modelRepository.newIntegerCoreInstance(bi.toString());
         }
         if (value instanceof BigDecimal bd) {
-            if (type instanceof GenericType.Primitive p
-                    && (p == GenericType.Primitive.DECIMAL || p == GenericType.Primitive.NUMBER)) {
+            if (type instanceof Type.Primitive p
+                    && (p == Type.Primitive.DECIMAL || p == Type.Primitive.NUMBER)) {
                 return modelRepository.newDecimalCoreInstance(bd);
             }
-            if (type instanceof GenericType.PrecisionDecimal) {
+            if (type instanceof Type.PrecisionDecimal) {
                 return modelRepository.newDecimalCoreInstance(bd.stripTrailingZeros());
             }
             return modelRepository.newFloatCoreInstance(bd);
         }
         if (value instanceof Double d) {
-            if (type instanceof GenericType.Primitive p && p == GenericType.Primitive.DECIMAL) {
+            if (type instanceof Type.Primitive p && p == Type.Primitive.DECIMAL) {
                 return modelRepository.newDecimalCoreInstance(BigDecimal.valueOf(d));
             }
-            if (type instanceof GenericType.PrecisionDecimal) {
+            if (type instanceof Type.PrecisionDecimal) {
                 return modelRepository.newDecimalCoreInstance(BigDecimal.valueOf(d).stripTrailingZeros());
             }
             return modelRepository.newFloatCoreInstance(BigDecimal.valueOf(d));
@@ -250,8 +249,8 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             return toPureDateInstance(ld);
         }
         if (value instanceof java.sql.Timestamp ts) {
-            // GenericType tells us if this was originally a StrictDate promoted to Timestamp
-            if (type instanceof GenericType.Primitive p && p == GenericType.Primitive.STRICT_DATE) {
+            // Type tells us if this was originally a StrictDate promoted to Timestamp
+            if (type instanceof Type.Primitive p && p == Type.Primitive.STRICT_DATE) {
                 return toPureDateInstance(ts.toLocalDateTime().toLocalDate());
             }
             return toPureDateTimeInstance(ts.toLocalDateTime());
@@ -278,7 +277,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         }
         // List (struct arrays unwrapped by Row.java, e.g. zip → List<Pair>)
         if (value instanceof List<?> list) {
-            GenericType elemType = type;
+            Type elemType = type;
             var coreInstances = new ArrayList<CoreInstance>();
             for (Object elem : list) {
                 if (elem != null) {
@@ -370,14 +369,14 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
 
     /**
      * Creates a Pure class instance from a DuckDB struct Map.
-     * Uses GenericType for the class path and type arguments.
+     * Uses Type for the class path and type arguments.
      */
-    private CoreInstance createClassInstance(Map<String, Object> structMap, GenericType type,
+    private CoreInstance createClassInstance(Map<String, Object> structMap, Type type,
                                             ProcessorSupport ps) {
-        // Resolve class path from GenericType
+        // Resolve class path from Type
         String qualifiedName = switch (type) {
-            case GenericType.ClassType ct -> ct.qualifiedName();
-            case GenericType.Parameterized p -> switch (p.rawType()) {
+            case Type.ClassType ct -> ct.qualifiedName();
+            case Type.Parameterized p -> switch (p.rawType()) {
                 case "Pair" -> "meta::pure::functions::collection::Pair";
                 default -> p.rawType();
             };
@@ -392,16 +391,18 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         String simpleName = qualifiedName.substring(qualifiedName.lastIndexOf(':') + 1);
         CoreInstance instance = modelRepository.newCoreInstance(simpleName, classInstance, null);
 
-        // Build classifierGenericType with type arguments from GenericType
-        CoreInstance classifierGT = Type.wrapGenericType(classInstance, null, ps);
+        // Build classifierGenericType with type arguments from Type
+        CoreInstance classifierGT = org.finos.legend.pure.m3.navigation.type.Type
+                .wrapGenericType(classInstance, null, ps);
 
-        if (type instanceof GenericType.Parameterized p) {
-            // Set type arguments from the compiler-provided GenericType
-            for (GenericType typeArg : p.typeArgs()) {
+        if (type instanceof Type.Parameterized p) {
+            // Set type arguments from the compiler-provided Type
+            for (Type typeArg : p.typeArgs()) {
                 String argTypeName = typeArg.typeName();
                 CoreInstance argTypeClass = ps.package_getByUserPath(argTypeName);
                 if (argTypeClass != null) {
-                    CoreInstance argGT = Type.wrapGenericType(argTypeClass, null, ps);
+                    CoreInstance argGT = org.finos.legend.pure.m3.navigation.type.Type
+                            .wrapGenericType(argTypeClass, null, ps);
                     Instance.addValueToProperty(classifierGT, M3Properties.typeArguments, argGT, ps);
                 }
             }
@@ -415,9 +416,9 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             Object propValue = entry.getValue();
             if (propValue == null) continue;
 
-            // Determine property GenericType from Parameterized typeArgs if available
-            GenericType propType = GenericType.Primitive.ANY;
-            if (type instanceof GenericType.Parameterized p && !p.typeArgs().isEmpty()) {
+            // Determine property Type from Parameterized typeArgs if available
+            Type propType = Type.Primitive.ANY;
+            if (type instanceof Type.Parameterized p && !p.typeArgs().isEmpty()) {
                 // For Pair: first → typeArgs[0], second → typeArgs[1]
                 int idx = indexOf(structMap, propName);
                 if (idx >= 0 && idx < p.typeArgs().size()) {

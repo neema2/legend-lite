@@ -2,7 +2,7 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.List;
 
@@ -23,7 +23,7 @@ public class GraphFetchChecker extends AbstractChecker {
                           TypeChecker.CompilationContext ctx) {
         TypeInfo sourceInfo = env.compileExpr(af.parameters().get(0), ctx);
 
-        if (!(sourceInfo.type() instanceof GenericType.ClassType classType)) {
+        if (!(sourceInfo.type() instanceof Type.ClassType classType)) {
             throw new PureCompileException(
                     "graphFetch() requires a class-based source, but got " + sourceInfo.type());
         }
@@ -43,7 +43,7 @@ public class GraphFetchChecker extends AbstractChecker {
     }
 
     /** Compiles ColSpec fn1 lambdas and recurses into fn2 for nested properties. */
-    private void compileColSpecs(ColSpecArray csa, GenericType.ClassType classType,
+    private void compileColSpecs(ColSpecArray csa, Type.ClassType classType,
                                  TypeChecker.CompilationContext ctx) {
         for (ColSpec cs : csa.colSpecs()) {
             if (cs.function1() == null) {
@@ -57,7 +57,7 @@ public class GraphFetchChecker extends AbstractChecker {
 
             // Nested: fn2 wraps a ColSpecArray — recurse with fn1's result type
             if (cs.function2() != null && fn1Result != null
-                    && fn1Result.type() instanceof GenericType.ClassType nestedType) {
+                    && fn1Result.type() instanceof Type.ClassType nestedType) {
                 ColSpecArray nested = extractNestedColSpecs(cs);
                 if (nested != null) {
                     compileColSpecs(nested, nestedType, ctx);

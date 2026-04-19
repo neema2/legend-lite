@@ -78,10 +78,10 @@ public record Table(
     }
 
     /**
-     * Returns the Pure GenericType for a column.
+     * Returns the Pure Type for a column.
      * @throws IllegalArgumentException if column not found
      */
-    public com.gs.legend.plan.GenericType getColumnType(String columnName) {
+    public com.gs.legend.model.m3.Type getColumnType(String columnName) {
         return findColumn(columnName)
                 .map(c -> c.dataType().toGenericType())
                 .orElseThrow(() -> new IllegalArgumentException(

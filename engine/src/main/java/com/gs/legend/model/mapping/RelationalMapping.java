@@ -9,7 +9,7 @@ import com.gs.legend.model.store.PropertyMapping;
 import com.gs.legend.model.store.SqlDataType;
 import com.gs.legend.model.store.Table;
 import com.gs.legend.model.store.View;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.List;
 import java.util.Map;
@@ -144,17 +144,17 @@ public record RelationalMapping(
     }
 
     /**
-     * Gets the GenericType for a given property name by looking up the property's
+     * Gets the Type for a given property name by looking up the property's
      * generic type in the Pure class definition.
      * 
      * @param propertyName The Pure property name
-     * @return The GenericType for this property
+     * @return The Type for this property
      * @throws IllegalArgumentException if property not found in Pure class
      */
-    public com.gs.legend.plan.GenericType pureTypeForProperty(String propertyName,
+    public com.gs.legend.model.m3.Type pureTypeForProperty(String propertyName,
             com.gs.legend.model.ModelContext ctx) {
         return pureClass.findProperty(propertyName, ctx)
-                .map(p -> com.gs.legend.plan.GenericType.fromM3Type(p.type()))
+                .map(p -> p.type())
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Property '" + propertyName + "' not found in class " + pureClass.name()));
     }
@@ -269,7 +269,7 @@ public record RelationalMapping(
     }
 
     @Override
-    public GenericType typeForProperty(String propertyName, com.gs.legend.model.ModelContext ctx) {
+    public Type typeForProperty(String propertyName, com.gs.legend.model.ModelContext ctx) {
         return pureTypeForProperty(propertyName, ctx);
     }
 

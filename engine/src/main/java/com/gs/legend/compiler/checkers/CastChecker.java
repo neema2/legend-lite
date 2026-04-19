@@ -1,11 +1,11 @@
 package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.AppliedFunction;
-import com.gs.legend.ast.GenericTypeInstance;
+import com.gs.legend.ast.TypeAnnotation;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
 import com.gs.legend.model.m3.Multiplicity;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.List;
 
@@ -18,7 +18,8 @@ import java.util.List;
  * <ol>
  *   <li>{@code resolveOverload} — validates arity against registered signature</li>
  *   <li>{@code unify} — validates source (Any accepts all types, binds nothing)</li>
- *   <li>T bound from {@code @Type} argument ({@link GenericTypeInstance#resolvedType()})</li>
+ *   <li>T bound from {@code @Type} argument, resolved via
+ *       {@link TypeAnnotation#resolve(TypeAnnotation, com.gs.legend.model.ModelContext)}</li>
  *   <li>m bound from source's actual multiplicity (mult-var binding)</li>
  *   <li>{@code resolveOutput} — computes T[m] from bindings</li>
  * </ol>
@@ -46,7 +47,7 @@ public class CastChecker extends AbstractChecker {
         env.compileExpr(params.get(1), ctx);
 
         // 4. Build unified Bindings: T from @Type, m from source multiplicity
-        GenericType targetType = resolveTargetType(params.get(1));
+        Type targetType = resolveTargetType(params.get(1));
         var bindings = new Bindings();
         bindings.put("T", targetType);
         Multiplicity sourceMult = source.expressionType().multiplicity();
@@ -63,11 +64,11 @@ public class CastChecker extends AbstractChecker {
 
     /**
      * Extracts the target type T from a {@code @Type} parameter.
-     * The param must be a {@link GenericTypeInstance} — cast always has one.
+     * The param must be a {@link TypeAnnotation} — cast always has one.
      */
-    private GenericType resolveTargetType(ValueSpecification typeParam) {
-        if (typeParam instanceof GenericTypeInstance gti) {
-            return gti.resolvedType();
+    private Type resolveTargetType(ValueSpecification typeParam) {
+        if (typeParam instanceof TypeAnnotation ta) {
+            return ta.resolve(env.modelContext());
         }
         throw new PureCompileException(
                 "cast: second argument must be a @Type annotation, got " + typeParam.getClass().getSimpleName());

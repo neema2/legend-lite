@@ -2,7 +2,7 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.compiler.*;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 
 import java.util.stream.Collectors;
@@ -41,7 +41,7 @@ public class ConcatenateChecker extends AbstractChecker {
             if (left.type() == null) {
                 throw new PureCompileException("concatenate(): cannot determine type of left source");
             }
-            GenericType elemType = left.type();
+            Type elemType = left.type();
             return TypeInfo.builder()
                     .expressionType(ExpressionType.many(elemType))
                     .build();
@@ -50,19 +50,19 @@ public class ConcatenateChecker extends AbstractChecker {
         // 2. Bind type variables from signature (T from left source)
         var bindings = unify(def, left.expressionType());
 
-        GenericType.Relation.Schema leftSchema = left.schema();
-        GenericType.Relation.Schema rightSchema = right.schema();
+        Type.Schema leftSchema = left.schema();
+        Type.Schema rightSchema = right.schema();
 
         // 3. Class LCA: different class-based sources with different columns
-        if (left.type() instanceof com.gs.legend.plan.GenericType.ClassType
-                && right.type() instanceof com.gs.legend.plan.GenericType.ClassType
+        if (left.type() instanceof com.gs.legend.model.m3.Type.ClassType
+                && right.type() instanceof com.gs.legend.model.m3.Type.ClassType
                 && leftSchema != null && rightSchema != null
                 && !leftSchema.columns().keySet().equals(rightSchema.columns().keySet())) {
             TypeInfo lca = resolveClassLCA(left, right);
             if (lca != null) return lca;
             // No common supertype — variant list fallback
             return TypeInfo.builder()
-                    .expressionType(ExpressionType.many(GenericType.Primitive.ANY))
+                    .expressionType(ExpressionType.many(Type.Primitive.ANY))
                     .build();
         }
 
@@ -81,8 +81,8 @@ public class ConcatenateChecker extends AbstractChecker {
      * Validates column alignment between left and right schemas.
      * Reports symmetric diff — both left-only and right-only columns.
      */
-    private void validateColumnAlignment(GenericType.Relation.Schema left,
-                                          GenericType.Relation.Schema right) {
+    private void validateColumnAlignment(Type.Schema left,
+                                          Type.Schema right) {
         var leftCols = left.columns().keySet();
         var rightCols = right.columns().keySet();
 

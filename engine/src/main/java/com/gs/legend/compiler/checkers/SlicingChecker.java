@@ -3,7 +3,7 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.List;
 import java.util.Map;
@@ -53,10 +53,10 @@ public class SlicingChecker extends AbstractChecker {
 
         // 3. Validate pre-compiled argument types against signature param types
         for (int i = 1; i < params.size() && i < def.params().size(); i++) {
-            GenericType expectedType = resolve(def.params().get(i).type(), bindings,
+            Type expectedType = resolve(def.params().get(i).type(), bindings,
                     funcName + "() argument " + i);
             ExpressionType actualExpr = compiledTypes.get(i);
-            GenericType actualType = actualExpr != null ? actualExpr.type() : null;
+            Type actualType = actualExpr != null ? actualExpr.type() : null;
             if (actualType != null && !isAssignable(actualType, expectedType)) {
                 throw new PureCompileException(
                         funcName + "() argument " + i + ": expected "
@@ -72,11 +72,11 @@ public class SlicingChecker extends AbstractChecker {
     }
 
     /** Checks if actualType is assignable to expectedType (same type or ANY). */
-    private boolean isAssignable(GenericType actual, GenericType expected) {
+    private boolean isAssignable(Type actual, Type expected) {
         if (expected == null || actual == null) return true;
-        if (expected instanceof GenericType.Primitive p && "Any".equals(p.name())) return true;
+        if (expected instanceof Type.Primitive p && "Any".equals(p.name())) return true;
         // Integer assignable to Number
-        if (expected instanceof GenericType.Primitive ep && actual instanceof GenericType.Primitive ap) {
+        if (expected instanceof Type.Primitive ep && actual instanceof Type.Primitive ap) {
             return ep.name().equals(ap.name())
                     || "Number".equals(ep.name()) && ("Integer".equals(ap.name()) || "Float".equals(ap.name()));
         }

@@ -3,7 +3,7 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
 import com.gs.legend.model.SymbolTable;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.*;
 
@@ -35,16 +35,16 @@ public class ExtendChecker extends AbstractChecker {
         // Class-source overload: extend(C[*], FuncColSpec/FuncColSpecArray) -> C[*]
         // Stays in object space — compiles lambdas against ClassType for type safety,
         // returns ClassType[*] unchanged. Downstream project/graphFetch handles SQL.
-        if (source.type() instanceof GenericType.ClassType) {
+        if (source.type() instanceof Type.ClassType) {
             return checkClassSource(af, def, source, ctx);
         }
 
-        GenericType.Relation.Schema sourceSchema = source.schema();
+        Type.Schema sourceSchema = source.schema();
         if (sourceSchema == null) {
             throw new PureCompileException("extend() requires a Relation source with a known schema");
         }
 
-        Map<String, GenericType> newColumns = new LinkedHashMap<>(sourceSchema.columns());
+        Map<String, Type> newColumns = new LinkedHashMap<>(sourceSchema.columns());
         List<TypeInfo.WindowSpec> windowSpecs = new ArrayList<>();
 
         // --- Compile over() clause ---
@@ -52,8 +52,8 @@ public class ExtendChecker extends AbstractChecker {
         // individually via resolveOverload — no top-level over() resolution needed.
         TypeInfo.OverSpec overSpec = null;
         List<TypeInfo.TraversalSpec> traversalSpecs = null;
-        List<GenericType.Relation.Schema> terminalSchemas = null;
-        GenericType.Relation.Schema colSpecSchema = sourceSchema;
+        List<Type.Schema> terminalSchemas = null;
+        Type.Schema colSpecSchema = sourceSchema;
         for (int i = 1; i < params.size(); i++) {
             if (params.get(i) instanceof AppliedFunction paf) {
                 String fn = simpleName(paf.function());
@@ -124,10 +124,10 @@ public class ExtendChecker extends AbstractChecker {
             }
         }
 
-        var schema = new GenericType.Relation.Schema(newColumns, sourceSchema.dynamicPivotColumns());
+        var schema = new Type.Schema(newColumns, sourceSchema.dynamicPivotColumns());
         var builder = TypeInfo.builder()
                 .windowSpecs(windowSpecs)
-                .expressionType(ExpressionType.one(new GenericType.Relation(schema)));
+                .expressionType(ExpressionType.one(new Type.Relation(schema)));
         if (traversalSpecs != null) {
             builder.traversalSpecs(traversalSpecs);
         }
@@ -150,7 +150,7 @@ public class ExtendChecker extends AbstractChecker {
 
         // Resolve lambda param type from signature (C[1])
         PType.FunctionType ft = extractFunctionType(def.params().get(1));
-        GenericType resolvedParamType = resolve(ft.paramTypes().get(0).type(), bindings,
+        Type resolvedParamType = resolve(ft.paramTypes().get(0).type(), bindings,
                 "extend() class-source lambda param");
 
         if (!(params.get(1) instanceof ClassInstance ci)) {
@@ -245,12 +245,12 @@ public class ExtendChecker extends AbstractChecker {
 
     // ========== ColSpec compilation ==========
 
-    private record ColSpecResult(String alias, GenericType returnType,
+    private record ColSpecResult(String alias, Type returnType,
                                   TypeInfo.WindowSpec windowSpec) {}
 
     private ColSpecResult compileColSpec(ColSpec cs,
-                                          GenericType.Relation.Schema colSpecSchema,
-                                          GenericType.Relation.Schema originalSourceSchema,
+                                          Type.Schema colSpecSchema,
+                                          Type.Schema originalSourceSchema,
                                           TypeInfo source,
                                           TypeChecker.CompilationContext ctx,
                                           TypeInfo.OverSpec overSpec,
@@ -270,14 +270,14 @@ public class ExtendChecker extends AbstractChecker {
         // For non-traverse extends: S = T = source schema.
         PType.FunctionType sigFnType = findColSpecFunctionType(def, fn1.parameters().size());
         var bindings = new Bindings();
-        bindings.put("S", new GenericType.Tuple(originalSourceSchema));
-        bindings.put("T", new GenericType.Tuple(colSpecSchema));
+        bindings.put("S", new Type.Tuple(originalSourceSchema));
+        bindings.put("T", new Type.Tuple(colSpecSchema));
 
         TypeChecker.CompilationContext fn1Ctx = ctx;
         for (int pi = 0; pi < fn1.parameters().size() && pi < sigFnType.paramTypes().size(); pi++) {
             String paramName = fn1.parameters().get(pi).name();
             PType sigType = sigFnType.paramTypes().get(pi).type();
-            GenericType resolvedType = resolve(sigType, bindings,
+            Type resolvedType = resolve(sigType, bindings,
                     "extend() lambda param " + pi);
             fn1Ctx = bindLambdaParam(fn1Ctx, paramName, resolvedType, source);
         }
@@ -291,8 +291,8 @@ public class ExtendChecker extends AbstractChecker {
         }
 
         // === Scalar/ranking/window fn1-only ===
-        GenericType returnType = fn1Result.type() != null
-                ? fn1Result.type() : GenericType.Primitive.NUMBER;
+        Type returnType = fn1Result.type() != null
+                ? fn1Result.type() : Type.Primitive.NUMBER;
 
         // For window extends, look up the function resolved by ScalarChecker during
         // compileLambdaBody — no re-resolution needed.
@@ -310,8 +310,8 @@ public class ExtendChecker extends AbstractChecker {
      */
     private ColSpecResult compileMultiTraverseColSpec(
             ColSpec cs,
-            GenericType.Relation.Schema sourceSchema,
-            List<GenericType.Relation.Schema> terminalSchemas,
+            Type.Schema sourceSchema,
+            List<Type.Schema> terminalSchemas,
             TypeInfo source,
             TypeChecker.CompilationContext ctx) {
         String alias = cs.name();
@@ -322,16 +322,16 @@ public class ExtendChecker extends AbstractChecker {
         TypeChecker.CompilationContext fn1Ctx = ctx;
         // param 0 = src
         fn1Ctx = bindLambdaParam(fn1Ctx, lambdaParams.get(0).name(),
-                new GenericType.Tuple(sourceSchema), source);
+                new Type.Tuple(sourceSchema), source);
         // params 1..N = t1, t2, ...
         for (int ti = 0; ti < terminalSchemas.size() && (ti + 1) < lambdaParams.size(); ti++) {
             fn1Ctx = bindLambdaParam(fn1Ctx, lambdaParams.get(ti + 1).name(),
-                    new GenericType.Tuple(terminalSchemas.get(ti)), source);
+                    new Type.Tuple(terminalSchemas.get(ti)), source);
         }
 
         TypeInfo fn1Result = compileLambdaBody(fn1, fn1Ctx);
-        GenericType returnType = fn1Result.type() != null
-                ? fn1Result.type() : GenericType.Primitive.STRING;
+        Type returnType = fn1Result.type() != null
+                ? fn1Result.type() : Type.Primitive.STRING;
         return new ColSpecResult(alias, returnType, null);
     }
 
@@ -383,19 +383,19 @@ public class ExtendChecker extends AbstractChecker {
         NativeFunctionDef resolved = innerInfo.resolvedFunc();
 
         // Return type refinement
-        GenericType returnType = fn2Result.type();
-        if (returnType == GenericType.Primitive.NUMBER && fn1Result.type() != null
+        Type returnType = fn2Result.type();
+        if (returnType == Type.Primitive.NUMBER && fn1Result.type() != null
                 && fn1Result.type().isNumeric()) {
             returnType = fn1Result.type();
         }
-        GenericType castType = extractCastGenericType(fn2Body);
+        Type castType = extractCastGenericType(fn2Body);
 
         // When there's no over() clause, aggregates need FUNC() OVER() (whole-relation).
         // Create an empty OverSpec so PlanGenerator generates the OVER() clause.
         var effectiveOver = overSpec != null ? overSpec
                 : new TypeInfo.OverSpec(List.of(), List.of(), null);
         var ws = new TypeInfo.WindowSpec(resolved, effectiveOver, alias, returnType, castType);
-        GenericType colType = castType != null ? castType : returnType;
+        Type colType = castType != null ? castType : returnType;
         return new ColSpecResult(alias, colType, ws);
     }
 
@@ -405,7 +405,7 @@ public class ExtendChecker extends AbstractChecker {
      * Compiles over() clause. All sub-functions type-checked via resolveOverload.
      */
     private TypeInfo.OverSpec compileOverClause(AppliedFunction overAf,
-                                                GenericType.Relation.Schema sourceSchema) {
+                                                Type.Schema sourceSchema) {
         List<String> partitionBy = new ArrayList<>();
         List<TypeInfo.SortSpec> orderBy = new ArrayList<>();
         TypeInfo.FrameSpec frame = null;
@@ -443,7 +443,7 @@ public class ExtendChecker extends AbstractChecker {
     }
 
     private TypeInfo.SortSpec compileSortSpec(ValueSpecification vs,
-                                              GenericType.Relation.Schema sourceSchema) {
+                                              Type.Schema sourceSchema) {
         if (vs instanceof AppliedFunction af) {
             String fn = simpleName(af.function());
             if ("asc".equals(fn) || "ascending".equals(fn)) {
@@ -551,7 +551,7 @@ public class ExtendChecker extends AbstractChecker {
     // ========== Traverse clause compilation ==========
 
     private record TraverseResult(TypeInfo.TraversalSpec spec,
-                                   GenericType.Relation.Schema terminalSchema) {}
+                                   Type.Schema terminalSchema) {}
 
     private record HopParts(ValueSpecification target, LambdaFunction condition) {}
 
@@ -560,18 +560,18 @@ public class ExtendChecker extends AbstractChecker {
      * type-checks each condition lambda, and builds a TraversalSpec.
      */
     private TraverseResult compileTraverseClause(AppliedFunction traverseAf,
-                                                  GenericType.Relation.Schema sourceSchema,
+                                                  Type.Schema sourceSchema,
                                                   TypeChecker.CompilationContext ctx) {
         List<HopParts> hopParts = new ArrayList<>();
         flattenTraverseChain(traverseAf, hopParts);
 
         List<TypeInfo.TraversalHop> hops = new ArrayList<>();
-        GenericType.Relation.Schema prevSchema = sourceSchema;
+        Type.Schema prevSchema = sourceSchema;
 
         for (HopParts parts : hopParts) {
             // Compile target via normal pipeline (TableReferenceChecker)
             TypeInfo targetInfo = env.compileExpr(parts.target, ctx);
-            GenericType.Relation.Schema targetSchema = targetInfo.schema();
+            Type.Schema targetSchema = targetInfo.schema();
             if (targetSchema == null) {
                 throw new PureCompileException(
                         "traverse() target must be a Relation with a known schema");
@@ -593,8 +593,8 @@ public class ExtendChecker extends AbstractChecker {
             String hopParam = condLambda.parameters().get(1).name();
 
             TypeChecker.CompilationContext lambdaCtx = ctx
-                    .withLambdaParam(prevParam, new GenericType.Tuple(prevSchema))
-                    .withLambdaParam(hopParam, new GenericType.Tuple(targetSchema));
+                    .withLambdaParam(prevParam, new Type.Tuple(prevSchema))
+                    .withLambdaParam(hopParam, new Type.Tuple(targetSchema));
 
             compileLambdaBody(condLambda, lambdaCtx);
 

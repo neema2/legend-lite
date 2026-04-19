@@ -2,7 +2,7 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.*;
 
@@ -50,8 +50,8 @@ public class AsOfJoinChecker extends AbstractChecker {
         var bindings = unify(def, Arrays.asList(leftExpr, rightExpr, null, null));
 
         // --- 4. Compile condition lambdas — signature-driven ---
-        GenericType.Relation.Schema leftSchema = left.schema();
-        GenericType.Relation.Schema rightSchema = right.schema();
+        Type.Schema leftSchema = left.schema();
+        Type.Schema rightSchema = right.schema();
 
         // Match condition (param[2])
         if (params.get(2) instanceof LambdaFunction matchLambda) {
@@ -86,8 +86,8 @@ public class AsOfJoinChecker extends AbstractChecker {
      */
     private Map<String, String> applyPrefixToBindings(
             Bindings bindings,
-            GenericType.Relation.Schema leftSchema,
-            GenericType.Relation.Schema rightSchema,
+            Type.Schema leftSchema,
+            Type.Schema rightSchema,
             String rightPrefix) {
 
         Set<String> leftColNames = leftSchema.columns().keySet();
@@ -109,7 +109,7 @@ public class AsOfJoinChecker extends AbstractChecker {
                             + "->asOfJoin(right, {t, q | ...}, {t, q | ...}, 'prefix')");
         }
 
-        Map<String, GenericType> prefixedColumns = new LinkedHashMap<>();
+        Map<String, Type> prefixedColumns = new LinkedHashMap<>();
         Map<String, String> renames = new LinkedHashMap<>();
         for (var entry : rightSchema.columns().entrySet()) {
             String name = entry.getKey();
@@ -122,8 +122,8 @@ public class AsOfJoinChecker extends AbstractChecker {
             }
         }
 
-        var prefixedSchema = GenericType.Relation.Schema.withoutPivot(prefixedColumns);
-        bindings.put("V", new GenericType.Tuple(prefixedSchema));
+        var prefixedSchema = Type.Schema.withoutPivot(prefixedColumns);
+        bindings.put("V", new Type.Tuple(prefixedSchema));
 
         return renames;
     }
@@ -152,7 +152,7 @@ public class AsOfJoinChecker extends AbstractChecker {
         TypeInfo[] sources = { left, right };
         for (int i = 0; i < ft.paramTypes().size(); i++) {
             String paramName = lambda.parameters().get(i).name();
-            GenericType resolvedType = resolve(ft.paramTypes().get(i).type(), bindings,
+            Type resolvedType = resolve(ft.paramTypes().get(i).type(), bindings,
                     "asOfJoin() condition param " + i);
             lambdaCtx = bindLambdaParam(lambdaCtx, paramName, resolvedType, sources[i]);
         }

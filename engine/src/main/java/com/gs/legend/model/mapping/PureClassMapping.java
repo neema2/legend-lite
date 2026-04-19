@@ -3,7 +3,7 @@ package com.gs.legend.model.mapping;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.model.m3.PureClass;
 import com.gs.legend.model.store.Table;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.Map;
 import java.util.Objects;
@@ -98,15 +98,15 @@ public record PureClassMapping(
     }
 
     @Override
-    public GenericType typeForProperty(String propertyName, com.gs.legend.model.ModelContext ctx) {
+    public Type typeForProperty(String propertyName, com.gs.legend.model.ModelContext ctx) {
         if (targetClass != null) {
             var propOpt = targetClass.findProperty(propertyName, ctx);
             if (propOpt.isPresent()) {
-                return GenericType.fromM3Type(propOpt.get().type());
+                return propOpt.get().type();
             }
         }
         // Default to String if we can't resolve
-        return GenericType.Primitive.STRING;
+        return Type.Primitive.STRING;
     }
 
     @Override

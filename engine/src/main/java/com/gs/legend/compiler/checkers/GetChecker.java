@@ -2,7 +2,7 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.List;
 
@@ -25,7 +25,7 @@ public class GetChecker extends AbstractChecker {
             env.compileExpr(params.get(1), ctx);
         }
         return TypeInfo.builder()
-                .expressionType(ExpressionType.zeroOrOne(GenericType.Primitive.JSON))
+                .expressionType(ExpressionType.zeroOrOne(Type.Primitive.JSON))
                 .build();
     }
 }

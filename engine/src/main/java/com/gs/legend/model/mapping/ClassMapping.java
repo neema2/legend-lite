@@ -3,7 +3,7 @@ package com.gs.legend.model.mapping;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.model.m3.PureClass;
 import com.gs.legend.model.store.Table;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 /**
  * Unified mapping interface for all class-to-store mappings.
@@ -50,9 +50,9 @@ public sealed interface ClassMapping permits RelationalMapping, PureClassMapping
      *
      * @param propertyName The Pure property name
      * @param ctx          Model context for inheritance-aware lookup
-     * @return The GenericType for this property
+     * @return The Type for this property
      */
-    GenericType typeForProperty(String propertyName, com.gs.legend.model.ModelContext ctx);
+    Type typeForProperty(String propertyName, com.gs.legend.model.ModelContext ctx);
 
     /**
      * Whether this mapping has an expression for the given property.

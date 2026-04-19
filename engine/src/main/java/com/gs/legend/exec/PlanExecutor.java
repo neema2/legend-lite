@@ -1,6 +1,6 @@
 package com.gs.legend.exec;
 
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 import com.gs.legend.plan.ResultFormat;
 import com.gs.legend.plan.SingleExecutionPlan;
 import com.gs.legend.util.Json;
@@ -86,12 +86,12 @@ public class PlanExecutor {
 
     private static void streamTabular(SingleExecutionPlan plan, Connection conn, Writer out)
             throws SQLException, IOException {
-        GenericType returnType = plan.expressionType().type();
-        if (!(returnType instanceof GenericType.Relation rel)) {
+        Type returnType = plan.expressionType().type();
+        if (!(returnType instanceof Type.Relation rel)) {
             throw new IllegalStateException(
                     "Tabular format requires Relation type — got " + returnType);
         }
-        GenericType.Relation.Schema schema = rel.schema();
+        Type.Schema schema = rel.schema();
 
         try (Statement stmt = conn.createStatement();
                 ResultSet rs = stmt.executeQuery(plan.sql())) {

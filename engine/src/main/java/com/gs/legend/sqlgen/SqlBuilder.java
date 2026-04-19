@@ -1,6 +1,6 @@
 package com.gs.legend.sqlgen;
 
-import com.gs.legend.plan.GenericType.Relation.Schema.DynamicPivotColumn;
+import com.gs.legend.model.m3.Type.Schema.DynamicPivotColumn;
 
 import java.util.ArrayList;
 import java.util.List;

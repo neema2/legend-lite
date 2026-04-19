@@ -2,7 +2,7 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.*;
 
@@ -33,13 +33,13 @@ public class AggregateChecker extends AbstractChecker {
         unify(def, source.expressionType()); // validate source matches signature generics
         List<ValueSpecification> params = af.parameters();
 
-        GenericType.Relation.Schema sourceSchema = source.schema();
+        Type.Schema sourceSchema = source.schema();
         if (sourceSchema == null) {
             throw new PureCompileException(
                     "aggregate() requires a Relation source with a known schema");
         }
 
-        Map<String, GenericType> resultColumns = new LinkedHashMap<>();
+        Map<String, Type> resultColumns = new LinkedHashMap<>();
         List<TypeInfo.AggColumnSpec> aggCols = new ArrayList<>();
 
         // --- Aggregate columns (param 1): AggColSpec or AggColSpecArray ---
@@ -47,7 +47,7 @@ public class AggregateChecker extends AbstractChecker {
         List<ColSpec> aggSpecs = GroupByChecker.extractAggColSpecs(params.get(1));
         for (ColSpec cs : aggSpecs) {
             TypeInfo.AggColumnSpec acs = groupByChecker.compileAggColSpec(
-                    cs, new GenericType.Relation(sourceSchema), source, ctx);
+                    cs, new Type.Relation(sourceSchema), source, ctx);
             resultColumns.put(acs.alias(), acs.castType() != null ? acs.castType() : acs.returnType());
             aggCols.add(acs);
         }
@@ -57,10 +57,10 @@ public class AggregateChecker extends AbstractChecker {
         }
 
         // Output schema = R only (no group columns, unlike groupBy)
-        var schema = GenericType.Relation.Schema.withoutPivot(resultColumns);
+        var schema = Type.Schema.withoutPivot(resultColumns);
         return TypeInfo.builder()
                 .aggColumnSpecs(aggCols)
-                .expressionType(ExpressionType.one(new GenericType.Relation(schema)))
+                .expressionType(ExpressionType.one(new Type.Relation(schema)))
                 .build();
     }
 }

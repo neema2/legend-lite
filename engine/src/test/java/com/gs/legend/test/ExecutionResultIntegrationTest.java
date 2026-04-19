@@ -3,7 +3,7 @@ package com.gs.legend.test;
 import com.gs.legend.exec.ExecutionResult;
 import com.gs.legend.exec.ExecutionResult.ScalarResult;
 import com.gs.legend.exec.ExecutionResult.TabularResult;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 import com.gs.legend.sqlgen.DuckDBDialect;
 import com.gs.legend.sqlgen.SQLDialect;
 import org.junit.jupiter.api.AfterEach;
@@ -119,7 +119,7 @@ public class ExecutionResultIntegrationTest extends AbstractDatabaseTest {
         assertInstanceOf(TabularResult.class, result, "Expected TabularResult for project query");
         TabularResult tabular = result.asTabular();
         assertNotNull(tabular.returnType());
-        assertInstanceOf(GenericType.Relation.class, tabular.returnType(),
+        assertInstanceOf(Type.Relation.class, tabular.returnType(),
                 "returnType should be Relation for tabular result");
         assertTrue(tabular.rowCount() > 0, "Should have rows");
         assertEquals(2, tabular.columnCount(), "Should have 2 columns (firstName, lastName)");

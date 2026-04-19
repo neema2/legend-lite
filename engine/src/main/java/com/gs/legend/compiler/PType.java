@@ -34,19 +34,14 @@ public sealed interface PType {
 
         /**
          * Bridges parse-time type to compile-time type.
-         * Maps this concrete Pure type name to the corresponding {@link com.gs.legend.plan.GenericType}.
-         * Returns null if the name doesn't map to a known GenericType (e.g., "JoinKind", "DurationUnit").
+         * Maps this concrete Pure type name to the corresponding {@link com.gs.legend.model.m3.Type}.
+         * Returns null if the name doesn't map to a known Type (e.g., "JoinKind", "DurationUnit").
          */
-        public com.gs.legend.plan.GenericType toGenericType() {
-            if ("Decimal".equals(name)) return com.gs.legend.plan.GenericType.DEFAULT_DECIMAL;
-            try {
-                // Use Primitive.fromTypeName — it throws for non-primitive types
-                // (DurationUnit, JoinKind, etc.) which are enum-like signature markers.
-                // GenericType.fromTypeName would silently return ClassType, hiding the distinction.
-                return com.gs.legend.plan.GenericType.Primitive.fromTypeName(name);
-            } catch (IllegalArgumentException e) {
-                return null;  // Non-primitive types (JoinKind, DurationUnit, etc.)
-            }
+        public com.gs.legend.model.m3.Type toGenericType() {
+            if ("Decimal".equals(name)) return com.gs.legend.model.m3.Type.DEFAULT_DECIMAL;
+            // Null signals a signature-layer marker like JoinKind / DurationUnit.
+            // Primitive.lookup() stays narrow until PType is deleted in chunk 2.5d.
+            return com.gs.legend.model.m3.Type.Primitive.lookup(name).orElse(null);
         }
     }
 

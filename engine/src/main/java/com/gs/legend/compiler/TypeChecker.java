@@ -31,7 +31,7 @@ import com.gs.legend.model.def.ProfileDefinition;
 import com.gs.legend.model.def.RuntimeDefinition;
 import com.gs.legend.model.def.ServiceDefinition;
 import com.gs.legend.parser.PureParser;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.*;
 
@@ -54,7 +54,7 @@ import java.util.*;
  * <li>Type checking — validate column/property existence</li>
  * <li>Type inference — derive result types for projections and computed
  * columns</li>
- * <li>GenericType.Relation.Schema propagation — track columns through the
+ * <li>Type.Schema propagation — track columns through the
  * pipeline</li>
  * </ul>
  */
@@ -356,38 +356,38 @@ public class TypeChecker implements TypeCheckEnv {
             case Variable v -> compileVariable(v, ctx);
             case AppliedProperty ap -> compileProperty(ap, ctx);
             case PackageableElementPtr pe -> resolvePackageableElement(pe);
-            case GenericTypeInstance gti -> scalarTyped(gti, GenericType.Primitive.STRING);
+            case TypeAnnotation ta -> scalarTyped(ta, Type.Primitive.STRING);
             case PureCollection coll -> compileCollection(coll, ctx);
             // Literals — scalar with known type
             case CInteger i -> scalarTyped(i, classifyInteger(i));
-            case CFloat f -> scalarTyped(f, GenericType.Primitive.FLOAT);
+            case CFloat f -> scalarTyped(f, Type.Primitive.FLOAT);
             case CDecimal d -> scalarTyped(d, classifyDecimal(d));
-            case CString s -> scalarTyped(s, GenericType.Primitive.STRING);
-            case CBoolean b -> scalarTyped(b, GenericType.Primitive.BOOLEAN);
-            case CDateTime dt -> scalarTyped(dt, GenericType.Primitive.DATE_TIME);
-            case CStrictDate sd -> scalarTyped(sd, GenericType.Primitive.STRICT_DATE);
-            case CStrictTime st -> scalarTyped(st, GenericType.Primitive.STRICT_TIME);
-            case CLatestDate ld -> scalarTyped(ld, GenericType.Primitive.DATE_TIME);
-            case CByteArray ba -> scalarTyped(ba, GenericType.Primitive.STRING);
-            case EnumValue ev -> scalarTyped(ev, new GenericType.EnumType(ev.fullPath()));
-            case UnitInstance ui -> scalarTyped(ui, GenericType.Primitive.FLOAT);
+            case CString s -> scalarTyped(s, Type.Primitive.STRING);
+            case CBoolean b -> scalarTyped(b, Type.Primitive.BOOLEAN);
+            case CDateTime dt -> scalarTyped(dt, Type.Primitive.DATE_TIME);
+            case CStrictDate sd -> scalarTyped(sd, Type.Primitive.STRICT_DATE);
+            case CStrictTime st -> scalarTyped(st, Type.Primitive.STRICT_TIME);
+            case CLatestDate ld -> scalarTyped(ld, Type.Primitive.DATE_TIME);
+            case CByteArray ba -> scalarTyped(ba, Type.Primitive.STRING);
+            case EnumValue ev -> scalarTyped(ev, new Type.EnumType(ev.fullPath()));
+            case UnitInstance ui -> scalarTyped(ui, Type.Primitive.FLOAT);
         };
     }
 
     // ========== PackageableElement Resolution ==========
 
     /**
-     * Resolves a PackageableElementPtr to the correct GenericType by looking up
+     * Resolves a PackageableElementPtr to the correct Type by looking up
      * the name in all available registries — analogous to legend-engine's
      * {@code CompileContext.resolvePackageableElement()}.
      *
      * <p>Resolution order:
      * <ol>
-     *   <li>Function registries (builtin + user) → {@link GenericType.FunctionReference}</li>
-     *   <li>Class registry → {@link GenericType.ClassType}</li>
-     *   <li>Mapping registry → {@link GenericType.ClassType} (named element)</li>
-     *   <li>Enum registry → {@link GenericType.EnumType}</li>
-     *   <li>Unresolved → {@link GenericType.ClassType} with full path
+     *   <li>Function registries (builtin + user) → {@link Type.FunctionReference}</li>
+     *   <li>Class registry → {@link Type.ClassType}</li>
+     *   <li>Mapping registry → {@link Type.ClassType} (named element)</li>
+     *   <li>Enum registry → {@link Type.EnumType}</li>
+     *   <li>Unresolved → {@link Type.ClassType} with full path
      *       (runtimes, stores — named elements not yet in registries)</li>
      * </ol>
      *
@@ -404,7 +404,7 @@ public class TypeChecker implements TypeCheckEnv {
         //    Direct match first (e.g., "removeDuplicates")
         if (builtinRegistry.isRegistered(name) || !modelContext.findFunction(path).isEmpty()
                 || !modelContext.findFunction(name).isEmpty()) {
-            return scalarTyped(pe, new GenericType.FunctionReference(path));
+            return scalarTyped(pe, new Type.FunctionReference(path));
         }
         //    Signature-encoded name (e.g., "eq_Any_1__Any_1__Boolean_1_"):
         //    Pure encodes function signatures as name_Type_mult__Type_mult__RetType_mult_
@@ -414,7 +414,7 @@ public class TypeChecker implements TypeCheckEnv {
             if (firstUnderscore > 0) {
                 String baseName = name.substring(0, firstUnderscore);
                 if (builtinRegistry.isRegistered(baseName)) {
-                    return scalarTyped(pe, new GenericType.FunctionReference(path));
+                    return scalarTyped(pe, new Type.FunctionReference(path));
                 }
             }
         }
@@ -423,17 +423,17 @@ public class TypeChecker implements TypeCheckEnv {
         var classOpt = modelContext.findClass(path);
         if (classOpt.isEmpty()) classOpt = modelContext.findClass(name);
         if (classOpt.isPresent()) {
-            return scalarTyped(pe, new GenericType.ClassType(classOpt.get().qualifiedName()));
+            return scalarTyped(pe, new Type.ClassType(classOpt.get().qualifiedName()));
         }
         if (modelContext.findEnum(path).isPresent() || modelContext.findEnum(name).isPresent()) {
-            return scalarTyped(pe, new GenericType.EnumType(path));
+            return scalarTyped(pe, new Type.EnumType(path));
         }
 
         // 3. Unresolved — named element reference (runtimes, stores, etc.)
         //    These are valid Pure elements not yet in our registries.
         //    Type as ClassType (a named reference) rather than STRING.
         //    TODO: Add findRuntime/findStore to ModelContext for full resolution.
-        return scalarTyped(pe, new GenericType.ClassType(path));
+        return scalarTyped(pe, new Type.ClassType(path));
     }
 
     // ========== Function Dispatch ==========
@@ -592,24 +592,25 @@ public class TypeChecker implements TypeCheckEnv {
 
             // Scalar param: compare compiled arg type vs declared type
             if (argInfo.type() != null) {
-                String declaredType = SymbolTable.extractSimpleName(paramDef.type());
-                if ("Any".equals(declaredType)) continue;
+                String declaredTypeFqn = paramDef.type();
+                String declaredSimple = SymbolTable.extractSimpleName(declaredTypeFqn);
+                if ("Any".equals(declaredSimple)) continue;
 
                 // Schema-aware check for Relation<(col:Type)> params
                 if (paramDef.parsedType() instanceof PType.Parameterized p
                         && "Relation".equals(p.rawType())
                         && !p.typeArgs().isEmpty()
                         && p.typeArgs().get(0) instanceof PType.RelationTypeVar) {
-                    GenericType declaredGeneric = resolvePTypeToGenericType(paramDef.parsedType());
+                    Type declaredGeneric = resolvePTypeToGenericType(paramDef.parsedType());
                     checkRelationSchemaCompatibility(
                             af.function(), paramDef.name(), argInfo.type(), declaredGeneric);
                     continue;
                 }
 
-                if (!isSubtype(argInfo.type(), GenericType.fromTypeName(declaredType))) {
+                if (!isSubtype(argInfo.type(), Type.resolve(declaredTypeFqn, modelContext))) {
                     throw new PureCompileException(
                             "Function '" + af.function() + "' parameter '" + paramDef.name()
-                                    + "' expects " + declaredType + " but got " + argInfo.type().typeName());
+                                    + "' expects " + declaredSimple + " but got " + argInfo.type().typeName());
                 }
             }
         }
@@ -662,20 +663,21 @@ public class TypeChecker implements TypeCheckEnv {
 
         // 9. Return type validation
         if (bodyResult.type() != null) {
-            String declaredReturn = SymbolTable.extractSimpleName(funcDef.returnType());
-            if (!"Any".equals(declaredReturn)) {
+            String declaredReturnFqn = funcDef.returnType();
+            String declaredReturnSimple = SymbolTable.extractSimpleName(declaredReturnFqn);
+            if (!"Any".equals(declaredReturnSimple)) {
                 // Schema-aware return check for Relation<(col:Type)> return types (covariant)
                 if (funcDef.parsedReturnType() instanceof PType.Parameterized p
                         && "Relation".equals(p.rawType())
                         && !p.typeArgs().isEmpty()
                         && p.typeArgs().get(0) instanceof PType.RelationTypeVar) {
-                    GenericType declaredGeneric = resolvePTypeToGenericType(funcDef.parsedReturnType());
+                    Type declaredGeneric = resolvePTypeToGenericType(funcDef.parsedReturnType());
                     // Covariant: body's actual schema must be ⊇ declared return schema
                     checkRelationSchemaCompatibility(
                             af.function(), "<return>", bodyResult.type(), declaredGeneric);
-                } else if (!isSubtype(bodyResult.type(), GenericType.fromTypeName(declaredReturn))) {
+                } else if (!isSubtype(bodyResult.type(), Type.resolve(declaredReturnFqn, modelContext))) {
                     throw new PureCompileException(
-                            "Function '" + af.function() + "' declares return type " + declaredReturn
+                            "Function '" + af.function() + "' declares return type " + declaredReturnSimple
                                     + " but body returns " + bodyResult.type().typeName());
                 }
             }
@@ -702,11 +704,12 @@ public class TypeChecker implements TypeCheckEnv {
         for (var candidate : arityMatches) {
             int matches = 0;
             for (int i = 0; i < candidate.parameters().size(); i++) {
-                String declaredType = SymbolTable.extractSimpleName(candidate.parameters().get(i).type());
-                if ("Any".equals(declaredType)) {
+                String declaredTypeFqn = candidate.parameters().get(i).type();
+                String declaredSimple = SymbolTable.extractSimpleName(declaredTypeFqn);
+                if ("Any".equals(declaredSimple)) {
                     matches++; // Any matches everything
                 } else if (argTypes.get(i).type() != null
-                        && isSubtype(argTypes.get(i).type(), GenericType.fromTypeName(declaredType))) {
+                        && isSubtype(argTypes.get(i).type(), Type.resolve(declaredTypeFqn, modelContext))) {
                     matches++;
                 }
             }
@@ -730,17 +733,17 @@ public class TypeChecker implements TypeCheckEnv {
      * Primitive hierarchy via Primitive.isSubtypeOf.
      * Class hierarchy via model superclass walk.
      */
-    private boolean isSubtype(GenericType actual, GenericType declared) {
+    private boolean isSubtype(Type actual, Type declared) {
         if (actual.typeName().equals(declared.typeName())) return true;
-        if (declared == GenericType.Primitive.ANY) return true;
+        if (declared == Type.Primitive.ANY) return true;
         if (actual.isPrimitive() && declared.isPrimitive()) {
             return actual.asPrimitive().isSubtypeOf(declared.asPrimitive());
         }
-        if (actual instanceof GenericType.ClassType ct && modelContext != null) {
+        if (actual instanceof Type.ClassType ct && modelContext != null) {
             var cls = modelContext.findClass(ct.qualifiedName());
             if (cls.isPresent()) {
                 for (String superFqn : cls.get().superClassFqns()) {
-                    if (isSubtype(new GenericType.ClassType(superFqn), declared)) {
+                    if (isSubtype(new Type.ClassType(superFqn), declared)) {
                         return true;
                     }
                 }
@@ -755,21 +758,21 @@ public class TypeChecker implements TypeCheckEnv {
      * Superset is OK — actual may have extra columns. Throws with precise diagnostics.
      */
     private void checkRelationSchemaCompatibility(
-            String funcName, String paramName, GenericType actualType, GenericType declaredType) {
-        if (!(declaredType instanceof GenericType.Relation declaredRel)) {
+            String funcName, String paramName, Type actualType, Type declaredType) {
+        if (!(declaredType instanceof Type.Relation declaredRel)) {
             throw new PureCompileException(
                     "Function '" + funcName + "' parameter '" + paramName
                             + "': internal error — expected Relation declared type but got " + declaredType.typeName());
         }
-        if (!(actualType instanceof GenericType.Relation actualRel)) {
+        if (!(actualType instanceof Type.Relation actualRel)) {
             throw new PureCompileException(
                     "Function '" + funcName + "' parameter '" + paramName
                             + "' expects Relation but got " + actualType.typeName());
         }
         for (var entry : declaredRel.schema().columns().entrySet()) {
             String colName = entry.getKey();
-            GenericType declaredColType = entry.getValue();
-            GenericType actualColType = actualRel.schema().columns().get(colName);
+            Type declaredColType = entry.getValue();
+            Type actualColType = actualRel.schema().columns().get(colName);
             if (actualColType == null) {
                 throw new PureCompileException(
                         "Function '" + funcName + "' parameter '" + paramName
@@ -826,7 +829,7 @@ public class TypeChecker implements TypeCheckEnv {
         int paramCount = Math.min(lambda.parameters().size(), expectedFT.paramTypes().size());
         for (int i = 0; i < paramCount; i++) {
             String paramName = lambda.parameters().get(i).name();
-            GenericType paramType = resolvePTypeToGenericType(expectedFT.paramTypes().get(i).type());
+            Type paramType = resolvePTypeToGenericType(expectedFT.paramTypes().get(i).type());
             lambdaCtx = lambdaCtx.withLambdaParam(paramName, paramType);
         }
 
@@ -838,10 +841,10 @@ public class TypeChecker implements TypeCheckEnv {
 
         // 3. Validate return type against expected
         if (bodyResult.type() != null && expectedFT.returnType() instanceof PType.Concrete c) {
-            GenericType expectedReturn = c.toGenericType();
+            Type expectedReturn = c.toGenericType();
             if (expectedReturn != null) {
                 String expectedName = expectedReturn.typeName();
-                if (!"Any".equals(expectedName) && !isSubtype(bodyResult.type(), GenericType.fromTypeName(expectedName))) {
+                if (!"Any".equals(expectedName) && !isSubtype(bodyResult.type(), Type.resolve(expectedName, modelContext))) {
                     throw new PureCompileException(
                             "Lambda return type mismatch: expected " + expectedName
                                     + " but body returns " + bodyResult.type().typeName());
@@ -857,27 +860,27 @@ public class TypeChecker implements TypeCheckEnv {
     }
 
     /**
-     * Converts a PType (parse-time type) to GenericType (compile-time type).
+     * Converts a PType (parse-time type) to Type (compile-time type).
      * Only concrete types are allowed in user function signatures — type variables
      * (generics) require a unification framework we don't have.
      */
-    private GenericType resolvePTypeToGenericType(PType ptype) {
+    private Type resolvePTypeToGenericType(PType ptype) {
         return switch (ptype) {
             case PType.Concrete c -> {
-                GenericType gt = c.toGenericType();
+                Type gt = c.toGenericType();
                 if (gt != null) yield gt;
                 // Non-primitive: try as class name
-                yield GenericType.fromTypeName(c.name());
+                yield Type.resolve(c.name(), modelContext);
             }
             case PType.Parameterized p when "Relation".equals(p.rawType())
                     && !p.typeArgs().isEmpty()
                     && p.typeArgs().get(0) instanceof PType.RelationTypeVar rtv -> {
-                // Relation<(col1:Type1, col2:Type2)> → GenericType.Relation(Schema)
-                var columns = new java.util.LinkedHashMap<String, GenericType>();
+                // Relation<(col1:Type1, col2:Type2)> → Type.Relation(Schema)
+                var columns = new java.util.LinkedHashMap<String, Type>();
                 for (var col : rtv.columns()) {
                     columns.put(col.name(), resolvePTypeToGenericType(col.type()));
                 }
-                yield new GenericType.Relation(GenericType.Relation.Schema.withoutPivot(columns));
+                yield new Type.Relation(Type.Schema.withoutPivot(columns));
             }
             case PType.TypeVar tv -> throw new PureCompileException(
                     "Type variables (generics) are not supported in user function signatures: " + tv.name());
@@ -915,7 +918,7 @@ public class TypeChecker implements TypeCheckEnv {
                     c.values().stream().map(v -> substituteParams(v, bindings)).toList());
             default -> node; // CInteger, CFloat, CDecimal, CString, CBoolean, CDateTime,
                              // CStrictDate, CStrictTime, CLatestDate, CByteArray, EnumValue,
-                             // UnitInstance, PackageableElementPtr, GenericTypeInstance,
+                             // UnitInstance, PackageableElementPtr, TypeAnnotation,
                              // ClassInstance — no Variable children
         };
     }
@@ -933,14 +936,14 @@ public class TypeChecker implements TypeCheckEnv {
         // This is a workaround — the correct fix is compiler-driven single→collection coercion.
         var ci = (ClassInstance) af.parameters().get(1);
         var data = (InstanceData) ci.value();
-        if (info.type() instanceof GenericType.ClassType(String qn) && modelContext != null) {
+        if (info.type() instanceof Type.ClassType(String qn) && modelContext != null) {
             var pureClass = modelContext.findClass(qn).orElse(null);
             if (pureClass != null) {
                 for (var entry : data.properties().entrySet()) {
                     var propOpt = pureClass.findProperty(entry.getKey(), modelContext);
                     if (propOpt.isPresent() && propOpt.get().isCollection()
                             && !(entry.getValue() instanceof PureCollection)) {
-                        GenericType propType = GenericType.fromM3Type(propOpt.get().type());
+                        Type propType = propOpt.get().type();
                         var valInfo = types.get(entry.getValue());
                         if (valInfo != null) {
                             types.put(entry.getValue(),
@@ -970,17 +973,7 @@ public class TypeChecker implements TypeCheckEnv {
         // Scope lambda params with their declared types
         CompilationContext lambdaCtx = ctx;
         for (var p : lf.parameters()) {
-            GenericType paramType = null;
-            if (p.typeName() != null) {
-                try {
-                    paramType = GenericType.Primitive.fromTypeName(p.typeName());
-                } catch (IllegalArgumentException e) {
-                    // Non-primitive type (class, enum) — resolve to FQN for consistent keys
-                    String resolvedName = modelContext.findClass(p.typeName())
-                            .map(c -> c.qualifiedName()).orElse(p.typeName());
-                    paramType = new GenericType.ClassType(resolvedName);
-                }
-            }
+            Type paramType = p.typeName() == null ? null : Type.resolve(p.typeName(), modelContext);
             lambdaCtx = lambdaCtx.withLambdaParam(p.name(), paramType);
         }
         if (lf.body().isEmpty()) {
@@ -1012,7 +1005,7 @@ public class TypeChecker implements TypeCheckEnv {
     }
 
     private TypeInfo compileVariable(Variable v, CompilationContext ctx) {
-        GenericType.Relation.Schema varType = ctx.getRelationType(v.name());
+        Type.Schema varType = ctx.getRelationType(v.name());
         if (varType != null) {
             return typed(v, varType);
         }
@@ -1029,7 +1022,7 @@ public class TypeChecker implements TypeCheckEnv {
             return inlined;
         }
         // Lambda parameter — mark in side table with declared type
-        GenericType lambdaType = ctx.getLambdaParamType(v.name());
+        Type lambdaType = ctx.getLambdaParamType(v.name());
         if (lambdaType != null) {
             var info = TypeInfo.builder()
                     .expressionType(ExpressionType.one(lambdaType)).lambdaParam(true).build();
@@ -1046,33 +1039,33 @@ public class TypeChecker implements TypeCheckEnv {
 
     private TypeInfo compileProperty(AppliedProperty ap, CompilationContext ctx) {
         if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof Variable v) {
-            GenericType.Relation.Schema relType = ctx.getRelationType(v.name());
+            Type.Schema relType = ctx.getRelationType(v.name());
             if (relType != null) {
                 relType.requireColumn(ap.property());
                 // Resolve the column's type from the RelationType
-                GenericType colType = relType.columns().get(ap.property());
+                Type colType = relType.columns().get(ap.property());
                 if (colType != null) {
                     return scalarTyped(ap, colType);
                 }
             }
             // Lambda param with Tuple: resolve column type from Schema
             // Tuple = T in Relation<T> = row schema type
-            GenericType paramType = ctx.getLambdaParamType(v.name());
-            if (paramType instanceof GenericType.Tuple t) {
+            Type paramType = ctx.getLambdaParamType(v.name());
+            if (paramType instanceof Type.Tuple t) {
                 t.schema().requireColumn(ap.property());
-                GenericType colType = t.schema().columns().get(ap.property());
+                Type colType = t.schema().columns().get(ap.property());
                 if (colType != null) {
                     return scalarTyped(ap, colType);
                 }
             }
             // Lambda param with ClassType: resolve field type from model context
-            if (paramType instanceof GenericType.ClassType(String qualifiedName) && modelContext != null) {
+            if (paramType instanceof Type.ClassType(String qualifiedName) && modelContext != null) {
                 var classOpt = modelContext.findClass(qualifiedName);
                 if (classOpt.isPresent()) {
                     var propOpt = classOpt.get().findProperty(ap.property(), modelContext);
                     if (propOpt.isPresent()) {
                         classPropertyAccesses.computeIfAbsent(qualifiedName, k -> new HashSet<>()).add(ap.property());
-                        GenericType fieldType = GenericType.fromM3Type(propOpt.get().type());
+                        Type fieldType = propOpt.get().type();
                         var info = TypeInfo.builder()
                                 .expressionType(ExpressionType.one(fieldType))
                                 .associationPath(List.of(ap.property()))
@@ -1089,7 +1082,7 @@ public class TypeChecker implements TypeCheckEnv {
                 if (assocNav.isPresent()) {
                     var nav = assocNav.get();
                     associationNavigations.computeIfAbsent(qualifiedName, k -> new HashSet<>()).add(ap.property());
-                    GenericType targetType = new GenericType.ClassType(nav.targetClassName());
+                    Type targetType = new Type.ClassType(nav.targetClassName());
                     var info = TypeInfo.builder()
                             .expressionType(nav.isToMany()
                                     ? ExpressionType.many(targetType)
@@ -1129,8 +1122,8 @@ public class TypeChecker implements TypeCheckEnv {
             }
             // .prop on a Tuple (row from offset functions like lead/lag/nth/first):
             // Resolve column type directly — no project() desugaring needed.
-            if (ownerInfo != null && ownerInfo.type() instanceof GenericType.Tuple rt) {
-                GenericType colType = rt.schema().getColumnType(ap.property());
+            if (ownerInfo != null && ownerInfo.type() instanceof Type.Tuple rt) {
+                Type colType = rt.schema().getColumnType(ap.property());
                 if (colType != null) {
                     return scalarTyped(ap, colType);
                 }
@@ -1145,8 +1138,8 @@ public class TypeChecker implements TypeCheckEnv {
                 var colSpecCI = new ClassInstance("colSpec", colSpec);
                 var projectNode = new AppliedFunction("project", List.of(ownerFn, colSpecCI));
                 TypeInfo projectInfo = compileExpr(projectNode, ctx);
-                // Extract the column's GenericType for the return type
-                GenericType colType = ownerInfo.schema().getColumnType(ap.property());
+                // Extract the column's Type for the return type
+                Type colType = ownerInfo.schema().getColumnType(ap.property());
                 ExpressionType propExprType = colType != null
                         ? ExpressionType.many(colType) // String[*], Integer[*], etc.
                         : null;
@@ -1159,12 +1152,12 @@ public class TypeChecker implements TypeCheckEnv {
             }
             // .prop on a ClassType result (e.g., at(1) returning a single struct)
             // → synthesize structExtract(ownerFn, 'prop')
-            if (ownerInfo != null && ownerInfo.type() instanceof GenericType.ClassType) {
+            if (ownerInfo != null && ownerInfo.type() instanceof Type.ClassType) {
                 var extractNode = new AppliedFunction("structExtract",
                         List.of(ownerFn, new CString(ap.property())));
                 var info = TypeInfo.builder()
                         .inlinedBody(extractNode)
-                        .expressionType(ExpressionType.one(GenericType.Primitive.ANY)).build();
+                        .expressionType(ExpressionType.one(Type.Primitive.ANY)).build();
                 types.put(ap, info);
                 return info;
             }
@@ -1177,9 +1170,9 @@ public class TypeChecker implements TypeCheckEnv {
             TypeInfo ownerInfo = compileExpr(ownerAp, ctx);
             if (ownerInfo != null && modelContext != null) {
                 // Extract the ClassType — type is now directly Address, not List<Address>
-                GenericType ownerType = ownerInfo.type();
+                Type ownerType = ownerInfo.type();
                 String className = null;
-                if (ownerType instanceof GenericType.ClassType(String qn)) {
+                if (ownerType instanceof Type.ClassType(String qn)) {
                     className = qn;
                 }
                 if (className != null) {
@@ -1187,7 +1180,7 @@ public class TypeChecker implements TypeCheckEnv {
                     if (classOpt.isPresent()) {
                         var propOpt = classOpt.get().findProperty(ap.property(), modelContext);
                         if (propOpt.isPresent()) {
-                            GenericType fieldType = GenericType.fromM3Type(propOpt.get().type());
+                            Type fieldType = propOpt.get().type();
                             List<String> assocPath = collectPropertyChain(ap);
                             var info = TypeInfo.builder()
                                     .expressionType(ExpressionType.one(fieldType))
@@ -1202,7 +1195,7 @@ public class TypeChecker implements TypeCheckEnv {
                     if (assocNav.isPresent()) {
                         var nav = assocNav.get();
                         associationNavigations.computeIfAbsent(className, k -> new HashSet<>()).add(ap.property());
-                        GenericType targetType = new GenericType.ClassType(nav.targetClassName());
+                        Type targetType = new Type.ClassType(nav.targetClassName());
                         List<String> assocPath = collectPropertyChain(ap);
                         var info = TypeInfo.builder()
                                 .expressionType(nav.isToMany()
@@ -1240,13 +1233,13 @@ public class TypeChecker implements TypeCheckEnv {
                 List.of(structSource, new CString(ap.property())));
         // Resolve type from model — the struct source has ClassType
         TypeInfo srcInfo = types.get(structSource);
-        GenericType fieldType = GenericType.Primitive.ANY;
-        if (srcInfo != null && srcInfo.type() instanceof GenericType.ClassType(String qn) && modelContext != null) {
+        Type fieldType = Type.Primitive.ANY;
+        if (srcInfo != null && srcInfo.type() instanceof Type.ClassType(String qn) && modelContext != null) {
             var classOpt = modelContext.findClass(qn);
             if (classOpt.isPresent()) {
                 var propOpt = classOpt.get().findProperty(ap.property(), modelContext);
                 if (propOpt.isPresent()) {
-                    fieldType = GenericType.fromM3Type(propOpt.get().type());
+                    fieldType = propOpt.get().type();
                 }
             }
         }
@@ -1262,7 +1255,7 @@ public class TypeChecker implements TypeCheckEnv {
         for (var v : coll.values()) {
             compileExpr(v, ctx);
         }
-        GenericType elementType = unifyElementType(coll.values());
+        Type elementType = unifyElementType(coll.values());
         // For struct collections, propagate instanceLiteral from first element
         if (!coll.values().isEmpty()) {
             TypeInfo firstElem = types.get(coll.values().get(0));
@@ -1279,27 +1272,27 @@ public class TypeChecker implements TypeCheckEnv {
     }
 
     /**
-     * Infers GenericType from a ValueSpecification AST node.
+     * Infers Type from a ValueSpecification AST node.
      * Used for type unification in collections.
      */
-    private GenericType typeOf(ValueSpecification vs) {
+    private Type typeOf(ValueSpecification vs) {
         // Check side table first (for compiled sub-expressions)
         TypeInfo info = types.get(vs);
         if (info != null && info.type() != null)
             return info.type();
         // Fall back to pattern matching on literal types
         return switch (vs) {
-            case CInteger i -> GenericType.Primitive.INTEGER;
-            case CFloat f -> GenericType.Primitive.FLOAT;
-            case CDecimal d -> GenericType.DEFAULT_DECIMAL;
-            case CString s -> GenericType.Primitive.STRING;
-            case CBoolean b -> GenericType.Primitive.BOOLEAN;
-            case CDateTime dt -> GenericType.Primitive.DATE_TIME;
-            case CStrictDate sd -> GenericType.Primitive.STRICT_DATE;
-            case CStrictTime st -> GenericType.Primitive.STRICT_TIME;
-            case CLatestDate ld -> GenericType.Primitive.DATE_TIME;
+            case CInteger i -> Type.Primitive.INTEGER;
+            case CFloat f -> Type.Primitive.FLOAT;
+            case CDecimal d -> Type.DEFAULT_DECIMAL;
+            case CString s -> Type.Primitive.STRING;
+            case CBoolean b -> Type.Primitive.BOOLEAN;
+            case CDateTime dt -> Type.Primitive.DATE_TIME;
+            case CStrictDate sd -> Type.Primitive.STRICT_DATE;
+            case CStrictTime st -> Type.Primitive.STRICT_TIME;
+            case CLatestDate ld -> Type.Primitive.DATE_TIME;
             case PureCollection c -> unifyElementType(c.values());
-            default -> GenericType.Primitive.ANY;
+            default -> Type.Primitive.ANY;
         };
     }
 
@@ -1309,43 +1302,43 @@ public class TypeChecker implements TypeCheckEnv {
      * ClassType,
      * all ClassTypes with common supertype → LCA ClassType, mixed → ANY.
      */
-    private GenericType unifyElementType(java.util.List<ValueSpecification> values) {
+    private Type unifyElementType(java.util.List<ValueSpecification> values) {
         if (values.isEmpty())
-            return GenericType.Primitive.ANY;
+            return Type.Primitive.ANY;
         var elementTypes = values.stream().map(this::typeOf).distinct().toList();
         if (elementTypes.size() == 1)
             return elementTypes.getFirst();
-        if (elementTypes.stream().allMatch(GenericType::isNumeric))
-            return GenericType.Primitive.NUMBER;
-        if (elementTypes.stream().allMatch(GenericType::isTemporal))
-            return GenericType.Primitive.DATE;
+        if (elementTypes.stream().allMatch(Type::isNumeric))
+            return Type.Primitive.NUMBER;
+        if (elementTypes.stream().allMatch(Type::isTemporal))
+            return Type.Primitive.DATE;
         // All ClassTypes: try to find common supertype
-        if (elementTypes.stream().allMatch(t -> t instanceof GenericType.ClassType) && modelContext != null) {
+        if (elementTypes.stream().allMatch(t -> t instanceof Type.ClassType) && modelContext != null) {
             var classTypes = elementTypes.stream()
-                    .map(t -> ((GenericType.ClassType) t).qualifiedName()).toList();
+                    .map(t -> ((Type.ClassType) t).qualifiedName()).toList();
             // Pairwise LCA reduction
             String current = classTypes.get(0);
             for (int i = 1; i < classTypes.size(); i++) {
                 var lcaOpt = modelContext.findLowestCommonAncestor(current, classTypes.get(i));
                 if (lcaOpt.isEmpty())
-                    return GenericType.Primitive.ANY;
+                    return Type.Primitive.ANY;
                 current = lcaOpt.get().qualifiedName();
             }
-            return new GenericType.ClassType(current);
+            return new Type.ClassType(current);
         }
-        return GenericType.Primitive.ANY;
+        return Type.Primitive.ANY;
     }
 
     // ========== Compilation Context ==========
 
     /**
-     * Context for compilation — tracks variable → GenericType.Relation.Schema and
+     * Context for compilation — tracks variable → Type.Schema and
      * variable →
      * Mapping bindings.
      */
     public record CompilationContext(
-            Map<String, GenericType.Relation.Schema> relationTypes,
-            Map<String, GenericType> lambdaParams,
+            Map<String, Type.Schema> relationTypes,
+            Map<String, Type> lambdaParams,
             Map<String, ValueSpecification> letBindings,
             int inlineDepth) {
 
@@ -1355,13 +1348,13 @@ public class TypeChecker implements TypeCheckEnv {
             this(Map.of(), Map.of(), Map.of(), 0);
         }
 
-        public CompilationContext withRelationType(String paramName, GenericType.Relation.Schema type) {
+        public CompilationContext withRelationType(String paramName, Type.Schema type) {
             var newTypes = new HashMap<>(relationTypes);
             newTypes.put(paramName, type);
             return new CompilationContext(Map.copyOf(newTypes), lambdaParams, letBindings, inlineDepth);
         }
 
-        public CompilationContext withLambdaParam(String name, GenericType type) {
+        public CompilationContext withLambdaParam(String name, Type type) {
             var m = new HashMap<>(lambdaParams);
             m.put(name, type); // type may be null for untyped params (e.g., forAll(e|...))
             return new CompilationContext(relationTypes, Collections.unmodifiableMap(m), letBindings, inlineDepth);
@@ -1386,7 +1379,7 @@ public class TypeChecker implements TypeCheckEnv {
             return lambdaParams.containsKey(name);
         }
 
-        public GenericType getLambdaParamType(String name) {
+        public Type getLambdaParamType(String name) {
             return lambdaParams.get(name);
         }
 
@@ -1394,7 +1387,7 @@ public class TypeChecker implements TypeCheckEnv {
             return letBindings.get(name);
         }
 
-        public GenericType.Relation.Schema getRelationType(String name) {
+        public Type.Schema getRelationType(String name) {
             return relationTypes.get(name);
         }
 
@@ -1408,15 +1401,15 @@ public class TypeChecker implements TypeCheckEnv {
      * INT64 for values that fit in 64-bit but exceed INT32 range.
      * INT128 for BigInteger values exceeding INT64 range.
      */
-    private static GenericType classifyInteger(CInteger ci) {
+    private static Type classifyInteger(CInteger ci) {
         if (ci.value() instanceof java.math.BigInteger) {
-            return GenericType.Primitive.INT128;
+            return Type.Primitive.INT128;
         }
         long v = ci.value().longValue();
         if (v > Integer.MAX_VALUE || v < Integer.MIN_VALUE) {
-            return GenericType.Primitive.INT128;
+            return Type.Primitive.INT128;
         }
-        return GenericType.Primitive.INTEGER;
+        return Type.Primitive.INTEGER;
     }
 
     /**
@@ -1425,22 +1418,22 @@ public class TypeChecker implements TypeCheckEnv {
      * to preserve DECIMAL type in SQL instead of being coerced to INTEGER.
      * DECIMAL for decimals with fractional parts.
      */
-    private static GenericType classifyDecimal(CDecimal d) {
+    private static Type classifyDecimal(CDecimal d) {
         java.math.BigDecimal v = d.value();
         int scale = v.scale();
         if (scale <= 0) {
             // Integer-valued decimal (e.g., 17774D) — preserve DECIMAL type
-            return new GenericType.PrecisionDecimal(38, 0);
+            return new Type.PrecisionDecimal(38, 0);
         }
         // Use actual scale from the literal (e.g., 19.905D → scale=3)
-        return new GenericType.PrecisionDecimal(38, scale);
+        return new Type.PrecisionDecimal(38, scale);
     }
 
 
     // ========== Type Registration Utilities ==========
 
-    /** Registers a scalar TypeInfo with a known GenericType (multiplicity ONE). */
-    private TypeInfo scalarTyped(ValueSpecification ast, GenericType type) {
+    /** Registers a scalar TypeInfo with a known Type (multiplicity ONE). */
+    private TypeInfo scalarTyped(ValueSpecification ast, Type type) {
         var info = TypeInfo.builder().expressionType(ExpressionType.one(type)).build();
         types.put(ast, info);
         return info;
@@ -1450,7 +1443,7 @@ public class TypeChecker implements TypeCheckEnv {
      * Registers a scalar TypeInfo with Multiplicity.MANY — produces N independent
      * values.
      */
-    private TypeInfo scalarTypedMany(ValueSpecification ast, GenericType type) {
+    private TypeInfo scalarTypedMany(ValueSpecification ast, Type type) {
         var info = TypeInfo.builder().expressionType(ExpressionType.many(type)).build();
         types.put(ast, info);
         return info;
@@ -1460,9 +1453,9 @@ public class TypeChecker implements TypeCheckEnv {
      * Registers a relational TypeInfo in the side table and returns it.
      * All relational type registration in TypeChecker goes through this method.
      */
-    private TypeInfo typed(ValueSpecification ast, GenericType.Relation.Schema relationType) {
+    private TypeInfo typed(ValueSpecification ast, Type.Schema relationType) {
         var info = TypeInfo.builder()
-                .expressionType(ExpressionType.one(new GenericType.Relation(relationType))).build();
+                .expressionType(ExpressionType.one(new Type.Relation(relationType))).build();
         types.put(ast, info);
         return info;
     }

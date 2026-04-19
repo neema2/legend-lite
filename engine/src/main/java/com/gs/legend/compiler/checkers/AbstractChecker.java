@@ -3,7 +3,7 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
 import com.gs.legend.model.m3.Multiplicity;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -15,7 +15,7 @@ import java.util.Map;
  * <p>Provides signature-driven validation infrastructure:
  * <ul>
  *   <li>{@link #unify} — validate + bind type variables from signature against actuals</li>
- *   <li>{@link #resolve} — resolve a PType to GenericType using bindings</li>
+ *   <li>{@link #resolve} — resolve a PType to Type using bindings</li>
  *   <li>{@link #resolveMult} — resolve a Mult to Multiplicity</li>
  *   <li>{@link #bindLambdaParam} — bind lambda param in CompilationContext</li>
  *   <li>{@link #resolveOutput} — construct output ExpressionType from signature return type</li>
@@ -48,17 +48,17 @@ public abstract class AbstractChecker implements FunctionChecker {
      * compatibility — most callers only interact with type vars directly.
      */
     protected static class Bindings {
-        private final Map<String, GenericType> types = new LinkedHashMap<>();
+        private final Map<String, Type> types = new LinkedHashMap<>();
         private final Map<String, Multiplicity> mults = new LinkedHashMap<>();
 
-        public Map<String, GenericType> types() { return types; }
+        public Map<String, Type> types() { return types; }
         public Map<String, Multiplicity> mults() { return mults; }
 
         // Delegates to type-var map for zero-churn backward compat
-        public GenericType get(String key) { return types.get(key); }
-        public void put(String key, GenericType value) { types.put(key, value); }
+        public Type get(String key) { return types.get(key); }
+        public void put(String key, Type value) { types.put(key, value); }
         public boolean containsKey(String key) { return types.containsKey(key); }
-        public GenericType getOrDefault(String key, GenericType defaultValue) {
+        public Type getOrDefault(String key, Type defaultValue) {
             return types.getOrDefault(key, defaultValue);
         }
     }
@@ -226,28 +226,27 @@ public abstract class AbstractChecker implements FunctionChecker {
      * Scores a single param: declared type vs actual compiled type.
      * Returns 2 for exact, 1 for subtype, 0 for TypeVar/Any, -1 for incompatible.
      */
-    private int scoreParamType(PType declaredType, GenericType actualType) {
+    private int scoreParamType(PType declaredType, Type actualType) {
         if (declaredType instanceof PType.Concrete c) {
             // Normalize PrecisionDecimal → DECIMAL for scoring
-            if (actualType instanceof GenericType.PrecisionDecimal) {
-                actualType = GenericType.Primitive.DECIMAL;
+            if (actualType instanceof Type.PrecisionDecimal) {
+                actualType = Type.Primitive.DECIMAL;
             }
             // EnumType: exact match if names equal, else incompatible
-            if (actualType instanceof GenericType.EnumType et) {
+            if (actualType instanceof Type.EnumType et) {
                 return et.typeName().equals(c.name()) ? 2 : -1;
             }
             if ("Any".equals(c.name())) return 0; // Any accepts everything, lowest priority
-            if (!(actualType instanceof GenericType.Primitive actualPrim)) {
+            if (!(actualType instanceof Type.Primitive actualPrim)) {
                 return -1;
             }
-            try {
-                GenericType.Primitive declared = GenericType.Primitive.fromTypeName(c.name());
-                if (actualPrim == declared) return 2;           // exact match
-                if (actualPrim.isSubtypeOf(declared)) return 1; // subtype match
-                return -1; // incompatible
-            } catch (IllegalArgumentException e) {
-                return -1;
-            }
+            // lookup() stays narrow — signature-marker names (JoinKind, DurationUnit)
+            // are neither primitives nor in ModelContext. Dies with PType in chunk 2.5d.
+            Type.Primitive declared = Type.Primitive.lookup(c.name()).orElse(null);
+            if (declared == null) return -1;
+            if (actualPrim == declared) return 2;            // exact match
+            if (actualPrim.isSubtypeOf(declared)) return 1;  // subtype match
+            return -1;                                        // incompatible
         }
         // TypeVar or Parameterized — always applicable but lowest priority
         return 0;
@@ -325,7 +324,7 @@ public abstract class AbstractChecker implements FunctionChecker {
             PType expected = sigParam.type();
             ValueSpecification actual = params.get(i);
             ExpressionType compiledExpr = compiledTypes.get(i);
-            GenericType compiledType = compiledExpr != null ? compiledExpr.type() : null;
+            Type compiledType = compiledExpr != null ? compiledExpr.type() : null;
             boolean sm = structuralMatch(expected, actual, source, i == 0, compiledType);
             if (!sm) {
                 return false;
@@ -350,7 +349,7 @@ public abstract class AbstractChecker implements FunctionChecker {
      */
     private boolean structuralMatch(PType expected, ValueSpecification actual,
                                     TypeInfo source, boolean isSource,
-                                    GenericType compiledType) {
+                                    Type compiledType) {
         // PureCollection wraps multiple elements (e.g., [ascending(~id), ascending(~name)])
         // For Concrete types with a compiled collection type, use that directly —
         // recursing into elements loses the compiled type context.
@@ -366,7 +365,7 @@ public abstract class AbstractChecker implements FunctionChecker {
             return switch (p.rawType()) {
                 case "Relation" -> isSource
                         ? (source != null && source.isRelational())
-                        : (compiledType instanceof GenericType.Relation)
+                        : (compiledType instanceof Type.Relation)
                           || (actual instanceof ClassInstance ci && "relation".equals(ci.type()));
                 case "ColSpec"
                         -> actual instanceof ClassInstance ci && "colSpec".equals(ci.type());
@@ -393,7 +392,7 @@ public abstract class AbstractChecker implements FunctionChecker {
                     && !"traverse".equals(simpleName(af.function()));
                 case "Rows", "_Range" -> actual instanceof AppliedFunction;
                 default -> isSource && source != null
-                        && source.type() instanceof GenericType.Parameterized gp
+                        && source.type() instanceof Type.Parameterized gp
                         && p.rawType().equals(gp.rawType());
             };
         }
@@ -435,29 +434,25 @@ public abstract class AbstractChecker implements FunctionChecker {
      * Checks if a compiled type is compatible with a declared Concrete type name.
      * Compatible means: exact match or the actual type is a subtype of the declared type.
      */
-    private boolean isConcreteCompatible(String declaredName, GenericType actualType) {
+    private boolean isConcreteCompatible(String declaredName, Type actualType) {
         // EnumType: match if the enum's simple name equals the declared name
-        if (actualType instanceof GenericType.EnumType et) {
+        if (actualType instanceof Type.EnumType et) {
             return et.typeName().equals(declaredName);
         }
         // PrecisionDecimal → normalize to Primitive.DECIMAL for subtype checks
-        if (actualType instanceof GenericType.PrecisionDecimal) {
-            actualType = GenericType.Primitive.DECIMAL;
+        if (actualType instanceof Type.PrecisionDecimal) {
+            actualType = Type.Primitive.DECIMAL;
         }
-        if (!(actualType instanceof GenericType.Primitive actualPrim)) {
+        if (!(actualType instanceof Type.Primitive actualPrim)) {
             // Non-primitive (ClassType, Relation, etc.) — only "Any" accepts these
             return "Any".equals(declaredName);
         }
-        try {
-            GenericType.Primitive declared = GenericType.Primitive.fromTypeName(declaredName);
-            // Any (from empty collections []) is covariant with all types
-            if (actualPrim == GenericType.Primitive.ANY) {
-                return true;
-            }
-            return actualPrim == declared || actualPrim.isSubtypeOf(declared);
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
+        // lookup() stays narrow here too — dies with PType in chunk 2.5d.
+        Type.Primitive declared = Type.Primitive.lookup(declaredName).orElse(null);
+        if (declared == null) return false;
+        // Any (from empty collections []) is covariant with all types
+        if (actualPrim == Type.Primitive.ANY) return true;
+        return actualPrim == declared || actualPrim.isSubtypeOf(declared);
     }
 
 
@@ -494,7 +489,7 @@ public abstract class AbstractChecker implements FunctionChecker {
         // uses [*] for table()/typed() sources, but signatures say [1].
         // The [1] means "one relation container", not "one row".
         // TODO: Fix table()/typed() to return Relation<T>[1], then enable this check.
-        if (!(source.type() instanceof GenericType.Relation)) {
+        if (!(source.type() instanceof Type.Relation)) {
             validateMult(param0.mult(), source.multiplicity(), def.name() + "() source");
         }
 
@@ -549,30 +544,30 @@ public abstract class AbstractChecker implements FunctionChecker {
      * Called by subclasses (e.g., ScalarChecker) for source-less functions like rowMapper(val, key)
      * where type vars must be bound from the argument types rather than from a source expression.
      */
-    protected void unifyParam(PType.Param sigParam, GenericType actualType,
+    protected void unifyParam(PType.Param sigParam, Type actualType,
                                Bindings bindings, String context) {
         unifyType(sigParam.type(), actualType, bindings, context);
     }
 
     /**
-     * Recursively matches a PType against a GenericType, populating type variable bindings.
+     * Recursively matches a PType against a Type, populating type variable bindings.
      * No silent skips — every case either binds, validates, or throws.
      */
-    private void unifyType(PType expected, GenericType actual,
+    private void unifyType(PType expected, Type actual,
                            Bindings bindings, String context) {
         switch (expected) {
             case PType.TypeVar v -> {
                 // Normalize: PrecisionDecimal → DECIMAL
-                GenericType normalized = actual;
-                if (normalized instanceof GenericType.PrecisionDecimal) {
-                    normalized = GenericType.Primitive.DECIMAL;
+                Type normalized = actual;
+                if (normalized instanceof Type.PrecisionDecimal) {
+                    normalized = Type.Primitive.DECIMAL;
                 }
-                GenericType existing = bindings.get(v.name());
+                Type existing = bindings.get(v.name());
                 if (existing != null) {
                     // Check compatibility: normalize existing for comparison too
-                    GenericType existNorm = existing;
-                    if (existNorm instanceof GenericType.PrecisionDecimal) {
-                        existNorm = GenericType.Primitive.DECIMAL;
+                    Type existNorm = existing;
+                    if (existNorm instanceof Type.PrecisionDecimal) {
+                        existNorm = Type.Primitive.DECIMAL;
                     }
                     if (!existNorm.typeName().equals(normalized.typeName())
                             && !"Any".equals(existing.typeName())
@@ -587,7 +582,7 @@ public abstract class AbstractChecker implements FunctionChecker {
             }
             case PType.Parameterized p -> {
                 if ("Relation".equals(p.rawType())) {
-                    if (!(actual instanceof GenericType.Relation rel)) {
+                    if (!(actual instanceof Type.Relation rel)) {
                         throw new PureCompileException(
                                 context + ": expected Relation, got " + actual.typeName());
                     }
@@ -595,14 +590,14 @@ public abstract class AbstractChecker implements FunctionChecker {
                     // In Pure/relational algebra, T in Relation<T> is a single tuple's shape,
                     // so lead<T>() returning T[0..1] gives Tuple[0..1] (a row), not Relation[0..1].
                     for (var typeArg : p.typeArgs()) {
-                        unifyType(typeArg, new GenericType.Tuple(rel.schema()), bindings, context);
+                        unifyType(typeArg, new Type.Tuple(rel.schema()), bindings, context);
                     }
                 } else if ("Function".equals(p.rawType())
-                        && actual instanceof GenericType.FunctionReference) {
+                        && actual instanceof Type.FunctionReference) {
                     // FunctionReference (bare function name like eq_Any_1__...) is a
                     // Function value — accept without deep type-arg unification.
                     // Analogous to legend-engine's isPackageableElementSubtypeOfFunction.
-                } else if (actual instanceof GenericType.Parameterized gp
+                } else if (actual instanceof Type.Parameterized gp
                         && p.rawType().equals(gp.rawType())) {
                     // Generic parameterized: RowMapper<T,U>, Pair<T,U>, List<T>, etc.
                     // Unify type arguments pairwise
@@ -615,11 +610,11 @@ public abstract class AbstractChecker implements FunctionChecker {
                 }
             }
             case PType.Concrete c -> {
-                GenericType g = c.toGenericType();
+                Type g = c.toGenericType();
                 if (g == null) {
                     // Non-primitive signature type (DurationUnit, JoinKind, etc.)
                     // — validate that the actual is an EnumType with matching FQN
-                    if (actual instanceof GenericType.EnumType et) {
+                    if (actual instanceof Type.EnumType et) {
                         if (!et.qualifiedName().equals(c.name())) {
                             throw new PureCompileException(
                                     context + ": expected " + c.name() + ", got " + et.qualifiedName());
@@ -632,23 +627,23 @@ public abstract class AbstractChecker implements FunctionChecker {
                 }
                 // Use subtype hierarchy: Integer is subtype of Number, Number of Any, etc.
                 // Any is the top type — accepts everything
-                if (g == GenericType.Primitive.ANY) {
+                if (g == Type.Primitive.ANY) {
                     return; // Any accepts all types
                 }
                 // Normalize actual AND signature type:
                 //   PrecisionDecimal → DECIMAL (for both)
-                GenericType gNorm = g;
-                if (gNorm instanceof GenericType.PrecisionDecimal) {
-                    gNorm = GenericType.Primitive.DECIMAL;
+                Type gNorm = g;
+                if (gNorm instanceof Type.PrecisionDecimal) {
+                    gNorm = Type.Primitive.DECIMAL;
                 }
-                GenericType norm = actual;
-                if (norm instanceof GenericType.PrecisionDecimal) {
-                    norm = GenericType.Primitive.DECIMAL;
+                Type norm = actual;
+                if (norm instanceof Type.PrecisionDecimal) {
+                    norm = Type.Primitive.DECIMAL;
                 }
-                if (gNorm instanceof GenericType.Primitive expectedPrim
-                        && norm instanceof GenericType.Primitive actualPrim) {
+                if (gNorm instanceof Type.Primitive expectedPrim
+                        && norm instanceof Type.Primitive actualPrim) {
                     // Any (from empty collections []) is covariant with all types
-                    if (actualPrim == GenericType.Primitive.ANY) {
+                    if (actualPrim == Type.Primitive.ANY) {
                         return;
                     }
                     if (!actualPrim.isSubtypeOf(expectedPrim)) {
@@ -675,13 +670,13 @@ public abstract class AbstractChecker implements FunctionChecker {
     // ========== Type resolution ==========
 
     /**
-     * Resolves a PType to a GenericType using type variable bindings.
+     * Resolves a PType to a Type using type variable bindings.
      * Every case either resolves or throws — no null returns.
      */
-    protected GenericType resolve(PType type, Bindings bindings, String context) {
+    protected Type resolve(PType type, Bindings bindings, String context) {
         return switch (type) {
             case PType.TypeVar v -> {
-                GenericType resolved = bindings.get(v.name());
+                Type resolved = bindings.get(v.name());
                 if (resolved == null) {
                     throw new PureCompileException(
                             context + ": unbound type variable " + v.name());
@@ -689,22 +684,22 @@ public abstract class AbstractChecker implements FunctionChecker {
                 yield resolved;
             }
             case PType.Concrete c -> {
-                GenericType g = c.toGenericType();
+                Type g = c.toGenericType();
                 if (g == null) {
                     // Non-primitive: look up against model as enum or class
                     var modelCtx = env.modelContext();
                     if (modelCtx != null && modelCtx.findEnum(c.name()).isPresent()) {
-                        yield new GenericType.EnumType(c.name());
+                        yield new Type.EnumType(c.name());
                     }
                     if (modelCtx != null) {
                         var classOpt = modelCtx.findClass(c.name());
                         if (classOpt.isPresent()) {
-                            yield new GenericType.ClassType(classOpt.get().qualifiedName());
+                            yield new Type.ClassType(classOpt.get().qualifiedName());
                         }
                     }
                     // Meta-model types that map to String in SQL context
                     if ("Type".equals(c.name())) {
-                        yield GenericType.Primitive.STRING;
+                        yield Type.Primitive.STRING;
                     }
                     throw new PureCompileException(
                             context + ": unresolvable concrete type: " + c.name());
@@ -713,33 +708,33 @@ public abstract class AbstractChecker implements FunctionChecker {
             }
             case PType.Parameterized p -> {
                 if ("Relation".equals(p.rawType()) && !p.typeArgs().isEmpty()) {
-                    GenericType inner = resolve(p.typeArgs().get(0), bindings, context);
+                    Type inner = resolve(p.typeArgs().get(0), bindings, context);
                     // Reconstruct Relation from Tuple: Relation<T> where T=Tuple(schema)
-                    // → GenericType.Relation(schema). Functions like filter() return Relation<T>[1].
-                    if (inner instanceof GenericType.Tuple t) {
-                        yield new GenericType.Relation(t.schema());
+                    // → Type.Relation(schema). Functions like filter() return Relation<T>[1].
+                    if (inner instanceof Type.Tuple t) {
+                        yield new Type.Relation(t.schema());
                     }
                     yield inner; // fallback: already a Relation from direct binding
                 }
                 // Generic parameterized: RowMapper<T,U>, Pair<T,U>, List<T>, etc.
-                List<GenericType> resolvedArgs = p.typeArgs().stream()
+                List<Type> resolvedArgs = p.typeArgs().stream()
                         .map(a -> resolve(a, bindings, context)).toList();
-                yield new GenericType.Parameterized(p.rawType(), resolvedArgs);
+                yield new Type.Parameterized(p.rawType(), resolvedArgs);
             }
             case PType.SchemaAlgebra sa -> {
-                GenericType left = resolve(sa.left(), bindings, context);
-                GenericType right = resolve(sa.right(), bindings, context);
+                Type left = resolve(sa.left(), bindings, context);
+                Type right = resolve(sa.right(), bindings, context);
                 yield resolveSchemaAlgebra(left, right, sa.op(), context);
             }
             case PType.FunctionType ft -> throw new PureCompileException(
-                    context + ": cannot resolve FunctionType to GenericType");
+                    context + ": cannot resolve FunctionType to Type");
             case PType.RelationTypeVar rtv -> throw new PureCompileException(
-                    context + ": cannot resolve RelationTypeVar to GenericType");
+                    context + ": cannot resolve RelationTypeVar to Type");
         };
     }
 
     /**
-     * Resolves a SchemaAlgebra node to a {@link GenericType.Tuple} by performing
+     * Resolves a SchemaAlgebra node to a {@link Type.Tuple} by performing
      * the schema operation (Union, Difference) on the resolved left/right Tuples.
      *
      * <p>Operations supported:
@@ -751,14 +746,14 @@ public abstract class AbstractChecker implements FunctionChecker {
      * <p>The result is always a {@code Tuple} — callers like the {@code Relation<T+V>}
      * case in {@link #resolve} unwrap it back into a {@code Relation}.
      */
-    private GenericType resolveSchemaAlgebra(GenericType left, GenericType right,
+    private Type resolveSchemaAlgebra(Type left, Type right,
                                             PType.SchemaAlgebra.OpType op, String context) {
-        GenericType.Relation.Schema leftSchema = extractSchema(left, context + " (left)");
-        GenericType.Relation.Schema rightSchema = extractSchema(right, context + " (right)");
+        Type.Schema leftSchema = extractSchema(left, context + " (left)");
+        Type.Schema rightSchema = extractSchema(right, context + " (right)");
 
         return switch (op) {
-            case Union -> new GenericType.Tuple(leftSchema.merge(rightSchema));
-            case Difference -> new GenericType.Tuple(leftSchema.withoutColumns(
+            case Union -> new Type.Tuple(leftSchema.merge(rightSchema));
+            case Difference -> new Type.Tuple(leftSchema.withoutColumns(
                     rightSchema.columns().keySet()));
             case Subset, Equal -> throw new PureCompileException(
                     context + ": schema algebra op " + op + " not yet supported in resolution");
@@ -766,13 +761,13 @@ public abstract class AbstractChecker implements FunctionChecker {
     }
 
     /**
-     * Extracts the column schema from a resolved GenericType.
+     * Extracts the column schema from a resolved Type.
      * Handles both Tuple (row type from type-var binding) and Relation.
      */
-    private GenericType.Relation.Schema extractSchema(GenericType type, String context) {
+    private Type.Schema extractSchema(Type type, String context) {
         return switch (type) {
-            case GenericType.Tuple t -> t.schema();
-            case GenericType.Relation r -> r.schema();
+            case Type.Tuple t -> t.schema();
+            case Type.Relation r -> r.schema();
             default -> throw new PureCompileException(
                     context + ": expected Tuple or Relation schema, got " + type.typeName());
         };
@@ -820,7 +815,7 @@ public abstract class AbstractChecker implements FunctionChecker {
      */
     protected ExpressionType resolveOutput(NativeFunctionDef def,
                                            Bindings bindings, String context) {
-        GenericType returnType = resolve(def.returnType(), bindings, context + " return type");
+        Type returnType = resolve(def.returnType(), bindings, context + " return type");
         Multiplicity returnMult = resolveMult(def.returnMult(), bindings.mults(),
                 context + " return mult");
         return new ExpressionType(returnType, returnMult);
@@ -835,21 +830,21 @@ public abstract class AbstractChecker implements FunctionChecker {
      */
     protected TypeChecker.CompilationContext bindLambdaParam(
             TypeChecker.CompilationContext ctx, String paramName,
-            GenericType resolvedType, TypeInfo source) {
+            Type resolvedType, TypeInfo source) {
         if (resolvedType == null) {
             throw new PureCompileException(
                     "Cannot bind lambda param '" + paramName + "': resolved type is null");
         }
-        if (resolvedType instanceof GenericType.Relation rel) {
+        if (resolvedType instanceof Type.Relation rel) {
             // Relation row: bind schema columns for property access
             return ctx.withRelationType(paramName, rel.schema());
-        } else if (resolvedType instanceof GenericType.Tuple) {
+        } else if (resolvedType instanceof Type.Tuple) {
             // Tuple = T in Relation<T> = row schema type (our RelationType).
             // Bind as lambdaParam so compileVariable returns Tuple type,
             // preserving type identity for unification (e.g., rowNumber<T>(rel, row:T)).
             // Column property access ($r.id) is handled by compileProperty.
             return ctx.withLambdaParam(paramName, resolvedType);
-        } else if (resolvedType instanceof GenericType.ClassType) {
+        } else if (resolvedType instanceof Type.ClassType) {
             // Class instance: bind type for property resolution via modelContext
             return ctx.withLambdaParam(paramName, resolvedType);
         } else {
@@ -928,8 +923,8 @@ public abstract class AbstractChecker implements FunctionChecker {
                                         Bindings bindings, String funcName) {
         String context = funcName + "() predicate return";
 
-        // Validate return type — use resolve to get expected GenericType from bindings
-        GenericType expectedType = resolve(ft.returnType(), bindings, context);
+        // Validate return type — use resolve to get expected Type from bindings
+        Type expectedType = resolve(ft.returnType(), bindings, context);
         if (!expectedType.typeName().equals(bodyType.type().typeName())) {
             throw new PureCompileException(
                     context + ": expected " + expectedType.typeName()
@@ -970,7 +965,7 @@ public abstract class AbstractChecker implements FunctionChecker {
         int paramCount = Math.min(lambda.parameters().size(), ft.paramTypes().size());
         for (int pi = 0; pi < paramCount; pi++) {
             String paramName = lambda.parameters().get(pi).name();
-            GenericType resolvedParamType = resolve(ft.paramTypes().get(pi).type(), bindings,
+            Type resolvedParamType = resolve(ft.paramTypes().get(pi).type(), bindings,
                     funcName + "() lambda param " + pi);
             lambdaCtx = bindLambdaParam(lambdaCtx, paramName, resolvedParamType, source);
         }
@@ -1024,16 +1019,16 @@ public abstract class AbstractChecker implements FunctionChecker {
     }
 
     /**
-     * Extracts cast target as GenericType from a cast() wrapper.
+     * Extracts cast target as Type from a cast() wrapper.
      * Returns null if body is not wrapped in cast().
      * Shared by GroupByChecker and ExtendChecker.
      */
-    protected GenericType extractCastGenericType(ValueSpecification body) {
+    protected Type extractCastGenericType(ValueSpecification body) {
         if (body instanceof AppliedFunction af
                 && "cast".equals(simpleName(af.function()))) {
             for (var p : af.parameters()) {
-                if (p instanceof GenericTypeInstance gti) {
-                    return gti.resolvedType();
+                if (p instanceof TypeAnnotation ta) {
+                    return ta.resolve(env.modelContext());
                 }
             }
         }
@@ -1109,23 +1104,23 @@ public abstract class AbstractChecker implements FunctionChecker {
      * <p>Reusable by any checker that combines two class sources (concatenate, join, etc.).
      */
     protected TypeInfo resolveClassLCA(TypeInfo left, TypeInfo right) {
-        com.gs.legend.plan.GenericType leftElem = left.type();
-        com.gs.legend.plan.GenericType rightElem = right.type();
+        com.gs.legend.model.m3.Type leftElem = left.type();
+        com.gs.legend.model.m3.Type rightElem = right.type();
 
-        if (leftElem instanceof com.gs.legend.plan.GenericType.ClassType(String leftClass)
-                && rightElem instanceof com.gs.legend.plan.GenericType.ClassType(String rightClass)) {
+        if (leftElem instanceof com.gs.legend.model.m3.Type.ClassType(String leftClass)
+                && rightElem instanceof com.gs.legend.model.m3.Type.ClassType(String rightClass)) {
             var lcaOpt = findLowestCommonAncestor(leftClass, rightClass);
             if (lcaOpt.isPresent()) {
                 var lcaClass = lcaOpt.get();
-                var lcaCols = new java.util.LinkedHashMap<String, com.gs.legend.plan.GenericType>();
+                var lcaCols = new java.util.LinkedHashMap<String, com.gs.legend.model.m3.Type>();
                 for (var prop : lcaClass.allProperties(env.modelContext())) {
                     lcaCols.put(prop.name(),
-                            com.gs.legend.plan.GenericType.fromM3Type(prop.type()));
+                            prop.type());
                 }
-                var lcaRelType = com.gs.legend.plan.GenericType.Relation.Schema.withoutPivot(lcaCols);
+                var lcaRelType = com.gs.legend.model.m3.Type.Schema.withoutPivot(lcaCols);
                 return TypeInfo.builder()
                         .expressionType(ExpressionType.many(
-                                new com.gs.legend.plan.GenericType.Relation(lcaRelType)))
+                                new com.gs.legend.model.m3.Type.Relation(lcaRelType)))
                         .build();
             }
         }

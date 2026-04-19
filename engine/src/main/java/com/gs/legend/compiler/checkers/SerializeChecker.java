@@ -2,7 +2,7 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,7 +25,7 @@ public class SerializeChecker extends AbstractChecker {
                           TypeChecker.CompilationContext ctx) {
         TypeInfo sourceInfo = env.compileExpr(af.parameters().get(0), ctx);
 
-        if (!(sourceInfo.type() instanceof GenericType.ClassType)) {
+        if (!(sourceInfo.type() instanceof Type.ClassType)) {
             throw new PureCompileException(
                     "serialize() requires a class-based source (from graphFetch) — "
                             + "got " + sourceInfo.type());

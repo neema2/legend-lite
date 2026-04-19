@@ -1,7 +1,7 @@
 package com.gs.legend.compiler;
 
 import com.gs.legend.ast.ValueSpecification;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 
 import java.util.List;
@@ -96,13 +96,13 @@ public record TypeInfo(
 
     // ===== Convenience type accessors (delegate to expressionType) =====
 
-    /** The GenericType of this expression. Never null. */
-    public GenericType type() {
+    /** The Type of this expression. Never null. */
+    public Type type() {
         return expressionType.type();
     }
 
-    /** The GenericType.Relation.Schema schema if this is a relational expression, otherwise null. */
-    public GenericType.Relation.Schema schema() {
+    /** The Type.Schema schema if this is a relational expression, otherwise null. */
+    public Type.Schema schema() {
         return expressionType.schema();
     }
 
@@ -223,8 +223,8 @@ public record TypeInfo(
     public record AggColumnSpec(
             String alias,
             NativeFunctionDef resolvedFunc,
-            GenericType returnType,
-            GenericType castType) {
+            Type returnType,
+            Type castType) {
     }
 
     /**
@@ -242,8 +242,8 @@ public record TypeInfo(
             NativeFunctionDef resolvedFunc,
             OverSpec over,
             String alias,
-            GenericType returnType,
-            GenericType castType) {
+            Type returnType,
+            Type castType) {
     }
 
     /**
@@ -438,22 +438,22 @@ public record TypeInfo(
      */
     public boolean isHeterogeneousList() {
         if (expressionType == null || !expressionType.isMany()) return false;
-        GenericType elem = type();
-        return elem == GenericType.Primitive.NUMBER
-                || elem == GenericType.Primitive.DATE
-                || elem == GenericType.Primitive.ANY;
+        Type elem = type();
+        return elem == Type.Primitive.NUMBER
+                || elem == Type.Primitive.DATE
+                || elem == Type.Primitive.ANY;
     }
 
     /** True if this is a collection of date/temporal types (Date[*]). */
     public boolean isDateList() {
         return expressionType != null && expressionType.isMany()
-                && type() == GenericType.Primitive.DATE;
+                && type() == Type.Primitive.DATE;
     }
 
     /** True if this is a collection with mixed element types (Any[*]). */
     public boolean isMixedList() {
         return expressionType != null && expressionType.isMany()
-                && type() == GenericType.Primitive.ANY;
+                && type() == Type.Primitive.ANY;
     }
 
     /** True if this node has pre-resolved sort specs. */

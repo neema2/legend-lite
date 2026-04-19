@@ -8,7 +8,7 @@ import com.gs.legend.model.def.ClassDefinition;
 import com.gs.legend.model.def.FunctionDefinition;
 import com.gs.legend.model.def.PackageableElement;
 import com.gs.legend.parser.PureParser;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import org.junit.jupiter.api.*;
 
@@ -183,7 +183,7 @@ class PhaseBEagerCompileSpike {
             for (var dp : cd.derivedProperties()) {
                 try {
                     var body = PureParser.parseQuery(dp.expression());
-                    var thisType = new GenericType.ClassType(cd.qualifiedName());
+                    var thisType = new Type.ClassType(cd.qualifiedName());
                     var ctx = new TypeChecker.CompilationContext().withLambdaParam("this", thisType);
                     long s = System.nanoTime();
                     warmTc.compileExpr(body, ctx);
@@ -217,7 +217,7 @@ class PhaseBEagerCompileSpike {
             for (var cons : cd.constraints()) {
                 try {
                     var body = PureParser.parseQuery(cons.expression());
-                    var thisType = new GenericType.ClassType(cd.qualifiedName());
+                    var thisType = new Type.ClassType(cd.qualifiedName());
                     var ctx = new TypeChecker.CompilationContext().withLambdaParam("this", thisType);
                     long s = System.nanoTime();
                     warmTc.compileExpr(body, ctx);
@@ -255,7 +255,7 @@ class PhaseBEagerCompileSpike {
                 // Build context with parameters bound
                 var ctx = new TypeChecker.CompilationContext();
                 for (var param : fn.parameters()) {
-                    GenericType paramType = mapTypeName(param.type());
+                    Type paramType = mapTypeName(param.type());
                     ctx = ctx.withLambdaParam(param.name(), paramType);
                 }
                 long s = System.nanoTime();
@@ -331,20 +331,20 @@ class PhaseBEagerCompileSpike {
         Assertions.assertEquals(0, coldFail, coldFail + " cold queries failed");
     }
 
-    /** Map a Pure primitive/class type name to a GenericType for CompilationContext binding. */
-    private static GenericType mapTypeName(String pureType) {
+    /** Map a Pure primitive/class type name to a Type for CompilationContext binding. */
+    private static Type mapTypeName(String pureType) {
         return switch (pureType) {
-            case "String" -> GenericType.Primitive.STRING;
-            case "Integer" -> GenericType.Primitive.INTEGER;
-            case "Boolean" -> GenericType.Primitive.BOOLEAN;
-            case "Float" -> GenericType.Primitive.FLOAT;
-            case "Decimal" -> GenericType.DEFAULT_DECIMAL;
-            case "Date" -> GenericType.Primitive.DATE;
-            case "DateTime" -> GenericType.Primitive.DATE_TIME;
-            case "StrictDate" -> GenericType.Primitive.STRICT_DATE;
-            case "Number" -> GenericType.Primitive.NUMBER;
-            case "Any" -> GenericType.Primitive.ANY;
-            default -> new GenericType.ClassType(pureType); // user class
+            case "String" -> Type.Primitive.STRING;
+            case "Integer" -> Type.Primitive.INTEGER;
+            case "Boolean" -> Type.Primitive.BOOLEAN;
+            case "Float" -> Type.Primitive.FLOAT;
+            case "Decimal" -> Type.DEFAULT_DECIMAL;
+            case "Date" -> Type.Primitive.DATE;
+            case "DateTime" -> Type.Primitive.DATE_TIME;
+            case "StrictDate" -> Type.Primitive.STRICT_DATE;
+            case "Number" -> Type.Primitive.NUMBER;
+            case "Any" -> Type.Primitive.ANY;
+            default -> new Type.ClassType(pureType); // user class
         };
     }
 

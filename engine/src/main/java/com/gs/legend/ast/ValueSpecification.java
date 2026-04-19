@@ -21,7 +21,7 @@ package com.gs.legend.ast;
  * ├── AppliedFunction        — function application: filter(), project(), etc.
  * ├── AppliedProperty        — property access: $x.name
  * ├── PackageableElementPtr  — element reference: Person, store::MyDb
- * ├── GenericTypeInstance     — type annotation: @Integer, @String
+ * ├── TypeAnnotation          — type annotation: @Integer, @Relation<(...)>, @?
  * ├── ClassInstance           — DSL extension: ColSpec, ColSpecArray, GraphFetchTree
  * ├── Collection             — list: [a, b, c]
  * ├── Variable               — variable reference: $x
@@ -37,7 +37,7 @@ public sealed interface ValueSpecification permits
         AppliedFunction,
         AppliedProperty,
         PackageableElementPtr,
-        GenericTypeInstance,
+        TypeAnnotation,
         ClassInstance,
         PureCollection,
         Variable,

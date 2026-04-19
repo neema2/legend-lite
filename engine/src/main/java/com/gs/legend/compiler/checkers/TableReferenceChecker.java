@@ -5,7 +5,7 @@ import com.gs.legend.ast.CString;
 import com.gs.legend.compiler.*;
 import com.gs.legend.model.ModelContext;
 import com.gs.legend.model.store.Table;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -32,10 +32,10 @@ public class TableReferenceChecker extends AbstractChecker {
         String db = ((CString) af.parameters().get(0)).value();
         String name = ((CString) af.parameters().get(1)).value();
         Table table = resolveTable(db, name);
-        GenericType.Relation.Schema schema = tableToSchema(table);
+        Type.Schema schema = tableToSchema(table);
         return TypeInfo.builder()
                 .resolvedTableName(table.dbName())
-                .expressionType(ExpressionType.one(new GenericType.Relation(schema)))
+                .expressionType(ExpressionType.one(new Type.Relation(schema)))
                 .build();
     }
 
@@ -49,11 +49,11 @@ public class TableReferenceChecker extends AbstractChecker {
         throw new PureCompileException("Table not found: " + db + "." + name);
     }
 
-    private static GenericType.Relation.Schema tableToSchema(Table table) {
-        Map<String, GenericType> columns = new LinkedHashMap<>();
+    private static Type.Schema tableToSchema(Table table) {
+        Map<String, Type> columns = new LinkedHashMap<>();
         for (var col : table.columns()) {
             columns.put(col.name(), col.dataType().toGenericType());
         }
-        return GenericType.Relation.Schema.withoutPivot(columns);
+        return Type.Schema.withoutPivot(columns);
     }
 }

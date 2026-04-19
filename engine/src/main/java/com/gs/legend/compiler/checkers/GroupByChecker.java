@@ -2,7 +2,7 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.*;
 
@@ -42,7 +42,7 @@ public class GroupByChecker extends AbstractChecker {
         //   ClassType → FuncColSpec keys (with extraction lambdas) → matches class-source overload
         //   Relation  → bare-name ColSpec keys → matches existing Relation overloads
         if (def.arity() == 4) {
-            boolean classSource = source.type() instanceof GenericType.ClassType;
+            boolean classSource = source.type() instanceof Type.ClassType;
             AppliedFunction rewritten = rewriteLegacyGroupBy(af,
                     (PureCollection) params.get(1), (PureCollection) params.get(2),
                     (PureCollection) params.get(3), classSource);
@@ -54,18 +54,18 @@ public class GroupByChecker extends AbstractChecker {
 
         // Class-source overload: groupBy(cl:C[*], keys:FuncColSpecArray, aggs:AggColSpecArray)
         // Keys have extraction lambdas (like project) — produces projections for PlanGenerator
-        if (source.type() instanceof GenericType.ClassType) {
+        if (source.type() instanceof Type.ClassType) {
             return checkClassSource(af, def, source, ctx);
         }
 
         // Relation-source overloads: bare-name keys validated against source schema
-        GenericType.Relation.Schema sourceSchema = source.schema();
+        Type.Schema sourceSchema = source.schema();
         if (sourceSchema == null) {
             throw new PureCompileException(
                     "groupBy() requires a Relation source with a known schema");
         }
 
-        Map<String, GenericType> resultColumns = new LinkedHashMap<>();
+        Map<String, Type> resultColumns = new LinkedHashMap<>();
         List<TypeInfo.ColumnSpec> groupCols = new ArrayList<>();
         List<TypeInfo.AggColumnSpec> aggCols = new ArrayList<>();
 
@@ -82,7 +82,7 @@ public class GroupByChecker extends AbstractChecker {
         }
 
         // --- Aggregate columns (param 2): AggColSpec or AggColSpecArray ---
-        GenericType fn1ParamType = new GenericType.Relation(sourceSchema);
+        Type fn1ParamType = new Type.Relation(sourceSchema);
         List<ColSpec> aggSpecs = extractAggColSpecs(params.get(2));
         for (ColSpec cs : aggSpecs) {
             TypeInfo.AggColumnSpec acs = compileAggColSpec(cs, fn1ParamType, source, ctx);
@@ -94,11 +94,11 @@ public class GroupByChecker extends AbstractChecker {
             throw new PureCompileException("groupBy() produced no output columns");
         }
 
-        var schema = GenericType.Relation.Schema.withoutPivot(resultColumns);
+        var schema = Type.Schema.withoutPivot(resultColumns);
         return TypeInfo.builder()
                 .columnSpecs(groupCols)
                 .aggColumnSpecs(aggCols)
-                .expressionType(ExpressionType.one(new GenericType.Relation(schema)))
+                .expressionType(ExpressionType.one(new Type.Relation(schema)))
                 .build();
     }
 
@@ -118,10 +118,10 @@ public class GroupByChecker extends AbstractChecker {
 
         // Resolve lambda param type from signature (C[1])
         PType.FunctionType ft = extractFunctionType(def.params().get(1));
-        GenericType resolvedParamType = resolve(ft.paramTypes().get(0).type(), bindings,
+        Type resolvedParamType = resolve(ft.paramTypes().get(0).type(), bindings,
                 "groupBy() key lambda param");
 
-        Map<String, GenericType> resultColumns = new LinkedHashMap<>();
+        Map<String, Type> resultColumns = new LinkedHashMap<>();
         List<TypeInfo.ColumnSpec> groupCols = new ArrayList<>();
         List<TypeInfo.ProjectionSpec> projectionSpecs = new ArrayList<>();
 
@@ -162,12 +162,12 @@ public class GroupByChecker extends AbstractChecker {
             throw new PureCompileException("groupBy() produced no output columns");
         }
 
-        var schema = GenericType.Relation.Schema.withoutPivot(resultColumns);
+        var schema = Type.Schema.withoutPivot(resultColumns);
         return TypeInfo.builder()
                 .projections(projectionSpecs)
                 .columnSpecs(groupCols)
                 .aggColumnSpecs(aggCols)
-                .expressionType(ExpressionType.one(new GenericType.Relation(schema)))
+                .expressionType(ExpressionType.one(new Type.Relation(schema)))
                 .build();
     }
 
@@ -187,7 +187,7 @@ public class GroupByChecker extends AbstractChecker {
      * </ul>
      */
     TypeInfo.AggColumnSpec compileAggColSpec(ColSpec cs,
-                                             GenericType fn1ParamType,
+                                             Type fn1ParamType,
                                              TypeInfo source,
                                              TypeChecker.CompilationContext ctx) {
         String alias = cs.name();
@@ -225,12 +225,12 @@ public class GroupByChecker extends AbstractChecker {
         NativeFunctionDef resolved = innerInfo.resolvedFunc();
 
         // --- Extract cast type (if fn2 is wrapped in cast()) ---
-        GenericType castType = extractCastGenericType(fn2Body);
+        Type castType = extractCastGenericType(fn2Body);
 
         // --- Return type: use fn2 result, refined by cast if present ---
-        GenericType returnType = fn2Result.type();
+        Type returnType = fn2Result.type();
         // For type-variable aggregates (min, max, sum, etc.), refine to source column type
-        if (returnType == GenericType.Primitive.NUMBER && fn1Result.type() != null
+        if (returnType == Type.Primitive.NUMBER && fn1Result.type() != null
                 && fn1Result.type().isNumeric()) {
             returnType = fn1Result.type();
         }

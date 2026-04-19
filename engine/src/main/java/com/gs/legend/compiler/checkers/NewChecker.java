@@ -5,7 +5,7 @@ import com.gs.legend.compiler.*;
 import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.m3.PureClass;
 import com.gs.legend.model.m3.Type;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 
 
@@ -48,7 +48,7 @@ public class NewChecker extends AbstractChecker {
 
         return TypeInfo.builder()
                 .instanceLiteral(true)
-                .expressionType(ExpressionType.one(new GenericType.ClassType(
+                .expressionType(ExpressionType.one(new Type.ClassType(
                         findClass(data.className()).map(c -> c.qualifiedName()).orElse(data.className()))))
                 .build();
     }

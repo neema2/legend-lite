@@ -4,7 +4,7 @@ import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
 import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.m3.Multiplicity;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.*;
 
@@ -47,7 +47,7 @@ public class FoldChecker extends AbstractChecker {
 
         // 3. Unify: T from source, V from init
         ExpressionType sourceExprType = source.expressionType();
-        GenericType sourceTypeForUnify = sourceExprType.type();
+        Type sourceTypeForUnify = sourceExprType.type();
         var bindings = unify(def, Arrays.asList(
                 new ExpressionType(sourceTypeForUnify, sourceExprType.multiplicity()), // param[0]: T[*]
                 null, // param[1]: lambda — skip
@@ -74,15 +74,15 @@ public class FoldChecker extends AbstractChecker {
         TypeChecker.CompilationContext lambdaCtx = ctx;
         for (int p = 0; p < lambda.parameters().size() && p < ft.paramTypes().size(); p++) {
             String paramName = lambda.parameters().get(p).name();
-            GenericType resolvedParamType = resolve(ft.paramTypes().get(p).type(), bindings,
+            Type resolvedParamType = resolve(ft.paramTypes().get(p).type(), bindings,
                     "fold() lambda param '" + paramName + "'");
             lambdaCtx = bindLambdaParam(lambdaCtx, paramName, resolvedParamType, source);
         }
         compileLambdaBody(lambda, lambdaCtx);
 
         // 5. Classify strategy from resolved T, V
-        GenericType resolvedT = bindings.getOrDefault("T", GenericType.Primitive.ANY);
-        GenericType resolvedV = bindings.getOrDefault("V", GenericType.Primitive.ANY);
+        Type resolvedT = bindings.getOrDefault("T", Type.Primitive.ANY);
+        Type resolvedV = bindings.getOrDefault("V", Type.Primitive.ANY);
         TypeInfo.FoldSpec spec = classifyFold(lambda, resolvedT, resolvedV,
                 initInfo.expressionType().multiplicity(), ctx, source);
 
@@ -102,7 +102,7 @@ public class FoldChecker extends AbstractChecker {
      * Uses resolved T, V from unify() and the init's compiled multiplicity.
      */
     private TypeInfo.FoldSpec classifyFold(LambdaFunction lambda,
-            GenericType resolvedT, GenericType resolvedV,
+            Type resolvedT, Type resolvedV,
             Multiplicity initMultiplicity,
             TypeChecker.CompilationContext ctx,
             TypeInfo source) {

@@ -3,7 +3,7 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.List;
 
@@ -40,7 +40,7 @@ public class SelectChecker extends AbstractChecker {
         var bindings = unify(def, source.expressionType());
 
         // 2. Source must be relational
-        GenericType.Relation.Schema sourceSchema = source.schema();
+        Type.Schema sourceSchema = source.schema();
         if (sourceSchema == null) {
             throw new PureCompileException("select() requires a relational source");
         }
@@ -62,10 +62,10 @@ public class SelectChecker extends AbstractChecker {
         sourceSchema.assertHasColumns(cols);
 
         // 5. Output schema is the subset (Z from Relation<Z>)
-        GenericType.Relation.Schema outputSchema = sourceSchema.onlyColumns(cols);
+        Type.Schema outputSchema = sourceSchema.onlyColumns(cols);
         return TypeInfo.builder()
                                 .columnSpecs(cols.stream().map(TypeInfo.ColumnSpec::col).toList())
-                .expressionType(ExpressionType.one(new GenericType.Relation(outputSchema)))
+                .expressionType(ExpressionType.one(new Type.Relation(outputSchema)))
                 .build();
     }
 }

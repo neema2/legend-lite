@@ -1,5 +1,7 @@
 package com.gs.legend.plan;
 
+import com.gs.legend.model.m3.Type;
+
 import java.util.List;
 
 /**
@@ -19,7 +21,7 @@ import java.util.List;
  */
 public record SQLExecutionNode(
         String sqlQuery,
-        GenericType.Relation.Schema resultType,
+        Type.Schema resultType,
         String connectionRef) implements ExecutionNode {
 
     /**

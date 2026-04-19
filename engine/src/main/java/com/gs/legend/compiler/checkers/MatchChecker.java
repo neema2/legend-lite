@@ -2,9 +2,8 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
-import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.m3.Multiplicity;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.List;
 
@@ -32,7 +31,7 @@ public class MatchChecker extends AbstractChecker {
         TypeInfo inputInfo = env.compileExpr(params.get(0), ctx);
 
         // 2. Get input type from compiled result
-        GenericType inputType = resolveElementType(inputInfo);
+        Type inputType = resolveElementType(inputInfo);
         if (inputType == null)
             throw new PureCompileException("match: cannot infer input type");
 
@@ -48,8 +47,7 @@ public class MatchChecker extends AbstractChecker {
             Variable branchParam = branch.parameters().get(0);
             if (branchParam.typeName() == null) continue;
 
-            String branchTypeName = SymbolTable.extractSimpleName(branchParam.typeName());
-            if (!typeMatches(branchTypeName, inputType)) continue;
+            if (!typeMatches(branchParam.typeName(), inputType)) continue;
 
             // Check multiplicity: if input is many, branch must accept many.
             // branchParam.multiplicity() is already structured (parser produced it) — no re-parse.
@@ -87,30 +85,26 @@ public class MatchChecker extends AbstractChecker {
     /**
      * Returns the element type from a compiled TypeInfo.
      */
-    private static GenericType resolveElementType(TypeInfo info) {
+    private static Type resolveElementType(TypeInfo info) {
         if (info == null || info.type() == null) return null;
         return info.type();
     }
 
     /**
-     * Type-matches using GenericType hierarchy instead of string comparison.
-     * Supports exact match, subtype matching (Integer matches Number), and Any wildcard.
+     * Type-matches using the {@link Type} hierarchy: exact match, subtype in the primitive
+     * lattice (Integer ⊆ Number), or ANY wildcard.
      */
-    private static boolean typeMatches(String branchTypeName, GenericType inputType) {
-        if ("Any".equals(branchTypeName)) return true;
-
-        // Try primitive type matching with subtype hierarchy
-        try {
-            GenericType.Primitive branchPrimitive = GenericType.Primitive.fromTypeName(branchTypeName);
-            if (inputType instanceof GenericType.Primitive inputPrim) {
-                return inputPrim == branchPrimitive || inputPrim.isSubtypeOf(branchPrimitive);
+    private boolean typeMatches(String branchTypeName, Type inputType) {
+        Type branchType = Type.resolve(branchTypeName, env.modelContext());
+        if (branchType instanceof Type.Primitive branchPrim) {
+            if (branchPrim == Type.Primitive.ANY) return true;
+            if (inputType instanceof Type.Primitive inputPrim) {
+                return inputPrim == branchPrim || inputPrim.isSubtypeOf(branchPrim);
             }
-            // ANY input matches any branch
-            return branchPrimitive == GenericType.Primitive.ANY;
-        } catch (IllegalArgumentException e) {
-            // Non-primitive type (Date, class, etc.) — fall back to name comparison
-            return branchTypeName.equals(inputType.typeName());
+            return false;
         }
+        // Non-primitive branch (class, enum) — nominal name equality.
+        return branchType.typeName().equals(inputType.typeName());
     }
 
     /** Extracts branch lambdas from a PureCollection or a single LambdaFunction. */

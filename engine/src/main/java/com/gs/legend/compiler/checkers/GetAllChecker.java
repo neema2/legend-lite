@@ -4,7 +4,7 @@ import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.PackageableElementPtr;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.List;
 
@@ -44,7 +44,7 @@ public class GetAllChecker extends AbstractChecker {
         env.compileSourceSpecFor(fqn);
 
         return TypeInfo.builder()
-                .expressionType(ExpressionType.many(new GenericType.ClassType(fqn)))
+                .expressionType(ExpressionType.many(new Type.ClassType(fqn)))
                 .build();
     }
 }

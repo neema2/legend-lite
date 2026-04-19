@@ -2,7 +2,7 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.*;
 
@@ -173,7 +173,7 @@ public class SortChecker extends AbstractChecker {
      * Handles array:  sort([ascending(~col), descending(~col2)])
      */
     private List<TypeInfo.SortSpec> resolveSortInfoParams(ValueSpecification vs,
-                                                          GenericType.Relation.Schema schema) {
+                                                          Type.Schema schema) {
         // Array of sort specs: [ascending(~id), descending(~name)]
         if (vs instanceof PureCollection(List<ValueSpecification> values)) {
             return values.stream()
@@ -189,7 +189,7 @@ public class SortChecker extends AbstractChecker {
      * Also handles ClassInstance("sortInfo", ColSpec) wrapper for ~col→ascending() syntax.
      */
     private TypeInfo.SortSpec resolveSingleSortInfo(ValueSpecification vs,
-                                                    GenericType.Relation.Schema schema) {
+                                                    Type.Schema schema) {
         // ascending(~col) / descending(~col) → AppliedFunction
         if (vs instanceof AppliedFunction af) {
             String funcName = simpleName(af.function());
@@ -252,7 +252,7 @@ public class SortChecker extends AbstractChecker {
             TypeChecker.CompilationContext lambdaCtx = ctx;
             for (int p = 0; p < lambda.parameters().size() && p < ft.paramTypes().size(); p++) {
                 String paramName = lambda.parameters().get(p).name();
-                GenericType resolvedParamType = resolve(ft.paramTypes().get(p).type(), bindings,
+                Type resolvedParamType = resolve(ft.paramTypes().get(p).type(), bindings,
                         "sort() lambda param '" + paramName + "'");
                 lambdaCtx = bindLambdaParam(lambdaCtx, paramName, resolvedParamType, source);
             }
@@ -332,7 +332,7 @@ public class SortChecker extends AbstractChecker {
 
     // ========== Helpers ==========
 
-    private void validateColumn(String col, GenericType.Relation.Schema schema) {
+    private void validateColumn(String col, Type.Schema schema) {
         if (schema != null && !schema.columns().isEmpty()) {
             schema.requireColumn(col);
         }

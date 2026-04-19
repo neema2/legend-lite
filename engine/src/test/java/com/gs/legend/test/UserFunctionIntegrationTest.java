@@ -785,7 +785,7 @@ class UserFunctionIntegrationTest {
         @DisplayName("Zero-param class query function, chain project at call site")
         void testZeroParamClassQuery() throws SQLException {
             String model = modelWith("""
-                    function test::allPersons():Person[*]
+                    function test::allPersons():model::Person[*]
                     {
                         model::Person.all()
                     }
@@ -802,7 +802,7 @@ class UserFunctionIntegrationTest {
         @DisplayName("Parameterized class query, chain project at call site")
         void testParameterizedClassQuery() throws SQLException {
             String model = modelWith("""
-                    function test::olderThan(minAge: Integer[1]):Person[*]
+                    function test::olderThan(minAge: Integer[1]):model::Person[*]
                     {
                         model::Person.all()->filter(p|$p.age > $minAge)
                     }
@@ -817,7 +817,7 @@ class UserFunctionIntegrationTest {
         @DisplayName("Class query + chain filter at call site")
         void testClassQueryChainFilter() throws SQLException {
             String model = modelWith("""
-                    function test::smiths():Person[*]
+                    function test::smiths():model::Person[*]
                     {
                         model::Person.all()->filter(p|$p.lastName == 'Smith')
                     }
@@ -833,7 +833,7 @@ class UserFunctionIntegrationTest {
         @DisplayName("Class query + chain sort at call site")
         void testClassQueryChainSort() throws SQLException {
             String model = modelWith("""
-                    function test::allPersons():Person[*]
+                    function test::allPersons():model::Person[*]
                     {
                         model::Person.all()
                     }
@@ -849,7 +849,7 @@ class UserFunctionIntegrationTest {
         @DisplayName("Multi-param class query: name filter + age threshold")
         void testMultiParamClassQuery() throws SQLException {
             String model = modelWith("""
-                    function test::nameAndAge(surname: String[1], minAge: Integer[1]):Person[*]
+                    function test::nameAndAge(surname: String[1], minAge: Integer[1]):model::Person[*]
                     {
                         model::Person.all()->filter(p|$p.lastName == $surname && $p.age >= $minAge)
                     }
@@ -896,7 +896,7 @@ class UserFunctionIntegrationTest {
         @DisplayName("Class query as parameter: addLabel processes filtered input")
         void testClassQueryAsParameter() throws SQLException {
             String model = modelWith("""
-                    function test::nameList(people: Person[*]):Any[*]
+                    function test::nameList(people: model::Person[*]):Any[*]
                     {
                         $people->project([p|$p.firstName, p|$p.age], ['name', 'age'])
                     }
@@ -914,11 +914,11 @@ class UserFunctionIntegrationTest {
         @DisplayName("Query-returning fn calls another query-returning fn (nested inlining)")
         void testNestedQueryFunctions() throws SQLException {
             String model = modelWith("""
-                    function test::adults():Person[*]
+                    function test::adults():model::Person[*]
                     {
                         model::Person.all()->filter(p|$p.age >= 28)
                     }
-                    function test::adultSmiths():Person[*]
+                    function test::adultSmiths():model::Person[*]
                     {
                         test::adults()->filter(p|$p.lastName == 'Smith')
                     }
@@ -935,7 +935,7 @@ class UserFunctionIntegrationTest {
         @DisplayName("Scalar fn applied to query-returning fn result in project")
         void testScalarOnQueryReturning() throws SQLException {
             String model = modelWith("""
-                    function test::adults():Person[*]
+                    function test::adults():model::Person[*]
                     {
                         model::Person.all()->filter(p|$p.age >= 28)
                     }
@@ -975,7 +975,7 @@ class UserFunctionIntegrationTest {
         @DisplayName("Type check: class query matches declared class param")
         void testClassParamTypeChecked() throws SQLException {
             String model = modelWith("""
-                    function test::getNames(people: Person[*]):Any[*]
+                    function test::getNames(people: model::Person[*]):Any[*]
                     {
                         $people->project([p|$p.firstName], ['name'])
                     }
@@ -1032,7 +1032,7 @@ class UserFunctionIntegrationTest {
                         mappings: [ model::EmpMapping ];
                         connections: [ store::PersonDatabase: [ environment: store::TestConnection ] ];
                     }
-                    function test::getNames(people: Person[*]):Any[*]
+                    function test::getNames(people: model::Person[*]):Any[*]
                     {
                         $people->project([p|$p.firstName], ['name'])
                     }
@@ -1054,7 +1054,7 @@ class UserFunctionIntegrationTest {
                     {
                         legalName: String[1];
                     }
-                    function test::getNames(people: Person[*]):Any[*]
+                    function test::getNames(people: model::Person[*]):Any[*]
                     {
                         $people->project([p|$p.firstName], ['name'])
                     }
@@ -1069,7 +1069,7 @@ class UserFunctionIntegrationTest {
         @DisplayName("Return type check: declares Person but body returns Integer rejects")
         void testReturnTypeMismatchRejected() {
             String model = modelWith("""
-                    function test::badReturn():Person[*]
+                    function test::badReturn():model::Person[*]
                     {
                         1 + 2
                     }
@@ -1088,7 +1088,7 @@ class UserFunctionIntegrationTest {
                     {
                         legalName: String[1];
                     }
-                    function test::getPeople():Person[*]
+                    function test::getPeople():model::Person[*]
                     {
                         model::Firm.all()
                     }
@@ -1105,7 +1105,7 @@ class UserFunctionIntegrationTest {
             // Declares Person[*], body returns Person.all()->filter(...)
             // Caller chains filter($p.lastName) + project($p.firstName, $p.age) — Person-specific
             String model = modelWith("""
-                    function test::youngPeople():Person[*]
+                    function test::youngPeople():model::Person[*]
                     {
                         model::Person.all()->filter(p|$p.age < 35)
                     }
@@ -1133,7 +1133,7 @@ class UserFunctionIntegrationTest {
         @DisplayName("Return type check: Class[*] return — graphFetch requires Person, full E2E")
         void testClassReturnGraphFetch() throws SQLException {
             String model = modelWith("""
-                    function test::youngPeople():Person[*]
+                    function test::youngPeople():model::Person[*]
                     {
                         model::Person.all()->filter(p|$p.age < 35)
                     }

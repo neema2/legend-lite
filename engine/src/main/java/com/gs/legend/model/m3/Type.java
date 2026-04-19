@@ -1,5 +1,6 @@
 package com.gs.legend.model.m3;
 
+import com.gs.legend.compiler.PureCompileException;
 import com.gs.legend.model.ModelContext;
 import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.def.EnumDefinition;
@@ -14,7 +15,7 @@ import java.util.Optional;
  * Unified sealed hierarchy for type <em>expressions</em> in the Pure type system.
  *
  * <p>Introduced in Phase B chunk 2.5a as the single replacement for seven overlapping
- * representations: {@code compiler.PType}, {@code plan.GenericType}, {@code m3.TypeRef},
+ * representations: {@code compiler.PType}, {@code plan.Type}, {@code m3.TypeRef},
  * {@code m3.PrimitiveType}, {@code compiled.TypeRef}, plus the old {@code m3.Type}
  * (now {@link TypeDecl}) and raw {@code String} type names.
  *
@@ -54,6 +55,63 @@ public sealed interface Type {
     }
 
     // ============================================================
+    //  Convenience classification predicates (default methods)
+    // ============================================================
+
+    /** @return {@code true} if this is a {@link Primitive}. */
+    default boolean isPrimitive() {
+        return this instanceof Primitive;
+    }
+
+    /** @return the {@link Primitive} if this is one, else {@code null}. */
+    default Primitive asPrimitive() {
+        return this instanceof Primitive p ? p : null;
+    }
+
+    /** @return {@code true} for numeric primitives and {@link PrecisionDecimal}. */
+    default boolean isNumeric() {
+        return (this instanceof Primitive p && p.isNumeric())
+                || this instanceof PrecisionDecimal;
+    }
+
+    /** @return {@code true} for temporal primitives (DATE, STRICT_DATE, DATE_TIME, STRICT_TIME). */
+    default boolean isTemporal() {
+        return this instanceof Primitive p && p.isTemporal();
+    }
+
+    /** @return {@code true} for date-kind primitives (DATE, STRICT_DATE, DATE_TIME — not STRICT_TIME). */
+    default boolean isDate() {
+        return this instanceof Primitive p
+                && (p == Primitive.DATE || p == Primitive.STRICT_DATE || p == Primitive.DATE_TIME);
+    }
+
+    // ============================================================
+    //  Static combinators
+    // ============================================================
+
+    /**
+     * Closest common supertype. Both primitives walk the
+     * {@linkplain Primitive#commonSupertype primitive lattice};
+     * {@link PrecisionDecimal} is treated as {@link Primitive#DECIMAL} for the walk.
+     * Mixed or unrelated types collapse to {@link Primitive#ANY}.
+     */
+    static Type commonSupertype(Type a, Type b) {
+        if (a.equals(b)) return a;
+        Primitive pa = toPrimitive(a);
+        Primitive pb = toPrimitive(b);
+        if (pa != null && pb != null) {
+            return Primitive.commonSupertype(pa, pb);
+        }
+        return Primitive.ANY;
+    }
+
+    private static Primitive toPrimitive(Type t) {
+        if (t instanceof Primitive p) return p;
+        if (t instanceof PrecisionDecimal) return Primitive.DECIMAL;
+        return null;
+    }
+
+    // ============================================================
     //  Kind-aware String -> Type resolver (the ONLY resolver)
     // ============================================================
 
@@ -68,8 +126,8 @@ public sealed interface Type {
      *
      * <p><strong>This is the one and only kind-aware resolver.</strong> It replaces the
      * seven scattered String→Type resolvers in the legacy code:
-     * {@code GenericType.fromTypeName} (leaky default to ClassType),
-     * {@code GenericType.Primitive.fromTypeName} (throwing, used for control flow),
+     * {@code Type.fromTypeName} (leaky default to ClassType),
+     * {@code Type.Primitive.fromTypeName} (throwing, used for control flow),
      * {@code m3.PrimitiveType.fromName} (case-insensitive, inconsistent),
      * {@code TdsChecker} / {@code NewChecker} / {@code CastChecker} locals, and the
      * {@code parseMultiplicity} trio.
@@ -111,27 +169,6 @@ public sealed interface Type {
                 "Unknown type: '" + name + "'. Not a primitive, class, or enum in the current model context.");
     }
 
-    /**
-     * Like {@link #resolve}, but returns {@link Optional#empty()} instead of throwing
-     * when the name cannot be resolved. Use when the caller wants to handle the
-     * unknown-type case explicitly (e.g., for diagnostic messages) — never to silently
-     * fall back to a default type.
-     */
-    static Optional<Type> tryResolve(String name, ModelContext ctx) {
-        if (name == null || ctx == null) return Optional.empty();
-
-        Optional<Primitive> primitive = Primitive.lookup(name);
-        if (primitive.isPresent()) return Optional.of(primitive.get());
-
-        Optional<PureClass> cls = ctx.findClass(name);
-        if (cls.isPresent()) return Optional.of(new ClassType(cls.get().qualifiedName()));
-
-        Optional<EnumDefinition> enm = ctx.findEnum(name);
-        if (enm.isPresent()) return Optional.of(new EnumType(enm.get().qualifiedName()));
-
-        return Optional.empty();
-    }
-
     // ============================================================
     //  Primitive scalar types with subtype hierarchy
     // ============================================================
@@ -169,7 +206,7 @@ public sealed interface Type {
         /**
          * Canonical Pure-level name for this primitive. Single source of truth —
          * replaces the duplicated {@code case "Integer" -> ...} switches scattered
-         * across {@code GenericType}, {@code m3.PrimitiveType}, {@code SqlDataType}, etc.
+         * across {@code Type}, {@code m3.PrimitiveType}, {@code SqlDataType}, etc.
          */
         public String pureName() {
             return switch (this) {
@@ -201,7 +238,7 @@ public sealed interface Type {
          *
          * <p><strong>Never throws, never falls back to another kind.</strong> Replaces
          * the three leaky / throwing resolvers in the legacy type system:
-         * {@code GenericType.Primitive.fromTypeName} (threw), {@code GenericType.fromTypeName}
+         * {@code Type.Primitive.fromTypeName} (threw), {@code Type.fromTypeName}
          * (silently fell back to {@code ClassType}), and {@code m3.PrimitiveType.fromName}
          * (case-insensitive lookup, threw). If the caller needs class/enum resolution,
          * they dispatch to {@link com.gs.legend.model.ModelContext} explicitly.
@@ -333,7 +370,7 @@ public sealed interface Type {
      *
      * <p>This variant handles subtyping against {@code DECIMAL} natively — callers
      * never need to "normalize" {@code PrecisionDecimal} to {@code DECIMAL} before
-     * checking subtype relations (unlike the legacy {@code GenericType.PrecisionDecimal}
+     * checking subtype relations (unlike the legacy {@code Type.PrecisionDecimal}
      * which required 5 scattered normalization copies).
      */
     record PrecisionDecimal(int precision, int scale) implements Type {
@@ -555,7 +592,7 @@ public sealed interface Type {
      * Column schema shared by {@link Relation} and {@link Tuple}. Immutable;
      * column order is preserved via {@link LinkedHashMap}.
      *
-     * <p>Shape-compatible with the legacy {@code GenericType.Relation.Schema} to make
+     * <p>Shape-compatible with the legacy {@code Type.Schema} to make
      * the chunk 2.5b migration a mechanical type-name swap. Intentionally simpler than
      * legend-pure's {@code RelationType} + {@code Column<U,V>[m]} metamodel — in
      * particular, we do not yet track per-column multiplicity, name wildcards, or
@@ -636,7 +673,7 @@ public sealed interface Type {
         public Type requireColumnType(String name) {
             Type type = columns.get(name);
             if (type == null) {
-                throw new IllegalStateException(
+                throw new PureCompileException(
                         "Column '" + name + "' does not exist. Available columns: " + columns.keySet());
             }
             return type;
@@ -655,7 +692,7 @@ public sealed interface Type {
 
         public void assertHasColumn(String name) {
             if (!columns.containsKey(name)) {
-                throw new IllegalStateException(
+                throw new PureCompileException(
                         "Column '" + name + "' does not exist. Available columns: " + columns.keySet());
             }
         }
@@ -663,7 +700,7 @@ public sealed interface Type {
         public void assertHasColumns(List<String> names) {
             var missing = names.stream().filter(n -> !columns.containsKey(n)).toList();
             if (!missing.isEmpty()) {
-                throw new IllegalStateException(
+                throw new PureCompileException(
                         "Columns " + missing + " do not exist. Available columns: " + columns.keySet());
             }
         }
@@ -687,7 +724,7 @@ public sealed interface Type {
             for (String name : names) {
                 Type type = columns.get(name);
                 if (type == null) {
-                    throw new IllegalStateException(
+                    throw new PureCompileException(
                             "Column '" + name + "' does not exist. Available columns: " + columns.keySet());
                 }
                 newCols.put(name, type);
@@ -704,7 +741,7 @@ public sealed interface Type {
         public Schema renameColumn(String oldName, String newName) {
             Type type = columns.get(oldName);
             if (type == null) {
-                throw new IllegalStateException(
+                throw new PureCompileException(
                         "Cannot rename: column '" + oldName + "' does not exist. Available: " + columns.keySet());
             }
             var newCols = new LinkedHashMap<String, Type>();

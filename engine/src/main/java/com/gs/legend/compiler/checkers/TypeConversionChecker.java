@@ -1,11 +1,11 @@
 package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.AppliedFunction;
-import com.gs.legend.ast.GenericTypeInstance;
+import com.gs.legend.ast.TypeAnnotation;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
 import com.gs.legend.model.SymbolTable;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.List;
 
@@ -64,7 +64,7 @@ public class TypeConversionChecker extends AbstractChecker {
 
         env.compileExpr(params.get(1), ctx);
 
-        GenericType targetType = ((GenericTypeInstance) params.get(1)).resolvedType();
+        Type targetType = ((TypeAnnotation) params.get(1)).resolve(env.modelContext());
 
         return TypeInfo.builder()
                 .expressionType(ExpressionType.many(targetType))
@@ -82,7 +82,7 @@ public class TypeConversionChecker extends AbstractChecker {
 
         env.compileExpr(params.get(1), ctx);
 
-        GenericType targetType = ((GenericTypeInstance) params.get(1)).resolvedType();
+        Type targetType = ((TypeAnnotation) params.get(1)).resolve(env.modelContext());
 
         return TypeInfo.builder()
                 .expressionType(ExpressionType.zeroOrOne(targetType))
@@ -96,7 +96,7 @@ public class TypeConversionChecker extends AbstractChecker {
     private TypeInfo checkToVariant(AppliedFunction af, TypeInfo source) {
         resolveOverload("toVariant", af.parameters(), source);
         return TypeInfo.builder()
-                .expressionType(ExpressionType.one(GenericType.Primitive.JSON))
+                .expressionType(ExpressionType.one(Type.Primitive.JSON))
                 .build();
     }
 }

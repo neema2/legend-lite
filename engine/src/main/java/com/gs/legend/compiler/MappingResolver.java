@@ -10,7 +10,7 @@ import com.gs.legend.model.mapping.RelationalMapping;
 import com.gs.legend.model.m3.PureClass;
 import com.gs.legend.model.store.PropertyMapping;
 import com.gs.legend.compiler.checkers.ExtendChecker;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -157,7 +157,7 @@ public final class MappingResolver {
     private StoreResolution resolveNew(AppliedFunction af) {
         TypeInfo info = typeResult.types().get(af);
         if (info == null || !info.instanceLiteral()) return null;
-        if (!(info.type() instanceof GenericType.ClassType ct)) return null;
+        if (!(info.type() instanceof Type.ClassType ct)) return null;
         String className = ct.qualifiedName();
         // ^Class — create identity mapping from model context
         PureClass pc = modelContext.findClass(className).orElse(null);

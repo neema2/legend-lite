@@ -6,6 +6,7 @@ import com.gs.legend.compiler.PureCompileException;
 import com.gs.legend.compiler.TypeChecker;
 import com.gs.legend.compiler.StoreResolution;
 import com.gs.legend.compiler.TypeInfo;
+import com.gs.legend.model.m3.Type;
 import com.gs.legend.sqlgen.SQLDialect;
 import com.gs.legend.sqlgen.SqlBuilder;
 import com.gs.legend.sqlgen.SqlExpr;
@@ -155,7 +156,7 @@ public class PlanGenerator {
         ResultFormat format;
         if (info.isRelational()) {
             format = new ResultFormat.Tabular();
-        } else if (isTableQuery && expressionType.type() instanceof GenericType.ClassType) {
+        } else if (isTableQuery && expressionType.type() instanceof Type.ClassType) {
             // Bare ClassType table query: wrap in JSON like graphFetch.
             // generate() is the root — only place that knows no serialize/graphFetch is on top.
             builder = wrapJsonFromStore(builder, storeFor(vs));
@@ -815,7 +816,7 @@ public class PlanGenerator {
         String filterAlias = source.hasGroupBy() ? "grp" : "ext";
         TypeInfo sourceInfo = unit.types().get(params.get(0));
         boolean isClassSource = sourceInfo != null
-                && sourceInfo.type() instanceof GenericType.ClassType;
+                && sourceInfo.type() instanceof Type.ClassType;
         SqlExpr whereClause = generateScalar(lambda.body().get(0), paramName,
                 isClassSource ? store : null, filterAlias);
         if (store != null) {
@@ -1916,7 +1917,7 @@ public class PlanGenerator {
         // --- Class-source extend: passthrough (stays in object space) ---
         // extend(C[*]) is an intermediate step — downstream project/graphFetch generates SQL.
         TypeInfo extendInfo = unit.types().get(af);
-        if (extendInfo != null && extendInfo.type() instanceof GenericType.ClassType) {
+        if (extendInfo != null && extendInfo.type() instanceof Type.ClassType) {
             return generateRelation(params.get(0));
         }
 
@@ -2561,7 +2562,7 @@ public class PlanGenerator {
             case CInteger i -> {
                 // Check compiler type annotation for precision
                 TypeInfo tiInt = unit.typeInfoFor(i);
-                if (tiInt != null && tiInt.type() == GenericType.Primitive.INT128) {
+                if (tiInt != null && tiInt.type() == Type.Primitive.INT128) {
                     yield new SqlExpr.Cast(new SqlExpr.NumericLiteral(i.value()), "Int128");
                 }
                 yield new SqlExpr.NumericLiteral(i.value());
@@ -2572,7 +2573,7 @@ public class PlanGenerator {
             case CDecimal d -> {
                 // Check compiler type annotation for precision
                 TypeInfo tiDec = unit.typeInfoFor(d);
-                if (tiDec != null && tiDec.type() instanceof GenericType.PrecisionDecimal(
+                if (tiDec != null && tiDec.type() instanceof Type.PrecisionDecimal(
                         int precision, int scale
                 )) {
                     yield new SqlExpr.Cast(
@@ -2722,7 +2723,7 @@ public class PlanGenerator {
                     // Check TypeInfo for string type (e.g., lambda param x: String[1])
                     for (var p : params) {
                         TypeInfo pti = unit.types().get(p);
-                        if (pti != null && pti.type() == GenericType.Primitive.STRING) {
+                        if (pti != null && pti.type() == Type.Primitive.STRING) {
                             isStringConcat = true;
                             break;
                         }
@@ -2783,14 +2784,14 @@ public class PlanGenerator {
                     TypeInfo searchInfo = unit.typeInfoFor(params.get(1));
                     if (listInfo != null && searchInfo != null
                             && listInfo.type() != null && searchInfo.type() != null) {
-                        GenericType listElemType = listInfo.type();
-                        GenericType searchType = searchInfo.type();
-                        if (listElemType instanceof GenericType.ClassType
+                        Type listElemType = listInfo.type();
+                        Type searchType = searchInfo.type();
+                        if (listElemType instanceof Type.ClassType
                                 && searchType.isPrimitive()) {
                             yield new SqlExpr.BoolLiteral(false);
                         }
                         if (listElemType != null && listElemType.isPrimitive()
-                                && searchType instanceof GenericType.ClassType) {
+                                && searchType instanceof Type.ClassType) {
                             yield new SqlExpr.BoolLiteral(false);
                         }
                     }
@@ -3395,7 +3396,7 @@ public class PlanGenerator {
                 if (dateTypeInfo != null && dateTypeInfo.isDateType()) {
                     // Literal date path: TO_DAYS/TO_WEEKS + origin + CAST
                     // Pass type info so dialect can render correctly
-                    String castType = (dateTypeInfo.type() == GenericType.Primitive.DATE_TIME)
+                    String castType = (dateTypeInfo.type() == Type.Primitive.DATE_TIME)
                             ? "TimestampNS" : "Date";
                     yield new SqlExpr.FunctionCall("timeBucketScalar",
                             List.of(quantityExpr, new SqlExpr.StringLiteral(tbUnit),
@@ -4048,7 +4049,7 @@ public class PlanGenerator {
                 // For toMany(@Variant), type is JSON — resolveVariantSqlType returns null,
                 // but we still need CAST(source AS JSON[]) to unnest the JSON array
                 if (elemType == null && info != null
-                        && info.type() == GenericType.Primitive.JSON) {
+                        && info.type() == Type.Primitive.JSON) {
                     elemType = "JSON";
                 }
                 yield elemType != null ? new SqlExpr.VariantArrayCast(source, elemType) : source;
@@ -4090,8 +4091,8 @@ public class PlanGenerator {
                     // Check compiler type info for typed list cast: cast(@Integer) on a list
                     TypeInfo castInfo = unit.typeInfoFor(af);
                     if (castInfo != null && castInfo.isMany()) {
-                        GenericType elemType = castInfo.type();
-                        if (elemType != null && elemType != GenericType.Primitive.ANY) {
+                        Type elemType = castInfo.type();
+                        if (elemType != null && elemType != Type.Primitive.ANY) {
                             String sqlType = dialect.sqlTypeName(elemType.typeName());
                             yield new SqlExpr.VariantArrayCast(source, sqlType);
                         }
@@ -4114,7 +4115,7 @@ public class PlanGenerator {
                     SqlExpr list = c.apply(params.get(0));
                     // If source is a variant (JSON), wrap in CAST(AS JSON[]) for array iteration
                     TypeInfo sourceInfo = unit.types().get(params.get(0));
-                    if (sourceInfo != null && sourceInfo.type() == GenericType.Primitive.JSON) {
+                    if (sourceInfo != null && sourceInfo.type() == Type.Primitive.JSON) {
                         list = new SqlExpr.VariantArrayCast(list, dialect.sqlTypeName("JSON"));
                     }
                     String elemParam = parameters.isEmpty() ? "x"
@@ -4347,8 +4348,8 @@ public class PlanGenerator {
      */
     private String resolveVariantSqlType(TypeInfo info) {
         if (info == null) return null;
-        GenericType t = info.type();
-        if (t == GenericType.Primitive.ANY || t == GenericType.Primitive.JSON) return null;
+        Type t = info.type();
+        if (t == Type.Primitive.ANY || t == Type.Primitive.JSON) return null;
         return dialect.sqlTypeName(t.typeName());
     }
 

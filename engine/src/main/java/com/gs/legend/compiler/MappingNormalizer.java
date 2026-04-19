@@ -823,10 +823,11 @@ public final class MappingNormalizer {
         com.gs.legend.ast.ValueSpecification body = new com.gs.legend.ast.AppliedFunction(
                 "get", java.util.List.of(colAccess, new com.gs.legend.ast.CString(parsedAccess.jsonKey())));
 
-        // to(get(...), @Type) → text extraction (->> in SQL) + CAST
+        // to(get(...), @Type) → text extraction (->> in SQL) + CAST.
+        // Parser-layer artifact emits a purely syntactic TypeAnnotation; the downstream
+        // TypeConversionChecker resolves it to an m3.Type via the ModelContext.
         if (parsedAccess.castType() != null) {
-            var prim = com.gs.legend.plan.GenericType.Primitive.fromTypeName(parsedAccess.castType());
-            var typeRef = new com.gs.legend.ast.GenericTypeInstance(parsedAccess.castType(), prim);
+            var typeRef = new com.gs.legend.ast.TypeAnnotation.Named(parsedAccess.castType());
             body = new com.gs.legend.ast.AppliedFunction(
                     "to", java.util.List.of(body, typeRef));
         }

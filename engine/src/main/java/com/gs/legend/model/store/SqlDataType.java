@@ -17,19 +17,19 @@ public enum SqlDataType {
     SEMISTRUCTURED;
 
     /**
-     * Maps this SQL data type to its corresponding Pure GenericType.
+     * Maps this SQL data type to its corresponding Pure Type.
      */
-    public com.gs.legend.plan.GenericType toGenericType() {
+    public com.gs.legend.model.m3.Type toGenericType() {
         return switch (this) {
-            case VARCHAR -> com.gs.legend.plan.GenericType.Primitive.STRING;
-            case INTEGER -> com.gs.legend.plan.GenericType.Primitive.INTEGER;
-            case BIGINT -> com.gs.legend.plan.GenericType.Primitive.INTEGER;
-            case BOOLEAN -> com.gs.legend.plan.GenericType.Primitive.BOOLEAN;
-            case DATE -> com.gs.legend.plan.GenericType.Primitive.STRICT_DATE;
-            case TIMESTAMP -> com.gs.legend.plan.GenericType.Primitive.DATE_TIME;
-            case DOUBLE -> com.gs.legend.plan.GenericType.Primitive.FLOAT;
-            case DECIMAL -> com.gs.legend.plan.GenericType.DEFAULT_DECIMAL;
-            case SEMISTRUCTURED -> com.gs.legend.plan.GenericType.Primitive.JSON;
+            case VARCHAR -> com.gs.legend.model.m3.Type.Primitive.STRING;
+            case INTEGER -> com.gs.legend.model.m3.Type.Primitive.INTEGER;
+            case BIGINT -> com.gs.legend.model.m3.Type.Primitive.INTEGER;
+            case BOOLEAN -> com.gs.legend.model.m3.Type.Primitive.BOOLEAN;
+            case DATE -> com.gs.legend.model.m3.Type.Primitive.STRICT_DATE;
+            case TIMESTAMP -> com.gs.legend.model.m3.Type.Primitive.DATE_TIME;
+            case DOUBLE -> com.gs.legend.model.m3.Type.Primitive.FLOAT;
+            case DECIMAL -> com.gs.legend.model.m3.Type.DEFAULT_DECIMAL;
+            case SEMISTRUCTURED -> com.gs.legend.model.m3.Type.Primitive.JSON;
         };
     }
 

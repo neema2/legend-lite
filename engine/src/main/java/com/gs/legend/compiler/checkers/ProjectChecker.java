@@ -2,7 +2,7 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.*;
 
@@ -56,11 +56,11 @@ public class ProjectChecker extends AbstractChecker {
 
         // 3. Resolve lambda param type from signature
         PType.FunctionType ft = extractFunctionType(def.params().get(1));
-        GenericType resolvedParamType = resolve(ft.paramTypes().get(0).type(), bindings,
+        Type resolvedParamType = resolve(ft.paramTypes().get(0).type(), bindings,
                 "project() lambda param");
 
         // 4. Type-check each ColSpec lambda → build output schema
-        Map<String, GenericType> projectedColumns = new LinkedHashMap<>();
+        Map<String, Type> projectedColumns = new LinkedHashMap<>();
         List<TypeInfo.ProjectionSpec> projectionSpecs = new ArrayList<>();
 
         for (ColSpec cs : colSpecs) {
@@ -92,12 +92,12 @@ public class ProjectChecker extends AbstractChecker {
         }
 
         // 5. Build output Relation<Schema>
-        GenericType.Relation.Schema resultSchema =
-                GenericType.Relation.Schema.withoutPivot(projectedColumns);
+        Type.Schema resultSchema =
+                Type.Schema.withoutPivot(projectedColumns);
 
         return TypeInfo.builder()
                 .projections(projectionSpecs)
-                .expressionType(ExpressionType.one(new GenericType.Relation(resultSchema)))
+                .expressionType(ExpressionType.one(new Type.Relation(resultSchema)))
                 .build();
     }
 

@@ -4,7 +4,7 @@ import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.LambdaFunction;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.List;
 import java.util.Map;
@@ -63,7 +63,7 @@ public class MapChecker extends AbstractChecker {
 
         // 4. Bind lambda param using resolved T
         String paramName = lambda.parameters().get(0).name();
-        GenericType resolvedParamType = resolve(ft.paramTypes().get(0).type(), bindings,
+        Type resolvedParamType = resolve(ft.paramTypes().get(0).type(), bindings,
                 "map() lambda param");
         TypeChecker.CompilationContext lambdaCtx = bindLambdaParam(ctx, paramName,
                 resolvedParamType, source);
@@ -74,7 +74,7 @@ public class MapChecker extends AbstractChecker {
         // 6. Bind V from lambda body's return type
         //    The signature has V as a type variable — we bind it from the actual
         //    lambda result so resolveOutput can construct the correct return type.
-        GenericType bodyGenericType = bodyType.type();
+        Type bodyGenericType = bodyType.type();
         if (bodyGenericType != null) {
             bindings.put("V", bodyGenericType);
         }

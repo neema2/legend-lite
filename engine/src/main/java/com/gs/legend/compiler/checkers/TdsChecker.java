@@ -4,7 +4,7 @@ import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.CString;
 import com.gs.legend.ast.TdsLiteral;
 import com.gs.legend.compiler.*;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -37,29 +37,29 @@ public class TdsChecker extends AbstractChecker {
         TdsLiteral tds = TdsLiteral.parse(raw);
 
         // Build Relation schema — TdsLiteral.parse() guarantees every column has a type
-        Map<String, GenericType> columns = new LinkedHashMap<>();
+        Map<String, Type> columns = new LinkedHashMap<>();
         for (var col : tds.columns()) {
             columns.put(col.name(), mapTdsColumnType(col.type()));
         }
 
-        var schema = GenericType.Relation.Schema.withoutPivot(columns);
+        var schema = Type.Schema.withoutPivot(columns);
         return TypeInfo.builder()
-                .expressionType(ExpressionType.one(new GenericType.Relation(schema)))
+                .expressionType(ExpressionType.one(new Type.Relation(schema)))
                 .tdsLiteral(tds)
                 .build();
     }
 
-    /** Maps a TDS type annotation string to a GenericType. Never null — TdsLiteral guarantees type. */
-    private static GenericType mapTdsColumnType(String typeStr) {
+    /** Maps a TDS type annotation string to a Type. Never null — TdsLiteral guarantees type. */
+    private static Type mapTdsColumnType(String typeStr) {
         return switch (typeStr) {
-            case "Integer" -> GenericType.Primitive.INTEGER;
-            case "Float", "Number" -> GenericType.Primitive.FLOAT;
-            case "Decimal" -> GenericType.DEFAULT_DECIMAL;
-            case "Boolean" -> GenericType.Primitive.BOOLEAN;
-            case "String" -> GenericType.Primitive.STRING;
-            case "Date", "StrictDate" -> GenericType.Primitive.STRICT_DATE;
-            case "DateTime" -> GenericType.Primitive.DATE_TIME;
-            default -> GenericType.Primitive.STRING;
+            case "Integer" -> Type.Primitive.INTEGER;
+            case "Float", "Number" -> Type.Primitive.FLOAT;
+            case "Decimal" -> Type.DEFAULT_DECIMAL;
+            case "Boolean" -> Type.Primitive.BOOLEAN;
+            case "String" -> Type.Primitive.STRING;
+            case "Date", "StrictDate" -> Type.Primitive.STRICT_DATE;
+            case "DateTime" -> Type.Primitive.DATE_TIME;
+            default -> Type.Primitive.STRING;
         };
     }
 }

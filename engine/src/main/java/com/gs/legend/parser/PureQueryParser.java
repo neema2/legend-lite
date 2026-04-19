@@ -1063,23 +1063,26 @@ public final class PureQueryParser {
 
     // ==================== Type annotation ====================
 
+    /**
+     * Parses a {@code @TypeName} or {@code @Relation<(col:Type, ...)>} annotation
+     * into a purely syntactic {@link TypeAnnotation}. All type-name classification
+     * (primitive / class / enum) is deferred to the checker via
+     * {@link TypeAnnotation#resolve(com.gs.legend.model.ModelContext)}.
+     */
     private ValueSpecification parseTypeAnnotation() {
         consume(TokenType.AT);
         String typeName = parseQualifiedName();
 
-        // Check for Relation<(col:Type, ...)>
+        // @Relation<(col:Type, ...)> — structural shape
         String simpleName = typeName.contains("::") ? typeName.substring(typeName.lastIndexOf("::") + 2) : typeName;
         if ("Relation".equals(simpleName) && check(TokenType.LESS_THAN)) {
             consume(TokenType.LESS_THAN);
-            // Expect relationType: (col:Type, ...)
             if (check(TokenType.PAREN_OPEN)) {
-                com.gs.legend.plan.GenericType resolved = parseRelationType();
+                TypeAnnotation.RelationShape shape = parseRelationShape();
                 consume(TokenType.GREATER_THAN);
-                return new GenericTypeInstance("Relation", resolved);
+                return shape;
             }
-            // Fall through for other type argument patterns
-            // Collect text until >
-            StringBuilder content = new StringBuilder();
+            // Non-(...) type arguments — skip to matching > and fall through to Named.
             int depth = 1;
             while (pos < tokenCount && depth > 0) {
                 if (peek() == TokenType.LESS_THAN) depth++;
@@ -1087,31 +1090,28 @@ public final class PureQueryParser {
                     depth--;
                     if (depth == 0) break;
                 }
-                content.append(text());
                 advance();
             }
             consume(TokenType.GREATER_THAN);
         }
 
-        return new GenericTypeInstance(typeName,
-                com.gs.legend.plan.GenericType.fromTypeName(typeName));
+        return new TypeAnnotation.Named(typeName);
     }
 
-    private com.gs.legend.plan.GenericType parseRelationType() {
+    private TypeAnnotation.RelationShape parseRelationShape() {
         consume(TokenType.PAREN_OPEN);
-        var columns = new LinkedHashMap<String, com.gs.legend.plan.GenericType>();
+        List<TypeAnnotation.RelationShape.Column> columns = new ArrayList<>();
         if (!check(TokenType.PAREN_CLOSE)) {
-            parseColumnInfo(columns);
+            columns.add(parseRelationColumn());
             while (match(TokenType.COMMA)) {
-                parseColumnInfo(columns);
+                columns.add(parseRelationColumn());
             }
         }
         consume(TokenType.PAREN_CLOSE);
-        return new com.gs.legend.plan.GenericType.Relation(
-                com.gs.legend.plan.GenericType.Relation.Schema.withoutPivot(columns));
+        return new TypeAnnotation.RelationShape(columns);
     }
 
-    private void parseColumnInfo(Map<String, com.gs.legend.plan.GenericType> columns) {
+    private TypeAnnotation.RelationShape.Column parseRelationColumn() {
         // mayColumnName: QUESTION | identifier
         String colName;
         if (check(TokenType.QUESTION)) {
@@ -1122,19 +1122,19 @@ public final class PureQueryParser {
         }
         consume(TokenType.COLON);
         // mayColumnType: QUESTION | type
-        com.gs.legend.plan.GenericType colType;
+        TypeAnnotation colType;
         if (check(TokenType.QUESTION)) {
-            colType = com.gs.legend.plan.GenericType.Primitive.ANY;
+            colType = new TypeAnnotation.Wildcard();
             advance();
         } else {
-            String typeName = parseTypeText();
-            colType = com.gs.legend.plan.GenericType.fromTypeName(typeName);
+            colType = new TypeAnnotation.Named(parseTypeText());
         }
-        // optional multiplicity
+        // Optional multiplicity — consumed and discarded until Type.Schema gains a
+        // per-column multiplicity slot (deferred; no current consumer).
         if (check(TokenType.BRACKET_OPEN)) {
-            parseMultiplicityText(); // consume and discard
+            parseMultiplicityText();
         }
-        columns.put(colName, colType);
+        return new TypeAnnotation.RelationShape.Column(colName, colType);
     }
 
     // ==================== Comparator ====================

@@ -581,7 +581,7 @@ public final class NameResolver {
      * <ul>
      *   <li>{@link PackageableElementPtr#fullPath()} — e.g., {@code Employee} in {@code Employee.all()}</li>
      *   <li>Desugared graphFetch root class — e.g., {@code Employee} in {@code #{Employee{...}}#}</li>
-     *   <li>{@link GenericTypeInstance#fullPath()} — e.g., {@code Employee} in {@code @Employee}</li>
+     *   <li>{@link TypeAnnotation.Named#fullPath()} — e.g., {@code Employee} in {@code @Employee}</li>
      * </ul>
      *
      * @param ast       The raw query AST from the parser
@@ -601,10 +601,7 @@ public final class NameResolver {
                 String resolved = imports.resolve(ptr.fullPath(), knownFqns);
                 yield resolved.equals(ptr.fullPath()) ? ptr : new PackageableElementPtr(resolved);
             }
-            case GenericTypeInstance gti -> {
-                String resolved = imports.resolve(gti.fullPath(), knownFqns);
-                yield resolved.equals(gti.fullPath()) ? gti : new GenericTypeInstance(resolved, gti.resolvedType());
-            }
+            case TypeAnnotation ta -> resolveTypeAnnotation(ta, imports, knownFqns);
             case AppliedFunction af -> {
                 String resolvedFunc = imports.resolve(af.function(), knownFqns);
                 List<ValueSpecification> resolvedParams = resolveList(af.parameters(), imports, knownFqns);
@@ -662,6 +659,35 @@ public final class NameResolver {
             Object value, ImportScope imports, Set<String> knownFqns) {
         // ClassInstance values (ColSpecArray, ColSpec, etc.) contain no class names to resolve.
         return value;
+    }
+
+    /**
+     * Rewrites simple names inside a {@link TypeAnnotation} to FQN via imports, recursing
+     * structurally. Returns the original instance when nothing changed.
+     */
+    private static TypeAnnotation resolveTypeAnnotation(
+            TypeAnnotation ta, ImportScope imports, Set<String> knownFqns) {
+        return switch (ta) {
+            case TypeAnnotation.Named(String path) -> {
+                String resolved = imports.resolve(path, knownFqns);
+                yield resolved.equals(path) ? ta : new TypeAnnotation.Named(resolved);
+            }
+            case TypeAnnotation.Wildcard ignored -> ta;
+            case TypeAnnotation.RelationShape(List<TypeAnnotation.RelationShape.Column> cols) -> {
+                boolean changed = false;
+                List<TypeAnnotation.RelationShape.Column> newCols = new ArrayList<>(cols.size());
+                for (var c : cols) {
+                    TypeAnnotation resolvedInner = resolveTypeAnnotation(c.type(), imports, knownFqns);
+                    if (resolvedInner != c.type()) {
+                        changed = true;
+                        newCols.add(new TypeAnnotation.RelationShape.Column(c.name(), resolvedInner));
+                    } else {
+                        newCols.add(c);
+                    }
+                }
+                yield changed ? new TypeAnnotation.RelationShape(newCols) : ta;
+            }
+        };
     }
 
 }

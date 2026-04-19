@@ -3,7 +3,7 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,7 +41,7 @@ public class RenameChecker extends AbstractChecker {
         unify(def, source.expressionType()); // validate source matches signature generics
 
         // 2. Source must be relational
-        GenericType.Relation.Schema sourceSchema = source.schema();
+        Type.Schema sourceSchema = source.schema();
         if (sourceSchema == null) {
             throw new PureCompileException("rename() requires a relational source");
         }
@@ -63,7 +63,7 @@ public class RenameChecker extends AbstractChecker {
         }
 
         // 6. Build output schema by applying renames sequentially
-        GenericType.Relation.Schema outputSchema = sourceSchema;
+        Type.Schema outputSchema = sourceSchema;
         List<TypeInfo.ColumnSpec> colSpecs = new ArrayList<>();
         for (int i = 0; i < oldNames.size(); i++) {
             outputSchema = outputSchema.renameColumn(oldNames.get(i), newNames.get(i));
@@ -72,7 +72,7 @@ public class RenameChecker extends AbstractChecker {
 
         return TypeInfo.builder()
                 .columnSpecs(colSpecs)
-                .expressionType(ExpressionType.one(new GenericType.Relation(outputSchema)))
+                .expressionType(ExpressionType.one(new Type.Relation(outputSchema)))
                 .build();
     }
 }

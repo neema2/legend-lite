@@ -1,7 +1,7 @@
 package com.gs.legend.compiler;
 
 import com.gs.legend.model.m3.Multiplicity;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 /**
  * Complete type signature of a Pure expression: type + multiplicity.
@@ -24,7 +24,7 @@ import com.gs.legend.plan.GenericType;
  * @param type         The Pure type (Integer, Relation, ClassType, etc.)
  * @param multiplicity The cardinality ([1], [*], [0..1], [1..*])
  */
-public record ExpressionType(GenericType type, Multiplicity multiplicity) {
+public record ExpressionType(Type type, Multiplicity multiplicity) {
 
     public ExpressionType {
         java.util.Objects.requireNonNull(type, "ExpressionType.type must not be null");
@@ -34,22 +34,22 @@ public record ExpressionType(GenericType type, Multiplicity multiplicity) {
     // ===== Convenience factories =====
 
     /** Scalar single value: type[1]. */
-    public static ExpressionType one(GenericType type) {
+    public static ExpressionType one(Type type) {
         return new ExpressionType(type, Multiplicity.ONE);
     }
 
     /** Optional single value: type[0..1]. */
-    public static ExpressionType zeroOrOne(GenericType type) {
+    public static ExpressionType zeroOrOne(Type type) {
         return new ExpressionType(type, Multiplicity.ZERO_ONE);
     }
 
     /** Collection: type[*]. */
-    public static ExpressionType many(GenericType type) {
+    public static ExpressionType many(Type type) {
         return new ExpressionType(type, Multiplicity.MANY);
     }
 
     /** One or more: type[1..*]. */
-    public static ExpressionType oneMany(GenericType type) {
+    public static ExpressionType oneMany(Type type) {
         return new ExpressionType(type, Multiplicity.ONE_MANY);
     }
 
@@ -57,12 +57,12 @@ public record ExpressionType(GenericType type, Multiplicity multiplicity) {
 
     /** True if this is a relational (tabular) expression. */
     public boolean isRelation() {
-        return type instanceof GenericType.Relation;
+        return type instanceof Type.Relation;
     }
 
     /** True if this is a scalar expression (not relational). */
     public boolean isScalar() {
-        return !(type instanceof GenericType.Relation);
+        return !(type instanceof Type.Relation);
     }
 
     /** True if multiplicity allows multiple values. */
@@ -75,9 +75,9 @@ public record ExpressionType(GenericType type, Multiplicity multiplicity) {
         return multiplicity.equals(Multiplicity.ZERO_ONE);
     }
 
-    /** Extract the GenericType.Relation.Schema if this is a Relation, otherwise null. */
-    public com.gs.legend.plan.GenericType.Relation.Schema schema() {
-        return type instanceof GenericType.Relation r ? r.schema() : null;
+    /** Extract the Type.Schema if this is a Relation, otherwise null. */
+    public com.gs.legend.model.m3.Type.Schema schema() {
+        return type instanceof Type.Relation r ? r.schema() : null;
     }
 
     @Override

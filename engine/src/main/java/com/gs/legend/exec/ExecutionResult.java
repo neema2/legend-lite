@@ -1,6 +1,6 @@
 package com.gs.legend.exec;
 
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 import com.gs.legend.util.Json;
 
 import java.sql.ResultSet;
@@ -14,7 +14,7 @@ import java.util.Objects;
  * Unified result from executing a Pure query.
  *
  * <p>
- * Each variant carries the {@link GenericType} return type from the plan,
+ * Each variant carries the {@link Type} return type from the plan,
  * enabling consumers to handle results with full type information —
  * no heuristics, no string parsing, no null checks.
  *
@@ -29,7 +29,7 @@ import java.util.Objects;
 public sealed interface ExecutionResult {
 
     /** The Pure-level return type of this result. Never null. */
-    GenericType returnType();
+    Type returnType();
 
     /** Column metadata. Every variant provides this. */
     List<Column> columns();
@@ -122,7 +122,7 @@ public sealed interface ExecutionResult {
     /**
      * Single scalar value: |1+1 → Integer, |'hello' → String.
      */
-    record ScalarResult(Object value, GenericType returnType) implements ExecutionResult {
+    record ScalarResult(Object value, Type returnType) implements ExecutionResult {
         public ScalarResult {
             Objects.requireNonNull(returnType, "returnType must not be null");
         }
@@ -147,7 +147,7 @@ public sealed interface ExecutionResult {
      * Collection of values: filter(...).legalName → String[*].
      * SQL returns N rows × 1 column; values are extracted into a flat list.
      */
-    record CollectionResult(List<Object> values, GenericType returnType) implements ExecutionResult {
+    record CollectionResult(List<Object> values, Type returnType) implements ExecutionResult {
         public CollectionResult {
             Objects.requireNonNull(values, "values must not be null");
             Objects.requireNonNull(returnType, "returnType must not be null");
@@ -179,8 +179,8 @@ public sealed interface ExecutionResult {
     record TabularResult(
             List<Column> columns,
             List<Row> rows,
-            GenericType.Relation.Schema schema,
-            GenericType returnType) implements ExecutionResult {
+            Type.Schema schema,
+            Type returnType) implements ExecutionResult {
         public TabularResult {
             Objects.requireNonNull(columns, "columns must not be null");
             Objects.requireNonNull(rows, "rows must not be null");
@@ -196,7 +196,7 @@ public sealed interface ExecutionResult {
     /**
      * Graph/tree result from graphFetch: serialized JSON tree.
      */
-    record GraphResult(String json, GenericType returnType) implements ExecutionResult {
+    record GraphResult(String json, Type returnType) implements ExecutionResult {
         public GraphResult {
             Objects.requireNonNull(returnType, "returnType must not be null");
         }
@@ -231,13 +231,13 @@ public sealed interface ExecutionResult {
     // ===== Factory =====
 
     /**
-     * Builds Column metadata from the compiler's GenericType.Relation.Schema schema.
+     * Builds Column metadata from the compiler's Type.Schema schema.
      * This is the source of truth for non-pivot queries.
      *
      * <p>Package-private so {@link PlanExecutor#streamJson} can resolve columns
      * without materializing an ExecutionResult.
      */
-    static List<Column> columnsFromSchema(GenericType.Relation.Schema schema) {
+    static List<Column> columnsFromSchema(Type.Schema schema) {
         List<Column> cols = new ArrayList<>(schema.size());
         for (var entry : schema.columns().entrySet()) {
             String typeName = entry.getValue().typeName();
@@ -256,9 +256,9 @@ public sealed interface ExecutionResult {
      * without materializing an ExecutionResult.
      */
     static List<Column> columnsHybrid(
-            GenericType.Relation.Schema schema, ResultSetMetaData meta, int colCount) throws SQLException {
+            Type.Schema schema, ResultSetMetaData meta, int colCount) throws SQLException {
         // Build lookup: alias suffix → Pure return type
-        var dynamicLookup = new java.util.HashMap<String, GenericType>();
+        var dynamicLookup = new java.util.HashMap<String, Type>();
         for (var dpc : schema.dynamicPivotColumns()) {
             dynamicLookup.put(dpc.aliasSuffix(), dpc.returnType());
         }
@@ -268,7 +268,7 @@ public sealed interface ExecutionResult {
             String name = meta.getColumnLabel(i);
 
             // Try compiler schema first (static group-by columns)
-            GenericType compilerType = schema.getColumnType(name);
+            Type compilerType = schema.getColumnType(name);
             if (compilerType != null) {
                 String typeName = compilerType.typeName();
                 cols.add(new Column(name, typeName, typeName));
@@ -276,11 +276,11 @@ public sealed interface ExecutionResult {
             }
 
             // Dynamic pivot column: parse suffix after SEPARATOR
-            String sep = GenericType.Relation.Schema.DynamicPivotColumn.SEPARATOR;
+            String sep = Type.Schema.DynamicPivotColumn.SEPARATOR;
             int sepIdx = name.lastIndexOf(sep);
             if (sepIdx >= 0) {
                 String suffix = name.substring(sepIdx + sep.length());
-                GenericType aggType = dynamicLookup.get(suffix);
+                Type aggType = dynamicLookup.get(suffix);
                 if (aggType != null) {
                     String typeName = aggType.typeName();
                     cols.add(new Column(name, typeName, typeName));
@@ -309,7 +309,7 @@ public sealed interface ExecutionResult {
         var exprType = plan.expressionType();
         java.util.Objects.requireNonNull(exprType, "exprType must not be null");
 
-        GenericType returnType = exprType.type();
+        Type returnType = exprType.type();
         ResultSetMetaData meta = rs.getMetaData();
         int colCount = meta.getColumnCount();
 
@@ -327,7 +327,7 @@ public sealed interface ExecutionResult {
                 yield new GraphResult(json, returnType);
             }
             case com.gs.legend.plan.ResultFormat.Tabular t -> {
-                if (!(returnType instanceof GenericType.Relation r)) {
+                if (!(returnType instanceof Type.Relation r)) {
                     throw new IllegalStateException(
                             "Tabular format requires Relation type — got " + returnType);
                 }
@@ -355,8 +355,8 @@ public sealed interface ExecutionResult {
      * Use for DDL/DML operations that don't return a result set.
      */
     static ExecutionResult empty() {
-        GenericType.Relation.Schema schema = GenericType.Relation.Schema.empty();
-        return new TabularResult(List.of(), List.of(), schema, new GenericType.Relation(schema));
+        Type.Schema schema = Type.Schema.empty();
+        return new TabularResult(List.of(), List.of(), schema, new Type.Relation(schema));
     }
 
 }

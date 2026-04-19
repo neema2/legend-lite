@@ -2,7 +2,7 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
-import com.gs.legend.plan.GenericType;
+import com.gs.legend.model.m3.Type;
 
 import java.util.*;
 
@@ -41,7 +41,7 @@ public class PivotChecker extends AbstractChecker {
         unify(def, source.expressionType());
         List<ValueSpecification> params = af.parameters();
 
-        GenericType.Relation.Schema sourceSchema = source.schema();
+        Type.Schema sourceSchema = source.schema();
         if (sourceSchema == null) {
             throw new PureCompileException(
                     "pivot() requires a Relation source with a known schema");
@@ -65,7 +65,7 @@ public class PivotChecker extends AbstractChecker {
         List<TypeInfo.AggColumnSpec> aggCols = new ArrayList<>();
         for (ColSpec cs : aggSpecs) {
             TypeInfo.AggColumnSpec acs = groupByChecker.compileAggColSpec(
-                    cs, new GenericType.Relation(sourceSchema), source, ctx);
+                    cs, new Type.Relation(sourceSchema), source, ctx);
             aggCols.add(acs);
         }
 
@@ -85,13 +85,13 @@ public class PivotChecker extends AbstractChecker {
         // --- 4. Build dynamic pivot columns using compiled return types ---
         var dynamicCols = aggCols.stream()
                 .map(acs -> {
-                    GenericType returnType = acs.castType() != null
+                    Type returnType = acs.castType() != null
                             ? acs.castType() : acs.returnType();
-                    return new GenericType.Relation.Schema.DynamicPivotColumn(
+                    return new Type.Schema.DynamicPivotColumn(
                             acs.alias(), returnType);
                 })
                 .toList();
-        var partialType = new GenericType.Relation.Schema(groupByCols, dynamicCols);
+        var partialType = new Type.Schema(groupByCols, dynamicCols);
 
         // Store pivot column names in columnSpecs (same pattern as groupBy group cols)
         List<TypeInfo.ColumnSpec> pivotColSpecs = pivotColumns.stream()
@@ -101,7 +101,7 @@ public class PivotChecker extends AbstractChecker {
         return TypeInfo.builder()
                 .columnSpecs(pivotColSpecs)
                 .aggColumnSpecs(aggCols)
-                .expressionType(ExpressionType.one(new GenericType.Relation(partialType)))
+                .expressionType(ExpressionType.one(new Type.Relation(partialType)))
                 .build();
     }
 }

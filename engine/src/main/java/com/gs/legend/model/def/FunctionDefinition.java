@@ -106,7 +106,7 @@ public record FunctionDefinition(
      *                     null for non-function params (String, Integer, etc.)
      * @param parsedType   Full parsed PType from the grammar; null when not available.
      *                     Used by the compiler to resolve parameterized types like
-     *                     Relation<(col:Type)> to GenericType for schema validation.
+     *                     Relation<(col:Type)> to Type for schema validation.
      */
     public record ParameterDefinition(
             String name,
