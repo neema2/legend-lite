@@ -77,7 +77,7 @@ class NativeFunctionParseTest {
     @Test
     void testGeneric_join() {
         // Join uses schema algebra T+V in return type — must be pre-processed
-        var registry = new com.gs.legend.compiler.BuiltinFunctionRegistry();
+        var registry = new com.gs.legend.compiler.BuiltinRegistry();
         registry.registerSignature("join",
                 "native function join<T,V>(rel1:Relation<T>[1], rel2:Relation<V>[1], " +
                 "joinKind:JoinKind[1], f:Function<{T[1],V[1]->Boolean[1]}>[1]):Relation<T+V>[1];");
@@ -143,7 +143,7 @@ class NativeFunctionParseTest {
     @Test
     void testSubsetConstraint_select() {
         // ⊆ is stripped by normalizeSignature — constraint preserved in rawSignature
-        var registry = new com.gs.legend.compiler.BuiltinFunctionRegistry();
+        var registry = new com.gs.legend.compiler.BuiltinRegistry();
         registry.registerSignature("select",
                 "native function select<T,Z>(r:Relation<T>[1], cols:ColSpecArray<Z⊆T>[1]):Relation<Z>[1];");
         var fn = registry.resolve("select").get(0);
@@ -161,7 +161,7 @@ class NativeFunctionParseTest {
     @Test
     void testTypeMatchConstraint_rename() {
         // =(?:K) and ⊆ stripped by normalizeSignature
-        var registry = new com.gs.legend.compiler.BuiltinFunctionRegistry();
+        var registry = new com.gs.legend.compiler.BuiltinRegistry();
         registry.registerSignature("rename",
                 "native function rename<T,Z,K,V>(r:Relation<T>[1], " +
                 "old:ColSpec<Z=(?:K)⊆T>[1], new:ColSpec<V=(?:K)>[1]):Relation<T-Z+V>[1];");
@@ -200,7 +200,7 @@ class NativeFunctionParseTest {
     @Test
     void testAggregate_groupBy() {
         // groupBy uses both ⊆ and schema algebra Z+R — must be pre-processed
-        var registry = new com.gs.legend.compiler.BuiltinFunctionRegistry();
+        var registry = new com.gs.legend.compiler.BuiltinRegistry();
         registry.registerSignature("groupBy",
                 "native function groupBy<T,Z,K,V,R>(r:Relation<T>[1], " +
                 "cols:ColSpecArray<Z⊆T>[1], " +
@@ -220,7 +220,7 @@ class NativeFunctionParseTest {
 
     @Test
     void testAllRegisteredSignaturesParse() {
-        var registry = com.gs.legend.compiler.BuiltinFunctionRegistry.instance();
+        var registry = com.gs.legend.compiler.BuiltinRegistry.instance();
         int count = 0;
         for (var entry : registry.allRegistered().entrySet()) {
             for (NativeFunctionDef def : entry.getValue()) {

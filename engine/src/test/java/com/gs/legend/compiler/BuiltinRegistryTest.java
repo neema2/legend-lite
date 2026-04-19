@@ -8,12 +8,12 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for the BuiltinFunctionRegistry: ensures all functions are registered,
+ * Tests for the BuiltinRegistry: ensures all functions are registered,
  * correctly named, and retrievable.
  */
-class BuiltinFunctionRegistryTest {
+class BuiltinRegistryTest {
 
-    private final BuiltinFunctionRegistry registry = BuiltinFunctionRegistry.instance();
+    private final BuiltinRegistry registry = BuiltinRegistry.instance();
 
     // ===== Existence checks =====
 

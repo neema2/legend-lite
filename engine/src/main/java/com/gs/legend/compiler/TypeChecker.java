@@ -64,7 +64,7 @@ public class TypeChecker implements TypeCheckEnv {
      * Built-in function registry — validates function existence, no more
      * passthrough.
      */
-    private static final BuiltinFunctionRegistry builtinRegistry = BuiltinFunctionRegistry.instance();
+    private static final BuiltinRegistry builtinRegistry = BuiltinRegistry.instance();
 
     private final ModelContext modelContext;
     /** Per-node type info, consumed by PlanGenerator. */

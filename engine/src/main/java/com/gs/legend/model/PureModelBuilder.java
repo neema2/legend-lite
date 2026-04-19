@@ -1,5 +1,6 @@
 package com.gs.legend.model;
 
+import com.gs.legend.compiler.BuiltinRegistry;
 import com.gs.legend.model.def.*;
 import com.gs.legend.model.m3.*;
 import com.gs.legend.model.mapping.ClassMapping;
@@ -48,6 +49,26 @@ public final class PureModelBuilder implements ModelContext {
     private final ArrayList<MappingDefinition> mappingDefinitions = new ArrayList<>();
     private final Map<String, Map<String, Join>> explicitAssociationJoins = new HashMap<>();
     private final MappingRegistry mappingRegistry = new MappingRegistry(symbols);
+    private final ImportScope imports = new ImportScope();
+    private boolean strict = false;
+
+        /**
+     * Constructs a new {@code PureModelBuilder} pre-seeded with platform enum definitions and
+     * built-in imports from the singleton {@link BuiltinRegistry} (loaded once at JVM init).
+     *
+     * <p>Every model starts with the same baseline: all 15 Pure primitives and 7 platform enums
+     * (Month, DurationUnit, JoinKind, etc.) are in-scope by simple name, and {@link #findEnum}
+     * returns the platform enum declarations required by built-in function signatures (e.g.,
+     * {@code month()->Month[1]}).
+     */
+    public PureModelBuilder() {
+        for (String fqn : BuiltinRegistry.BUILTIN_IMPORTS) {
+            imports.addImport(fqn);
+        }
+        for (EnumDefinition platformEnum : BuiltinRegistry.PLATFORM_ENUMS) {
+            addEnum(platformEnum);
+        }
+    }
 
     // Primitive-int-indexed helpers — zero boxing, O(1) access
     private static <T> T idGet(ArrayList<T> list, int id) {
@@ -58,8 +79,6 @@ public final class PureModelBuilder implements ModelContext {
         if (gap > 0) list.addAll(java.util.Collections.nCopies(gap, null));
         list.set(id, value);
     }
-    private ImportScope imports = new ImportScope();
-    private boolean strict = false;
 
     /**
      * Returns the shared SymbolTable for downstream consumers (MappingNormalizer, etc.).
@@ -67,36 +86,7 @@ public final class PureModelBuilder implements ModelContext {
     public SymbolTable symbolTable() {
         return symbols;
     }
-
-    {
-        // Register Pure platform enums — these are defined in legend-pure/legend-engine
-        // and referenced by built-in function signatures (e.g., month()->Month[1]).
-        // Without this, findEnum("Month") returns empty and the compiler can't resolve
-        // enum return types or validate enum input params against the model.
-        registerPlatformEnums();
-    }
-
-    private void registerPlatformEnums() {
-        // Date enums (legend-pure: essential/date/_structures.pure)
-        addEnum(EnumDefinition.of("meta::pure::functions::date::Month",
-                "January", "February", "March", "April", "May", "June",
-                "July", "August", "September", "October", "November", "December"));
-        addEnum(EnumDefinition.of("meta::pure::functions::date::Quarter",
-                "Q1", "Q2", "Q3", "Q4"));
-        addEnum(EnumDefinition.of("meta::pure::functions::date::DayOfWeek",
-                "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"));
-        addEnum(EnumDefinition.of("meta::pure::functions::date::DurationUnit",
-                "YEARS", "MONTHS", "WEEKS", "DAYS", "HOURS", "MINUTES",
-                "SECONDS", "MILLISECONDS", "MICROSECONDS", "NANOSECONDS"));
-        // Relation enums (legend-engine: relation/functions/transformation/)
-        addEnum(EnumDefinition.of("meta::pure::functions::relation::JoinKind",
-                "INNER", "LEFT", "RIGHT", "FULL"));
-        addEnum(EnumDefinition.of("meta::pure::functions::relation::SortType",
-                "ASC", "DESC"));
-        // Hash enum (legend-engine: hash/hash.pure)
-        addEnum(EnumDefinition.of("meta::pure::functions::hash::HashType",
-                "MD5", "SHA1", "SHA256"));
-    }
+    
 
     /**
      * Returns the ImportScope for query resolution (same imports as the model source).

@@ -490,7 +490,7 @@ public class ExtendChecker extends AbstractChecker {
             // wrapper(innerFunc($w,$r), N) → look up inner first
             if (!af.parameters().isEmpty()
                     && af.parameters().get(0) instanceof AppliedFunction inner) {
-                var defs = BuiltinFunctionRegistry.instance().resolve(simpleName(inner.function()));
+                var defs = BuiltinRegistry.instance().resolve(simpleName(inner.function()));
                 if (!defs.isEmpty()) {
                     TypeInfo info = env.lookupCompiled(inner);
                     return info != null ? info.resolvedFunc() : null;

@@ -1765,7 +1765,7 @@ public class PlanGenerator {
      */
     private SqlExpr generateAggFromAst(TypeInfo.AggColumnSpec acs, ColSpec ast,
                                         StoreResolution store, String tableAlias) {
-        var registry = com.gs.legend.compiler.BuiltinFunctionRegistry.instance();
+        var registry = com.gs.legend.compiler.BuiltinRegistry.instance();
         var fn1Body = ast.function1().body().get(0);
         // For window context, fn1 has 3 params {p,w,r|...}: use last param (row variable)
         // For groupBy/aggregate, fn1 has 1 param {c|...}: use first (only) param
@@ -1844,7 +1844,7 @@ public class PlanGenerator {
      */
     private SqlExpr generateRowMapperAgg(TypeInfo.AggColumnSpec acs,
                                           SqlExpr col1, SqlExpr col2,
-                                          com.gs.legend.compiler.BuiltinFunctionRegistry registry) {
+                                          com.gs.legend.compiler.BuiltinRegistry registry) {
         String funcName = acs.resolvedFunc().name();
         // wavg: SUM(col1 * col2) / SUM(col2)
         if ("wavg".equals(funcName)) {
@@ -1881,7 +1881,7 @@ public class PlanGenerator {
      * the resolved function against the registry's cached rowMapper def.
      */
     private boolean isRowMapperFunc(AppliedFunction af,
-                                     com.gs.legend.compiler.BuiltinFunctionRegistry registry) {
+                                     com.gs.legend.compiler.BuiltinRegistry registry) {
         String name = simpleName(af.function());
         var defs = registry.resolve(name);
         return !defs.isEmpty() && defs.get(0) == registry.rowMapper();
@@ -2133,7 +2133,7 @@ public class PlanGenerator {
             String innerFuncName = simpleName(innerAf.function());
             String innerSql = mapPureFuncToSql(innerFuncName);
             if (innerSql == null) innerSql = innerFuncName.toUpperCase();
-            var innerDefs = com.gs.legend.compiler.BuiltinFunctionRegistry.instance()
+            var innerDefs = com.gs.legend.compiler.BuiltinRegistry.instance()
                     .resolve(innerFuncName);
             if (!innerDefs.isEmpty()) {
                 SqlExpr innerFunc = new SqlExpr.FunctionCall(innerSql, List.of());

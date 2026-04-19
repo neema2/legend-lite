@@ -103,7 +103,7 @@ public abstract class AbstractChecker implements FunctionChecker {
                                                  List<ValueSpecification> params,
                                                  TypeInfo source,
                                                  Map<Integer, ExpressionType> compiledTypes) {
-        var defs = BuiltinFunctionRegistry.instance().resolve(funcName);
+        var defs = BuiltinRegistry.instance().resolve(funcName);
         if (defs.isEmpty()) {
             throw new PureCompileException("Unknown function: '" + funcName + "'");
         }

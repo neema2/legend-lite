@@ -1,5 +1,7 @@
 package com.gs.legend.compiler;
 
+import com.gs.legend.model.def.EnumDefinition;
+import com.gs.legend.model.m3.PurePrimitive;
 
 import java.util.*;
 
@@ -20,7 +22,7 @@ import java.util.*;
  * <pre>
  * Pure signature string  →  PureParser.parseNativeFunction()  →  NativeFunctionDef
  *                                                                       ↓
- *                                                              BuiltinFunctionRegistry
+ *                                                              BuiltinRegistry
  *                                                                       ↓
  *                                                              TypeChecker.resolve()
  * </pre>
@@ -37,7 +39,7 @@ import java.util.*;
  * @see PType
  * @see Mult
  */
-public class BuiltinFunctionRegistry {
+public class BuiltinRegistry {
 
     /** All overloads keyed by simple function name. */
     private final Map<String, List<NativeFunctionDef>> functions = new LinkedHashMap<>();
@@ -117,7 +119,7 @@ public class BuiltinFunctionRegistry {
             };
             case PType.Parameterized p -> new PType.Parameterized(
                     p.rawType(),
-                    p.typeArgs().stream().map(BuiltinFunctionRegistry::normalizeType).toList());
+                    p.typeArgs().stream().map(BuiltinRegistry::normalizeType).toList());
             case PType.FunctionType ft -> new PType.FunctionType(
                     ft.paramTypes().stream()
                             .map(p -> new PType.Param(p.name(), normalizeType(p.type()), p.mult()))
@@ -264,21 +266,138 @@ public class BuiltinFunctionRegistry {
     public NativeFunctionDef maxBy()             { return maxByDef; }
     public NativeFunctionDef minBy()             { return minByDef; }
 
+    // ===== Built-in type declarations (phase 2.5c.1) =====
+    //
+    // Static singleton instances of every Pure primitive and every platform enum. Loaded
+    // once at JVM init (same static init that parses native function signatures). These
+    // are the single source of truth for built-in type identity across all PureModelBuilder
+    // instances; no per-builder duplication.
+    //
+    // Phase 2.5c.1 note: PurePrimitive does NOT yet implement Type. The legacy
+    // Type.Primitive Java enum still carries type semantics at this stage. These instances
+    // coexist as FQN-keyed declarations, ready for phase 2.5c.3 to wire them into the Type
+    // sealed interface.
+
+    /** Package path for Pure primitive types (matches legend-pure M3Paths). */
+    private static final String TYPE_PKG = "meta::pure::metamodel::type";
+    /** Package path for Pure variant type (separate from scalar primitives). */
+    private static final String VARIANT_PKG = "meta::pure::metamodel::variant";
+
+    public static final PurePrimitive ANY         = new PurePrimitive(TYPE_PKG + "::Any",         "Any",         List.of(),                              false, false, false);
+    public static final PurePrimitive NIL         = new PurePrimitive(TYPE_PKG + "::Nil",         "Nil",         List.of(TYPE_PKG + "::Any"),            false, false, false);
+    public static final PurePrimitive NUMBER      = new PurePrimitive(TYPE_PKG + "::Number",      "Number",      List.of(TYPE_PKG + "::Any"),            true,  false, false);
+    public static final PurePrimitive INTEGER     = new PurePrimitive(TYPE_PKG + "::Integer",     "Integer",     List.of(TYPE_PKG + "::Number"),         true,  false, false);
+    public static final PurePrimitive INT64       = new PurePrimitive(TYPE_PKG + "::Int64",       "Integer",     List.of(TYPE_PKG + "::Integer"),        true,  false, false);
+    public static final PurePrimitive INT128      = new PurePrimitive(TYPE_PKG + "::Int128",      "Integer",     List.of(TYPE_PKG + "::Integer"),        true,  false, false);
+    public static final PurePrimitive FLOAT       = new PurePrimitive(TYPE_PKG + "::Float",       "Float",       List.of(TYPE_PKG + "::Number"),         true,  false, false);
+    public static final PurePrimitive DECIMAL     = new PurePrimitive(TYPE_PKG + "::Decimal",     "Decimal",     List.of(TYPE_PKG + "::Number"),         true,  false, false);
+    public static final PurePrimitive STRING      = new PurePrimitive(TYPE_PKG + "::String",      "String",      List.of(TYPE_PKG + "::Any"),            false, false, false);
+    public static final PurePrimitive BOOLEAN     = new PurePrimitive(TYPE_PKG + "::Boolean",     "Boolean",     List.of(TYPE_PKG + "::Any"),            false, false, false);
+    public static final PurePrimitive DATE        = new PurePrimitive(TYPE_PKG + "::Date",        "Date",        List.of(TYPE_PKG + "::Any"),            false, true,  true);
+    public static final PurePrimitive STRICT_DATE = new PurePrimitive(TYPE_PKG + "::StrictDate",  "StrictDate",  List.of(TYPE_PKG + "::Date"),           false, true,  true);
+    public static final PurePrimitive DATE_TIME   = new PurePrimitive(TYPE_PKG + "::DateTime",    "DateTime",    List.of(TYPE_PKG + "::Date"),           false, true,  true);
+    public static final PurePrimitive STRICT_TIME = new PurePrimitive(TYPE_PKG + "::StrictTime",  "StrictTime",  List.of(TYPE_PKG + "::Any"),            false, true,  false);
+    public static final PurePrimitive VARIANT     = new PurePrimitive(VARIANT_PKG + "::Variant",  "JSON",        List.of(TYPE_PKG + "::Any"),            false, false, false);
+
+    /** All built-in primitives in declaration order (roots first for subtype-lattice walks). */
+    public static final List<PurePrimitive> PRIMITIVES = List.of(
+            ANY, NIL, NUMBER, INTEGER, INT64, INT128, FLOAT, DECIMAL,
+            STRING, BOOLEAN, DATE, STRICT_DATE, DATE_TIME, STRICT_TIME, VARIANT);
+
+    /** FQN → PurePrimitive lookup table (immutable). */
+    private static final Map<String, PurePrimitive> PRIMITIVES_BY_FQN;
+    static {
+        Map<String, PurePrimitive> m = new LinkedHashMap<>();
+        for (PurePrimitive p : PRIMITIVES) m.put(p.qualifiedName(), p);
+        PRIMITIVES_BY_FQN = Map.copyOf(m);
+    }
+
+    /**
+     * Looks up a built-in primitive by fully qualified name. Returns empty if the FQN is
+     * not a known Pure primitive. FQN-only — simple-name resolution is the caller's job
+     * (via {@code ImportScope}).
+     */
+    public static Optional<PurePrimitive> findPrimitive(String fqn) {
+        return Optional.ofNullable(PRIMITIVES_BY_FQN.get(fqn));
+    }
+
+    // ===== Platform enums =====
+    //
+    // Platform-defined enums referenced by built-in function signatures (JoinKind, DurationUnit,
+    // Month, etc.). Previously registered per-PureModelBuilder via registerPlatformEnums();
+    // now registered once at JVM init here as the source of truth. PureModelBuilder pulls them
+    // via PLATFORM_ENUMS and registers in its local symbol table at construction.
+
+    public static final List<EnumDefinition> PLATFORM_ENUMS = List.of(
+            // Date enums (legend-pure: essential/date/_structures.pure)
+            EnumDefinition.of("meta::pure::functions::date::Month",
+                    "January", "February", "March", "April", "May", "June",
+                    "July", "August", "September", "October", "November", "December"),
+            EnumDefinition.of("meta::pure::functions::date::Quarter",
+                    "Q1", "Q2", "Q3", "Q4"),
+            EnumDefinition.of("meta::pure::functions::date::DayOfWeek",
+                    "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"),
+            EnumDefinition.of("meta::pure::functions::date::DurationUnit",
+                    "YEARS", "MONTHS", "WEEKS", "DAYS", "HOURS", "MINUTES",
+                    "SECONDS", "MILLISECONDS", "MICROSECONDS", "NANOSECONDS"),
+            // Relation enums (legend-engine: relation/functions/transformation/)
+            EnumDefinition.of("meta::pure::functions::relation::JoinKind",
+                    "INNER", "LEFT", "RIGHT", "FULL"),
+            EnumDefinition.of("meta::pure::functions::relation::SortType",
+                    "ASC", "DESC"),
+            // Hash enum (legend-engine: hash/hash.pure)
+            EnumDefinition.of("meta::pure::functions::hash::HashType",
+                    "MD5", "SHA1", "SHA256"));
+
+    /** FQN → EnumDefinition lookup for platform enums (immutable). */
+    private static final Map<String, EnumDefinition> PLATFORM_ENUMS_BY_FQN;
+    static {
+        Map<String, EnumDefinition> m = new LinkedHashMap<>();
+        for (EnumDefinition e : PLATFORM_ENUMS) m.put(e.qualifiedName(), e);
+        PLATFORM_ENUMS_BY_FQN = Map.copyOf(m);
+    }
+
+    /** Looks up a platform enum by fully qualified name. */
+    public static Optional<EnumDefinition> findPlatformEnum(String fqn) {
+        return Optional.ofNullable(PLATFORM_ENUMS_BY_FQN.get(fqn));
+    }
+
+    /**
+     * Fully qualified names of every built-in type (15 primitives + all platform enums) that
+     * should be auto-imported into every {@code PureModelBuilder}'s initial {@code ImportScope}.
+     *
+     * <p>{@code PureModelBuilder} calls {@code imports.addImport(fqn)} for each entry at
+     * construction so that user Pure source referencing {@code Integer}, {@code DurationUnit},
+     * {@code JoinKind} etc. by simple name resolves to the correct FQN via the standard import
+     * mechanism.
+     *
+     * <p>Name-by-name (not wildcard) — unambiguous, O(1) HashMap hit in {@code typeImports},
+     * no future-addition magic. Exposed as immutable data (not a void-setter method) so callers
+     * own the application step and the registry stays a pure catalog.
+     */
+    public static final List<String> BUILTIN_IMPORTS;
+    static {
+        var imports = new ArrayList<String>(PRIMITIVES.size() + PLATFORM_ENUMS.size());
+        for (PurePrimitive p : PRIMITIVES) imports.add(p.qualifiedName());
+        for (EnumDefinition e : PLATFORM_ENUMS) imports.add(e.qualifiedName());
+        BUILTIN_IMPORTS = List.copyOf(imports);
+    }
+
     // ===== Singleton =====
 
-    private static final BuiltinFunctionRegistry INSTANCE = createDefault();
+    private static final BuiltinRegistry INSTANCE = createDefault();
 
     /**
      * Returns the singleton registry with all built-in functions registered.
      */
-    public static BuiltinFunctionRegistry instance() {
+    public static BuiltinRegistry instance() {
         return INSTANCE;
     }
 
     // ===== Registration =====
 
-    private static BuiltinFunctionRegistry createDefault() {
-        var reg = new BuiltinFunctionRegistry();
+    private static BuiltinRegistry createDefault() {
+        var reg = new BuiltinRegistry();
         registerRelationFunctions(reg);
         registerScalarFunctions(reg);
         reg.cacheConvenienceDefs();
@@ -289,7 +408,7 @@ public class BuiltinFunctionRegistry {
      * Tier 1: Relation functions from legend-engine.
      * ~50 overloads across ~20 functions that transform data shape.
      */
-    private static void registerRelationFunctions(BuiltinFunctionRegistry reg) {
+    private static void registerRelationFunctions(BuiltinRegistry reg) {
         // Shape-preserving
         reg.registerSignature("filter",
                 "native function filter<T>(rel:Relation<T>[1], f:Function<{T[1]->Boolean[1]}>[1]):Relation<T>[1];");
@@ -493,7 +612,7 @@ public class BuiltinFunctionRegistry {
      * Tier 2: Scalar/aggregate/window functions.
      * Organized by category from DynaFunctionRegistry.
      */
-    private static void registerScalarFunctions(BuiltinFunctionRegistry reg) {
+    private static void registerScalarFunctions(BuiltinRegistry reg) {
         // ===== DynaFunction-only (SQL relational operations, not standard Pure functions) =====
         // These are used in relational property mapping syntax: e.g., fullName: concat([DB] T.FIRST, ' ', [DB] T.LAST)
         reg.registerSignature("concat",
