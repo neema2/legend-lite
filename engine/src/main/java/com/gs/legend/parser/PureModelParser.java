@@ -966,7 +966,7 @@ public final class PureModelParser {
         return cols;
     }
 
-    /** Split comma-separated type args respecting nesting depth. */
+    /** Split comma-separated type args respecting nesting depth. Trims each segment. */
     private static List<String> splitTypeArgs(String s) {
         List<String> result = new ArrayList<>();
         int depth = 0;
@@ -976,11 +976,11 @@ public final class PureModelParser {
             if (c == '<' || c == '(' || c == '{') depth++;
             else if (c == '>' || c == ')' || c == '}') depth--;
             else if (c == ',' && depth == 0) {
-                result.add(s.substring(start, i));
+                result.add(s.substring(start, i).trim());
                 start = i + 1;
             }
         }
-        if (start < s.length()) result.add(s.substring(start));
+        if (start < s.length()) result.add(s.substring(start).trim());
         return result;
     }
 
