@@ -1,5 +1,6 @@
 package com.gs.legend.parser;
 
+import com.gs.legend.compiler.BuiltinClassRegistry;
 import com.gs.legend.compiler.BuiltinRegistry;
 import com.gs.legend.compiler.NativeFunctionDef;
 import com.gs.legend.model.m3.Multiplicity;
@@ -134,7 +135,12 @@ public final class PureNativeSignatureParser {
         if (check(TokenType.PAREN_OPEN)) {
             return parseRelationType();
         }
-        // Named type (possibly generic): Name or Name<...>
+        // Named type (possibly generic): FQN or FQN<...>. Native signatures must use
+        // fully-qualified names for every named type except bare type-parameter letters
+        // declared in the enclosing <...> header (T, V, K, ...). The former "unqualified
+        // residual accepted as a signature-layer pseudo-type" fallback is gone — every
+        // structural class (Relation, Function, ColSpec, _Window, _Range, _Traversal, ...)
+        // is now a real entry in BuiltinClassRegistry and must be referenced by FQN.
         String typeName = parseTypeName();
         if (match(TokenType.LESS_THAN)) {
             List<Type> typeArgs = new ArrayList<>();
@@ -143,18 +149,15 @@ public final class PureNativeSignatureParser {
                 typeArgs.add(parseTypeWithOperation());
             }
             expect(TokenType.GREATER_THAN);
-            // Structural pseudo-types (Relation, Function, ColSpec, _Window, etc.) carry their
-            // simple name as the rawType — they're signature-layer markers, not real Pure types.
-            String simpleName = simpleName(typeName);
-            return new Type.Parameterized(simpleName, typeArgs);
+            requireCatalogClass(typeName);
+            // rawType kept as the simple name so downstream string-keyed dispatch
+            // ("Relation".equals(p.rawType()), etc.) still works during the interim
+            // before the Type.GenericType migration replaces it with classified rawType.
+            return new Type.Parameterized(simpleName(typeName), typeArgs);
         }
         // No type args — one of:
         //   (a) bare type-variable letter declared in the <> header (T, V, K, ...)
-        //   (b) signature-layer pseudo-type with no type args (Rows, _Range, _Traversal) —
-        //       represented as a zero-arg Parameterized for uniform matching with the
-        //       non-bare pseudo-types (_Window<T>, ColSpec<T>, etc.)
-        //   (c) full FQN of a primitive or platform enum — native sigs are always
-        //       FQN-qualified for real types (see BuiltinRegistry).
+        //   (b) full FQN of a primitive, platform enum, or catalog class
         String simpleName = simpleName(typeName);
         if (typeParams.contains(simpleName)) {
             return new Type.TypeVar(simpleName);
@@ -172,16 +175,32 @@ public final class PureNativeSignatureParser {
         if (BuiltinRegistry.findPlatformEnum(typeName).isPresent()) {
             return new Type.EnumType(typeName);
         }
-        // Unqualified residual: must be a signature-layer structural pseudo-type
-        // (Rows, _Range, _Traversal, SortInfo). Not a real Pure type — it only flows
-        // through AbstractChecker.structuralMatch which dispatches on rawType.
-        if (!typeName.contains("::")) {
+        if (BuiltinClassRegistry.BUILTIN_CLASS_FQNS.contains(typeName)) {
+            // Zero-arg catalog class (_Range, Rows, _Traversal, UnboundedFrameValue, ...).
+            // Represented as a zero-arg Parameterized for uniform structural matching
+            // with the generic catalog classes (_Window<T>, ColSpec<T>, etc.).
             return new Type.Parameterized(simpleName, List.of());
         }
         throw new PureParseException(
                 "PureNativeSignatureParser: unknown type name '" + typeName + "' in signature '"
-                        + source + "'. Native signatures must reference primitives and platform enums "
-                        + "by fully qualified name, or declared type parameters by bare letter.");
+                        + source + "'. Native signatures must reference primitives, platform enums, "
+                        + "and platform classes by fully qualified name, or declared type parameters "
+                        + "by bare letter.");
+    }
+
+    /**
+     * Validates that a named type reference in a signature resolves to a class in the
+     * platform catalog. Throws a clear diagnostic otherwise, pinning the "no fallback"
+     * invariant: the signature parser does not silently accept unknown type names.
+     */
+    private void requireCatalogClass(String typeName) {
+        if (!BuiltinClassRegistry.BUILTIN_CLASS_FQNS.contains(typeName)) {
+            throw new PureParseException(
+                    "PureNativeSignatureParser: '" + typeName + "' is not a platform class in "
+                            + "BuiltinClassRegistry. Native signatures must reference catalog "
+                            + "classes (Relation, Function, ColSpec, _Window, ...) by fully "
+                            + "qualified name. Signature was: '" + source + "'.");
+        }
     }
 
     /**

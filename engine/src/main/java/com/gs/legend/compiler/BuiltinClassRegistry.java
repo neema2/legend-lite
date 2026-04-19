@@ -66,6 +66,9 @@ public final class BuiltinClassRegistry {
             // Root of the type lattice; every other class ultimately generalises to Type.
             // Declared native — body is intrinsic to the metamodel, not expressible in Pure.
             "native Class meta::pure::metamodel::type::Type {}",
+            // Class<T> — m3 metaclass; T binds the Pure class the instance describes. Used
+            // by getAll(class:Class<T>[1]):T[*] and the graph-fetch family.
+            "native Class meta::pure::metamodel::type::Class<T> {}",
             // Function<T> / FunctionDefinition<T> — m3 function root and its direct subtype.
             // Used everywhere in native signatures as Function<{T[1]->R[1]}>.
             "native Class meta::pure::metamodel::function::Function<T> {}",

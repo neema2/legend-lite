@@ -56,19 +56,19 @@ class NativeFunctionParseTest {
     @Test
     void testGeneric_filter() {
         var fn = PureNativeSignatureParser.parse(
-                "native function filter<T>(rel:Relation<T>[1], " +
-                "f:Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):Relation<T>[1];");
+                "native function filter<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], " +
+                "f:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
         assertEquals("filter", fn.name());
         assertEquals(List.of("T"), fn.typeParams());
         assertEquals(2, fn.params().size());
 
-        // param 0: rel:Relation<T>[1]
+        // param 0: rel:meta::pure::metamodel::relation::Relation<T>[1]
         assertParameterized("Relation", fn.params().get(0).type());
 
-        // param 1: f:Function<{T[1]->Boolean[1]}>[1]
+        // param 1: f:meta::pure::metamodel::function::Function<{T[1]->Boolean[1]}>[1]
         assertParameterized("Function", fn.params().get(1).type());
 
-        // return: Relation<T>[1]
+        // return: meta::pure::metamodel::relation::Relation<T>[1]
         var ret = assertParameterized("Relation", fn.returnType());
         assertEquals(1, ret.typeArgs().size());
         assertTypeVar("T", ret.typeArgs().get(0));
@@ -79,13 +79,13 @@ class NativeFunctionParseTest {
         // Join uses schema algebra T+V in return type — must be pre-processed
         var registry = new com.gs.legend.compiler.BuiltinRegistry();
         registry.registerSignature("join",
-                "native function join<T,V>(rel1:Relation<T>[1], rel2:Relation<V>[1], " +
-                "joinKind:meta::pure::functions::relation::JoinKind[1], f:Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):Relation<T+V>[1];");
+                "native function join<T,V>(rel1:meta::pure::metamodel::relation::Relation<T>[1], rel2:meta::pure::metamodel::relation::Relation<V>[1], " +
+                "joinKind:meta::pure::functions::relation::JoinKind[1], f:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<T+V>[1];");
         var fn = registry.resolve("join").get(0);
         assertEquals("join", fn.name());
         assertEquals(List.of("T", "V"), fn.typeParams());
         assertEquals(4, fn.params().size());
-        // After pre-processing: Relation<T+V> → Relation<T> (algebra stripped)
+        // After pre-processing: meta::pure::metamodel::relation::Relation<T+V> → meta::pure::metamodel::relation::Relation<T> (algebra stripped)
         assertParameterized("Relation", fn.returnType());
         // rawSignature preserves the original T+V for schema inference
         assertTrue(fn.rawSignature().contains("T+V"));
@@ -94,7 +94,7 @@ class NativeFunctionParseTest {
     @Test
     void testGeneric_exists() {
         var fn = PureNativeSignatureParser.parse(
-                "native function exists<T>(value:T[*], func:Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
+                "native function exists<T>(value:T[*], func:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
         assertEquals("exists", fn.name());
         assertEquals(List.of("T"), fn.typeParams());
         assertTypeVar("T", fn.params().get(0).type());
@@ -122,7 +122,7 @@ class NativeFunctionParseTest {
     @Test
     void testWindow_rank() {
         var fn = PureNativeSignatureParser.parse(
-                "native function rank<T>(rel:Relation<T>[1], w:_Window<T>[1], row:T[1]):meta::pure::metamodel::type::Integer[1];");
+                "native function rank<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], row:T[1]):meta::pure::metamodel::type::Integer[1];");
         assertEquals("rank", fn.name());
         assertEquals(3, fn.params().size());
         assertParameterized("_Window", fn.params().get(1).type());
@@ -132,7 +132,7 @@ class NativeFunctionParseTest {
     @Test
     void testWindow_first() {
         var fn = PureNativeSignatureParser.parse(
-                "native function first<T>(w:Relation<T>[1], f:_Window<T>[1], r:T[1]):T[0..1];");
+                "native function first<T>(w:meta::pure::metamodel::relation::Relation<T>[1], f:meta::pure::functions::relation::_Window<T>[1], r:T[1]):T[0..1];");
         assertEquals("first", fn.name());
         assertTypeVar("T", fn.returnType());
         assertEquals(Multiplicity.ZERO_ONE, fn.returnMult());
@@ -145,12 +145,12 @@ class NativeFunctionParseTest {
         // ⊆ is stripped by normalizeSignature — constraint preserved in rawSignature
         var registry = new com.gs.legend.compiler.BuiltinRegistry();
         registry.registerSignature("select",
-                "native function select<T,Z>(r:Relation<T>[1], cols:ColSpecArray<Z⊆T>[1]):Relation<Z>[1];");
+                "native function select<T,Z>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpecArray<Z⊆T>[1]):meta::pure::metamodel::relation::Relation<Z>[1];");
         var fn = registry.resolve("select").get(0);
         assertEquals("select", fn.name());
         assertEquals(List.of("T", "Z"), fn.typeParams());
 
-        // After normalization: ColSpecArray<Z⊆T> → ColSpecArray<Z>
+        // After normalization: meta::pure::metamodel::relation::ColSpecArray<Z⊆T> → meta::pure::metamodel::relation::ColSpecArray<Z>
         var colsType = assertParameterized("ColSpecArray", fn.params().get(1).type());
         assertTypeVar("Z", colsType.typeArgs().get(0));
 
@@ -163,13 +163,13 @@ class NativeFunctionParseTest {
         // =(?:K) and ⊆ stripped by normalizeSignature
         var registry = new com.gs.legend.compiler.BuiltinRegistry();
         registry.registerSignature("rename",
-                "native function rename<T,Z,K,V>(r:Relation<T>[1], " +
-                "old:ColSpec<Z=(?:K)⊆T>[1], new:ColSpec<V=(?:K)>[1]):Relation<T-Z+V>[1];");
+                "native function rename<T,Z,K,V>(r:meta::pure::metamodel::relation::Relation<T>[1], " +
+                "old:meta::pure::metamodel::relation::ColSpec<Z=(?:K)⊆T>[1], new:meta::pure::metamodel::relation::ColSpec<V=(?:K)>[1]):meta::pure::metamodel::relation::Relation<T-Z+V>[1];");
         var fn = registry.resolve("rename").get(0);
         assertEquals("rename", fn.name());
         assertEquals(List.of("T", "Z", "K", "V"), fn.typeParams());
 
-        // After normalization: ColSpec<Z=(?:K)⊆T> → ColSpec<Z>, Relation<T-Z+V> → Relation<T>
+        // After normalization: meta::pure::metamodel::relation::ColSpec<Z=(?:K)⊆T> → meta::pure::metamodel::relation::ColSpec<Z>, meta::pure::metamodel::relation::Relation<T-Z+V> → meta::pure::metamodel::relation::Relation<T>
         assertParameterized("ColSpec", fn.params().get(1).type());
 
         // rawSignature preserves both constraints and schema algebra
@@ -182,7 +182,7 @@ class NativeFunctionParseTest {
     @Test
     void testFunctionType_map() {
         var fn = PureNativeSignatureParser.parse(
-                "native function map<T,V>(value:T[*], func:Function<{T[1]->V[*]}>[1]):V[*];");
+                "native function map<T,V>(value:T[*], func:meta::pure::metamodel::function::Function<{T[1]->V[*]}>[1]):V[*];");
         assertEquals("map", fn.name());
 
         var funcType = assertParameterized("Function", fn.params().get(1).type());
@@ -202,15 +202,15 @@ class NativeFunctionParseTest {
         // groupBy uses both ⊆ and schema algebra Z+R — must be pre-processed
         var registry = new com.gs.legend.compiler.BuiltinRegistry();
         registry.registerSignature("groupBy",
-                "native function groupBy<T,Z,K,V,R>(r:Relation<T>[1], " +
-                "cols:ColSpecArray<Z⊆T>[1], " +
-                "agg:AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<Z+R>[1];");
+                "native function groupBy<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], " +
+                "cols:meta::pure::metamodel::relation::ColSpecArray<Z⊆T>[1], " +
+                "agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
         var fn = registry.resolve("groupBy").get(0);
         assertEquals("groupBy", fn.name());
         assertEquals(List.of("T", "Z", "K", "V", "R"), fn.typeParams());
         assertEquals(3, fn.params().size());
 
-        // After normalization: ColSpecArray<Z⊆T> → ColSpecArray<Z>
+        // After normalization: meta::pure::metamodel::relation::ColSpecArray<Z⊆T> → meta::pure::metamodel::relation::ColSpecArray<Z>
         assertParameterized("AggColSpec", fn.params().get(2).type());
         assertTrue(fn.rawSignature().contains("Z⊆T"));
         assertTrue(fn.rawSignature().contains("Z+R"));

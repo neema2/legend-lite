@@ -416,201 +416,201 @@ public class BuiltinRegistry {
     private static void registerRelationFunctions(BuiltinRegistry reg) {
         // Shape-preserving
         reg.registerSignature("filter",
-                "native function filter<T>(rel:Relation<T>[1], f:Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):Relation<T>[1];");
+                "native function filter<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], f:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
         reg.registerSignature("sort",
-                "native function sort<X,T>(rel:Relation<T>[1], sortInfo:SortInfo<X⊆T>[*]):Relation<T>[1];");
+                "native function sort<X,T>(rel:meta::pure::metamodel::relation::Relation<T>[1], sortInfo:meta::pure::functions::relation::SortInfo<X⊆T>[*]):meta::pure::metamodel::relation::Relation<T>[1];");
         // Legacy TDS: sort(rel, colName, direction) — desugared in SortChecker
         reg.registerSignature("sort",
-                "native function sort<T>(rel:Relation<T>[1], col:meta::pure::metamodel::type::String[1], direction:meta::relational::metamodel::SortDirection[1]):Relation<T>[1];");
+                "native function sort<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], col:meta::pure::metamodel::type::String[1], direction:meta::relational::metamodel::SortDirection[1]):meta::pure::metamodel::relation::Relation<T>[1];");
         // Legacy TDS: sort(rel, colNames) — defaults to ascending (Handlers.java line 1986)
         reg.registerSignature("sort",
-                "native function sort<T>(rel:Relation<T>[1], cols:meta::pure::metamodel::type::String[*]):Relation<T>[1];");
+                "native function sort<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::type::String[*]):meta::pure::metamodel::relation::Relation<T>[1];");
         // limit, drop, slice registered in registerScalarFunctions (relation + scalar overloads)
         reg.registerSignature("concatenate",
-                "native function concatenate<T>(rel1:Relation<T>[1], rel2:Relation<T>[1]):Relation<T>[1];");
-        reg.registerSignature("size", "native function size<T>(rel:Relation<T>[1]):meta::pure::metamodel::type::Integer[1];");
+                "native function concatenate<T>(rel1:meta::pure::metamodel::relation::Relation<T>[1], rel2:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
+        reg.registerSignature("size", "native function size<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::type::Integer[1];");
 
         // Distinct
-        reg.registerSignature("distinct", "native function distinct<T>(rel:Relation<T>[1]):Relation<T>[1];");
+        reg.registerSignature("distinct", "native function distinct<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
         reg.registerSignature("distinct",
-                "native function distinct<X,T>(rel:Relation<T>[1], columns:ColSpecArray<X⊆T>[1]):Relation<X>[1];");
+                "native function distinct<X,T>(rel:meta::pure::metamodel::relation::Relation<T>[1], columns:meta::pure::metamodel::relation::ColSpecArray<X⊆T>[1]):meta::pure::metamodel::relation::Relation<X>[1];");
 
         // Select
-        reg.registerSignature("select", "native function select<T>(r:Relation<T>[1]):Relation<T>[1];");
+        reg.registerSignature("select", "native function select<T>(r:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
         reg.registerSignature("select",
-                "native function select<T,Z>(r:Relation<T>[1], cols:ColSpec<Z⊆T>[1]):Relation<Z>[1];");
+                "native function select<T,Z>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpec<Z⊆T>[1]):meta::pure::metamodel::relation::Relation<Z>[1];");
         reg.registerSignature("select",
-                "native function select<T,Z>(r:Relation<T>[1], cols:ColSpecArray<Z⊆T>[1]):Relation<Z>[1];");
+                "native function select<T,Z>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpecArray<Z⊆T>[1]):meta::pure::metamodel::relation::Relation<Z>[1];");
 
         // Rename
         reg.registerSignature("rename",
-                "native function rename<T,Z,K,V>(r:Relation<T>[1], old:ColSpec<Z=(?:K)⊆T>[1], new:ColSpec<V=(?:K)>[1]):Relation<T-Z+V>[1];");
+                "native function rename<T,Z,K,V>(r:meta::pure::metamodel::relation::Relation<T>[1], old:meta::pure::metamodel::relation::ColSpec<Z=(?:K)⊆T>[1], new:meta::pure::metamodel::relation::ColSpec<V=(?:K)>[1]):meta::pure::metamodel::relation::Relation<T-Z+V>[1];");
         reg.registerSignature("rename",
-                "native function rename<T,Z,V>(r:Relation<T>[1], oldCols:ColSpecArray<Z⊆T>[1], newCols:ColSpecArray<V>[1]):Relation<T-Z+V>[1];");
+                "native function rename<T,Z,V>(r:meta::pure::metamodel::relation::Relation<T>[1], oldCols:meta::pure::metamodel::relation::ColSpecArray<Z⊆T>[1], newCols:meta::pure::metamodel::relation::ColSpecArray<V>[1]):meta::pure::metamodel::relation::Relation<T-Z+V>[1];");
 
         // Extend — scalar (Relation source)
         reg.registerSignature("extend",
-                "native function extend<T,Z>(r:Relation<T>[1], f:FuncColSpec<{T[1]->meta::pure::metamodel::type::Any[0..1]},Z>[1]):Relation<T+Z>[1];");
+                "native function extend<T,Z>(r:meta::pure::metamodel::relation::Relation<T>[1], f:meta::pure::metamodel::relation::FuncColSpec<{T[1]->meta::pure::metamodel::type::Any[0..1]},Z>[1]):meta::pure::metamodel::relation::Relation<T+Z>[1];");
         reg.registerSignature("extend",
-                "native function extend<T,Z>(r:Relation<T>[1], fs:FuncColSpecArray<{T[1]->meta::pure::metamodel::type::Any[*]},Z>[1]):Relation<T+Z>[1];");
+                "native function extend<T,Z>(r:meta::pure::metamodel::relation::Relation<T>[1], fs:meta::pure::metamodel::relation::FuncColSpecArray<{T[1]->meta::pure::metamodel::type::Any[*]},Z>[1]):meta::pure::metamodel::relation::Relation<T+Z>[1];");
         // Extend — scalar (Class source): stays in object space (C[*] -> C[*])
         reg.registerSignature("extend",
-                "native function extend<C,Z>(cl:C[*], f:FuncColSpec<{C[1]->meta::pure::metamodel::type::Any[0..1]},Z>[1]):C[*];");
+                "native function extend<C,Z>(cl:C[*], f:meta::pure::metamodel::relation::FuncColSpec<{C[1]->meta::pure::metamodel::type::Any[0..1]},Z>[1]):C[*];");
         reg.registerSignature("extend",
-                "native function extend<C,Z>(cl:C[*], fs:FuncColSpecArray<{C[1]->meta::pure::metamodel::type::Any[*]},Z>[1]):C[*];");
+                "native function extend<C,Z>(cl:C[*], fs:meta::pure::metamodel::relation::FuncColSpecArray<{C[1]->meta::pure::metamodel::type::Any[*]},Z>[1]):C[*];");
         // Extend — aggregate
         reg.registerSignature("extend",
-                "native function extend<T,K,V,R>(r:Relation<T>[1], agg:AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<T+R>[1];");
+                "native function extend<T,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<T+R>[1];");
         reg.registerSignature("extend",
-                "native function extend<T,K,V,R>(r:Relation<T>[1], agg:AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<T+R>[1];");
+                "native function extend<T,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], agg:meta::pure::metamodel::relation::AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<T+R>[1];");
         // Extend — window scalar
         reg.registerSignature("extend",
-                "native function extend<T,Z,W,R>(r:Relation<T>[1], window:_Window<T>[1], f:FuncColSpec<{Relation<T>[1],_Window<T>[1],T[1]->meta::pure::metamodel::type::Any[0..1]},R>[1]):Relation<T+R>[1];");
+                "native function extend<T,Z,W,R>(r:meta::pure::metamodel::relation::Relation<T>[1], window:meta::pure::functions::relation::_Window<T>[1], f:meta::pure::metamodel::relation::FuncColSpec<{meta::pure::metamodel::relation::Relation<T>[1],meta::pure::functions::relation::_Window<T>[1],T[1]->meta::pure::metamodel::type::Any[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<T+R>[1];");
         reg.registerSignature("extend",
-                "native function extend<T,Z,W,R>(r:Relation<T>[1], window:_Window<T>[1], f:FuncColSpecArray<{Relation<T>[1],_Window<T>[1],T[1]->meta::pure::metamodel::type::Any[*]},R>[1]):Relation<T+R>[1];");
+                "native function extend<T,Z,W,R>(r:meta::pure::metamodel::relation::Relation<T>[1], window:meta::pure::functions::relation::_Window<T>[1], f:meta::pure::metamodel::relation::FuncColSpecArray<{meta::pure::metamodel::relation::Relation<T>[1],meta::pure::functions::relation::_Window<T>[1],T[1]->meta::pure::metamodel::type::Any[*]},R>[1]):meta::pure::metamodel::relation::Relation<T+R>[1];");
         // Extend — window aggregate (3-arity fn1: {p,w,r|...})
         reg.registerSignature("extend",
-                "native function extend<T,K,V,R>(r:Relation<T>[1], window:_Window<T>[1], agg:AggColSpec<{Relation<T>[1],_Window<T>[1],T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<T+R>[1];");
+                "native function extend<T,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], window:meta::pure::functions::relation::_Window<T>[1], agg:meta::pure::metamodel::relation::AggColSpec<{meta::pure::metamodel::relation::Relation<T>[1],meta::pure::functions::relation::_Window<T>[1],T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<T+R>[1];");
         reg.registerSignature("extend",
-                "native function extend<T,K,V,R>(r:Relation<T>[1], window:_Window<T>[1], agg:AggColSpecArray<{Relation<T>[1],_Window<T>[1],T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<T+R>[1];");
+                "native function extend<T,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], window:meta::pure::functions::relation::_Window<T>[1], agg:meta::pure::metamodel::relation::AggColSpecArray<{meta::pure::metamodel::relation::Relation<T>[1],meta::pure::functions::relation::_Window<T>[1],T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<T+R>[1];");
         // Extend — traverse (FK path traversal): 2-param lambda {src,tgt|...}
         // S = source relation schema, T = terminal (joined) table schema
         reg.registerSignature("extend",
-                "native function extend<S,T,Z>(r:Relation<S>[1], path:_Traversal[1], f:FuncColSpec<{S[1],T[1]->meta::pure::metamodel::type::Any[0..1]},Z>[1]):Relation<S+Z>[1];");
+                "native function extend<S,T,Z>(r:meta::pure::metamodel::relation::Relation<S>[1], path:meta::pure::functions::relation::_Traversal[1], f:meta::pure::metamodel::relation::FuncColSpec<{S[1],T[1]->meta::pure::metamodel::type::Any[0..1]},Z>[1]):meta::pure::metamodel::relation::Relation<S+Z>[1];");
         reg.registerSignature("extend",
-                "native function extend<S,T,Z>(r:Relation<S>[1], path:_Traversal[1], fs:FuncColSpecArray<{S[1],T[1]->meta::pure::metamodel::type::Any[*]},Z>[1]):Relation<S+Z>[1];");
+                "native function extend<S,T,Z>(r:meta::pure::metamodel::relation::Relation<S>[1], path:meta::pure::functions::relation::_Traversal[1], fs:meta::pure::metamodel::relation::FuncColSpecArray<{S[1],T[1]->meta::pure::metamodel::type::Any[*]},Z>[1]):meta::pure::metamodel::relation::Relation<S+Z>[1];");
 
         // ========== Traverse — chainable FK path hops ==========
         reg.registerSignature("traverse",
-                "native function traverse<T,V>(target:Relation<V>[1], cond:Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):_Traversal[1];");
+                "native function traverse<T,V>(target:meta::pure::metamodel::relation::Relation<V>[1], cond:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::functions::relation::_Traversal[1];");
         reg.registerSignature("traverse",
-                "native function traverse<T,V>(prev:_Traversal[1], target:Relation<V>[1], cond:Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):_Traversal[1];");
+                "native function traverse<T,V>(prev:meta::pure::functions::relation::_Traversal[1], target:meta::pure::metamodel::relation::Relation<V>[1], cond:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::functions::relation::_Traversal[1];");
 
         // ========== Sort direction constructors ==========
         reg.registerSignature("ascending",
-                "native function ascending<T>(column:ColSpec<T>[1]):SortInfo<T>[1];");
+                "native function ascending<T>(column:meta::pure::metamodel::relation::ColSpec<T>[1]):meta::pure::functions::relation::SortInfo<T>[1];");
         reg.registerSignature("descending",
-                "native function descending<T>(column:ColSpec<T>[1]):SortInfo<T>[1];");
+                "native function descending<T>(column:meta::pure::metamodel::relation::ColSpec<T>[1]):meta::pure::functions::relation::SortInfo<T>[1];");
         reg.registerSignature("asc",
-                "native function asc<T>(column:ColSpec<T>[1]):SortInfo<T>[1];");
+                "native function asc<T>(column:meta::pure::metamodel::relation::ColSpec<T>[1]):meta::pure::functions::relation::SortInfo<T>[1];");
         reg.registerSignature("desc",
-                "native function desc<T>(column:ColSpec<T>[1]):SortInfo<T>[1];");
+                "native function desc<T>(column:meta::pure::metamodel::relation::ColSpec<T>[1]):meta::pure::functions::relation::SortInfo<T>[1];");
 
         // ========== Window specification constructors ==========
         // over() — constructs _Window<T> from partition cols, sort info, and optional frame
         reg.registerSignature("over",
-                "native function over<T>(cols:ColSpec<T>[1]):_Window<T>[1];");
+                "native function over<T>(cols:meta::pure::metamodel::relation::ColSpec<T>[1]):meta::pure::functions::relation::_Window<T>[1];");
         reg.registerSignature("over",
-                "native function over<T>(cols:ColSpecArray<T>[1]):_Window<T>[1];");
+                "native function over<T>(cols:meta::pure::metamodel::relation::ColSpecArray<T>[1]):meta::pure::functions::relation::_Window<T>[1];");
         reg.registerSignature("over",
-                "native function over<T>(cols:ColSpec<T>[1], sortInfo:SortInfo<T>[*]):_Window<T>[1];");
+                "native function over<T>(cols:meta::pure::metamodel::relation::ColSpec<T>[1], sortInfo:meta::pure::functions::relation::SortInfo<T>[*]):meta::pure::functions::relation::_Window<T>[1];");
         reg.registerSignature("over",
-                "native function over<T>(cols:ColSpecArray<T>[1], sortInfo:SortInfo<T>[*]):_Window<T>[1];");
+                "native function over<T>(cols:meta::pure::metamodel::relation::ColSpecArray<T>[1], sortInfo:meta::pure::functions::relation::SortInfo<T>[*]):meta::pure::functions::relation::_Window<T>[1];");
         reg.registerSignature("over",
-                "native function over<T>(cols:ColSpec<T>[1], sortInfo:SortInfo<T>[*], rows:Rows[1]):_Window<T>[1];");
+                "native function over<T>(cols:meta::pure::metamodel::relation::ColSpec<T>[1], sortInfo:meta::pure::functions::relation::SortInfo<T>[*], rows:meta::pure::functions::relation::Rows[1]):meta::pure::functions::relation::_Window<T>[1];");
         reg.registerSignature("over",
-                "native function over<T>(cols:ColSpec<T>[1], sortInfo:SortInfo<T>[*], range:_Range[1]):_Window<T>[1];");
+                "native function over<T>(cols:meta::pure::metamodel::relation::ColSpec<T>[1], sortInfo:meta::pure::functions::relation::SortInfo<T>[*], range:meta::pure::functions::relation::_Range[1]):meta::pure::functions::relation::_Window<T>[1];");
         reg.registerSignature("over",
-                "native function over<T>(sortInfo:SortInfo<T>[*]):_Window<T>[1];");
+                "native function over<T>(sortInfo:meta::pure::functions::relation::SortInfo<T>[*]):meta::pure::functions::relation::_Window<T>[1];");
 
         // ========== Frame constructors ==========
         // rows() — physical row offsets
         reg.registerSignature("rows",
-                "native function rows(offsetFrom:meta::pure::metamodel::type::Integer[1], offsetTo:meta::pure::metamodel::type::Integer[1]):Rows[1];");
+                "native function rows(offsetFrom:meta::pure::metamodel::type::Integer[1], offsetTo:meta::pure::metamodel::type::Integer[1]):meta::pure::functions::relation::Rows[1];");
         // unbounded() — unbounded frame bound
         reg.registerSignature("unbounded",
-                "native function unbounded():UnboundedFrameValue[1];");
+                "native function unbounded():meta::pure::functions::relation::UnboundedFrameValue[1];");
         // _range() — logical range offsets
         reg.registerSignature("_range",
-                "native function _range(offsetFrom:meta::pure::metamodel::type::Number[1], offsetTo:meta::pure::metamodel::type::Number[1]):_Range[1];");
+                "native function _range(offsetFrom:meta::pure::metamodel::type::Number[1], offsetTo:meta::pure::metamodel::type::Number[1]):meta::pure::functions::relation::_Range[1];");
 
         // GroupBy
         reg.registerSignature("groupBy",
-                "native function groupBy<T,Z,K,V,R>(r:Relation<T>[1], cols:ColSpecArray<Z⊆T>[1], agg:AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<Z+R>[1];");
+                "native function groupBy<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpecArray<Z⊆T>[1], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
         reg.registerSignature("groupBy",
-                "native function groupBy<T,Z,K,V,R>(r:Relation<T>[1], cols:ColSpec<Z⊆T>[1], agg:AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<Z+R>[1];");
+                "native function groupBy<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpec<Z⊆T>[1], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
         reg.registerSignature("groupBy",
-                "native function groupBy<T,Z,K,V,R>(r:Relation<T>[1], cols:ColSpecArray<Z⊆T>[1], agg:AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<Z+R>[1];");
+                "native function groupBy<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpecArray<Z⊆T>[1], agg:meta::pure::metamodel::relation::AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
         reg.registerSignature("groupBy",
-                "native function groupBy<T,Z,K,V,R>(r:Relation<T>[1], cols:ColSpec<Z⊆T>[1], agg:AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<Z+R>[1];");
+                "native function groupBy<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpec<Z⊆T>[1], agg:meta::pure::metamodel::relation::AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
         // Class source: groupBy(cl:C[*], keys:FuncColSpecArray, aggs:AggColSpecArray) — like project(C[*], ...)
         reg.registerSignature("groupBy",
-                "native function groupBy<C,Z,K,V,R>(cl:C[*], keys:FuncColSpecArray<{C[1]->meta::pure::metamodel::type::Any[*]},Z>[1], aggs:AggColSpecArray<{C[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<Z+R>[1];");
+                "native function groupBy<C,Z,K,V,R>(cl:C[*], keys:meta::pure::metamodel::relation::FuncColSpecArray<{C[1]->meta::pure::metamodel::type::Any[*]},Z>[1], aggs:meta::pure::metamodel::relation::AggColSpecArray<{C[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
         reg.registerSignature("groupBy",
-                "native function groupBy<C,Z,K,V,R>(cl:C[*], keys:FuncColSpecArray<{C[1]->meta::pure::metamodel::type::Any[*]},Z>[1], aggs:AggColSpec<{C[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<Z+R>[1];");
+                "native function groupBy<C,Z,K,V,R>(cl:C[*], keys:meta::pure::metamodel::relation::FuncColSpecArray<{C[1]->meta::pure::metamodel::type::Any[*]},Z>[1], aggs:meta::pure::metamodel::relation::AggColSpec<{C[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
         // Legacy TDS: groupBy(set, keyFns, aggValues, ids) — desugared to arity-3 in GroupByChecker
         reg.registerSignature("groupBy",
-                "native function groupBy<K,V,U>(set:K[*], fns:Function<{K[1]->meta::pure::metamodel::type::Any[*]}>[*], aggs:meta::pure::metamodel::type::Any[*], ids:meta::pure::metamodel::type::String[*]):Relation<K>[1];");
+                "native function groupBy<K,V,U>(set:K[*], fns:meta::pure::metamodel::function::Function<{K[1]->meta::pure::metamodel::type::Any[*]}>[*], aggs:meta::pure::metamodel::type::Any[*], ids:meta::pure::metamodel::type::String[*]):meta::pure::metamodel::relation::Relation<K>[1];");
 
         // Aggregate
         reg.registerSignature("aggregate",
-                "native function aggregate<T,K,V,R>(r:Relation<T>[1], agg:AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<R>[1];");
+                "native function aggregate<T,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<R>[1];");
         reg.registerSignature("aggregate",
-                "native function aggregate<T,K,V,R>(r:Relation<T>[1], agg:AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<R>[1];");
+                "native function aggregate<T,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], agg:meta::pure::metamodel::relation::AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<R>[1];");
 
         // Join
         reg.registerSignature("join",
-                "native function join<T,V>(rel1:Relation<T>[1], rel2:Relation<V>[1], joinKind:meta::pure::functions::relation::JoinKind[1], f:Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):Relation<T+V>[1];");
+                "native function join<T,V>(rel1:meta::pure::metamodel::relation::Relation<T>[1], rel2:meta::pure::metamodel::relation::Relation<V>[1], joinKind:meta::pure::functions::relation::JoinKind[1], f:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<T+V>[1];");
         // Join with right-side prefix (syntactic sugar for rename on right source)
         reg.registerSignature("join",
-                "native function join<T,V>(rel1:Relation<T>[1], rel2:Relation<V>[1], joinKind:meta::pure::functions::relation::JoinKind[1], f:Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1], prefix:meta::pure::metamodel::type::String[1]):Relation<T+V>[1];");
+                "native function join<T,V>(rel1:meta::pure::metamodel::relation::Relation<T>[1], rel2:meta::pure::metamodel::relation::Relation<V>[1], joinKind:meta::pure::functions::relation::JoinKind[1], f:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1], prefix:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::relation::Relation<T+V>[1];");
         reg.registerSignature("asOfJoin",
-                "native function asOfJoin<T,V>(rel1:Relation<T>[1], rel2:Relation<V>[1], match:Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):Relation<T+V>[1];");
+                "native function asOfJoin<T,V>(rel1:meta::pure::metamodel::relation::Relation<T>[1], rel2:meta::pure::metamodel::relation::Relation<V>[1], match:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<T+V>[1];");
         reg.registerSignature("asOfJoin",
-                "native function asOfJoin<T,V>(rel1:Relation<T>[1], rel2:Relation<V>[1], match:Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1], join:Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):Relation<T+V>[1];");
+                "native function asOfJoin<T,V>(rel1:meta::pure::metamodel::relation::Relation<T>[1], rel2:meta::pure::metamodel::relation::Relation<V>[1], match:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1], join:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<T+V>[1];");
         // asOfJoin with prefix (requires both match + join lambdas)
         reg.registerSignature("asOfJoin",
-                "native function asOfJoin<T,V>(rel1:Relation<T>[1], rel2:Relation<V>[1], match:Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1], join:Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1], prefix:meta::pure::metamodel::type::String[1]):Relation<T+V>[1];");
+                "native function asOfJoin<T,V>(rel1:meta::pure::metamodel::relation::Relation<T>[1], rel2:meta::pure::metamodel::relation::Relation<V>[1], match:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1], join:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1], prefix:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::relation::Relation<T+V>[1];");
 
         // Pivot
         reg.registerSignature("pivot",
-                "native function pivot<T,Z,K,V,R>(r:Relation<T>[1], cols:ColSpec<Z⊆T>[1], agg:AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<meta::pure::metamodel::type::Any>[1];");
+                "native function pivot<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpec<Z⊆T>[1], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
         reg.registerSignature("pivot",
-                "native function pivot<T,Z,K,V,R>(r:Relation<T>[1], cols:ColSpecArray<Z⊆T>[1], agg:AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<meta::pure::metamodel::type::Any>[1];");
+                "native function pivot<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpecArray<Z⊆T>[1], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
         reg.registerSignature("pivot",
-                "native function pivot<T,Z,K,V,R>(r:Relation<T>[1], cols:ColSpec<Z⊆T>[1], values:meta::pure::metamodel::type::Any[1..*], agg:AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<meta::pure::metamodel::type::Any>[1];");
+                "native function pivot<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpec<Z⊆T>[1], values:meta::pure::metamodel::type::Any[1..*], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
         reg.registerSignature("pivot",
-                "native function pivot<T,Z,K,V,R>(r:Relation<T>[1], cols:ColSpecArray<Z⊆T>[1], agg:AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<meta::pure::metamodel::type::Any>[1];");
+                "native function pivot<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpecArray<Z⊆T>[1], agg:meta::pure::metamodel::relation::AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
         reg.registerSignature("pivot",
-                "native function pivot<T,Z,K,V,R>(r:Relation<T>[1], cols:ColSpec<Z⊆T>[1], agg:AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<meta::pure::metamodel::type::Any>[1];");
+                "native function pivot<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpec<Z⊆T>[1], agg:meta::pure::metamodel::relation::AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
 
         // Project
         reg.registerSignature("project",
-                "native function project<C,T>(cl:C[*], x:FuncColSpecArray<{C[1]->meta::pure::metamodel::type::Any[*]},T>[1]):Relation<T>[1];");
+                "native function project<C,T>(cl:C[*], x:meta::pure::metamodel::relation::FuncColSpecArray<{C[1]->meta::pure::metamodel::type::Any[*]},T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
         reg.registerSignature("project",
-                "native function project<T,Z>(r:Relation<T>[1], fs:FuncColSpecArray<{T[1]->meta::pure::metamodel::type::Any[*]},Z>[1]):Relation<Z>[1];");
+                "native function project<T,Z>(r:meta::pure::metamodel::relation::Relation<T>[1], fs:meta::pure::metamodel::relation::FuncColSpecArray<{T[1]->meta::pure::metamodel::type::Any[*]},Z>[1]):meta::pure::metamodel::relation::Relation<Z>[1];");
         // Legacy TDS: project(set, functions, ids) — desugared to arity-2 in ProjectChecker
         reg.registerSignature("project",
-                "native function project<K>(set:K[*], fns:Function<{K[1]->meta::pure::metamodel::type::Any[*]}>[*], ids:meta::pure::metamodel::type::String[*]):Relation<K>[1];");
+                "native function project<K>(set:K[*], fns:meta::pure::metamodel::function::Function<{K[1]->meta::pure::metamodel::type::Any[*]}>[*], ids:meta::pure::metamodel::type::String[*]):meta::pure::metamodel::relation::Relation<K>[1];");
 
         // Flatten
         reg.registerSignature("flatten",
-                "native function flatten<T,Z>(valueToFlatten:T[*], columnWithFlattenedValue:ColSpec<Z=(?:T)>[1]):Relation<Z>[1];");
+                "native function flatten<T,Z>(valueToFlatten:T[*], columnWithFlattenedValue:meta::pure::metamodel::relation::ColSpec<Z=(?:T)>[1]):meta::pure::metamodel::relation::Relation<Z>[1];");
 
         // Window functions (native)
-        reg.registerSignature("first", "native function first<T>(w:Relation<T>[1], f:_Window<T>[1], r:T[1]):T[0..1];");
-        reg.registerSignature("last", "native function last<T>(w:Relation<T>[1], f:_Window<T>[1], row:T[1]):T[0..1];");
+        reg.registerSignature("first", "native function first<T>(w:meta::pure::metamodel::relation::Relation<T>[1], f:meta::pure::functions::relation::_Window<T>[1], r:T[1]):T[0..1];");
+        reg.registerSignature("last", "native function last<T>(w:meta::pure::metamodel::relation::Relation<T>[1], f:meta::pure::functions::relation::_Window<T>[1], row:T[1]):T[0..1];");
         reg.registerSignature("nth",
-                "native function nth<T>(w:Relation<T>[1], f:_Window<T>[1], r:T[1], offset:meta::pure::metamodel::type::Integer[1]):T[0..1];");
+                "native function nth<T>(w:meta::pure::metamodel::relation::Relation<T>[1], f:meta::pure::functions::relation::_Window<T>[1], r:T[1], offset:meta::pure::metamodel::type::Integer[1]):T[0..1];");
         reg.registerSignature("offset",
-                "native function offset<T>(w:Relation<T>[1], r:T[1], offset:meta::pure::metamodel::type::Integer[1]):T[0..1];");
-        reg.registerSignature("rowNumber", "native function rowNumber<T>(rel:Relation<T>[1], row:T[1]):meta::pure::metamodel::type::Integer[1];");
+                "native function offset<T>(w:meta::pure::metamodel::relation::Relation<T>[1], r:T[1], offset:meta::pure::metamodel::type::Integer[1]):T[0..1];");
+        reg.registerSignature("rowNumber", "native function rowNumber<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], row:T[1]):meta::pure::metamodel::type::Integer[1];");
         reg.registerSignature("ntile",
-                "native function ntile<T>(rel:Relation<T>[1], row:T[1], tileCount:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[1];");
+                "native function ntile<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], row:T[1], tileCount:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[1];");
         reg.registerSignature("rank",
-                "native function rank<T>(rel:Relation<T>[1], w:_Window<T>[1], row:T[1]):meta::pure::metamodel::type::Integer[1];");
+                "native function rank<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], row:T[1]):meta::pure::metamodel::type::Integer[1];");
         reg.registerSignature("denseRank",
-                "native function denseRank<T>(rel:Relation<T>[1], w:_Window<T>[1], row:T[1]):meta::pure::metamodel::type::Integer[1];");
+                "native function denseRank<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], row:T[1]):meta::pure::metamodel::type::Integer[1];");
         reg.registerSignature("percentRank",
-                "native function percentRank<T>(rel:Relation<T>[1], w:_Window<T>[1], row:T[1]):meta::pure::metamodel::type::Float[1];");
+                "native function percentRank<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], row:T[1]):meta::pure::metamodel::type::Float[1];");
         reg.registerSignature("cumulativeDistribution",
-                "native function cumulativeDistribution<T>(rel:Relation<T>[1], w:_Window<T>[1], row:T[1]):meta::pure::metamodel::type::Float[1];");
+                "native function cumulativeDistribution<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], row:T[1]):meta::pure::metamodel::type::Float[1];");
 
         // Window functions (delegate to offset)
-        reg.registerSignature("lag", "native function lag<T>(w:Relation<T>[1], r:T[1]):T[0..1];");
-        reg.registerSignature("lag", "native function lag<T>(w:Relation<T>[1], r:T[1], offset:meta::pure::metamodel::type::Integer[1]):T[0..1];");
-        reg.registerSignature("lead", "native function lead<T>(w:Relation<T>[1], r:T[1]):T[0..1];");
-        reg.registerSignature("lead", "native function lead<T>(w:Relation<T>[1], r:T[1], offset:meta::pure::metamodel::type::Integer[1]):T[0..1];");
+        reg.registerSignature("lag", "native function lag<T>(w:meta::pure::metamodel::relation::Relation<T>[1], r:T[1]):T[0..1];");
+        reg.registerSignature("lag", "native function lag<T>(w:meta::pure::metamodel::relation::Relation<T>[1], r:T[1], offset:meta::pure::metamodel::type::Integer[1]):T[0..1];");
+        reg.registerSignature("lead", "native function lead<T>(w:meta::pure::metamodel::relation::Relation<T>[1], r:T[1]):T[0..1];");
+        reg.registerSignature("lead", "native function lead<T>(w:meta::pure::metamodel::relation::Relation<T>[1], r:T[1], offset:meta::pure::metamodel::type::Integer[1]):T[0..1];");
     }
 
     /**
@@ -669,7 +669,7 @@ public class BuiltinRegistry {
                 "native function contains(collection:meta::pure::metamodel::type::Any[*], val:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
         // Collection contains with comparator: [...]->contains(elem, {a,b | $a == $b})
         reg.registerSignature("contains",
-                "native function contains<T>(collection:T[*], val:T[1], comparator:Function<{T[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
+                "native function contains<T>(collection:T[*], val:T[1], comparator:meta::pure::metamodel::function::Function<{T[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
         reg.registerSignature("reverseString", "native function reverseString(str:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
         reg.registerSignature("replace",
                 "native function replace(str:meta::pure::metamodel::type::String[1], toFind:meta::pure::metamodel::type::String[1], replacement:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
@@ -984,26 +984,26 @@ public class BuiltinRegistry {
         reg.registerSignature("max", "native function max(dates:meta::pure::metamodel::type::StrictDate[*]):meta::pure::metamodel::type::StrictDate[0..1];");
         reg.registerSignature("max", "native function max(dates:meta::pure::metamodel::type::Date[*]):meta::pure::metamodel::type::Date[0..1];");
         reg.registerSignature("maxBy",
-                "native function maxBy<T>(values:T[*], key:Function<{T[1]->meta::pure::metamodel::type::Any[1]}>[1]):T[0..1];");
+                "native function maxBy<T>(values:T[*], key:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Any[1]}>[1]):T[0..1];");
         reg.registerSignature("maxBy",
-                "native function maxBy<T>(values:T[*], key:Function<{T[1]->meta::pure::metamodel::type::Any[1]}>[1], count:meta::pure::metamodel::type::Integer[1]):T[*];");
+                "native function maxBy<T>(values:T[*], key:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Any[1]}>[1], count:meta::pure::metamodel::type::Integer[1]):T[*];");
         // Aggregate spec overload: $y->maxBy() where $y is RowMapper<value,key> from fn1
         // legend-engine: maxBy_RowMapper_MANY__T_$0_1$ — returns first type arg
         reg.registerSignature("maxBy",
-                "native function maxBy<T,U>(values:RowMapper<T,U>[*]):T[0..1];");
+                "native function maxBy<T,U>(values:meta::pure::functions::math::mathUtility::RowMapper<T,U>[*]):T[0..1];");
         // List-keyed: [1,2]->maxBy([10,20]) — keys parallel to values
         reg.registerSignature("maxBy",
                 "native function maxBy<T>(values:T[*], keys:T[*]):T[0..1];");
         reg.registerSignature("maxBy",
                 "native function maxBy<T>(values:T[*], keys:T[*], count:meta::pure::metamodel::type::Integer[1]):T[*];");
         reg.registerSignature("minBy",
-                "native function minBy<T>(values:T[*], key:Function<{T[1]->meta::pure::metamodel::type::Any[1]}>[1]):T[0..1];");
+                "native function minBy<T>(values:T[*], key:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Any[1]}>[1]):T[0..1];");
         reg.registerSignature("minBy",
-                "native function minBy<T>(values:T[*], key:Function<{T[1]->meta::pure::metamodel::type::Any[1]}>[1], count:meta::pure::metamodel::type::Integer[1]):T[*];");
+                "native function minBy<T>(values:T[*], key:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Any[1]}>[1], count:meta::pure::metamodel::type::Integer[1]):T[*];");
         // Aggregate spec overload: $y->minBy() where $y is RowMapper<value,key> from fn1
         // legend-engine: minBy_RowMapper_MANY__T_$0_1$ — returns first type arg
         reg.registerSignature("minBy",
-                "native function minBy<T,U>(values:RowMapper<T,U>[*]):T[0..1];");
+                "native function minBy<T,U>(values:meta::pure::functions::math::mathUtility::RowMapper<T,U>[*]):T[0..1];");
         // List-keyed: [1,2]->minBy([10,20]) — keys parallel to values
         reg.registerSignature("minBy",
                 "native function minBy<T>(values:T[*], keys:T[*]):T[0..1];");
@@ -1022,23 +1022,23 @@ public class BuiltinRegistry {
         // Aggregate spec overload: $y->covarPopulation() where $y is RowMapper from fn1
         // legend-engine: covarPopulation_RowMapper_MANY__Number_$0_1$
         reg.registerSignature("covarPopulation",
-                "native function covarPopulation<T,U>(values:RowMapper<T,U>[*]):meta::pure::metamodel::type::Number[0..1];");
+                "native function covarPopulation<T,U>(values:meta::pure::functions::math::mathUtility::RowMapper<T,U>[*]):meta::pure::metamodel::type::Number[0..1];");
         reg.registerSignature("corr", "native function corr(x:meta::pure::metamodel::type::Number[*], y:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1];");
         // Aggregate spec overload: $y->corr() where $y is RowMapper from fn1
         // legend-engine: corr_RowMapper_MANY__Number_$0_1$
         reg.registerSignature("corr",
-                "native function corr<T,U>(values:RowMapper<T,U>[*]):meta::pure::metamodel::type::Number[0..1];");
+                "native function corr<T,U>(values:meta::pure::functions::math::mathUtility::RowMapper<T,U>[*]):meta::pure::metamodel::type::Number[0..1];");
         reg.registerSignature("percentile", "native function percentile(numbers:meta::pure::metamodel::type::Number[*], p:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Number[1];");
         // Official: percentile(Number[*], Float[1], Boolean[1], Boolean[1]):Number[0..1]
         reg.registerSignature("percentile", "native function percentile(numbers:meta::pure::metamodel::type::Number[*], p:meta::pure::metamodel::type::Number[1], ascending:meta::pure::metamodel::type::Boolean[1], continuous:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::Number[0..1];");
         // legend-engine: wavg_RowMapper_MANY__Float_1_
         reg.registerSignature("wavg",
-                "native function wavg<T,U>(values:RowMapper<T,U>[*]):meta::pure::metamodel::type::Float[1];");
+                "native function wavg<T,U>(values:meta::pure::functions::math::mathUtility::RowMapper<T,U>[*]):meta::pure::metamodel::type::Float[1];");
         reg.registerSignature("covarSample", "native function covarSample(x:meta::pure::metamodel::type::Number[*], y:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1];");
         // Aggregate spec overload: $y->covarSample() where $y is RowMapper from fn1
         // legend-engine: covarSample_RowMapper_MANY__Number_$0_1$
         reg.registerSignature("covarSample",
-                "native function covarSample<T,U>(values:RowMapper<T,U>[*]):meta::pure::metamodel::type::Number[0..1];");
+                "native function covarSample<T,U>(values:meta::pure::functions::math::mathUtility::RowMapper<T,U>[*]):meta::pure::metamodel::type::Number[0..1];");
         reg.registerSignature("stdDevPopulation", "native function stdDevPopulation(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1];");
         reg.registerSignature("percentileCont",
                 "native function percentileCont(numbers:meta::pure::metamodel::type::Number[*], p:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Number[1];");
@@ -1049,25 +1049,25 @@ public class BuiltinRegistry {
         // These model the 3-param window call pattern: (Relation<T>, _Window<T>, T) → T
         // The TypeVar return type causes compileTypePropagating to propagate
         // relationType in window context (e.g., $p->sum($w,$r).salary).
-        reg.registerSignature("sum", "native function sum<T>(rel:Relation<T>[1], w:_Window<T>[1], r:T[1]):T[0..1];");
-        reg.registerSignature("avg", "native function avg<T>(rel:Relation<T>[1], w:_Window<T>[1], r:T[1]):T[0..1];");
-        reg.registerSignature("average", "native function average<T>(rel:Relation<T>[1], w:_Window<T>[1], r:T[1]):T[0..1];");
-        reg.registerSignature("mean", "native function mean<T>(rel:Relation<T>[1], w:_Window<T>[1], r:T[1]):T[0..1];");
-        reg.registerSignature("min", "native function min<T>(rel:Relation<T>[1], w:_Window<T>[1], r:T[1]):T[0..1];");
-        reg.registerSignature("max", "native function max<T>(rel:Relation<T>[1], w:_Window<T>[1], r:T[1]):T[0..1];");
-        reg.registerSignature("count", "native function count<T>(rel:Relation<T>[1], w:_Window<T>[1], r:T[1]):meta::pure::metamodel::type::Integer[1];");
-        reg.registerSignature("median", "native function median<T>(rel:Relation<T>[1], w:_Window<T>[1], r:T[1]):T[0..1];");
-        reg.registerSignature("mode", "native function mode<T>(rel:Relation<T>[1], w:_Window<T>[1], r:T[1]):T[0..1];");
-        reg.registerSignature("percentile", "native function percentile<T>(rel:Relation<T>[1], w:_Window<T>[1], r:T[1]):T[0..1];");
-        reg.registerSignature("stdDev", "native function stdDev<T>(rel:Relation<T>[1], w:_Window<T>[1], r:T[1]):T[0..1];");
-        reg.registerSignature("stdDevSample", "native function stdDevSample<T>(rel:Relation<T>[1], w:_Window<T>[1], r:T[1]):T[0..1];");
-        reg.registerSignature("stdDevPopulation", "native function stdDevPopulation<T>(rel:Relation<T>[1], w:_Window<T>[1], r:T[1]):T[0..1];");
-        reg.registerSignature("variance", "native function variance<T>(rel:Relation<T>[1], w:_Window<T>[1], r:T[1]):T[0..1];");
-        reg.registerSignature("varianceSample", "native function varianceSample<T>(rel:Relation<T>[1], w:_Window<T>[1], r:T[1]):T[0..1];");
-        reg.registerSignature("variancePopulation", "native function variancePopulation<T>(rel:Relation<T>[1], w:_Window<T>[1], r:T[1]):T[0..1];");
-        reg.registerSignature("corr", "native function corr<T>(rel:Relation<T>[1], w:_Window<T>[1], r:T[1]):T[0..1];");
-        reg.registerSignature("covarPopulation", "native function covarPopulation<T>(rel:Relation<T>[1], w:_Window<T>[1], r:T[1]):T[0..1];");
-        reg.registerSignature("covarSample", "native function covarSample<T>(rel:Relation<T>[1], w:_Window<T>[1], r:T[1]):T[0..1];");
+        reg.registerSignature("sum", "native function sum<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], r:T[1]):T[0..1];");
+        reg.registerSignature("avg", "native function avg<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], r:T[1]):T[0..1];");
+        reg.registerSignature("average", "native function average<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], r:T[1]):T[0..1];");
+        reg.registerSignature("mean", "native function mean<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], r:T[1]):T[0..1];");
+        reg.registerSignature("min", "native function min<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], r:T[1]):T[0..1];");
+        reg.registerSignature("max", "native function max<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], r:T[1]):T[0..1];");
+        reg.registerSignature("count", "native function count<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], r:T[1]):meta::pure::metamodel::type::Integer[1];");
+        reg.registerSignature("median", "native function median<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], r:T[1]):T[0..1];");
+        reg.registerSignature("mode", "native function mode<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], r:T[1]):T[0..1];");
+        reg.registerSignature("percentile", "native function percentile<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], r:T[1]):T[0..1];");
+        reg.registerSignature("stdDev", "native function stdDev<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], r:T[1]):T[0..1];");
+        reg.registerSignature("stdDevSample", "native function stdDevSample<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], r:T[1]):T[0..1];");
+        reg.registerSignature("stdDevPopulation", "native function stdDevPopulation<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], r:T[1]):T[0..1];");
+        reg.registerSignature("variance", "native function variance<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], r:T[1]):T[0..1];");
+        reg.registerSignature("varianceSample", "native function varianceSample<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], r:T[1]):T[0..1];");
+        reg.registerSignature("variancePopulation", "native function variancePopulation<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], r:T[1]):T[0..1];");
+        reg.registerSignature("corr", "native function corr<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], r:T[1]):T[0..1];");
+        reg.registerSignature("covarPopulation", "native function covarPopulation<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], r:T[1]):T[0..1];");
+        reg.registerSignature("covarSample", "native function covarSample<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], r:T[1]):T[0..1];");
 
         // ===== Collection =====
         reg.registerSignature("toOne", "native function toOne<T>(values:T[*]):T[1];");
@@ -1079,19 +1079,19 @@ public class BuiltinRegistry {
         reg.registerSignature("reverse", "native function reverse<T|m>(set:T[m]):T[m];");
         // slice, take, drop registered below alongside relation overloads
         reg.registerSignature("exists",
-                "native function exists<T>(value:T[*], func:Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
+                "native function exists<T>(value:T[*], func:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
         reg.registerSignature("forAll",
-                "native function forAll<T>(value:T[*], func:Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
+                "native function forAll<T>(value:T[*], func:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
         reg.registerSignature("find",
-                "native function find<T>(value:T[*], func:Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):T[0..1];");
+                "native function find<T>(value:T[*], func:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):T[0..1];");
         reg.registerSignature("filter",
-                "native function filter<T>(value:T[*], func:Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):T[*];");
-        reg.registerSignature("map", "native function map<T,V>(value:T[*], func:Function<{T[1]->V[*]}>[1]):V[*];");
+                "native function filter<T>(value:T[*], func:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):T[*];");
+        reg.registerSignature("map", "native function map<T,V>(value:T[*], func:meta::pure::metamodel::function::Function<{T[1]->V[*]}>[1]):V[*];");
         reg.registerSignature("map",
-                "native function map<T,V>(value:T[0..1], func:Function<{T[1]->V[0..1]}>[1]):V[0..1];");
+                "native function map<T,V>(value:T[0..1], func:meta::pure::metamodel::function::Function<{T[1]->V[0..1]}>[1]):V[0..1];");
         reg.registerSignature("fold",
-                "native function fold<T,V>(source:T[*], lambda:Function<{T[1],V[1]->V[1]}>[1], init:V[1]):V[1];");
-        reg.registerSignature("zip", "native function zip<T,U>(set1:T[*], set2:U[*]):Pair<T,U>[*];");
+                "native function fold<T,V>(source:T[*], lambda:meta::pure::metamodel::function::Function<{T[1],V[1]->V[1]}>[1], init:V[1]):V[1];");
+        reg.registerSignature("zip", "native function zip<T,U>(set1:T[*], set2:U[*]):meta::pure::functions::collection::Pair<T,U>[*];");
         reg.registerSignature("indexOf", "native function indexOf<T>(set:T[*], value:T[1]):meta::pure::metamodel::type::Integer[1];");
         reg.registerSignature("removeAllOptimized",
                 "native function removeAllOptimized<T>(set:T[*], other:T[*]):T[*];");
@@ -1106,25 +1106,25 @@ public class BuiltinRegistry {
         reg.registerSignature("removeDuplicates", "native function removeDuplicates<T>(col:T[*]):T[*];");
         // 2-arg convenience form (removeDuplicates.pure line 25): delegates to 3-arg native with [] key
         reg.registerSignature("removeDuplicates",
-                "native function removeDuplicates<T>(col:T[*], eql:Function<{T[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):T[*];");
+                "native function removeDuplicates<T>(col:T[*], eql:meta::pure::metamodel::function::Function<{T[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):T[*];");
         // 3-arg native form (removeDuplicates.pure line 23)
         reg.registerSignature("removeDuplicates",
-                "native function removeDuplicates<T,V>(col:T[*], key:Function<{T[1]->V[1]}>[0..1], eql:Function<{V[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[0..1]):T[*];");
+                "native function removeDuplicates<T,V>(col:T[*], key:meta::pure::metamodel::function::Function<{T[1]->V[1]}>[0..1], eql:meta::pure::metamodel::function::Function<{V[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[0..1]):T[*];");
         reg.registerSignature("removeDuplicatesBy",
-                "native function removeDuplicatesBy<T,V>(col:T[*], key:Function<{T[1]->V[1]}>[1]):T[*];");
+                "native function removeDuplicatesBy<T,V>(col:T[*], key:meta::pure::metamodel::function::Function<{T[1]->V[1]}>[1]):T[*];");
         reg.registerSignature("first", "native function first<T>(set:T[*]):T[0..1];");
         // 2-arg: first(set, count) — take first N elements
         reg.registerSignature("first", "native function first<T>(set:T[*], count:meta::pure::metamodel::type::Integer[1]):T[*];");
 
         // ===== Relation overloads for limit/take/drop/slice =====
         reg.registerSignature("limit",
-                "native function limit<T>(rel:Relation<T>[1], size:meta::pure::metamodel::type::Integer[1]):Relation<T>[1];");
+                "native function limit<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], size:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::relation::Relation<T>[1];");
         reg.registerSignature("take",
-                "native function take<T>(rel:Relation<T>[1], size:meta::pure::metamodel::type::Integer[1]):Relation<T>[1];");
+                "native function take<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], size:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::relation::Relation<T>[1];");
         reg.registerSignature("drop",
-                "native function drop<T>(rel:Relation<T>[1], size:meta::pure::metamodel::type::Integer[1]):Relation<T>[1];");
+                "native function drop<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], size:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::relation::Relation<T>[1];");
         reg.registerSignature("slice",
-                "native function slice<T>(rel:Relation<T>[1], start:meta::pure::metamodel::type::Integer[1], stop:meta::pure::metamodel::type::Integer[1]):Relation<T>[1];");
+                "native function slice<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], start:meta::pure::metamodel::type::Integer[1], stop:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::relation::Relation<T>[1];");
         // Scalar overloads for drop/slice (array operations)
         reg.registerSignature("drop",
                 "native function drop<T>(set:T[*], count:meta::pure::metamodel::type::Integer[1]):T[*];");
@@ -1136,20 +1136,20 @@ public class BuiltinRegistry {
                 "native function take<T>(set:T[*], size:meta::pure::metamodel::type::Integer[1]):T[*];");
 
         // ===== Boolean / Meta =====
-        reg.registerSignature("instanceOf", "native function instanceOf(instance:meta::pure::metamodel::type::Any[1], type:Type[1]):meta::pure::metamodel::type::Boolean[1];");
+        reg.registerSignature("instanceOf", "native function instanceOf(instance:meta::pure::metamodel::type::Any[1], type:meta::pure::metamodel::type::Type[1]):meta::pure::metamodel::type::Boolean[1];");
 
         // ===== Collection sort (legend-pure) =====
         reg.registerSignature("sort",
-                "native function sort<T,U|m>(col:T[m], key:Function<{T[1]->U[1]}>[0..1], comp:Function<{U[1],U[1]->meta::pure::metamodel::type::Integer[1]}>[0..1]):T[m];");
+                "native function sort<T,U|m>(col:T[m], key:meta::pure::metamodel::function::Function<{T[1]->U[1]}>[0..1], comp:meta::pure::metamodel::function::Function<{U[1],U[1]->meta::pure::metamodel::type::Integer[1]}>[0..1]):T[m];");
         reg.registerSignature("sort", "native function sort<T|m>(col:T[m]):T[m];");
         reg.registerSignature("sort",
-                "native function sort<T|m>(col:T[m], comp:Function<{T[1],T[1]->meta::pure::metamodel::type::Integer[1]}>[0..1]):T[m];");
+                "native function sort<T|m>(col:T[m], comp:meta::pure::metamodel::function::Function<{T[1],T[1]->meta::pure::metamodel::type::Integer[1]}>[0..1]):T[m];");
 
         // ===== Collection sortBy / sortByReversed (legend-engine) =====
         reg.registerSignature("sortBy",
-                "native function sortBy<T,U|m>(col:T[m], key:Function<{T[1]->U[1]}>[0..1]):T[m];");
+                "native function sortBy<T,U|m>(col:T[m], key:meta::pure::metamodel::function::Function<{T[1]->U[1]}>[0..1]):T[m];");
         reg.registerSignature("sortByReversed",
-                "native function sortByReversed<T,U|m>(col:T[m], key:Function<{T[1]->U[1]}>[0..1]):T[m];");
+                "native function sortByReversed<T,U|m>(col:T[m], key:meta::pure::metamodel::function::Function<{T[1]->U[1]}>[0..1]):T[m];");
 
         // ===== letFunction =====
         // Standard form: letFunction('varName', valueExpr) → propagates value type
@@ -1162,10 +1162,10 @@ public class BuiltinRegistry {
         // ===== from (runtime binding) =====
         // Relational: from(source:Relation<T>, runtime) — passthrough, just binds runtime
         reg.registerSignature("from",
-                "native function from<T>(source:Relation<T>[1], runtime:meta::pure::metamodel::type::Any[1]):Relation<T>[1];");
+                "native function from<T>(source:meta::pure::metamodel::relation::Relation<T>[1], runtime:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::relation::Relation<T>[1];");
         // Single-arg: from(source:Relation<T>) — identity passthrough
         reg.registerSignature("from",
-                "native function from<T>(source:Relation<T>[1]):Relation<T>[1];");
+                "native function from<T>(source:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
         // Scalar from: from(source:T, mapping, runtime) — M2M / non-relational
         reg.registerSignature("from",
                 "native function from<T>(source:T[*], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1]):T[*];");
@@ -1173,18 +1173,18 @@ public class BuiltinRegistry {
         // ===== write =====
         // write(source:Relation<T>, target) → Integer[1] (count of rows written)
         reg.registerSignature("write",
-                "native function write<T>(source:Relation<T>[1], target:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Integer[1];");
+                "native function write<T>(source:meta::pure::metamodel::relation::Relation<T>[1], target:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Integer[1];");
         // write(source:Relation<T>) — single-arg form
         reg.registerSignature("write",
-                "native function write<T>(source:Relation<T>[1]):meta::pure::metamodel::type::Integer[1];");
+                "native function write<T>(source:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::type::Integer[1];");
         // TDS relation accessor — wraps a TDS literal into a target for write()
         reg.registerSignature("newTDSRelationAccessor",
-                "native function newTDSRelationAccessor<T>(tds:Relation<T>[1]):Relation<T>[1];");
+                "native function newTDSRelationAccessor<T>(tds:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
 
         // ===== if (conditional) =====
         // if(condition, thenLambda, elseLambda) → T
         reg.registerSignature("if",
-                "native function if<T>(test:meta::pure::metamodel::type::Boolean[1], then:Function<{->T[*]}>[1], else:Function<{->T[*]}>[1]):T[*];");
+                "native function if<T>(test:meta::pure::metamodel::type::Boolean[1], then:meta::pure::metamodel::function::Function<{->T[*]}>[1], else:meta::pure::metamodel::function::Function<{->T[*]}>[1]):T[*];");
 
         // ===== get (variant navigation) =====
         // get(variant, key) → Variant[0..1] — untyped navigation on a JSON-backed source.
@@ -1215,53 +1215,53 @@ public class BuiltinRegistry {
         // tableReference: synthetic — emitted by MappingNormalizer and #>{db.TABLE}# DSL
         // Custom checker: TableReferenceChecker (resolves table, builds schema)
         reg.registerSignature("tableReference",
-                "native function tableReference(db:meta::pure::metamodel::type::String[1], name:meta::pure::metamodel::type::String[1]):Relation<meta::pure::metamodel::type::Any>[1];");
+                "native function tableReference(db:meta::pure::metamodel::type::String[1], name:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
         // tds: synthetic — emitted by parser for TDS literals
         // Custom checker: TdsChecker (parses inline TDS, builds schema)
         reg.registerSignature("tds",
-                "native function tds(tag:meta::pure::metamodel::type::String[1], raw:meta::pure::metamodel::type::String[1]):Relation<meta::pure::metamodel::type::Any>[1];");
+                "native function tds(tag:meta::pure::metamodel::type::String[1], raw:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
         // getAll: class-based data query — T from Class type argument
         reg.registerSignature("getAll",
-                "native function getAll<T>(class:Class<T>[1]):T[*];");
+                "native function getAll<T>(class:meta::pure::metamodel::type::Class<T>[1]):T[*];");
         reg.registerSignature("getAll",
-                "native function getAll<T>(class:Class<T>[1], date:meta::pure::metamodel::type::Date[1]):T[*];");
+                "native function getAll<T>(class:meta::pure::metamodel::type::Class<T>[1], date:meta::pure::metamodel::type::Date[1]):T[*];");
         reg.registerSignature("getAll",
-                "native function getAll<T>(class:Class<T>[1], from:meta::pure::metamodel::type::Date[1], to:meta::pure::metamodel::type::Date[1]):T[*];");
+                "native function getAll<T>(class:meta::pure::metamodel::type::Class<T>[1], from:meta::pure::metamodel::type::Date[1], to:meta::pure::metamodel::type::Date[1]):T[*];");
 
         // ===== Meta Functions =====
         // eval: function application — return type from compiled body, not signature
         reg.registerSignature("eval",
-                "native function eval(func:Function<meta::pure::metamodel::type::Any>[1]):meta::pure::metamodel::type::Any[*];");
+                "native function eval(func:meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[1]):meta::pure::metamodel::type::Any[*];");
         reg.registerSignature("eval",
-                "native function eval<T>(func:Function<meta::pure::metamodel::type::Any>[1], param:T[*]):meta::pure::metamodel::type::Any[*];");
+                "native function eval<T>(func:meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[1], param:T[*]):meta::pure::metamodel::type::Any[*];");
         // match: type dispatch — return type from matching branch body
         reg.registerSignature("match",
-                "native function match(value:meta::pure::metamodel::type::Any[*], branches:Function<meta::pure::metamodel::type::Any>[1..*]):meta::pure::metamodel::type::Any[*];");
+                "native function match(value:meta::pure::metamodel::type::Any[*], branches:meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[1..*]):meta::pure::metamodel::type::Any[*];");
         reg.registerSignature("match",
-                "native function match<P>(value:meta::pure::metamodel::type::Any[*], branches:Function<meta::pure::metamodel::type::Any>[1..*], extra:P[*]):meta::pure::metamodel::type::Any[*];");
+                "native function match<P>(value:meta::pure::metamodel::type::Any[*], branches:meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[1..*], extra:P[*]):meta::pure::metamodel::type::Any[*];");
 
         // ===== Graph Fetch =====
         reg.registerSignature("graphFetch",
-                "native function graphFetch<T>(source:T[*], tree:RootGraphFetchTree<T>[1]):T[*];");
+                "native function graphFetch<T>(source:T[*], tree:meta::pure::graphFetch::RootGraphFetchTree<T>[1]):T[*];");
         reg.registerSignature("graphFetch",
-                "native function graphFetch<T>(source:T[*], tree:RootGraphFetchTree<T>[1], batchSize:meta::pure::metamodel::type::Integer[1]):T[*];");
+                "native function graphFetch<T>(source:T[*], tree:meta::pure::graphFetch::RootGraphFetchTree<T>[1], batchSize:meta::pure::metamodel::type::Integer[1]):T[*];");
         // graphFetch with ColSpec/ColSpecArray — desugared form of #{...}#
         reg.registerSignature("graphFetch",
-                "native function graphFetch<T>(source:T[*], col:ColSpec<T>[1]):meta::pure::metamodel::type::String[1];");
+                "native function graphFetch<T>(source:T[*], col:meta::pure::metamodel::relation::ColSpec<T>[1]):meta::pure::metamodel::type::String[1];");
         reg.registerSignature("graphFetch",
-                "native function graphFetch<T>(source:T[*], cols:ColSpecArray<T>[1]):meta::pure::metamodel::type::String[1];");
+                "native function graphFetch<T>(source:T[*], cols:meta::pure::metamodel::relation::ColSpecArray<T>[1]):meta::pure::metamodel::type::String[1];");
         reg.registerSignature("serialize",
-                "native function serialize<T>(source:T[*], tree:RootGraphFetchTree<T>[1]):meta::pure::metamodel::type::String[1];");
+                "native function serialize<T>(source:T[*], tree:meta::pure::graphFetch::RootGraphFetchTree<T>[1]):meta::pure::metamodel::type::String[1];");
         reg.registerSignature("serialize",
-                "native function serialize<T>(source:T[*], tree:RootGraphFetchTree<T>[1], config:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[1];");
+                "native function serialize<T>(source:T[*], tree:meta::pure::graphFetch::RootGraphFetchTree<T>[1], config:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[1];");
 
         // ===== Misc =====
-        reg.registerSignature("pair", "native function pair<T,U>(first:T[1], second:U[1]):Pair<T,U>[1];");
-        reg.registerSignature("list", "native function list<T>(values:T[*]):List<T>[1];");
-        reg.registerSignature("type", "native function type(any:meta::pure::metamodel::type::Any[1]):Type[1];");
+        reg.registerSignature("pair", "native function pair<T,U>(first:T[1], second:U[1]):meta::pure::functions::collection::Pair<T,U>[1];");
+        reg.registerSignature("list", "native function list<T>(values:T[*]):meta::pure::functions::collection::List<T>[1];");
+        reg.registerSignature("type", "native function type(any:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Type[1];");
         reg.registerSignature("generateGuid", "native function generateGuid():meta::pure::metamodel::type::String[1];");
         // rowMapper: matches legend-engine rowMapper_T_$0_1$__U_$0_1$__RowMapper_1_
         reg.registerSignature("rowMapper",
-                "native function rowMapper<T,U>(value:T[0..1], key:U[0..1]):RowMapper<T,U>[1];");
+                "native function rowMapper<T,U>(value:T[0..1], key:U[0..1]):meta::pure::functions::math::mathUtility::RowMapper<T,U>[1];");
     }
 }
