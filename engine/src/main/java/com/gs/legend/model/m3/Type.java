@@ -35,7 +35,7 @@ import java.util.Objects;
  */
 public sealed interface Type permits
         Primitive,
-        Type.ClassType, Type.EnumType,
+        Type.NameRef, Type.ClassType, Type.EnumType,
         Type.PrecisionDecimal, Type.Parameterized,
         Type.FunctionType, Type.Relation, Type.Tuple,
         Type.TypeVar, Type.SchemaAlgebra, Type.RelationTypeVar,
@@ -160,6 +160,31 @@ public sealed interface Type permits
     // ============================================================
     //  Nominal types: references to declared classes / enums
     // ============================================================
+
+    /**
+     * Pre-classification pointer: a fully qualified name whose Kind (primitive / class /
+     * enum) has not yet been resolved. Produced by the parser for user source where the
+     * target declaration may not be registered yet. The type checker is responsible for
+     * resolving {@code NameRef} to a classified variant ({@link Primitive}, {@link ClassType},
+     * or {@link EnumType}) via {@link ModelContext#findType} before emitting TypeInfo.
+     *
+     * <p><strong>Invariant:</strong> no {@code NameRef} flows past the type checker. If
+     * downstream code (PlanGenerator, dialects, serializers) ever encounters a {@code NameRef},
+     * the type checker failed to resolve it — that's a compiler bug.
+     *
+     * <p>Intentionally minimal: holds only the FQN. All other information (Kind, body) is
+     * looked up on demand through the model context.
+     */
+    record NameRef(String qualifiedName) implements Type {
+        public NameRef {
+            Objects.requireNonNull(qualifiedName, "NameRef qualifiedName cannot be null");
+        }
+
+        @Override
+        public String typeName() {
+            return SymbolTable.extractSimpleName(qualifiedName);
+        }
+    }
 
     /**
      * Reference to a user-defined class by fully qualified name.
