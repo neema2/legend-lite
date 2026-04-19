@@ -20,12 +20,6 @@
     <description>Core Legend Lite engine with Pure parser, compiler, and SQL generator.</description>
 
     <dependencies>
-        <!-- ANTLR4 Runtime -->
-        <dependency>
-            <groupId>org.antlr</groupId>
-            <artifactId>antlr4-runtime</artifactId>
-        </dependency>
-
         <!-- DuckDB JDBC Driver -->
         <dependency>
             <groupId>org.duckdb</groupId>
@@ -48,26 +42,6 @@
 
     <build>
         <plugins>
-            <!-- ANTLR4 Maven Plugin -->
-            <plugin>
-                <groupId>org.antlr</groupId>
-                <artifactId>antlr4-maven-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>antlr</id>
-                        <goals>
-                            <goal>antlr4</goal>
-                        </goals>
-                        <configuration>
-                            <listener>false</listener>
-                            <visitor>true</visitor>
-                            <includes>
-                                <include>**/com/gs/legend/antlr/*.g4</include>
-                            </includes>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
             <!-- Exec Maven Plugin to run the server -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>

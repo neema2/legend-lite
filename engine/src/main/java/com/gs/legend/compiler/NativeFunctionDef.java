@@ -1,5 +1,7 @@
 package com.gs.legend.compiler;
 
+import com.gs.legend.model.m3.Multiplicity;
+
 import java.util.List;
 
 /**
@@ -26,7 +28,7 @@ public record NativeFunctionDef(
         List<String> multParams,
         List<PType.Param> params,
         PType returnType,
-        Mult returnMult,
+        Multiplicity returnMult,
         String rawSignature
 ) {
 
@@ -46,7 +48,7 @@ public record NativeFunctionDef(
         if (params.size() == callArity) return true;
         if (!params.isEmpty()) {
             var lastParam = params.get(params.size() - 1);
-            if (lastParam.mult() == Mult.ZERO_MANY || lastParam.mult() == Mult.ONE_MANY) {
+            if (lastParam.mult() == Multiplicity.MANY || lastParam.mult() == Multiplicity.ONE_MANY) {
                 return callArity >= params.size() - 1;
             }
         }

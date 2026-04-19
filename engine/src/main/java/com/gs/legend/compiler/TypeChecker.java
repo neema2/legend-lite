@@ -1,6 +1,5 @@
 package com.gs.legend.compiler;
 
-import com.gs.legend.antlr.ValueSpecificationBuilder;
 import com.gs.legend.ast.*;
 import com.gs.legend.compiled.CompiledAssociation;
 import com.gs.legend.compiled.CompiledClass;
@@ -933,7 +932,7 @@ public class TypeChecker implements TypeCheckEnv {
         // tag the value's TypeInfo as many(propType) so PlanGenerator wraps it in [].
         // This is a workaround — the correct fix is compiler-driven single→collection coercion.
         var ci = (ClassInstance) af.parameters().get(1);
-        var data = (ValueSpecificationBuilder.InstanceData) ci.value();
+        var data = (InstanceData) ci.value();
         if (info.type() instanceof GenericType.ClassType(String qn) && modelContext != null) {
             var pureClass = modelContext.findClass(qn).orElse(null);
             if (pureClass != null) {

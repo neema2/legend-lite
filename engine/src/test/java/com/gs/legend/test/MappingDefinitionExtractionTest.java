@@ -30,11 +30,11 @@ class MappingDefinitionExtractionTest {
     // ==================== Helper ====================
 
     private MappingDefinition parseMapping(String pureSource) {
-        return PureParser.parseMappingDefinition(pureSource);
+        return PureParser.parseSingle(pureSource, MappingDefinition.class);
     }
 
     private DatabaseDefinition parseDatabase(String pureSource) {
-        return PureParser.parseDatabaseDefinition(pureSource);
+        return PureParser.parseSingle(pureSource, DatabaseDefinition.class);
     }
 
     // ==================== Database Definition Extraction ====================

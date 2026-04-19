@@ -1,6 +1,5 @@
 package com.gs.legend.compiler.checkers;
 
-import com.gs.legend.antlr.ValueSpecificationBuilder;
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
 import com.gs.legend.model.SymbolTable;
@@ -30,7 +29,7 @@ public class NewChecker extends AbstractChecker {
                           TypeChecker.CompilationContext ctx) {
         // Extract InstanceData from param[1]: new(PE(className), ClassInstance("instance", data))
         var ci = (ClassInstance) af.parameters().get(1);
-        var data = (ValueSpecificationBuilder.InstanceData) ci.value();
+        var data = (InstanceData) ci.value();
 
         PureClass pureClass = resolveClass(data);
 
@@ -54,7 +53,7 @@ public class NewChecker extends AbstractChecker {
                 .build();
     }
 
-    private PureClass resolveClass(ValueSpecificationBuilder.InstanceData data) {
+    private PureClass resolveClass(InstanceData data) {
         // Built-in Pure standard library types (no model context needed)
         String simpleName = SymbolTable.extractSimpleName(data.className());
 
@@ -69,10 +68,10 @@ public class NewChecker extends AbstractChecker {
                     "Pair", java.util.List.of(
                             new com.gs.legend.model.m3.Property("first",
                                     firstType,
-                                    new com.gs.legend.model.m3.Multiplicity(1, 1)),
+                                    com.gs.legend.model.m3.Multiplicity.ONE),
                             new com.gs.legend.model.m3.Property("second",
                                     secondType,
-                                    new com.gs.legend.model.m3.Multiplicity(1, 1))));
+                                    com.gs.legend.model.m3.Multiplicity.ONE)));
         }
 
         // Fall back to model context for user-defined classes

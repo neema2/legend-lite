@@ -51,10 +51,14 @@ public class MatchChecker extends AbstractChecker {
             String branchTypeName = SymbolTable.extractSimpleName(branchParam.typeName());
             if (!typeMatches(branchTypeName, inputType)) continue;
 
-            // Check multiplicity: if input is many, branch must accept many
+            // Check multiplicity: if input is many, branch must accept many.
+            // branchParam.multiplicity() is already structured (parser produced it) — no re-parse.
             if (inputIsMany) {
-                Multiplicity branchMult = Multiplicity.parse(branchParam.multiplicity());
-                if (!branchMult.isMany() && !branchMult.equals(Multiplicity.parse("0"))) continue;
+                Multiplicity branchMult = branchParam.multiplicity();
+                if (branchMult != null && !branchMult.isMany() && !branchMult.equals(Multiplicity.ZERO_ONE)
+                        && !branchMult.equals(new Multiplicity.Bounded(0, 0))) {
+                    continue;
+                }
             }
 
             // Match found — compile body with branch params bound as let bindings

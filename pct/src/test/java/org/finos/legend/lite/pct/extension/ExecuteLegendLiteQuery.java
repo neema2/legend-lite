@@ -484,7 +484,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                     .multiplicityUpperBoundToInt(mult);
             int lower = org.finos.legend.pure.m3.navigation.multiplicity.Multiplicity
                     .multiplicityLowerBoundToInt(mult);
-            Multiplicity multiplicity = new Multiplicity(lower, upper < 0 ? null : upper);
+            Multiplicity multiplicity = new Multiplicity.Bounded(lower, upper < 0 ? null : upper);
 
             CoreInstance genericType = prop.getValueForMetaPropertyToOne(M3Properties.genericType);
             CoreInstance rawType = (genericType != null)
@@ -563,7 +563,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
     /**
      * Re-escapes literal special characters inside single-quoted strings.
      * The Pure interpreter resolves escape sequences before passing the expression,
-     * but our ANTLR parser expects them.
+     * but our parser expects them unresolved.
      */
     private static String reEscapeStringLiterals(String expr) {
         StringBuilder sb = new StringBuilder(expr.length());

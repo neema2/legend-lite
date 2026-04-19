@@ -148,7 +148,7 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
      * No path parameters - just compile and run.
      */
     private void registerService(ServiceRegistry registry, String servicePure) {
-        ServiceDefinition def = PureParser.parseServiceDefinition(servicePure);
+        ServiceDefinition def = PureParser.parseSingle(servicePure, ServiceDefinition.class);
         String pureQuery = def.functionBody();
         String pureSource = getCompletePureModelWithRuntime();
 
@@ -164,7 +164,7 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
      * The filter value is substituted into the WHERE clause.
      */
     private void registerServiceWithFilter(ServiceRegistry registry, String servicePure, String paramName) {
-        ServiceDefinition def = PureParser.parseServiceDefinition(servicePure);
+        ServiceDefinition def = PureParser.parseSingle(servicePure, ServiceDefinition.class);
         String pureQueryTemplate = def.functionBody();
         String pureSource = getCompletePureModelWithRuntime();
 
@@ -197,7 +197,7 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
     @Test
     @DisplayName("Parse service definition with path parameter")
     void testParseServiceDefinition() {
-        ServiceDefinition def = PureParser.parseServiceDefinition(PERSONS_BY_LASTNAME_SERVICE);
+        ServiceDefinition def = PureParser.parseSingle(PERSONS_BY_LASTNAME_SERVICE, ServiceDefinition.class);
 
         assertEquals("model::PersonsByLastName", def.qualifiedName());
         assertEquals("PersonsByLastName", def.simpleName());
@@ -211,7 +211,7 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
     @Test
     @DisplayName("Parse service definition without path parameters")
     void testParseServiceWithoutParams() {
-        ServiceDefinition def = PureParser.parseServiceDefinition(ALL_PERSONS_SERVICE);
+        ServiceDefinition def = PureParser.parseSingle(ALL_PERSONS_SERVICE, ServiceDefinition.class);
 
         assertEquals("model::AllPersons", def.qualifiedName());
         assertEquals("/api/persons", def.pattern());
@@ -221,7 +221,7 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
     @Test
     @DisplayName("Service pattern converts to regex correctly")
     void testPatternToRegex() {
-        ServiceDefinition def = PureParser.parseServiceDefinition(PERSONS_BY_LASTNAME_SERVICE);
+        ServiceDefinition def = PureParser.parseSingle(PERSONS_BY_LASTNAME_SERVICE, ServiceDefinition.class);
         var regex = def.toRegexPattern();
 
         assertTrue(regex.matcher("/api/persons/Smith").matches());

@@ -31,7 +31,7 @@ class ServiceTestSuiteParserTest {
                 }
                 """;
 
-        ServiceDefinition service = PureParser.parseServiceDefinition(pureService);
+        ServiceDefinition service = PureParser.parseSingle(pureService, ServiceDefinition.class);
 
         // Verify basic service parsed
         assertEquals("api::PersonService", service.qualifiedName());
@@ -59,7 +59,7 @@ class ServiceTestSuiteParserTest {
                 }
                 """;
 
-        ServiceDefinition service = PureParser.parseServiceDefinition(pureService);
+        ServiceDefinition service = PureParser.parseSingle(pureService, ServiceDefinition.class);
 
         assertEquals("api::SimpleService", service.qualifiedName());
         assertTrue(service.testSuites().isEmpty());
@@ -81,7 +81,7 @@ class ServiceTestSuiteParserTest {
                 }
                 """;
 
-        ServiceDefinition service = PureParser.parseServiceDefinition(pureService);
+        ServiceDefinition service = PureParser.parseSingle(pureService, ServiceDefinition.class);
 
         // Verify path params
         assertEquals(2, service.pathParams().size());

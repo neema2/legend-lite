@@ -272,12 +272,11 @@ public abstract class AbstractChecker implements FunctionChecker {
      * <p>Example: actual={@code [1]}, both {@code map(T[*],...)} (score 1) and
      * {@code map(T[0..1],...)} (score 3) subsume it, but {@code [0..1]} wins.
      */
-    private int scoreParamMult(Mult declared, Multiplicity actual) {
-        if (declared instanceof Mult.Var) {
+    private int scoreParamMult(Multiplicity declared, Multiplicity actual) {
+        if (declared instanceof Multiplicity.Var) {
             return 0; // multiplicity variable — always applicable, lowest priority
         }
-        if (declared instanceof Mult.Fixed f) {
-            Multiplicity decl = f.value();
+        if (declared instanceof Multiplicity.Bounded decl) {
             if (decl.equals(actual)) return 5; // exact match — highest
             if (subsumes(decl, actual)) return multiplicityTightness(decl); // graduated
             return -1; // incompatible
@@ -333,8 +332,8 @@ public abstract class AbstractChecker implements FunctionChecker {
             }
             // Multiplicity check: if we have compiled multiplicity, verify it
             // fits the declared multiplicity. [0..1] must NOT match [1].
-            if (compiledExpr != null && sigParam.mult() instanceof Mult.Fixed f) {
-                if (!subsumes(f.value(), compiledExpr.multiplicity())) {
+            if (compiledExpr != null && sigParam.mult() instanceof Multiplicity.Bounded b) {
+                if (!subsumes(b, compiledExpr.multiplicity())) {
                     return false;
                 }
             }
@@ -487,7 +486,7 @@ public abstract class AbstractChecker implements FunctionChecker {
         unifyType(param0.type(), source.type(), bindings, def.name() + "() source");
 
         // Bind mult vars (e.g., m in cast<T|m>, sort<T|m>)
-        if (param0.mult() instanceof Mult.Var v) {
+        if (param0.mult() instanceof Multiplicity.Var v) {
             bindings.mults().put(v.name(), source.multiplicity());
         }
 
@@ -538,7 +537,7 @@ public abstract class AbstractChecker implements FunctionChecker {
             unifyType(param.type(), actuals.get(i).type(), bindings,
                       def.name() + "() param[" + i + "]");
             // Bind mult vars from this param
-            if (param.mult() instanceof Mult.Var v) {
+            if (param.mult() instanceof Multiplicity.Var v) {
                 bindings.mults().put(v.name(), actuals.get(i).multiplicity());
             }
         }
@@ -783,7 +782,7 @@ public abstract class AbstractChecker implements FunctionChecker {
      * Resolves a Mult to a Multiplicity.
      * Fixed multiplicities resolve directly. Var multiplicities default to MANY.
      */
-    protected Multiplicity resolveMult(Mult mult, String context) {
+    protected Multiplicity resolveMult(Multiplicity mult, String context) {
         return resolveMult(mult, Map.of(), context);
     }
 
@@ -795,11 +794,11 @@ public abstract class AbstractChecker implements FunctionChecker {
      * <p>Used by {@code cast<T|m>(source:Any[m]):T[m]} where {@code m} must
      * preserve the source's actual multiplicity.
      */
-    protected Multiplicity resolveMult(Mult mult, Map<String, Multiplicity> multBindings,
+    protected Multiplicity resolveMult(Multiplicity mult, Map<String, Multiplicity> multBindings,
                                        String context) {
         return switch (mult) {
-            case Mult.Fixed f -> f.value();
-            case Mult.Var v -> {
+            case Multiplicity.Bounded b -> b;
+            case Multiplicity.Var v -> {
                 Multiplicity bound = multBindings.get(v.name());
                 if (bound == null) {
                     throw new PureCompileException(
@@ -865,10 +864,9 @@ public abstract class AbstractChecker implements FunctionChecker {
      * Only rejects [*] → [1] (can't squeeze many into single).
      * Accepts [1] → [*] (a single value is a valid collection).
      */
-    private void validateMult(Mult expected, Multiplicity actual, String context) {
+    private void validateMult(Multiplicity expected, Multiplicity actual, String context) {
         switch (expected) {
-            case Mult.Fixed f -> {
-                Multiplicity exp = f.value();
+            case Multiplicity.Bounded exp -> {
                 // Only reject: expected [1] but got [*]
                 if (exp.equals(Multiplicity.ONE) && actual.isMany()) {
                     throw new PureCompileException(
@@ -877,7 +875,7 @@ public abstract class AbstractChecker implements FunctionChecker {
                 // [*] accepts [1] — a single value is a valid collection
             }
             // Multiplicity variable — skip validation (can't check against unknown)
-            case Mult.Var v -> { /* pass */ }
+            case Multiplicity.Var v -> { /* pass */ }
         }
     }
 

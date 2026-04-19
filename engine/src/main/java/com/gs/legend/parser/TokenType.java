@@ -3,10 +3,8 @@ package com.gs.legend.parser;
 /**
  * Token types for the hand-rolled Pure lexer ({@link PureLexer2}).
  *
- * Mirrors the token definitions in PureLexer.g4.
- * Order does NOT need to match ANTLR's auto-assigned integer IDs —
- * the edge-case harness compares by token text, and the model parser
- * dispatches on these enum values directly.
+ * Ordering is arbitrary — the model parser dispatches on enum values,
+ * not ordinals.
  */
 public enum TokenType {
 

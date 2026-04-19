@@ -1,5 +1,6 @@
 package com.gs.legend.test;
 
+import com.gs.legend.model.def.ClassDefinition;
 import com.gs.legend.parser.PureParseException;
 import com.gs.legend.parser.PureParser;
 import org.junit.jupiter.api.DisplayName;
@@ -46,7 +47,7 @@ class ParseErrorLocationTest {
             // WHEN: We try to parse it
             PureParseException exception = assertThrows(
                     PureParseException.class,
-                    () -> PureParser.parseClassDefinition(pureClass));
+                    () -> PureParser.parseSingle(pureClass, ClassDefinition.class));
 
             // THEN: The exception has correct line number
             assertTrue(exception.hasLocation(),
@@ -71,7 +72,7 @@ class ParseErrorLocationTest {
             // WHEN: We try to parse it
             PureParseException exception = assertThrows(
                     PureParseException.class,
-                    () -> PureParser.parseClassDefinition(pureClass));
+                    () -> PureParser.parseSingle(pureClass, ClassDefinition.class));
 
             // THEN: The exception has correct line number
             assertTrue(exception.hasLocation(),
@@ -135,7 +136,7 @@ class ParseErrorLocationTest {
             // WHEN: We try to parse it
             PureParseException exception = assertThrows(
                     PureParseException.class,
-                    () -> PureParser.parseClassDefinition(pureClass));
+                    () -> PureParser.parseSingle(pureClass, ClassDefinition.class));
 
             // THEN: The message includes "line X:Y" format
             String message = exception.getMessage();

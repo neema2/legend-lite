@@ -81,7 +81,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // WHEN: We parse it
-        ClassDefinition classDef = PureParser.parseClassDefinition(pureClass);
+        ClassDefinition classDef = PureParser.parseSingle(pureClass, ClassDefinition.class);
 
         // THEN: We get correct multiplicities
         assertEquals("model::Employee", classDef.qualifiedName());
@@ -121,7 +121,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // WHEN: We parse it
-        DatabaseDefinition dbDef = PureParser.parseDatabaseDefinition(pureDatabase);
+        DatabaseDefinition dbDef = PureParser.parseSingle(pureDatabase, DatabaseDefinition.class);
 
         // THEN: We get both tables
         assertEquals("store::SalesDB", dbDef.qualifiedName());

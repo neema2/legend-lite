@@ -27,7 +27,7 @@ public class FunctionParserTest {
                 }
                 """;
 
-        FunctionDefinition func = PureParser.parseFunctionDefinition(pure);
+        FunctionDefinition func = PureParser.parseSingle(pure, FunctionDefinition.class);
 
         assertEquals("my::utils::greet", func.qualifiedName());
         assertTrue(func.qualifiedName().endsWith("greet"));
@@ -52,7 +52,7 @@ public class FunctionParserTest {
                 }
                 """;
 
-        FunctionDefinition func = PureParser.parseFunctionDefinition(pure);
+        FunctionDefinition func = PureParser.parseSingle(pure, FunctionDefinition.class);
 
         assertEquals("math::add", func.qualifiedName());
         assertEquals(2, func.parameters().size());
@@ -72,7 +72,7 @@ public class FunctionParserTest {
                 }
                 """;
 
-        FunctionDefinition func = PureParser.parseFunctionDefinition(pure);
+        FunctionDefinition func = PureParser.parseSingle(pure, FunctionDefinition.class);
 
         assertEquals(2, func.parameters().size());
         assertEquals("prefix", func.parameters().get(1).name());
@@ -90,7 +90,7 @@ public class FunctionParserTest {
                 }
                 """;
 
-        FunctionDefinition func = PureParser.parseFunctionDefinition(pure);
+        FunctionDefinition func = PureParser.parseSingle(pure, FunctionDefinition.class);
 
         assertEquals("query::getAllNames", func.qualifiedName());
         assertEquals("String", func.returnType());
@@ -108,7 +108,7 @@ public class FunctionParserTest {
                 }
                 """;
 
-        FunctionDefinition func = PureParser.parseFunctionDefinition(pure);
+        FunctionDefinition func = PureParser.parseSingle(pure, FunctionDefinition.class);
 
         assertEquals("app::getVersion", func.qualifiedName());
         assertTrue(func.parameters().isEmpty());
@@ -126,7 +126,7 @@ public class FunctionParserTest {
                 }
                 """;
 
-        FunctionDefinition func = PureParser.parseFunctionDefinition(pure);
+        FunctionDefinition func = PureParser.parseSingle(pure, FunctionDefinition.class);
 
         assertEquals("old::legacy::method", func.qualifiedName());
         assertEquals(1, func.stereotypes().size());
@@ -146,7 +146,7 @@ public class FunctionParserTest {
                 }
                 """;
 
-        FunctionDefinition func = PureParser.parseFunctionDefinition(pure);
+        FunctionDefinition func = PureParser.parseSingle(pure, FunctionDefinition.class);
 
         assertEquals(1, func.taggedValues().size());
         assertEquals("doc::Documentation", func.taggedValues().get(0).profileName());

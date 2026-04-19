@@ -1,5 +1,6 @@
 package com.gs.legend.compiler;
 
+import com.gs.legend.model.m3.Multiplicity;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -134,30 +135,20 @@ class BuiltinFunctionRegistryTest {
         assertFalse(registry.isRegistered("doesNotExist"));
     }
 
-    // ===== Mult parsing =====
-
-    @Test
-    void multParse_fixedValues() {
-        assertEquals(Mult.ONE, Mult.parse("1"));
-        assertEquals(Mult.ZERO_MANY, Mult.parse("*"));
-        assertEquals(Mult.ZERO_ONE, Mult.parse("0..1"));
-        assertEquals(Mult.ONE_MANY, Mult.parse("1..*"));
-    }
-
-    @Test
-    void multParse_variable() {
-        var m = Mult.parse("m");
-        assertInstanceOf(Mult.Var.class, m);
-        assertEquals("m", ((Mult.Var) m).name());
-    }
+    // ===== Multiplicity toString =====
+    //
+    // The m3 Multiplicity type is intentionally a pure data model with no text-parsing
+    // surface — parsers (PureQueryParser, PureModelParser, ValueSpecificationBuilder) build
+    // Multiplicity directly from tokens/grammar contexts. What's round-trippable here is the
+    // toString form, so that's what we pin.
 
     @Test
     void multToString() {
-        assertEquals("1", Mult.ONE.toString());
-        assertEquals("*", Mult.ZERO_MANY.toString());
-        assertEquals("0..1", Mult.ZERO_ONE.toString());
-        assertEquals("1..*", Mult.ONE_MANY.toString());
-        assertEquals("m", new Mult.Var("m").toString());
+        assertEquals("[1]", Multiplicity.ONE.toString());
+        assertEquals("[*]", Multiplicity.MANY.toString());
+        assertEquals("[0..1]", Multiplicity.ZERO_ONE.toString());
+        assertEquals("[1..*]", Multiplicity.ONE_MANY.toString());
+        assertEquals("m", new Multiplicity.Var("m").toString());
     }
 
     // ===== PType basic checks =====
@@ -187,9 +178,9 @@ class BuiltinFunctionRegistryTest {
     @Test
     void ptype_functionType() {
         var ft = new PType.FunctionType(
-                List.of(new PType.Param("x", new PType.Concrete("String"), Mult.ONE)),
+                List.of(new PType.Param("x", new PType.Concrete("String"), Multiplicity.ONE)),
                 new PType.Concrete("Boolean"),
-                Mult.ONE
+                Multiplicity.ONE
         );
         assertInstanceOf(PType.FunctionType.class, ft);
         assertEquals(1, ft.paramTypes().size());

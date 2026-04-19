@@ -1,5 +1,9 @@
 package com.gs.legend.parser;
 
+import com.gs.legend.model.def.ClassDefinition;
+import com.gs.legend.model.def.DatabaseDefinition;
+import com.gs.legend.model.def.EnumDefinition;
+import com.gs.legend.model.def.FunctionDefinition;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -23,7 +27,7 @@ public class LineNumberErrorTest {
                 """; // Missing colon on line 3
 
         PureParseException e = assertThrows(PureParseException.class,
-                () -> PureParser.parseClassDefinition(source));
+                () -> PureParser.parseSingle(source, ClassDefinition.class));
 
         assertTrue(e.hasLocation(), "Error should have location info");
         assertEquals(3, e.getLine(), "Error should be on line 3 (missing colon)");
@@ -64,9 +68,9 @@ public class LineNumberErrorTest {
                 """; // Missing comma on line 3
 
         // The parse should either fail or we get unexpected token
-        // This tests that the ANTLR error carries line info
+        // This tests that the parse error carries line info
         try {
-            PureParser.parseEnumDefinition(source);
+            PureParser.parseSingle(source, EnumDefinition.class);
             // If it parses (comma optional), that's also fine
         } catch (PureParseException e) {
             assertTrue(e.hasLocation(), "Error should have location info");
@@ -84,7 +88,7 @@ public class LineNumberErrorTest {
                 """; // Missing colon before return type on line 1
 
         PureParseException e = assertThrows(PureParseException.class,
-                () -> PureParser.parseFunctionDefinition(source));
+                () -> PureParser.parseSingle(source, FunctionDefinition.class));
 
         assertTrue(e.hasLocation(), "Error should have location info");
         assertEquals(1, e.getLine(), "Error should be on line 1 (missing colon)");
@@ -157,7 +161,7 @@ public class LineNumberErrorTest {
         // This may or may not error depending on grammar strictness
         // The key is that IF there's an error, it has location
         try {
-            PureParser.parseDatabaseDefinition(source);
+            PureParser.parseSingle(source, DatabaseDefinition.class);
         } catch (PureParseException e) {
             assertTrue(e.hasLocation(), "Error should have location info");
         }
@@ -170,7 +174,7 @@ public class LineNumberErrorTest {
         String source = "Class model::@Invalid { }"; // Invalid char at column 14
 
         PureParseException e = assertThrows(PureParseException.class,
-                () -> PureParser.parseClassDefinition(source));
+                () -> PureParser.parseSingle(source, ClassDefinition.class));
 
         assertTrue(e.hasLocation(), "Error should have location info");
         assertTrue(e.getColumn() > 0, "Column should be captured");
@@ -236,7 +240,7 @@ public class LineNumberErrorTest {
 
         assertTrue(e.hasLocation(), "Misspelled keyword error should have location");
         assertEquals(5, e.getLine(), "Error should be on line 5 (misspelled 'Clas')");
-        // ANTLR reports as "extraneous input" rather than "Unknown definition"
+        // Parser may report as "extraneous input" or "Unknown definition"
         assertTrue(e.getMessage().contains("extraneous input") || e.getMessage().contains("Unknown definition"),
                 "Should mention extraneous input or unknown definition");
     }
@@ -248,14 +252,14 @@ public class LineNumberErrorTest {
                 Class model::Person {
                     name: String[1];
                     age: Integer[1];
-                """; // Missing closing brace - ANTLR detects at EOF (line 4)
+                """; // Missing closing brace — detected at EOF (line 4)
 
         PureParseException e = assertThrows(PureParseException.class,
                 () -> PureParser.parseModel(source));
 
         assertTrue(e.hasLocation(), "Unmatched brace error should have location");
-        // ANTLR reports error where it's detected (EOF), not where brace opened
-        // This is acceptable as ANTLR still provides accurate error location
+        // Parser reports the error where it's detected (EOF), not where the
+        // brace opened — acceptable since the location is still accurate.
         assertTrue(e.getLine() >= 1, "Error should have valid line number");
         assertTrue(e.getMessage().contains("missing") || e.getMessage().contains("expecting"),
                 "Should mention missing or expecting");

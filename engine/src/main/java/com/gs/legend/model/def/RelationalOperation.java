@@ -11,7 +11,7 @@ import java.util.Objects;
  * context uses additional variants like {@link ScopeBlock}, {@link EnumTransform}, and
  * {@link BindingTransform}, plus optional database qualifiers on {@link ColumnRef}.
  * 
- * Maps to the ANTLR grammar's {@code dbOperation} rule hierarchy:
+ * Maps to the Pure grammar's {@code dbOperation} rule hierarchy:
  * <pre>
  * dbOperation        → dbBooleanOperation | dbJoinOperation
  * dbBooleanOperation → dbAtomicOperation dbBooleanOperationRight?

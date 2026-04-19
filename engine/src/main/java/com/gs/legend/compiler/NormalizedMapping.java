@@ -1,6 +1,5 @@
 package com.gs.legend.compiler;
 
-import com.gs.legend.model.ModelContext;
 import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.mapping.ClassMapping;
 

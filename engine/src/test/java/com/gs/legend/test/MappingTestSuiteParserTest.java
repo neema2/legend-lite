@@ -67,7 +67,7 @@ class MappingTestSuiteParserTest {
                 )
                 """;
 
-        MappingDefinition mapping = PureParser.parseMappingDefinition(pureMapping);
+        MappingDefinition mapping = PureParser.parseSingle(pureMapping, MappingDefinition.class);
 
         // Verify basic mapping parsed
         assertEquals("model::PersonMapping", mapping.qualifiedName());
@@ -119,7 +119,7 @@ class MappingTestSuiteParserTest {
                 )
                 """;
 
-        MappingDefinition mapping = PureParser.parseMappingDefinition(pureMapping);
+        MappingDefinition mapping = PureParser.parseSingle(pureMapping, MappingDefinition.class);
 
         assertEquals("model::SimpleMapping", mapping.qualifiedName());
         assertEquals(1, mapping.classMappings().size());
@@ -178,7 +178,7 @@ class MappingTestSuiteParserTest {
                 )
                 """;
 
-        MappingDefinition mapping = PureParser.parseMappingDefinition(pureMapping);
+        MappingDefinition mapping = PureParser.parseSingle(pureMapping, MappingDefinition.class);
 
         // Verify M2M mapping parsed
         assertEquals("model::M2MMapping", mapping.qualifiedName());
@@ -246,7 +246,7 @@ class MappingTestSuiteParserTest {
                 )
                 """;
 
-        MappingDefinition mapping = PureParser.parseMappingDefinition(pureMapping);
+        MappingDefinition mapping = PureParser.parseSingle(pureMapping, MappingDefinition.class);
 
         // Verify reference is parsed
         var test = mapping.testSuites().get(0).tests().get(0);

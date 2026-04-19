@@ -42,7 +42,7 @@ class JavaCodeGeneratorTest {
                     PENDING
                 }
                 """;
-        EnumDefinition enumDef = PureParser.parseEnumDefinition(pureEnum);
+        EnumDefinition enumDef = PureParser.parseSingle(pureEnum, EnumDefinition.class);
 
         // WHEN: We generate Java code
         String javaCode = generator.generateEnum(enumDef);
@@ -74,7 +74,7 @@ class JavaCodeGeneratorTest {
                     active: Boolean[1];
                 }
                 """;
-        ClassDefinition classDef = PureParser.parseClassDefinition(pureClass);
+        ClassDefinition classDef = PureParser.parseSingle(pureClass, ClassDefinition.class);
 
         // WHEN: We generate Java code
         String javaCode = generator.generateRecord(classDef);
@@ -102,7 +102,7 @@ class JavaCodeGeneratorTest {
                     age: Integer[0..1];
                 }
                 """;
-        ClassDefinition classDef = PureParser.parseClassDefinition(pureClass);
+        ClassDefinition classDef = PureParser.parseSingle(pureClass, ClassDefinition.class);
 
         // WHEN: We generate Java code
         String javaCode = generator.generateRecord(classDef);
@@ -131,7 +131,7 @@ class JavaCodeGeneratorTest {
                     fullName() {$this.firstName + ' ' + $this.lastName}: String[1];
                 }
                 """;
-        ClassDefinition classDef = PureParser.parseClassDefinition(pureClass);
+        ClassDefinition classDef = PureParser.parseSingle(pureClass, ClassDefinition.class);
 
         // WHEN: We generate Java code
         String javaCode = generator.generateRecord(classDef);
@@ -157,7 +157,7 @@ class JavaCodeGeneratorTest {
                     members: String[*];
                 }
                 """;
-        ClassDefinition classDef = PureParser.parseClassDefinition(pureClass);
+        ClassDefinition classDef = PureParser.parseSingle(pureClass, ClassDefinition.class);
 
         // WHEN: We generate Java code
         String javaCode = generator.generateRecord(classDef);
@@ -289,7 +289,7 @@ class JavaCodeGeneratorTest {
                     displayName() {$this.name + ' <' + $this.email + '>'}: String[1];
                 }
                 """;
-        ClassDefinition classDef = PureParser.parseClassDefinition(pureClass);
+        ClassDefinition classDef = PureParser.parseSingle(pureClass, ClassDefinition.class);
 
         // WHEN: We generate Java code
         String javaCode = generator.generateRecord(classDef);
@@ -324,7 +324,7 @@ class JavaCodeGeneratorTest {
                     age: Integer[1];
                 }
                 """;
-        ClassDefinition classDef = PureParser.parseClassDefinition(pureClass);
+        ClassDefinition classDef = PureParser.parseSingle(pureClass, ClassDefinition.class);
 
         // WHEN: We generate Java code
         String javaCode = generator.generateRecord(classDef);

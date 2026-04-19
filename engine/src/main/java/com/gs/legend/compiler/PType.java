@@ -1,5 +1,7 @@
 package com.gs.legend.compiler;
 
+import com.gs.legend.model.m3.Multiplicity;
+
 import java.util.List;
 
 /**
@@ -89,7 +91,7 @@ public sealed interface PType {
     record FunctionType(
             List<Param> paramTypes,
             PType returnType,
-            Mult returnMult
+            Multiplicity returnMult
     ) implements PType {
         @Override
         public String toString() {
@@ -98,7 +100,7 @@ public sealed interface PType {
                 if (i > 0) sb.append(',');
                 sb.append(paramTypes.get(i));
             }
-            sb.append("->").append(returnType).append('[').append(returnMult).append(']');
+            sb.append("->").append(returnType).append(returnMult);
             return sb.append('}').toString();
         }
     }
@@ -108,7 +110,7 @@ public sealed interface PType {
      * Used in extend window lambdas where the row type is spelled out.
      */
     record RelationTypeVar(List<Column> columns) implements PType {
-        public record Column(String name, PType type, Mult mult) {}
+        public record Column(String name, PType type, Multiplicity mult) {}
     }
 
     /**
@@ -144,10 +146,10 @@ public sealed interface PType {
     /**
      * A function parameter with name, type, and multiplicity.
      */
-    record Param(String name, PType type, Mult mult) {
+    record Param(String name, PType type, Multiplicity mult) {
         @Override
         public String toString() {
-            return name + ":" + type + "[" + mult + "]";
+            return name + ":" + type + mult;
         }
     }
 }

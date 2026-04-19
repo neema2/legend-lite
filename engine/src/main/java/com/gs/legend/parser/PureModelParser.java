@@ -1,8 +1,7 @@
 package com.gs.legend.parser;
 
-import com.gs.legend.antlr.PackageableElementBuilder;
-import com.gs.legend.compiler.Mult;
 import com.gs.legend.compiler.PType;
+import com.gs.legend.model.m3.Multiplicity;
 import com.gs.legend.model.def.*;
 import com.gs.legend.model.def.AssociationDefinition.AssociationEndDefinition;
 import com.gs.legend.model.def.ClassDefinition.*;
@@ -13,11 +12,11 @@ import java.util.regex.Pattern;
 /**
  * Hand-rolled recursive descent parser for Pure model definitions.
  *
- * Reads tokens from {@link PureLexer2} and builds domain objects directly —
- * no parse tree, no visitor, no ANTLR.
+ * <p>Reads tokens from {@link PureLexer2} and builds domain objects directly —
+ * no intermediate parse tree. Exposed via {@link PureParser#parseModel(String)} /
+ * {@link PureParser#parseModelWithImports(String)}.
  *
- * Entry point: {@link #parseDefinition()} — replaces
- * {@link PackageableElementBuilder#extractAllDefinitionsWithImports}.
+ * <p>Entry point: {@link #parseDefinition()}.
  */
 public final class PureModelParser {
 
@@ -174,7 +173,7 @@ public final class PureModelParser {
      * Parse a full Pure source — imports + element definitions.
      * Replaces {@link PackageableElementBuilder#extractAllDefinitionsWithImports}.
      */
-    public PackageableElementBuilder.ParseResult parseDefinition() {
+    public ParseResult parseDefinition() {
         List<PackageableElement> definitions = new ArrayList<>();
         ImportScope imports = new ImportScope();
 
@@ -200,7 +199,7 @@ public final class PureModelParser {
             }
         }
 
-        return new PackageableElementBuilder.ParseResult(definitions, imports);
+        return new ParseResult(definitions, imports);
     }
 
     // ==================== Import ====================
@@ -256,31 +255,37 @@ public final class PureModelParser {
     }
 
     /**
-     * Parse multiplicity: [ multContent ]
-     * Returns int[2] where [1] is -1 for unbounded (*)
+     * Parses a multiplicity annotation: {@code [1]}, {@code [*]}, {@code [0..1]},
+     * {@code [1..*]}. Returns a structured {@link Multiplicity} directly — no
+     * text round-trip through the model layer. The m3 layer is a pure data model
+     * and does not know how to parse.
+     *
+     * <p>Matches {@code PureQueryParser.parseMultiplicity()} so the two hand-written
+     * parsers agree on multiplicity shape. Class properties never use multiplicity
+     * variables (those only appear in native function signatures handled elsewhere).
      */
-    private int[] parseMultiplicity() {
+    private Multiplicity parseMultiplicity() {
         expect(TokenType.BRACKET_OPEN);
-        int lower;
-        int upper;
+        Multiplicity result;
         if (match(TokenType.STAR)) {
-            lower = 0;
-            upper = -1;
+            result = Multiplicity.MANY;
         } else {
-            lower = Integer.parseInt(consume(TokenType.INTEGER));
+            int lower = Integer.parseInt(consume(TokenType.INTEGER));
             if (match(TokenType.DOT_DOT)) {
-                if (match(TokenType.STAR)) {
-                    upper = -1;
-                } else {
-                    upper = Integer.parseInt(consume(TokenType.INTEGER));
-                }
+                Integer upper = match(TokenType.STAR)
+                        ? null
+                        : Integer.parseInt(consume(TokenType.INTEGER));
+                result = new Multiplicity.Bounded(lower, upper);
             } else {
-                upper = lower;
+                result = new Multiplicity.Bounded(lower, lower);
             }
         }
         expect(TokenType.BRACKET_CLOSE);
-        return new int[]{lower, upper};
+        return result;
     }
+
+    /** Parsed property return type: {@code :Type[mult]}. */
+    private record PropertyReturnType(String type, Multiplicity mult) {}
 
     /**
      * Parse a type reference: qualifiedName (with optional generics we skip for now).
@@ -419,14 +424,12 @@ public final class PureModelParser {
     }
 
     /**
-     * Parse a property return type: : type [ multiplicity ]
-     * Returns String[3]: [type, lowerBound, upperBound]
+     * Parse a property return type: {@code : type [ multiplicity ]}.
      */
-    private String[] parsePropertyReturnType() {
+    private PropertyReturnType parsePropertyReturnType() {
         expect(TokenType.COLON);
         String type = parseType();
-        int[] mult = parseMultiplicity();
-        return new String[]{type, String.valueOf(mult[0]), String.valueOf(mult[1])};
+        return new PropertyReturnType(type, parseMultiplicity());
     }
 
     // ==================== Enum ====================
@@ -436,7 +439,7 @@ public final class PureModelParser {
      */
     private EnumDefinition parseEnumDefinition() {
         expect(TokenType.ENUM);
-        // stereotypes? taggedValues? — skip for now (same as ANTLR visitor)
+        // stereotypes? taggedValues? — skip for now
         parseStereotypes();
         parseTaggedValues();
         String qualifiedName = parseQualifiedName();
@@ -519,12 +522,10 @@ public final class PureModelParser {
         List<AssociationEndDefinition> ends = new ArrayList<>();
         while (peek() != TokenType.BRACE_CLOSE && !atEnd()) {
             String propName = parseIdentifier();
-            String[] ret = parsePropertyReturnType();
-            String propType = ret[0];
-            int lower = Integer.parseInt(ret[1]);
-            int upper = Integer.parseInt(ret[2]);
+            PropertyReturnType ret = parsePropertyReturnType();
             expect(TokenType.SEMI_COLON);
-            ends.add(new AssociationEndDefinition(propName, propType, lower, upper == -1 ? null : upper));
+            ends.add(new AssociationEndDefinition(propName, ret.type(),
+                    ret.mult().lowerBound(), ret.mult().upperBound()));
         }
 
         expect(TokenType.BRACE_CLOSE);
@@ -623,12 +624,10 @@ public final class PureModelParser {
         List<StereotypeApplication> stereotypes = parseStereotypes();
         List<TaggedValue> taggedValues = parseTaggedValues();
         String propName = parseIdentifier();
-        String[] ret = parsePropertyReturnType();
-        String propType = ret[0];
-        int lower = Integer.parseInt(ret[1]);
-        int upper = Integer.parseInt(ret[2]);
+        PropertyReturnType ret = parsePropertyReturnType();
         expect(TokenType.SEMI_COLON);
-        return new PropertyDefinition(propName, propType, lower, upper == -1 ? null : upper,
+        return new PropertyDefinition(propName, ret.type(),
+                ret.mult().lowerBound(), ret.mult().upperBound(),
                 stereotypes, taggedValues);
     }
 
@@ -666,25 +665,22 @@ public final class PureModelParser {
         }
 
         // Return type: : Type[mult]
-        String[] ret = parsePropertyReturnType();
-        String returnType = ret[0];
-        int lower = Integer.parseInt(ret[1]);
-        int upper = Integer.parseInt(ret[2]);
+        PropertyReturnType ret = parsePropertyReturnType();
 
         expect(TokenType.SEMI_COLON);
 
         // DerivedPropertyDefinition(name, params, expression, type, lower, upper)
-        return new DerivedPropertyDefinition(propName, params, body, returnType,
-                lower, upper == -1 ? null : upper);
+        return new DerivedPropertyDefinition(propName, params, body, ret.type(),
+                ret.mult().lowerBound(), ret.mult().upperBound());
     }
 
     private ClassDefinition.ParameterDefinition parseDerivedPropertyParameter() {
         String name = parseIdentifier();
         expect(TokenType.COLON);
         String type = parseType();
-        int[] mult = parseMultiplicity();
+        Multiplicity mult = parseMultiplicity();
         return new ClassDefinition.ParameterDefinition(name, type,
-                mult[0], mult[1] == -1 ? null : mult[1]);
+                mult.lowerBound(), mult.upperBound());
     }
 
     private List<ConstraintDefinition> parseConstraints() {
@@ -759,7 +755,7 @@ public final class PureModelParser {
         expect(TokenType.COLON);
         String returnType = parseType();
         PType parsedReturnType = parsePureType(returnType);
-        int[] returnMult = parseMultiplicity();
+        Multiplicity returnMult = parseMultiplicity();
 
         // Constraints (optional)
         if (peek() == TokenType.BRACKET_OPEN) {
@@ -781,7 +777,7 @@ public final class PureModelParser {
         expect(TokenType.BRACE_CLOSE);
 
         return new FunctionDefinition(qualifiedName, params, returnType,
-                returnMult[0], returnMult[1] == -1 ? null : returnMult[1], body,
+                returnMult.lowerBound(), returnMult.upperBound(), body,
                 stereotypes, taggedValues, null, parsedReturnType);
     }
 
@@ -790,7 +786,7 @@ public final class PureModelParser {
         expect(TokenType.COLON);
         String type = parseType();
         PType parsedType = parsePureType(type);
-        int[] mult = parseMultiplicity();
+        Multiplicity mult = parseMultiplicity();
         // Extract function type if it's a Function<{...}> parameter
         PType.FunctionType fnType = (parsedType instanceof PType.FunctionType ft) ? ft
                 : (parsedType instanceof PType.Parameterized p
@@ -799,7 +795,7 @@ public final class PureModelParser {
                         && p.typeArgs().get(0) instanceof PType.FunctionType ft2) ? ft2
                 : null;
         return new FunctionDefinition.ParameterDefinition(name, type,
-                mult[0], mult[1] == -1 ? null : mult[1], fnType, parsedType);
+                mult.lowerBound(), mult.upperBound(), fnType, parsedType);
     }
 
     /**
@@ -869,7 +865,7 @@ public final class PureModelParser {
                     String multStr = paramStr.substring(bracketIdx + 1,
                             paramStr.endsWith("]") ? paramStr.length() - 1 : paramStr.length());
                     PType type = parsePureType(typePart);
-                    Mult mult = Mult.parse(multStr);
+                    Multiplicity mult = parseMultiplicityFromString(multStr);
                     params.add(new PType.Param(null, type, mult));
                 }
             }
@@ -878,14 +874,39 @@ public final class PureModelParser {
         returnStr = returnStr.trim();
         int bracketIdx = returnStr.lastIndexOf('[');
         PType retType = new PType.Concrete("Any");
-        Mult retMult = Mult.ONE;
+        Multiplicity retMult = Multiplicity.ONE;
         if (bracketIdx > 0) {
             retType = parsePureType(returnStr.substring(0, bracketIdx));
             String multStr = returnStr.substring(bracketIdx + 1,
                     returnStr.endsWith("]") ? returnStr.length() - 1 : returnStr.length());
-            retMult = Mult.parse(multStr);
+            retMult = parseMultiplicityFromString(multStr);
         }
         return new PType.FunctionType(params, retType, retMult);
+    }
+
+    /**
+     * Parses a multiplicity from its textual form as it appears inside a native-signature
+     * string (e.g., {@code "1"}, {@code "*"}, {@code "0..1"}, {@code "m"}). Local to this
+     * legacy textual parser — the canonical m3 model does not know how to parse text.
+     */
+    private static Multiplicity parseMultiplicityFromString(String s) {
+        if (s == null || s.isEmpty()) return Multiplicity.MANY;
+        s = s.trim();
+        if ("*".equals(s)) return Multiplicity.MANY;
+        if (s.contains("..")) {
+            String[] parts = s.split("\\.\\.");
+            int lower = Integer.parseInt(parts[0]);
+            Integer upper = "*".equals(parts[1]) ? null : Integer.parseInt(parts[1]);
+            return new Multiplicity.Bounded(lower, upper);
+        }
+        // All-digit → Bounded; otherwise multiplicity variable (e.g., "m", "n")
+        for (int i = 0; i < s.length(); i++) {
+            if (!Character.isDigit(s.charAt(i))) {
+                return new Multiplicity.Var(s);
+            }
+        }
+        int val = Integer.parseInt(s);
+        return new Multiplicity.Bounded(val, val);
     }
 
     /** Parse relation column specs: "NAME:Type,AGE:Type" */
@@ -897,7 +918,7 @@ public final class PureModelParser {
             if (colonIdx > 0) {
                 String colName = part.substring(0, colonIdx).trim();
                 String typeStr = part.substring(colonIdx + 1).trim();
-                cols.add(new PType.RelationTypeVar.Column(colName, parsePureType(typeStr), Mult.ONE));
+                cols.add(new PType.RelationTypeVar.Column(colName, parsePureType(typeStr), Multiplicity.ONE));
             }
         }
         return cols;
@@ -1060,8 +1081,11 @@ public final class PureModelParser {
                 }
                 case "auth" -> {
                     String authType = parseIdentifier();
-                    expect(TokenType.BRACE_OPEN);
-                    Map<String, String> authProps = parseKeyValueBlock();
+                    // Optional body: `auth: Test;` (no body) vs `auth: UsernamePassword { ... };`
+                    Map<String, String> authProps = Map.of();
+                    if (match(TokenType.BRACE_OPEN)) {
+                        authProps = parseKeyValueBlock();
+                    }
                     authentication = switch (authType) {
                         case "NoAuth" -> new AuthenticationSpec.NoAuth();
                         case "UsernamePassword" -> new AuthenticationSpec.UsernamePassword(
@@ -1792,7 +1816,58 @@ public final class PureModelParser {
             }
 
             // Property mapping: identifier : ... OR identifier( ... ) for embedded
+            // Optional `+` prefix marks a local mapping property (isLocal flag — not yet
+            // surfaced on PropertyMappingDefinition, tracked under the existing TODO).
+            boolean isLocal = match(TokenType.PLUS);
             String propName = parseIdentifier();
+
+            // Optional source/target mapping IDs: `propName[srcId, tgtId]`
+            // Stored as TODO on PropertyMappingDefinition. For now we parse-and-discard
+            // so the rest of the mapping consumes correctly. Must distinguish from the
+            // PropertyMappingValue `[targetSetId]` form used elsewhere in the grammar.
+            if (peek() == TokenType.BRACKET_OPEN) {
+                int saved = pos;
+                advance();
+                if (IDENTIFIER_TOKENS.contains(peek())) {
+                    parseIdentifier();
+                    if (match(TokenType.COMMA)) {
+                        parseIdentifier();
+                        if (match(TokenType.BRACKET_CLOSE)) {
+                            // consumed `[src, tgt]` — continue to next token
+                        } else {
+                            pos = saved; // restore: this was something else
+                        }
+                    } else {
+                        pos = saved; // single-id form belongs to caller
+                    }
+                } else {
+                    pos = saved;
+                }
+            }
+
+            // Optional local-property type annotation: `+propName: Type[mult]: [DB] expr`
+            // Pure grammar attaches this only when the `+` prefix is present. We parse
+            // past it for now (TODO: expose localType/localMultiplicity on the definition).
+            if (isLocal && peek() == TokenType.COLON) {
+                int saved = pos;
+                advance(); // :
+                if (IDENTIFIER_TOKENS.contains(peek())) {
+                    parseIdentifier(); // type name
+                    if (peek() == TokenType.BRACKET_OPEN) {
+                        // consume multiplicity `[...]`
+                        advance();
+                        while (peek() != TokenType.BRACKET_CLOSE && !atEnd()) advance();
+                        expect(TokenType.BRACKET_CLOSE);
+                    }
+                    // Only accept this as a type annotation if the next token is `:` —
+                    // otherwise restore and let the normal flow consume the `:` + expr.
+                    if (peek() != TokenType.COLON) {
+                        pos = saved;
+                    }
+                } else {
+                    pos = saved;
+                }
+            }
 
             // Embedded property mapping without colon: propName( subMappings )
             // Or inline: propName() Inline[setId] or propName(setId)
@@ -1908,8 +1983,9 @@ public final class PureModelParser {
                 dbName = parseQualifiedName();
                 expect(TokenType.BRACKET_CLOSE);
             }
-            if (peek() == TokenType.AT) {
-                // Join mapping — explicit [DB] overrides scope
+            if (peek() == TokenType.AT || peek() == TokenType.PAREN_OPEN) {
+                // Join mapping — explicit [DB] overrides scope.
+                // Accepts optional leading join type: `[DB] (INNER) @J1`.
                 String db = dbName != null ? dbName : dbScope;
                 List<JoinChainElement> chain = parseMappingJoinChain(db);
                 RelationalOperation terminal = null;
@@ -1950,7 +2026,7 @@ public final class PureModelParser {
 
     /**
      * When a column reference is followed by ->func(args), capture the entire
-     * expression as raw text (matching ANTLR behavior for variant access).
+     * expression as raw text (variant access — kept opaque at parse time).
      * exprStart is the token position where the expression began (before [DB]).
      */
     private MappingDefinition.PropertyMappingDefinition arrowChainToRawExpr(
@@ -2023,8 +2099,15 @@ public final class PureModelParser {
 
     private List<JoinChainElement> parseMappingJoinChain(String db) {
         List<JoinChainElement> chain = new ArrayList<>();
+        // Optional leading join type: `[DB] (INNER) @J1`
+        String firstJoinType = null;
+        if (peek() == TokenType.PAREN_OPEN) {
+            advance();
+            firstJoinType = parseIdentifier();
+            expect(TokenType.PAREN_CLOSE);
+        }
         expect(TokenType.AT);
-        chain.add(new JoinChainElement(parseIdentifier(), null, db, false));
+        chain.add(new JoinChainElement(parseIdentifier(), firstJoinType, db, false));
         while (match(TokenType.GREATER_THAN)) {
             String joinType = null;
             if (peek() == TokenType.PAREN_OPEN) {

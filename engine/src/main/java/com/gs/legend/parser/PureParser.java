@@ -1,33 +1,25 @@
 package com.gs.legend.parser;
 
-import com.gs.legend.antlr.PackageableElementBuilder;
-import com.gs.legend.antlr.PureLexer;
-import com.gs.legend.compiler.NativeFunctionDef;
 import com.gs.legend.model.def.*;
-import org.antlr.v4.runtime.*;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Pure language parser — single entry point for all Pure parsing.
  *
- * Two top-level entry points:
- * - {@link #parseQuery(String)}  — query expressions → ValueSpecification AST
- * - {@link #parseModel(String)}  — model definitions → List of PackageableElements
+ * <p>Delegates to the hand-rolled {@link PureQueryParser} and
+ * {@link PureModelParser}.
  *
- * Plus typed convenience methods for extracting specific definition types:
- * - {@link #parseClassDefinition(String)}
- * - {@link #parseMappingDefinition(String)}
- * - {@link #parseDatabaseDefinition(String)}
- * - etc.
+ * <p>Entry points:
+ * <ul>
+ *   <li>{@link #parseQuery(String)}          — query expression → ValueSpecification AST</li>
+ *   <li>{@link #parseCodeBlock(String)}      — multi-statement body → List of ValueSpecifications</li>
+ *   <li>{@link #parseModel(String)}          — model source → List of PackageableElements</li>
+ *   <li>{@link #parseModelWithImports(String)} — model source → definitions + imports</li>
+ *   <li>{@link #parseSingle(String, Class)}  — extract the first definition of a given type</li>
+ * </ul>
  */
 public final class PureParser {
-
-    /** Set to true to use the hand-rolled parser for model definitions. */
-    static boolean USE_HANDROLLED_MODEL = true;
-    /** Set to true to use the hand-rolled parser for query expressions. */
-    static boolean USE_HANDROLLED_QUERY = true;
 
     // Timing instrumentation for query parsing
     static long queryParseTimeNs = 0;
@@ -51,27 +43,8 @@ public final class PureParser {
      * @throws PureParseException if parsing fails
      */
     public static com.gs.legend.ast.ValueSpecification parseQuery(String query) {
-        if (USE_HANDROLLED_QUERY) {
-            long t0 = System.nanoTime();
-            var result = PureQueryParser.parseQuery(query);
-            queryParseTimeNs += System.nanoTime() - t0;
-            queryParseCount++;
-            return result;
-        }
         long t0 = System.nanoTime();
-        PureLexer lexer = new PureLexer(CharStreams.fromString(query));
-        lexer.removeErrorListeners();
-        lexer.addErrorListener(new ErrorListener());
-
-        CommonTokenStream tokens = new CommonTokenStream(lexer);
-        com.gs.legend.antlr.PureParser parser = new com.gs.legend.antlr.PureParser(tokens);
-        parser.removeErrorListeners();
-        parser.addErrorListener(new ErrorListener());
-
-        com.gs.legend.antlr.PureParser.ProgramLineContext tree = parser.programLine();
-        com.gs.legend.antlr.ValueSpecificationBuilder visitor = new com.gs.legend.antlr.ValueSpecificationBuilder();
-        visitor.setInputSource(query);
-        var result = visitor.visit(tree);
+        var result = PureQueryParser.parseQuery(query);
         queryParseTimeNs += System.nanoTime() - t0;
         queryParseCount++;
         return result;
@@ -86,35 +59,11 @@ public final class PureParser {
      * @throws PureParseException if parsing fails
      */
     public static List<com.gs.legend.ast.ValueSpecification> parseCodeBlock(String body) {
-        if (USE_HANDROLLED_QUERY) {
-            long t0 = System.nanoTime();
-            var result = PureQueryParser.parseCodeBlock(body);
-            queryParseTimeNs += System.nanoTime() - t0;
-            queryParseCount++;
-            return result;
-        }
-        PureLexer lexer = new PureLexer(CharStreams.fromString(body));
-        lexer.removeErrorListeners();
-        lexer.addErrorListener(new ErrorListener());
-
-        CommonTokenStream tokens = new CommonTokenStream(lexer);
-        com.gs.legend.antlr.PureParser parser = new com.gs.legend.antlr.PureParser(tokens);
-        parser.removeErrorListeners();
-        parser.addErrorListener(new ErrorListener());
-
-        com.gs.legend.antlr.PureParser.CodeBlockContext tree = parser.codeBlock();
-        com.gs.legend.antlr.ValueSpecificationBuilder visitor = new com.gs.legend.antlr.ValueSpecificationBuilder();
-        visitor.setInputSource(body);
-
-        List<com.gs.legend.antlr.PureParser.ProgramLineContext> lines = tree.programLine();
-        if (lines.isEmpty()) {
-            throw new PureParseException("Empty function body");
-        }
-        List<com.gs.legend.ast.ValueSpecification> stmts = new ArrayList<>();
-        for (com.gs.legend.antlr.PureParser.ProgramLineContext line : lines) {
-            stmts.add(visitor.visit(line));
-        }
-        return stmts;
+        long t0 = System.nanoTime();
+        var result = PureQueryParser.parseCodeBlock(body);
+        queryParseTimeNs += System.nanoTime() - t0;
+        queryParseCount++;
+        return result;
     }
 
     // ==================== Model Parsing ====================
@@ -137,109 +86,26 @@ public final class PureParser {
      * Parses a Pure model source and returns definitions + imports.
      * The ImportScope contains all wildcard imports from import statements.
      */
-    public static PackageableElementBuilder.ParseResult parseModelWithImports(String source) {
-        if (USE_HANDROLLED_MODEL) {
-            PureLexer2 lexer = new PureLexer2(source);
-            lexer.tokenize();
-            return new PureModelParser(lexer).parseDefinition();
-        }
-        return PackageableElementBuilder.extractAllDefinitionsWithImports(antlrParse(source));
+    public static ParseResult parseModelWithImports(String source) {
+        PureLexer2 lexer = new PureLexer2(source);
+        lexer.tokenize();
+        return new PureModelParser(lexer).parseDefinition();
     }
 
-    // ==================== Typed Convenience Methods ====================
-
-    /** Parses a single Class definition. */
-    public static ClassDefinition parseClassDefinition(String pureSource) {
-        return PackageableElementBuilder.extractFirstClassDefinition(antlrParse(pureSource))
-                .orElseThrow(() -> new PureParseException("No class definition found in source"));
-    }
-
-    /** Parses a single Profile definition. */
-    public static ProfileDefinition parseProfileDefinition(String pureSource) {
-        return PackageableElementBuilder.extractFirstProfileDefinition(antlrParse(pureSource))
-                .orElseThrow(() -> new PureParseException("No profile definition found in source"));
-    }
-
-    /** Parses a single Function definition. */
-    public static FunctionDefinition parseFunctionDefinition(String pureSource) {
-        return PackageableElementBuilder.extractFirstFunctionDefinition(antlrParse(pureSource))
-                .orElseThrow(() -> new PureParseException("No function definition found in source"));
-    }
-
-    /** Parses a single Connection definition. */
-    public static ConnectionDefinition parseConnectionDefinition(String pureSource) {
-        return PackageableElementBuilder.extractFirstConnectionDefinition(antlrParse(pureSource))
-                .orElseThrow(() -> new PureParseException("No connection definition found in source"));
-    }
-
-    /** Parses a single Runtime definition. */
-    public static RuntimeDefinition parseRuntimeDefinition(String pureSource) {
-        return PackageableElementBuilder.extractFirstRuntimeDefinition(antlrParse(pureSource))
-                .orElseThrow(() -> new PureParseException("No runtime definition found in source"));
-    }
-
-    /** Parses a single Database definition. */
-    public static DatabaseDefinition parseDatabaseDefinition(String pureSource) {
-        return PackageableElementBuilder.extractFirstDatabaseDefinition(antlrParse(pureSource))
-                .orElseThrow(() -> new PureParseException("No database definition found in source"));
-    }
-
-    /** Parses a single Mapping definition. */
-    public static MappingDefinition parseMappingDefinition(String pureSource) {
-        return PackageableElementBuilder.extractFirstMappingDefinition(antlrParse(pureSource))
-                .orElseThrow(() -> new PureParseException("No mapping definition found in source"));
-    }
-
-    /** Parses a single Association definition. */
-    public static AssociationDefinition parseAssociationDefinition(String pureSource) {
-        return PackageableElementBuilder.extractFirstAssociationDefinition(antlrParse(pureSource))
-                .orElseThrow(() -> new PureParseException("No association definition found in source"));
-    }
-
-    /** Parses a single Service definition. */
-    public static ServiceDefinition parseServiceDefinition(String pureSource) {
-        return PackageableElementBuilder.extractFirstServiceDefinition(antlrParse(pureSource))
-                .orElseThrow(() -> new PureParseException("No service definition found in source"));
-    }
-
-    /** Parses a single Enum definition. */
-    public static EnumDefinition parseEnumDefinition(String pureSource) {
-        return PackageableElementBuilder.extractFirstEnumDefinition(antlrParse(pureSource))
-                .orElseThrow(() -> new PureParseException("No enum definition found in source"));
-    }
-
-    // ==================== Native Function Parsing ====================
-
-    /** Parses a single native function signature into a structured NativeFunctionDef. */
-    public static NativeFunctionDef parseNativeFunction(String pureSignature) {
-        return PackageableElementBuilder.extractFirstNativeFunctionDefinition(antlrParse(pureSignature))
-                .orElseThrow(() -> new PureParseException("No native function definition found in source"));
-    }
-
-    // ==================== Internal ====================
+    // ==================== Single-Definition Extraction ====================
 
     /**
-     * Runs the ANTLR lexer + parser on Pure source, returning the raw parse tree.
+     * Parses a model source and returns the first definition of the requested type.
+     * Convenience for test cases containing exactly one definition of interest.
+     * For multi-definition sources, use {@link #parseModel(String)} directly.
+     *
+     * @throws PureParseException if no definition of that type is present
      */
-    private static com.gs.legend.antlr.PureParser.DefinitionContext antlrParse(String code) {
-        PureLexer lexer = new PureLexer(CharStreams.fromString(code));
-        lexer.removeErrorListeners();
-        lexer.addErrorListener(new ErrorListener());
-
-        CommonTokenStream tokens = new CommonTokenStream(lexer);
-        com.gs.legend.antlr.PureParser parser = new com.gs.legend.antlr.PureParser(tokens);
-        parser.removeErrorListeners();
-        parser.addErrorListener(new ErrorListener());
-
-        return parser.definition();
-    }
-
-    private static class ErrorListener extends BaseErrorListener {
-        @Override
-        public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol,
-                int line, int charPositionInLine, String msg,
-                RecognitionException e) {
-            throw new PureParseException(msg, line, charPositionInLine);
+    public static <T extends PackageableElement> T parseSingle(String source, Class<T> type) {
+        for (PackageableElement el : parseModel(source)) {
+            if (type.isInstance(el)) return type.cast(el);
         }
+        throw new PureParseException(
+                "No " + type.getSimpleName() + " found in source");
     }
 }

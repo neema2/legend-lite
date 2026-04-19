@@ -1,5 +1,7 @@
 package com.gs.legend.compiled;
 
+import com.gs.legend.model.m3.Multiplicity;
+
 /**
  * Back-reference: a simple property injected into {@code targetClassFqn}
  * by association {@code associationFqn}. The opposite end of the

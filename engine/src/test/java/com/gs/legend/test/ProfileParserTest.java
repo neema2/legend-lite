@@ -27,7 +27,7 @@ public class ProfileParserTest {
                 }
                 """;
 
-        ProfileDefinition profile = PureParser.parseProfileDefinition(pure);
+        ProfileDefinition profile = PureParser.parseSingle(pure, ProfileDefinition.class);
 
         assertEquals("doc::Documentation", profile.qualifiedName());
         assertEquals("Documentation", profile.simpleName());
@@ -45,7 +45,7 @@ public class ProfileParserTest {
                 }
                 """;
 
-        ProfileDefinition profile = PureParser.parseProfileDefinition(pure);
+        ProfileDefinition profile = PureParser.parseSingle(pure, ProfileDefinition.class);
 
         assertEquals("meta::Validation", profile.qualifiedName());
         assertEquals(List.of("required", "unique"), profile.stereotypes());
@@ -61,7 +61,7 @@ public class ProfileParserTest {
                 }
                 """;
 
-        ClassDefinition clazz = PureParser.parseClassDefinition(pure);
+        ClassDefinition clazz = PureParser.parseSingle(pure, ClassDefinition.class);
 
         assertEquals("model::Person", clazz.qualifiedName());
         assertEquals(1, clazz.stereotypes().size());
@@ -79,7 +79,7 @@ public class ProfileParserTest {
                 }
                 """;
 
-        ClassDefinition clazz = PureParser.parseClassDefinition(pure);
+        ClassDefinition clazz = PureParser.parseSingle(pure, ClassDefinition.class);
 
         assertEquals("model::Order", clazz.qualifiedName());
         assertEquals(2, clazz.stereotypes().size());
@@ -96,7 +96,7 @@ public class ProfileParserTest {
                 }
                 """;
 
-        ClassDefinition clazz = PureParser.parseClassDefinition(pure);
+        ClassDefinition clazz = PureParser.parseSingle(pure, ClassDefinition.class);
 
         assertEquals("model::Customer", clazz.qualifiedName());
         assertEquals(1, clazz.taggedValues().size());
@@ -114,7 +114,7 @@ public class ProfileParserTest {
                 }
                 """;
 
-        ClassDefinition clazz = PureParser.parseClassDefinition(pure);
+        ClassDefinition clazz = PureParser.parseSingle(pure, ClassDefinition.class);
 
         assertEquals("model::LegacyEntity", clazz.qualifiedName());
         assertEquals(1, clazz.stereotypes().size());
@@ -137,7 +137,7 @@ public class ProfileParserTest {
                 }
                 """;
 
-        ClassDefinition clazz = PureParser.parseClassDefinition(pure);
+        ClassDefinition clazz = PureParser.parseSingle(pure, ClassDefinition.class);
 
         assertEquals("model::Simple", clazz.qualifiedName());
         assertTrue(clazz.stereotypes().isEmpty());

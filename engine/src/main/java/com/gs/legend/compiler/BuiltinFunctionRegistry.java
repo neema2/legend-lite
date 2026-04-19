@@ -59,7 +59,7 @@ public class BuiltinFunctionRegistry {
      * Parses the signature via PureParser into a structured NativeFunctionDef.
      *
      * Pre-processes the signature to strip Pure-specific constraint syntax
-     * that the ANTLR grammar doesn't handle directly:
+     * that the grammar doesn't model directly:
      * - Z⊆T → Z (subset constraint, preserved in rawSignature)
      * - Z=(?:K)⊆T → Z (type-match constraint, preserved in rawSignature)
      * - Relation<T+V> → Relation<T_plus_V> (schema union)
@@ -70,7 +70,7 @@ public class BuiltinFunctionRegistry {
      */
     public void registerSignature(String name, String pureSignature) {
         String rawSignature = pureSignature.trim();
-        var def = com.gs.legend.parser.PureParser.parseNativeFunction(rawSignature);
+        var def = com.gs.legend.parser.PureNativeSignatureParser.parse(rawSignature);
         register(normalizeConstraints(def));
     }
 

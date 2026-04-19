@@ -10,9 +10,8 @@ import com.gs.legend.plan.GenericType;
  * In Pure, cast expressions use this: {@code $x->cast(@Integer)}
  *
  * <p>
- * The builder always resolves the type from the ANTLR parse tree and stores
- * it in {@code resolvedType}. Consumers use {@code resolvedType()} directly —
- * no string re-parsing needed.
+ * The parser always resolves the type and stores it in {@code resolvedType}.
+ * Consumers use {@code resolvedType()} directly — no string re-parsing needed.
  *
  * @param fullPath     The type path (e.g., "Integer", "String",
  *                     "my::package::MyClass", "Relation")

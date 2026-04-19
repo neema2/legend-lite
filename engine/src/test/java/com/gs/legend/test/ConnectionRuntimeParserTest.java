@@ -31,7 +31,7 @@ class ConnectionRuntimeParserTest {
                 }
                 """;
 
-        ConnectionDefinition conn = PureParser.parseConnectionDefinition(source);
+        ConnectionDefinition conn = PureParser.parseSingle(source, ConnectionDefinition.class);
 
         assertEquals("store::InMemoryDuckDb", conn.qualifiedName());
         assertEquals("InMemoryDuckDb", conn.simpleName());
@@ -54,7 +54,7 @@ class ConnectionRuntimeParserTest {
                 }
                 """;
 
-        ConnectionDefinition conn = PureParser.parseConnectionDefinition(source);
+        ConnectionDefinition conn = PureParser.parseSingle(source, ConnectionDefinition.class);
 
         assertEquals("store::InMemorySqlite", conn.qualifiedName());
         assertEquals("store::OrderDb", conn.storeName());
@@ -75,7 +75,7 @@ class ConnectionRuntimeParserTest {
                 }
                 """;
 
-        ConnectionDefinition conn = PureParser.parseConnectionDefinition(source);
+        ConnectionDefinition conn = PureParser.parseSingle(source, ConnectionDefinition.class);
 
         assertEquals("store::FileDuckDb", conn.qualifiedName());
         assertEquals(ConnectionDefinition.DatabaseType.DuckDB, conn.databaseType());
@@ -98,7 +98,7 @@ class ConnectionRuntimeParserTest {
                 }
                 """;
 
-        ConnectionDefinition conn = PureParser.parseConnectionDefinition(source);
+        ConnectionDefinition conn = PureParser.parseSingle(source, ConnectionDefinition.class);
 
         assertEquals("store::ProductionDb", conn.qualifiedName());
         assertEquals(ConnectionDefinition.DatabaseType.Postgres, conn.databaseType());
@@ -124,7 +124,7 @@ class ConnectionRuntimeParserTest {
                 }
                 """;
 
-        ConnectionDefinition conn = PureParser.parseConnectionDefinition(source);
+        ConnectionDefinition conn = PureParser.parseSingle(source, ConnectionDefinition.class);
 
         assertInstanceOf(AuthenticationSpec.UsernamePassword.class, conn.authentication());
 
@@ -150,7 +150,7 @@ class ConnectionRuntimeParserTest {
                 }
                 """;
 
-        ConnectionDefinition conn = PureParser.parseConnectionDefinition(source);
+        ConnectionDefinition conn = PureParser.parseSingle(source, ConnectionDefinition.class);
 
         assertEquals("simple::DuckDBConnection", conn.qualifiedName());
         assertEquals("apps::pure::studio::relational::tests::dbInc", conn.storeName());
@@ -182,7 +182,7 @@ class ConnectionRuntimeParserTest {
                 }
                 """;
 
-        ConnectionDefinition conn = PureParser.parseConnectionDefinition(source);
+        ConnectionDefinition conn = PureParser.parseSingle(source, ConnectionDefinition.class);
 
         assertEquals("demo::udtf::DemoSnowflakeConnection", conn.qualifiedName());
         assertEquals("demo::udtf::DemoDb", conn.storeName());
@@ -214,7 +214,7 @@ class ConnectionRuntimeParserTest {
                 }
                 """;
 
-        RuntimeDefinition runtime = PureParser.parseRuntimeDefinition(source);
+        RuntimeDefinition runtime = PureParser.parseSingle(source, RuntimeDefinition.class);
 
         assertEquals("my::MyRuntime", runtime.qualifiedName());
         assertEquals("MyRuntime", runtime.simpleName());
@@ -248,7 +248,7 @@ class ConnectionRuntimeParserTest {
                 }
                 """;
 
-        RuntimeDefinition runtime = PureParser.parseRuntimeDefinition(source);
+        RuntimeDefinition runtime = PureParser.parseSingle(source, RuntimeDefinition.class);
 
         assertEquals(3, runtime.mappings().size());
         assertTrue(runtime.mappings().contains("model::PersonMapping"));
@@ -282,7 +282,7 @@ class ConnectionRuntimeParserTest {
                 }
                 """;
 
-        RuntimeDefinition runtime = PureParser.parseRuntimeDefinition(source);
+        RuntimeDefinition runtime = PureParser.parseSingle(source, RuntimeDefinition.class);
 
         assertEquals(2, runtime.connectionBindings().size());
         assertEquals("conn::PersonConn", runtime.getConnectionForStore("store::PersonDb"));

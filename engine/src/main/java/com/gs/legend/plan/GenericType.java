@@ -448,7 +448,7 @@ public sealed interface GenericType
      * Maps a Pure type name string to the best GenericType.
      * Resolves a simple type name to a GenericType.
      * Only handles primitives and class names — relation types are resolved
-     * structurally in the builder via ANTLR parse tree walking.
+     * structurally by the parser.
      */
      static GenericType fromTypeName(String name) {
         // Handle qualified names: strip package prefix for primitive check

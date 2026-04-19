@@ -1,6 +1,5 @@
 package com.gs.legend.plan;
 
-import com.gs.legend.antlr.ValueSpecificationBuilder;
 import com.gs.legend.ast.*;
 import com.gs.legend.compiled.CompiledExpression;
 import com.gs.legend.compiler.PureCompileException;
@@ -311,7 +310,7 @@ public class PlanGenerator {
      * Each scalar property becomes its own column; array properties stay as array literals.
      * This allows the standard relational path (filter, project, etc.) to work uniformly.
      */
-    private SqlBuilder generateStructLiteral(ValueSpecificationBuilder.InstanceData data) {
+    private SqlBuilder generateStructLiteral(InstanceData data) {
         return generateFlatValues(java.util.List.of(data));
     }
 
@@ -322,13 +321,13 @@ public class PlanGenerator {
         if (coll.values().isEmpty()) {
             throw new PureCompileException("PlanGenerator: empty struct collection");
         }
-        var rows = new java.util.ArrayList<ValueSpecificationBuilder.InstanceData>();
+        var rows = new java.util.ArrayList<InstanceData>();
         for (var v : coll.values()) {
             if (v instanceof AppliedFunction af && "new".equals(simpleName(af.function()))
                     && af.parameters().size() >= 2
                     && af.parameters().get(1) instanceof ClassInstance ci
                     && "instance".equals(ci.type())) {
-                rows.add((ValueSpecificationBuilder.InstanceData) ci.value());
+                rows.add((InstanceData) ci.value());
             } else {
                 throw new PureCompileException(
                         "PlanGenerator: struct collection contains non-instance: " + v.getClass().getSimpleName());
@@ -342,7 +341,7 @@ public class PlanGenerator {
      * Each property becomes its own column:
      *   VALUES ('f', [{...}]), ('f2', [{...}]) AS t("legalName", "employees")
      */
-    private SqlBuilder generateFlatValues(java.util.List<ValueSpecificationBuilder.InstanceData> dataRows) {
+    private SqlBuilder generateFlatValues(java.util.List<InstanceData> dataRows) {
         var firstData = dataRows.get(0);
         java.util.List<String> columnNames = firstData.properties().keySet().stream()
                 .map(dialect::quoteIdentifier).toList();
@@ -384,7 +383,7 @@ public class PlanGenerator {
                     && af.parameters().size() >= 2
                     && af.parameters().get(1) instanceof ClassInstance ci
                     && "instance".equals(ci.type()) -> {
-                var data = (ValueSpecificationBuilder.InstanceData) ci.value();
+                var data = (InstanceData) ci.value();
                 var fields = new java.util.LinkedHashMap<String, SqlExpr>();
                 for (var entry : data.properties().entrySet()) {
                     SqlExpr rendered = renderStructValue(entry.getValue());
@@ -707,7 +706,7 @@ public class PlanGenerator {
      */
     private SqlBuilder generateNewFunction(AppliedFunction af) {
         var ci = (ClassInstance) af.parameters().get(1);
-        var data = (ValueSpecificationBuilder.InstanceData) ci.value();
+        var data = (InstanceData) ci.value();
         return generateStructLiteral(data);
     }
 

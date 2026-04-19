@@ -1,6 +1,6 @@
 package com.gs.legend.model;
 
-import com.gs.legend.antlr.PackageableElementBuilder;
+import com.gs.legend.parser.ParseResult;
 import com.gs.legend.parser.PureParser;
 
 import java.util.LinkedHashMap;
@@ -23,12 +23,12 @@ public final class ParseCache {
 
     private static final ParseCache GLOBAL = new ParseCache(200);
 
-    private final LinkedHashMap<String, PackageableElementBuilder.ParseResult> cache;
+    private final LinkedHashMap<String, ParseResult> cache;
 
     ParseCache(int maxEntries) {
         this.cache = new LinkedHashMap<>(32, 0.75f, true) {
             @Override
-            protected boolean removeEldestEntry(Map.Entry<String, PackageableElementBuilder.ParseResult> eldest) {
+            protected boolean removeEldestEntry(Map.Entry<String, ParseResult> eldest) {
                 return size() > maxEntries;
             }
         };
@@ -45,7 +45,7 @@ public final class ParseCache {
      * @param source Raw Pure source code
      * @return The parse result (definitions + imports)
      */
-    public synchronized PackageableElementBuilder.ParseResult getOrParse(String source) {
+    public synchronized ParseResult getOrParse(String source) {
         return cache.computeIfAbsent(source, PureParser::parseModelWithImports);
     }
 

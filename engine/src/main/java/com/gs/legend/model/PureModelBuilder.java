@@ -1,6 +1,5 @@
 package com.gs.legend.model;
 
-import com.gs.legend.antlr.PackageableElementBuilder;
 import com.gs.legend.model.def.*;
 import com.gs.legend.model.m3.*;
 import com.gs.legend.model.mapping.ClassMapping;
@@ -161,7 +160,7 @@ public final class PureModelBuilder implements ModelContext {
         // Invalidate lazy indexes — new definitions may add associations/joins
         classToAssociations = null;
 
-        PackageableElementBuilder.ParseResult parsed = ParseCache.global().getOrParse(pureSource);
+        com.gs.legend.parser.ParseResult parsed = ParseCache.global().getOrParse(pureSource);
         boolean isStrict = strict || pureSource.stripLeading().startsWith("\"use strict\"");
         List<PackageableElement> rawDefinitions = parsed.definitions();
 
@@ -460,11 +459,11 @@ public final class PureModelBuilder implements ModelContext {
                 new Association.AssociationEnd(
                         end1.propertyName(),
                         end1.targetClass(),
-                        new Multiplicity(end1.lowerBound(), end1.upperBound())),
+                        new Multiplicity.Bounded(end1.lowerBound(), end1.upperBound())),
                 new Association.AssociationEnd(
                         end2.propertyName(),
                         end2.targetClass(),
-                        new Multiplicity(end2.lowerBound(), end2.upperBound())));
+                        new Multiplicity.Bounded(end2.lowerBound(), end2.upperBound())));
 
         idPut(associations, symbols.intern(assocDef.qualifiedName()), association);
 
@@ -1378,7 +1377,7 @@ public final class PureModelBuilder implements ModelContext {
         // Use the canonical Type.resolve — no per-site resolver. PureModelBuilder is a
         // ModelContext, so its findClass / findEnum back Type.resolve's lookups.
         Type type = Type.resolve(propDef.type(), this);
-        Multiplicity multiplicity = new Multiplicity(propDef.lowerBound(), propDef.upperBound());
+        Multiplicity multiplicity = new Multiplicity.Bounded(propDef.lowerBound(), propDef.upperBound());
         return new Property(propDef.name(), type, multiplicity, propDef.taggedValues());
     }
 

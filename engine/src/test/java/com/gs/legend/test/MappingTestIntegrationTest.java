@@ -154,7 +154,7 @@ class MappingTestIntegrationTest {
                 RELATIONAL_MODEL.indexOf("Mapping model::PersonMapping"),
                 RELATIONAL_MODEL.indexOf("RelationalDatabaseConnection")).trim();
 
-        MappingDefinition mapping = PureParser.parseMappingDefinition(mappingOnly);
+        MappingDefinition mapping = PureParser.parseSingle(mappingOnly, MappingDefinition.class);
 
         // Create and run the test runner
         TestSuiteRunner runner = new TestSuiteRunner(
@@ -186,7 +186,7 @@ class MappingTestIntegrationTest {
                 RELATIONAL_MODEL.indexOf("Mapping model::PersonMapping"),
                 RELATIONAL_MODEL.indexOf("RelationalDatabaseConnection")).trim();
 
-        MappingDefinition mapping = PureParser.parseMappingDefinition(mappingOnly);
+        MappingDefinition mapping = PureParser.parseSingle(mappingOnly, MappingDefinition.class);
 
         TestSuiteRunner runner = new TestSuiteRunner(
                 queryService, connection, RELATIONAL_MODEL, "test::TestRuntime");

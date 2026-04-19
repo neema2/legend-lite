@@ -1,89 +1,120 @@
 package com.gs.legend.model.m3;
 
+import java.util.Objects;
+
 /**
- * Represents multiplicity constraints on a property.
- * 
- * @param lowerBound Minimum cardinality (0 for optional, 1+ for required)
- * @param upperBound Maximum cardinality (null represents unbounded/*)
+ * Multiplicity annotation on a property, parameter, or function return type:
+ * the {@code [1]}, {@code [*]}, {@code [0..1]}, {@code [1..*]} suffix in Pure syntax,
+ * plus multiplicity variables like {@code m} (native function signatures only).
+ *
+ * <p>Sealed over two variants:
+ * <ul>
+ *   <li>{@link Bounded} — concrete lower/upper bounds (the common case). Upper bound
+ *       {@code null} means unbounded ({@code *}).</li>
+ *   <li>{@link Var} — multiplicity variable like {@code m} in
+ *       {@code sort<T|m>(col:T[m]):T[m]}. Only appears in native function signatures
+ *       and is bound during overload resolution.</li>
+ * </ul>
+ *
+ * <p>Introduced as a sealed interface in Phase B 2.5b.3.5 to absorb the parallel
+ * {@code compiler.Mult} type used for native signature multiplicity variables.
+ * Accessor methods like {@link #lowerBound()} / {@link #upperBound()} work for
+ * {@link Bounded} and throw for {@link Var} — callers that might see {@code Var}
+ * should pattern-match explicitly.
  */
-public record Multiplicity(int lowerBound, Integer upperBound) {
-    
-    /** Single required value [1] */
-    public static final Multiplicity ONE = new Multiplicity(1, 1);
-    
-    /** Optional single value [0..1] */
-    public static final Multiplicity ZERO_ONE = new Multiplicity(0, 1);
-    
-    /** Alias for ZERO_ONE */
-    public static final Multiplicity ZERO_OR_ONE = ZERO_ONE;
-    
-    /** Zero or more [*] */
-    public static final Multiplicity MANY = new Multiplicity(0, null);
-    
-    /** One or more [1..*] */
-    public static final Multiplicity ONE_MANY = new Multiplicity(1, null);
+public sealed interface Multiplicity permits Multiplicity.Bounded, Multiplicity.Var {
 
-    /**
-     * Parses a multiplicity string from a Variable annotation.
-     *
-     * <p>Examples: {@code "1"} → [1], {@code "*"} → [*], {@code "0..1"} → [0..1],
-     * {@code "1..*"} → [1..*], {@code "1..4"} → [1..4], {@code "0"} → [0..0].
-     *
-     * @return Multiplicity for the given string, or MANY if null/empty
-     */
-    public static Multiplicity parse(String mult) {
-        if (mult == null || mult.isEmpty()) return MANY;
-        mult = mult.trim();
-        if (mult.startsWith("[") && mult.endsWith("]")) {
-            mult = mult.substring(1, mult.length() - 1);
-        }
-        if ("*".equals(mult)) return MANY;
-        if (mult.contains("..")) {
-            String[] parts = mult.split("\\.\\.");
-            int lower = Integer.parseInt(parts[0]);
-            Integer upper = "*".equals(parts[1]) ? null : Integer.parseInt(parts[1]);
-            return new Multiplicity(lower, upper);
-        }
-        int val = Integer.parseInt(mult);
-        return new Multiplicity(val, val);
+    /** Single required value {@code [1]}. */
+    Multiplicity ONE = new Bounded(1, 1);
+
+    /** Optional single value {@code [0..1]}. */
+    Multiplicity ZERO_ONE = new Bounded(0, 1);
+
+    /** Alias for {@link #ZERO_ONE}. */
+    Multiplicity ZERO_OR_ONE = ZERO_ONE;
+
+    /** Zero or more {@code [*]}. */
+    Multiplicity MANY = new Bounded(0, null);
+
+    /** One or more {@code [1..*]}. */
+    Multiplicity ONE_MANY = new Bounded(1, null);
+
+    // -------- Accessors (default methods; throw for Var) --------
+
+    /** Lower bound for {@link Bounded}; throws for {@link Var}. */
+    default int lowerBound() {
+        if (this instanceof Bounded b) return b.lowerBound;
+        throw new UnsupportedOperationException(
+                "Variable multiplicity '" + this + "' has no numeric lower bound");
     }
 
-    public Multiplicity {
-        if (lowerBound < 0) {
-            throw new IllegalArgumentException("Lower bound cannot be negative");
-        }
-        if (upperBound != null && upperBound < lowerBound) {
-            throw new IllegalArgumentException("Upper bound cannot be less than lower bound");
-        }
+    /** Upper bound for {@link Bounded} ({@code null} = unbounded); throws for {@link Var}. */
+    default Integer upperBound() {
+        if (this instanceof Bounded b) return b.upperBound;
+        throw new UnsupportedOperationException(
+                "Variable multiplicity '" + this + "' has no numeric upper bound");
     }
-    
-    public boolean isRequired() {
-        return lowerBound >= 1;
+
+    default boolean isRequired() {
+        return this instanceof Bounded b && b.lowerBound >= 1;
     }
-    
-    public boolean isUnbounded() {
-        return upperBound == null;
+
+    default boolean isUnbounded() {
+        return this instanceof Bounded b && b.upperBound == null;
     }
-    
-    public boolean isSingular() {
-        return upperBound != null && upperBound == 1;
+
+    default boolean isSingular() {
+        return this instanceof Bounded b && b.upperBound != null && b.upperBound == 1;
     }
-    
+
+    /** {@code true} if this multiplicity allows multiple values (upper unbounded or &gt; 1). */
+    default boolean isMany() {
+        return this instanceof Bounded b && (b.upperBound == null || b.upperBound > 1);
+    }
+
+    // -------- Variants --------
+
     /**
-     * @return true if this multiplicity allows multiple values (upper bound > 1 or unbounded)
+     * Concrete multiplicity with lower and upper bounds.
+     *
+     * @param lowerBound Minimum cardinality (0 = optional, 1+ = required)
+     * @param upperBound Maximum cardinality ({@code null} = unbounded)
      */
-    public boolean isMany() {
-        return upperBound == null || upperBound > 1;
+    record Bounded(int lowerBound, Integer upperBound) implements Multiplicity {
+        public Bounded {
+            if (lowerBound < 0) {
+                throw new IllegalArgumentException("Lower bound cannot be negative");
+            }
+            if (upperBound != null && upperBound < lowerBound) {
+                throw new IllegalArgumentException("Upper bound cannot be less than lower bound");
+            }
+        }
+
+        @Override
+        public String toString() {
+            if (upperBound == null) {
+                return lowerBound == 0 ? "[*]" : "[" + lowerBound + "..*]";
+            }
+            if (lowerBound == upperBound) {
+                return "[" + lowerBound + "]";
+            }
+            return "[" + lowerBound + ".." + upperBound + "]";
+        }
     }
-    
-    @Override
-    public String toString() {
-        if (upperBound == null) {
-            return lowerBound == 0 ? "[*]" : "[" + lowerBound + "..*]";
+
+    /**
+     * Multiplicity variable (native function signature only). Bound during overload
+     * resolution — e.g., {@code m} in {@code sort<T|m>(col:T[m]):T[m]} binds to the
+     * multiplicity of the call-site's {@code col} argument.
+     */
+    record Var(String name) implements Multiplicity {
+        public Var {
+            Objects.requireNonNull(name, "Multiplicity variable name cannot be null");
         }
-        if (lowerBound == upperBound) {
-            return "[" + lowerBound + "]";
+
+        @Override
+        public String toString() {
+            return name;
         }
-        return "[" + lowerBound + ".." + upperBound + "]";
     }
 }

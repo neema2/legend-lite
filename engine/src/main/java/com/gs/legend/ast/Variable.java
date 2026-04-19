@@ -1,5 +1,7 @@
 package com.gs.legend.ast;
 
+import com.gs.legend.model.m3.Multiplicity;
+
 /**
  * Variable reference in Pure expressions.
  *
@@ -13,12 +15,15 @@ package com.gs.legend.ast;
  *
  * @param name         The variable name (without $ prefix)
  * @param typeName     Optional type name (e.g., "Integer", "String")
- * @param multiplicity Optional multiplicity (e.g., "1", "1..4", "*")
+ * @param multiplicity Optional structured multiplicity (null when untyped).
+ *                     Parsers produce {@link Multiplicity} directly via
+ *                     {@link Multiplicity#parse(String)} or grammar visitors so
+ *                     consumers never re-parse raw text.
  */
 public record Variable(
                 String name,
                 String typeName,
-                String multiplicity) implements ValueSpecification {
+                Multiplicity multiplicity) implements ValueSpecification {
 
         /** Convenience constructor for untyped variables. */
         public Variable(String name) {

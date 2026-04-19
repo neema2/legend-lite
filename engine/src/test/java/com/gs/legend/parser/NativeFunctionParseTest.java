@@ -1,8 +1,8 @@
 package com.gs.legend.parser;
 
-import com.gs.legend.compiler.Mult;
 import com.gs.legend.compiler.NativeFunctionDef;
 import com.gs.legend.compiler.PType;
+import com.gs.legend.model.m3.Multiplicity;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -10,8 +10,9 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for PureParser.parseNativeFunction() — validates that the ANTLR visitor
- * produces correct NativeFunctionDef records from Pure signature strings.
+ * Tests for {@link PureNativeSignatureParser} — validates that the hand-rolled
+ * native-signature parser produces correct {@link NativeFunctionDef} records
+ * from Pure signature strings.
  */
 class NativeFunctionParseTest {
 
@@ -19,7 +20,7 @@ class NativeFunctionParseTest {
 
     @Test
     void testSimpleScalar_toLower() {
-        var fn = PureParser.parseNativeFunction(
+        var fn = PureNativeSignatureParser.parse(
                 "native function toLower(source:String[1]):String[1];");
         assertEquals("toLower", fn.name());
         assertEquals(List.of(), fn.typeParams());
@@ -27,12 +28,12 @@ class NativeFunctionParseTest {
         assertEquals("source", fn.params().get(0).name());
         assertConcrete("String", fn.params().get(0).type());
         assertConcrete("String", fn.returnType());
-        assertEquals(Mult.ONE, fn.returnMult());
+        assertEquals(Multiplicity.ONE, fn.returnMult());
     }
 
     @Test
     void testSimpleScalar_abs() {
-        var fn = PureParser.parseNativeFunction(
+        var fn = PureNativeSignatureParser.parse(
                 "native function abs(int:Integer[1]):Integer[1];");
         assertEquals("abs", fn.name());
         assertConcrete("Integer", fn.returnType());
@@ -40,7 +41,7 @@ class NativeFunctionParseTest {
 
     @Test
     void testScalar_substring() {
-        var fn = PureParser.parseNativeFunction(
+        var fn = PureNativeSignatureParser.parse(
                 "native function substring(str:String[1], start:Integer[1], end:Integer[1]):String[1];");
         assertEquals("substring", fn.name());
         assertEquals(3, fn.params().size());
@@ -54,7 +55,7 @@ class NativeFunctionParseTest {
 
     @Test
     void testGeneric_filter() {
-        var fn = PureParser.parseNativeFunction(
+        var fn = PureNativeSignatureParser.parse(
                 "native function filter<T>(rel:Relation<T>[1], " +
                 "f:Function<{T[1]->Boolean[1]}>[1]):Relation<T>[1];");
         assertEquals("filter", fn.name());
@@ -92,12 +93,12 @@ class NativeFunctionParseTest {
 
     @Test
     void testGeneric_exists() {
-        var fn = PureParser.parseNativeFunction(
+        var fn = PureNativeSignatureParser.parse(
                 "native function exists<T>(value:T[*], func:Function<{T[1]->Boolean[1]}>[1]):Boolean[1];");
         assertEquals("exists", fn.name());
         assertEquals(List.of("T"), fn.typeParams());
         assertTypeVar("T", fn.params().get(0).type());
-        assertEquals(Mult.ZERO_MANY, fn.params().get(0).mult());
+        assertEquals(Multiplicity.MANY, fn.params().get(0).mult());
         assertConcrete("Boolean", fn.returnType());
     }
 
@@ -105,22 +106,22 @@ class NativeFunctionParseTest {
 
     @Test
     void testMultiplicityVar_sort() {
-        var fn = PureParser.parseNativeFunction(
+        var fn = PureNativeSignatureParser.parse(
                 "native function sort<T|m>(col:T[m]):T[m];");
         assertEquals("sort", fn.name());
         assertEquals(List.of("T"), fn.typeParams());
         assertEquals(List.of("m"), fn.multParams());
         assertTypeVar("T", fn.returnType());
-        assertInstanceOf(Mult.Var.class, fn.returnMult());
-        assertEquals("m", ((Mult.Var) fn.returnMult()).name());
-        assertInstanceOf(Mult.Var.class, fn.params().get(0).mult());
+        assertInstanceOf(Multiplicity.Var.class, fn.returnMult());
+        assertEquals("m", ((Multiplicity.Var) fn.returnMult()).name());
+        assertInstanceOf(Multiplicity.Var.class, fn.params().get(0).mult());
     }
 
     // ===== Window functions =====
 
     @Test
     void testWindow_rank() {
-        var fn = PureParser.parseNativeFunction(
+        var fn = PureNativeSignatureParser.parse(
                 "native function rank<T>(rel:Relation<T>[1], w:_Window<T>[1], row:T[1]):Integer[1];");
         assertEquals("rank", fn.name());
         assertEquals(3, fn.params().size());
@@ -130,11 +131,11 @@ class NativeFunctionParseTest {
 
     @Test
     void testWindow_first() {
-        var fn = PureParser.parseNativeFunction(
+        var fn = PureNativeSignatureParser.parse(
                 "native function first<T>(w:Relation<T>[1], f:_Window<T>[1], r:T[1]):T[0..1];");
         assertEquals("first", fn.name());
         assertTypeVar("T", fn.returnType());
-        assertEquals(Mult.ZERO_ONE, fn.returnMult());
+        assertEquals(Multiplicity.ZERO_ONE, fn.returnMult());
     }
 
     // ===== Schema constraints (via pre-processing) =====
@@ -180,7 +181,7 @@ class NativeFunctionParseTest {
 
     @Test
     void testFunctionType_map() {
-        var fn = PureParser.parseNativeFunction(
+        var fn = PureNativeSignatureParser.parse(
                 "native function map<T,V>(value:T[*], func:Function<{T[1]->V[*]}>[1]):V[*];");
         assertEquals("map", fn.name());
 

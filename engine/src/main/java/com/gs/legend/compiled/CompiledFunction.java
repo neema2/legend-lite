@@ -1,5 +1,6 @@
 package com.gs.legend.compiled;
 
+import com.gs.legend.model.m3.Multiplicity;
 import com.gs.legend.model.m3.Type;
 
 import java.util.List;

@@ -13,7 +13,7 @@ import java.util.Map;
  * Hand-rolled recursive descent parser for Pure query expressions.
  *
  * Reads tokens from {@link PureLexer2} and builds {@link ValueSpecification}
- * AST nodes directly — no parse tree, no visitor, no ANTLR.
+ * AST nodes directly — no intermediate parse tree.
  *
  * Entry points:
  * - {@link #parseQuery(String)} — single query expression
@@ -702,8 +702,7 @@ public final class PureQueryParser {
         if (check(TokenType.COLON)) {
             advance();
             String typeName = parseTypeText();
-            String multiplicity = parseMultiplicityText();
-            return new Variable(name, typeName, multiplicity);
+            return new Variable(name, typeName, parseMultiplicity());
         }
         return new Variable(name);
     }
@@ -1018,7 +1017,7 @@ public final class PureQueryParser {
         return new AppliedFunction("new",
                 List.of(new PackageableElementPtr(className),
                         new ClassInstance("instance",
-                                new com.gs.legend.antlr.ValueSpecificationBuilder.InstanceData(
+                                new com.gs.legend.ast.InstanceData(
                                         className, properties, typeArgs))));
     }
 
@@ -1162,8 +1161,7 @@ public final class PureQueryParser {
         String name = parseIdentifierText();
         consume(TokenType.COLON);
         String typeName = parseTypeText();
-        String multiplicity = parseMultiplicityText();
-        return new Variable(name, typeName, multiplicity);
+        return new Variable(name, typeName, parseMultiplicity());
     }
 
     // ==================== Helpers ====================
@@ -1259,6 +1257,38 @@ public final class PureQueryParser {
         }
         consume(TokenType.BRACKET_CLOSE);
         return sb.toString();
+    }
+
+    /**
+     * Parses a multiplicity at the token level: {@code [1]}, {@code [*]}, {@code [0..1]},
+     * {@code [1..*]}, {@code [m]} (variable).
+     *
+     * <p>Returns a structured {@link com.gs.legend.model.m3.Multiplicity} directly — no
+     * text round-trip through the model layer. The m3 layer is a pure data model and
+     * does not know how to parse.
+     */
+    private com.gs.legend.model.m3.Multiplicity parseMultiplicity() {
+        consume(TokenType.BRACKET_OPEN);
+        com.gs.legend.model.m3.Multiplicity result;
+        if (match(TokenType.STAR)) {
+            result = com.gs.legend.model.m3.Multiplicity.MANY;
+        } else if (check(TokenType.INTEGER)) {
+            int lower = Integer.parseInt(consume(TokenType.INTEGER));
+            if (match(TokenType.DOT_DOT)) {
+                Integer upper = match(TokenType.STAR)
+                        ? null
+                        : Integer.parseInt(consume(TokenType.INTEGER));
+                result = new com.gs.legend.model.m3.Multiplicity.Bounded(lower, upper);
+            } else {
+                result = new com.gs.legend.model.m3.Multiplicity.Bounded(lower, lower);
+            }
+        } else {
+            // Multiplicity variable: identifier like m, n
+            String name = parseIdentifierText();
+            result = new com.gs.legend.model.m3.Multiplicity.Var(name);
+        }
+        consume(TokenType.BRACKET_CLOSE);
+        return result;
     }
 
     private boolean isIdentifierToken(TokenType t) {

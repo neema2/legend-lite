@@ -284,7 +284,7 @@ public final class PureLexer2 {
         if (c == '~') { scanTilde(); return; }
         // Arrow or minus
         if (c == '-') { scanMinusOrArrow(); return; }
-        // Numeric literal (must check BEFORE identifier — ANTLR INTEGER rule has priority over VALID_STRING)
+        // Numeric literal (must check BEFORE identifier — INTEGER has priority over VALID_STRING)
         if (c >= '0' && c <= '9') { scanNumericLiteral(); return; }
         // Identifier / keyword
         if (isIdentStart(c)) { scanIdentifierOrKeyword(); return; }
