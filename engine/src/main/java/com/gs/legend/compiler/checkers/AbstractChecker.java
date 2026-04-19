@@ -684,6 +684,9 @@ public abstract class AbstractChecker implements FunctionChecker {
             }
             case Type.FunctionReference fr -> throw new PureCompileException(
                     context + ": FunctionReference should not appear in source unification");
+            case Type.GenericType gt -> throw new IllegalStateException(
+                    context + ": Type.GenericType not yet supported at AbstractChecker.unifyType — "
+                            + "phase 2.5e commit 3 will migrate this site. Got: " + gt);
         }
     }
 
@@ -736,6 +739,9 @@ public abstract class AbstractChecker implements FunctionChecker {
             case Type.Relation r -> r;
             case Type.Tuple t -> t;
             case Type.FunctionReference fr -> fr;
+            case Type.GenericType gt -> throw new IllegalStateException(
+                    context + ": Type.GenericType not yet supported at AbstractChecker.resolve — "
+                            + "phase 2.5e commit 3 will migrate this site. Got: " + gt);
         };
     }
 

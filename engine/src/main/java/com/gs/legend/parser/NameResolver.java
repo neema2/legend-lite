@@ -273,6 +273,9 @@ public final class NameResolver {
                 }
                 yield changed ? new Type.Parameterized(p.rawType(), resolvedArgs) : type;
             }
+            case Type.GenericType gt -> throw new IllegalStateException(
+                    "Type.GenericType not yet supported at NameResolver.resolvePType — "
+                            + "phase 2.5e commit 3 will migrate this site. Got: " + gt);
             case Type.FunctionType ft -> {
                 boolean changed = false;
                 List<Type.Parameter> resolvedParams = new ArrayList<>(ft.params().size());

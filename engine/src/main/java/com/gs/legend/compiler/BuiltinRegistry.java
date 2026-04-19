@@ -125,6 +125,9 @@ public class BuiltinRegistry {
             case Type.Parameterized p -> new Type.Parameterized(
                     p.rawType(),
                     p.typeArgs().stream().map(BuiltinRegistry::normalizeType).toList());
+            case Type.GenericType gt -> throw new IllegalStateException(
+                    "Type.GenericType not yet supported at BuiltinRegistry.normalizeType — "
+                            + "phase 2.5e commit 3 will migrate this site. Got: " + gt);
             case Type.FunctionType ft -> new Type.FunctionType(
                     ft.params().stream()
                             .map(p -> new Type.Parameter(p.name(), normalizeType(p.type()), p.multiplicity()))

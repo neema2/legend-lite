@@ -898,6 +898,9 @@ public class TypeChecker implements TypeCheckEnv {
                     "Bare RelationTypeVar must appear inside a Relation<...>, not as a standalone type: " + rtv);
             case Type.FunctionReference fr -> throw new PureCompileException(
                     "FunctionReference is an expression-level type, not valid in user signatures: " + fr);
+            case Type.GenericType gt -> throw new IllegalStateException(
+                    "Type.GenericType not yet supported at TypeChecker.resolveUserSignatureType — "
+                            + "phase 2.5e commit 3 will migrate this site. Got: " + gt);
         };
     }
 

@@ -35,22 +35,41 @@ import java.util.Objects;
  */
 public record ClassDefinition(
         String qualifiedName,
+        List<String> typeParams,
         List<String> superClasses,
         List<PropertyDefinition> properties,
         List<DerivedPropertyDefinition> derivedProperties,
         List<ConstraintDefinition> constraints,
         List<StereotypeApplication> stereotypes,
-        List<TaggedValue> taggedValues) implements PackageableElement {
+        List<TaggedValue> taggedValues,
+        boolean isNative) implements PackageableElement {
 
     public ClassDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
         Objects.requireNonNull(properties, "Properties cannot be null");
+        typeParams = typeParams == null ? List.of() : List.copyOf(typeParams);
         superClasses = superClasses == null ? List.of() : List.copyOf(superClasses);
         properties = List.copyOf(properties);
         derivedProperties = derivedProperties == null ? List.of() : List.copyOf(derivedProperties);
         constraints = constraints == null ? List.of() : List.copyOf(constraints);
         stereotypes = stereotypes == null ? List.of() : List.copyOf(stereotypes);
         taggedValues = taggedValues == null ? List.of() : List.copyOf(taggedValues);
+    }
+
+    /**
+     * Full-fidelity constructor preserving pre-phase-2.5e shape (no typeParams, not native).
+     * Kept so existing call sites that pre-date generic builtins compile unchanged.
+     */
+    public ClassDefinition(
+            String qualifiedName,
+            List<String> superClasses,
+            List<PropertyDefinition> properties,
+            List<DerivedPropertyDefinition> derivedProperties,
+            List<ConstraintDefinition> constraints,
+            List<StereotypeApplication> stereotypes,
+            List<TaggedValue> taggedValues) {
+        this(qualifiedName, List.of(), superClasses, properties, derivedProperties,
+                constraints, stereotypes, taggedValues, false);
     }
 
     /**

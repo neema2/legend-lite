@@ -19,20 +19,31 @@ import java.util.*;
  * so the superclass chain can be walked via {@code ctx.findClass} lazily.
  * {@link #findLocalProperty} remains as a context-free local-only primitive.
  *
+ * <p>Phase 2.5e added {@code typeParams} (generic type parameters for builtin classes like
+ * {@code Pair<U,V>}, {@code Relation<T>}) and {@code isNative} (marks m3 bootstrap stubs
+ * such as {@code Type}, {@code Function}, {@code Relation} which have no shippable body
+ * and cannot be loaded from user source).
+ *
  * @param packagePath     The package path (e.g., "model::domain")
  * @param name            The class name (e.g., "Person")
+ * @param typeParams      Generic type parameter names (e.g., {@code ["U","V"]} for {@code Pair<U,V>});
+ *                        empty for non-generic user classes
  * @param superClassFqns  Fully qualified names of superclasses (canonical form)
  * @param properties      Immutable list of properties belonging to this class
  * @param stereotypes     Stereotype annotations on this class (e.g., nlq.rootEntity)
  * @param taggedValues    Tagged value annotations on this class (e.g., nlq.description)
+ * @param isNative        {@code true} for m3 bootstrap stubs ({@code Type}, {@code Function},
+ *                        {@code Relation}); {@code false} for ordinary user and builtin classes
  */
 public record PureClass(
         String packagePath,
         String name,
+        List<String> typeParams,
         List<String> superClassFqns,
         List<Property> properties,
         List<StereotypeApplication> stereotypes,
-        List<TaggedValue> taggedValues) {
+        List<TaggedValue> taggedValues,
+        boolean isNative) {
 
     public PureClass {
         Objects.requireNonNull(packagePath, "Package path cannot be null");
@@ -44,10 +55,25 @@ public record PureClass(
         }
 
         // Ensure immutability
+        typeParams = typeParams == null ? List.of() : List.copyOf(typeParams);
         superClassFqns = superClassFqns == null ? List.of() : List.copyOf(superClassFqns);
         properties = List.copyOf(properties);
         stereotypes = stereotypes == null ? List.of() : List.copyOf(stereotypes);
         taggedValues = taggedValues == null ? List.of() : List.copyOf(taggedValues);
+    }
+
+    /**
+     * Full-fidelity constructor preserving pre-phase-2.5e shape (no typeParams, not native).
+     * Kept so existing call sites that pre-date generic builtins continue to compile unchanged.
+     */
+    public PureClass(
+            String packagePath,
+            String name,
+            List<String> superClassFqns,
+            List<Property> properties,
+            List<StereotypeApplication> stereotypes,
+            List<TaggedValue> taggedValues) {
+        this(packagePath, name, List.of(), superClassFqns, properties, stereotypes, taggedValues, false);
     }
 
     /**

@@ -33,7 +33,7 @@ import java.util.Objects;
 public sealed interface Type permits
         Primitive,
         Type.NameRef, Type.ClassType, Type.EnumType,
-        Type.PrecisionDecimal, Type.Parameterized,
+        Type.PrecisionDecimal, Type.Parameterized, Type.GenericType,
         Type.FunctionType, Type.Relation, Type.Tuple,
         Type.TypeVar, Type.SchemaAlgebra, Type.RelationTypeVar,
         Type.FunctionReference {
@@ -278,6 +278,51 @@ public sealed interface Type permits
             if (typeArgs.isEmpty()) {
                 throw new IllegalStateException(
                         "Parameterized '" + rawType + "' has no type arguments — cannot extract element type");
+            }
+            return typeArgs.get(0);
+        }
+    }
+
+    /**
+     * Structured generic type — {@code rawType<arg1, arg2, ...>} where {@code rawType} is itself
+     * a {@link Type}, not a raw {@link String}. The replacement for {@link Parameterized} being
+     * rolled out in phase 2.5e.
+     *
+     * <p><strong>Lifecycle:</strong>
+     * <ul>
+     *   <li>Before {@code NameResolver}: {@code rawType} is a {@link NameRef} holding the unresolved
+     *       (possibly simple) name from user source, symmetric with leaf name references.</li>
+     *   <li>After {@code NameResolver}: {@code rawType} is a classified variant — typically
+     *       {@link ClassType} for builtin / user class generics ({@code Relation<T>}, {@code Pair<U,V>}),
+     *       or another {@link Type} kind when native signatures use e.g. {@link Primitive#ANY} as
+     *       the base.</li>
+     * </ul>
+     *
+     * <p><strong>Invariant:</strong> no {@code GenericType} with a {@link NameRef} rawType flows past
+     * the type checker. A residual {@code NameRef} means import resolution failed — that's a
+     * compiler bug, not a runtime-tolerable state.
+     *
+     * <p>Replaces the string-keyed dispatch pattern of {@link Parameterized}: structural-match
+     * sites now compare {@code rawType instanceof ClassType ct && ct.qualifiedName().equals(FQN)}
+     * instead of {@code rawType.equals("Relation")}.
+     */
+    record GenericType(Type rawType, List<Type> typeArgs) implements Type {
+        public GenericType {
+            Objects.requireNonNull(rawType, "GenericType rawType cannot be null");
+            Objects.requireNonNull(typeArgs, "GenericType typeArgs cannot be null");
+            typeArgs = List.copyOf(typeArgs);
+        }
+
+        @Override
+        public String typeName() {
+            return rawType.typeName();
+        }
+
+        /** First type argument. Throws if empty. */
+        public Type elementType() {
+            if (typeArgs.isEmpty()) {
+                throw new IllegalStateException(
+                        "GenericType '" + rawType.typeName() + "' has no type arguments — cannot extract element type");
             }
             return typeArgs.get(0);
         }

@@ -184,7 +184,14 @@ public final class PureModelParser {
                     String importPath = parseImportStatement();
                     imports.addImport(importPath);
                 }
-                case CLASS -> definitions.add(parseClassDefinition());
+                case CLASS -> definitions.add(parseClassDefinition(false));
+                case NATIVE -> {
+                    advance(); // consume 'native'
+                    if (peek() != TokenType.CLASS) {
+                        error("expected 'Class' after 'native', got " + peek() + " ('" + safeText() + "')");
+                    }
+                    definitions.add(parseClassDefinition(true));
+                }
                 case ENUM -> definitions.add(parseEnumDefinition());
                 case PROFILE -> definitions.add(parseProfile());
                 case ASSOCIATION -> definitions.add(parseAssociation());
@@ -538,14 +545,21 @@ public final class PureModelParser {
     // ==================== Class ====================
 
     /**
-     * Class stereotypes? taggedValues? qualifiedName (extends type (, type)*)?
-     *   constraints? { properties }
+     * [native]? Class stereotypes? taggedValues? qualifiedName (&lt;T, U, ...&gt;)?
+     *     (extends type (, type)*)? constraints? { properties }
+     *
+     * <p>Phase 2.5e added the optional {@code <T, U, ...>} generic type-param list and the
+     * {@code native} prefix (for m3 bootstrap stubs like {@code Type}, {@code Function},
+     * {@code Relation}).
      */
-    private ClassDefinition parseClassDefinition() {
+    private ClassDefinition parseClassDefinition(boolean isNative) {
         expect(TokenType.CLASS);
         List<StereotypeApplication> stereotypes = parseStereotypes();
         List<TaggedValue> taggedValues = parseTaggedValues();
         String qualifiedName = parseQualifiedName();
+
+        // Generic type parameters: <T>, <U, V>, <Z, V, T>, etc.
+        List<String> typeParams = parseClassTypeParams();
 
         // Superclasses
         List<String> superClasses = new ArrayList<>();
@@ -579,8 +593,29 @@ public final class PureModelParser {
         }
 
         expect(TokenType.BRACE_CLOSE);
-        return new ClassDefinition(qualifiedName, superClasses, properties, derivedProperties,
-                constraints, stereotypes, taggedValues);
+        return new ClassDefinition(qualifiedName, typeParams, superClasses, properties,
+                derivedProperties, constraints, stereotypes, taggedValues, isNative);
+    }
+
+    /**
+     * Parse the optional generic type-parameter list immediately after a class's qualified name:
+     * {@code <T>}, {@code <U, V>}, {@code <Z, V, T>}, etc. Returns an empty list if absent.
+     *
+     * <p>The parser captures only the type-parameter names. Kind constraints (comments like
+     * {@code // Where T is of type RelationType}) are not structural and are not parsed here.
+     */
+    private List<String> parseClassTypeParams() {
+        if (peek() != TokenType.LESS_THAN) {
+            return List.of();
+        }
+        advance(); // consume <
+        List<String> params = new ArrayList<>();
+        params.add(parseIdentifier());
+        while (match(TokenType.COMMA)) {
+            params.add(parseIdentifier());
+        }
+        expect(TokenType.GREATER_THAN);
+        return params;
     }
 
     private boolean isDerivedProperty() {
