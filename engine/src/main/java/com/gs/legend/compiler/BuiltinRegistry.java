@@ -1,8 +1,7 @@
 package com.gs.legend.compiler;
 
 import com.gs.legend.model.def.EnumDefinition;
-import com.gs.legend.model.m3.PurePrimitive;
-import com.gs.legend.model.m3.Type;
+import com.gs.legend.model.m3.Primitive;
 
 import java.util.*;
 
@@ -267,89 +266,6 @@ public class BuiltinRegistry {
     public NativeFunctionDef maxBy()             { return maxByDef; }
     public NativeFunctionDef minBy()             { return minByDef; }
 
-    // ===== Built-in type declarations (phase 2.5c.1) =====
-    //
-    // Static singleton instances of every Pure primitive and every platform enum. Loaded
-    // once at JVM init (same static init that parses native function signatures). These
-    // are the single source of truth for built-in type identity across all PureModelBuilder
-    // instances; no per-builder duplication.
-    //
-    // Phase 2.5c.1 note: PurePrimitive does NOT yet implement Type. The legacy
-    // Type.Primitive Java enum still carries type semantics at this stage. These instances
-    // coexist as FQN-keyed declarations, ready for phase 2.5c.3 to wire them into the Type
-    // sealed interface.
-
-    /** Package path for Pure primitive types (matches legend-pure M3Paths). */
-    private static final String TYPE_PKG = "meta::pure::metamodel::type";
-    /** Package path for Pure variant type (separate from scalar primitives). */
-    private static final String VARIANT_PKG = "meta::pure::metamodel::variant";
-
-    public static final PurePrimitive ANY         = new PurePrimitive(TYPE_PKG + "::Any",         "Any",         List.of(),                              false, false, false);
-    public static final PurePrimitive NIL         = new PurePrimitive(TYPE_PKG + "::Nil",         "Nil",         List.of(TYPE_PKG + "::Any"),            false, false, false);
-    public static final PurePrimitive NUMBER      = new PurePrimitive(TYPE_PKG + "::Number",      "Number",      List.of(TYPE_PKG + "::Any"),            true,  false, false);
-    public static final PurePrimitive INTEGER     = new PurePrimitive(TYPE_PKG + "::Integer",     "Integer",     List.of(TYPE_PKG + "::Number"),         true,  false, false);
-    public static final PurePrimitive INT64       = new PurePrimitive(TYPE_PKG + "::Int64",       "Integer",     List.of(TYPE_PKG + "::Integer"),        true,  false, false);
-    public static final PurePrimitive INT128      = new PurePrimitive(TYPE_PKG + "::Int128",      "Integer",     List.of(TYPE_PKG + "::Integer"),        true,  false, false);
-    public static final PurePrimitive FLOAT       = new PurePrimitive(TYPE_PKG + "::Float",       "Float",       List.of(TYPE_PKG + "::Number"),         true,  false, false);
-    public static final PurePrimitive DECIMAL     = new PurePrimitive(TYPE_PKG + "::Decimal",     "Decimal",     List.of(TYPE_PKG + "::Number"),         true,  false, false);
-    public static final PurePrimitive STRING      = new PurePrimitive(TYPE_PKG + "::String",      "String",      List.of(TYPE_PKG + "::Any"),            false, false, false);
-    public static final PurePrimitive BOOLEAN     = new PurePrimitive(TYPE_PKG + "::Boolean",     "Boolean",     List.of(TYPE_PKG + "::Any"),            false, false, false);
-    public static final PurePrimitive DATE        = new PurePrimitive(TYPE_PKG + "::Date",        "Date",        List.of(TYPE_PKG + "::Any"),            false, true,  true);
-    public static final PurePrimitive STRICT_DATE = new PurePrimitive(TYPE_PKG + "::StrictDate",  "StrictDate",  List.of(TYPE_PKG + "::Date"),           false, true,  true);
-    public static final PurePrimitive DATE_TIME   = new PurePrimitive(TYPE_PKG + "::DateTime",    "DateTime",    List.of(TYPE_PKG + "::Date"),           false, true,  true);
-    public static final PurePrimitive STRICT_TIME = new PurePrimitive(TYPE_PKG + "::StrictTime",  "StrictTime",  List.of(TYPE_PKG + "::Any"),            false, true,  false);
-    public static final PurePrimitive VARIANT     = new PurePrimitive(VARIANT_PKG + "::Variant",  "JSON",        List.of(TYPE_PKG + "::Any"),            false, false, false);
-
-    /** All built-in primitives in declaration order (roots first for subtype-lattice walks). */
-    public static final List<PurePrimitive> PRIMITIVES = List.of(
-            ANY, NIL, NUMBER, INTEGER, INT64, INT128, FLOAT, DECIMAL,
-            STRING, BOOLEAN, DATE, STRICT_DATE, DATE_TIME, STRICT_TIME, VARIANT);
-
-    /** FQN → PurePrimitive lookup table (immutable). */
-    private static final Map<String, PurePrimitive> PRIMITIVES_BY_FQN;
-    static {
-        Map<String, PurePrimitive> m = new LinkedHashMap<>();
-        for (PurePrimitive p : PRIMITIVES) m.put(p.qualifiedName(), p);
-        PRIMITIVES_BY_FQN = Map.copyOf(m);
-    }
-
-    /**
-     * Looks up a built-in primitive by fully qualified name. Returns empty if the FQN is
-     * not a known Pure primitive. FQN-only — simple-name resolution is the caller's job
-     * (via {@code ImportScope}).
-     */
-    public static Optional<PurePrimitive> findPrimitive(String fqn) {
-        return Optional.ofNullable(PRIMITIVES_BY_FQN.get(fqn));
-    }
-
-    /**
-     * Transitional bridge: maps a {@link PurePrimitive} to its legacy {@link Type.Primitive}
-     * enum counterpart. Used by {@code ModelContext.findType}'s default implementation during
-     * the phase 2.5c migration to route primitive lookups through {@code BuiltinRegistry}
-     * (FQN-keyed) while still returning {@link Type} values (since {@code PurePrimitive}
-     * doesn't yet implement {@code Type} — phase 2.5c.3 wires that up).
-     *
-     * <p>Deleted in phase 2.5c.4 when {@code Type.Primitive} goes away.
-     */
-    public static Type.Primitive toLegacyPrimitive(PurePrimitive p) {
-        if (p == ANY)         return Type.Primitive.ANY;
-        if (p == NIL)         return Type.Primitive.NIL;
-        if (p == NUMBER)      return Type.Primitive.NUMBER;
-        if (p == INTEGER)     return Type.Primitive.INTEGER;
-        if (p == INT64)       return Type.Primitive.INT64;
-        if (p == INT128)      return Type.Primitive.INT128;
-        if (p == FLOAT)       return Type.Primitive.FLOAT;
-        if (p == DECIMAL)     return Type.Primitive.DECIMAL;
-        if (p == STRING)      return Type.Primitive.STRING;
-        if (p == BOOLEAN)     return Type.Primitive.BOOLEAN;
-        if (p == DATE)        return Type.Primitive.DATE;
-        if (p == STRICT_DATE) return Type.Primitive.STRICT_DATE;
-        if (p == DATE_TIME)   return Type.Primitive.DATE_TIME;
-        if (p == STRICT_TIME) return Type.Primitive.STRICT_TIME;
-        if (p == VARIANT)     return Type.Primitive.JSON;
-        throw new IllegalStateException("No legacy Type.Primitive counterpart for " + p.qualifiedName());
-    }
-
     // ===== Platform enums =====
     //
     // Platform-defined enums referenced by built-in function signatures (JoinKind, DurationUnit,
@@ -406,8 +322,8 @@ public class BuiltinRegistry {
      */
     public static final List<String> BUILTIN_IMPORTS;
     static {
-        var imports = new ArrayList<String>(PRIMITIVES.size() + PLATFORM_ENUMS.size());
-        for (PurePrimitive p : PRIMITIVES) imports.add(p.qualifiedName());
+        var imports = new ArrayList<String>(Primitive.ALL.size() + PLATFORM_ENUMS.size());
+        for (Primitive p : Primitive.ALL) imports.add(p.qualifiedName());
         for (EnumDefinition e : PLATFORM_ENUMS) imports.add(e.qualifiedName());
         BUILTIN_IMPORTS = List.copyOf(imports);
     }
@@ -1210,10 +1126,14 @@ public class BuiltinRegistry {
         reg.registerSignature("if",
                 "native function if<T>(test:Boolean[1], then:Function<{->T[*]}>[1], else:Function<{->T[*]}>[1]):T[*];");
 
-        // ===== get (variant/map access) =====
-        // get(source, key) → Variant[0..1] — navigation only, untyped
+        // ===== get (variant navigation) =====
+        // get(variant, key) → Variant[0..1] — untyped navigation on a JSON-backed source.
+        // Key is Any[1] to accept String (field access) or Integer (array index); the
+        // PlanGenerator branches on key type to emit SQL. Return type is always Variant
+        // so chained {@code ->get(...)->get(...)} compose naturally and to(@Type) handles
+        // final typed extraction.
         reg.registerSignature("get",
-                "native function get<T>(source:T[1], key:Any[1]):Any[0..1];");
+                "native function get(source:Variant[1], key:Any[1]):Variant[0..1];");
 
         // ===== Variant conversion (legend-engine aligned) =====
         // to(@Type) → T[0..1] — scalar conversion

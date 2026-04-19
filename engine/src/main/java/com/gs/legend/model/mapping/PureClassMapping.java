@@ -99,14 +99,19 @@ public record PureClassMapping(
 
     @Override
     public Type typeForProperty(String propertyName, com.gs.legend.model.ModelContext ctx) {
-        if (targetClass != null) {
-            var propOpt = targetClass.findProperty(propertyName, ctx);
-            if (propOpt.isPresent()) {
-                return propOpt.get().type();
-            }
+        // No fallback — if the target class or property isn't resolvable, the model is
+        // incomplete and downstream SQL generation would produce wrong types. AGENTS.md
+        // #4 / #8 — fail loudly, don't silently default.
+        if (targetClass == null) {
+            throw new IllegalStateException(
+                    "PureClassMapping for '" + targetClassName + "': targetClass not resolved — "
+                    + "cannot determine type for property '" + propertyName + "'");
         }
-        // Default to String if we can't resolve
-        return Type.Primitive.STRING;
+        return targetClass.findProperty(propertyName, ctx)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Property '" + propertyName + "' not found on class '"
+                        + targetClass.qualifiedName() + "'"))
+                .type();
     }
 
     @Override

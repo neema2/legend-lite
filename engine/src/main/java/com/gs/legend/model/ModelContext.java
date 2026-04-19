@@ -1,7 +1,7 @@
 package com.gs.legend.model;
 
 import com.gs.legend.ast.ValueSpecification;
-import com.gs.legend.compiler.BuiltinRegistry;
+import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.PureClass;
 import com.gs.legend.model.m3.Type;
 import com.gs.legend.model.store.Table;
@@ -80,15 +80,11 @@ public interface ModelContext {
      * initial {@code ImportScope} with all built-in FQNs so simple names get rewritten before
      * they reach here.
      *
-     * <p>{@link BuiltinRegistry#toLegacyPrimitive} is a transitional bridge — deleted in
-     * phase 2.5c.4 once {@code PurePrimitive} implements {@code Type} directly and
-     * {@code Type.Primitive} goes away.
-     *
      * @param name Fully qualified type name
      * @return The resolved {@link Type}, or empty if not a known primitive, class, or enum
      */
     default Optional<Type> findType(String name) {
-        return BuiltinRegistry.findPrimitive(name).map(p -> (Type) BuiltinRegistry.toLegacyPrimitive(p))
+        return Primitive.findByFqn(name).map(p -> (Type) p)
                 .or(() -> findClass(name).map(c -> (Type) new Type.ClassType(c.qualifiedName())))
                 .or(() -> findEnum(name).map(e -> new Type.EnumType(e.qualifiedName())));
     }
@@ -152,6 +148,23 @@ public interface ModelContext {
     record AssociationNavigation(
             String targetClassName,
             boolean isToMany) {}
+
+    /**
+     * {@code true} if the class at {@code childFqn} equals {@code parentFqn} or transitively
+     * extends it. Walks {@link com.gs.legend.model.m3.PureClass#superClassFqns()} recursively
+     * via {@link #findClass}, so cross-project lazy-loaded classes resolve through the same
+     * lookup path as property navigation.
+     *
+     * <p>Returns {@code false} if either class is not found — callers that need to
+     * distinguish "unknown class" from "not a subtype" should call {@link #findClass}
+     * explicitly first.
+     */
+    default boolean isClassSubtype(String childFqn, String parentFqn) {
+        if (childFqn.equals(parentFqn)) return true;
+        return findClass(childFqn)
+                .map(c -> c.superClassFqns().stream().anyMatch(s -> isClassSubtype(s, parentFqn)))
+                .orElse(false);
+    }
 
     /**
      * Finds the lowest common ancestor (LCA) of two classes using BFS on the

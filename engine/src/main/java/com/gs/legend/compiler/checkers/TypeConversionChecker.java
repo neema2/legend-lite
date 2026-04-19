@@ -91,12 +91,14 @@ public class TypeConversionChecker extends AbstractChecker {
 
     /**
      * {@code toVariant(source:Any[*]):Variant[1]}
-     * Converts to Variant (JSON) with multiplicity [1].
+     * Converts any value to a Variant (JSON) with multiplicity [1]. Return type flows
+     * from the native signature — no hardcoded Primitive constant here.
      */
     private TypeInfo checkToVariant(AppliedFunction af, TypeInfo source) {
-        resolveOverload("toVariant", af.parameters(), source);
+        NativeFunctionDef def = resolveOverload("toVariant", af.parameters(), source);
+        var bindings = unify(def, source.expressionType());
         return TypeInfo.builder()
-                .expressionType(ExpressionType.one(Type.Primitive.JSON))
+                .expressionType(resolveOutput(def, bindings, "toVariant()"))
                 .build();
     }
 }

@@ -2,6 +2,7 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
+import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Type;
 
 import java.util.*;
@@ -228,9 +229,19 @@ public class GroupByChecker extends AbstractChecker {
         Type castType = extractCastGenericType(fn2Body);
 
         // --- Return type: use fn2 result, refined by cast if present ---
+        //
+        // Return type refinement — retrofit for under-specified aggregate signatures.
+        // Native signatures like {@code sum(Number[*]):Number[1]} declare a generic Number
+        // return because the signature grammar doesn't express type-dependent returns
+        // cleanly. Real semantics: sum/min/max/etc. preserve the input numeric type.
+        //
+        // TODO phase-2.5d: rewrite affected native signatures with bounded generic T
+        //   (e.g., {@code sum<T extends Number>(col:T[*]):T[1]}) and delete this refinement.
+        //   Any aggregate that genuinely returns Number (not T) must be audited — today
+        //   this code silently downgrades them. See ExtendChecker.compileAggregateExtend
+        //   for the mirror of this comment.
         Type returnType = fn2Result.type();
-        // For type-variable aggregates (min, max, sum, etc.), refine to source column type
-        if (returnType == Type.Primitive.NUMBER && fn1Result.type() != null
+        if (returnType == Primitive.NUMBER && fn1Result.type() != null
                 && fn1Result.type().isNumeric()) {
             returnType = fn1Result.type();
         }

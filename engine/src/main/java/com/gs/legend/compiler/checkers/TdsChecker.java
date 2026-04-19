@@ -4,6 +4,7 @@ import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.CString;
 import com.gs.legend.ast.TdsLiteral;
 import com.gs.legend.compiler.*;
+import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Type;
 
 import java.util.LinkedHashMap;
@@ -49,17 +50,39 @@ public class TdsChecker extends AbstractChecker {
                 .build();
     }
 
-    /** Maps a TDS type annotation string to a Type. Never null — TdsLiteral guarantees type. */
+    /**
+     * Maps a TDS type annotation string to a {@link Type}. Accepts both simple
+     * Pure names ({@code "Integer"}) and fully qualified paths
+     * ({@code "meta::pure::metamodel::variant::Variant"}) — TDS literals in PCT tests use
+     * FQNs because the TDS text lives outside normal import scope.
+     *
+     * <p>Throws on unrecognised types rather than defaulting to {@code String}; silent
+     * coercion to String was masking bugs (variant columns typed as String, then get()
+     * failing downstream with "expected Variant, got String").
+     */
     private static Type mapTdsColumnType(String typeStr) {
-        return switch (typeStr) {
-            case "Integer" -> Type.Primitive.INTEGER;
-            case "Float", "Number" -> Type.Primitive.FLOAT;
-            case "Decimal" -> Type.DEFAULT_DECIMAL;
-            case "Boolean" -> Type.Primitive.BOOLEAN;
-            case "String" -> Type.Primitive.STRING;
-            case "Date", "StrictDate" -> Type.Primitive.STRICT_DATE;
-            case "DateTime" -> Type.Primitive.DATE_TIME;
-            default -> Type.Primitive.STRING;
-        };
+        // Named-type fast path.
+        switch (typeStr) {
+            case "Integer":                  return Primitive.INTEGER;
+            case "Float", "Number":          return Primitive.FLOAT;
+            case "Decimal":                  return Type.DEFAULT_DECIMAL;
+            case "Boolean":                  return Primitive.BOOLEAN;
+            case "String":                   return Primitive.STRING;
+            case "Date", "StrictDate":       return Primitive.STRICT_DATE;
+            case "DateTime":                 return Primitive.DATE_TIME;
+            default:
+                // Try FQN lookup against the built-in primitive catalog — handles
+                // "meta::pure::metamodel::variant::Variant" and other full-path references.
+                var fqnMatch = Primitive.findByFqn(typeStr);
+                if (fqnMatch.isPresent()) return fqnMatch.get();
+                // Also tolerate the simple-name form of a FQN so "Variant" resolves even
+                // though its {@link Primitive#pureName} is "JSON".
+                for (Primitive p : Primitive.ALL) {
+                    if (p.simpleName().equals(typeStr)) return p;
+                }
+                throw new PureCompileException(
+                        "TDS column type '" + typeStr + "' is not a known primitive — "
+                        + "add a case to TdsChecker.mapTdsColumnType or fix the TDS literal");
+        }
     }
 }

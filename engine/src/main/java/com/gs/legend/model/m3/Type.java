@@ -8,25 +8,24 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Unified sealed hierarchy for type <em>expressions</em> in the Pure type system.
  *
  * <p>Introduced in Phase B chunk 2.5a as the single replacement for seven overlapping
  * representations: {@code compiler.PType}, {@code plan.Type}, {@code m3.TypeRef},
- * {@code m3.PrimitiveType}, {@code compiled.TypeRef}, plus the old {@code m3.Type}
- * (now {@link TypeDecl}) and raw {@code String} type names.
+ * {@code m3.PrimitiveType}, {@code compiled.TypeRef}, and raw {@code String} type names.
  *
  * <p>Orthogonality invariants:
  * <ul>
  *   <li>A {@code Type} carries <em>no</em> multiplicity. Multiplicity lives on
  *       {@link Parameter}, {@code Property}, {@code ExpressionType}, and {@code TypeInfo}
  *       — never inlined on the type itself.</li>
- *   <li>Declarations ({@link PureClass}, {@link PureEnumType}) live on the separate
- *       {@link TypeDecl} hierarchy (Java's {@code TypeElement} vs {@code TypeMirror} split).
- *       A {@code Type.ClassType} is a <em>reference</em> to a class declaration;
- *       the {@link PureClass} itself is the declaration.</li>
+ *   <li>Declarations ({@link PureClass}, {@link PureEnum}) are separate records, not
+ *       Type variants. A {@code Type.ClassType} is a <em>reference</em> to a class
+ *       declaration; the {@link PureClass} itself is the declaration. Primitives are
+ *       the exception — {@link Primitive} is both the declaration AND a Type variant,
+ *       because the decl is inherently lightweight and always available.</li>
  *   <li>{@link #isSubtypeOf(Type)} is polymorphic — callers never need to pre-normalize
  *       (e.g., the old {@code PrecisionDecimal → DECIMAL} copy-paste is gone).</li>
  * </ul>
@@ -34,7 +33,13 @@ import java.util.Optional;
  * <p>See {@code .windsurf/plans/phase-b-type-sweep-findings-c0954a.md} for the full
  * audit findings and staged consolidation plan.
  */
-public sealed interface Type {
+public sealed interface Type permits
+        Primitive,
+        Type.ClassType, Type.EnumType,
+        Type.PrecisionDecimal, Type.Parameterized,
+        Type.FunctionType, Type.Relation, Type.Tuple,
+        Type.TypeVar, Type.SchemaAlgebra, Type.RelationTypeVar,
+        Type.FunctionReference {
 
     /**
      * Human-readable name for errors, debugging, and display.
@@ -153,163 +158,6 @@ public sealed interface Type {
     }
 
     // ============================================================
-    //  Primitive scalar types with subtype hierarchy
-    // ============================================================
-
-    /**
-     * Primitive types.
-     *
-     * <pre>
-     *   ANY
-     *   ├── NUMBER
-     *   │   ├── INTEGER
-     *   │   │   ├── INT64
-     *   │   │   └── INT128
-     *   │   ├── FLOAT
-     *   │   └── DECIMAL   (parameterized form: {@link PrecisionDecimal})
-     *   ├── STRING
-     *   ├── BOOLEAN
-     *   ├── DATE
-     *   │   ├── STRICT_DATE
-     *   │   └── DATE_TIME
-     *   ├── STRICT_TIME
-     *   └── JSON
-     *   NIL (bottom — subtype of every type)
-     * </pre>
-     */
-    enum Primitive implements Type {
-        ANY,
-        NIL,
-        NUMBER, INTEGER, INT64, INT128, FLOAT, DECIMAL,
-        STRING,
-        BOOLEAN,
-        DATE, STRICT_DATE, DATE_TIME, STRICT_TIME,
-        JSON;
-
-        /**
-         * Canonical Pure-level name for this primitive. Single source of truth —
-         * replaces the duplicated {@code case "Integer" -> ...} switches scattered
-         * across {@code Type}, {@code m3.PrimitiveType}, {@code SqlDataType}, etc.
-         */
-        public String pureName() {
-            return switch (this) {
-                case ANY -> "Any";
-                case NIL -> "Nil";
-                case NUMBER -> "Number";
-                case INTEGER, INT64, INT128 -> "Integer";
-                case FLOAT -> "Float";
-                case DECIMAL -> "Decimal";
-                case STRING -> "String";
-                case BOOLEAN -> "Boolean";
-                case DATE -> "Date";
-                case STRICT_DATE -> "StrictDate";
-                case DATE_TIME -> "DateTime";
-                case STRICT_TIME -> "StrictTime";
-                case JSON -> "JSON";
-            };
-        }
-
-        @Override
-        public String typeName() {
-            return pureName();
-        }
-
-        /**
-         * Resolves a Pure type name to its {@link Primitive} or returns empty.
-         * Accepts simple names ({@code "Integer"}) and FQNs
-         * ({@code "meta::pure::metamodel::variant::Variant"}).
-         *
-         * <p><strong>Never throws, never falls back to another kind.</strong> Replaces
-         * the three leaky / throwing resolvers in the legacy type system:
-         * {@code Type.Primitive.fromTypeName} (threw), {@code Type.fromTypeName}
-         * (silently fell back to {@code ClassType}), and {@code m3.PrimitiveType.fromName}
-         * (case-insensitive lookup, threw). If the caller needs class/enum resolution,
-         * they dispatch to {@link com.gs.legend.model.ModelContext} explicitly.
-         */
-        public static Optional<Primitive> lookup(String name) {
-            if (name == null) return Optional.empty();
-            String simple = SymbolTable.extractSimpleName(name);
-            return switch (simple) {
-                case "Any" -> Optional.of(ANY);
-                case "Nil" -> Optional.of(NIL);
-                case "Number" -> Optional.of(NUMBER);
-                case "Integer" -> Optional.of(INTEGER);
-                case "Float" -> Optional.of(FLOAT);
-                case "Decimal" -> Optional.of(DECIMAL);
-                case "String" -> Optional.of(STRING);
-                case "Boolean" -> Optional.of(BOOLEAN);
-                case "Date" -> Optional.of(DATE);
-                case "StrictDate" -> Optional.of(STRICT_DATE);
-                case "DateTime" -> Optional.of(DATE_TIME);
-                case "StrictTime" -> Optional.of(STRICT_TIME);
-                case "Variant", "JSON" -> Optional.of(JSON);
-                default -> Optional.empty();
-            };
-        }
-
-        /**
-         * Direct parent in the primitive hierarchy. ANY is the root (returns itself).
-         */
-        public Primitive parent() {
-            return switch (this) {
-                case ANY -> ANY;
-                case NIL -> ANY;
-                case NUMBER, STRING, BOOLEAN, DATE, STRICT_TIME, JSON -> ANY;
-                case INTEGER, FLOAT, DECIMAL -> NUMBER;
-                case INT64, INT128 -> INTEGER;
-                case STRICT_DATE, DATE_TIME -> DATE;
-            };
-        }
-
-        /** Lowest common ancestor of two primitive types. */
-        public static Primitive commonSupertype(Primitive a, Primitive b) {
-            if (a == b) return a;
-            if (a.isSubtypeOf(b)) return b;
-            if (b.isSubtypeOf(a)) return a;
-            Primitive cursor = a;
-            while (cursor != ANY) {
-                cursor = cursor.parent();
-                if (b.isSubtypeOf(cursor)) return cursor;
-            }
-            return ANY;
-        }
-
-        public boolean isNumeric() {
-            return this == NUMBER || this == INTEGER || this == INT64 || this == INT128
-                    || this == FLOAT || this == DECIMAL;
-        }
-
-        public boolean isTemporal() {
-            return this == DATE || this == STRICT_DATE || this == DATE_TIME || this == STRICT_TIME;
-        }
-
-        public boolean isInteger() {
-            return this == INTEGER || this == INT64 || this == INT128;
-        }
-
-        /**
-         * Primitive-aware subtype check. Handles the primitive lattice; the
-         * {@code PrecisionDecimal ↔ DECIMAL} relation is handled inside
-         * {@link PrecisionDecimal#isSubtypeOf}.
-         */
-        @Override
-        public boolean isSubtypeOf(Type other) {
-            if (other instanceof Primitive p) {
-                if (this == p) return true;
-                if (this == NIL) return true;                          // NIL ⊂ every type
-                if (p == ANY) return true;                             // every type ⊂ ANY
-                return switch (this) {
-                    case INTEGER, FLOAT, DECIMAL -> p == NUMBER;
-                    case INT64, INT128 -> p == INTEGER || p == NUMBER;
-                    case STRICT_DATE, DATE_TIME -> p == DATE;
-                    default -> false;
-                };
-            }
-            return false;
-        }
-    }
-
-    // ============================================================
     //  Nominal types: references to declared classes / enums
     // ============================================================
 
@@ -330,7 +178,7 @@ public sealed interface Type {
 
     /**
      * Reference to a user-defined enum by fully qualified name.
-     * The corresponding declaration is {@link PureEnumType}.
+     * The corresponding declaration is {@link PureEnum}.
      */
     record EnumType(String qualifiedName) implements Type {
         public EnumType {

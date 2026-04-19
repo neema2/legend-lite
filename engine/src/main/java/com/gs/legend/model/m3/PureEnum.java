@@ -4,12 +4,10 @@ import com.gs.legend.model.def.EnumDefinition;
 
 /**
  * Represents an Enum type in the Pure type system.
- * This wraps an EnumDefinition and implements the {@link TypeDecl} interface so enums
- * can be used as property types in classes.
+ * This wraps an EnumDefinition so enums can be referenced as property types in classes.
  */
-public record PureEnumType(EnumDefinition enumDefinition) implements TypeDecl {
+public record PureEnum(EnumDefinition enumDefinition) {
 
-    @Override
     public String typeName() {
         return enumDefinition.simpleName();
     }

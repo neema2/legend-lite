@@ -11,9 +11,9 @@ import java.util.Objects;
  * and multiplicity constraints.
  *
  * <p>The {@code type} field is one of the nominal {@link Type} variants
- * ({@link Type.Primitive}, {@link Type.ClassType}, {@link Type.EnumType}) and carries only
+ * ({@link Primitive}, {@link Type.ClassType}, {@link Type.EnumType}) and carries only
  * the FQN string plus kind discriminator — no resolved {@link PureClass} /
- * {@link PureEnumType} object payload. Cross-project property types therefore do not force
+ * {@link PureEnum} object payload. Cross-project property types therefore do not force
  * their target classes or enums to load eagerly (the Bazel Phase A invariant; see
  * {@code docs/BAZEL_IMPLEMENTATION_PLAN.md} §2). This replaces the legacy
  * {@code m3.TypeRef} with the unified {@link Type} hierarchy introduced in Phase B 2.5a.
@@ -63,7 +63,7 @@ public record Property(
      */
     public String typeFqn() {
         return switch (type) {
-            case Type.Primitive p -> p.pureName();
+            case Primitive p -> p.pureName();
             case Type.ClassType c -> c.qualifiedName();
             case Type.EnumType e -> e.qualifiedName();
             default -> throw new IllegalStateException(

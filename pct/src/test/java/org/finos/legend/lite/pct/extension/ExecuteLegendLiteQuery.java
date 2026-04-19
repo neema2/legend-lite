@@ -217,8 +217,8 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             return modelRepository.newIntegerCoreInstance(bi.toString());
         }
         if (value instanceof BigDecimal bd) {
-            if (type instanceof Type.Primitive p
-                    && (p == Type.Primitive.DECIMAL || p == Type.Primitive.NUMBER)) {
+            if (type instanceof Primitive p
+                    && (p == Primitive.DECIMAL || p == Primitive.NUMBER)) {
                 return modelRepository.newDecimalCoreInstance(bd);
             }
             if (type instanceof Type.PrecisionDecimal) {
@@ -227,7 +227,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             return modelRepository.newFloatCoreInstance(bd);
         }
         if (value instanceof Double d) {
-            if (type instanceof Type.Primitive p && p == Type.Primitive.DECIMAL) {
+            if (type instanceof Primitive p && p == Primitive.DECIMAL) {
                 return modelRepository.newDecimalCoreInstance(BigDecimal.valueOf(d));
             }
             if (type instanceof Type.PrecisionDecimal) {
@@ -250,7 +250,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         }
         if (value instanceof java.sql.Timestamp ts) {
             // Type tells us if this was originally a StrictDate promoted to Timestamp
-            if (type instanceof Type.Primitive p && p == Type.Primitive.STRICT_DATE) {
+            if (type instanceof Primitive p && p == Primitive.STRICT_DATE) {
                 return toPureDateInstance(ts.toLocalDateTime().toLocalDate());
             }
             return toPureDateTimeInstance(ts.toLocalDateTime());
@@ -417,7 +417,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             if (propValue == null) continue;
 
             // Determine property Type from Parameterized typeArgs if available
-            Type propType = Type.Primitive.ANY;
+            Type propType = Primitive.ANY;
             if (type instanceof Type.Parameterized p && !p.typeArgs().isEmpty()) {
                 // For Pair: first → typeArgs[0], second → typeArgs[1]
                 int idx = indexOf(structMap, propName);

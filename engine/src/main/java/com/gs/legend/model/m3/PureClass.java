@@ -32,7 +32,7 @@ public record PureClass(
         List<String> superClassFqns,
         List<Property> properties,
         List<StereotypeApplication> stereotypes,
-        List<TaggedValue> taggedValues) implements TypeDecl {
+        List<TaggedValue> taggedValues) {
 
     public PureClass {
         Objects.requireNonNull(packagePath, "Package path cannot be null");
@@ -96,9 +96,8 @@ public record PureClass(
     }
 
     /**
-     * @return The class name (implements {@link TypeDecl} interface)
+     * @return The simple class name (e.g., {@code "Person"} for {@code model::Person}).
      */
-    @Override
     public String typeName() {
         return name;
     }

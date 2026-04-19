@@ -71,15 +71,20 @@ public class SlicingChecker extends AbstractChecker {
                 .build();
     }
 
-    /** Checks if actualType is assignable to expectedType (same type or ANY). */
+    /**
+     * {@code true} if {@code actual} may stand in for {@code expected}. Delegates to the
+     * polymorphic {@link Type#isSubtypeOf} which already handles the primitive lattice
+     * (Integer/Float ⊆ Number), PrecisionDecimal → DECIMAL, and {@link Primitive#ANY}
+     * acceptance uniformly.
+     *
+     * <p>{@code null} on either side indicates a Compiler bug (missing TypeInfo) — throws
+     * rather than silently accepting, per AGENTS.md no-fallback rule.
+     */
     private boolean isAssignable(Type actual, Type expected) {
-        if (expected == null || actual == null) return true;
-        if (expected instanceof Type.Primitive p && "Any".equals(p.name())) return true;
-        // Integer assignable to Number
-        if (expected instanceof Type.Primitive ep && actual instanceof Type.Primitive ap) {
-            return ep.name().equals(ap.name())
-                    || "Number".equals(ep.name()) && ("Integer".equals(ap.name()) || "Float".equals(ap.name()));
+        if (expected == null || actual == null) {
+            throw new PureCompileException(
+                    "SlicingChecker.isAssignable: null type — Compiler must produce TypeInfo for every argument");
         }
-        return expected.equals(actual);
+        return actual.isSubtypeOf(expected);
     }
 }

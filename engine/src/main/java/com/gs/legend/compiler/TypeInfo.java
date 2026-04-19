@@ -1,6 +1,7 @@
 package com.gs.legend.compiler;
 
 import com.gs.legend.ast.ValueSpecification;
+import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Type;
 
 
@@ -439,21 +440,21 @@ public record TypeInfo(
     public boolean isHeterogeneousList() {
         if (expressionType == null || !expressionType.isMany()) return false;
         Type elem = type();
-        return elem == Type.Primitive.NUMBER
-                || elem == Type.Primitive.DATE
-                || elem == Type.Primitive.ANY;
+        return elem == Primitive.NUMBER
+                || elem == Primitive.DATE
+                || elem == Primitive.ANY;
     }
 
     /** True if this is a collection of date/temporal types (Date[*]). */
     public boolean isDateList() {
         return expressionType != null && expressionType.isMany()
-                && type() == Type.Primitive.DATE;
+                && type() == Primitive.DATE;
     }
 
     /** True if this is a collection with mixed element types (Any[*]). */
     public boolean isMixedList() {
         return expressionType != null && expressionType.isMany()
-                && type() == Type.Primitive.ANY;
+                && type() == Primitive.ANY;
     }
 
     /** True if this node has pre-resolved sort specs. */

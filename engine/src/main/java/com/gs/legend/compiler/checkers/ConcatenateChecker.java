@@ -2,6 +2,7 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.compiler.*;
+import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Type;
 
 
@@ -62,7 +63,7 @@ public class ConcatenateChecker extends AbstractChecker {
             if (lca != null) return lca;
             // No common supertype — variant list fallback
             return TypeInfo.builder()
-                    .expressionType(ExpressionType.many(Type.Primitive.ANY))
+                    .expressionType(ExpressionType.many(Primitive.ANY))
                     .build();
         }
 

@@ -3,6 +3,7 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
 import com.gs.legend.model.m3.Multiplicity;
+import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Type;
 
 import java.util.List;
@@ -92,18 +93,21 @@ public class MatchChecker extends AbstractChecker {
 
     /**
      * Type-matches using the {@link Type} hierarchy: exact match, subtype in the primitive
-     * lattice (Integer ⊆ Number), or ANY wildcard.
+     * lattice (Integer ⊆ Number), class subclass chain (Employee ⊆ Person), or ANY wildcard.
      */
     private boolean typeMatches(String branchTypeName, Type inputType) {
         Type branchType = Type.resolve(branchTypeName, env.modelContext());
-        if (branchType instanceof Type.Primitive branchPrim) {
-            if (branchPrim == Type.Primitive.ANY) return true;
-            if (inputType instanceof Type.Primitive inputPrim) {
-                return inputPrim == branchPrim || inputPrim.isSubtypeOf(branchPrim);
-            }
-            return false;
+        // Primitive branch — polymorphic isSubtypeOf covers ANY-acceptance, primitive lattice,
+        // and rejection of non-primitive inputs uniformly.
+        if (branchType instanceof Primitive branchPrim) {
+            return inputType.isSubtypeOf(branchPrim);
         }
-        // Non-primitive branch (class, enum) — nominal name equality.
+        // Class branch — walk the superclass chain via ModelContext so Employee matches a
+        // Person branch (and cross-project lazy-loaded classes resolve correctly).
+        if (branchType instanceof Type.ClassType branchCt && inputType instanceof Type.ClassType inputCt) {
+            return env.modelContext().isClassSubtype(inputCt.qualifiedName(), branchCt.qualifiedName());
+        }
+        // Enum (or other nominal type) — nominal FQN equality; enums have no hierarchy.
         return branchType.typeName().equals(inputType.typeName());
     }
 

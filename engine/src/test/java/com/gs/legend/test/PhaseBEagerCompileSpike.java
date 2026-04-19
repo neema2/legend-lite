@@ -8,6 +8,7 @@ import com.gs.legend.model.def.ClassDefinition;
 import com.gs.legend.model.def.FunctionDefinition;
 import com.gs.legend.model.def.PackageableElement;
 import com.gs.legend.parser.PureParser;
+import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Type;
 
 import org.junit.jupiter.api.*;
@@ -334,16 +335,16 @@ class PhaseBEagerCompileSpike {
     /** Map a Pure primitive/class type name to a Type for CompilationContext binding. */
     private static Type mapTypeName(String pureType) {
         return switch (pureType) {
-            case "String" -> Type.Primitive.STRING;
-            case "Integer" -> Type.Primitive.INTEGER;
-            case "Boolean" -> Type.Primitive.BOOLEAN;
-            case "Float" -> Type.Primitive.FLOAT;
+            case "String" -> Primitive.STRING;
+            case "Integer" -> Primitive.INTEGER;
+            case "Boolean" -> Primitive.BOOLEAN;
+            case "Float" -> Primitive.FLOAT;
             case "Decimal" -> Type.DEFAULT_DECIMAL;
-            case "Date" -> Type.Primitive.DATE;
-            case "DateTime" -> Type.Primitive.DATE_TIME;
-            case "StrictDate" -> Type.Primitive.STRICT_DATE;
-            case "Number" -> Type.Primitive.NUMBER;
-            case "Any" -> Type.Primitive.ANY;
+            case "Date" -> Primitive.DATE;
+            case "DateTime" -> Primitive.DATE_TIME;
+            case "StrictDate" -> Primitive.STRICT_DATE;
+            case "Number" -> Primitive.NUMBER;
+            case "Any" -> Primitive.ANY;
             default -> new Type.ClassType(pureType); // user class
         };
     }

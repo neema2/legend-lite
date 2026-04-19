@@ -179,7 +179,7 @@ public record RelationalMapping(
             // Map ALL properties — for struct literals, every property is a physical column,
             // including collections (arrays needing UNNEST) and class-typed (nested structs).
             SqlDataType sqlType;
-            if (prop.type() instanceof com.gs.legend.model.m3.Type.Primitive pr) {
+            if (prop.type() instanceof com.gs.legend.model.m3.Primitive pr) {
                 sqlType = SqlDataType.fromPrimitive(pr);
             } else {
                 // Class-typed or enum-typed property → use VARIANT (JSON/struct)
@@ -220,7 +220,7 @@ public record RelationalMapping(
         var mappings = new java.util.ArrayList<PropertyMapping>();
         for (var prop : pureClass.allProperties(ctx)) {
             String pureType = null;
-            if (prop.type() instanceof com.gs.legend.model.m3.Type.Primitive pr) {
+            if (prop.type() instanceof com.gs.legend.model.m3.Primitive pr) {
                 pureType = pr.pureName();
             }
             String expr = "->get('" + prop.name() + "'" +

@@ -39,9 +39,24 @@ public sealed interface PType {
          */
         public com.gs.legend.model.m3.Type toGenericType() {
             if ("Decimal".equals(name)) return com.gs.legend.model.m3.Type.DEFAULT_DECIMAL;
-            // Null signals a signature-layer marker like JoinKind / DurationUnit.
-            // Primitive.lookup() stays narrow until PType is deleted in chunk 2.5d.
-            return com.gs.legend.model.m3.Type.Primitive.lookup(name).orElse(null);
+            // PType.Concrete's {@code name} is whatever was written in the native function
+            // signature string — typically a simple name like "Integer" or "String" (authors
+            // of signature templates don't FQN-prefix). Scan {@link Primitive#ALL} three ways:
+            //   (1) pureName     — e.g., "Integer" matches Primitive.INTEGER
+            //   (2) qualifiedName — e.g., "meta::pure::metamodel::type::Integer" also works
+            //   (3) simpleName of the FQN — covers primitives whose pureName differs from
+            //       their Pure-source token (e.g., VARIANT's pureName is "JSON" for dialect
+            //       compatibility, but Pure source and signatures write "Variant").
+            // A non-primitive name (e.g., "JoinKind", "DurationUnit") returns null,
+            // signalling a signature-layer marker for the caller to resolve against the model.
+            //
+            // Transitional: once PType is deleted in chunk 2.5d this method goes away.
+            for (var p : com.gs.legend.model.m3.Primitive.ALL) {
+                if (p.pureName().equals(name)
+                        || p.qualifiedName().equals(name)
+                        || p.simpleName().equals(name)) return p;
+            }
+            return null;
         }
     }
 

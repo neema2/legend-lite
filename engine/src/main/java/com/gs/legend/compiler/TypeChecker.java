@@ -31,6 +31,7 @@ import com.gs.legend.model.def.ProfileDefinition;
 import com.gs.legend.model.def.RuntimeDefinition;
 import com.gs.legend.model.def.ServiceDefinition;
 import com.gs.legend.parser.PureParser;
+import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Type;
 
 import java.util.*;
@@ -356,21 +357,21 @@ public class TypeChecker implements TypeCheckEnv {
             case Variable v -> compileVariable(v, ctx);
             case AppliedProperty ap -> compileProperty(ap, ctx);
             case PackageableElementPtr pe -> resolvePackageableElement(pe);
-            case TypeAnnotation ta -> scalarTyped(ta, Type.Primitive.STRING);
+            case TypeAnnotation ta -> scalarTyped(ta, Primitive.STRING);
             case PureCollection coll -> compileCollection(coll, ctx);
             // Literals — scalar with known type
             case CInteger i -> scalarTyped(i, classifyInteger(i));
-            case CFloat f -> scalarTyped(f, Type.Primitive.FLOAT);
+            case CFloat f -> scalarTyped(f, Primitive.FLOAT);
             case CDecimal d -> scalarTyped(d, classifyDecimal(d));
-            case CString s -> scalarTyped(s, Type.Primitive.STRING);
-            case CBoolean b -> scalarTyped(b, Type.Primitive.BOOLEAN);
-            case CDateTime dt -> scalarTyped(dt, Type.Primitive.DATE_TIME);
-            case CStrictDate sd -> scalarTyped(sd, Type.Primitive.STRICT_DATE);
-            case CStrictTime st -> scalarTyped(st, Type.Primitive.STRICT_TIME);
-            case CLatestDate ld -> scalarTyped(ld, Type.Primitive.DATE_TIME);
-            case CByteArray ba -> scalarTyped(ba, Type.Primitive.STRING);
+            case CString s -> scalarTyped(s, Primitive.STRING);
+            case CBoolean b -> scalarTyped(b, Primitive.BOOLEAN);
+            case CDateTime dt -> scalarTyped(dt, Primitive.DATE_TIME);
+            case CStrictDate sd -> scalarTyped(sd, Primitive.STRICT_DATE);
+            case CStrictTime st -> scalarTyped(st, Primitive.STRICT_TIME);
+            case CLatestDate ld -> scalarTyped(ld, Primitive.DATE_TIME);
+            case CByteArray ba -> scalarTyped(ba, Primitive.STRING);
             case EnumValue ev -> scalarTyped(ev, new Type.EnumType(ev.fullPath()));
-            case UnitInstance ui -> scalarTyped(ui, Type.Primitive.FLOAT);
+            case UnitInstance ui -> scalarTyped(ui, Primitive.FLOAT);
         };
     }
 
@@ -729,25 +730,17 @@ public class TypeChecker implements TypeCheckEnv {
     }
 
     /**
-     * Unified subtype check for all GenericTypes.
-     * Primitive hierarchy via Primitive.isSubtypeOf.
-     * Class hierarchy via model superclass walk.
+     * Unified subtype check for all {@link Type}s.
+     * <ul>
+     *   <li>Primitive hierarchy — delegated to polymorphic {@link Primitive#isSubtypeOf}.</li>
+     *   <li>Class hierarchy — delegated to {@link ModelContext#isClassSubtype}.</li>
+     *   <li>Other Type variants — equality only (handled by Type's default isSubtypeOf).</li>
+     * </ul>
      */
     private boolean isSubtype(Type actual, Type declared) {
-        if (actual.typeName().equals(declared.typeName())) return true;
-        if (declared == Type.Primitive.ANY) return true;
-        if (actual.isPrimitive() && declared.isPrimitive()) {
-            return actual.asPrimitive().isSubtypeOf(declared.asPrimitive());
-        }
-        if (actual instanceof Type.ClassType ct && modelContext != null) {
-            var cls = modelContext.findClass(ct.qualifiedName());
-            if (cls.isPresent()) {
-                for (String superFqn : cls.get().superClassFqns()) {
-                    if (isSubtype(new Type.ClassType(superFqn), declared)) {
-                        return true;
-                    }
-                }
-            }
+        if (actual.isSubtypeOf(declared)) return true;
+        if (actual instanceof Type.ClassType ac && declared instanceof Type.ClassType dc && modelContext != null) {
+            return modelContext.isClassSubtype(ac.qualifiedName(), dc.qualifiedName());
         }
         return false;
     }
@@ -1160,7 +1153,7 @@ public class TypeChecker implements TypeCheckEnv {
                         List.of(ownerFn, new CString(ap.property())));
                 var info = TypeInfo.builder()
                         .inlinedBody(extractNode)
-                        .expressionType(ExpressionType.one(Type.Primitive.ANY)).build();
+                        .expressionType(ExpressionType.one(Primitive.ANY)).build();
                 types.put(ap, info);
                 return info;
             }
@@ -1236,7 +1229,7 @@ public class TypeChecker implements TypeCheckEnv {
                 List.of(structSource, new CString(ap.property())));
         // Resolve type from model — the struct source has ClassType
         TypeInfo srcInfo = types.get(structSource);
-        Type fieldType = Type.Primitive.ANY;
+        Type fieldType = Primitive.ANY;
         if (srcInfo != null && srcInfo.type() instanceof Type.ClassType(String qn) && modelContext != null) {
             var classOpt = modelContext.findClass(qn);
             if (classOpt.isPresent()) {
@@ -1285,17 +1278,17 @@ public class TypeChecker implements TypeCheckEnv {
             return info.type();
         // Fall back to pattern matching on literal types
         return switch (vs) {
-            case CInteger i -> Type.Primitive.INTEGER;
-            case CFloat f -> Type.Primitive.FLOAT;
+            case CInteger i -> Primitive.INTEGER;
+            case CFloat f -> Primitive.FLOAT;
             case CDecimal d -> Type.DEFAULT_DECIMAL;
-            case CString s -> Type.Primitive.STRING;
-            case CBoolean b -> Type.Primitive.BOOLEAN;
-            case CDateTime dt -> Type.Primitive.DATE_TIME;
-            case CStrictDate sd -> Type.Primitive.STRICT_DATE;
-            case CStrictTime st -> Type.Primitive.STRICT_TIME;
-            case CLatestDate ld -> Type.Primitive.DATE_TIME;
+            case CString s -> Primitive.STRING;
+            case CBoolean b -> Primitive.BOOLEAN;
+            case CDateTime dt -> Primitive.DATE_TIME;
+            case CStrictDate sd -> Primitive.STRICT_DATE;
+            case CStrictTime st -> Primitive.STRICT_TIME;
+            case CLatestDate ld -> Primitive.DATE_TIME;
             case PureCollection c -> unifyElementType(c.values());
-            default -> Type.Primitive.ANY;
+            default -> Primitive.ANY;
         };
     }
 
@@ -1307,14 +1300,14 @@ public class TypeChecker implements TypeCheckEnv {
      */
     private Type unifyElementType(java.util.List<ValueSpecification> values) {
         if (values.isEmpty())
-            return Type.Primitive.ANY;
+            return Primitive.ANY;
         var elementTypes = values.stream().map(this::typeOf).distinct().toList();
         if (elementTypes.size() == 1)
             return elementTypes.getFirst();
         if (elementTypes.stream().allMatch(Type::isNumeric))
-            return Type.Primitive.NUMBER;
+            return Primitive.NUMBER;
         if (elementTypes.stream().allMatch(Type::isTemporal))
-            return Type.Primitive.DATE;
+            return Primitive.DATE;
         // All ClassTypes: try to find common supertype
         if (elementTypes.stream().allMatch(t -> t instanceof Type.ClassType) && modelContext != null) {
             var classTypes = elementTypes.stream()
@@ -1324,12 +1317,12 @@ public class TypeChecker implements TypeCheckEnv {
             for (int i = 1; i < classTypes.size(); i++) {
                 var lcaOpt = modelContext.findLowestCommonAncestor(current, classTypes.get(i));
                 if (lcaOpt.isEmpty())
-                    return Type.Primitive.ANY;
+                    return Primitive.ANY;
                 current = lcaOpt.get().qualifiedName();
             }
             return new Type.ClassType(current);
         }
-        return Type.Primitive.ANY;
+        return Primitive.ANY;
     }
 
     // ========== Compilation Context ==========
@@ -1406,13 +1399,13 @@ public class TypeChecker implements TypeCheckEnv {
      */
     private static Type classifyInteger(CInteger ci) {
         if (ci.value() instanceof java.math.BigInteger) {
-            return Type.Primitive.INT128;
+            return Primitive.INT128;
         }
         long v = ci.value().longValue();
         if (v > Integer.MAX_VALUE || v < Integer.MIN_VALUE) {
-            return Type.Primitive.INT128;
+            return Primitive.INT128;
         }
-        return Type.Primitive.INTEGER;
+        return Primitive.INTEGER;
     }
 
     /**

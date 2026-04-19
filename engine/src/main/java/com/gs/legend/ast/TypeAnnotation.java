@@ -1,6 +1,7 @@
 package com.gs.legend.ast;
 
 import com.gs.legend.model.ModelContext;
+import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Type;
 
 import java.util.LinkedHashMap;
@@ -82,7 +83,7 @@ public sealed interface TypeAnnotation extends ValueSpecification {
         Objects.requireNonNull(ctx, "ModelContext must not be null");
         return switch (this) {
             case Named(String path) -> Type.resolve(path, ctx);
-            case Wildcard() -> Type.Primitive.ANY;
+            case Wildcard() -> Primitive.ANY;
             case RelationShape(List<RelationShape.Column> cols) -> {
                 Map<String, Type> m = new LinkedHashMap<>();
                 for (var c : cols) {

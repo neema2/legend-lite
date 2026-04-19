@@ -3,6 +3,7 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
+import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Type;
 
 import java.util.LinkedHashMap;
@@ -68,7 +69,7 @@ public class FlattenChecker extends AbstractChecker {
 
         // 5. Output schema: same as source, but flattened column → JSON type
         Map<String, Type> resultColumns = new LinkedHashMap<>(sourceSchema.columns());
-        resultColumns.put(colName, Type.Primitive.JSON);
+        resultColumns.put(colName, Primitive.VARIANT);
 
         var flattenRelType = new Type.Schema(
                 resultColumns, sourceSchema.dynamicPivotColumns());

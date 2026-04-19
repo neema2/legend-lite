@@ -3,6 +3,7 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
 import com.gs.legend.model.SymbolTable;
+import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Type;
 
 import java.util.*;
@@ -291,8 +292,13 @@ public class ExtendChecker extends AbstractChecker {
         }
 
         // === Scalar/ranking/window fn1-only ===
-        Type returnType = fn1Result.type() != null
-                ? fn1Result.type() : Type.Primitive.NUMBER;
+        // No fallback — if the compiler couldn't infer a type for the lambda body, that's
+        // a compiler bug, not something to paper over with a default primitive.
+        if (fn1Result.type() == null) {
+            throw new PureCompileException(
+                    "extend(): lambda for column '" + cs.name() + "' has no inferred type — fix TypeChecker");
+        }
+        Type returnType = fn1Result.type();
 
         // For window extends, look up the function resolved by ScalarChecker during
         // compileLambdaBody — no re-resolution needed.
@@ -330,8 +336,12 @@ public class ExtendChecker extends AbstractChecker {
         }
 
         TypeInfo fn1Result = compileLambdaBody(fn1, fn1Ctx);
-        Type returnType = fn1Result.type() != null
-                ? fn1Result.type() : Type.Primitive.STRING;
+        // No fallback — the compiler must infer a type for every lambda body.
+        if (fn1Result.type() == null) {
+            throw new PureCompileException(
+                    "extend(): lambda for column '" + alias + "' has no inferred type — fix TypeChecker");
+        }
+        Type returnType = fn1Result.type();
         return new ColSpecResult(alias, returnType, null);
     }
 
@@ -382,9 +392,20 @@ public class ExtendChecker extends AbstractChecker {
         }
         NativeFunctionDef resolved = innerInfo.resolvedFunc();
 
-        // Return type refinement
+        // Return type refinement — retrofit for under-specified aggregate signatures.
+        //
+        // Aggregates like {@code sum(Number[*]):Number[1]} use generic Number in their native
+        // signatures because the signature grammar doesn't express type-dependent returns
+        // cleanly. In practice sum/min/max/etc. preserve their input numeric type (sum of
+        // Integer is Integer, not Number). This branch compensates by refining the declared
+        // Number return to the input column's concrete numeric type.
+        //
+        // TODO phase-2.5d: rewrite affected native signatures with generic T bounded by Number
+        //   (e.g., {@code sum<T>(col:T[*] where T extends Number):T[1]}) and delete this
+        //   refinement. Any aggregate that legitimately returns Number (not T) must be
+        //   audited — today this code silently downgrades them.
         Type returnType = fn2Result.type();
-        if (returnType == Type.Primitive.NUMBER && fn1Result.type() != null
+        if (returnType == Primitive.NUMBER && fn1Result.type() != null
                 && fn1Result.type().isNumeric()) {
             returnType = fn1Result.type();
         }

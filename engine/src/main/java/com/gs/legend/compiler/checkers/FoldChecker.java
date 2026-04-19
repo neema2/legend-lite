@@ -4,6 +4,7 @@ import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
 import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.m3.Multiplicity;
+import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Type;
 
 import java.util.*;
@@ -81,8 +82,8 @@ public class FoldChecker extends AbstractChecker {
         compileLambdaBody(lambda, lambdaCtx);
 
         // 5. Classify strategy from resolved T, V
-        Type resolvedT = bindings.getOrDefault("T", Type.Primitive.ANY);
-        Type resolvedV = bindings.getOrDefault("V", Type.Primitive.ANY);
+        Type resolvedT = bindings.getOrDefault("T", Primitive.ANY);
+        Type resolvedV = bindings.getOrDefault("V", Primitive.ANY);
         TypeInfo.FoldSpec spec = classifyFold(lambda, resolvedT, resolvedV,
                 initInfo.expressionType().multiplicity(), ctx, source);
 

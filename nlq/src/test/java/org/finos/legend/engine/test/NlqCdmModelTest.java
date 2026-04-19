@@ -188,7 +188,7 @@ class NlqCdmModelTest {
             for (Property p : pc.allProperties(modelBuilder)) {
                 Type t = p.type();
                 if (t instanceof Type.EnumType) enumProps++;
-                else if (t instanceof Type.Primitive) primitiveProps++;
+                else if (t instanceof Primitive) primitiveProps++;
                 else if (t instanceof Type.ClassType) classProps++;
             }
         }

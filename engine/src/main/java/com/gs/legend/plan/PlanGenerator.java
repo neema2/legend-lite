@@ -6,6 +6,7 @@ import com.gs.legend.compiler.PureCompileException;
 import com.gs.legend.compiler.TypeChecker;
 import com.gs.legend.compiler.StoreResolution;
 import com.gs.legend.compiler.TypeInfo;
+import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Type;
 import com.gs.legend.sqlgen.SQLDialect;
 import com.gs.legend.sqlgen.SqlBuilder;
@@ -2562,7 +2563,7 @@ public class PlanGenerator {
             case CInteger i -> {
                 // Check compiler type annotation for precision
                 TypeInfo tiInt = unit.typeInfoFor(i);
-                if (tiInt != null && tiInt.type() == Type.Primitive.INT128) {
+                if (tiInt != null && tiInt.type() == Primitive.INT128) {
                     yield new SqlExpr.Cast(new SqlExpr.NumericLiteral(i.value()), "Int128");
                 }
                 yield new SqlExpr.NumericLiteral(i.value());
@@ -2723,7 +2724,7 @@ public class PlanGenerator {
                     // Check TypeInfo for string type (e.g., lambda param x: String[1])
                     for (var p : params) {
                         TypeInfo pti = unit.types().get(p);
-                        if (pti != null && pti.type() == Type.Primitive.STRING) {
+                        if (pti != null && pti.type() == Primitive.STRING) {
                             isStringConcat = true;
                             break;
                         }
@@ -3396,7 +3397,7 @@ public class PlanGenerator {
                 if (dateTypeInfo != null && dateTypeInfo.isDateType()) {
                     // Literal date path: TO_DAYS/TO_WEEKS + origin + CAST
                     // Pass type info so dialect can render correctly
-                    String castType = (dateTypeInfo.type() == Type.Primitive.DATE_TIME)
+                    String castType = (dateTypeInfo.type() == Primitive.DATE_TIME)
                             ? "TimestampNS" : "Date";
                     yield new SqlExpr.FunctionCall("timeBucketScalar",
                             List.of(quantityExpr, new SqlExpr.StringLiteral(tbUnit),
@@ -4049,7 +4050,7 @@ public class PlanGenerator {
                 // For toMany(@Variant), type is JSON — resolveVariantSqlType returns null,
                 // but we still need CAST(source AS JSON[]) to unnest the JSON array
                 if (elemType == null && info != null
-                        && info.type() == Type.Primitive.JSON) {
+                        && info.type() == Primitive.VARIANT) {
                     elemType = "JSON";
                 }
                 yield elemType != null ? new SqlExpr.VariantArrayCast(source, elemType) : source;
@@ -4092,7 +4093,7 @@ public class PlanGenerator {
                     TypeInfo castInfo = unit.typeInfoFor(af);
                     if (castInfo != null && castInfo.isMany()) {
                         Type elemType = castInfo.type();
-                        if (elemType != null && elemType != Type.Primitive.ANY) {
+                        if (elemType != null && elemType != Primitive.ANY) {
                             String sqlType = dialect.sqlTypeName(elemType.typeName());
                             yield new SqlExpr.VariantArrayCast(source, sqlType);
                         }
@@ -4115,7 +4116,7 @@ public class PlanGenerator {
                     SqlExpr list = c.apply(params.get(0));
                     // If source is a variant (JSON), wrap in CAST(AS JSON[]) for array iteration
                     TypeInfo sourceInfo = unit.types().get(params.get(0));
-                    if (sourceInfo != null && sourceInfo.type() == Type.Primitive.JSON) {
+                    if (sourceInfo != null && sourceInfo.type() == Primitive.VARIANT) {
                         list = new SqlExpr.VariantArrayCast(list, dialect.sqlTypeName("JSON"));
                     }
                     String elemParam = parameters.isEmpty() ? "x"
@@ -4349,7 +4350,7 @@ public class PlanGenerator {
     private String resolveVariantSqlType(TypeInfo info) {
         if (info == null) return null;
         Type t = info.type();
-        if (t == Type.Primitive.ANY || t == Type.Primitive.JSON) return null;
+        if (t == Primitive.ANY || t == Primitive.VARIANT) return null;
         return dialect.sqlTypeName(t.typeName());
     }
 

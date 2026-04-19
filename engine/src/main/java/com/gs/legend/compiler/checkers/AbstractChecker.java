@@ -3,6 +3,7 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
 import com.gs.legend.model.m3.Multiplicity;
+import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Type;
 
 import java.util.LinkedHashMap;
@@ -228,25 +229,30 @@ public abstract class AbstractChecker implements FunctionChecker {
      */
     private int scoreParamType(PType declaredType, Type actualType) {
         if (declaredType instanceof PType.Concrete c) {
-            // Normalize PrecisionDecimal → DECIMAL for scoring
+            // Normalize PrecisionDecimal → Primitive.DECIMAL on BOTH sides so scoring
+            // compares nominal primitives. A PrecisionDecimal(38,2) actual should score
+            // as exact-match against a "Decimal" signature parameter — and c.toGenericType()
+            // returns Type.DEFAULT_DECIMAL (a PrecisionDecimal) for "Decimal", so we must
+            // flatten that too.
             if (actualType instanceof Type.PrecisionDecimal) {
-                actualType = Type.Primitive.DECIMAL;
+                actualType = Primitive.DECIMAL;
             }
             // EnumType: exact match if names equal, else incompatible
             if (actualType instanceof Type.EnumType et) {
                 return et.typeName().equals(c.name()) ? 2 : -1;
             }
             if ("Any".equals(c.name())) return 0; // Any accepts everything, lowest priority
-            if (!(actualType instanceof Type.Primitive actualPrim)) {
+            if (!(actualType instanceof Primitive actualPrim)) {
                 return -1;
             }
-            // lookup() stays narrow — signature-marker names (JoinKind, DurationUnit)
-            // are neither primitives nor in ModelContext. Dies with PType in chunk 2.5d.
-            Type.Primitive declared = Type.Primitive.lookup(c.name()).orElse(null);
-            if (declared == null) return -1;
-            if (actualPrim == declared) return 2;            // exact match
-            if (actualPrim.isSubtypeOf(declared)) return 1;  // subtype match
-            return -1;                                        // incompatible
+            Type declared = c.toGenericType();
+            if (declared instanceof Type.PrecisionDecimal) {
+                declared = Primitive.DECIMAL;
+            }
+            if (!(declared instanceof Primitive declaredPrim)) return -1;
+            if (actualPrim == declaredPrim) return 2;             // exact match
+            if (actualPrim.isSubtypeOf(declaredPrim)) return 1;   // subtype match
+            return -1;
         }
         // TypeVar or Parameterized — always applicable but lowest priority
         return 0;
@@ -433,26 +439,31 @@ public abstract class AbstractChecker implements FunctionChecker {
     /**
      * Checks if a compiled type is compatible with a declared Concrete type name.
      * Compatible means: exact match or the actual type is a subtype of the declared type.
+     *
+     * <p>Mirrors the normalization in {@link #scoreParamType}: any {@link Type.PrecisionDecimal}
+     * (on either side) flattens to {@link Primitive#DECIMAL} so precision differences don't
+     * spuriously reject a PrecisionDecimal(38,1) actual against a declared {@code "Decimal"}
+     * parameter.
      */
     private boolean isConcreteCompatible(String declaredName, Type actualType) {
+        if (actualType instanceof Type.PrecisionDecimal) {
+            actualType = Primitive.DECIMAL;
+        }
         // EnumType: match if the enum's simple name equals the declared name
         if (actualType instanceof Type.EnumType et) {
             return et.typeName().equals(declaredName);
         }
-        // PrecisionDecimal → normalize to Primitive.DECIMAL for subtype checks
-        if (actualType instanceof Type.PrecisionDecimal) {
-            actualType = Type.Primitive.DECIMAL;
+        if ("Any".equals(declaredName)) return true;
+        // Resolve the declared simple name to a Type via the same path the scorer uses.
+        // Returns null for signature-layer markers (JoinKind, DurationUnit, _Window, ...).
+        Type declared = new PType.Concrete(declaredName).toGenericType();
+        if (declared instanceof Type.PrecisionDecimal) {
+            declared = Primitive.DECIMAL;
         }
-        if (!(actualType instanceof Type.Primitive actualPrim)) {
-            // Non-primitive (ClassType, Relation, etc.) — only "Any" accepts these
-            return "Any".equals(declaredName);
-        }
-        // lookup() stays narrow here too — dies with PType in chunk 2.5d.
-        Type.Primitive declared = Type.Primitive.lookup(declaredName).orElse(null);
         if (declared == null) return false;
-        // Any (from empty collections []) is covariant with all types
-        if (actualPrim == Type.Primitive.ANY) return true;
-        return actualPrim == declared || actualPrim.isSubtypeOf(declared);
+        // Any (from empty collections []) is covariant with all types.
+        if (actualType == Primitive.ANY) return true;
+        return actualType.equals(declared) || actualType.isSubtypeOf(declared);
     }
 
 
@@ -560,14 +571,14 @@ public abstract class AbstractChecker implements FunctionChecker {
                 // Normalize: PrecisionDecimal → DECIMAL
                 Type normalized = actual;
                 if (normalized instanceof Type.PrecisionDecimal) {
-                    normalized = Type.Primitive.DECIMAL;
+                    normalized = Primitive.DECIMAL;
                 }
                 Type existing = bindings.get(v.name());
                 if (existing != null) {
                     // Check compatibility: normalize existing for comparison too
                     Type existNorm = existing;
                     if (existNorm instanceof Type.PrecisionDecimal) {
-                        existNorm = Type.Primitive.DECIMAL;
+                        existNorm = Primitive.DECIMAL;
                     }
                     if (!existNorm.typeName().equals(normalized.typeName())
                             && !"Any".equals(existing.typeName())
@@ -627,23 +638,23 @@ public abstract class AbstractChecker implements FunctionChecker {
                 }
                 // Use subtype hierarchy: Integer is subtype of Number, Number of Any, etc.
                 // Any is the top type — accepts everything
-                if (g == Type.Primitive.ANY) {
+                if (g == Primitive.ANY) {
                     return; // Any accepts all types
                 }
                 // Normalize actual AND signature type:
                 //   PrecisionDecimal → DECIMAL (for both)
                 Type gNorm = g;
                 if (gNorm instanceof Type.PrecisionDecimal) {
-                    gNorm = Type.Primitive.DECIMAL;
+                    gNorm = Primitive.DECIMAL;
                 }
                 Type norm = actual;
                 if (norm instanceof Type.PrecisionDecimal) {
-                    norm = Type.Primitive.DECIMAL;
+                    norm = Primitive.DECIMAL;
                 }
-                if (gNorm instanceof Type.Primitive expectedPrim
-                        && norm instanceof Type.Primitive actualPrim) {
+                if (gNorm instanceof Primitive expectedPrim
+                        && norm instanceof Primitive actualPrim) {
                     // Any (from empty collections []) is covariant with all types
-                    if (actualPrim == Type.Primitive.ANY) {
+                    if (actualPrim == Primitive.ANY) {
                         return;
                     }
                     if (!actualPrim.isSubtypeOf(expectedPrim)) {
@@ -699,7 +710,7 @@ public abstract class AbstractChecker implements FunctionChecker {
                     }
                     // Meta-model types that map to String in SQL context
                     if ("Type".equals(c.name())) {
-                        yield Type.Primitive.STRING;
+                        yield Primitive.STRING;
                     }
                     throw new PureCompileException(
                             context + ": unresolvable concrete type: " + c.name());

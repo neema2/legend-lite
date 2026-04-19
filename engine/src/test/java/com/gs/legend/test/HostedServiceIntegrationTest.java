@@ -348,10 +348,10 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
         var rows = java.util.List.of(
                 new com.gs.legend.exec.Row(java.util.List.of(1, "test", true, 42.5)));
         var schema = new Type.Schema(
-                java.util.Map.of("id", com.gs.legend.model.m3.Type.Primitive.INTEGER,
-                        "name", com.gs.legend.model.m3.Type.Primitive.STRING,
-                        "active", com.gs.legend.model.m3.Type.Primitive.BOOLEAN,
-                        "value", com.gs.legend.model.m3.Type.Primitive.FLOAT),
+                java.util.Map.of("id", com.gs.legend.model.m3.Primitive.INTEGER,
+                        "name", com.gs.legend.model.m3.Primitive.STRING,
+                        "active", com.gs.legend.model.m3.Primitive.BOOLEAN,
+                        "value", com.gs.legend.model.m3.Primitive.FLOAT),
                 java.util.List.of());
         var result = new com.gs.legend.exec.ExecutionResult.TabularResult(
                 columns, rows, schema, new com.gs.legend.model.m3.Type.Relation(schema));
@@ -374,8 +374,8 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
         var rows = java.util.List.of(
                 new com.gs.legend.exec.Row(java.util.Arrays.asList("NoAddress", null)));
         var schema = new Type.Schema(
-                java.util.Map.of("firstName", com.gs.legend.model.m3.Type.Primitive.STRING,
-                        "street", com.gs.legend.model.m3.Type.Primitive.STRING),
+                java.util.Map.of("firstName", com.gs.legend.model.m3.Primitive.STRING,
+                        "street", com.gs.legend.model.m3.Primitive.STRING),
                 java.util.List.of());
         var result = new com.gs.legend.exec.ExecutionResult.TabularResult(
                 columns, rows, schema, new com.gs.legend.model.m3.Type.Relation(schema));
@@ -396,8 +396,8 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
         var rows = java.util.List.of(
                 new com.gs.legend.exec.Row(java.util.List.of("Quote\"Test", "Tab\tPerson")));
         var schema = new Type.Schema(
-                java.util.Map.of("firstName", com.gs.legend.model.m3.Type.Primitive.STRING,
-                        "lastName", com.gs.legend.model.m3.Type.Primitive.STRING),
+                java.util.Map.of("firstName", com.gs.legend.model.m3.Primitive.STRING,
+                        "lastName", com.gs.legend.model.m3.Primitive.STRING),
                 java.util.List.of());
         var result = new com.gs.legend.exec.ExecutionResult.TabularResult(
                 columns, rows, schema, new com.gs.legend.model.m3.Type.Relation(schema));

@@ -76,7 +76,7 @@ class StressDomainTest {
 
         // ---- Phase 1b: Rebuild from same source (warm — ParseCache hit) ----
         long t1b = System.nanoTime();
-        var builder2 = new com.gs.legend.model.PureModelBuilder().addSource(model);
+        new com.gs.legend.model.PureModelBuilder().addSource(model);
         long rebuildMs = (System.nanoTime() - t1b) / 1_000_000;
         System.out.println("Phase 1b (rebuild same source, cache hit): " + rebuildMs + " ms"
                 + " (speedup: " + (buildMs > 0 ? buildMs + "/" + rebuildMs + " = " + (buildMs / Math.max(rebuildMs, 1)) + "x" : "N/A") + ")");

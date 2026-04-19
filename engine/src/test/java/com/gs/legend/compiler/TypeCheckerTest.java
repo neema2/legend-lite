@@ -5,6 +5,7 @@ import com.gs.legend.compiled.CompiledExpression;
 import com.gs.legend.model.store.Column;
 import com.gs.legend.model.store.SqlDataType;
 import com.gs.legend.model.store.Table;
+import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Type;
 import com.gs.legend.plan.PlanGenerator;
 
@@ -62,12 +63,12 @@ class TypeCheckerTest {
 
         Type.Schema rt = unit.typeInfoFor(unit.ast()).schema();
         assertEquals(6, rt.size(), "Should have 6 columns");
-        assertEquals(Type.Primitive.STRING, rt.requireColumn("FIRST_NAME"));
-        assertEquals(Type.Primitive.STRING, rt.requireColumn("LAST_NAME"));
-        assertEquals(Type.Primitive.INTEGER, rt.requireColumn("AGE"));
-        assertEquals(Type.Primitive.FLOAT, rt.requireColumn("SALARY"));
-        assertEquals(Type.Primitive.STRICT_DATE, rt.requireColumn("HIRE_DATE"));
-        assertEquals(Type.Primitive.BOOLEAN, rt.requireColumn("ACTIVE"));
+        assertEquals(Primitive.STRING, rt.requireColumn("FIRST_NAME"));
+        assertEquals(Primitive.STRING, rt.requireColumn("LAST_NAME"));
+        assertEquals(Primitive.INTEGER, rt.requireColumn("AGE"));
+        assertEquals(Primitive.FLOAT, rt.requireColumn("SALARY"));
+        assertEquals(Primitive.STRICT_DATE, rt.requireColumn("HIRE_DATE"));
+        assertEquals(Primitive.BOOLEAN, rt.requireColumn("ACTIVE"));
     }
 
     @Test
@@ -78,8 +79,8 @@ class TypeCheckerTest {
         // Filter preserves ALL columns from source
         Type.Schema rt = unit.typeInfoFor(unit.ast()).schema();
         assertEquals(6, rt.size(), "Filter doesn't change column set");
-        assertEquals(Type.Primitive.INTEGER, rt.requireColumn("AGE"));
-        assertEquals(Type.Primitive.STRING, rt.requireColumn("FIRST_NAME"));
+        assertEquals(Primitive.INTEGER, rt.requireColumn("AGE"));
+        assertEquals(Primitive.STRING, rt.requireColumn("FIRST_NAME"));
     }
 
     @Test
@@ -114,7 +115,7 @@ class TypeCheckerTest {
         Type.Schema rt = unit.typeInfoFor(unit.ast()).schema();
         assertFalse(rt.hasColumn("FIRST_NAME"), "Old column name should be gone");
         assertTrue(rt.hasColumn("NAME"), "New column name should exist");
-        assertEquals(Type.Primitive.STRING, rt.requireColumn("NAME"));
+        assertEquals(Primitive.STRING, rt.requireColumn("NAME"));
     }
 
     @Test
@@ -131,7 +132,7 @@ class TypeCheckerTest {
 
         Type.Schema rt = unit.typeInfoFor(unit.ast()).schema();
         assertEquals(6, rt.size(), "Chained ops preserve columns");
-        assertEquals(Type.Primitive.INTEGER, rt.requireColumn("AGE"));
+        assertEquals(Primitive.INTEGER, rt.requireColumn("AGE"));
     }
 
     // ========== SQL Generation ==========
