@@ -1,5 +1,6 @@
 package com.gs.legend.server;
 
+import com.gs.legend.compiler.BuiltinClassRegistry;
 import com.gs.legend.model.PureModelBuilder;
 import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.m3.Association;
@@ -10,6 +11,7 @@ import com.gs.legend.util.Json;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Extracts diagram data (classes, associations, generalisations) from Pure source.
@@ -68,11 +70,17 @@ public final class DiagramService {
         Map<String, PureClass> allClasses = model.getAllClasses();
         Map<String, Association> allAssocs = model.getAllAssociations();
 
+        // Phase 2.5e: every fresh PureModelBuilder is pre-seeded with platform builtin
+        // classes (Pair, Relation stubs, ...). They are infrastructure, not part of the
+        // user's domain — skip them so they don't appear as phantom nodes in diagrams.
+        Set<String> builtinFqns = Set.copyOf(BuiltinClassRegistry.BUILTIN_CLASS_FQNS);
+
         List<ClassInfo> classes = new ArrayList<>();
         List<AssociationInfo> associations = new ArrayList<>();
         List<GeneralisationInfo> generalisations = new ArrayList<>();
 
         for (var entry : allClasses.entrySet()) {
+            if (builtinFqns.contains(entry.getKey())) continue;
             PureClass pc = entry.getValue();
 
             String stereotype = "";
@@ -116,6 +124,7 @@ public final class DiagramService {
         }
 
         for (var entry : allClasses.entrySet()) {
+            if (builtinFqns.contains(entry.getKey())) continue;
             PureClass pc = entry.getValue();
             for (String superFqn : pc.superClassFqns()) {
                 generalisations.add(new GeneralisationInfo(

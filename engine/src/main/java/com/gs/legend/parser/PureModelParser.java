@@ -836,8 +836,12 @@ public final class PureModelParser {
     /**
      * Convert a type string to Type.
      * Handles: simple types, Function&lt;{...}&gt;, bare {T[m]->R[m]}, Relation&lt;(...)&gt;.
+     *
+     * <p>Pure text → {@link Type} transform — no instance state needed. Exposed as {@code public
+     * static} (phase 2.5e) so {@link com.gs.legend.model.PureModelBuilder} can structurally parse
+     * class property-type strings rather than doing whole-string kind lookup on them.
      */
-    private Type parsePureType(String typeText) {
+    public static Type parsePureType(String typeText) {
         if (typeText == null || typeText.isEmpty()) return null;
 
         // Bare function type: {T[m]->R[m]}
@@ -874,7 +878,7 @@ public final class PureModelParser {
 
             // Other generics: just split type args
             return new Type.Parameterized(rawType,
-                    splitTypeArgs(inner).stream().map(this::parsePureType).toList());
+                    splitTypeArgs(inner).stream().map(PureModelParser::parsePureType).toList());
         }
 
         // Simple named type
@@ -882,7 +886,7 @@ public final class PureModelParser {
     }
 
     /** Parse function type body: "T[m],U[m]->R[m]" */
-    private Type.FunctionType parseFunctionTypeLiteral(String body) {
+    private static Type.FunctionType parseFunctionTypeLiteral(String body) {
         // Find the last -> to split params from return
         int arrowIdx = body.lastIndexOf("->");
         if (arrowIdx < 0) return null;
@@ -948,7 +952,7 @@ public final class PureModelParser {
     }
 
     /** Parse relation column specs: "NAME:Type,AGE:Type" */
-    private List<Type.RelationTypeVar.Column> parseRelationColumns(String colSpec) {
+    private static List<Type.RelationTypeVar.Column> parseRelationColumns(String colSpec) {
         List<Type.RelationTypeVar.Column> cols = new ArrayList<>();
         for (String part : splitTypeArgs(colSpec)) {
             part = part.trim();
@@ -963,7 +967,7 @@ public final class PureModelParser {
     }
 
     /** Split comma-separated type args respecting nesting depth. */
-    private List<String> splitTypeArgs(String s) {
+    private static List<String> splitTypeArgs(String s) {
         List<String> result = new ArrayList<>();
         int depth = 0;
         int start = 0;

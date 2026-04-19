@@ -2,7 +2,6 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
-import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.m3.PureClass;
 import com.gs.legend.model.m3.Type;
 
@@ -52,27 +51,13 @@ public class NewChecker extends AbstractChecker {
     }
 
     private PureClass resolveClass(InstanceData data) {
-        // Built-in Pure standard library types (no model context needed)
-        String simpleName = SymbolTable.extractSimpleName(data.className());
-
-        if ("Pair".equals(simpleName) && data.typeArguments().size() == 2) {
-            // Canonical Type.resolve — no per-site resolver, no leaky default.
-            // If a Pair type arg names an unknown type, Type.resolve will throw with a
-            // clear diagnostic instead of silently producing a bogus ClassType.
-            Type firstType = Type.resolve(data.typeArguments().get(0), env.modelContext());
-            Type secondType = Type.resolve(data.typeArguments().get(1), env.modelContext());
-            return new PureClass(
-                    SymbolTable.extractPackagePath(data.className()),
-                    "Pair", java.util.List.of(
-                            new com.gs.legend.model.m3.Property("first",
-                                    firstType,
-                                    com.gs.legend.model.m3.Multiplicity.ONE),
-                            new com.gs.legend.model.m3.Property("second",
-                                    secondType,
-                                    com.gs.legend.model.m3.Multiplicity.ONE)));
-        }
-
-        // Fall back to model context for user-defined classes
+        // Phase 2.5e: platform classes (Pair, ...) are seeded into every PureModelBuilder
+        // via BuiltinClassRegistry and auto-imported via BUILTIN_IMPORTS — so a simple-name
+        // lookup hits them just like a user-declared class. No hand-rolled synthesis
+        // required. The returned PureClass carries TypeVar property types (first: U, second: V
+        // for Pair), which is fine because the caller only uses findProperty(name) for
+        // name-based validation; monomorphization of the type args is handled elsewhere
+        // in the type-checker pipeline.
         var modelCtx = env.modelContext();
         if (modelCtx != null) {
             var found = modelCtx.findClass(data.className()).orElse(null);

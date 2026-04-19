@@ -1,6 +1,7 @@
 package com.gs.legend.model;
 import com.gs.legend.model.m3.Type;
 
+import com.gs.legend.compiler.BuiltinClassRegistry;
 import com.gs.legend.compiler.BuiltinRegistry;
 import com.gs.legend.model.def.*;
 import com.gs.legend.model.m3.*;
@@ -68,6 +69,18 @@ public final class PureModelBuilder implements ModelContext {
         }
         for (EnumDefinition platformEnum : BuiltinRegistry.PLATFORM_ENUMS) {
             addEnum(platformEnum);
+        }
+        for (ProfileDefinition platformProfile : BuiltinRegistry.PLATFORM_PROFILES) {
+            addProfile(platformProfile);
+        }
+        // Phase 2.5e: seed platform classes (Pair, Relation stubs, etc.) from the pre-parsed
+        // catalog. Two-pass registration mirrors addSource — stubs first so cross-references
+        // in the catalog resolve when the full addClass pass walks properties.
+        for (ClassDefinition cd : BuiltinClassRegistry.BUILTIN_CLASS_DEFINITIONS) {
+            registerClassStub(cd);
+        }
+        for (ClassDefinition cd : BuiltinClassRegistry.BUILTIN_CLASS_DEFINITIONS) {
+            addClass(cd);
         }
     }
 
@@ -376,10 +389,12 @@ public final class PureModelBuilder implements ModelContext {
         PureClass stub = new PureClass(
                 classDef.packagePath(),
                 classDef.simpleName(),
+                classDef.typeParams(),
                 List.<String>of(), // superClassFqns — populated in addClass
                 List.of(),         // no properties yet
                 classDef.stereotypes(),
-                classDef.taggedValues());
+                classDef.taggedValues(),
+                classDef.isNative());
         idPut(classes, symbols.intern(classDef.qualifiedName()), stub);
     }
 
@@ -393,8 +408,9 @@ public final class PureModelBuilder implements ModelContext {
         int id = symbols.intern(classDef.qualifiedName());
         idPut(pendingClassDefinitions, id, classDef);
 
+        java.util.Set<String> typeParamSet = java.util.Set.copyOf(classDef.typeParams());
         List<Property> properties = classDef.properties().stream()
-                .map(this::convertProperty)
+                .map(p -> convertProperty(p, typeParamSet))
                 .toList();
 
         // Populate superclass FQNs directly from the definition — NameResolver already
@@ -403,10 +419,12 @@ public final class PureModelBuilder implements ModelContext {
         PureClass pureClass = new PureClass(
                 classDef.packagePath(),
                 classDef.simpleName(),
+                classDef.typeParams(),
                 classDef.superClasses(),
                 properties,
                 classDef.stereotypes(),
-                classDef.taggedValues());
+                classDef.taggedValues(),
+                classDef.isNative());
 
         idPut(classes, id, pureClass);
 
@@ -1364,12 +1382,100 @@ public final class PureModelBuilder implements ModelContext {
 
     // ==================== Conversion Helpers ====================
 
-    private Property convertProperty(ClassDefinition.PropertyDefinition propDef) {
-        // Use the canonical Type.resolve — no per-site resolver. PureModelBuilder is a
-        // ModelContext, so its findClass / findEnum back Type.resolve's lookups.
-        Type type = Type.resolve(propDef.type(), this);
+    /**
+     * Converts a property definition, resolving its type string structurally:
+     *
+     * <ol>
+     *   <li>Parse the type string via {@link com.gs.legend.parser.PureModelParser#parsePureType}
+     *       to produce a structured {@link Type} (possibly with unresolved {@link Type.NameRef}
+     *       leaves and unresolved {@link Type.Parameterized} rawTypes).</li>
+     *   <li>Walk the tree: any {@code NameRef(name)} where {@code name} is a declared
+     *       type-parameter of the owning class is rewritten to {@link Type.TypeVar}. All other
+     *       {@code NameRef}s must resolve to a primitive / class / enum via {@link #findType};
+     *       failure to resolve throws, matching the no-fallback invariant.</li>
+     * </ol>
+     *
+     * <p>Pre-phase-2.5e, this method called {@code Type.resolve(propDef.type(), this)} on the
+     * whole string, which only worked for simple type names. Generic references like
+     * {@code SortInfo<Any>} or bare type-param names like {@code T} failed resolution. The
+     * structured path is required for the builtin class catalog (commit 2c).
+     */
+    private Property convertProperty(ClassDefinition.PropertyDefinition propDef,
+                                     java.util.Set<String> typeParams) {
+        Type parsed = com.gs.legend.parser.PureModelParser.parsePureType(propDef.type());
+        if (parsed == null) {
+            throw new IllegalStateException(
+                    "Property '" + propDef.name() + "' has null or empty type string");
+        }
+        Type resolved = substituteTypeVarsAndClassify(parsed, typeParams, propDef.name());
         Multiplicity multiplicity = new Multiplicity.Bounded(propDef.lowerBound(), propDef.upperBound());
-        return new Property(propDef.name(), type, multiplicity, propDef.taggedValues());
+        return new Property(propDef.name(), resolved, multiplicity,
+                propDef.taggedValues(), propDef.stereotypes());
+    }
+
+    /**
+     * Walks a parsed {@link Type} tree from {@link com.gs.legend.parser.PureModelParser#parsePureType}
+     * and produces a fully resolved tree:
+     *
+     * <ul>
+     *   <li>{@link Type.NameRef} whose name is in {@code typeParams} → {@link Type.TypeVar}.</li>
+     *   <li>Other {@link Type.NameRef} → classified primitive / class / enum via {@link #findType}
+     *       (imports first, then kind lookup). Unresolvable names throw.</li>
+     *   <li>Structural variants ({@link Type.Parameterized}, {@link Type.FunctionType},
+     *       {@link Type.RelationTypeVar}) recurse into their children.</li>
+     *   <li>Already-classified leaves ({@link Primitive}, {@link Type.ClassType}, etc.) pass through.</li>
+     * </ul>
+     *
+     * <p>The {@code context} argument is the property name, used only for error messages.
+     */
+    private Type substituteTypeVarsAndClassify(Type t, java.util.Set<String> typeParams, String context) {
+        return switch (t) {
+            case Type.NameRef nr -> {
+                String name = nr.qualifiedName();
+                if (typeParams.contains(name)) {
+                    yield new Type.TypeVar(name);
+                }
+                String resolved = imports.resolve(name, symbols.allFqns());
+                yield findType(resolved).orElseThrow(() -> new IllegalStateException(
+                        "Property '" + context + "': unknown type '" + name + "'"
+                                + (resolved.equals(name) ? "" : " (resolved to '" + resolved + "')")
+                                + ". Not a primitive, class, enum, or declared type-parameter."));
+            }
+            case Type.Parameterized p -> new Type.Parameterized(
+                    p.rawType(),
+                    p.typeArgs().stream()
+                            .map(a -> substituteTypeVarsAndClassify(a, typeParams, context))
+                            .toList());
+            case Type.FunctionType ft -> {
+                List<Type.Parameter> newParams = ft.params().stream()
+                        .map(pp -> new Type.Parameter(pp.name(),
+                                substituteTypeVarsAndClassify(pp.type(), typeParams, context),
+                                pp.multiplicity()))
+                        .toList();
+                Type newReturn = substituteTypeVarsAndClassify(ft.returnType(), typeParams, context);
+                yield new Type.FunctionType(newParams, newReturn, ft.returnMult());
+            }
+            case Type.RelationTypeVar rtv -> {
+                List<Type.RelationTypeVar.Column> newCols = rtv.columns().stream()
+                        .map(c -> new Type.RelationTypeVar.Column(c.name(),
+                                substituteTypeVarsAndClassify(c.type(), typeParams, context),
+                                c.multiplicity()))
+                        .toList();
+                yield new Type.RelationTypeVar(newCols);
+            }
+            // Already-resolved / structurally complete leaves — pass through unchanged.
+            case Primitive prim -> prim;
+            case Type.ClassType ct -> ct;
+            case Type.EnumType et -> et;
+            case Type.TypeVar tv -> tv;
+            case Type.PrecisionDecimal pd -> pd;
+            case Type.Relation r -> r;
+            case Type.Tuple tu -> tu;
+            case Type.SchemaAlgebra sa -> sa;
+            case Type.FunctionReference fr -> fr;
+            case Type.GenericType gt -> throw new IllegalStateException(
+                    "Property '" + context + "': Type.GenericType not expected pre-commit-3. Got: " + gt);
+        };
     }
 
     private Table convertTable(String dbFqn, DatabaseDefinition.TableDefinition tableDef) {

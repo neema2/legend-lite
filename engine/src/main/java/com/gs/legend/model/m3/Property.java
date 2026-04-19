@@ -1,5 +1,6 @@
 package com.gs.legend.model.m3;
 
+import com.gs.legend.model.def.StereotypeApplication;
 import com.gs.legend.model.def.TaggedValue;
 
 import java.util.List;
@@ -18,15 +19,21 @@ import java.util.Objects;
  * {@code docs/BAZEL_IMPLEMENTATION_PLAN.md} §2). This replaces the legacy
  * {@code m3.TypeRef} with the unified {@link Type} hierarchy introduced in Phase B 2.5a.
  *
+ * <p>Phase 2.5e added {@code stereotypes} — user-authored stereotype applications like
+ * {@code <<equality.Key>>} that previously lived only on the AST-layer
+ * {@code ClassDefinition.PropertyDefinition} and were dropped during symbol conversion.
+ *
  * @param name The property name (e.g., "firstName")
  * @param multiplicity The cardinality constraints for this property
  * @param taggedValues Tagged value annotations on this property (e.g., nlq.description)
+ * @param stereotypes Stereotype annotations on this property (e.g., equality.Key)
  * @param type Nominal type (primitive / class / enum) — the canonical type handle
  */
 public record Property(
         String name,
         Multiplicity multiplicity,
         List<TaggedValue> taggedValues,
+        List<StereotypeApplication> stereotypes,
         Type type
 ) {
     public Property {
@@ -34,6 +41,7 @@ public record Property(
         Objects.requireNonNull(multiplicity, "Property multiplicity cannot be null");
         Objects.requireNonNull(type, "Property type cannot be null");
         taggedValues = taggedValues == null ? List.of() : List.copyOf(taggedValues);
+        stereotypes = stereotypes == null ? List.of() : List.copyOf(stereotypes);
 
         if (name.isBlank()) {
             throw new IllegalArgumentException("Property name cannot be blank");
@@ -41,18 +49,46 @@ public record Property(
     }
 
     /**
+     * Full-fidelity constructor preserving pre-phase-2.5e field ordering (no stereotypes).
+     * Existing call sites continue to compile unchanged.
+     */
+    public Property(String name, Multiplicity multiplicity, List<TaggedValue> taggedValues, Type type) {
+        this(name, multiplicity, taggedValues, List.of(), type);
+    }
+
+    /**
      * Ergonomic constructor with natural (name, type, multiplicity, taggedValues) ordering
      * — delegates to the canonical constructor.
      */
     public Property(String name, Type type, Multiplicity multiplicity, List<TaggedValue> taggedValues) {
-        this(name, multiplicity, taggedValues, type);
+        this(name, multiplicity, taggedValues, List.of(), type);
+    }
+
+    /**
+     * Ergonomic constructor carrying stereotypes + tagged values in natural ordering.
+     */
+    public Property(String name, Type type, Multiplicity multiplicity,
+                    List<TaggedValue> taggedValues, List<StereotypeApplication> stereotypes) {
+        this(name, multiplicity, taggedValues, stereotypes, type);
     }
 
     /**
      * Ergonomic constructor — no annotations.
      */
     public Property(String name, Type type, Multiplicity multiplicity) {
-        this(name, multiplicity, List.of(), type);
+        this(name, multiplicity, List.of(), List.of(), type);
+    }
+
+    /**
+     * Checks whether this property carries the given stereotype.
+     */
+    public boolean hasStereotype(String profileName, String stereotypeName) {
+        for (StereotypeApplication sa : stereotypes) {
+            if (sa.profileName().equals(profileName) && sa.stereotypeName().equals(stereotypeName)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

@@ -331,6 +331,36 @@ public class BuiltinRegistry {
         return Optional.ofNullable(PLATFORM_ENUMS_BY_FQN.get(fqn));
     }
 
+    // ========== Platform profiles ==========
+
+    // Profiles shipped by the platform, always in scope. Currently hosts the `equality`
+    // profile whose `Key` stereotype is applied on properties of builtin classes like
+    // `Pair<U,V>` and `List<T>` — legend-pure authors use {@code <<equality.Key>>}
+    // there to declare membership in the structural-equality key. Registering empty
+    // (stereotype-name-only) bodies is sufficient: legend-lite doesn't compile
+    // stereotype bodies, it only needs the profile FQN to be resolvable so the
+    // stereotype-application records canonicalize cleanly.
+
+    /** Platform profiles registered at JVM init; mirrors {@link #PLATFORM_ENUMS}. */
+    public static final List<com.gs.legend.model.def.ProfileDefinition> PLATFORM_PROFILES = List.of(
+            new com.gs.legend.model.def.ProfileDefinition(
+                    "meta::pure::profiles::equality",
+                    List.of("Key"),
+                    List.of()));
+
+    /** FQN → ProfileDefinition lookup for platform profiles (immutable). */
+    private static final Map<String, com.gs.legend.model.def.ProfileDefinition> PLATFORM_PROFILES_BY_FQN;
+    static {
+        Map<String, com.gs.legend.model.def.ProfileDefinition> m = new LinkedHashMap<>();
+        for (var p : PLATFORM_PROFILES) m.put(p.qualifiedName(), p);
+        PLATFORM_PROFILES_BY_FQN = Map.copyOf(m);
+    }
+
+    /** Looks up a platform profile by fully qualified name. */
+    public static Optional<com.gs.legend.model.def.ProfileDefinition> findPlatformProfile(String fqn) {
+        return Optional.ofNullable(PLATFORM_PROFILES_BY_FQN.get(fqn));
+    }
+
     /**
      * Fully qualified names of every built-in type (15 primitives + all platform enums) that
      * should be auto-imported into every {@code PureModelBuilder}'s initial {@code ImportScope}.
@@ -346,9 +376,15 @@ public class BuiltinRegistry {
      */
     public static final List<String> BUILTIN_IMPORTS;
     static {
-        var imports = new ArrayList<String>(Primitive.ALL.size() + PLATFORM_ENUMS.size());
+        var imports = new ArrayList<String>(
+                Primitive.ALL.size() + PLATFORM_ENUMS.size() + PLATFORM_PROFILES.size()
+                        + BuiltinClassRegistry.BUILTIN_CLASS_FQNS.size());
         for (Primitive p : Primitive.ALL) imports.add(p.qualifiedName());
         for (EnumDefinition e : PLATFORM_ENUMS) imports.add(e.qualifiedName());
+        for (var prof : PLATFORM_PROFILES) imports.add(prof.qualifiedName());
+        // Phase 2.5e: platform classes (Pair, Relation, SortInfo, ...) auto-imported so
+        // user source can reference them by simple name just like primitives and enums.
+        imports.addAll(BuiltinClassRegistry.BUILTIN_CLASS_FQNS);
         BUILTIN_IMPORTS = List.copyOf(imports);
     }
 

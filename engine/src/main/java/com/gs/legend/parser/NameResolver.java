@@ -113,26 +113,32 @@ public final class NameResolver {
 
         return new ClassDefinition(
                 classDef.qualifiedName(),
+                classDef.typeParams(),
                 resolvedSuperClasses,
                 resolvedProps,
                 resolvedDerived,
                 classDef.constraints(),
                 resolvedStereotypes,
-                resolvedTaggedValues);
+                resolvedTaggedValues,
+                classDef.isNative());
     }
 
     private static PropertyDefinition resolveProperty(
             PropertyDefinition prop, ImportScope imports, Set<String> knownFqns) {
-        String resolvedType = imports.resolve(prop.type(), knownFqns);
+        // Phase 2.5e: property type strings are NOT canonicalized here — the structural
+        // pass in PureModelBuilder.substituteTypeVarsAndClassify is the sole authority on
+        // property-type resolution. It is the only layer that knows about the owning
+        // class's type-parameter scope; pre-canonicalizing at the AST layer would mask
+        // type-param shadowing (e.g., `Class Foo<String>` would lose its ability to treat
+        // a `String` property-type as the type-param).
         var resolvedStereotypes = resolveStereotypes(prop.stereotypes(), imports, knownFqns);
         var resolvedTaggedValues = resolveTaggedValues(prop.taggedValues(), imports, knownFqns);
-        if (resolvedType.equals(prop.type())
-                && resolvedStereotypes == prop.stereotypes()
+        if (resolvedStereotypes == prop.stereotypes()
                 && resolvedTaggedValues == prop.taggedValues()) {
             return prop;
         }
         return new PropertyDefinition(
-                prop.name(), resolvedType, prop.lowerBound(), prop.upperBound(),
+                prop.name(), prop.type(), prop.lowerBound(), prop.upperBound(),
                 resolvedStereotypes, resolvedTaggedValues);
     }
 
