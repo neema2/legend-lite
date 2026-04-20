@@ -351,12 +351,14 @@ public class ExtendChecker extends AbstractChecker {
      */
     private Type.FunctionType findColSpecFunctionType(NativeFunctionDef def, int lambdaArity) {
         for (var param : def.params()) {
-            if (param.type() instanceof Type.Parameterized fp
+            if (param.type() instanceof Type.GenericType fp
                     && !fp.typeArgs().isEmpty()
                     && fp.typeArgs().get(0) instanceof Type.FunctionType ft) {
-                String raw = fp.rawType();
-                if ("FuncColSpec".equals(raw) || "AggColSpec".equals(raw)
-                        || "FuncColSpecArray".equals(raw) || "AggColSpecArray".equals(raw)) {
+                com.gs.legend.model.m3.LClass raw = fp.rawType() instanceof com.gs.legend.model.m3.LClass lc ? lc : null;
+                if (raw == com.gs.legend.model.m3.LClass.FUNC_COL_SPEC
+                        || raw == com.gs.legend.model.m3.LClass.AGG_COL_SPEC
+                        || raw == com.gs.legend.model.m3.LClass.FUNC_COL_SPEC_ARRAY
+                        || raw == com.gs.legend.model.m3.LClass.AGG_COL_SPEC_ARRAY) {
                     if (ft.params().size() == lambdaArity) {
                         return ft;
                     }

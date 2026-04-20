@@ -258,30 +258,43 @@ public final class NameResolver {
 
     /**
      * Walks a {@link Type} tree and rewrites concrete type names via imports. Leaves type
-     * variables, parameterized outer names ("Relation", "ColSpec") and structural operators
-     * untouched — only bare concrete leaves get FQN'd. Returns the input unchanged when nothing
-     * needs rewriting (reference equality preserved).
+     * variables and structural operators untouched. Two rewrite rules:
+     *
+     * <ul>
+     *   <li>{@link Type.NameRef} resolving to a platform-class FQN → promoted to the matching
+     *       {@link com.gs.legend.model.m3.LClass} singleton (AGENTS.md §5: platform is always
+     *       bootstrapped, so classification is safe). This means <em>laziness is not preserved</em>
+     *       for platform-class NameRefs — a new {@link Type.GenericType} wrapper is allocated
+     *       when its rawType changes from {@code NameRef} to {@code LClass}.</li>
+     *   <li>{@link Type.NameRef} resolving to a non-platform FQN → a new {@link Type.NameRef} with
+     *       the canonical FQN, or the input unchanged when no rewriting happens (reference
+     *       equality preserved for user-type references).</li>
+     * </ul>
      */
     private static Type resolvePType(Type type, ImportScope imports, Set<String> knownFqns) {
         return switch (type) {
             case Type.NameRef c -> {
                 String resolved = imports.resolve(c.qualifiedName(), knownFqns);
+                // Promote platform-class NameRefs directly to LClass so downstream dispatch
+                // can compare identity (lc == LClass.RELATION) instead of walking string shapes.
+                var lc = com.gs.legend.model.m3.LClass.findByFqn(resolved);
+                if (lc.isPresent()) yield lc.get();
                 yield resolved.equals(c.qualifiedName()) ? type : new Type.NameRef(resolved);
             }
             case Type.TypeVar ignored -> type;
-            case Type.Parameterized p -> {
-                boolean changed = false;
-                List<Type> resolvedArgs = new ArrayList<>(p.typeArgs().size());
-                for (Type arg : p.typeArgs()) {
+            case com.gs.legend.model.m3.LClass ignored -> type;
+            case Type.GenericType gt -> {
+                // Resolve rawType (NameRef → canonical NameRef via imports) and typeArgs recursively.
+                Type resolvedRawType = resolvePType(gt.rawType(), imports, knownFqns);
+                boolean changed = resolvedRawType != gt.rawType();
+                List<Type> resolvedArgs = new ArrayList<>(gt.typeArgs().size());
+                for (Type arg : gt.typeArgs()) {
                     Type r = resolvePType(arg, imports, knownFqns);
                     if (r != arg) changed = true;
                     resolvedArgs.add(r);
                 }
-                yield changed ? new Type.Parameterized(p.rawType(), resolvedArgs) : type;
+                yield changed ? new Type.GenericType(resolvedRawType, resolvedArgs) : type;
             }
-            case Type.GenericType gt -> throw new IllegalStateException(
-                    "Type.GenericType not yet supported at NameResolver.resolvePType — "
-                            + "phase 2.5e commit 3 will migrate this site. Got: " + gt);
             case Type.FunctionType ft -> {
                 boolean changed = false;
                 List<Type.Parameter> resolvedParams = new ArrayList<>(ft.params().size());

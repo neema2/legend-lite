@@ -38,7 +38,7 @@ class NameResolverTest {
         Type relationColType = new Type.NameRef("Integer");
         Type.RelationTypeVar rtv = new Type.RelationTypeVar(List.of(
                 new Type.RelationTypeVar.Column("age", relationColType, Multiplicity.ONE)));
-        Type parsedType = new Type.Parameterized("Relation", List.of(rtv));
+        Type parsedType = new Type.GenericType(new Type.NameRef("Relation"), List.of(rtv));
 
         var param = new FunctionDefinition.ParameterDefinition(
                 "r", "Relation", 1, 1, null, parsedType);
@@ -60,7 +60,7 @@ class NameResolverTest {
 
         var resolvedFunc = (FunctionDefinition) resolved.get(0);
         var resolvedParam = resolvedFunc.parameters().get(0);
-        var resolvedParameterized = assertInstanceOf(Type.Parameterized.class, resolvedParam.parsedType());
+        var resolvedParameterized = assertInstanceOf(Type.GenericType.class, resolvedParam.parsedType());
         var resolvedRtv = assertInstanceOf(Type.RelationTypeVar.class, resolvedParameterized.typeArgs().get(0));
         var resolvedCol = resolvedRtv.columns().get(0);
         var resolvedColType = assertInstanceOf(Type.NameRef.class, resolvedCol.type());

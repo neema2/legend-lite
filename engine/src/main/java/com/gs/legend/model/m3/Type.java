@@ -31,9 +31,9 @@ import java.util.Objects;
  * </ul>
  */
 public sealed interface Type permits
-        Primitive,
+        Primitive, LClass,
         Type.NameRef, Type.ClassType, Type.EnumType,
-        Type.PrecisionDecimal, Type.Parameterized, Type.GenericType,
+        Type.PrecisionDecimal, Type.GenericType,
         Type.FunctionType, Type.Relation, Type.Tuple,
         Type.TypeVar, Type.SchemaAlgebra, Type.RelationTypeVar,
         Type.FunctionReference {
@@ -109,6 +109,19 @@ public sealed interface Type permits
     private static Primitive toPrimitive(Type t) {
         if (t instanceof Primitive p) return p;
         if (t instanceof PrecisionDecimal) return Primitive.DECIMAL;
+        return null;
+    }
+
+    /**
+     * Extracts the {@link LClass} identity of a Type, if any. Returns the {@code LClass} whether
+     * {@code t} is a bare zero-arg variant ({@code LClass.RANGE}) or wrapped in a
+     * {@link GenericType} with an {@code LClass} rawType ({@code GenericType(LClass.RELATION, [T])}).
+     * Returns {@code null} for user-defined class types, primitives, type variables, and other
+     * non-platform kinds.
+     */
+    static LClass asLClass(Type t) {
+        if (t instanceof LClass lc) return lc;
+        if (t instanceof GenericType g && g.rawType() instanceof LClass lc) return lc;
         return null;
     }
 
@@ -251,37 +264,6 @@ public sealed interface Type permits
     // ============================================================
     //  Parameterized types: List<T>, Pair<K,V>, Map<K,V>, Relation<T>, etc.
     // ============================================================
-
-    /**
-     * Parameterized type like {@code List<T>}, {@code Pair<K,V>}, {@code Relation<T>},
-     * or native-signature-only pseudo-types like {@code ColSpec<Z⊆T>}.
-     *
-     * <p><strong>Invariant:</strong> a Pure property declared as {@code T[*]} is
-     * {@code (Type=T, Multiplicity=MANY)} on the owning {@link Parameter} / {@code Property}
-     * — never {@code List<T>}. Using {@code Parameterized("List", [T])} as a proxy for
-     * collection multiplicity is forbidden.
-     */
-    record Parameterized(String rawType, List<Type> typeArgs) implements Type {
-        public Parameterized {
-            Objects.requireNonNull(rawType, "Parameterized rawType cannot be null");
-            Objects.requireNonNull(typeArgs, "Parameterized typeArgs cannot be null");
-            typeArgs = List.copyOf(typeArgs);
-        }
-
-        @Override
-        public String typeName() {
-            return rawType;
-        }
-
-        /** First type argument (single-element collections, e.g., {@code List<T>.elementType() == T}). */
-        public Type elementType() {
-            if (typeArgs.isEmpty()) {
-                throw new IllegalStateException(
-                        "Parameterized '" + rawType + "' has no type arguments — cannot extract element type");
-            }
-            return typeArgs.get(0);
-        }
-    }
 
     /**
      * Structured generic type — {@code rawType<arg1, arg2, ...>} where {@code rawType} is itself

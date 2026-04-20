@@ -50,6 +50,30 @@ PlanGen emits `SqlExpr` nodes — never raw SQL strings.
 - If TypeInfo is missing, **fix the Compiler** — do not work around it in PlanGen
 - Every defaulting branch is a bug hiding behind a safety net
 
+### 5. Lazy Loading of User Packageable Elements
+
+Cross-project dependencies must not force-load the whole transitive graph. When project A references a class in project B, compiling A must not require loading every class in B. **`NameRef`, `Type.ClassType(fqn)`, `Type.EnumType(fqn)`, and `PureClass.superClassFqns` exist specifically to carry FQN references without forcing the target to load.**
+
+**Split by origin:**
+
+- **Platform types** — `LClass`, `Primitive`, platform enums, everything declared in `BuiltinClassRegistry`. Always loaded at JVM start (bootstrap). **Safe to eagerly classify and dispatch.** `NameResolver` promoting `NameRef("Relation")` → `LClass.RELATION` is correct because `LClass` is always in scope.
+- **User types** — user-declared classes, enums, functions. Referenced by FQN. **Must not be eagerly dereferenced into resolved Java objects.** A `Type.ClassType("my::app::Person")` is just an FQN string in a typed wrapper; it does NOT imply `my::app::Person` is loaded.
+
+**The lazy contract:**
+
+- Structural access (`findProperty`, `allProperties`, `isClassSubtype`, superclass-chain walks) MUST go through `ModelContext.findClass(fqn)` / `findEnum(fqn)` / `findFunction(fqn)`. These methods are the sole layer that owns load triggering.
+- Long-lived fields hold **FQN strings** or FQN-wrapping types (`ClassType`, `EnumType`, `NameRef`), never resolved `PureClass` / `PureEnum` / `FunctionDefinition` references. `PureClass.superClassFqns: List<String>` is the canonical example.
+- Classification (`NameRef` → `ClassType` / `LClass` / `Primitive`) is a controlled boundary at property-build time (`PureModelBuilder.substituteTypeVarsAndClassify`) and at expression type-checking. Outside those boundaries, keep `NameRef` unresolved.
+
+**Never:**
+
+- Store `PureClass` / `PureEnum` / `FunctionDefinition` as fields of another `PureClass`, `PropertyBuilder`, or long-lived container. Store the FQN and resolve lazily through `ModelContext`.
+- Walk a dependency graph manually (e.g., collect all classes via field access). Go through `ModelContext.findClass(fqn)` every step.
+- Mix platform and user handling in an eager-resolution path that always loads the target. Guard platform-only promotion with `LClass.findByFqn(fqn).isPresent()` or equivalent so user FQNs fall through unchanged.
+- Force user-type load just to dispatch on shape (e.g., "is this a list?"). Dispatch on the `Type` identity (`LClass`, `Primitive`, `ClassType.qualifiedName()`), not on the resolved object.
+
+**When you genuinely need a user class's structure**, call `modelContext.findClass(fqn)` at the exact use site and let the context decide whether to lazy-load. Don't cache the result across unrelated operations.
+
 ## SqlExpr Rules
 
 - `Cast(expr, pureTypeName)` — Pure type name, Dialect maps via `sqlTypeName()`

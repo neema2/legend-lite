@@ -63,13 +63,13 @@ class NativeFunctionParseTest {
         assertEquals(2, fn.params().size());
 
         // param 0: rel:meta::pure::metamodel::relation::Relation<T>[1]
-        assertParameterized("Relation", fn.params().get(0).type());
+        assertPlatformClass("Relation", fn.params().get(0).type());
 
         // param 1: f:meta::pure::metamodel::function::Function<{T[1]->Boolean[1]}>[1]
-        assertParameterized("Function", fn.params().get(1).type());
+        assertPlatformClass("Function", fn.params().get(1).type());
 
         // return: meta::pure::metamodel::relation::Relation<T>[1]
-        var ret = assertParameterized("Relation", fn.returnType());
+        var ret = assertPlatformClass("Relation", fn.returnType());
         assertEquals(1, ret.typeArgs().size());
         assertTypeVar("T", ret.typeArgs().get(0));
     }
@@ -86,7 +86,7 @@ class NativeFunctionParseTest {
         assertEquals(List.of("T", "V"), fn.typeParams());
         assertEquals(4, fn.params().size());
         // After pre-processing: meta::pure::metamodel::relation::Relation<T+V> → meta::pure::metamodel::relation::Relation<T> (algebra stripped)
-        assertParameterized("Relation", fn.returnType());
+        assertPlatformClass("Relation", fn.returnType());
         // rawSignature preserves the original T+V for schema inference
         assertTrue(fn.rawSignature().contains("T+V"));
     }
@@ -125,7 +125,7 @@ class NativeFunctionParseTest {
                 "native function rank<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], row:T[1]):meta::pure::metamodel::type::Integer[1];");
         assertEquals("rank", fn.name());
         assertEquals(3, fn.params().size());
-        assertParameterized("_Window", fn.params().get(1).type());
+        assertPlatformClass("_Window", fn.params().get(1).type());
         assertPrimitive("Integer", fn.returnType());
     }
 
@@ -151,7 +151,7 @@ class NativeFunctionParseTest {
         assertEquals(List.of("T", "Z"), fn.typeParams());
 
         // After normalization: meta::pure::metamodel::relation::ColSpecArray<Z⊆T> → meta::pure::metamodel::relation::ColSpecArray<Z>
-        var colsType = assertParameterized("ColSpecArray", fn.params().get(1).type());
+        var colsType = assertPlatformClass("ColSpecArray", fn.params().get(1).type());
         assertTypeVar("Z", colsType.typeArgs().get(0));
 
         // rawSignature preserves constraint for later analysis
@@ -170,7 +170,7 @@ class NativeFunctionParseTest {
         assertEquals(List.of("T", "Z", "K", "V"), fn.typeParams());
 
         // After normalization: meta::pure::metamodel::relation::ColSpec<Z=(?:K)⊆T> → meta::pure::metamodel::relation::ColSpec<Z>, meta::pure::metamodel::relation::Relation<T-Z+V> → meta::pure::metamodel::relation::Relation<T>
-        assertParameterized("ColSpec", fn.params().get(1).type());
+        assertPlatformClass("ColSpec", fn.params().get(1).type());
 
         // rawSignature preserves both constraints and schema algebra
         assertTrue(fn.rawSignature().contains("Z=(?:K)⊆T"));
@@ -185,7 +185,7 @@ class NativeFunctionParseTest {
                 "native function map<T,V>(value:T[*], func:meta::pure::metamodel::function::Function<{T[1]->V[*]}>[1]):V[*];");
         assertEquals("map", fn.name());
 
-        var funcType = assertParameterized("Function", fn.params().get(1).type());
+        var funcType = assertPlatformClass("Function", fn.params().get(1).type());
         // Function type arg should be a FunctionType
         assertFalse(funcType.typeArgs().isEmpty());
         assertInstanceOf(Type.FunctionType.class, funcType.typeArgs().get(0));
@@ -211,7 +211,7 @@ class NativeFunctionParseTest {
         assertEquals(3, fn.params().size());
 
         // After normalization: meta::pure::metamodel::relation::ColSpecArray<Z⊆T> → meta::pure::metamodel::relation::ColSpecArray<Z>
-        assertParameterized("AggColSpec", fn.params().get(2).type());
+        assertPlatformClass("AggColSpec", fn.params().get(2).type());
         assertTrue(fn.rawSignature().contains("Z⊆T"));
         assertTrue(fn.rawSignature().contains("Z+R"));
     }
@@ -250,11 +250,19 @@ class NativeFunctionParseTest {
         assertEquals(expected, ((Type.TypeVar) actual).name());
     }
 
-    private static Type.Parameterized assertParameterized(String expected, Type actual) {
-        assertInstanceOf(Type.Parameterized.class, actual,
-                "Expected Parameterized(" + expected + ") but got: " + actual);
-        var p = (Type.Parameterized) actual;
-        assertEquals(expected, p.rawType());
-        return p;
+    /**
+     * Asserts the type is {@code GenericType(LClass.X, ...)} where {@code X.typeName()} matches
+     * {@code expected}. Returns the {@link Type.GenericType} so callers can chain assertions on
+     * {@link Type.GenericType#typeArgs()}.
+     */
+    private static Type.GenericType assertPlatformClass(String expected, Type actual) {
+        Type.GenericType gt = assertInstanceOf(Type.GenericType.class, actual,
+                "Expected GenericType(LClass." + expected + ", ...) but got: " + actual);
+        com.gs.legend.model.m3.LClass lc = assertInstanceOf(com.gs.legend.model.m3.LClass.class,
+                gt.rawType(),
+                "Expected GenericType rawType to be LClass." + expected + " but got: " + gt.rawType());
+        assertEquals(expected, lc.typeName(),
+                "Expected LClass with simple name '" + expected + "' but got '" + lc.typeName() + "'");
+        return gt;
     }
 }

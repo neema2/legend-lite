@@ -246,7 +246,12 @@ public record RelationalMapping(
 
     // ========== ClassMapping interface ==========
 
-    @Override
+    /**
+     * Convenience accessor for the resolved Pure class. Not part of the {@link ClassMapping}
+     * interface (AGENTS.md §5 — mapping containers should track targets by FQN, not by
+     * resolved {@link PureClass}). Kept here because the rest of {@code RelationalMapping}
+     * still holds a resolved {@code pureClass} field; tightening that is a separate refactor.
+     */
     public PureClass targetClass() {
         return pureClass;
     }

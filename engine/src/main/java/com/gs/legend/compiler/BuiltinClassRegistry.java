@@ -2,10 +2,13 @@ package com.gs.legend.compiler;
 
 import com.gs.legend.model.def.ClassDefinition;
 import com.gs.legend.model.def.PackageableElement;
+import com.gs.legend.model.m3.LClass;
 import com.gs.legend.parser.PureParser;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Catalog of platform-defined <em>Pure classes</em> shipped by legend-lite — the declaration
@@ -250,6 +253,24 @@ public final class BuiltinClassRegistry {
             }
         }
         BUILTIN_CLASS_DEFINITIONS = List.copyOf(defs);
+
+        // Drift check: every LClass variant must have a matching ClassDefinition in the catalog.
+        // If someone adds a new LClass enum constant but forgets to add its Pure source here (or
+        // vice versa), fail JVM startup loud and early rather than silently mis-dispatching at
+        // runtime. LClass owns dispatch identity; this registry owns declaration source — the
+        // two must agree.
+        Set<String> definedFqns = BUILTIN_CLASS_DEFINITIONS.stream()
+                .map(ClassDefinition::qualifiedName)
+                .collect(Collectors.toUnmodifiableSet());
+        for (LClass lc : LClass.values()) {
+            if (!definedFqns.contains(lc.qualifiedName())) {
+                throw new IllegalStateException(
+                        "BuiltinClassRegistry / LClass drift: LClass." + lc.name() + " claims FQN '"
+                                + lc.qualifiedName() + "' but no matching ClassDefinition was parsed "
+                                + "from BUILTIN_CLASS_SOURCES. Add the Pure source entry or remove the "
+                                + "LClass variant.");
+            }
+        }
     }
 
     /**

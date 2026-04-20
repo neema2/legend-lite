@@ -598,8 +598,8 @@ public class TypeChecker implements TypeCheckEnv {
                 if ("Any".equals(declaredSimple)) continue;
 
                 // Schema-aware check for Relation<(col:Type)> params
-                if (paramDef.parsedType() instanceof Type.Parameterized p
-                        && "Relation".equals(p.rawType())
+                if (paramDef.parsedType() instanceof Type.GenericType p
+                        && isRelationRawType(p.rawType())
                         && !p.typeArgs().isEmpty()
                         && p.typeArgs().get(0) instanceof Type.RelationTypeVar) {
                     Type declaredGeneric = resolveUserSignatureType(paramDef.parsedType());
@@ -668,8 +668,8 @@ public class TypeChecker implements TypeCheckEnv {
             String declaredReturnSimple = SymbolTable.extractSimpleName(declaredReturnFqn);
             if (!"Any".equals(declaredReturnSimple)) {
                 // Schema-aware return check for Relation<(col:Type)> return types (covariant)
-                if (funcDef.parsedReturnType() instanceof Type.Parameterized p
-                        && "Relation".equals(p.rawType())
+                if (funcDef.parsedReturnType() instanceof Type.GenericType p
+                        && isRelationRawType(p.rawType())
                         && !p.typeArgs().isEmpty()
                         && p.typeArgs().get(0) instanceof Type.RelationTypeVar) {
                     Type declaredGeneric = resolveUserSignatureType(funcDef.parsedReturnType());
@@ -870,9 +870,10 @@ public class TypeChecker implements TypeCheckEnv {
             case Type.NameRef nr -> Type.resolve(nr.qualifiedName(), modelContext);
             case Primitive p -> p;
             case Type.ClassType c -> c;
+            case com.gs.legend.model.m3.LClass lc -> lc;
             case Type.EnumType e -> e;
             case Type.PrecisionDecimal pd -> pd;
-            case Type.Parameterized p when "Relation".equals(p.rawType())
+            case Type.GenericType p when isRelationRawType(p.rawType())
                     && !p.typeArgs().isEmpty()
                     && p.typeArgs().get(0) instanceof Type.RelationTypeVar rtv -> {
                 // Relation<(col1:Type1, col2:Type2)> → Type.Relation(Schema)
@@ -882,8 +883,8 @@ public class TypeChecker implements TypeCheckEnv {
                 }
                 yield new Type.Relation(Type.Schema.withoutPivot(columns));
             }
-            case Type.Parameterized p -> throw new PureCompileException(
-                    "Parameterized types other than Relation<(...)> are not supported in user function signatures: " + p);
+            case Type.GenericType p -> throw new PureCompileException(
+                    "Generic types other than Relation<(...)> are not supported in user function signatures: " + p);
             case Type.TypeVar tv -> throw new PureCompileException(
                     "Type variables (generics) are not supported in user function signatures: " + tv.name());
             case Type.FunctionType ft -> throw new PureCompileException(
@@ -898,10 +899,16 @@ public class TypeChecker implements TypeCheckEnv {
                     "Bare RelationTypeVar must appear inside a Relation<...>, not as a standalone type: " + rtv);
             case Type.FunctionReference fr -> throw new PureCompileException(
                     "FunctionReference is an expression-level type, not valid in user signatures: " + fr);
-            case Type.GenericType gt -> throw new IllegalStateException(
-                    "Type.GenericType not yet supported at TypeChecker.resolveUserSignatureType — "
-                            + "phase 2.5e commit 3 will migrate this site. Got: " + gt);
         };
+    }
+
+    /**
+     * Whether the rawType of a parsed generic references the platform {@code Relation} class.
+     * After {@link NameResolver} runs, platform-class NameRefs are promoted directly to their
+     * {@link com.gs.legend.model.m3.LClass} variant — identity compare suffices.
+     */
+    private static boolean isRelationRawType(Type rawType) {
+        return rawType == com.gs.legend.model.m3.LClass.RELATION;
     }
 
     // ========== AST-level Parameter Substitution ==========

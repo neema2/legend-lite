@@ -168,9 +168,9 @@ class BuiltinRegistryTest {
 
     @Test
     void type_parameterized_carriesRawTypeAndArgs() {
-        var t = new Type.Parameterized("Relation",
+        var t = new Type.GenericType(com.gs.legend.model.m3.LClass.RELATION,
                 List.of(new Type.TypeVar("T")));
-        assertEquals("Relation", t.rawType());
+        assertEquals(com.gs.legend.model.m3.LClass.RELATION, t.rawType());
         assertEquals(1, t.typeArgs().size());
         assertInstanceOf(Type.TypeVar.class, t.typeArgs().get(0));
     }

@@ -1,7 +1,6 @@
 package com.gs.legend.model.mapping;
 
 import com.gs.legend.ast.ValueSpecification;
-import com.gs.legend.model.m3.PureClass;
 import com.gs.legend.model.store.Table;
 import com.gs.legend.model.m3.Type;
 
@@ -15,13 +14,15 @@ import com.gs.legend.model.m3.Type;
  * <p>Joins (association navigation) are handled separately via
  * {@code TypeInfo.AssociationTarget} in the compiler sidecar — they produce
  * relations, not scalar values.
+ *
+ * <p>No {@code targetClass(): PureClass} accessor on this interface: AGENTS.md §5
+ * forbids holding resolved {@code PureClass} references in mapping containers
+ * (would force cross-project targets to load eagerly). Concrete implementations
+ * track their target by FQN and resolve lazily through
+ * {@link com.gs.legend.model.ModelContext#findClass} at use sites
+ * (e.g., {@link #typeForProperty}).
  */
 public sealed interface ClassMapping permits RelationalMapping, PureClassMapping {
-
-    /**
-     * The target Pure class this mapping resolves.
-     */
-    PureClass targetClass();
 
     /**
      * The source table to SELECT FROM.

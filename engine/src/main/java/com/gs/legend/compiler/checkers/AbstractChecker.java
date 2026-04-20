@@ -369,41 +369,44 @@ public abstract class AbstractChecker implements FunctionChecker {
             }
             return elements.stream().allMatch(e -> structuralMatch(expected, e, source, false, null));
         }
-        if (expected instanceof Type.Parameterized p) {
-            return switch (p.rawType()) {
-                case "Relation" -> isSource
+        com.gs.legend.model.m3.LClass expectedLc = Type.asLClass(expected);
+        if (expectedLc != null) {
+            return switch (expectedLc) {
+                case RELATION -> isSource
                         ? (source != null && source.isRelational())
                         : (compiledType instanceof Type.Relation)
                           || (actual instanceof ClassInstance ci && "relation".equals(ci.type()));
-                case "ColSpec"
+                case COL_SPEC
                         -> actual instanceof ClassInstance ci && "colSpec".equals(ci.type());
-                case "FuncColSpec"
+                case FUNC_COL_SPEC
                         -> actual instanceof ClassInstance ci && "colSpec".equals(ci.type())
                             && ci.value() instanceof com.gs.legend.ast.ColSpec cs && cs.function2() == null;
-                case "AggColSpec"
+                case AGG_COL_SPEC
                         -> actual instanceof ClassInstance ci && "colSpec".equals(ci.type())
                             && ci.value() instanceof com.gs.legend.ast.ColSpec cs && cs.function2() != null;
-                case "ColSpecArray"
+                case COL_SPEC_ARRAY
                         -> actual instanceof ClassInstance ci && "colSpecArray".equals(ci.type());
-                case "FuncColSpecArray"
+                case FUNC_COL_SPEC_ARRAY
                         -> actual instanceof ClassInstance ci && "colSpecArray".equals(ci.type())
                             && ci.value() instanceof com.gs.legend.ast.ColSpecArray csa
                             && csa.colSpecs().stream().allMatch(s -> s.function2() == null);
-                case "AggColSpecArray"
+                case AGG_COL_SPEC_ARRAY
                         -> actual instanceof ClassInstance ci && "colSpecArray".equals(ci.type())
                             && ci.value() instanceof com.gs.legend.ast.ColSpecArray csa
                             && csa.colSpecs().stream().allMatch(s -> s.function2() != null);
-                case "Function" -> actual instanceof LambdaFunction
+                case FUNCTION -> actual instanceof LambdaFunction
                     || actual instanceof PackageableElementPtr; // function reference (e.g., eq_Any_1__Any_1__Boolean_1_)
-                case "SortInfo" -> actual instanceof AppliedFunction;
-                case "_Window" -> actual instanceof AppliedFunction af
+                case SORT_INFO -> actual instanceof AppliedFunction;
+                case WINDOW -> actual instanceof AppliedFunction af
                     && !"traverse".equals(simpleName(af.function()));
-                case "Rows", "_Range" -> actual instanceof AppliedFunction;
-                case "_Traversal" -> actual instanceof AppliedFunction af
+                case ROWS, RANGE -> actual instanceof AppliedFunction;
+                case TRAVERSAL -> actual instanceof AppliedFunction af
                     && "traverse".equals(simpleName(af.function()));
+                // Other catalog classes (Pair, List, Map, Frame variants, RowMapper, TreeNode,
+                // ValueHolder, Type, Class, FunctionDefinition, RootGraphFetchTree) — fall through
+                // to user-parameterized-matching logic below.
                 default -> isSource && source != null
-                        && source.type() instanceof Type.Parameterized gp
-                        && p.rawType().equals(gp.rawType());
+                        && Type.asLClass(source.type()) == expectedLc;
             };
         }
         if (expected instanceof Type.TypeVar) {
@@ -591,35 +594,6 @@ public abstract class AbstractChecker implements FunctionChecker {
                     bindings.put(v.name(), actual);
                 }
             }
-            case Type.Parameterized p -> {
-                if ("Relation".equals(p.rawType())) {
-                    if (!(actual instanceof Type.Relation rel)) {
-                        throw new PureCompileException(
-                                context + ": expected Relation, got " + actual.typeName());
-                    }
-                    // Bind T to Tuple (row schema), NOT to the Relation container.
-                    // In Pure/relational algebra, T in Relation<T> is a single tuple's shape,
-                    // so lead<T>() returning T[0..1] gives Tuple[0..1] (a row), not Relation[0..1].
-                    for (var typeArg : p.typeArgs()) {
-                        unifyType(typeArg, new Type.Tuple(rel.schema()), bindings, context);
-                    }
-                } else if ("Function".equals(p.rawType())
-                        && actual instanceof Type.FunctionReference) {
-                    // FunctionReference (bare function name like eq_Any_1__...) is a
-                    // Function value — accept without deep type-arg unification.
-                    // Analogous to legend-engine's isPackageableElementSubtypeOfFunction.
-                } else if (actual instanceof Type.Parameterized gp
-                        && p.rawType().equals(gp.rawType())) {
-                    // Generic parameterized: RowMapper<T,U>, Pair<T,U>, List<T>, etc.
-                    // Unify type arguments pairwise
-                    for (int i = 0; i < p.typeArgs().size() && i < gp.typeArgs().size(); i++) {
-                        unifyType(p.typeArgs().get(i), gp.typeArgs().get(i), bindings, context);
-                    }
-                } else {
-                    throw new PureCompileException(
-                            context + ": expected " + p.rawType() + ", got " + actual.typeName());
-                }
-            }
             case Primitive expectedPrim -> {
                 if (expectedPrim == Primitive.ANY) return; // Any accepts all types
                 // Normalize PrecisionDecimal → DECIMAL on actual.
@@ -684,10 +658,82 @@ public abstract class AbstractChecker implements FunctionChecker {
             }
             case Type.FunctionReference fr -> throw new PureCompileException(
                     context + ": FunctionReference should not appear in source unification");
-            case Type.GenericType gt -> throw new IllegalStateException(
-                    context + ": Type.GenericType not yet supported at AbstractChecker.unifyType — "
-                            + "phase 2.5e commit 3 will migrate this site. Got: " + gt);
+            case Type.GenericType gt -> unifyGenericType(gt, actual, bindings, context);
+            case com.gs.legend.model.m3.LClass lc -> unifyLClass(lc, List.of(), actual, bindings, context);
         }
+    }
+
+    /**
+     * Unifies an expected {@code GenericType(LClass.X, args)} or {@code GenericType(ClassType, args)}
+     * against an actual value. Delegates to {@link #unifyLClass} for platform-class rawTypes;
+     * for user class rawTypes, asserts the actual is a {@code ClassType} with the same FQN —
+     * deeper structural matching (property types, type-arg compatibility) is handled by
+     * source-spec unification at the caller level.
+     */
+    private void unifyGenericType(Type.GenericType gt, Type actual,
+                                   Bindings bindings, String context) {
+        if (gt.rawType() instanceof com.gs.legend.model.m3.LClass lc) {
+            unifyLClass(lc, gt.typeArgs(), actual, bindings, context);
+            return;
+        }
+        // User-class generic: verify the actual is a ClassType with the same FQN. Deep structural
+        // matching (property types, type-arg compatibility) happens via source-spec unification
+        // at the caller level; here we only assert the class identity matches.
+        if (gt.rawType() instanceof Type.ClassType expectedCt
+                && actual instanceof Type.ClassType actualCt
+                && expectedCt.qualifiedName().equals(actualCt.qualifiedName())) {
+            return;
+        }
+        throw new PureCompileException(
+                context + ": expected " + gt.typeName() + ", got " + actual.typeName());
+    }
+
+    /**
+     * Unifies an expected platform-class (optionally with type args) against an actual value.
+     * Handles the class-specific unification rules keyed on the {@link com.gs.legend.model.m3.LClass}
+     * identity (Relation, Function, and the general "same rawType — unify args pairwise" case).
+     */
+    private void unifyLClass(com.gs.legend.model.m3.LClass expectedLc, List<Type> expectedArgs,
+                              Type actual, Bindings bindings, String context) {
+        if (expectedLc == com.gs.legend.model.m3.LClass.RELATION) {
+            if (!(actual instanceof Type.Relation rel)) {
+                throw new PureCompileException(
+                        context + ": expected Relation, got " + actual.typeName());
+            }
+            // Bind T to Tuple (row schema), NOT to the Relation container.
+            // In Pure/relational algebra, T in Relation<T> is a single tuple's shape,
+            // so lead<T>() returning T[0..1] gives Tuple[0..1] (a row), not Relation[0..1].
+            for (Type typeArg : expectedArgs) {
+                unifyType(typeArg, new Type.Tuple(rel.schema()), bindings, context);
+            }
+            return;
+        }
+        if (expectedLc == com.gs.legend.model.m3.LClass.FUNCTION
+                && actual instanceof Type.FunctionReference) {
+            // FunctionReference (bare function name like eq_Any_1__...) is a
+            // Function value — accept without deep type-arg unification.
+            // Analogous to legend-engine's isPackageableElementSubtypeOfFunction.
+            return;
+        }
+        // Generic platform class with same rawType on actual: RowMapper<T,U>, Pair<T,U>, etc.
+        com.gs.legend.model.m3.LClass actualLc = Type.asLClass(actual);
+        if (actualLc == expectedLc) {
+            List<Type> actualArgs = actual instanceof Type.GenericType gt ? gt.typeArgs() : List.of();
+            // Bare LClass leaf on the actual side (no GenericType wrapper) is a valid zero-arg
+            // reference — identity match alone is sufficient. Otherwise, arities must agree;
+            // silent truncation would mask signature/argument mismatches (AGENTS.md #4).
+            if (!actualArgs.isEmpty() && actualArgs.size() != expectedArgs.size()) {
+                throw new PureCompileException(
+                        context + ": " + expectedLc.typeName() + " arity mismatch — expected "
+                                + expectedArgs.size() + " type argument(s), got " + actualArgs.size());
+            }
+            for (int i = 0; i < actualArgs.size(); i++) {
+                unifyType(expectedArgs.get(i), actualArgs.get(i), bindings, context);
+            }
+            return;
+        }
+        throw new PureCompileException(
+                context + ": expected " + expectedLc.qualifiedName() + ", got " + actual.typeName());
     }
 
     // ========== Type resolution ==========
@@ -709,12 +755,13 @@ public abstract class AbstractChecker implements FunctionChecker {
             case Primitive p -> p;
             case Type.EnumType e -> e;
             case Type.ClassType c -> c;
+            case com.gs.legend.model.m3.LClass lc -> lc;
             case Type.PrecisionDecimal pd -> pd;
             case Type.NameRef nr -> throw new PureCompileException(
                     context + ": unresolved NameRef '" + nr.qualifiedName() + "' during resolution — native signatures should be fully resolved at parse time");
-            case Type.Parameterized p -> {
-                if ("Relation".equals(p.rawType()) && !p.typeArgs().isEmpty()) {
-                    Type inner = resolve(p.typeArgs().get(0), bindings, context);
+            case Type.GenericType gt -> {
+                if (gt.rawType() == com.gs.legend.model.m3.LClass.RELATION && !gt.typeArgs().isEmpty()) {
+                    Type inner = resolve(gt.typeArgs().get(0), bindings, context);
                     // Reconstruct Relation from Tuple: Relation<T> where T=Tuple(schema)
                     // → Type.Relation(schema). Functions like filter() return Relation<T>[1].
                     if (inner instanceof Type.Tuple t) {
@@ -722,10 +769,10 @@ public abstract class AbstractChecker implements FunctionChecker {
                     }
                     yield inner; // fallback: already a Relation from direct binding
                 }
-                // Generic parameterized: RowMapper<T,U>, Pair<T,U>, List<T>, etc.
-                List<Type> resolvedArgs = p.typeArgs().stream()
+                // Generic parameterized: RowMapper<T,U>, Pair<T,U>, List<T>, etc. — resolve args.
+                List<Type> resolvedArgs = gt.typeArgs().stream()
                         .map(a -> resolve(a, bindings, context)).toList();
-                yield new Type.Parameterized(p.rawType(), resolvedArgs);
+                yield new Type.GenericType(gt.rawType(), resolvedArgs);
             }
             case Type.SchemaAlgebra sa -> {
                 Type left = resolve(sa.left(), bindings, context);
@@ -739,9 +786,6 @@ public abstract class AbstractChecker implements FunctionChecker {
             case Type.Relation r -> r;
             case Type.Tuple t -> t;
             case Type.FunctionReference fr -> fr;
-            case Type.GenericType gt -> throw new IllegalStateException(
-                    context + ": Type.GenericType not yet supported at AbstractChecker.resolve — "
-                            + "phase 2.5e commit 3 will migrate this site. Got: " + gt);
         };
     }
 
@@ -895,16 +939,17 @@ public abstract class AbstractChecker implements FunctionChecker {
      * Must always succeed — malformed signature throws.
      */
     protected Type.FunctionType extractFunctionType(Type.Parameter lambdaDef) {
-        if (lambdaDef.type() instanceof Type.Parameterized fp
+        if (lambdaDef.type() instanceof Type.GenericType fp
                 && !fp.typeArgs().isEmpty()
                 && fp.typeArgs().get(0) instanceof Type.FunctionType ft) {
             // Both Function<{T[1]->Boolean[1]}> and FuncColSpecArray<{C[1]->Any[*]},T>
             // have the FunctionType as their first type argument
-            if ("Function".equals(fp.rawType())
-                    || "FuncColSpec".equals(fp.rawType())
-                    || "AggColSpec".equals(fp.rawType())
-                    || "FuncColSpecArray".equals(fp.rawType())
-                    || "AggColSpecArray".equals(fp.rawType())) {
+            com.gs.legend.model.m3.LClass lc = fp.rawType() instanceof com.gs.legend.model.m3.LClass l ? l : null;
+            if (lc == com.gs.legend.model.m3.LClass.FUNCTION
+                    || lc == com.gs.legend.model.m3.LClass.FUNC_COL_SPEC
+                    || lc == com.gs.legend.model.m3.LClass.AGG_COL_SPEC
+                    || lc == com.gs.legend.model.m3.LClass.FUNC_COL_SPEC_ARRAY
+                    || lc == com.gs.legend.model.m3.LClass.AGG_COL_SPEC_ARRAY) {
                 return ft;
             }
         }
@@ -953,8 +998,8 @@ public abstract class AbstractChecker implements FunctionChecker {
      * lambda args from scalar args.
      */
     protected static boolean isLambdaParam(Type.Parameter sigParam) {
-        return sigParam.type() instanceof Type.Parameterized p
-                && "Function".equals(p.rawType());
+        return sigParam.type() instanceof Type.GenericType gt
+                && gt.rawType() == com.gs.legend.model.m3.LClass.FUNCTION;
     }
 
     /**

@@ -122,12 +122,9 @@ public class BuiltinRegistry {
                 case UNION, DIFFERENCE -> new Type.SchemaAlgebra(
                         normalizeType(sa.left()), sa.op(), normalizeType(sa.right()));
             };
-            case Type.Parameterized p -> new Type.Parameterized(
-                    p.rawType(),
-                    p.typeArgs().stream().map(BuiltinRegistry::normalizeType).toList());
-            case Type.GenericType gt -> throw new IllegalStateException(
-                    "Type.GenericType not yet supported at BuiltinRegistry.normalizeType — "
-                            + "phase 2.5e commit 3 will migrate this site. Got: " + gt);
+            case Type.GenericType gt -> new Type.GenericType(
+                    gt.rawType(),
+                    gt.typeArgs().stream().map(BuiltinRegistry::normalizeType).toList());
             case Type.FunctionType ft -> new Type.FunctionType(
                     ft.params().stream()
                             .map(p -> new Type.Parameter(p.name(), normalizeType(p.type()), p.multiplicity()))
@@ -138,6 +135,7 @@ public class BuiltinRegistry {
             case Primitive p -> p;
             case Type.NameRef nr -> nr;
             case Type.ClassType c -> c;
+            case com.gs.legend.model.m3.LClass lc -> lc;
             case Type.EnumType e -> e;
             case Type.PrecisionDecimal pd -> pd;
             case Type.TypeVar tv -> tv;
@@ -218,8 +216,7 @@ public class BuiltinRegistry {
      */
     private static boolean isRelationalOverload(NativeFunctionDef def) {
         return !def.params().isEmpty()
-                && def.params().get(0).type() instanceof Type.Parameterized p
-                && "Relation".equals(p.rawType());
+                && Type.asLClass(def.params().get(0).type()) == com.gs.legend.model.m3.LClass.RELATION;
     }
 
     /**

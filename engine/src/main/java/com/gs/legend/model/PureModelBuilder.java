@@ -917,14 +917,15 @@ public final class PureModelBuilder implements ModelContext {
             parsedFilter = com.gs.legend.parser.PureParser.parseQuery(classMapping.filterExpression());
         }
 
-        // Register new PureClassMapping (clean pipeline)
+        // Register new PureClassMapping (clean pipeline). Target is tracked by FQN
+        // (AGENTS.md §5 — no eagerly-resolved PureClass field); sourceMapping is filled
+        // in later by MappingNormalizer.resolveM2MChain.
         com.gs.legend.model.mapping.PureClassMapping pureMapping =
                 new com.gs.legend.model.mapping.PureClassMapping(
                         classMapping.className(),
                         classMapping.sourceClassName(),
                         parsedExpressions,
                         parsedFilter,
-                        null,  // targetClass — resolved later
                         null); // sourceMapping — resolved later
         mappingRegistry.registerPureClassMapping(mappingName, pureMapping);
     }
@@ -1421,8 +1422,12 @@ public final class PureModelBuilder implements ModelContext {
      *   <li>{@link Type.NameRef} whose name is in {@code typeParams} → {@link Type.TypeVar}.</li>
      *   <li>Other {@link Type.NameRef} → classified primitive / class / enum via {@link #findType}
      *       (imports first, then kind lookup). Unresolvable names throw.</li>
-     *   <li>Structural variants ({@link Type.Parameterized}, {@link Type.FunctionType},
-     *       {@link Type.RelationTypeVar}) recurse into their children.</li>
+     *   <li>Structural variants ({@link Type.GenericType}, {@link Type.FunctionType},
+     *       {@link Type.RelationTypeVar}) recurse into their children. For
+     *       {@link Type.GenericType}, a {@link Type.NameRef} rawType is resolved here
+     *       (user class → {@link Type.ClassType}); an already-classified rawType
+     *       (e.g., {@link com.gs.legend.model.m3.LClass} from {@code NameResolver}'s
+     *       platform promotion) passes through unchanged.</li>
      *   <li>Already-classified leaves ({@link Primitive}, {@link Type.ClassType}, etc.) pass through.</li>
      * </ul>
      *
@@ -1441,11 +1446,23 @@ public final class PureModelBuilder implements ModelContext {
                                 + (resolved.equals(name) ? "" : " (resolved to '" + resolved + "')")
                                 + ". Not a primitive, class, enum, or declared type-parameter."));
             }
-            case Type.Parameterized p -> new Type.Parameterized(
-                    p.rawType(),
-                    p.typeArgs().stream()
-                            .map(a -> substituteTypeVarsAndClassify(a, typeParams, context))
-                            .toList());
+            case Type.GenericType gt -> {
+                // Reuse the outer NameRef → classified-type logic for the rawType. Only a
+                // concrete class / enum / primitive / already-classified LClass is meaningful
+                // as a generic's rawType; a bare type-variable rawType (e.g. `T<X>`) has no
+                // semantics in Pure and is rejected here rather than silently building a
+                // GenericType(TypeVar, ...) that downstream dispatch can't interpret.
+                Type resolvedRawType = substituteTypeVarsAndClassify(gt.rawType(), typeParams, context);
+                if (resolvedRawType instanceof Type.TypeVar tv) {
+                    throw new IllegalStateException(
+                            "Property '" + context + "': generic rawType cannot be a type variable ("
+                                    + tv.name() + "). Expected a class, enum, or platform class.");
+                }
+                List<Type> resolvedArgs = gt.typeArgs().stream()
+                        .map(a -> substituteTypeVarsAndClassify(a, typeParams, context))
+                        .toList();
+                yield new Type.GenericType(resolvedRawType, resolvedArgs);
+            }
             case Type.FunctionType ft -> {
                 List<Type.Parameter> newParams = ft.params().stream()
                         .map(pp -> new Type.Parameter(pp.name(),
@@ -1466,6 +1483,7 @@ public final class PureModelBuilder implements ModelContext {
             // Already-resolved / structurally complete leaves — pass through unchanged.
             case Primitive prim -> prim;
             case Type.ClassType ct -> ct;
+            case com.gs.legend.model.m3.LClass lc -> lc;
             case Type.EnumType et -> et;
             case Type.TypeVar tv -> tv;
             case Type.PrecisionDecimal pd -> pd;
@@ -1473,8 +1491,6 @@ public final class PureModelBuilder implements ModelContext {
             case Type.Tuple tu -> tu;
             case Type.SchemaAlgebra sa -> sa;
             case Type.FunctionReference fr -> fr;
-            case Type.GenericType gt -> throw new IllegalStateException(
-                    "Property '" + context + "': Type.GenericType not expected pre-commit-3. Got: " + gt);
         };
     }
 

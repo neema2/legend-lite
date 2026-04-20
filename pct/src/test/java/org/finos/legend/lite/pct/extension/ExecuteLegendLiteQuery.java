@@ -378,10 +378,12 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         // Resolve class path from Type
         String qualifiedName = switch (type) {
             case Type.ClassType ct -> ct.qualifiedName();
-            case Type.Parameterized p -> switch (p.rawType()) {
-                case "Pair" -> "meta::pure::functions::collection::Pair";
-                default -> p.rawType();
-            };
+            case com.gs.legend.model.m3.LClass lc -> lc.qualifiedName();
+            case Type.GenericType gt -> gt.rawType() instanceof com.gs.legend.model.m3.LClass lc
+                    ? lc.qualifiedName()
+                    : gt.rawType() instanceof Type.ClassType ct
+                            ? ct.qualifiedName()
+                            : "meta::pure::functions::collection::Pair"; // fallback
             default -> "meta::pure::functions::collection::Pair"; // fallback for unknown struct types
         };
 
@@ -397,7 +399,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         CoreInstance classifierGT = org.finos.legend.pure.m3.navigation.type.Type
                 .wrapGenericType(classInstance, null, ps);
 
-        if (type instanceof Type.Parameterized p) {
+        if (type instanceof Type.GenericType p) {
             // Set type arguments from the compiler-provided Type
             for (Type typeArg : p.typeArgs()) {
                 String argTypeName = typeArg.typeName();
@@ -420,7 +422,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
 
             // Determine property Type from Parameterized typeArgs if available
             Type propType = Primitive.ANY;
-            if (type instanceof Type.Parameterized p && !p.typeArgs().isEmpty()) {
+            if (type instanceof Type.GenericType p && !p.typeArgs().isEmpty()) {
                 // For Pair: first → typeArgs[0], second → typeArgs[1]
                 int idx = indexOf(structMap, propName);
                 if (idx >= 0 && idx < p.typeArgs().size()) {

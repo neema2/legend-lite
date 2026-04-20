@@ -1,8 +1,8 @@
 package com.gs.legend.parser;
 
-import com.gs.legend.compiler.BuiltinClassRegistry;
 import com.gs.legend.compiler.BuiltinRegistry;
 import com.gs.legend.compiler.NativeFunctionDef;
+import com.gs.legend.model.m3.LClass;
 import com.gs.legend.model.m3.Multiplicity;
 import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Type;
@@ -149,11 +149,16 @@ public final class PureNativeSignatureParser {
                 typeArgs.add(parseTypeWithOperation());
             }
             expect(TokenType.GREATER_THAN);
-            requireCatalogClass(typeName);
-            // rawType kept as the simple name so downstream string-keyed dispatch
-            // ("Relation".equals(p.rawType()), etc.) still works during the interim
-            // before the Type.GenericType migration replaces it with classified rawType.
-            return new Type.Parameterized(simpleName(typeName), typeArgs);
+            // Catalog class reference: emit GenericType(LClass.XYZ, typeArgs). The platform class
+            // enum ({@link LClass}) carries the FQN identity; downstream dispatch pattern-matches
+            // against specific variants (LClass.RELATION, LClass.COL_SPEC, etc.). findByFqn is
+            // the sole membership check — O(1) HashMap lookup; no separate "contains" pre-check.
+            LClass rawType = LClass.findByFqn(typeName).orElseThrow(() -> new PureParseException(
+                    "PureNativeSignatureParser: '" + typeName + "' is not a platform class in "
+                            + "BuiltinClassRegistry. Native signatures must reference catalog "
+                            + "classes (Relation, Function, ColSpec, _Window, ...) by fully "
+                            + "qualified name. Signature was: '" + source + "'."));
+            return new Type.GenericType(rawType, typeArgs);
         }
         // No type args — one of:
         //   (a) bare type-variable letter declared in the <> header (T, V, K, ...)
@@ -175,32 +180,16 @@ public final class PureNativeSignatureParser {
         if (BuiltinRegistry.findPlatformEnum(typeName).isPresent()) {
             return new Type.EnumType(typeName);
         }
-        if (BuiltinClassRegistry.BUILTIN_CLASS_FQNS.contains(typeName)) {
-            // Zero-arg catalog class (_Range, Rows, _Traversal, UnboundedFrameValue, ...).
-            // Represented as a zero-arg Parameterized for uniform structural matching
-            // with the generic catalog classes (_Window<T>, ColSpec<T>, etc.).
-            return new Type.Parameterized(simpleName, List.of());
-        }
+        // Zero-arg catalog class (_Range, Rows, _Traversal, UnboundedFrameValue, FrameValue, ...).
+        // The LClass enum constant IS the Type — no GenericType wrapper needed when there are
+        // no type arguments. Direct O(1) HashMap lookup; absent ⇒ unknown type (throw below).
+        var lc = LClass.findByFqn(typeName);
+        if (lc.isPresent()) return lc.get();
         throw new PureParseException(
                 "PureNativeSignatureParser: unknown type name '" + typeName + "' in signature '"
                         + source + "'. Native signatures must reference primitives, platform enums, "
                         + "and platform classes by fully qualified name, or declared type parameters "
                         + "by bare letter.");
-    }
-
-    /**
-     * Validates that a named type reference in a signature resolves to a class in the
-     * platform catalog. Throws a clear diagnostic otherwise, pinning the "no fallback"
-     * invariant: the signature parser does not silently accept unknown type names.
-     */
-    private void requireCatalogClass(String typeName) {
-        if (!BuiltinClassRegistry.BUILTIN_CLASS_FQNS.contains(typeName)) {
-            throw new PureParseException(
-                    "PureNativeSignatureParser: '" + typeName + "' is not a platform class in "
-                            + "BuiltinClassRegistry. Native signatures must reference catalog "
-                            + "classes (Relation, Function, ColSpec, _Window, ...) by fully "
-                            + "qualified name. Signature was: '" + source + "'.");
-        }
     }
 
     /**

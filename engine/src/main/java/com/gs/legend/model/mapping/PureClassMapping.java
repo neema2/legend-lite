@@ -1,7 +1,6 @@
 package com.gs.legend.model.mapping;
 
 import com.gs.legend.ast.ValueSpecification;
-import com.gs.legend.model.m3.PureClass;
 import com.gs.legend.model.store.Table;
 import com.gs.legend.model.m3.Type;
 
@@ -11,27 +10,31 @@ import java.util.Optional;
 
 /**
  * Represents a Model-to-Model (Pure) class mapping using clean AST nodes.
- * 
+ *
  * Pure syntax:
  * <pre>
  * TargetClass: Pure
  * {
  *     ~src SourceClass
  *     ~filter $src.isActive == true
- *     
+ *
  *     targetProp1: $src.sourceProp1,
  *     targetProp2: $src.first + ' ' + $src.last
  * }
  * </pre>
- * 
+ *
  * Property expressions are pre-parsed by ValueSpecificationBuilder into ValueSpecification
  * AST nodes. The compiler type-checks these; PlanGenerator emits SQL.
- * 
- * @param targetClassName  The target class being mapped to
+ *
+ * <p>The target class is referenced by FQN ({@code targetClassName}) only — resolved lazily
+ * via {@link com.gs.legend.model.ModelContext#findClass} at use time (e.g., in
+ * {@link #typeForProperty}). AGENTS.md §5: cross-project mapping targets must not force
+ * their containing project to load eagerly.
+ *
+ * @param targetClassName  The target class being mapped to (FQN)
  * @param sourceClassName  The source class being mapped from (~src)
  * @param propertyExpressions  Map of property name → pre-parsed AST expression
  * @param filter  Optional filter expression (~filter), pre-parsed
- * @param targetClass  Resolved target PureClass (may be null if not yet resolved)
  * @param sourceMapping  Resolved source ClassMapping (may be null if not yet resolved)
  */
 public record PureClassMapping(
@@ -39,7 +42,6 @@ public record PureClassMapping(
         String sourceClassName,
         Map<String, ValueSpecification> propertyExpressions,
         ValueSpecification filter,
-        PureClass targetClass,
         ClassMapping sourceMapping
 ) implements ClassMapping {
     public PureClassMapping {
@@ -50,22 +52,12 @@ public record PureClassMapping(
     }
 
     /**
-     * Creates a PureClassMapping without filter (and unresolved).
+     * Creates a resolved copy with the source ClassMapping filled in. The target class is
+     * already tracked by FQN and resolved lazily — no separate "resolve" step needed.
      */
-    public static PureClassMapping of(
-            String targetClassName,
-            String sourceClassName,
-            Map<String, ValueSpecification> propertyExpressions) {
+    public PureClassMapping withResolvedSource(ClassMapping resolvedSource) {
         return new PureClassMapping(targetClassName, sourceClassName, propertyExpressions,
-                null, null, null);
-    }
-
-    /**
-     * Creates a resolved copy with target PureClass and source ClassMapping.
-     */
-    public PureClassMapping withResolved(PureClass resolvedTarget, ClassMapping resolvedSource) {
-        return new PureClassMapping(targetClassName, sourceClassName, propertyExpressions,
-                filter, resolvedTarget, resolvedSource);
+                filter, resolvedSource);
     }
 
     /**
@@ -102,11 +94,10 @@ public record PureClassMapping(
         // No fallback — if the target class or property isn't resolvable, the model is
         // incomplete and downstream SQL generation would produce wrong types. AGENTS.md
         // #4 / #8 — fail loudly, don't silently default.
-        if (targetClass == null) {
-            throw new IllegalStateException(
-                    "PureClassMapping for '" + targetClassName + "': targetClass not resolved — "
-                    + "cannot determine type for property '" + propertyName + "'");
-        }
+        var targetClass = ctx.findClass(targetClassName)
+                .orElseThrow(() -> new IllegalStateException(
+                        "PureClassMapping for '" + targetClassName + "': target class not in "
+                        + "model context — cannot determine type for property '" + propertyName + "'"));
         return targetClass.findProperty(propertyName, ctx)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Property '" + propertyName + "' not found on class '"

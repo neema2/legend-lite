@@ -6,7 +6,6 @@ import com.gs.legend.model.RelationalMappingConverter;
 import com.gs.legend.model.mapping.ClassMapping;
 import com.gs.legend.model.mapping.PureClassMapping;
 import com.gs.legend.model.mapping.RelationalMapping;
-import com.gs.legend.model.m3.PureClass;
 import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.store.Filter;
 import com.gs.legend.model.store.Join;
@@ -177,11 +176,9 @@ public final class MappingNormalizer {
             allMappings.put(sourceId, sourceMapping);
         }
 
-        // Resolve target class
-        PureClass targetClass = model.findClass(pcm.targetClassName()).orElse(null);
-
-        // Fill in the two nulls
-        return pcm.withResolved(targetClass, sourceMapping);
+        // Target class is tracked by FQN and resolved lazily at use sites (AGENTS.md §5).
+        // Only the source-mapping link needs filling in here.
+        return pcm.withResolvedSource(sourceMapping);
     }
 
     // ==================== Association Extends ====================

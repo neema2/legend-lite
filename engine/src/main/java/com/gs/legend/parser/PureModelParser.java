@@ -824,10 +824,11 @@ public final class PureModelParser {
         Multiplicity mult = parseMultiplicity();
         // Extract function type if it's a Function<{...}> parameter
         Type.FunctionType fnType = (parsedType instanceof Type.FunctionType ft) ? ft
-                : (parsedType instanceof Type.Parameterized p
-                        && "Function".equals(p.rawType())
-                        && !p.typeArgs().isEmpty()
-                        && p.typeArgs().get(0) instanceof Type.FunctionType ft2) ? ft2
+                : (parsedType instanceof Type.GenericType gt
+                        && gt.rawType() instanceof Type.NameRef nr
+                        && "Function".equals(nr.qualifiedName())
+                        && !gt.typeArgs().isEmpty()
+                        && gt.typeArgs().get(0) instanceof Type.FunctionType ft2) ? ft2
                 : null;
         return new FunctionDefinition.ParameterDefinition(name, type,
                 mult.lowerBound(), mult.upperBound(), fnType, parsedType);
@@ -859,7 +860,7 @@ public final class PureModelParser {
             if ("Function".equals(rawType) || "FunctionDefinition".equals(rawType)) {
                 if (inner.startsWith("{") && inner.endsWith("}")) {
                     Type fnType = parseFunctionTypeLiteral(inner.substring(1, inner.length() - 1));
-                    return new Type.Parameterized(rawType, List.of(fnType));
+                    return new Type.GenericType(new Type.NameRef(rawType), List.of(fnType));
                 }
             }
 
@@ -868,16 +869,17 @@ public final class PureModelParser {
                 if (inner.startsWith("(") && inner.endsWith(")")) {
                     String colSpec = inner.substring(1, inner.length() - 1);
                     List<Type.RelationTypeVar.Column> cols = parseRelationColumns(colSpec);
-                    return new Type.Parameterized(rawType,
+                    return new Type.GenericType(new Type.NameRef(rawType),
                             List.of(new Type.RelationTypeVar(cols)));
                 }
                 // Relation<T> — type variable
-                return new Type.Parameterized(rawType,
+                return new Type.GenericType(new Type.NameRef(rawType),
                         List.of(new Type.TypeVar(inner)));
             }
 
-            // Other generics: just split type args
-            return new Type.Parameterized(rawType,
+            // Other generics: rawType is a NameRef pre-resolution; NameResolver promotes to
+            // LClass (for platform) or ClassType (for user classes) during resolvePType.
+            return new Type.GenericType(new Type.NameRef(rawType),
                     splitTypeArgs(inner).stream().map(PureModelParser::parsePureType).toList());
         }
 
