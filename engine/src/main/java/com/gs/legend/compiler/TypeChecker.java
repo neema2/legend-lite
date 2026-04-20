@@ -353,6 +353,11 @@ public class TypeChecker implements TypeCheckEnv {
             case AppliedFunction af -> compileFunction(af, ctx);
             case ClassInstance ci -> throw new PureCompileException(
                     "Unexpected ClassInstance '" + ci.type() + "' in compileExpr — should be desugared by parser");
+            case com.gs.legend.ast.ColumnInstance ci -> throw new PureCompileException(
+                    "Unexpected ColumnInstance " + ci.getClass().getSimpleName()
+                            + " in compileExpr — should be desugared by parser");
+            case com.gs.legend.ast.InstanceData id -> throw new PureCompileException(
+                    "Unexpected InstanceData '" + id.className() + "' in compileExpr — should be desugared by parser");
             case LambdaFunction lf -> compileLambda(lf, ctx);
             case Variable v -> compileVariable(v, ctx);
             case AppliedProperty ap -> compileProperty(ap, ctx);

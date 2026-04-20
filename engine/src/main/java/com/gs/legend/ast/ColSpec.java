@@ -22,7 +22,7 @@ package com.gs.legend.ast;
 public record ColSpec(
         String name,
         LambdaFunction function1,
-        LambdaFunction function2) {
+        LambdaFunction function2) implements ColumnInstance {
 
     /**
      * Simple column reference (no lambdas).

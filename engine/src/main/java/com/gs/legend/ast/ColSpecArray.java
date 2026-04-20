@@ -14,7 +14,7 @@ import java.util.List;
  * @param colSpecs The list of column specifications
  */
 public record ColSpecArray(
-        List<ColSpec> colSpecs) {
+        List<ColSpec> colSpecs) implements ColumnInstance {
 
     public ColSpecArray {
         colSpecs = List.copyOf(colSpecs);

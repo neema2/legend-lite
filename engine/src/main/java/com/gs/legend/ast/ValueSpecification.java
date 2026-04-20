@@ -39,6 +39,8 @@ public sealed interface ValueSpecification permits
         PackageableElementPtr,
         TypeAnnotation,
         ClassInstance,
+        ColumnInstance,
+        InstanceData,
         PureCollection,
         Variable,
         LambdaFunction,

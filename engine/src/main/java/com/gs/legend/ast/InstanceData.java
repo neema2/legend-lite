@@ -20,7 +20,7 @@ import java.util.Map;
 public record InstanceData(
         String className,
         Map<String, ValueSpecification> properties,
-        List<String> typeArguments) {
+        List<String> typeArguments) implements ValueSpecification {
 
     public InstanceData(String className, Map<String, ValueSpecification> properties) {
         this(className, properties, List.of());
