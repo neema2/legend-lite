@@ -216,8 +216,7 @@ public final class MappingNormalizer {
                     java.util.List.of(traverseCall));
 
             // ColSpec with fn1=traverse lambda (fn2=null) — association extend marker
-            var colSpec = new com.gs.legend.ast.ColSpec(propName, fn1);
-            var colSpecCI = new com.gs.legend.ast.ClassInstance("colSpec", colSpec);
+            var colSpecCI = new com.gs.legend.ast.ColSpec(propName, fn1);
 
             // 2-param extend: extend(source, ColSpec) — no separate _Traversal param
             source = new com.gs.legend.ast.AppliedFunction(
@@ -261,9 +260,8 @@ public final class MappingNormalizer {
                 subColSpecs.add(new com.gs.legend.ast.ColSpec(sub.propertyName(), fn1));
             }
 
-            // Wrap in ColSpecArray → ClassInstance("colSpecArray", ...)
-            var colSpecArray = new com.gs.legend.ast.ColSpecArray(subColSpecs);
-            var colSpecArrayCI = new com.gs.legend.ast.ClassInstance("colSpecArray", colSpecArray);
+            // Wrap in ColSpecArray (carried directly, no ClassInstance wrapper)
+            var colSpecArrayCI = new com.gs.legend.ast.ColSpecArray(subColSpecs);
 
             // fn1 = 0-param lambda wrapping ColSpecArray: { -> ~[...] }
             var outerFn1 = new com.gs.legend.ast.LambdaFunction(
@@ -271,8 +269,7 @@ public final class MappingNormalizer {
                     java.util.List.of(colSpecArrayCI));
 
             // ColSpec with fn1=embedded lambda — embedded extend marker
-            var colSpec = new com.gs.legend.ast.ColSpec(propName, outerFn1);
-            var colSpecCI = new com.gs.legend.ast.ClassInstance("colSpec", colSpec);
+            var colSpecCI = new com.gs.legend.ast.ColSpec(propName, outerFn1);
 
             // 2-param extend: extend(source, ColSpec)
             source = new com.gs.legend.ast.AppliedFunction(
@@ -409,13 +406,9 @@ public final class MappingNormalizer {
             colSpecs.add(new com.gs.legend.ast.ColSpec(entry.getKey(), lambda));
         }
         if (!colSpecs.isEmpty()) {
-            com.gs.legend.ast.ClassInstance colSpecCI;
-            if (colSpecs.size() == 1) {
-                colSpecCI = new com.gs.legend.ast.ClassInstance("colSpec", colSpecs.get(0));
-            } else {
-                colSpecCI = new com.gs.legend.ast.ClassInstance("colSpecArray",
-                        new com.gs.legend.ast.ColSpecArray(colSpecs));
-            }
+            com.gs.legend.ast.ColumnInstance colSpecCI = (colSpecs.size() == 1)
+                    ? colSpecs.get(0)
+                    : new com.gs.legend.ast.ColSpecArray(colSpecs);
             source = new com.gs.legend.ast.AppliedFunction(
                     "extend", java.util.List.of(source, colSpecCI), true);
         }
@@ -472,14 +465,9 @@ public final class MappingNormalizer {
                 colSpecs.add(new com.gs.legend.ast.ColSpec(pm.propertyName(), lambda));
             }
 
-            // Wrap in ClassInstance
-            com.gs.legend.ast.ClassInstance colSpecCI;
-            if (colSpecs.size() == 1) {
-                colSpecCI = new com.gs.legend.ast.ClassInstance("colSpec", colSpecs.get(0));
-            } else {
-                colSpecCI = new com.gs.legend.ast.ClassInstance("colSpecArray",
-                        new com.gs.legend.ast.ColSpecArray(colSpecs));
-            }
+            com.gs.legend.ast.ColumnInstance colSpecCI = (colSpecs.size() == 1)
+                    ? colSpecs.get(0)
+                    : new com.gs.legend.ast.ColSpecArray(colSpecs);
 
             source = new com.gs.legend.ast.AppliedFunction(
                     "extend",
@@ -522,8 +510,7 @@ public final class MappingNormalizer {
                 lambdaParams.add(new com.gs.legend.ast.Variable("t" + (i + 1)));
             }
             var lambda = new com.gs.legend.ast.LambdaFunction(lambdaParams, pm.dynaExpression());
-            var colSpec = new com.gs.legend.ast.ColSpec(pm.propertyName(), lambda);
-            var colSpecCI = new com.gs.legend.ast.ClassInstance("colSpec", colSpec);
+            var colSpecCI = new com.gs.legend.ast.ColSpec(pm.propertyName(), lambda);
 
             source = new com.gs.legend.ast.AppliedFunction(
                     "extend",
@@ -573,13 +560,9 @@ public final class MappingNormalizer {
 
         if (colSpecs.isEmpty()) return source;
 
-        com.gs.legend.ast.ClassInstance colSpecCI;
-        if (colSpecs.size() == 1) {
-            colSpecCI = new com.gs.legend.ast.ClassInstance("colSpec", colSpecs.get(0));
-        } else {
-            colSpecCI = new com.gs.legend.ast.ClassInstance("colSpecArray",
-                    new com.gs.legend.ast.ColSpecArray(colSpecs));
-        }
+        com.gs.legend.ast.ColumnInstance colSpecCI = (colSpecs.size() == 1)
+                ? colSpecs.get(0)
+                : new com.gs.legend.ast.ColSpecArray(colSpecs);
 
         return new com.gs.legend.ast.AppliedFunction(
                 "extend",
@@ -729,16 +712,11 @@ public final class MappingNormalizer {
         }
 
         // Build: groupBy(source, ~[keyCols], ~[aggCols:fn1:fn2])
-        var keyArray = new com.gs.legend.ast.ClassInstance("colSpecArray",
-                new com.gs.legend.ast.ColSpecArray(keyCols));
+        var keyArray = new com.gs.legend.ast.ColSpecArray(keyCols);
 
-        com.gs.legend.ast.ClassInstance aggCI;
-        if (aggCols.size() == 1) {
-            aggCI = new com.gs.legend.ast.ClassInstance("colSpec", aggCols.get(0));
-        } else {
-            aggCI = new com.gs.legend.ast.ClassInstance("colSpecArray",
-                    new com.gs.legend.ast.ColSpecArray(aggCols));
-        }
+        com.gs.legend.ast.ColumnInstance aggCI = (aggCols.size() == 1)
+                ? aggCols.get(0)
+                : new com.gs.legend.ast.ColSpecArray(aggCols);
 
         return new com.gs.legend.ast.AppliedFunction(
                 "groupBy",

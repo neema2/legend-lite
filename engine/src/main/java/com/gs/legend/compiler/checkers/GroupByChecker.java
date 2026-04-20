@@ -308,8 +308,8 @@ public class GroupByChecker extends AbstractChecker {
         }
 
         // Build rewritten arity-3: groupBy(source, ColSpecArray(keyCols), ColSpecArray(aggCols))
-        var keyArray = new ClassInstance("colSpecArray", new ColSpecArray(keyCols));
-        var aggArray = new ClassInstance("colSpecArray", new ColSpecArray(aggCols));
+        var keyArray = new ColSpecArray(keyCols);
+        var aggArray = new ColSpecArray(aggCols);
 
         return new AppliedFunction(
                 af.function(),
@@ -323,7 +323,7 @@ public class GroupByChecker extends AbstractChecker {
 
     /** Extracts ColSpec list from a FuncColSpecArray parameter (keys with lambdas). */
     private static List<ColSpec> extractColSpecs(ValueSpecification param) {
-        if (param instanceof ClassInstance ci && ci.value() instanceof ColSpecArray(List<ColSpec> specs)) {
+        if (param instanceof ColSpecArray(List<ColSpec> specs)) {
             return specs;
         }
         throw new PureCompileException(
@@ -335,11 +335,11 @@ public class GroupByChecker extends AbstractChecker {
      * Extracts ColSpec list from AggColSpec or AggColSpecArray parameter.
      */
     public static List<ColSpec> extractAggColSpecs(ValueSpecification vs) {
-        if (vs instanceof ClassInstance ci) {
-            if (ci.value() instanceof ColSpecArray(List<ColSpec> specs)) {
+        if (vs instanceof com.gs.legend.ast.ColumnInstance ci) {
+            if (ci instanceof ColSpecArray(List<ColSpec> specs)) {
                 return specs;
             }
-            if (ci.value() instanceof ColSpec cs) {
+            if (ci instanceof ColSpec cs) {
                 return List.of(cs);
             }
         }

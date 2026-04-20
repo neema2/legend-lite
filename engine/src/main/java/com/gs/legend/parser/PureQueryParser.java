@@ -780,23 +780,20 @@ public final class PureQueryParser {
             }
         }
 
-        ColSpec spec = new ColSpec(colName, fn1, fn2);
-        return new ClassInstance("colSpec", spec);
+        return new ColSpec(colName, fn1, fn2);
     }
 
     private ValueSpecification parseColSpecArray() {
         consume(TokenType.BRACKET_OPEN);
         List<ColSpec> specs = new ArrayList<>();
         if (!check(TokenType.BRACKET_CLOSE)) {
-            ClassInstance ci = (ClassInstance) parseOneColSpec();
-            specs.add((ColSpec) ci.value());
+            specs.add((ColSpec) parseOneColSpec());
             while (match(TokenType.COMMA)) {
-                ci = (ClassInstance) parseOneColSpec();
-                specs.add((ColSpec) ci.value());
+                specs.add((ColSpec) parseOneColSpec());
             }
         }
         consume(TokenType.BRACKET_CLOSE);
-        return new ClassInstance("colSpecArray", new ColSpecArray(specs));
+        return new ColSpecArray(specs);
     }
 
     private ValueSpecification parseAnyLambda() {
@@ -917,8 +914,7 @@ public final class PureQueryParser {
         inner.parseQualifiedName();
 
         // Parse graphDefinition: { graphPaths }
-        ColSpecArray colSpecArray = inner.parseGraphDefinition(0);
-        return new ClassInstance("colSpecArray", colSpecArray);
+        return inner.parseGraphDefinition(0);
     }
 
     private ColSpecArray parseGraphDefinition(int depth) {
@@ -968,8 +964,7 @@ public final class PureQueryParser {
         // Nested graphDefinition?
         if (check(TokenType.BRACE_OPEN)) {
             ColSpecArray nestedSpecs = parseGraphDefinition(depth + 1);
-            ClassInstance nestedCI = new ClassInstance("colSpecArray", nestedSpecs);
-            LambdaFunction fn2 = new LambdaFunction(List.of(), List.of(nestedCI));
+            LambdaFunction fn2 = new LambdaFunction(List.of(), List.of(nestedSpecs));
             return new ColSpec(propName, fn1, fn2);
         }
 

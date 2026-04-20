@@ -650,10 +650,9 @@ public class PlanGenerator {
         return new SqlExpr.Subquery(childQuery);
     }
 
-    /** Extracts ColSpec list from a graphFetch argument (ClassInstance wrapping ColSpecArray). */
+    /** Extracts ColSpec list from a graphFetch argument (ColSpecArray node). */
     private static java.util.List<com.gs.legend.ast.ColSpec> extractGraphFetchColSpecs(ValueSpecification arg) {
-        if (arg instanceof com.gs.legend.ast.ClassInstance ci
-                && ci.value() instanceof com.gs.legend.ast.ColSpecArray csa) {
+        if (arg instanceof com.gs.legend.ast.ColSpecArray csa) {
             return csa.colSpecs();
         }
         throw new PureCompileException("generateGraphFetch: expected ColSpecArray argument");
@@ -663,8 +662,7 @@ public class PlanGenerator {
     private static java.util.List<com.gs.legend.ast.ColSpec> extractNestedColSpecs(com.gs.legend.ast.ColSpec cs) {
         if (cs.function2() == null || cs.function2().body().isEmpty()) return null;
         var body = cs.function2().body().get(0);
-        if (body instanceof com.gs.legend.ast.ClassInstance ci
-                && ci.value() instanceof com.gs.legend.ast.ColSpecArray csa) {
+        if (body instanceof com.gs.legend.ast.ColSpecArray csa) {
             return csa.colSpecs();
         }
         return null;
@@ -880,8 +878,7 @@ public class PlanGenerator {
 
         // Step 4: Build SELECT columns from projections (sidecar) + lambda bodies (AST)
         TypeInfo info = unit.types().get(af);
-        List<ColSpec> colSpecs = (params.get(1) instanceof ClassInstance ci
-                && ci.value() instanceof ColSpecArray(List<ColSpec> specs))
+        List<ColSpec> colSpecs = (params.get(1) instanceof ColSpecArray(List<ColSpec> specs))
                 ? specs : List.of();
 
         for (int i = 0; i < info.projections().size(); i++) {
@@ -2007,11 +2004,10 @@ public class PlanGenerator {
             // Compile colSpecs — map lambda params to terminal aliases
             List<ColSpec> traverseColSpecs = new java.util.ArrayList<>();
             for (int i = 1; i < params.size(); i++) {
-                if (params.get(i) instanceof ClassInstance ci) {
-                    if (ci.value() instanceof ColSpec cs) traverseColSpecs.add(cs);
-                    else if (ci.value() instanceof ColSpecArray(List<ColSpec> specs2))
-                        traverseColSpecs.addAll(specs2);
-                }
+                var arg = params.get(i);
+                if (arg instanceof ColSpec cs) traverseColSpecs.add(cs);
+                else if (arg instanceof ColSpecArray(List<ColSpec> specs2))
+                    traverseColSpecs.addAll(specs2);
             }
             for (ColSpec cs : traverseColSpecs) {
                 if (extendOverride != null && !extendOverride.isActive(cs.name())) continue;
@@ -2047,12 +2043,11 @@ public class PlanGenerator {
         // --- Scalar extend: read AST directly (unchanged) ---
         List<ColSpec> colSpecs = new java.util.ArrayList<>();
         for (int i = 1; i < params.size(); i++) {
-            if (params.get(i) instanceof ClassInstance ci) {
-                if (ci.value() instanceof ColSpec cs) {
-                    colSpecs.add(cs);
-                } else if (ci.value() instanceof ColSpecArray(List<ColSpec> specs)) {
-                    colSpecs.addAll(specs);
-                }
+            var arg = params.get(i);
+            if (arg instanceof ColSpec cs) {
+                colSpecs.add(cs);
+            } else if (arg instanceof ColSpecArray(List<ColSpec> specs)) {
+                colSpecs.addAll(specs);
             }
         }
         if (source.hasPivot() || source.hasWindowColumns()) {
@@ -2598,12 +2593,9 @@ public class PlanGenerator {
                     yield new SqlExpr.Identifier(v.name());
                 yield new SqlExpr.ColumnRef(v.name());
             }
-            case ClassInstance ci -> {
-                if (ci.value() instanceof ColSpec cs)
-                    yield new SqlExpr.ColumnRef(cs.name());
-                throw new PureCompileException(
-                        "PlanGenerator: unsupported ClassInstance in scalar: " + ci.type());
-            }
+            case ColSpec cs -> new SqlExpr.ColumnRef(cs.name());
+            case ColSpecArray csa -> throw new PureCompileException(
+                    "PlanGenerator: ColSpecArray not valid in scalar context");
             case EnumValue ev -> new SqlExpr.StringLiteral(ev.value());
             case PureCollection coll -> {
                 var exprs = coll.values().stream()
@@ -2616,7 +2608,8 @@ public class PlanGenerator {
                 TypeInfo collInfo = unit.typeInfoFor(coll);
                 if (collInfo != null && collInfo.isHeterogeneousList()
                         && !coll.values().isEmpty()
-                        && coll.values().stream().noneMatch(v -> v instanceof ClassInstance)) {
+                        && coll.values().stream().noneMatch(v -> v instanceof com.gs.legend.ast.ColumnInstance
+                                || v instanceof com.gs.legend.ast.InstanceData)) {
                     var values = coll.values();
                     for (int idx = 0; idx < exprs.size(); idx++) {
                         SqlExpr e = exprs.get(idx);
@@ -2800,7 +2793,8 @@ public class PlanGenerator {
                     // Check if list has mixed types (List<ANY>) — needs TO_JSON wrapping
                     if (listInfo != null && listInfo.isMixedList()
                             && params.get(0) instanceof PureCollection(List<ValueSpecification> values)
-                            && values.stream().noneMatch(v -> v instanceof ClassInstance)) {
+                            && values.stream().noneMatch(v -> v instanceof com.gs.legend.ast.ColumnInstance
+                                    || v instanceof com.gs.legend.ast.InstanceData)) {
                         // Mixed-type list: wrap elements in toJson for comparable representation
                         // "toJson" is a semantic name — dialect maps it (DuckDB: TO_JSON)
                         var wrappedElems = values.stream()
@@ -3030,7 +3024,8 @@ public class PlanGenerator {
                     // Check if this is a mixed-type list — needs TO_JSON wrapping
                     TypeInfo listInfo = unit.typeInfoFor(params.get(1));
                     if (listInfo != null && listInfo.isMixedList()
-                            && values.stream().noneMatch(v -> v instanceof ClassInstance)) {
+                            && values.stream().noneMatch(v -> v instanceof com.gs.legend.ast.ColumnInstance
+                                    || v instanceof com.gs.legend.ast.InstanceData)) {
                         var wrappedElems = values.stream()
                                 .map(v -> (SqlExpr) new SqlExpr.FunctionCall("toJson",
                                         List.of(c.apply(v))))

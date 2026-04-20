@@ -741,6 +741,9 @@ public final class NameResolver {
                 Object resolvedValue = resolveClassInstanceValue(ci.value(), imports, knownFqns);
                 yield resolvedValue == ci.value() ? ci : new ClassInstance(ci.type(), resolvedValue);
             }
+            case ColSpec cs -> (ColSpec) resolveClassInstanceValue(cs, imports, knownFqns);
+            case ColSpecArray csa -> (ColSpecArray) resolveClassInstanceValue(csa, imports, knownFqns);
+            case InstanceData id -> (InstanceData) resolveClassInstanceValue(id, imports, knownFqns);
             case AppliedProperty ap -> {
                 List<ValueSpecification> resolvedParams = resolveList(ap.parameters(), imports, knownFqns);
                 yield resolvedParams == ap.parameters() ? ap

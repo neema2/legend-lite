@@ -1162,8 +1162,7 @@ public class TypeChecker implements TypeCheckEnv {
                 var propVar = new Variable("_rel_x");
                 var propAccess = new AppliedProperty(ap.property(), List.of(propVar));
                 var colSpec = new ColSpec(ap.property(), new LambdaFunction(List.of(propVar), propAccess), null);
-                var colSpecCI = new ClassInstance("colSpec", colSpec);
-                var projectNode = new AppliedFunction("project", List.of(ownerFn, colSpecCI));
+                var projectNode = new AppliedFunction("project", List.of(ownerFn, colSpec));
                 TypeInfo projectInfo = compileExpr(projectNode, ctx);
                 // Extract the column's Type for the return type
                 Type colType = ownerInfo.schema().getColumnType(ap.property());

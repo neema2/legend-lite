@@ -50,7 +50,7 @@ public class SortChecker extends AbstractChecker {
             var compiledTypes = new java.util.HashMap<Integer, ExpressionType>();
             for (int i = 1; i < params.size(); i++) {
                 ValueSpecification p = params.get(i);
-                if (!(p instanceof AppliedFunction) && !(p instanceof ClassInstance)
+                if (!(p instanceof AppliedFunction) && !(p instanceof com.gs.legend.ast.ColumnInstance)
                         && !(p instanceof LambdaFunction) && !(p instanceof PureCollection)) {
                     TypeInfo ti = env.compileExpr(p, ctx);
                     compiledTypes.put(i, ti.expressionType());
@@ -152,8 +152,7 @@ public class SortChecker extends AbstractChecker {
 
         // Build: ascending(~col) or descending(~col)
         var colSpec = new ColSpec(colName, null);
-        var colSpecInstance = new ClassInstance("colSpec", colSpec);
-        var sortInfo = new AppliedFunction(dirFn, List.of(colSpecInstance));
+        var sortInfo = new AppliedFunction(dirFn, List.of(colSpec));
 
         // Build new arity-2 AF: sort(source, sortInfo)
         var rewritten = new AppliedFunction(
@@ -205,9 +204,8 @@ public class SortChecker extends AbstractChecker {
             }
         }
 
-        // ClassInstance("sortInfo", ColSpec) — bare ~col, default ASC
-        if (vs instanceof ClassInstance(String type, Object value)
-                && "sortInfo".equals(type) && value instanceof ColSpec cs) {
+        // Bare ~col — default ASC
+        if (vs instanceof ColSpec cs) {
             validateColumn(cs.name(), schema);
             return new TypeInfo.SortSpec(cs.name(), TypeInfo.SortDirection.ASC);
         }

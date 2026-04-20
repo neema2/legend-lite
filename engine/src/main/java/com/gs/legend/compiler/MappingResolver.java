@@ -392,15 +392,16 @@ public final class MappingResolver {
 
             // --- ColSpec-based extends (scalar, association, embedded) ---
             for (int i = 1; i < extendAf.parameters().size(); i++) {
-                if (!(extendAf.parameters().get(i) instanceof ClassInstance ci)) continue;
+                var arg = extendAf.parameters().get(i);
+                if (!(arg instanceof com.gs.legend.ast.ColumnInstance)) continue;
 
                 // Single ColSpec
-                if (ci.value() instanceof ColSpec cs) {
+                if (arg instanceof ColSpec cs) {
                     resolveColSpec(cs, className, tableName, neededAssocs,
                             propToCol, properties, joins);
                 }
                 // ColSpecArray — batch of ColSpecs
-                else if (ci.value() instanceof ColSpecArray csa) {
+                else if (arg instanceof ColSpecArray csa) {
                     for (ColSpec cs : csa.colSpecs()) {
                         resolveColSpec(cs, className, tableName, neededAssocs,
                                 propToCol, properties, joins);
@@ -482,8 +483,7 @@ public final class MappingResolver {
     private void resolveEmbeddedExtend(ColSpec cs, String tableName,
                                        Map<String, StoreResolution.JoinResolution> joins) {
         String propName = cs.name();
-        ClassInstance innerCI = (ClassInstance) cs.function1().body().get(0);
-        ColSpecArray subArray = (ColSpecArray) innerCI.value();
+        ColSpecArray subArray = (ColSpecArray) cs.function1().body().get(0);
 
         Map<String, String> subPropToCol = new LinkedHashMap<>();
         Map<String, StoreResolution.PropertyResolution> subProperties = new LinkedHashMap<>();
@@ -731,12 +731,10 @@ public final class MappingResolver {
 
     /** Extracts ColSpecs from a traverse extend's last ClassInstance parameter. */
     private static List<ColSpec> extractTraverseColSpecs(AppliedFunction extendAf) {
-        // ColSpec ClassInstance is the last param
+        // ColSpec node is the last param
         var lastParam = extendAf.parameters().get(extendAf.parameters().size() - 1);
-        if (lastParam instanceof ClassInstance ci) {
-            if (ci.value() instanceof ColSpec cs) return List.of(cs);
-            if (ci.value() instanceof ColSpecArray arr) return arr.colSpecs();
-        }
+        if (lastParam instanceof ColSpec cs) return List.of(cs);
+        if (lastParam instanceof ColSpecArray arr) return arr.colSpecs();
         return List.of();
     }
 
@@ -772,10 +770,11 @@ public final class MappingResolver {
         var names = new HashSet<String>();
         // extend(source, [traverse], colSpecCI) — colSpec is the last param
         for (int i = 1; i < extendAf.parameters().size(); i++) {
-            if (extendAf.parameters().get(i) instanceof ClassInstance ci) {
-                if (ci.value() instanceof ColSpec cs) {
+            var arg = extendAf.parameters().get(i);
+            if (arg instanceof com.gs.legend.ast.ColumnInstance) {
+                if (arg instanceof ColSpec cs) {
                     names.add(cs.name());
-                } else if (ci.value() instanceof ColSpecArray arr) {
+                } else if (arg instanceof ColSpecArray arr) {
                     for (ColSpec cs : arr.colSpecs()) names.add(cs.name());
                 }
             }

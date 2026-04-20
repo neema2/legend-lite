@@ -374,25 +374,20 @@ public abstract class AbstractChecker implements FunctionChecker {
             return switch (expectedLc) {
                 case RELATION -> isSource
                         ? (source != null && source.isRelational())
-                        : (compiledType instanceof Type.Relation)
-                          || (actual instanceof ClassInstance ci && "relation".equals(ci.type()));
+                        : (compiledType instanceof Type.Relation);
                 case COL_SPEC
-                        -> actual instanceof ClassInstance ci && "colSpec".equals(ci.type());
+                        -> actual instanceof com.gs.legend.ast.ColSpec;
                 case FUNC_COL_SPEC
-                        -> actual instanceof ClassInstance ci && "colSpec".equals(ci.type())
-                            && ci.value() instanceof com.gs.legend.ast.ColSpec cs && cs.function2() == null;
+                        -> actual instanceof com.gs.legend.ast.ColSpec cs && cs.function2() == null;
                 case AGG_COL_SPEC
-                        -> actual instanceof ClassInstance ci && "colSpec".equals(ci.type())
-                            && ci.value() instanceof com.gs.legend.ast.ColSpec cs && cs.function2() != null;
+                        -> actual instanceof com.gs.legend.ast.ColSpec cs && cs.function2() != null;
                 case COL_SPEC_ARRAY
-                        -> actual instanceof ClassInstance ci && "colSpecArray".equals(ci.type());
+                        -> actual instanceof com.gs.legend.ast.ColSpecArray;
                 case FUNC_COL_SPEC_ARRAY
-                        -> actual instanceof ClassInstance ci && "colSpecArray".equals(ci.type())
-                            && ci.value() instanceof com.gs.legend.ast.ColSpecArray csa
+                        -> actual instanceof com.gs.legend.ast.ColSpecArray csa
                             && csa.colSpecs().stream().allMatch(s -> s.function2() == null);
                 case AGG_COL_SPEC_ARRAY
-                        -> actual instanceof ClassInstance ci && "colSpecArray".equals(ci.type())
-                            && ci.value() instanceof com.gs.legend.ast.ColSpecArray csa
+                        -> actual instanceof com.gs.legend.ast.ColSpecArray csa
                             && csa.colSpecs().stream().allMatch(s -> s.function2() != null);
                 case FUNCTION -> actual instanceof LambdaFunction
                     || actual instanceof PackageableElementPtr; // function reference (e.g., eq_Any_1__Any_1__Boolean_1_)
@@ -1102,8 +1097,7 @@ public abstract class AbstractChecker implements FunctionChecker {
      * Handles ColSpec (from ~col syntax) and AppliedProperty (from $p.col syntax).
      */
     protected static String extractColumnName(ValueSpecification vs) {
-        if (vs instanceof com.gs.legend.ast.ClassInstance(String type, Object value)
-                && value instanceof com.gs.legend.ast.ColSpec cs) {
+        if (vs instanceof com.gs.legend.ast.ColSpec cs) {
             return cs.name();
         }
         if (vs instanceof com.gs.legend.ast.AppliedProperty ap) {
@@ -1118,8 +1112,7 @@ public abstract class AbstractChecker implements FunctionChecker {
      * Handles both single ColSpec (~col) and ColSpecArray (~[col1, col2]).
      */
     protected static java.util.List<String> extractColumnNames(ValueSpecification vs) {
-        if (vs instanceof com.gs.legend.ast.ClassInstance(String type, Object value)
-                && value instanceof com.gs.legend.ast.ColSpecArray(java.util.List<com.gs.legend.ast.ColSpec> specs)) {
+        if (vs instanceof com.gs.legend.ast.ColSpecArray(java.util.List<com.gs.legend.ast.ColSpec> specs)) {
             return specs.stream().map(com.gs.legend.ast.ColSpec::name).toList();
         }
         if (vs instanceof com.gs.legend.ast.PureCollection(java.util.List<ValueSpecification> values)) {

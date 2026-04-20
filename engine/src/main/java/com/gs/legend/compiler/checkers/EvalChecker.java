@@ -35,8 +35,7 @@ public class EvalChecker extends AbstractChecker {
         return switch (params.get(0)) {
             // ~colName->eval($row) — column accessor applied to a row
             // Rewrite to $row.colName (property access on the row)
-            case ClassInstance ci when "colSpec".equals(ci.type()) -> {
-                var colSpec = (ColSpec) ci.value();
+            case ColSpec colSpec -> {
                 if (params.size() < 2) {
                     throw new PureCompileException(
                             "eval() on ~" + colSpec.name() + " requires a row argument");

@@ -86,7 +86,7 @@ public class ExtendChecker extends AbstractChecker {
             var p = params.get(i);
             if (p instanceof AppliedFunction) continue; // over()/traverse() — already handled
             if (p instanceof com.gs.legend.ast.PureCollection) continue; // multi-traverse — already handled
-            if (p instanceof ClassInstance ci) {
+            if (p instanceof com.gs.legend.ast.ColumnInstance ci) {
                 List<ColSpec> colSpecs = extractColSpecs(ci);
                 for (ColSpec cs : colSpecs) {
                     // Association extend: fn1 is a 0-param lambda wrapping traverse().
@@ -154,7 +154,7 @@ public class ExtendChecker extends AbstractChecker {
         Type resolvedParamType = resolve(ft.params().get(0).type(), bindings,
                 "extend() class-source lambda param");
 
-        if (!(params.get(1) instanceof ClassInstance ci)) {
+        if (!(params.get(1) instanceof com.gs.legend.ast.ColumnInstance ci)) {
             throw new PureCompileException(
                     "extend() class-source: param 2 must be FuncColSpec/FuncColSpecArray, got "
                             + params.get(1).getClass().getSimpleName());
@@ -204,10 +204,8 @@ public class ExtendChecker extends AbstractChecker {
         for (int i = 1; i < params.size(); i++) {
             var p = params.get(i);
             if (p instanceof AppliedFunction) continue; // over()
-            if (p instanceof ClassInstance ci) {
-                if (ci.value() instanceof ColSpecArray(List<ColSpec> specs)) result.addAll(specs);
-                else if (ci.value() instanceof ColSpec cs) result.add(cs);
-            }
+            if (p instanceof ColSpecArray(List<ColSpec> specs)) result.addAll(specs);
+            else if (p instanceof ColSpec cs) result.add(cs);
         }
         return result;
     }
@@ -240,8 +238,7 @@ public class ExtendChecker extends AbstractChecker {
         var fn1 = cs.function1();
         if (!fn1.parameters().isEmpty()) return false; // must be 0-param
         if (fn1.body().isEmpty()) return false;
-        return fn1.body().get(0) instanceof ClassInstance ci
-                && ci.value() instanceof ColSpecArray;
+        return fn1.body().get(0) instanceof ColSpecArray;
     }
 
     // ========== ColSpec compilation ==========
@@ -434,11 +431,10 @@ public class ExtendChecker extends AbstractChecker {
         TypeInfo.FrameSpec frame = null;
 
         for (var p : overAf.parameters()) {
-            if (p instanceof ClassInstance ci && ci.value() instanceof ColSpec cs) {
+            if (p instanceof ColSpec cs) {
                 sourceSchema.requireColumn(cs.name());
                 partitionBy.add(cs.name());
-            } else if (p instanceof ClassInstance ci
-                    && ci.value() instanceof ColSpecArray(List<ColSpec> colSpecs)) {
+            } else if (p instanceof ColSpecArray(List<ColSpec> colSpecs)) {
                 for (ColSpec cs : colSpecs) {
                     sourceSchema.requireColumn(cs.name());
                     partitionBy.add(cs.name());
@@ -665,12 +661,12 @@ public class ExtendChecker extends AbstractChecker {
 
     // ========== Shared utilities ==========
 
-    private List<ColSpec> extractColSpecs(ClassInstance ci) {
-        if (ci.value() instanceof ColSpecArray(List<ColSpec> specs)) return specs;
-        if (ci.value() instanceof ColSpec cs) return List.of(cs);
+    private List<ColSpec> extractColSpecs(com.gs.legend.ast.ColumnInstance ci) {
+        if (ci instanceof ColSpecArray(List<ColSpec> specs)) return specs;
+        if (ci instanceof ColSpec cs) return List.of(cs);
         throw new PureCompileException(
                 "extend() parameter must be ~col:... or ~[...], got: "
-                        + ci.value().getClass().getSimpleName());
+                        + ci.getClass().getSimpleName());
     }
 
 

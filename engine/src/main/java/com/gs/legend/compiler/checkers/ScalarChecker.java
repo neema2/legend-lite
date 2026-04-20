@@ -99,8 +99,7 @@ public class ScalarChecker extends AbstractChecker {
     }
 
     private static boolean isColSpec(ValueSpecification param) {
-        return param instanceof ClassInstance ci
-                && ("colSpec".equals(ci.type()) || "colSpecArray".equals(ci.type()));
+        return param instanceof com.gs.legend.ast.ColumnInstance;
     }
 }
 

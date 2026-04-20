@@ -137,8 +137,7 @@ public class ProjectChecker extends AbstractChecker {
             colSpecs.add(new ColSpec(cs.value(), lf));
         }
 
-        // Wrap in ClassInstance("colSpecArray", ColSpecArray)
-        var colSpecArray = new ClassInstance("colSpecArray", new ColSpecArray(colSpecs));
+        var colSpecArray = new ColSpecArray(colSpecs);
 
         // Build new arity-2 AF: project(source, colSpecArray)
         return new AppliedFunction(
@@ -153,7 +152,7 @@ public class ProjectChecker extends AbstractChecker {
 
     /** Extracts ColSpec list from a FuncColSpecArray parameter. */
     private static List<ColSpec> extractColSpecs(ValueSpecification param) {
-        if (param instanceof ClassInstance ci && ci.value() instanceof ColSpecArray(List<ColSpec> specs)) {
+        if (param instanceof ColSpecArray(List<ColSpec> specs)) {
             return specs;
         }
         throw new PureCompileException(

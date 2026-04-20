@@ -23,12 +23,8 @@ class GraphFetchParserTest {
         AppliedFunction af = (AppliedFunction) vs;
         assertEquals("graphFetch", af.function());
 
-        // Second parameter is ClassInstance wrapping ColSpecArray (desugared)
-        ClassInstance ci = (ClassInstance) af.parameters().get(1);
-        assertEquals("colSpecArray", ci.type());
-        assertInstanceOf(ColSpecArray.class, ci.value());
-
-        ColSpecArray csa = (ColSpecArray) ci.value();
+        // Second parameter is ColSpecArray directly (desugared)
+        ColSpecArray csa = (ColSpecArray) af.parameters().get(1);
         assertEquals(2, csa.colSpecs().size());
         assertEquals("firstName", csa.colSpecs().get(0).name());
         assertEquals("lastName", csa.colSpecs().get(1).name());
@@ -52,14 +48,11 @@ class GraphFetchParserTest {
         assertEquals("graphFetch", graphFetch.function());
 
         // serialize tree — desugared ColSpecArray
-        ClassInstance serializeCi = (ClassInstance) serialize.parameters().get(1);
-        ColSpecArray serializeCsa = (ColSpecArray) serializeCi.value();
+        ColSpecArray serializeCsa = (ColSpecArray) serialize.parameters().get(1);
         assertEquals(2, serializeCsa.colSpecs().size());
 
         // graphFetch tree — desugared ColSpecArray
-        ClassInstance fetchCi = (ClassInstance) graphFetch.parameters().get(1);
-        assertEquals("colSpecArray", fetchCi.type());
-        ColSpecArray fetchCsa = (ColSpecArray) fetchCi.value();
+        ColSpecArray fetchCsa = (ColSpecArray) graphFetch.parameters().get(1);
         assertEquals(2, fetchCsa.colSpecs().size());
     }
 
@@ -73,8 +66,7 @@ class GraphFetchParserTest {
         assertEquals("serialize", serialize.function());
 
         // Verify the desugared ColSpecArray inside serialize
-        ClassInstance ci = (ClassInstance) serialize.parameters().get(1);
-        ColSpecArray csa = (ColSpecArray) ci.value();
+        ColSpecArray csa = (ColSpecArray) serialize.parameters().get(1);
         assertEquals(1, csa.colSpecs().size());
         assertEquals("name", csa.colSpecs().get(0).name());
     }
@@ -85,8 +77,7 @@ class GraphFetchParserTest {
         ValueSpecification vs = PureParser.parseQuery(query);
 
         AppliedFunction af = (AppliedFunction) vs;
-        ClassInstance ci = (ClassInstance) af.parameters().get(1);
-        ColSpecArray csa = (ColSpecArray) ci.value();
+        ColSpecArray csa = (ColSpecArray) af.parameters().get(1);
 
         assertEquals(2, csa.colSpecs().size());
 
@@ -107,8 +98,7 @@ class GraphFetchParserTest {
         // fn2 is non-null — carries nested ColSpecArray
         assertNotNull(addressesSpec.function2());
         assertTrue(addressesSpec.function2().parameters().isEmpty()); // 0-param lambda
-        ClassInstance nestedCi = (ClassInstance) addressesSpec.function2().body().get(0);
-        ColSpecArray nestedCsa = (ColSpecArray) nestedCi.value();
+        ColSpecArray nestedCsa = (ColSpecArray) addressesSpec.function2().body().get(0);
         assertEquals(2, nestedCsa.colSpecs().size());
         assertEquals("street", nestedCsa.colSpecs().get(0).name());
         assertEquals("city", nestedCsa.colSpecs().get(1).name());

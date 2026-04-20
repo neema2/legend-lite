@@ -70,16 +70,14 @@ public class GraphFetchChecker extends AbstractChecker {
     private static ColSpecArray extractNestedColSpecs(ColSpec cs) {
         if (cs.function2() == null || cs.function2().body().isEmpty()) return null;
         var body = cs.function2().body().get(0);
-        if (body instanceof ClassInstance ci && ci.value() instanceof ColSpecArray csa) return csa;
+        if (body instanceof ColSpecArray csa) return csa;
         return null;
     }
 
     /** Extracts ColSpecArray from a ClassInstance argument. Same pattern as every other checker. */
     static ColSpecArray extractColSpecs(ValueSpecification specArg) {
-        if (specArg instanceof ClassInstance ci) {
-            if (ci.value() instanceof ColSpecArray csa) return csa;
-            if (ci.value() instanceof ColSpec cs) return new ColSpecArray(List.of(cs));
-        }
+        if (specArg instanceof ColSpecArray csa) return csa;
+        if (specArg instanceof ColSpec cs) return new ColSpecArray(List.of(cs));
         throw new PureCompileException(
                 "graphFetch() requires a ColSpec or ColSpecArray argument (or #{...}# tree)");
     }
