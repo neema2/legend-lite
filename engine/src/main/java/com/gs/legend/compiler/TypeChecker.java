@@ -598,6 +598,8 @@ public class TypeChecker implements TypeCheckEnv {
             // Scalar param: compare compiled arg type vs declared type
             if (argInfo.type() != null) {
                 String declaredTypeFqn = paramDef.type();
+                if (paramDef.parsedType() == Primitive.ANY) continue;
+                // Phase 2 C6 TODO: drop string fallback once ParameterDefinition.type becomes typed.
                 String declaredSimple = SymbolTable.extractSimpleName(declaredTypeFqn);
                 if ("Any".equals(declaredSimple)) continue;
 
@@ -670,7 +672,10 @@ public class TypeChecker implements TypeCheckEnv {
         if (bodyResult.type() != null) {
             String declaredReturnFqn = funcDef.returnType();
             String declaredReturnSimple = SymbolTable.extractSimpleName(declaredReturnFqn);
-            if (!"Any".equals(declaredReturnSimple)) {
+            // Phase 2 C6 TODO: drop string fallback once FunctionDefinition.returnType becomes typed.
+            boolean returnIsAny = funcDef.parsedReturnType() == Primitive.ANY
+                    || "Any".equals(declaredReturnSimple);
+            if (!returnIsAny) {
                 // Schema-aware return check for Relation<(col:Type)> return types (covariant)
                 if (funcDef.parsedReturnType() instanceof Type.GenericType p
                         && isRelationRawType(p.rawType())
@@ -711,8 +716,9 @@ public class TypeChecker implements TypeCheckEnv {
             for (int i = 0; i < candidate.parameters().size(); i++) {
                 String declaredTypeFqn = candidate.parameters().get(i).type();
                 String declaredSimple = SymbolTable.extractSimpleName(declaredTypeFqn);
-                if ("Any".equals(declaredSimple)) {
-                    matches++; // Any matches everything
+                if (candidate.parameters().get(i).parsedType() == Primitive.ANY
+                        || "Any".equals(declaredSimple)) {
+                    matches++; // Any matches everything (Phase 2 C6 TODO: drop string fallback)
                 } else if (argTypes.get(i).type() != null
                         && isSubtype(argTypes.get(i).type(), Type.resolve(declaredTypeFqn, modelContext))) {
                     matches++;

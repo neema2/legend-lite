@@ -107,8 +107,8 @@ public class MatchChecker extends AbstractChecker {
         if (branchType instanceof Type.ClassType branchCt && inputType instanceof Type.ClassType inputCt) {
             return env.modelContext().isClassSubtype(inputCt.qualifiedName(), branchCt.qualifiedName());
         }
-        // Enum (or other nominal type) — nominal FQN equality; enums have no hierarchy.
-        return branchType.typeName().equals(inputType.typeName());
+        // Enum (or other nominal type) — nominal equality; enums have no hierarchy.
+        return branchType.equals(inputType);
     }
 
     /** Extracts branch lambdas from a PureCollection or a single LambdaFunction. */

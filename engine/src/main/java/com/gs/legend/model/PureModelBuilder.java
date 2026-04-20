@@ -762,6 +762,8 @@ public final class PureModelBuilder implements ModelContext {
                             var prop = pureClass.findProperty(pm.propertyName(), this);
                             if (prop.isPresent() && expr.matches(".*->get\\('[^']+?'\\)\\s*$")) {
                                 String pureType = prop.get().typeFqn();
+                                // Phase 2 C6 TODO: lift Property.typeFqn() to a typed Type so
+                                // this becomes identity checks instead of raw string comparison.
                                 if (!"Any".equals(pureType) && !"Variant".equals(pureType)) {
                                     expr = expr.replaceFirst(
                                             "->get\\('([^']+?)'\\)\\s*$",

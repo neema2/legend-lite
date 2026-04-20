@@ -114,7 +114,11 @@ public class FoldChecker extends AbstractChecker {
         // 2. SameType: T == V, but only when init is scalar.
         // If init is a list (e.g., [-1, 0] → multiplicity [*]),
         // accumulator is a collection → must use CollectionBuild.
-        if (resolvedT.typeName().equals(resolvedV.typeName()) && !initMultiplicity.isMany())
+        // Normalize PrecisionDecimal → DECIMAL so accumulators of any precision count
+        // as the same kind (matches the convention in AbstractChecker.unifyTypeVar).
+        Type tNorm = resolvedT instanceof Type.PrecisionDecimal ? Primitive.DECIMAL : resolvedT;
+        Type vNorm = resolvedV instanceof Type.PrecisionDecimal ? Primitive.DECIMAL : resolvedV;
+        if (tNorm.equals(vNorm) && !initMultiplicity.isMany())
             return new TypeInfo.FoldSpec.SameType();
 
         // 3. T ≠ V: try decomposing body → MapReduce

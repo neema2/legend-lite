@@ -584,9 +584,9 @@ public abstract class AbstractChecker implements FunctionChecker {
                 if (existing != null) {
                     Type existNorm = existing instanceof Type.PrecisionDecimal ? Primitive.DECIMAL : existing;
                     Type actualNorm = actual instanceof Type.PrecisionDecimal ? Primitive.DECIMAL : actual;
-                    if (!existNorm.typeName().equals(actualNorm.typeName())
-                            && !"Any".equals(existing.typeName())
-                            && !"Any".equals(actual.typeName())) {
+                    if (!existNorm.equals(actualNorm)
+                            && existing != Primitive.ANY
+                            && actual != Primitive.ANY) {
                         throw new PureCompileException(
                                 context + ": type variable " + v.name() + " bound to "
                                         + existing.typeName() + " but got " + actual.typeName());
@@ -605,7 +605,7 @@ public abstract class AbstractChecker implements FunctionChecker {
                         throw new PureCompileException(
                                 context + ": expected " + expectedPrim.typeName() + ", got " + actual.typeName());
                     }
-                } else if (!norm.typeName().equals(expectedPrim.typeName())) {
+                } else if (norm != expectedPrim) {
                     throw new PureCompileException(
                             context + ": expected " + expectedPrim.typeName() + ", got " + actual.typeName());
                 }
@@ -981,9 +981,13 @@ public abstract class AbstractChecker implements FunctionChecker {
                                         Bindings bindings, String funcName) {
         String context = funcName + "() predicate return";
 
-        // Validate return type — use resolve to get expected Type from bindings
+        // Validate return type — use resolve to get expected Type from bindings.
+        // Normalize PrecisionDecimal → DECIMAL so two different-precision decimals
+        // aren't treated as different types (matches unifyTypeVar convention).
         Type expectedType = resolve(ft.returnType(), bindings, context);
-        if (!expectedType.typeName().equals(bodyType.type().typeName())) {
+        Type expectedNorm = expectedType instanceof Type.PrecisionDecimal ? Primitive.DECIMAL : expectedType;
+        Type actualNorm = bodyType.type() instanceof Type.PrecisionDecimal ? Primitive.DECIMAL : bodyType.type();
+        if (!expectedNorm.equals(actualNorm)) {
             throw new PureCompileException(
                     context + ": expected " + expectedType.typeName()
                             + ", got " + bodyType.type().typeName());

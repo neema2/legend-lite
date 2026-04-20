@@ -203,6 +203,8 @@ public final class JavaCodeGenerator {
         boolean needsOptional = classDef.properties().stream()
                 .anyMatch(p -> isOptional(p) && !isPrimitiveType(p.type()));
 
+        // Phase 2 C6 TODO: lift PropertyDefinition.type to a typed Type so these become
+        // instanceof Primitive / identity checks instead of raw string comparisons.
         boolean needsOptionalInt = classDef.properties().stream()
                 .anyMatch(p -> isOptional(p) && "Integer".equals(p.type()));
 
