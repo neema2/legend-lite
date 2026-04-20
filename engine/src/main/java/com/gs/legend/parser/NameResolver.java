@@ -743,7 +743,7 @@ public final class NameResolver {
             }
             case ColSpec cs -> (ColSpec) resolveClassInstanceValue(cs, imports, knownFqns);
             case ColSpecArray csa -> (ColSpecArray) resolveClassInstanceValue(csa, imports, knownFqns);
-            case InstanceData id -> (InstanceData) resolveClassInstanceValue(id, imports, knownFqns);
+            case NewInstance id -> (NewInstance) resolveClassInstanceValue(id, imports, knownFqns);
             case AppliedProperty ap -> {
                 List<ValueSpecification> resolvedParams = resolveList(ap.parameters(), imports, knownFqns);
                 yield resolvedParams == ap.parameters() ? ap
@@ -797,7 +797,7 @@ public final class NameResolver {
     private static Object resolveClassInstanceValue(
             Object value, ImportScope imports, Set<String> knownFqns) {
         // ClassInstance values carry lambdas (ColSpec function1/function2) and generic type
-        // arguments (InstanceData typeArguments) that may contain simple names — rewrite them
+        // arguments (NewInstance typeArguments) that may contain simple names — rewrite them
         // to FQN before they reach ModelContext.findType (which is FQN-only by contract).
         return switch (value) {
             case ColSpec cs -> {
@@ -817,7 +817,7 @@ public final class NameResolver {
                 }
                 yield changed ? new ColSpecArray(resolved) : csa;
             }
-            case InstanceData id -> {
+            case NewInstance id -> {
                 // className is separately resolved in the enclosing AppliedFunction; here we only
                 // need to walk typeArguments (e.g., Pair<String, Integer>) and property values.
                 boolean changed = false;
@@ -833,7 +833,7 @@ public final class NameResolver {
                     if (r != e.getValue()) changed = true;
                     resolvedProps.put(e.getKey(), r);
                 }
-                yield changed ? new InstanceData(id.className(), resolvedProps, resolvedTypeArgs) : id;
+                yield changed ? new NewInstance(id.className(), resolvedProps, resolvedTypeArgs) : id;
             }
             // Explicit throw forces callers to add a case here when a new ClassInstance value
             // type is introduced — no silent passthrough that could hide name-resolution gaps.

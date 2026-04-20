@@ -40,7 +40,7 @@ public sealed interface ValueSpecification permits
         TypeAnnotation,
         ClassInstance,
         ColumnInstance,
-        InstanceData,
+        NewInstance,
         PureCollection,
         Variable,
         LambdaFunction,

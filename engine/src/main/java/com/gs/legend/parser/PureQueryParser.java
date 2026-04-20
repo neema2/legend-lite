@@ -1011,9 +1011,8 @@ public final class PureQueryParser {
 
         return new AppliedFunction("new",
                 List.of(new PackageableElementPtr(className),
-                        new ClassInstance("instance",
-                                new com.gs.legend.ast.InstanceData(
-                                        className, properties, typeArgs))));
+                        new com.gs.legend.ast.NewInstance(
+                                className, properties, typeArgs)));
     }
 
     private void parsePropertyAssignment(Map<String, ValueSpecification> properties) {

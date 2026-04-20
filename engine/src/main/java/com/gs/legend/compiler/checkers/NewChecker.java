@@ -7,13 +7,13 @@ import com.gs.legend.model.m3.Type;
 
 
 /**
- * Checker for {@code new(PE(className), ClassInstance("instance", InstanceData))}.
+ * Checker for {@code new(PE(className), ClassInstance("instance", NewInstance))}.
  *
  * <p>Validates the class exists in model context, checks property names,
  * compiles property value expressions, and returns TypeInfo with ClassType.
  * Stamps {@code instanceLiteral=true} so MappingResolver can create identity mappings.
  *
- * <p>Parser emits: {@code new(PackageableElementPtr(className), ClassInstance("instance", InstanceData))}
+ * <p>Parser emits: {@code new(PackageableElementPtr(className), ClassInstance("instance", NewInstance))}
  */
 public class NewChecker extends AbstractChecker {
 
@@ -24,9 +24,8 @@ public class NewChecker extends AbstractChecker {
     @Override
     public TypeInfo check(AppliedFunction af, TypeInfo source,
                           TypeChecker.CompilationContext ctx) {
-        // Extract InstanceData from param[1]: new(PE(className), ClassInstance("instance", data))
-        var ci = (ClassInstance) af.parameters().get(1);
-        var data = (InstanceData) ci.value();
+        // Extract NewInstance from param[1]: new(PE(className), NewInstance(...))
+        var data = (NewInstance) af.parameters().get(1);
 
         PureClass pureClass = resolveClass(data);
 
@@ -50,7 +49,7 @@ public class NewChecker extends AbstractChecker {
                 .build();
     }
 
-    private PureClass resolveClass(InstanceData data) {
+    private PureClass resolveClass(NewInstance data) {
         // Phase 2.5e: platform classes (Pair, ...) are seeded into every PureModelBuilder
         // via BuiltinClassRegistry and auto-imported via BUILTIN_IMPORTS — so a simple-name
         // lookup hits them just like a user-declared class. No hand-rolled synthesis

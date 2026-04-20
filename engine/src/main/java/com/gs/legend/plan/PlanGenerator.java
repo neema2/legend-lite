@@ -312,7 +312,7 @@ public class PlanGenerator {
      * Each scalar property becomes its own column; array properties stay as array literals.
      * This allows the standard relational path (filter, project, etc.) to work uniformly.
      */
-    private SqlBuilder generateStructLiteral(InstanceData data) {
+    private SqlBuilder generateStructLiteral(NewInstance data) {
         return generateFlatValues(java.util.List.of(data));
     }
 
@@ -323,13 +323,12 @@ public class PlanGenerator {
         if (coll.values().isEmpty()) {
             throw new PureCompileException("PlanGenerator: empty struct collection");
         }
-        var rows = new java.util.ArrayList<InstanceData>();
+        var rows = new java.util.ArrayList<NewInstance>();
         for (var v : coll.values()) {
             if (v instanceof AppliedFunction af && "new".equals(simpleName(af.function()))
                     && af.parameters().size() >= 2
-                    && af.parameters().get(1) instanceof ClassInstance ci
-                    && "instance".equals(ci.type())) {
-                rows.add((InstanceData) ci.value());
+                    && af.parameters().get(1) instanceof NewInstance data) {
+                rows.add(data);
             } else {
                 throw new PureCompileException(
                         "PlanGenerator: struct collection contains non-instance: " + v.getClass().getSimpleName());
@@ -339,11 +338,11 @@ public class PlanGenerator {
     }
 
     /**
-     * Generates flat multi-row VALUES from a list of InstanceData.
+     * Generates flat multi-row VALUES from a list of NewInstance.
      * Each property becomes its own column:
      *   VALUES ('f', [{...}]), ('f2', [{...}]) AS t("legalName", "employees")
      */
-    private SqlBuilder generateFlatValues(java.util.List<InstanceData> dataRows) {
+    private SqlBuilder generateFlatValues(java.util.List<NewInstance> dataRows) {
         var firstData = dataRows.get(0);
         java.util.List<String> columnNames = firstData.properties().keySet().stream()
                 .map(dialect::quoteIdentifier).toList();
@@ -383,9 +382,7 @@ public class PlanGenerator {
             }
             case AppliedFunction af when "new".equals(simpleName(af.function()))
                     && af.parameters().size() >= 2
-                    && af.parameters().get(1) instanceof ClassInstance ci
-                    && "instance".equals(ci.type()) -> {
-                var data = (InstanceData) ci.value();
+                    && af.parameters().get(1) instanceof NewInstance data -> {
                 var fields = new java.util.LinkedHashMap<String, SqlExpr>();
                 for (var entry : data.properties().entrySet()) {
                     SqlExpr rendered = renderStructValue(entry.getValue());
@@ -701,12 +698,11 @@ public class PlanGenerator {
 
     /**
      * Generates flat VALUES SQL for a new() function call (struct literal).
-     * Extracts InstanceData from param[1] (structural AST access).
+     * Extracts NewInstance from param[1] (structural AST access).
      * Type validation already done by TypeChecker.
      */
     private SqlBuilder generateNewFunction(AppliedFunction af) {
-        var ci = (ClassInstance) af.parameters().get(1);
-        var data = (InstanceData) ci.value();
+        var data = (NewInstance) af.parameters().get(1);
         return generateStructLiteral(data);
     }
 
@@ -2609,7 +2605,7 @@ public class PlanGenerator {
                 if (collInfo != null && collInfo.isHeterogeneousList()
                         && !coll.values().isEmpty()
                         && coll.values().stream().noneMatch(v -> v instanceof com.gs.legend.ast.ColumnInstance
-                                || v instanceof com.gs.legend.ast.InstanceData)) {
+                                || v instanceof com.gs.legend.ast.NewInstance)) {
                     var values = coll.values();
                     for (int idx = 0; idx < exprs.size(); idx++) {
                         SqlExpr e = exprs.get(idx);
@@ -2794,7 +2790,7 @@ public class PlanGenerator {
                     if (listInfo != null && listInfo.isMixedList()
                             && params.get(0) instanceof PureCollection(List<ValueSpecification> values)
                             && values.stream().noneMatch(v -> v instanceof com.gs.legend.ast.ColumnInstance
-                                    || v instanceof com.gs.legend.ast.InstanceData)) {
+                                    || v instanceof com.gs.legend.ast.NewInstance)) {
                         // Mixed-type list: wrap elements in toJson for comparable representation
                         // "toJson" is a semantic name — dialect maps it (DuckDB: TO_JSON)
                         var wrappedElems = values.stream()
@@ -3025,7 +3021,7 @@ public class PlanGenerator {
                     TypeInfo listInfo = unit.typeInfoFor(params.get(1));
                     if (listInfo != null && listInfo.isMixedList()
                             && values.stream().noneMatch(v -> v instanceof com.gs.legend.ast.ColumnInstance
-                                    || v instanceof com.gs.legend.ast.InstanceData)) {
+                                    || v instanceof com.gs.legend.ast.NewInstance)) {
                         var wrappedElems = values.stream()
                                 .map(v -> (SqlExpr) new SqlExpr.FunctionCall("toJson",
                                         List.of(c.apply(v))))

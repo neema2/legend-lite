@@ -356,8 +356,8 @@ public class TypeChecker implements TypeCheckEnv {
             case com.gs.legend.ast.ColumnInstance ci -> throw new PureCompileException(
                     "Unexpected ColumnInstance " + ci.getClass().getSimpleName()
                             + " in compileExpr — should be desugared by parser");
-            case com.gs.legend.ast.InstanceData id -> throw new PureCompileException(
-                    "Unexpected InstanceData '" + id.className() + "' in compileExpr — should be desugared by parser");
+            case com.gs.legend.ast.NewInstance id -> throw new PureCompileException(
+                    "Unexpected NewInstance '" + id.className() + "' in compileExpr — should be desugared by parser");
             case LambdaFunction lf -> compileLambda(lf, ctx);
             case Variable v -> compileVariable(v, ctx);
             case AppliedProperty ap -> compileProperty(ap, ctx);
@@ -961,8 +961,7 @@ public class TypeChecker implements TypeCheckEnv {
         // To-many override: if model says [*] but user wrote a single value,
         // tag the value's TypeInfo as many(propType) so PlanGenerator wraps it in [].
         // This is a workaround — the correct fix is compiler-driven single→collection coercion.
-        var ci = (ClassInstance) af.parameters().get(1);
-        var data = (InstanceData) ci.value();
+        var data = (NewInstance) af.parameters().get(1);
         if (info.type() instanceof Type.ClassType(String qn) && modelContext != null) {
             var pureClass = modelContext.findClass(qn).orElse(null);
             if (pureClass != null) {
