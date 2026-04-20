@@ -194,7 +194,7 @@ class NoEagerUserClassLoadsTest {
         }
 
         @Override
-        public List<com.gs.legend.model.def.FunctionDefinition> findFunction(String name) {
+        public List<com.gs.legend.model.m3.PureFunction> findFunction(String name) {
             return delegate.findFunction(name);
         }
 

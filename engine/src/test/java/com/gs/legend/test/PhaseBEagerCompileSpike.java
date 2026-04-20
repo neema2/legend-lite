@@ -8,7 +8,6 @@ import com.gs.legend.model.def.ClassDefinition;
 import com.gs.legend.model.def.FunctionDefinition;
 import com.gs.legend.model.def.PackageableElement;
 import com.gs.legend.parser.PureParser;
-import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Type;
 
 import org.junit.jupiter.api.*;
@@ -252,15 +251,13 @@ class PhaseBEagerCompileSpike {
                 var resolved = builder.findFunction(fd.qualifiedName());
                 if (resolved.isEmpty()) continue;
                 var fn = resolved.get(0);
-                if (fn.resolvedBody() == null) continue;
                 // Build context with parameters bound
                 var ctx = new TypeChecker.CompilationContext();
                 for (var param : fn.parameters()) {
-                    Type paramType = mapTypeName(param.type());
-                    ctx = ctx.withLambdaParam(param.name(), paramType);
+                    ctx = ctx.withLambdaParam(param.name(), param.type());
                 }
                 long s = System.nanoTime();
-                for (var stmt : fn.resolvedBody()) {
+                for (var stmt : fn.body()) {
                     warmTc.compileExpr(stmt, ctx);
                 }
                 funcTotalNs += System.nanoTime() - s;
@@ -330,23 +327,6 @@ class PhaseBEagerCompileSpike {
         Assertions.assertTrue(relCompiled + m2mCompiled > 0,
                 "expected at least one sourceSpec to be compiled");
         Assertions.assertEquals(0, coldFail, coldFail + " cold queries failed");
-    }
-
-    /** Map a Pure primitive/class type name to a Type for CompilationContext binding. */
-    private static Type mapTypeName(String pureType) {
-        return switch (pureType) {
-            case "String" -> Primitive.STRING;
-            case "Integer" -> Primitive.INTEGER;
-            case "Boolean" -> Primitive.BOOLEAN;
-            case "Float" -> Primitive.FLOAT;
-            case "Decimal" -> Type.DEFAULT_DECIMAL;
-            case "Date" -> Primitive.DATE;
-            case "DateTime" -> Primitive.DATE_TIME;
-            case "StrictDate" -> Primitive.STRICT_DATE;
-            case "Number" -> Primitive.NUMBER;
-            case "Any" -> Primitive.ANY;
-            default -> new Type.ClassType(pureType); // user class
-        };
     }
 
     private static long usedMemoryMb() {

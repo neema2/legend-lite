@@ -275,8 +275,13 @@ public final class NameResolver {
         return switch (type) {
             case Type.NameRef c -> {
                 String resolved = imports.resolve(c.qualifiedName(), knownFqns);
-                // Promote platform-class NameRefs directly to LClass so downstream dispatch
-                // can compare identity (lc == LClass.RELATION) instead of walking string shapes.
+                // Promote platform-class / primitive NameRefs directly to their classified variant
+                // so downstream dispatch compares identity (p == Primitive.STRING,
+                // lc == LClass.RELATION) instead of walking string shapes.
+                // Only safe for platform/bootstrap types (pure lookup, no user load) — user
+                // classes / enums stay as NameRef to preserve lazy loading (AGENTS.md §5).
+                var prim = com.gs.legend.model.m3.Primitive.findByFqn(resolved);
+                if (prim.isPresent()) yield prim.get();
                 var lc = com.gs.legend.model.m3.LClass.findByFqn(resolved);
                 if (lc.isPresent()) yield lc.get();
                 yield resolved.equals(c.qualifiedName()) ? type : new Type.NameRef(resolved);

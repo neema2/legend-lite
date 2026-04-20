@@ -30,7 +30,6 @@ import com.gs.legend.model.def.PackageableElement;
 import com.gs.legend.model.def.ProfileDefinition;
 import com.gs.legend.model.def.RuntimeDefinition;
 import com.gs.legend.model.def.ServiceDefinition;
-import com.gs.legend.parser.PureParser;
 import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Type;
 
@@ -546,7 +545,7 @@ public class TypeChecker implements TypeCheckEnv {
      * </ol>
      */
     private TypeInfo inlineUserFunction(AppliedFunction af,
-            List<com.gs.legend.model.def.FunctionDefinition> candidates, CompilationContext ctx) {
+            List<com.gs.legend.model.m3.PureFunction> candidates, CompilationContext ctx) {
         // 1. Recursion guard
         CompilationContext inlineCtx = ctx.withIncrementedDepth();
 
@@ -570,68 +569,67 @@ public class TypeChecker implements TypeCheckEnv {
         List<TypeInfo> argTypes = new ArrayList<>(argCount);
         for (int i = 0; i < argCount; i++) {
             var arg = af.parameters().get(i);
-            var paramDef = firstMatch.parameters().get(i);
-            if (paramDef.functionType() != null && arg instanceof LambdaFunction lambda) {
+            var param = firstMatch.parameters().get(i);
+            if (param.type() instanceof Type.FunctionType ft && arg instanceof LambdaFunction lambda) {
                 // Arity check before bidirectional compilation
-                int expectedArity = paramDef.functionType().params().size();
+                int expectedArity = ft.params().size();
                 if (lambda.parameters().size() != expectedArity) {
                     throw new PureCompileException(
-                            "Function '" + af.function() + "' parameter '" + paramDef.name()
+                            "Function '" + af.function() + "' parameter '" + param.name()
                                     + "' expects a lambda with " + expectedArity + " param(s), "
                                     + "but got " + lambda.parameters().size());
                 }
-                argTypes.add(compileLambdaWithExpectedType(lambda, paramDef.functionType(), inlineCtx));
+                argTypes.add(compileLambdaWithExpectedType(lambda, ft, inlineCtx));
             } else {
                 argTypes.add(compileExpr(arg, inlineCtx));
             }
         }
-        var funcDef = resolveOverload(af.function(), arityMatches, argTypes);
+        var pureFn = resolveOverload(af.function(), arityMatches, argTypes);
 
         // 4. Call-site type check: validate scalar arg types against declared param types.
         // Function-typed params are already validated in step 3 (arity + bidirectional body check).
-        for (int i = 0; i < funcDef.parameters().size(); i++) {
-            var paramDef = funcDef.parameters().get(i);
+        for (int i = 0; i < pureFn.parameters().size(); i++) {
+            var param = pureFn.parameters().get(i);
             var argInfo = argTypes.get(i);
 
-            if (paramDef.functionType() != null) continue; // already checked in step 3
+            if (param.type() instanceof Type.FunctionType) continue; // already checked in step 3
 
-            // Scalar param: compare compiled arg type vs declared type
+            // Scalar param: compare compiled arg type vs declared type.
             if (argInfo.type() != null) {
-                String declaredTypeFqn = paramDef.type();
-                if (paramDef.parsedType() == Primitive.ANY) continue;
-                // Phase 2 C6 TODO: drop string fallback once ParameterDefinition.type becomes typed.
-                String declaredSimple = SymbolTable.extractSimpleName(declaredTypeFqn);
-                if ("Any".equals(declaredSimple)) continue;
+                Type declaredType = param.type();
+                if (declaredType == Primitive.ANY) continue;
 
                 // Schema-aware check for Relation<(col:Type)> params
-                if (paramDef.parsedType() instanceof Type.GenericType p
+                if (declaredType instanceof Type.GenericType p
                         && isRelationRawType(p.rawType())
                         && !p.typeArgs().isEmpty()
                         && p.typeArgs().get(0) instanceof Type.RelationTypeVar) {
-                    Type declaredGeneric = resolveUserSignatureType(paramDef.parsedType());
+                    Type declaredGeneric = resolveUserSignatureType(declaredType);
                     checkRelationSchemaCompatibility(
-                            af.function(), paramDef.name(), argInfo.type(), declaredGeneric);
+                            af.function(), param.name(), argInfo.type(), declaredGeneric);
                     continue;
                 }
 
-                if (!isSubtype(argInfo.type(), Type.resolve(declaredTypeFqn, modelContext))) {
+                if (!isSubtype(argInfo.type(), declaredType)) {
                     throw new PureCompileException(
-                            "Function '" + af.function() + "' parameter '" + paramDef.name()
-                                    + "' expects " + declaredSimple + " but got " + argInfo.type().typeName());
+                            "Function '" + af.function() + "' parameter '" + param.name()
+                                    + "' expects " + declaredType.typeName()
+                                    + " but got " + argInfo.type().typeName());
                 }
             }
         }
 
         // 4b. Multiplicity check: actual range must fit within declared range.
         // [1] accepts only [1]; [0..1] accepts [1] or [0..1]; [*] accepts anything.
-        for (int i = 0; i < funcDef.parameters().size(); i++) {
-            var paramDef = funcDef.parameters().get(i);
+        for (int i = 0; i < pureFn.parameters().size(); i++) {
+            var param = pureFn.parameters().get(i);
             var argInfo = argTypes.get(i);
-            if (paramDef.functionType() != null) continue;
+            if (param.type() instanceof Type.FunctionType) continue;
 
             var actualMult = argInfo.expressionType().multiplicity();
-            int declLower = paramDef.lowerBound();
-            Integer declUpper = paramDef.upperBound(); // null = unbounded
+            var declMult = param.multiplicity();
+            int declLower = declMult.lowerBound();
+            Integer declUpper = declMult.upperBound(); // null = unbounded
 
             // actual.lower must be ≥ declared.lower (actual guarantees enough)
             boolean lowerOk = actualMult.lowerBound() >= declLower;
@@ -641,22 +639,21 @@ public class TypeChecker implements TypeCheckEnv {
 
             if (!lowerOk || !upperOk) {
                 throw new PureCompileException(
-                        "Function '" + af.function() + "' parameter '" + paramDef.name()
-                                + "' expects multiplicity " + paramDef.typeWithMultiplicity()
+                        "Function '" + af.function() + "' parameter '" + param.name()
+                                + "' expects multiplicity " + param.type().typeName() + declMult
                                 + " but got " + actualMult);
             }
         }
 
-        // 5. Get pre-resolved body
-        List<ValueSpecification> bodyStmts = funcDef.resolvedBody();
-        if (bodyStmts == null) {
-            bodyStmts = PureParser.parseCodeBlock(funcDef.body());
-        }
+        // 5. Get pre-resolved body. PureFunction.body is always populated by PureModelBuilder —
+        // no null-check fallback (AGENTS.md rule #6: fail loudly if a consumer gets an
+        // unbuilt PureFunction).
+        List<ValueSpecification> bodyStmts = pureFn.body();
 
         // 6. Build bindings: paramName → argument AST
         var bindings = new HashMap<String, ValueSpecification>();
-        for (int i = 0; i < funcDef.parameters().size(); i++) {
-            bindings.put(funcDef.parameters().get(i).name(), af.parameters().get(i));
+        for (int i = 0; i < pureFn.parameters().size(); i++) {
+            bindings.put(pureFn.parameters().get(i).name(), af.parameters().get(i));
         }
 
         // 7. Substitute params in each body statement
@@ -670,24 +667,20 @@ public class TypeChecker implements TypeCheckEnv {
 
         // 9. Return type validation
         if (bodyResult.type() != null) {
-            String declaredReturnFqn = funcDef.returnType();
-            String declaredReturnSimple = SymbolTable.extractSimpleName(declaredReturnFqn);
-            // Phase 2 C6 TODO: drop string fallback once FunctionDefinition.returnType becomes typed.
-            boolean returnIsAny = funcDef.parsedReturnType() == Primitive.ANY
-                    || "Any".equals(declaredReturnSimple);
-            if (!returnIsAny) {
+            Type declaredReturn = pureFn.returnType();
+            if (declaredReturn != Primitive.ANY) {
                 // Schema-aware return check for Relation<(col:Type)> return types (covariant)
-                if (funcDef.parsedReturnType() instanceof Type.GenericType p
+                if (declaredReturn instanceof Type.GenericType p
                         && isRelationRawType(p.rawType())
                         && !p.typeArgs().isEmpty()
                         && p.typeArgs().get(0) instanceof Type.RelationTypeVar) {
-                    Type declaredGeneric = resolveUserSignatureType(funcDef.parsedReturnType());
+                    Type declaredGeneric = resolveUserSignatureType(declaredReturn);
                     // Covariant: body's actual schema must be ⊇ declared return schema
                     checkRelationSchemaCompatibility(
                             af.function(), "<return>", bodyResult.type(), declaredGeneric);
-                } else if (!isSubtype(bodyResult.type(), Type.resolve(declaredReturnFqn, modelContext))) {
+                } else if (!isSubtype(bodyResult.type(), declaredReturn)) {
                     throw new PureCompileException(
-                            "Function '" + af.function() + "' declares return type " + declaredReturnSimple
+                            "Function '" + af.function() + "' declares return type " + declaredReturn.typeName()
                                     + " but body returns " + bodyResult.type().typeName());
                 }
             }
@@ -703,24 +696,22 @@ public class TypeChecker implements TypeCheckEnv {
      * Resolves which overload to use when multiple functions match by arity.
      * If only one match, returns it. If multiple, uses compiled arg types to disambiguate.
      */
-    private com.gs.legend.model.def.FunctionDefinition resolveOverload(
+    private com.gs.legend.model.m3.PureFunction resolveOverload(
             String funcName,
-            List<com.gs.legend.model.def.FunctionDefinition> arityMatches,
+            List<com.gs.legend.model.m3.PureFunction> arityMatches,
             List<TypeInfo> argTypes) {
         if (arityMatches.size() == 1) return arityMatches.get(0);
 
         // Score each candidate by how many arg types match declared param types
-        var scored = new ArrayList<Map.Entry<com.gs.legend.model.def.FunctionDefinition, Integer>>();
+        var scored = new ArrayList<Map.Entry<com.gs.legend.model.m3.PureFunction, Integer>>();
         for (var candidate : arityMatches) {
             int matches = 0;
             for (int i = 0; i < candidate.parameters().size(); i++) {
-                String declaredTypeFqn = candidate.parameters().get(i).type();
-                String declaredSimple = SymbolTable.extractSimpleName(declaredTypeFqn);
-                if (candidate.parameters().get(i).parsedType() == Primitive.ANY
-                        || "Any".equals(declaredSimple)) {
-                    matches++; // Any matches everything (Phase 2 C6 TODO: drop string fallback)
+                Type declaredType = candidate.parameters().get(i).type();
+                if (declaredType == Primitive.ANY) {
+                    matches++; // Any matches everything
                 } else if (argTypes.get(i).type() != null
-                        && isSubtype(argTypes.get(i).type(), Type.resolve(declaredTypeFqn, modelContext))) {
+                        && isSubtype(argTypes.get(i).type(), declaredType)) {
                     matches++;
                 }
             }
@@ -751,6 +742,17 @@ public class TypeChecker implements TypeCheckEnv {
         if (actual.isSubtypeOf(declared)) return true;
         if (actual instanceof Type.ClassType ac && declared instanceof Type.ClassType dc && modelContext != null) {
             return modelContext.isClassSubtype(ac.qualifiedName(), dc.qualifiedName());
+        }
+        // User-type NameRef on declared side: PureFunction keeps user types as NameRef to preserve
+        // lazy loading (AGENTS.md §5). Compare by FQN instead of forcing findClass/findEnum.
+        if (actual instanceof Type.ClassType ac && declared instanceof Type.NameRef nr) {
+            if (ac.qualifiedName().equals(nr.qualifiedName())) return true;
+            if (modelContext != null) {
+                return modelContext.isClassSubtype(ac.qualifiedName(), nr.qualifiedName());
+            }
+        }
+        if (actual instanceof Type.EnumType ae && declared instanceof Type.NameRef nr) {
+            return ae.qualifiedName().equals(nr.qualifiedName());
         }
         return false;
     }

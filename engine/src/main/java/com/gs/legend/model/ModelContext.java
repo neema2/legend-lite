@@ -115,9 +115,12 @@ public interface ModelContext {
      * Finds user-defined function definitions by name (FQN or simple name).
      *
      * @param name Function name (qualified or simple)
-     * @return List of matching function definitions (empty if none found; multiple for overloads)
+     * @return List of matching {@link com.gs.legend.model.m3.PureFunction}s (empty if none found;
+     *         multiple for overloads). Parse-layer {@link com.gs.legend.model.def.FunctionDefinition}
+     *         is internal to {@link com.gs.legend.model.PureModelBuilder}; consumers receive the
+     *         typed downstream form.
      */
-    default java.util.List<com.gs.legend.model.def.FunctionDefinition> findFunction(String name) {
+    default java.util.List<com.gs.legend.model.m3.PureFunction> findFunction(String name) {
         return java.util.List.of();
     }
 

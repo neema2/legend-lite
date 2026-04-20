@@ -11,8 +11,8 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
  * Tests for {@link NameResolver}'s structural walkers. Each test targets a specific path
@@ -63,11 +63,12 @@ class NameResolverTest {
         var resolvedParameterized = assertInstanceOf(Type.GenericType.class, resolvedParam.parsedType());
         var resolvedRtv = assertInstanceOf(Type.RelationTypeVar.class, resolvedParameterized.typeArgs().get(0));
         var resolvedCol = resolvedRtv.columns().get(0);
-        var resolvedColType = assertInstanceOf(Type.NameRef.class, resolvedCol.type());
-
-        assertEquals(
-                "meta::pure::metamodel::type::Integer",
-                resolvedColType.qualifiedName(),
-                "RelationTypeVar column type should be resolved to FQN (was simple 'Integer' before audit fix)");
+        // NameResolver promotes platform/primitive NameRefs to their classified variant
+        // (Primitive / LClass) so downstream dispatch can use identity checks. User classes
+        // stay as NameRef to preserve lazy loading (AGENTS.md §5).
+        assertSame(
+                com.gs.legend.model.m3.Primitive.INTEGER,
+                resolvedCol.type(),
+                "RelationTypeVar column type 'Integer' should be promoted to Primitive.INTEGER");
     }
 }

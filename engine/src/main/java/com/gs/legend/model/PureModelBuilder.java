@@ -607,19 +607,18 @@ public final class PureModelBuilder implements ModelContext {
     }
 
     @Override
-    public List<FunctionDefinition> findFunction(String name) {
-        List<FunctionDefinition> result = idGet(functions, symbols.resolveId(name));
+    public List<com.gs.legend.model.m3.PureFunction> findFunction(String name) {
+        List<com.gs.legend.model.m3.PureFunction> result = idGet(pureFunctions, symbols.resolveId(name));
         return result != null ? result : List.of();
     }
 
     /**
-     * Typed counterpart of {@link #findFunction} — returns the downstream metamodel form built
-     * during Phase 6 ({@link #buildPureFunctions}). Returns empty until {@link #assemble} runs.
-     * Phase 3 of the PureFunction split plan migrates {@link #findFunction} itself to return
-     * {@code List<PureFunction>} and this accessor goes away.
+     * Parse-layer lookup — used internally by {@link #buildPureFunctions} and tests that need to
+     * assert on the original {@link FunctionDefinition} shape. Downstream consumers should use
+     * {@link #findFunction} which returns the typed {@link com.gs.legend.model.m3.PureFunction}.
      */
-    public List<com.gs.legend.model.m3.PureFunction> findPureFunction(String name) {
-        List<com.gs.legend.model.m3.PureFunction> result = idGet(pureFunctions, symbols.resolveId(name));
+    public List<FunctionDefinition> findFunctionDefinition(String name) {
+        List<FunctionDefinition> result = idGet(functions, symbols.resolveId(name));
         return result != null ? result : List.of();
     }
 
