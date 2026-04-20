@@ -66,7 +66,7 @@ public class GraphFetchChecker extends AbstractChecker {
         }
     }
 
-    /** Extracts the nested ColSpecArray from fn2 (0-param lambda wrapping ClassInstance). */
+    /** Extracts the nested ColSpecArray from fn2 (0-param lambda wrapping ColSpecArray). */
     private static ColSpecArray extractNestedColSpecs(ColSpec cs) {
         if (cs.function2() == null || cs.function2().body().isEmpty()) return null;
         var body = cs.function2().body().get(0);
@@ -74,7 +74,7 @@ public class GraphFetchChecker extends AbstractChecker {
         return null;
     }
 
-    /** Extracts ColSpecArray from a ClassInstance argument. Same pattern as every other checker. */
+    /** Extracts a ColSpecArray from a graphFetch argument (wraps a single ColSpec into an array). */
     static ColSpecArray extractColSpecs(ValueSpecification specArg) {
         if (specArg instanceof ColSpecArray csa) return csa;
         if (specArg instanceof ColSpec cs) return new ColSpecArray(List.of(cs));

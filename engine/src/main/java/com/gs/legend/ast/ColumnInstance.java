@@ -10,10 +10,8 @@ package com.gs.legend.ast;
  *   <li>{@link ColSpecArray} — list of columns ({@code ~[name1, name2, ...]})</li>
  * </ul>
  *
- * <p>Every site that historically dispatched on
- * {@code ClassInstance ci && "colSpec".equals(ci.type())}
- * or {@code ci.value() instanceof ColSpec} now pattern-matches directly on
- * {@code ColumnInstance} or its subtypes.
+ * <p>Sites pattern-match directly on {@code ColumnInstance} (the family) or on
+ * {@link ColSpec} / {@link ColSpecArray} (specific shapes).
  *
  * <p>Type-layer refinements ({@code FuncColSpec}, {@code AggColSpec},
  * {@code FuncColSpecArray}, {@code AggColSpecArray}) remain in {@link com.gs.legend.model.m3.LClass}

@@ -296,16 +296,12 @@ public class PlanGenerator {
 
                 yield generateRelation(lf.body().getLast());
             }
-            case ClassInstance ci -> throw new PureCompileException(
-                    "Unexpected ClassInstance '" + ci.type() + "' in generateRelation — should be desugared by parser");
             case PureCollection coll -> generateStructCollection(coll);
             default -> throw new PureCompileException(
                     "PlanGenerator: cannot compile: " + vs.getClass().getSimpleName());
         };
 
     }
-
-    // generateClassInstance removed — parser desugars relation/tdsLiteral/instance to AppliedFunction
 
     /**
      * Compiles a struct literal ^ClassName(field=val, ...) to flat VALUES.
@@ -4307,7 +4303,7 @@ public class PlanGenerator {
                 yield new SqlExpr.FunctionCall("format", fmtArgs);
             }
 
-            // --- Struct literal: new(PE(class), ClassInstance("instance", data)) → StructLiteral ---
+            // --- Struct literal: new(PE(class), NewInstance(...)) → StructLiteral ---
             case "new" -> {
                 yield renderStructValue(af);
             }

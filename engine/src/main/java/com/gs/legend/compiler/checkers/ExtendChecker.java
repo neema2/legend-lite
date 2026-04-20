@@ -230,7 +230,7 @@ public class ExtendChecker extends AbstractChecker {
     /**
      * Checks if a ColSpec is an embedded property extend marker.
      * Embedded extends have fn1 as a 0-param lambda whose body is a
-     * ClassInstance("colSpecArray", ColSpecArray(...)) containing sub-property ColSpecs.
+     * {@link ColSpecArray} containing sub-property ColSpecs.
      * These are synthesized by MappingNormalizer and resolved by MappingResolver.
      */
     public static boolean isEmbeddedExtend(ColSpec cs) {

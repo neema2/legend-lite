@@ -22,7 +22,8 @@ package com.gs.legend.ast;
  * ├── AppliedProperty        — property access: $x.name
  * ├── PackageableElementPtr  — element reference: Person, store::MyDb
  * ├── TypeAnnotation          — type annotation: @Integer, @Relation<(...)>, @?
- * ├── ClassInstance           — DSL extension: ColSpec, ColSpecArray, GraphFetchTree
+ * ├── ColumnInstance          — sealed: ColSpec, ColSpecArray (tilde-column DSL)
+ * ├── NewInstance             — struct literal: ^Class(prop=val)
  * ├── Collection             — list: [a, b, c]
  * ├── Variable               — variable reference: $x
  * ├── LambdaFunction         — lambda: {x | $x.name}
@@ -38,7 +39,6 @@ public sealed interface ValueSpecification permits
         AppliedProperty,
         PackageableElementPtr,
         TypeAnnotation,
-        ClassInstance,
         ColumnInstance,
         NewInstance,
         PureCollection,

@@ -13,7 +13,7 @@ package com.gs.legend.ast;
  * </ul>
  *
  * <p>
- * Carried inside a {@link ClassInstance} with type "colSpec".
+ * Implements {@link ColumnInstance} — emitted directly by parsers, no wrapper.
  *
  * @param name      The column name
  * @param function1 Optional first lambda (map function)

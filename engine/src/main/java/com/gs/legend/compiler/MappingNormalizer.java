@@ -260,7 +260,7 @@ public final class MappingNormalizer {
                 subColSpecs.add(new com.gs.legend.ast.ColSpec(sub.propertyName(), fn1));
             }
 
-            // Wrap in ColSpecArray (carried directly, no ClassInstance wrapper)
+            // Wrap in ColSpecArray
             var colSpecArrayCI = new com.gs.legend.ast.ColSpecArray(subColSpecs);
 
             // fn1 = 0-param lambda wrapping ColSpecArray: { -> ~[...] }

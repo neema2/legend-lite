@@ -411,9 +411,11 @@ public abstract class AbstractChecker implements FunctionChecker {
         if (expected instanceof Primitive p) {
             // Any is the top type — accepts everything
             if (p == Primitive.ANY) return true;
-            // Reject lambdas and class instances for specific primitives — they're structural,
-            // not scalar values.
-            if (actual instanceof LambdaFunction || actual instanceof ClassInstance) {
+            // Reject lambdas, column instances, and struct literals for specific primitives —
+            // they're structural, not scalar values.
+            if (actual instanceof LambdaFunction
+                    || actual instanceof com.gs.legend.ast.ColumnInstance
+                    || actual instanceof com.gs.legend.ast.NewInstance) {
                 return false;
             }
             // Compiled type is needed to subtype-check against a specific primitive. All callers
@@ -425,11 +427,15 @@ public abstract class AbstractChecker implements FunctionChecker {
             // {@link PureNativeSignatureParser}: signatures written as {@code Decimal[1]}
             // land here as PrecisionDecimal(38,18). Treat the declared precision as
             // {@link Primitive#DECIMAL} for matching — any Decimal actual fits.
-            if (actual instanceof LambdaFunction || actual instanceof ClassInstance) return false;
+            if (actual instanceof LambdaFunction
+                    || actual instanceof com.gs.legend.ast.ColumnInstance
+                    || actual instanceof com.gs.legend.ast.NewInstance) return false;
             return compiledType != null && primitiveOrEnumCompatible(Primitive.DECIMAL, compiledType);
         }
         if (expected instanceof Type.EnumType e) {
-            if (actual instanceof LambdaFunction || actual instanceof ClassInstance) return false;
+            if (actual instanceof LambdaFunction
+                    || actual instanceof com.gs.legend.ast.ColumnInstance
+                    || actual instanceof com.gs.legend.ast.NewInstance) return false;
             return compiledType != null && primitiveOrEnumCompatible(e, compiledType);
         }
         return false;

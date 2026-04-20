@@ -9,7 +9,7 @@ import java.util.List;
  * Represents {@code ~[name, age, salary]} in Pure.
  *
  * <p>
- * Carried inside a {@link ClassInstance} with type "colSpecArray".
+ * Implements {@link ColumnInstance} — emitted directly by parsers, no wrapper.
  *
  * @param colSpecs The list of column specifications
  */

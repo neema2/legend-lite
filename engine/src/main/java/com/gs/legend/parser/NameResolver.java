@@ -737,13 +737,33 @@ public final class NameResolver {
                 List<ValueSpecification> resolvedValues = resolveList(coll.values(), imports, knownFqns);
                 yield resolvedValues == coll.values() ? coll : new PureCollection(resolvedValues);
             }
-            case ClassInstance ci -> {
-                Object resolvedValue = resolveClassInstanceValue(ci.value(), imports, knownFqns);
-                yield resolvedValue == ci.value() ? ci : new ClassInstance(ci.type(), resolvedValue);
+            case ColSpec cs -> resolveColSpec(cs, imports, knownFqns);
+            case ColSpecArray csa -> {
+                boolean changed = false;
+                List<ColSpec> resolved = new ArrayList<>(csa.colSpecs().size());
+                for (ColSpec cs : csa.colSpecs()) {
+                    ColSpec r = resolveColSpec(cs, imports, knownFqns);
+                    if (r != cs) changed = true;
+                    resolved.add(r);
+                }
+                yield changed ? new ColSpecArray(resolved) : csa;
             }
-            case ColSpec cs -> (ColSpec) resolveClassInstanceValue(cs, imports, knownFqns);
-            case ColSpecArray csa -> (ColSpecArray) resolveClassInstanceValue(csa, imports, knownFqns);
-            case NewInstance id -> (NewInstance) resolveClassInstanceValue(id, imports, knownFqns);
+            case NewInstance id -> {
+                boolean changed = false;
+                List<String> resolvedTypeArgs = new ArrayList<>(id.typeArguments().size());
+                for (String ta : id.typeArguments()) {
+                    String r = imports.resolve(ta, knownFqns);
+                    if (!r.equals(ta)) changed = true;
+                    resolvedTypeArgs.add(r);
+                }
+                Map<String, ValueSpecification> resolvedProps = new java.util.LinkedHashMap<>();
+                for (var e : id.properties().entrySet()) {
+                    ValueSpecification r = resolveVs(e.getValue(), imports, knownFqns);
+                    if (r != e.getValue()) changed = true;
+                    resolvedProps.put(e.getKey(), r);
+                }
+                yield changed ? new NewInstance(id.className(), resolvedProps, resolvedTypeArgs) : id;
+            }
             case AppliedProperty ap -> {
                 List<ValueSpecification> resolvedParams = resolveList(ap.parameters(), imports, knownFqns);
                 yield resolvedParams == ap.parameters() ? ap
@@ -794,54 +814,13 @@ public final class NameResolver {
         return changed ? List.copyOf(resolved) : params;
     }
 
-    private static Object resolveClassInstanceValue(
-            Object value, ImportScope imports, Set<String> knownFqns) {
-        // ClassInstance values carry lambdas (ColSpec function1/function2) and generic type
-        // arguments (NewInstance typeArguments) that may contain simple names — rewrite them
-        // to FQN before they reach ModelContext.findType (which is FQN-only by contract).
-        return switch (value) {
-            case ColSpec cs -> {
-                LambdaFunction fn1 = cs.function1();
-                LambdaFunction fn2 = cs.function2();
-                LambdaFunction newFn1 = fn1 == null ? null : (LambdaFunction) resolveVs(fn1, imports, knownFqns);
-                LambdaFunction newFn2 = fn2 == null ? null : (LambdaFunction) resolveVs(fn2, imports, knownFqns);
-                yield (newFn1 == fn1 && newFn2 == fn2) ? cs : new ColSpec(cs.name(), newFn1, newFn2);
-            }
-            case ColSpecArray csa -> {
-                boolean changed = false;
-                List<ColSpec> resolved = new ArrayList<>(csa.colSpecs().size());
-                for (ColSpec cs : csa.colSpecs()) {
-                    ColSpec r = (ColSpec) resolveClassInstanceValue(cs, imports, knownFqns);
-                    if (r != cs) changed = true;
-                    resolved.add(r);
-                }
-                yield changed ? new ColSpecArray(resolved) : csa;
-            }
-            case NewInstance id -> {
-                // className is separately resolved in the enclosing AppliedFunction; here we only
-                // need to walk typeArguments (e.g., Pair<String, Integer>) and property values.
-                boolean changed = false;
-                List<String> resolvedTypeArgs = new ArrayList<>(id.typeArguments().size());
-                for (String ta : id.typeArguments()) {
-                    String r = imports.resolve(ta, knownFqns);
-                    if (!r.equals(ta)) changed = true;
-                    resolvedTypeArgs.add(r);
-                }
-                Map<String, ValueSpecification> resolvedProps = new java.util.LinkedHashMap<>();
-                for (var e : id.properties().entrySet()) {
-                    ValueSpecification r = resolveVs(e.getValue(), imports, knownFqns);
-                    if (r != e.getValue()) changed = true;
-                    resolvedProps.put(e.getKey(), r);
-                }
-                yield changed ? new NewInstance(id.className(), resolvedProps, resolvedTypeArgs) : id;
-            }
-            // Explicit throw forces callers to add a case here when a new ClassInstance value
-            // type is introduced — no silent passthrough that could hide name-resolution gaps.
-            default -> throw new IllegalStateException(
-                    "Unhandled ClassInstance value type: "
-                    + (value == null ? "null" : value.getClass().getName())
-                    + " — add a case to NameResolver.resolveClassInstanceValue");
-        };
+    /** Resolves simple names inside a {@link ColSpec}'s lambdas to FQN. */
+    private static ColSpec resolveColSpec(ColSpec cs, ImportScope imports, Set<String> knownFqns) {
+        LambdaFunction fn1 = cs.function1();
+        LambdaFunction fn2 = cs.function2();
+        LambdaFunction newFn1 = fn1 == null ? null : (LambdaFunction) resolveVs(fn1, imports, knownFqns);
+        LambdaFunction newFn2 = fn2 == null ? null : (LambdaFunction) resolveVs(fn2, imports, knownFqns);
+        return (newFn1 == fn1 && newFn2 == fn2) ? cs : new ColSpec(cs.name(), newFn1, newFn2);
     }
 
     /**

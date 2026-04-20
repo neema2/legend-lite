@@ -7,13 +7,13 @@ import com.gs.legend.model.m3.Type;
 
 
 /**
- * Checker for {@code new(PE(className), ClassInstance("instance", NewInstance))}.
+ * Checker for {@code new(PE(className), NewInstance)}.
  *
  * <p>Validates the class exists in model context, checks property names,
  * compiles property value expressions, and returns TypeInfo with ClassType.
  * Stamps {@code instanceLiteral=true} so MappingResolver can create identity mappings.
  *
- * <p>Parser emits: {@code new(PackageableElementPtr(className), ClassInstance("instance", NewInstance))}
+ * <p>Parser emits: {@code new(PackageableElementPtr(className), NewInstance(...))}
  */
 public class NewChecker extends AbstractChecker {
 

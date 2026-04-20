@@ -729,7 +729,7 @@ public final class MappingResolver {
         return null;
     }
 
-    /** Extracts ColSpecs from a traverse extend's last ClassInstance parameter. */
+    /** Extracts ColSpecs from a traverse extend's last ColumnInstance parameter. */
     private static List<ColSpec> extractTraverseColSpecs(AppliedFunction extendAf) {
         // ColSpec node is the last param
         var lastParam = extendAf.parameters().get(extendAf.parameters().size() - 1);
@@ -765,7 +765,7 @@ public final class MappingResolver {
         return result;
     }
 
-    /** Extracts colSpec names from an extend node's ClassInstance parameter. */
+    /** Extracts colSpec names from an extend node's ColumnInstance parameter. */
     private static Set<String> extractColSpecNames(AppliedFunction extendAf) {
         var names = new HashSet<String>();
         // extend(source, [traverse], colSpecCI) — colSpec is the last param

@@ -351,13 +351,12 @@ public class TypeChecker implements TypeCheckEnv {
     public TypeInfo compileExpr(ValueSpecification vs, CompilationContext ctx) {
         return switch (vs) {
             case AppliedFunction af -> compileFunction(af, ctx);
-            case ClassInstance ci -> throw new PureCompileException(
-                    "Unexpected ClassInstance '" + ci.type() + "' in compileExpr — should be desugared by parser");
             case com.gs.legend.ast.ColumnInstance ci -> throw new PureCompileException(
                     "Unexpected ColumnInstance " + ci.getClass().getSimpleName()
-                            + " in compileExpr — should be desugared by parser");
+                            + " at expression position — must be a function argument, not a top-level expression");
             case com.gs.legend.ast.NewInstance id -> throw new PureCompileException(
-                    "Unexpected NewInstance '" + id.className() + "' in compileExpr — should be desugared by parser");
+                    "Unexpected NewInstance '" + id.className()
+                            + "' at expression position — must be the second argument to new(), not a top-level expression");
             case LambdaFunction lf -> compileLambda(lf, ctx);
             case Variable v -> compileVariable(v, ctx);
             case AppliedProperty ap -> compileProperty(ap, ctx);
@@ -946,7 +945,7 @@ public class TypeChecker implements TypeCheckEnv {
             default -> node; // CInteger, CFloat, CDecimal, CString, CBoolean, CDateTime,
                              // CStrictDate, CStrictTime, CLatestDate, CByteArray, EnumValue,
                              // UnitInstance, PackageableElementPtr, TypeAnnotation,
-                             // ClassInstance — no Variable children
+                             // ColumnInstance, NewInstance — no Variable children
         };
     }
 
@@ -1119,7 +1118,7 @@ public class TypeChecker implements TypeCheckEnv {
                     return info;
                 }
             }
-            // Let-bound variable → resolve inlinedBody to instance ClassInstance
+            // Let-bound variable → resolve inlinedBody to its NewInstance
             TypeInfo vInfo = types.get(v);
             if (vInfo == null) {
                 vInfo = compileExpr(v, ctx);

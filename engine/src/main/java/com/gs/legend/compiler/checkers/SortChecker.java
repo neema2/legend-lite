@@ -45,7 +45,7 @@ public class SortChecker extends AbstractChecker {
         if (source.isRelational()) {
             // Compile literal params (CString, EnumValue, etc.) before resolve
             // so structural matching has real types for disambiguation.
-            // Skip AST-shape params (AppliedFunction, ClassInstance, LambdaFunction)
+            // Skip AST-shape params (AppliedFunction, ColumnInstance, LambdaFunction)
             // which are matched structurally without needing compiled types.
             var compiledTypes = new java.util.HashMap<Integer, ExpressionType>();
             for (int i = 1; i < params.size(); i++) {
@@ -185,7 +185,7 @@ public class SortChecker extends AbstractChecker {
 
     /**
      * Resolves a single ascending(~col) or descending(~col) into a SortSpec.
-     * Also handles ClassInstance("sortInfo", ColSpec) wrapper for ~col→ascending() syntax.
+     * Bare ~col (a {@link ColSpec}) defaults to ascending.
      */
     private TypeInfo.SortSpec resolveSingleSortInfo(ValueSpecification vs,
                                                     Type.Schema schema) {
