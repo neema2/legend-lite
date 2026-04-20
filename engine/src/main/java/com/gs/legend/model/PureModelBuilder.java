@@ -44,6 +44,9 @@ public final class PureModelBuilder implements ModelContext {
     private final ArrayList<DatabaseDefinition> databases = new ArrayList<>();
     private final ArrayList<ProfileDefinition> profiles = new ArrayList<>();
     private final ArrayList<List<FunctionDefinition>> functions = new ArrayList<>();
+    // Phase 2: typed downstream form, built at assemble() time alongside resolvedBody.
+    // Parallel to `functions`, same index (function qualifiedName -> id).
+    private final ArrayList<List<com.gs.legend.model.m3.PureFunction>> pureFunctions = new ArrayList<>();
     private final ArrayList<ConnectionDefinition> connections = new ArrayList<>();
     private final ArrayList<RuntimeDefinition> runtimes = new ArrayList<>();
     private final ArrayList<ServiceDefinition> services = new ArrayList<>();
@@ -254,9 +257,9 @@ public final class PureModelBuilder implements ModelContext {
         // PHASE 5d: Resolve mapping includes (copy class mappings from included mappings)
         resolveMappingIncludes();
 
-        // PHASE 6: Pre-resolve function bodies — parse body text into AST and resolve names
+        // PHASE 6: Pre-resolve function bodies and build typed downstream PureFunctions.
         if (!isStrict) {
-            resolveFunctionBodies();
+            buildPureFunctions();
         }
 
         return this;
@@ -359,26 +362,88 @@ public final class PureModelBuilder implements ModelContext {
     }
 
     /**
-     * Pre-resolves function bodies: parses body text into AST and resolves names
-     * using the current import scope and known FQNs. Replaces each FunctionDefinition
-     * with one carrying a resolvedBody.
+     * Pre-resolves function bodies and builds typed downstream {@link com.gs.legend.model.m3.PureFunction}s.
+     *
+     * <p>Walks every registered {@link FunctionDefinition}, parses its body text, name-resolves the
+     * AST against the current import scope and known FQNs, and:
+     * <ul>
+     *   <li>dual-populates the parse-layer record with a {@code resolvedBody} (via
+     *       {@link FunctionDefinition#withResolvedBody}) — transitional, removed in Phase 5;</li>
+     *   <li>constructs a {@link com.gs.legend.model.m3.PureFunction} with typed {@link com.gs.legend.model.m3.Parameter}s,
+     *       resolved return {@link com.gs.legend.model.m3.Type}, and the AST body, and stores it in
+     *       {@link #pureFunctions} under the same id as the source {@code FunctionDefinition}.</li>
+     * </ul>
+     *
+     * <p>Phase 3 migrates {@link #findFunction} to read {@code pureFunctions}; Phase 5 strips the
+     * {@code resolvedBody} dual-carriage entirely.
      */
-    private void resolveFunctionBodies() {
-        for (var funcList : functions) {
+    private void buildPureFunctions() {
+        for (int id = 0; id < functions.size(); id++) {
+            List<FunctionDefinition> funcList = functions.get(id);
             if (funcList == null) continue;
+            List<com.gs.legend.model.m3.PureFunction> pureList = new ArrayList<>(funcList.size());
             for (int i = 0; i < funcList.size(); i++) {
                 FunctionDefinition fd = funcList.get(i);
-                if (fd.resolvedBody() == null) {
+
+                List<com.gs.legend.ast.ValueSpecification> resolved = fd.resolvedBody();
+                if (resolved == null) {
                     List<com.gs.legend.ast.ValueSpecification> body =
                             com.gs.legend.parser.PureParser.parseCodeBlock(fd.body());
-                    List<com.gs.legend.ast.ValueSpecification> resolved = body.stream()
+                    resolved = body.stream()
                             .map(stmt -> com.gs.legend.parser.NameResolver.resolveQuery(
                                     stmt, imports, symbols.allFqns()))
                             .toList();
-                    funcList.set(i, fd.withResolvedBody(resolved));
+                    fd = fd.withResolvedBody(resolved);
+                    funcList.set(i, fd);
                 }
+
+                pureList.add(buildPureFunction(fd, resolved));
             }
+            idPut(pureFunctions, id, pureList);
         }
+    }
+
+    /**
+     * Converts a (resolved-body-carrying) {@link FunctionDefinition} into a
+     * {@link com.gs.legend.model.m3.PureFunction}. Reads typed parameter / return types
+     * from the parse-layer's {@code parsedType} / {@code parsedReturnType} fields. Phase 5
+     * deletes those fields and shifts {@code Type} construction into this method (via
+     * {@link com.gs.legend.model.m3.Type#resolve} over the String type names).
+     */
+    private com.gs.legend.model.m3.PureFunction buildPureFunction(
+            FunctionDefinition fd, List<com.gs.legend.ast.ValueSpecification> resolvedBody) {
+        List<com.gs.legend.model.m3.Parameter> typedParams = new ArrayList<>(fd.parameters().size());
+        for (var p : fd.parameters()) {
+            com.gs.legend.model.m3.Type paramType = p.parsedType();
+            if (paramType == null) {
+                throw new IllegalStateException(
+                        "PureModelBuilder.buildPureFunction: function '" + fd.qualifiedName()
+                                + "' parameter '" + p.name() + "' has no parsedType. "
+                                + "Parse-layer producers must populate FunctionDefinition.ParameterDefinition.parsedType. "
+                                + "(Phase 5 will move Type construction into PureModelBuilder; for now, producers are required to set it.)");
+            }
+            typedParams.add(new com.gs.legend.model.m3.Parameter(
+                    p.name(), paramType,
+                    new com.gs.legend.model.m3.Multiplicity.Bounded(p.lowerBound(), p.upperBound())));
+        }
+
+        com.gs.legend.model.m3.Type returnType = fd.parsedReturnType();
+        if (returnType == null) {
+            throw new IllegalStateException(
+                    "PureModelBuilder.buildPureFunction: function '" + fd.qualifiedName()
+                            + "' has no parsedReturnType. "
+                            + "Parse-layer producers must populate FunctionDefinition.parsedReturnType.");
+        }
+
+        return new com.gs.legend.model.m3.PureFunction(
+                fd.qualifiedName(),
+                /* typeParams */ List.of(),
+                typedParams,
+                returnType,
+                new com.gs.legend.model.m3.Multiplicity.Bounded(fd.returnLowerBound(), fd.returnUpperBound()),
+                resolvedBody,
+                fd.stereotypes(),
+                fd.taggedValues());
     }
 
     /**
@@ -544,6 +609,17 @@ public final class PureModelBuilder implements ModelContext {
     @Override
     public List<FunctionDefinition> findFunction(String name) {
         List<FunctionDefinition> result = idGet(functions, symbols.resolveId(name));
+        return result != null ? result : List.of();
+    }
+
+    /**
+     * Typed counterpart of {@link #findFunction} — returns the downstream metamodel form built
+     * during Phase 6 ({@link #buildPureFunctions}). Returns empty until {@link #assemble} runs.
+     * Phase 3 of the PureFunction split plan migrates {@link #findFunction} itself to return
+     * {@code List<PureFunction>} and this accessor goes away.
+     */
+    public List<com.gs.legend.model.m3.PureFunction> findPureFunction(String name) {
+        List<com.gs.legend.model.m3.PureFunction> result = idGet(pureFunctions, symbols.resolveId(name));
         return result != null ? result : List.of();
     }
 
