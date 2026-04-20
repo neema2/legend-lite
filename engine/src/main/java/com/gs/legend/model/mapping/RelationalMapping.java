@@ -19,8 +19,12 @@ import java.util.stream.Collectors;
 
 /**
  * Links a Pure Class to a relational Table with property-to-column mappings.
- * 
- * @param pureClass        The Pure class being mapped
+ *
+ * <p>The target class is referenced by FQN only ({@code pureClassFqn}) — AGENTS.md §5:
+ * mapping containers must not force-load their target. Property-type queries resolve the
+ * class lazily via {@link com.gs.legend.model.ModelContext#findClass}.
+ *
+ * @param pureClassFqn     FQN of the Pure class being mapped
  * @param table            The target relational table
  * @param propertyMappings Mappings from Pure properties to table columns
  * @param nested           If true, properties are accessed via nested struct field paths
@@ -39,7 +43,7 @@ import java.util.stream.Collectors;
  * @param sourceUrl          URL for external data sources (e.g., JSON data: or file: URI). Null for regular tables.
  */
 public record RelationalMapping(
-        PureClass pureClass,
+        String pureClassFqn,
         Table table,
         List<PropertyMapping> propertyMappings,
         boolean nested,
@@ -52,16 +56,16 @@ public record RelationalMapping(
         View view,
         String sourceUrl) implements ClassMapping {
 
-    public RelationalMapping(PureClass pureClass, Table table, List<PropertyMapping> propertyMappings) {
-        this(pureClass, table, propertyMappings, false, null, false, false, null, Map.of(), List.of(), null, null);
+    public RelationalMapping(String pureClassFqn, Table table, List<PropertyMapping> propertyMappings) {
+        this(pureClassFqn, table, propertyMappings, false, null, false, false, null, Map.of(), List.of(), null, null);
     }
 
-    public RelationalMapping(PureClass pureClass, Table table, List<PropertyMapping> propertyMappings, boolean nested) {
-        this(pureClass, table, propertyMappings, nested, null, false, false, null, Map.of(), List.of(), null, null);
+    public RelationalMapping(String pureClassFqn, Table table, List<PropertyMapping> propertyMappings, boolean nested) {
+        this(pureClassFqn, table, propertyMappings, nested, null, false, false, null, Map.of(), List.of(), null, null);
     }
 
     public RelationalMapping {
-        Objects.requireNonNull(pureClass, "Pure class cannot be null");
+        Objects.requireNonNull(pureClassFqn, "Pure class FQN cannot be null");
         Objects.requireNonNull(table, "Table cannot be null");
         Objects.requireNonNull(propertyMappings, "Property mappings cannot be null");
 
@@ -76,12 +80,12 @@ public record RelationalMapping(
      * Used by MappingNormalizer to store view-resolved PMs.
      */
     public RelationalMapping withPropertyMappings(List<PropertyMapping> resolvedPMs) {
-        return new RelationalMapping(pureClass, table, resolvedPMs, nested, setId, isRoot,
+        return new RelationalMapping(pureClassFqn, table, resolvedPMs, nested, setId, isRoot,
                 distinct, filterFqn, embeddedMappings, groupByColumns, view, sourceUrl);
     }
 
     public RelationalMapping withGroupByColumns(List<String> resolvedGroupBy) {
-        return new RelationalMapping(pureClass, table, propertyMappings, nested, setId, isRoot,
+        return new RelationalMapping(pureClassFqn, table, propertyMappings, nested, setId, isRoot,
                 distinct, filterFqn, embeddedMappings, resolvedGroupBy, view, sourceUrl);
     }
 
@@ -153,10 +157,14 @@ public record RelationalMapping(
      */
     public com.gs.legend.model.m3.Type pureTypeForProperty(String propertyName,
             com.gs.legend.model.ModelContext ctx) {
+        var pureClass = ctx.findClass(pureClassFqn)
+                .orElseThrow(() -> new IllegalStateException(
+                        "RelationalMapping target class '" + pureClassFqn + "' not in model context — "
+                        + "cannot determine type for property '" + propertyName + "'"));
         return pureClass.findProperty(propertyName, ctx)
                 .map(p -> p.type())
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Property '" + propertyName + "' not found in class " + pureClass.name()));
+                        "Property '" + propertyName + "' not found in class " + pureClass.qualifiedName()));
     }
 
     /**
@@ -172,6 +180,8 @@ public record RelationalMapping(
      * @return A RelationalMapping with a synthetic Table and identity PropertyMappings
      */
     public static RelationalMapping identity(PureClass pureClass, com.gs.legend.model.ModelContext ctx) {
+        // PureClass parameter is used at construction time only to materialize PropertyMappings
+        // from its properties; the resulting RelationalMapping holds the FQN only.
         var columns = new java.util.ArrayList<Column>();
         var mappings = new java.util.ArrayList<PropertyMapping>();
 
@@ -194,7 +204,7 @@ public record RelationalMapping(
         String tableName = Character.toLowerCase(simpleName.charAt(0)) + simpleName.substring(1);
         var table = new Table("__identity__", tableName, columns);
 
-        return new RelationalMapping(pureClass, table, mappings, true);
+        return new RelationalMapping(pureClass.qualifiedName(), table, mappings, true);
     }
 
     /**
@@ -211,6 +221,8 @@ public record RelationalMapping(
      */
     public static RelationalMapping variantIdentity(PureClass pureClass, String sourceUrl,
             com.gs.legend.model.ModelContext ctx) {
+        // PureClass parameter is used at construction time only; the resulting RelationalMapping
+        // holds the FQN only (AGENTS.md §5).
         var columns = java.util.List.of(Column.nullable("data", SqlDataType.SEMISTRUCTURED));
         // Internal table name — not registered, only used for mapping structure
         String simpleName = pureClass.name();
@@ -228,14 +240,14 @@ public record RelationalMapping(
             mappings.add(PropertyMapping.expression(prop.name(), "data", expr));
         }
 
-        return new RelationalMapping(pureClass, table, mappings, false, null, false, false,
+        return new RelationalMapping(pureClass.qualifiedName(), table, mappings, false, null, false, false,
                 null, Map.of(), List.of(), null, sourceUrl);
     }
 
     @Override
     public String toString() {
         var sb = new StringBuilder();
-        sb.append("Mapping ").append(pureClass.qualifiedName())
+        sb.append("Mapping ").append(pureClassFqn)
                 .append(" -> ").append(table.dbName()).append(" {\n");
         for (PropertyMapping pm : propertyMappings) {
             sb.append("    ").append(pm).append("\n");
@@ -245,16 +257,6 @@ public record RelationalMapping(
     }
 
     // ========== ClassMapping interface ==========
-
-    /**
-     * Convenience accessor for the resolved Pure class. Not part of the {@link ClassMapping}
-     * interface (AGENTS.md §5 — mapping containers should track targets by FQN, not by
-     * resolved {@link PureClass}). Kept here because the rest of {@code RelationalMapping}
-     * still holds a resolved {@code pureClass} field; tightening that is a separate refactor.
-     */
-    public PureClass targetClass() {
-        return pureClass;
-    }
 
     @Override
     public Table sourceTable() {
@@ -266,7 +268,7 @@ public record RelationalMapping(
         var pmOpt = getPropertyMapping(propertyName);
         if (pmOpt.isEmpty()) {
             throw new IllegalArgumentException(
-                    "Property '" + propertyName + "' not found in mapping for " + pureClass.name());
+                    "Property '" + propertyName + "' not found in mapping for " + pureClassFqn);
         }
         var pm = pmOpt.get();
         // Simple column reference: $src.COLUMN_NAME

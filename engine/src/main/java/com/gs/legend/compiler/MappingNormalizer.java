@@ -964,7 +964,7 @@ public final class MappingNormalizer {
         Filter filter = model.getFilter(rm.filterFqn())
                 .orElseThrow(() -> new IllegalStateException(
                         "Filter '" + rm.filterFqn() + "' not found for mapping of "
-                                + rm.pureClass().qualifiedName()));
+                                + rm.pureClassFqn()));
         return RelationalMappingConverter.convert(filter.condition());
     }
 }

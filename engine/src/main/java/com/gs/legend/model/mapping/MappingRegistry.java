@@ -59,7 +59,7 @@ public final class MappingRegistry {
      * Single int-keyed put per map — no dual-key (FQN + simpleName).
      */
     public void register(String mappingName, RelationalMapping mapping) {
-        int classId = symbols.resolveId(mapping.pureClass().qualifiedName());
+        int classId = symbols.resolveId(mapping.pureClassFqn());
         int mappingId = symbols.resolveId(mappingName);
 
         // Scoped — root mapping wins, otherwise first registered

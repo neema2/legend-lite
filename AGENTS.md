@@ -74,6 +74,11 @@ Cross-project dependencies must not force-load the whole transitive graph. When 
 
 **When you genuinely need a user class's structure**, call `modelContext.findClass(fqn)` at the exact use site and let the context decide whether to lazy-load. Don't cache the result across unrelated operations.
 
+**Automated guards** — two tests enforce this rule at build time:
+
+- **`NoEagerTypeReferencesTest`** — structural: reflects over every compiled class and fails if any field outside a tiny field-level allowlist has a resolved `PureClass` / `PureEnum` reference (directly or nested in `List` / `Map` / `Optional` / arrays). Adding your class to the allowlist is **not** the fix; converting the field to an FQN `String` is.
+- **`NoEagerUserClassLoadsTest`** — behavioral: wraps `ModelContext` in a call-recording decorator, compiles a query that touches one warm class, and fails if `findClass` was invoked on any of several cold classes. Catches eager traversals that the structural guard can't see.
+
 ## SqlExpr Rules
 
 - `Cast(expr, pureTypeName)` — Pure type name, Dialect maps via `sqlTypeName()`

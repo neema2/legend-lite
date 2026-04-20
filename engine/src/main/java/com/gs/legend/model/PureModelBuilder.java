@@ -881,7 +881,7 @@ public final class PureModelBuilder implements ModelContext {
                     .toList();
 
             // Create and register the mapping
-            RelationalMapping mapping = new RelationalMapping(pureClass, table, propertyMappings,
+            RelationalMapping mapping = new RelationalMapping(pureClass.qualifiedName(), table, propertyMappings,
                     false, setId, isRoot, distinct, filterFqn, embeddedMappings,
                     groupByColumns, view, null);
             mappingRegistry.register(mappingDef.qualifiedName(), mapping);
