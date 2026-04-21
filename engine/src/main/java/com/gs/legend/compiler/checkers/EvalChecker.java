@@ -108,8 +108,8 @@ public class EvalChecker extends AbstractChecker {
         TypeChecker.CompilationContext result = ctx;
         int bound = Math.min(lambda.parameters().size(), args.size());
         for (int i = 0; i < bound; i++) {
-            env.compileExpr(args.get(i), result);
-            result = result.withLetBinding(lambda.parameters().get(i).name(), args.get(i));
+            TypedSpec typedArg = env.compileExpr(args.get(i), result);
+            result = result.withLetBinding(lambda.parameters().get(i).name(), typedArg);
         }
         return result;
     }

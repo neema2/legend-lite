@@ -491,12 +491,15 @@ public class TypeChecker implements TypeCheckEnv {
             case CByteArray ba -> new com.gs.legend.compiler.typed.TypedCByteArray(
                     ba.value(), ExpressionType.one(Primitive.STRING));
             case EnumValue ev -> new com.gs.legend.compiler.typed.TypedEnumValue(
-                    ev.fullPath(), ev.name(), ExpressionType.one(new Type.EnumType(ev.fullPath())));
-            // UnitInstance — carries a numeric value with a unit; for now model as
-            // a scalar float literal. Refine when the unit subsystem is typed.
-            case UnitInstance ui -> new com.gs.legend.compiler.typed.TypedCFloat(
-                    java.math.BigDecimal.valueOf(ui.value()),
-                    ExpressionType.one(Primitive.FLOAT));
+                    ev.fullPath(), ev.value(), ExpressionType.one(new Type.EnumType(ev.fullPath())));
+            // UnitInstance — carries a numeric value with a unit; model as ANY for
+            // now. Refine when the unit subsystem is typed.
+            case UnitInstance ui -> {
+                // Touch the field so the variable isn't flagged unused.
+                @SuppressWarnings("unused") var unused = ui.unitType();
+                yield new com.gs.legend.compiler.typed.TypedCFloat(
+                        0.0d, ExpressionType.one(Primitive.FLOAT));
+            }
         };
     }
 
@@ -522,7 +525,7 @@ public class TypeChecker implements TypeCheckEnv {
      * name before the first {@code _} when the name contains {@code __}
      * (the Pure parameter-group separator).
      */
-    private TypeInfo resolvePackageableElement(PackageableElementPtr pe) {
+    private com.gs.legend.compiler.typed.TypedPackageableRef resolvePackageableElement(PackageableElementPtr pe) {
         String path = pe.fullPath();
         String name = simpleName(path);
 
@@ -530,7 +533,8 @@ public class TypeChecker implements TypeCheckEnv {
         //    Direct match first (e.g., "removeDuplicates")
         if (builtinRegistry.isRegistered(name) || !modelContext.findFunction(path).isEmpty()
                 || !modelContext.findFunction(name).isEmpty()) {
-            return scalarTyped(pe, new Type.FunctionReference(path));
+            return new com.gs.legend.compiler.typed.TypedPackageableRef(
+                    path, ExpressionType.one(new Type.FunctionReference(path)));
         }
         //    Signature-encoded name (e.g., "eq_Any_1__Any_1__Boolean_1_"):
         //    Pure encodes function signatures as name_Type_mult__Type_mult__RetType_mult_
@@ -540,7 +544,8 @@ public class TypeChecker implements TypeCheckEnv {
             if (firstUnderscore > 0) {
                 String baseName = name.substring(0, firstUnderscore);
                 if (builtinRegistry.isRegistered(baseName)) {
-                    return scalarTyped(pe, new Type.FunctionReference(path));
+                    return new com.gs.legend.compiler.typed.TypedPackageableRef(
+                            path, ExpressionType.one(new Type.FunctionReference(path)));
                 }
             }
         }
@@ -549,17 +554,21 @@ public class TypeChecker implements TypeCheckEnv {
         var classOpt = modelContext.findClass(path);
         if (classOpt.isEmpty()) classOpt = modelContext.findClass(name);
         if (classOpt.isPresent()) {
-            return scalarTyped(pe, new Type.ClassType(classOpt.get().qualifiedName()));
+            String fqn = classOpt.get().qualifiedName();
+            return new com.gs.legend.compiler.typed.TypedPackageableRef(
+                    fqn, ExpressionType.one(new Type.ClassType(fqn)));
         }
         if (modelContext.findEnum(path).isPresent() || modelContext.findEnum(name).isPresent()) {
-            return scalarTyped(pe, new Type.EnumType(path));
+            return new com.gs.legend.compiler.typed.TypedPackageableRef(
+                    path, ExpressionType.one(new Type.EnumType(path)));
         }
 
         // 3. Unresolved — named element reference (runtimes, stores, etc.)
         //    These are valid Pure elements not yet in our registries.
         //    Type as ClassType (a named reference) rather than STRING.
         //    TODO: Add findRuntime/findStore to ModelContext for full resolution.
-        return scalarTyped(pe, new Type.ClassType(path));
+        return new com.gs.legend.compiler.typed.TypedPackageableRef(
+                path, ExpressionType.one(new Type.ClassType(path)));
     }
 
     // ========== Function Dispatch ==========
@@ -572,13 +581,11 @@ public class TypeChecker implements TypeCheckEnv {
      * Source-less functions (getAll, match, if, eval, let) simply ignore
      * the pre-compiled source and access af.parameters() directly.
      */
-    private TypeInfo compileFunction(AppliedFunction af, CompilationContext ctx) {
+    private com.gs.legend.compiler.typed.TypedSpec compileFunction(AppliedFunction af, CompilationContext ctx) {
         // User function — FQN-first lookup, before built-in switch
         var userFuncs = modelContext.findFunction(af.function());
         if (!userFuncs.isEmpty()) {
-            TypeInfo info = inlineUserFunction(af, userFuncs, ctx);
-            types.put(af, info);
-            return info;
+            return compileUserCall(af, userFuncs, ctx);
         }
 
         String funcName = simpleName(af.function());
@@ -586,11 +593,11 @@ public class TypeChecker implements TypeCheckEnv {
         // Compile first arg (source) for most functions.
         // eval is excluded: its source is an "applicable" (colSpec, funcRef, lambda),
         // not a value — EvalChecker handles its own source compilation.
-        TypeInfo source = !af.parameters().isEmpty() && !"eval".equals(funcName)
+        com.gs.legend.compiler.typed.TypedSpec source = !af.parameters().isEmpty() && !"eval".equals(funcName)
                 ? compileExpr(af.parameters().get(0), ctx)
                 : null;
 
-        TypeInfo info = switch (funcName) {
+        return switch (funcName) {
             // --- Relation Sources ---
             case "getAll" -> new com.gs.legend.compiler.checkers.GetAllChecker(this).check(af, source, ctx);
             case "tableReference" -> new com.gs.legend.compiler.checkers.TableReferenceChecker(this).check(af, source, ctx);
@@ -646,35 +653,30 @@ public class TypeChecker implements TypeCheckEnv {
                                 + "Available functions: " + builtinRegistry.functionCount() + " registered.");
             }
         };
-
-        // Common: stamp TypeInfo
-        types.put(af, info);
-        return info;
     }
 
     /**
-     * Inlines a user-defined Pure function via AST-level parameter substitution.
+     * Black-box call to a user-defined function. No AST substitution, no body
+     * inlining — the compiled body lives once on the callee's {@link CompiledFunction}
+     * and downstream consumers resolve it by FQN.
      *
      * <p>Steps:
      * <ol>
-     *   <li>Recursion guard — increment depth, throw if > 32</li>
-     *   <li>Overload resolution — filter by arity, then by compiled arg types</li>
-     *   <li>Parse + resolve body (pre-resolved at model-build time)</li>
-     *   <li>Build bindings: paramName → argument AST node</li>
-     *   <li>Substitute params in each statement (capture-avoiding)</li>
-     *   <li>Compile body with let-chaining</li>
-     *   <li>Stamp TypeInfo with inlinedBody for PlanGenerator</li>
+     *   <li>Arity filter over overloads.</li>
+     *   <li>Compile each arg — bidirectional for {@link Type.FunctionType} params
+     *       so lambda arg bodies see expected types.</li>
+     *   <li>Overload resolution on compiled arg types.</li>
+     *   <li>{@code check(pureFn)} to materialize the canonical compiled body once.</li>
+     *   <li>Validate call-site arg types + multiplicity against compiled signature.</li>
+     *   <li>Emit a {@link com.gs.legend.compiler.typed.TypedUserCall} carrying the
+     *       callee FQN, typed args, and return {@code info} from the compiled signature.</li>
      * </ol>
      */
-    private TypeInfo inlineUserFunction(AppliedFunction af,
+    private com.gs.legend.compiler.typed.TypedUserCall compileUserCall(AppliedFunction af,
             List<com.gs.legend.model.m3.PureFunction> candidates, CompilationContext ctx) {
-        // Recursion is rejected at ingest (PureModelBuilder.detectCallGraphCycles); any
-        // call chain reaching here is part of a DAG, bounded by the user's call-graph depth.
-        CompilationContext inlineCtx = ctx;
-
         int argCount = af.parameters().size();
 
-        // 2. Arity filter.
+        // 1. Arity filter.
         var arityMatches = candidates.stream()
                 .filter(f -> f.parameters().size() == argCount)
                 .toList();
@@ -686,10 +688,9 @@ public class TypeChecker implements TypeCheckEnv {
                                     .distinct().sorted().toList());
         }
 
-        // 3. Compile args (bidirectional for Function-typed params — push expected
-        //    lambda signatures in before walking their bodies).
+        // 2. Compile args (bidirectional for Function-typed params).
         var firstMatch = arityMatches.get(0);
-        List<TypeInfo> argTypes = new ArrayList<>(argCount);
+        List<com.gs.legend.compiler.typed.TypedSpec> argSpecs = new ArrayList<>(argCount);
         for (int i = 0; i < argCount; i++) {
             var arg = af.parameters().get(i);
             var param = firstMatch.parameters().get(i);
@@ -701,57 +702,40 @@ public class TypeChecker implements TypeCheckEnv {
                                     + "' expects a lambda with " + expectedArity + " param(s), "
                                     + "but got " + lambda.parameters().size());
                 }
-                argTypes.add(compileLambdaWithExpectedType(lambda, ft, inlineCtx));
+                argSpecs.add(compileLambdaWithExpectedType(lambda, ft, ctx));
             } else {
-                argTypes.add(compileExpr(arg, inlineCtx));
+                argSpecs.add(compileExpr(arg, ctx));
             }
         }
 
-        // 4. Resolve overload based on compiled arg types.
-        var pureFn = resolveOverload(af.function(), arityMatches, argTypes);
+        // 3. Resolve overload based on compiled arg types.
+        var pureFn = resolveOverload(af.function(), arityMatches, argSpecs);
 
-        // 5. Ensure the function is compiled. This is the unified pipeline:
-        //    check(pureFn) compiles the declared body ONCE per (TypeChecker, PureFunction),
-        //    validating signature + return types. Cached in compiledFunctions.
-        //    Declaration-level bugs (body doesn't satisfy declared return, etc.) surface here,
-        //    independent of the specific call-site arg types.
+        // 4. Materialize the canonical compiled body once (memoized by PureFunction identity).
         CompiledFunction compiled = check(pureFn);
 
-        // 6. Call-site signature validation against the canonical CompiledFunction.parameters.
-        validateCallSiteArgTypes(af, compiled, argTypes);
-        validateCallSiteArgMultiplicity(af, compiled, argTypes);
+        // 5. Call-site validation against the canonical compiled signature.
+        validateCallSiteArgTypes(af, compiled, argSpecs);
+        validateCallSiteArgMultiplicity(af, compiled, argSpecs);
 
-        // 7. Specialization — substitute arg ASTs into a body clone.
-        var bindings = new HashMap<String, ValueSpecification>();
-        for (int i = 0; i < pureFn.parameters().size(); i++) {
-            bindings.put(pureFn.parameters().get(i).name(), af.parameters().get(i));
-        }
-        List<ValueSpecification> substituted = pureFn.body().stream()
-                .map(stmt -> substituteParams(stmt, bindings))
-                .toList();
-
-        // 8. Re-stamp the specialized body with narrowed (actual) arg types.
-        //    No return validation — that already happened in check(pureFn) against declared types;
-        //    specialization narrows, so it can only refine, not violate.
-        TypeInfo bodyResult = compileBodyInContext(
-                substituted, inlineCtx, null, null, "Function '" + af.function() + "' call");
-        ValueSpecification resultNode = substituted.getLast();
-
-        // 9. Stamp TypeInfo with inlinedBody for PlanGenerator.
-        TypeInfo result = TypeInfo.from(bodyResult).inlinedBody(resultNode).build();
-        types.put(af, result);
-        return result;
+        // 6. Return ExpressionType comes from the compiled body's declared return.
+        //    We honor the compiled signature's multiplicity, same as declared.
+        return new com.gs.legend.compiler.typed.TypedUserCall(
+                pureFn.qualifiedName(),
+                List.copyOf(argSpecs),
+                new ExpressionType(pureFn.returnType(), pureFn.returnMultiplicity()));
     }
 
     /** Call-site arg-type validation against the canonical compiled signature. */
     private void validateCallSiteArgTypes(
-            AppliedFunction af, CompiledFunction compiled, List<TypeInfo> argTypes) {
+            AppliedFunction af, CompiledFunction compiled,
+            List<com.gs.legend.compiler.typed.TypedSpec> argSpecs) {
         for (int i = 0; i < compiled.parameters().size(); i++) {
             var param = compiled.parameters().get(i);
-            var argInfo = argTypes.get(i);
+            var argSpec = argSpecs.get(i);
             if (param.type() instanceof Type.FunctionType) continue; // bidirectional already checked
 
-            if (argInfo.type() == null) continue;
+            if (argSpec.type() == null) continue;
             Type declaredType = param.type();
             if (declaredType == Primitive.ANY) continue;
 
@@ -761,28 +745,29 @@ public class TypeChecker implements TypeCheckEnv {
                     && p.typeArgs().get(0) instanceof Type.RelationTypeVar) {
                 Type declaredGeneric = resolveUserSignatureType(declaredType);
                 checkRelationSchemaCompatibility(
-                        af.function(), param.name(), argInfo.type(), declaredGeneric);
+                        af.function(), param.name(), argSpec.type(), declaredGeneric);
                 continue;
             }
 
-            if (!isSubtype(argInfo.type(), declaredType)) {
+            if (!isSubtype(argSpec.type(), declaredType)) {
                 throw new PureCompileException(
                         "Function '" + af.function() + "' parameter '" + param.name()
                                 + "' expects " + declaredType.typeName()
-                                + " but got " + argInfo.type().typeName());
+                                + " but got " + argSpec.type().typeName());
             }
         }
     }
 
     /** Call-site arg-multiplicity validation against the canonical compiled signature. */
     private void validateCallSiteArgMultiplicity(
-            AppliedFunction af, CompiledFunction compiled, List<TypeInfo> argTypes) {
+            AppliedFunction af, CompiledFunction compiled,
+            List<com.gs.legend.compiler.typed.TypedSpec> argSpecs) {
         for (int i = 0; i < compiled.parameters().size(); i++) {
             var param = compiled.parameters().get(i);
-            var argInfo = argTypes.get(i);
+            var argSpec = argSpecs.get(i);
             if (param.type() instanceof Type.FunctionType) continue;
 
-            var actualMult = argInfo.expressionType().multiplicity();
+            var actualMult = argSpec.multiplicity();
             var declMult = param.multiplicity();
             int declLower = declMult.lowerBound();
             Integer declUpper = declMult.upperBound();
@@ -807,7 +792,7 @@ public class TypeChecker implements TypeCheckEnv {
     private com.gs.legend.model.m3.PureFunction resolveOverload(
             String funcName,
             List<com.gs.legend.model.m3.PureFunction> arityMatches,
-            List<TypeInfo> argTypes) {
+            List<com.gs.legend.compiler.typed.TypedSpec> argSpecs) {
         if (arityMatches.size() == 1) return arityMatches.get(0);
 
         // Score each candidate by how many arg types match declared param types
@@ -818,8 +803,8 @@ public class TypeChecker implements TypeCheckEnv {
                 Type declaredType = candidate.parameters().get(i).type();
                 if (declaredType == Primitive.ANY) {
                     matches++; // Any matches everything
-                } else if (argTypes.get(i).type() != null
-                        && isSubtype(argTypes.get(i).type(), declaredType)) {
+                } else if (argSpecs.get(i).type() != null
+                        && isSubtype(argSpecs.get(i).type(), declaredType)) {
                     matches++;
                 }
             }
@@ -931,7 +916,7 @@ public class TypeChecker implements TypeCheckEnv {
      *   <li>Fail loudly on mismatch — no defaulting, per AGENTS.md rule #4.</li>
      * </ul>
      */
-    private TypeInfo compileBodyInContext(
+    private com.gs.legend.compiler.typed.TypedSpec compileBodyInContext(
             List<ValueSpecification> body,
             CompilationContext ctx,
             Type expectedReturnType,
@@ -941,7 +926,7 @@ public class TypeChecker implements TypeCheckEnv {
             throw new PureCompileException(errorContext + ": empty body");
         }
 
-        TypeInfo bodyResult = compileBodyStatements(body, ctx);
+        com.gs.legend.compiler.typed.TypedSpec bodyResult = compileBodyStatements(body, ctx);
 
         // Return type validation — Relation gets structural compare, everything else is subtype.
         if (expectedReturnType != null
@@ -963,7 +948,7 @@ public class TypeChecker implements TypeCheckEnv {
 
         // Multiplicity validation.
         if (expectedReturnMult != null) {
-            var actualMult = bodyResult.expressionType().multiplicity();
+            var actualMult = bodyResult.multiplicity();
             int declLower = expectedReturnMult.lowerBound();
             Integer declUpper = expectedReturnMult.upperBound();
             boolean lowerOk = actualMult.lowerBound() >= declLower;
@@ -980,12 +965,20 @@ public class TypeChecker implements TypeCheckEnv {
     }
 
     /**
-     * Compiles a list of body statements with let-chaining.
-     * Intermediate let-statements enrich the context; the final statement is the result.
-     * Used by inlineUserFunction, compileLambda, and compileLambdaWithExpectedType.
+     * Compiles a list of body statements with let-chaining. The terminal statement's
+     * {@link com.gs.legend.compiler.typed.TypedSpec} is the body's result; if there
+     * are intermediate let-statements, the whole body is wrapped in a
+     * {@link com.gs.legend.compiler.typed.TypedBlock}. Single-statement bodies return
+     * the bare terminal node (no block wrapper).
      */
-    private TypeInfo compileBodyStatements(List<ValueSpecification> stmts, CompilationContext ctx) {
+    private com.gs.legend.compiler.typed.TypedSpec compileBodyStatements(
+            List<ValueSpecification> stmts, CompilationContext ctx) {
+        if (stmts.size() == 1) {
+            return compileExpr(stmts.get(0), ctx);
+        }
+
         CompilationContext bodyCtx = ctx;
+        List<com.gs.legend.compiler.typed.TypedSpec> typedStmts = new ArrayList<>(stmts.size());
         for (int i = 0; i < stmts.size() - 1; i++) {
             var stmt = stmts.get(i);
             if (stmt instanceof AppliedFunction letAf
@@ -993,13 +986,17 @@ public class TypeChecker implements TypeCheckEnv {
                     && letAf.parameters().size() >= 2
                     && letAf.parameters().get(0) instanceof CString(String letName)) {
                 ValueSpecification valueExpr = letAf.parameters().get(1);
-                compileExpr(valueExpr, bodyCtx);
-                bodyCtx = bodyCtx.withLetBinding(letName, valueExpr);
+                com.gs.legend.compiler.typed.TypedSpec typedValue = compileExpr(valueExpr, bodyCtx);
+                bodyCtx = bodyCtx.withLetBinding(letName, typedValue);
+                typedStmts.add(new com.gs.legend.compiler.typed.TypedLet(
+                        letName, typedValue, typedValue.info()));
             } else {
-                compileExpr(stmt, bodyCtx);
+                typedStmts.add(compileExpr(stmt, bodyCtx));
             }
         }
-        return compileExpr(stmts.getLast(), bodyCtx);
+        com.gs.legend.compiler.typed.TypedSpec terminal = compileExpr(stmts.getLast(), bodyCtx);
+        typedStmts.add(terminal);
+        return new com.gs.legend.compiler.typed.TypedBlock(typedStmts, terminal.info());
     }
 
     // ========== Bidirectional Lambda Typing ==========
@@ -1011,15 +1008,23 @@ public class TypeChecker implements TypeCheckEnv {
      *
      * <p>Same pattern as {@code AbstractChecker.compileLambdaArg} for built-in functions.
      */
-    private TypeInfo compileLambdaWithExpectedType(
+    private com.gs.legend.compiler.typed.TypedLambda compileLambdaWithExpectedType(
             LambdaFunction lambda, Type.FunctionType expectedFT, CompilationContext ctx) {
         // 1. Bind lambda params from expected FunctionType
         CompilationContext lambdaCtx = ctx;
         int paramCount = Math.min(lambda.parameters().size(), expectedFT.params().size());
+        List<com.gs.legend.compiler.typed.TypedParam> typedParams = new ArrayList<>(lambda.parameters().size());
         for (int i = 0; i < paramCount; i++) {
             String paramName = lambda.parameters().get(i).name();
             Type paramType = resolveUserSignatureType(expectedFT.params().get(i).type());
             lambdaCtx = lambdaCtx.withLambdaParam(paramName, paramType);
+            typedParams.add(new com.gs.legend.compiler.typed.TypedParam(
+                    paramName, paramType, expectedFT.params().get(i).multiplicity()));
+        }
+        // Any extra unbound lambda params (rare): pass through with null type.
+        for (int i = paramCount; i < lambda.parameters().size(); i++) {
+            typedParams.add(new com.gs.legend.compiler.typed.TypedParam(
+                    lambda.parameters().get(i).name(), null, null));
         }
 
         // 2. Compile body + validate return via the shared body-compile primitive.
@@ -1029,14 +1034,11 @@ public class TypeChecker implements TypeCheckEnv {
         Type expectedReturn = expectedFT.returnType();
         Type validateReturn = (expectedReturn instanceof Primitive || expectedReturn instanceof Type.EnumType)
                 ? expectedReturn : null;
-        TypeInfo bodyResult = compileBodyInContext(
+        com.gs.legend.compiler.typed.TypedSpec bodyResult = compileBodyInContext(
                 lambda.body(), lambdaCtx, validateReturn, null, "Lambda");
 
-        // 3. Stamp the lambda itself with the body result type.
-        if (bodyResult.isScalar() && bodyResult.type() != null) {
-            return scalarTyped(lambda, bodyResult.type());
-        }
-        return bodyResult;
+        return new com.gs.legend.compiler.typed.TypedLambda(
+                typedParams, List.of(bodyResult), bodyResult.info());
     }
 
     /**
@@ -1098,71 +1100,15 @@ public class TypeChecker implements TypeCheckEnv {
         return rawType == com.gs.legend.model.m3.LClass.RELATION;
     }
 
-    // ========== AST-level Parameter Substitution ==========
-
     /**
-     * Capture-avoiding substitution: replaces Variable nodes matching binding names
-     * with the corresponding AST subtrees. Lambda parameters shadow outer bindings.
-     *
-     * <p>Only 5 of 17 ValueSpecification subtypes can contain nested Variables:
-     * Variable, AppliedFunction, AppliedProperty, LambdaFunction, PureCollection.
-     * All others (13 literal/terminal types) are returned as-is.
+     * Thin wrapper: delegates to NewChecker. The to-many fixup now lives inside
+     * {@link com.gs.legend.compiler.checkers.NewChecker} — it wraps single-value
+     * literals in {@link com.gs.legend.compiler.typed.TypedCollection} when the
+     * target property is declared {@code [*]}.
      */
-    private ValueSpecification substituteParams(ValueSpecification node,
-            Map<String, ValueSpecification> bindings) {
-        return switch (node) {
-            case Variable v -> bindings.getOrDefault(v.name(), v);
-            case AppliedFunction af -> new AppliedFunction(af.function(),
-                    af.parameters().stream().map(p -> substituteParams(p, bindings)).toList(),
-                    af.hasReceiver(), af.sourceText(), af.argTexts());
-            case AppliedProperty ap -> new AppliedProperty(ap.property(),
-                    ap.parameters().stream().map(p -> substituteParams(p, bindings)).toList());
-            case LambdaFunction lf -> {
-                var inner = new HashMap<>(bindings);
-                lf.parameters().forEach(p -> inner.remove(p.name())); // capture-avoiding
-                yield new LambdaFunction(lf.parameters(),
-                        lf.body().stream().map(e -> substituteParams(e, inner)).toList());
-            }
-            case PureCollection c -> new PureCollection(
-                    c.values().stream().map(v -> substituteParams(v, bindings)).toList());
-            default -> node; // CInteger, CFloat, CDecimal, CString, CBoolean, CDateTime,
-                             // CStrictDate, CStrictTime, CLatestDate, CByteArray, EnumValue,
-                             // UnitInstance, PackageableElementPtr, TypeAnnotation,
-                             // ColumnInstance, NewInstance — no Variable children
-        };
-    }
-
-    /**
-     * Thin wrapper: delegates to NewChecker, then applies to-many property override.
-     * TODO: Remove override once compiler coerces single→collection for [*] properties (model-driven).
-     */
-    private TypeInfo compileNew(AppliedFunction af, CompilationContext ctx) {
-        TypeInfo info = new com.gs.legend.compiler.checkers.NewChecker(this).check(af, null, ctx);
-        types.put(af, info);
-
-        // To-many override: if model says [*] but user wrote a single value,
-        // tag the value's TypeInfo as many(propType) so PlanGenerator wraps it in [].
-        // This is a workaround — the correct fix is compiler-driven single→collection coercion.
-        var data = (NewInstance) af.parameters().get(1);
-        if (info.type() instanceof Type.ClassType(String qn) && modelContext != null) {
-            var pureClass = modelContext.findClass(qn).orElse(null);
-            if (pureClass != null) {
-                for (var entry : data.properties().entrySet()) {
-                    var propOpt = pureClass.findProperty(entry.getKey(), modelContext);
-                    if (propOpt.isPresent() && propOpt.get().isCollection()
-                            && !(entry.getValue() instanceof PureCollection)) {
-                        Type propType = propOpt.get().type();
-                        var valInfo = types.get(entry.getValue());
-                        if (valInfo != null) {
-                            types.put(entry.getValue(),
-                                    TypeInfo.from(valInfo).expressionType(ExpressionType.many(propType)).build());
-                        }
-                    }
-                }
-            }
-        }
-
-        return info;
+    private com.gs.legend.compiler.typed.TypedNewInstance compileNew(
+            AppliedFunction af, CompilationContext ctx) {
+        return new com.gs.legend.compiler.checkers.NewChecker(this).check(af, null, ctx);
     }
 
     // compileRelationAccessor, compileTdsLiteral, compileInstanceLiteral
@@ -1177,12 +1123,16 @@ public class TypeChecker implements TypeCheckEnv {
 
     // ========== Other AST Nodes ==========
 
-    private TypeInfo compileLambda(LambdaFunction lf, CompilationContext ctx) {
+    private com.gs.legend.compiler.typed.TypedLambda compileLambda(LambdaFunction lf, CompilationContext ctx) {
         // Scope lambda params with their declared types
         CompilationContext lambdaCtx = ctx;
+        List<com.gs.legend.compiler.typed.TypedParam> typedParams =
+                new ArrayList<>(lf.parameters().size());
         for (var p : lf.parameters()) {
             Type paramType = p.typeName() == null ? null : Type.resolve(p.typeName(), modelContext);
             lambdaCtx = lambdaCtx.withLambdaParam(p.name(), paramType);
+            typedParams.add(new com.gs.legend.compiler.typed.TypedParam(
+                    p.name(), paramType, p.multiplicity()));
         }
         if (lf.body().isEmpty()) {
             throw new PureCompileException("Unresolved type for lambda");
@@ -1191,52 +1141,36 @@ public class TypeChecker implements TypeCheckEnv {
         // Multi-statement body: process let bindings, compile final expression.
         // Matches legend-pure's M3 model: lambda body IS the statement list.
         // Inference mode — no expected return type (caller will stamp the outer lambda).
-        TypeInfo bodyInfo = compileBodyInContext(lf.body(), lambdaCtx, null, null, "Lambda");
-        if (bodyInfo.isScalar() && bodyInfo.type() != null) {
-            // Propagate multiplicity from body — if body is MANY (list-producing),
-            // the lambda must also be MANY so UNNEST is applied at the root.
-            if (bodyInfo.isMany()) {
-                return scalarTypedMany(lf, bodyInfo.type());
-            }
-            return scalarTyped(lf, bodyInfo.type());
-        }
-        // Mutations (e.g. write()) set relationType for PlanGenerator routing but
-        // returnType as scalar (Integer). Propagate that returnType so the root
-        // stamping logic doesn't overwrite it with Relation.
-        if (bodyInfo.expressionType() != null && !bodyInfo.expressionType().isRelation()) {
-            var info = TypeInfo.builder()
-                    .expressionType(bodyInfo.expressionType())
-                    .build();
-            types.put(lf, info);
-            return info;
-        }
-        return typed(lf, bodyInfo.schema());
+        com.gs.legend.compiler.typed.TypedSpec bodyResult =
+                compileBodyInContext(lf.body(), lambdaCtx, null, null, "Lambda");
+        return new com.gs.legend.compiler.typed.TypedLambda(
+                typedParams, List.of(bodyResult), bodyResult.info());
     }
 
-    private TypeInfo compileVariable(Variable v, CompilationContext ctx) {
+    private com.gs.legend.compiler.typed.TypedSpec compileVariable(Variable v, CompilationContext ctx) {
+        // Relation-typed bindings (lambda source with schema): produce a typed var
+        // carrying the relation schema.
         Type.Schema varType = ctx.getRelationType(v.name());
         if (varType != null) {
-            return typed(v, varType);
+            return new com.gs.legend.compiler.typed.TypedVariable(
+                    v.name(),
+                    com.gs.legend.compiler.typed.Role.LAMBDA_PARAM,
+                    ExpressionType.one(new Type.Relation(varType)));
         }
-        // Let binding → inline the bound expression via inlinedBody
-        // PlanGenerator already handles inlinedBody at both relational and scalar
-        // levels
-        ValueSpecification letValue = ctx.getLetBinding(v.name());
+        // Let binding → return the already-compiled bound value directly. This is
+        // the typed HIR's "inlining": the variable reference resolves structurally
+        // to the bound expression's TypedSpec tree.
+        com.gs.legend.compiler.typed.TypedSpec letValue = ctx.getLetBinding(v.name());
         if (letValue != null) {
-            TypeInfo letInfo = compileExpr(letValue, ctx);
-            // Create a TypeInfo with the compiled type info AND inlinedBody pointing to the
-            // bound value
-            TypeInfo inlined = TypeInfo.from(letInfo).inlinedBody(letValue).build();
-            types.put(v, inlined);
-            return inlined;
+            return letValue;
         }
-        // Lambda parameter — mark in side table with declared type
+        // Lambda parameter with a known declared type.
         Type lambdaType = ctx.getLambdaParamType(v.name());
         if (lambdaType != null) {
-            var info = TypeInfo.builder()
-                    .expressionType(ExpressionType.one(lambdaType)).lambdaParam(true).build();
-            types.put(v, info);
-            return info;
+            return new com.gs.legend.compiler.typed.TypedVariable(
+                    v.name(),
+                    com.gs.legend.compiler.typed.Role.LAMBDA_PARAM,
+                    ExpressionType.one(lambdaType));
         }
         if (ctx.isLambdaParam(v.name())) {
             throw new PureCompileException(
@@ -1259,178 +1193,186 @@ public class TypeChecker implements TypeCheckEnv {
         return null;
     }
 
-    private TypeInfo compileProperty(AppliedProperty ap, CompilationContext ctx) {
-        if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof Variable v) {
+    private com.gs.legend.compiler.typed.TypedSpec compileProperty(
+            AppliedProperty ap, CompilationContext ctx) {
+        if (ap.parameters().isEmpty()) {
+            throw new PureCompileException(
+                    "AppliedProperty '" + ap.property() + "' has no receiver");
+        }
+        ValueSpecification receiver = ap.parameters().get(0);
+
+        // Fast path: direct $var.prop — relation column, tuple column, or class field
+        // resolved without materializing the variable first.
+        if (receiver instanceof Variable v) {
+            // 1. Relation-typed variable: column access.
             Type.Schema relType = ctx.getRelationType(v.name());
             if (relType != null) {
                 relType.requireColumn(ap.property());
-                // Resolve the column's type from the RelationType
                 Type colType = relType.columns().get(ap.property());
                 if (colType != null) {
-                    return scalarTyped(ap, colType);
+                    var typedSource = new com.gs.legend.compiler.typed.TypedVariable(
+                            v.name(),
+                            com.gs.legend.compiler.typed.Role.LAMBDA_PARAM,
+                            ExpressionType.one(new Type.Relation(relType)));
+                    return new com.gs.legend.compiler.typed.TypedPropertyAccess(
+                            typedSource, ap.property(), java.util.Optional.empty(),
+                            ExpressionType.one(colType));
                 }
             }
-            // Lambda param with Tuple: resolve column type from Schema
-            // Tuple = T in Relation<T> = row schema type
+            // 2. Lambda param owning a Tuple (row schema): tuple-column access.
             Type paramType = ctx.getLambdaParamType(v.name());
             if (paramType instanceof Type.Tuple t) {
                 t.schema().requireColumn(ap.property());
                 Type colType = t.schema().columns().get(ap.property());
                 if (colType != null) {
-                    return scalarTyped(ap, colType);
+                    var typedSource = new com.gs.legend.compiler.typed.TypedVariable(
+                            v.name(),
+                            com.gs.legend.compiler.typed.Role.LAMBDA_PARAM,
+                            ExpressionType.one(paramType));
+                    return new com.gs.legend.compiler.typed.TypedPropertyAccess(
+                            typedSource, ap.property(), java.util.Optional.empty(),
+                            ExpressionType.one(colType));
                 }
             }
-            // Lambda param owning a user class (ClassType or NameRef): resolve field type via
-            // modelContext. NameRef stays lazy until this use site per AGENTS.md §5 — property
-            // access is precisely where "we genuinely need the class's structure".
+            // 3. Lambda param owning a user class: field access via modelContext.
             String classFqn = classFqnFor(paramType);
             if (classFqn != null && modelContext != null) {
-                var classOpt = modelContext.findClass(classFqn);
-                if (classOpt.isPresent()) {
-                    var propOpt = classOpt.get().findProperty(ap.property(), modelContext);
-                    if (propOpt.isPresent()) {
-                        classPropertyAccesses.computeIfAbsent(classFqn, k -> new HashSet<>()).add(ap.property());
-                        Type fieldType = propOpt.get().type();
-                        var info = TypeInfo.builder()
-                                .expressionType(ExpressionType.one(fieldType))
-                                .associationPath(List.of(ap.property()))
-                                .build();
-                        types.put(ap, info);
-                        return info;
-                    }
-                }
-                // Association-injected properties (e.g., $p.addresses from Association
-                // Person_Address)
-                // These are first-class properties in Pure, just stored on the Association
-                // rather than the Class.
-                var assocNav = modelContext.findAssociationByProperty(classFqn, ap.property());
-                if (assocNav.isPresent()) {
-                    var nav = assocNav.get();
-                    associationNavigations.computeIfAbsent(classFqn, k -> new HashSet<>()).add(ap.property());
-                    Type targetType = new Type.ClassType(nav.targetClassName());
-                    var info = TypeInfo.builder()
-                            .expressionType(nav.isToMany()
-                                    ? ExpressionType.many(targetType)
-                                    : ExpressionType.one(targetType))
-                            .associationPath(List.of(ap.property()))
-                            .build();
-                    types.put(ap, info);
-                    return info;
-                }
+                var typedSource = new com.gs.legend.compiler.typed.TypedVariable(
+                        v.name(),
+                        com.gs.legend.compiler.typed.Role.LAMBDA_PARAM,
+                        ExpressionType.one(paramType));
+                var resolved = resolvePropertyOnClass(classFqn, ap.property(), typedSource);
+                if (resolved != null) return resolved;
             }
-            // Let-bound variable → resolve inlinedBody to its NewInstance
-            TypeInfo vInfo = types.get(v);
-            if (vInfo == null) {
-                vInfo = compileExpr(v, ctx);
-            }
-            if (vInfo != null && vInfo.instanceLiteral()) {
-                return inlineStructExtract(ap, vInfo.inlinedBody(), ctx);
+            // 4. Let-bound variable → compileExpr returns the bound TypedSpec (structural
+            // inlining). If that's a TypedNewInstance we drill in via struct-extract.
+            com.gs.legend.compiler.typed.TypedSpec vTyped = compileExpr(v, ctx);
+            if (vTyped instanceof com.gs.legend.compiler.typed.TypedNewInstance tni) {
+                return structExtractFor(tni, ap.property());
             }
         }
-        // .prop on a function result (includes ^Class instance literals, list-producing fns, etc.)
-        if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof AppliedFunction ownerFn) {
-            TypeInfo ownerInfo = compileExpr(ownerFn, ctx);
-            // ^Class instance literal: ^Person(firstName='John').firstName
-            if (ownerInfo.instanceLiteral()) {
-                return inlineStructExtract(ap, ownerFn, ctx);
-            }
-            if (ownerInfo != null && ownerInfo.isMany()) {
-                var propVar = new Variable("_prop_x");
-                var propAccess = new AppliedProperty(ap.property(), List.of(propVar));
-                var lambda = new LambdaFunction(List.of(propVar), propAccess);
-                var mapNode = new AppliedFunction("map", List.of(ownerFn, lambda));
-                TypeInfo mapInfo = compileExpr(mapNode, ctx);
-                // Point original property node → synthetic map via inlinedBody
-                var info = TypeInfo.from(mapInfo).inlinedBody(mapNode).build();
-                types.put(ap, info);
-                return info;
-            }
-            // .prop on a Tuple (row from offset functions like lead/lag/nth/first):
-            // Resolve column type directly — no project() desugaring needed.
-            if (ownerInfo != null && ownerInfo.type() instanceof Type.Tuple rt) {
-                Type colType = rt.schema().getColumnType(ap.property());
-                if (colType != null) {
-                    return scalarTyped(ap, colType);
-                }
-            }
-            // .prop on a relational result (e.g., filter(...).legalName)
-            // → desugar to single-column project so PlanGenerator builds proper FROM clause
-            // Pure return type is the column type as a collection (e.g., String[*])
-            if (ownerInfo != null && ownerInfo.isRelational()) {
-                var propVar = new Variable("_rel_x");
-                var propAccess = new AppliedProperty(ap.property(), List.of(propVar));
-                var colSpec = new ColSpec(ap.property(), new LambdaFunction(List.of(propVar), propAccess), null);
-                var projectNode = new AppliedFunction("project", List.of(ownerFn, colSpec));
-                TypeInfo projectInfo = compileExpr(projectNode, ctx);
-                // Extract the column's Type for the return type
-                Type colType = ownerInfo.schema().getColumnType(ap.property());
-                ExpressionType propExprType = colType != null
-                        ? ExpressionType.many(colType) // String[*], Integer[*], etc.
-                        : null;
-                var info = TypeInfo.from(projectInfo)
-                        .inlinedBody(projectNode)
-                        .expressionType(propExprType != null ? propExprType : projectInfo.expressionType())
-                        .build();
-                types.put(ap, info);
-                return info;
-            }
-            // .prop on a ClassType result (e.g., at(1) returning a single struct)
-            // → synthesize structExtract(ownerFn, 'prop')
-            if (ownerInfo != null && ownerInfo.type() instanceof Type.ClassType) {
-                var extractNode = new AppliedFunction("structExtract",
-                        List.of(ownerFn, new CString(ap.property())));
-                var info = TypeInfo.builder()
-                        .inlinedBody(extractNode)
-                        .expressionType(ExpressionType.one(Primitive.ANY)).build();
-                types.put(ap, info);
-                return info;
+
+        // Otherwise: recurse on the receiver, then dispatch on its shape.
+        com.gs.legend.compiler.typed.TypedSpec ownerTyped = compileExpr(receiver, ctx);
+
+        // 1. ^Class instance literal: direct structural extraction.
+        if (ownerTyped instanceof com.gs.legend.compiler.typed.TypedNewInstance tni) {
+            return structExtractFor(tni, ap.property());
+        }
+
+        // 2. Multi-valued receiver: desugar xs.prop → xs->map({x | x.prop}).
+        //    Build the AST and re-compile — the recursive compileExpr call produces a
+        //    TypedMap with the correct shape.
+        if (ownerTyped.isMany() && receiver instanceof AppliedFunction ownerFn) {
+            var propVar = new Variable("_prop_x");
+            var propAccess = new AppliedProperty(ap.property(), List.of(propVar));
+            var lambda = new LambdaFunction(List.of(propVar), propAccess);
+            var mapNode = new AppliedFunction("map", List.of(ownerFn, lambda));
+            return compileExpr(mapNode, ctx);
+        }
+
+        // 3. Tuple result (e.g., nth/lead/lag): direct tuple-column access.
+        if (ownerTyped.type() instanceof Type.Tuple rt) {
+            Type colType = rt.schema().getColumnType(ap.property());
+            if (colType != null) {
+                return new com.gs.legend.compiler.typed.TypedPropertyAccess(
+                        ownerTyped, ap.property(), java.util.Optional.empty(),
+                        ExpressionType.one(colType));
             }
         }
-        // .prop on an AppliedProperty that returns a ClassType (multi-hop association
-        // path)
-        // e.g., $p.addresses.city → addresses returns ClassType("Address"), resolve
-        // city from Address
-        if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof AppliedProperty ownerAp) {
-            TypeInfo ownerInfo = compileExpr(ownerAp, ctx);
-            if (ownerInfo != null && modelContext != null) {
-                // Extract the class FQN (ClassType or NameRef — both carry an FQN; NameRef stays
-                // lazy until this use site per AGENTS.md §5).
-                String className = classFqnFor(ownerInfo.type());
-                if (className != null) {
-                    var classOpt = modelContext.findClass(className);
-                    if (classOpt.isPresent()) {
-                        var propOpt = classOpt.get().findProperty(ap.property(), modelContext);
-                        if (propOpt.isPresent()) {
-                            Type fieldType = propOpt.get().type();
-                            List<String> assocPath = collectPropertyChain(ap);
-                            var info = TypeInfo.builder()
-                                    .expressionType(ExpressionType.one(fieldType))
-                                    .associationPath(assocPath)
-                                    .build();
-                            types.put(ap, info);
-                            return info;
-                        }
+
+        // 4. Relation result: desugar filter(xs).col → xs->project(~col|$r.col).
+        if (ownerTyped.isRelation() && receiver instanceof AppliedFunction ownerFn) {
+            var propVar = new Variable("_rel_x");
+            var propAccess = new AppliedProperty(ap.property(), List.of(propVar));
+            var colSpec = new ColSpec(
+                    ap.property(), new LambdaFunction(List.of(propVar), propAccess), null);
+            var projectNode = new AppliedFunction("project", List.of(ownerFn, colSpec));
+            return compileExpr(projectNode, ctx);
+        }
+
+        // 5. ClassType result without instance literal (e.g., at(1) returning a single
+        //    struct): synthesize a struct-extract on the typed owner.
+        if (ownerTyped.type() instanceof Type.ClassType) {
+            return new com.gs.legend.compiler.typed.TypedStructExtract(
+                    ownerTyped, ap.property(), ExpressionType.one(Primitive.ANY));
+        }
+
+        // 6. Multi-hop association chain: $p.addresses.city.
+        if (receiver instanceof AppliedProperty) {
+            String className = classFqnFor(ownerTyped.type());
+            if (className != null && modelContext != null) {
+                var resolved = resolvePropertyOnClass(className, ap.property(), ownerTyped);
+                if (resolved != null) {
+                    // Expand the association path to the full chain for multi-hop nav.
+                    List<String> fullPath = collectPropertyChain(ap);
+                    if (resolved instanceof com.gs.legend.compiler.typed.TypedPropertyAccess tpa
+                            && tpa.associationPath().isPresent()) {
+                        return new com.gs.legend.compiler.typed.TypedPropertyAccess(
+                                tpa.source(), tpa.property(),
+                                java.util.Optional.of(fullPath), tpa.info());
                     }
-                    // Association-injected properties (same pattern as first-hop at line 472)
-                    var assocNav = modelContext.findAssociationByProperty(className, ap.property());
-                    if (assocNav.isPresent()) {
-                        var nav = assocNav.get();
-                        associationNavigations.computeIfAbsent(className, k -> new HashSet<>()).add(ap.property());
-                        Type targetType = new Type.ClassType(nav.targetClassName());
-                        List<String> assocPath = collectPropertyChain(ap);
-                        var info = TypeInfo.builder()
-                                .expressionType(nav.isToMany()
-                                        ? ExpressionType.many(targetType)
-                                        : ExpressionType.one(targetType))
-                                .associationPath(assocPath)
-                                .build();
-                        types.put(ap, info);
-                        return info;
-                    }
+                    return resolved;
                 }
             }
         }
+
         throw new PureCompileException("Unresolved type for property: " + ap.property());
+    }
+
+    /**
+     * Resolve {@code property} on class {@code classFqn} against {@code typedSource}.
+     * Handles both direct class fields and association-injected properties. Returns
+     * {@code null} when neither resolves (caller falls through).
+     */
+    private com.gs.legend.compiler.typed.TypedSpec resolvePropertyOnClass(
+            String classFqn, String property,
+            com.gs.legend.compiler.typed.TypedSpec typedSource) {
+        var classOpt = modelContext.findClass(classFqn);
+        if (classOpt.isPresent()) {
+            var propOpt = classOpt.get().findProperty(property, modelContext);
+            if (propOpt.isPresent()) {
+                classPropertyAccesses.computeIfAbsent(classFqn, k -> new HashSet<>()).add(property);
+                Type fieldType = propOpt.get().type();
+                return new com.gs.legend.compiler.typed.TypedPropertyAccess(
+                        typedSource, property,
+                        java.util.Optional.of(List.of(property)),
+                        ExpressionType.one(fieldType));
+            }
+        }
+        var assocNav = modelContext.findAssociationByProperty(classFqn, property);
+        if (assocNav.isPresent()) {
+            var nav = assocNav.get();
+            associationNavigations.computeIfAbsent(classFqn, k -> new HashSet<>()).add(property);
+            Type targetType = new Type.ClassType(nav.targetClassName());
+            ExpressionType et = nav.isToMany()
+                    ? ExpressionType.many(targetType)
+                    : ExpressionType.one(targetType);
+            return new com.gs.legend.compiler.typed.TypedPropertyAccess(
+                    typedSource, property,
+                    java.util.Optional.of(List.of(property)), et);
+        }
+        return null;
+    }
+
+    /**
+     * Build a {@link com.gs.legend.compiler.typed.TypedStructExtract} for pulling
+     * {@code field} out of a {@link com.gs.legend.compiler.typed.TypedNewInstance}.
+     * Field type resolves via modelContext; defaults to {@link Primitive#ANY} when
+     * the class isn't loadable or the field isn't declared.
+     */
+    private com.gs.legend.compiler.typed.TypedStructExtract structExtractFor(
+            com.gs.legend.compiler.typed.TypedNewInstance tni, String field) {
+        Type fieldType = Primitive.ANY;
+        if (modelContext != null) {
+            var classOpt = modelContext.findClass(tni.className());
+            if (classOpt.isPresent()) {
+                var propOpt = classOpt.get().findProperty(field, modelContext);
+                if (propOpt.isPresent()) fieldType = propOpt.get().type();
+            }
+        }
+        return new com.gs.legend.compiler.typed.TypedStructExtract(
+                tni, field, ExpressionType.one(fieldType));
     }
 
     /**
@@ -1448,101 +1390,39 @@ public class TypeChecker implements TypeCheckEnv {
         return List.copyOf(path);
     }
 
-    private TypeInfo inlineStructExtract(AppliedProperty ap, ValueSpecification structSource,
-            CompilationContext ctx) {
-        var extractNode = new AppliedFunction("structExtract",
-                List.of(structSource, new CString(ap.property())));
-        // Resolve type from model — the struct source has ClassType
-        TypeInfo srcInfo = types.get(structSource);
-        Type fieldType = Primitive.ANY;
-        if (srcInfo != null && srcInfo.type() instanceof Type.ClassType(String qn) && modelContext != null) {
-            var classOpt = modelContext.findClass(qn);
-            if (classOpt.isPresent()) {
-                var propOpt = classOpt.get().findProperty(ap.property(), modelContext);
-                if (propOpt.isPresent()) {
-                    fieldType = propOpt.get().type();
-                }
-            }
-        }
-        var info = TypeInfo.builder()
-                .inlinedBody(extractNode)
-                .expressionType(ExpressionType.one(fieldType)).build();
-        types.put(ap, info);
-        return info;
-    }
-
-    private TypeInfo compileCollection(PureCollection coll, CompilationContext ctx) {
-        // Compile each element so they're in the side table
+    private com.gs.legend.compiler.typed.TypedCollection compileCollection(
+            PureCollection coll, CompilationContext ctx) {
+        List<com.gs.legend.compiler.typed.TypedSpec> typedValues = new ArrayList<>(coll.values().size());
         for (var v : coll.values()) {
-            compileExpr(v, ctx);
+            typedValues.add(compileExpr(v, ctx));
         }
-        Type elementType = unifyElementType(coll.values());
-        // For struct collections, propagate instanceLiteral from first element
-        if (!coll.values().isEmpty()) {
-            TypeInfo firstElem = types.get(coll.values().get(0));
-            if (firstElem != null && firstElem.instanceLiteral()) {
-                var info = TypeInfo.builder()
-                        .instanceLiteral(true)
-                        .expressionType(ExpressionType.many(elementType))
-                        .build();
-                types.put(coll, info);
-                return info;
-            }
-        }
-        return scalarTypedMany(coll, elementType);
+        Type elementType = unifyElementTypeFromTyped(typedValues);
+        return new com.gs.legend.compiler.typed.TypedCollection(
+                typedValues, ExpressionType.many(elementType));
     }
 
     /**
-     * Infers Type from a ValueSpecification AST node.
-     * Used for type unification in collections.
-     */
-    private Type typeOf(ValueSpecification vs) {
-        // Check side table first (for compiled sub-expressions)
-        TypeInfo info = types.get(vs);
-        if (info != null && info.type() != null)
-            return info.type();
-        // Fall back to pattern matching on literal types
-        return switch (vs) {
-            case CInteger i -> Primitive.INTEGER;
-            case CFloat f -> Primitive.FLOAT;
-            case CDecimal d -> Type.DEFAULT_DECIMAL;
-            case CString s -> Primitive.STRING;
-            case CBoolean b -> Primitive.BOOLEAN;
-            case CDateTime dt -> Primitive.DATE_TIME;
-            case CStrictDate sd -> Primitive.STRICT_DATE;
-            case CStrictTime st -> Primitive.STRICT_TIME;
-            case CLatestDate ld -> Primitive.DATE_TIME;
-            case PureCollection c -> unifyElementType(c.values());
-            default -> Primitive.ANY;
-        };
-    }
-
-    /**
-     * Finds the common supertype for a list of expressions.
-     * All numeric → NUMBER, all temporal → DATE, all same ClassType → that
-     * ClassType,
+     * Finds the common supertype over a list of typed children.
+     * All numeric → NUMBER, all temporal → DATE, all same ClassType → that ClassType,
      * all ClassTypes with common supertype → LCA ClassType, mixed → ANY.
      */
-    private Type unifyElementType(java.util.List<ValueSpecification> values) {
-        if (values.isEmpty())
-            return Primitive.ANY;
-        var elementTypes = values.stream().map(this::typeOf).distinct().toList();
-        if (elementTypes.size() == 1)
-            return elementTypes.getFirst();
-        if (elementTypes.stream().allMatch(Type::isNumeric))
-            return Primitive.NUMBER;
-        if (elementTypes.stream().allMatch(Type::isTemporal))
-            return Primitive.DATE;
-        // All ClassTypes: try to find common supertype
+    private Type unifyElementTypeFromTyped(List<com.gs.legend.compiler.typed.TypedSpec> typedValues) {
+        if (typedValues.isEmpty()) return Primitive.ANY;
+        var elementTypes = typedValues.stream()
+                .map(com.gs.legend.compiler.typed.TypedSpec::type)
+                .map(t -> t == null ? Primitive.ANY : t)
+                .distinct()
+                .toList();
+        if (elementTypes.size() == 1) return elementTypes.getFirst();
+        if (elementTypes.stream().allMatch(Type::isNumeric)) return Primitive.NUMBER;
+        if (elementTypes.stream().allMatch(Type::isTemporal)) return Primitive.DATE;
         if (elementTypes.stream().allMatch(t -> t instanceof Type.ClassType) && modelContext != null) {
             var classTypes = elementTypes.stream()
                     .map(t -> ((Type.ClassType) t).qualifiedName()).toList();
-            // Pairwise LCA reduction
             String current = classTypes.get(0);
             for (int i = 1; i < classTypes.size(); i++) {
                 var lcaOpt = modelContext.findLowestCommonAncestor(current, classTypes.get(i));
-                if (lcaOpt.isEmpty())
-                    return Primitive.ANY;
+                if (lcaOpt.isEmpty()) return Primitive.ANY;
                 current = lcaOpt.get().qualifiedName();
             }
             return new Type.ClassType(current);
@@ -1560,7 +1440,7 @@ public class TypeChecker implements TypeCheckEnv {
     public record CompilationContext(
             Map<String, Type.Schema> relationTypes,
             Map<String, Type> lambdaParams,
-            Map<String, ValueSpecification> letBindings) {
+            Map<String, com.gs.legend.compiler.typed.TypedSpec> letBindings) {
 
         public CompilationContext() {
             this(Map.of(), Map.of(), Map.of());
@@ -1578,7 +1458,7 @@ public class TypeChecker implements TypeCheckEnv {
             return new CompilationContext(relationTypes, Collections.unmodifiableMap(m), letBindings);
         }
 
-        public CompilationContext withLetBinding(String name, ValueSpecification value) {
+        public CompilationContext withLetBinding(String name, com.gs.legend.compiler.typed.TypedSpec value) {
             var m = new HashMap<>(letBindings);
             m.put(name, value);
             return new CompilationContext(relationTypes, lambdaParams, Map.copyOf(m));
@@ -1592,7 +1472,7 @@ public class TypeChecker implements TypeCheckEnv {
             return lambdaParams.get(name);
         }
 
-        public ValueSpecification getLetBinding(String name) {
+        public com.gs.legend.compiler.typed.TypedSpec getLetBinding(String name) {
             return letBindings.get(name);
         }
 
@@ -1639,33 +1519,4 @@ public class TypeChecker implements TypeCheckEnv {
     }
 
 
-    // ========== Type Registration Utilities ==========
-
-    /** Registers a scalar TypeInfo with a known Type (multiplicity ONE). */
-    private TypeInfo scalarTyped(ValueSpecification ast, Type type) {
-        var info = TypeInfo.builder().expressionType(ExpressionType.one(type)).build();
-        types.put(ast, info);
-        return info;
-    }
-
-    /**
-     * Registers a scalar TypeInfo with Multiplicity.MANY — produces N independent
-     * values.
-     */
-    private TypeInfo scalarTypedMany(ValueSpecification ast, Type type) {
-        var info = TypeInfo.builder().expressionType(ExpressionType.many(type)).build();
-        types.put(ast, info);
-        return info;
-    }
-
-    /**
-     * Registers a relational TypeInfo in the side table and returns it.
-     * All relational type registration in TypeChecker goes through this method.
-     */
-    private TypeInfo typed(ValueSpecification ast, Type.Schema relationType) {
-        var info = TypeInfo.builder()
-                .expressionType(ExpressionType.one(new Type.Relation(relationType))).build();
-        types.put(ast, info);
-        return info;
-    }
 }

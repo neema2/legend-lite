@@ -2,12 +2,14 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedCollection;
 import com.gs.legend.compiler.typed.TypedNewInstance;
 import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.model.m3.PureClass;
 import com.gs.legend.model.m3.Type;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 
@@ -34,16 +36,27 @@ public class NewChecker extends AbstractChecker {
         PureClass pureClass = resolveClass(data);
 
         // Validate each property name against the class and compile its value
-        // expression to a typed child — preserves insertion order (LinkedHashMap).
+        // expression to a typed child. Preserves insertion order (LinkedHashMap).
+        // To-many fixup: if the property is declared [*] but the user wrote a
+        // single-value literal (not a PureCollection), wrap the typed value in
+        // a singleton TypedCollection with many-multiplicity so downstream
+        // consumers see the intended list shape.
         Map<String, TypedSpec> values = new LinkedHashMap<>();
         for (var entry : data.properties().entrySet()) {
             String propName = entry.getKey();
-            if (pureClass.findProperty(propName, env.modelContext()).isEmpty()) {
+            var propOpt = pureClass.findProperty(propName, env.modelContext());
+            if (propOpt.isEmpty()) {
                 throw new PureCompileException(
                         "Struct literal: property '" + propName + "' not found in class '"
                                 + data.className() + "'");
             }
-            values.put(propName, env.compileExpr(entry.getValue(), ctx));
+            TypedSpec compiled = env.compileExpr(entry.getValue(), ctx);
+            if (propOpt.get().isCollection()
+                    && !(entry.getValue() instanceof PureCollection)) {
+                Type propType = propOpt.get().type();
+                compiled = new TypedCollection(List.of(compiled), ExpressionType.many(propType));
+            }
+            values.put(propName, compiled);
         }
 
         String resolvedFqn = findClass(data.className())

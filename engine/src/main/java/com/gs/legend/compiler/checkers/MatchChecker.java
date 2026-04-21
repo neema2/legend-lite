@@ -63,11 +63,14 @@ public class MatchChecker extends AbstractChecker {
 
             // Bind the branch's params as let bindings so references to them
             // resolve to the input (and optional extra arg) when compiling the body.
+            // Let-bindings carry typed specs post-HIR migration, so pass the already-
+            // compiled input and the typed-compilation of the optional extra arg.
             TypeChecker.CompilationContext matchCtx = ctx
-                    .withLetBinding(branchParam.name(), params.get(0));
+                    .withLetBinding(branchParam.name(), inputTyped);
             if (branch.parameters().size() > 1 && params.size() > 2) {
                 matchCtx = matchCtx.withLetBinding(
-                        branch.parameters().get(1).name(), params.get(2));
+                        branch.parameters().get(1).name(),
+                        env.compileExpr(params.get(2), ctx));
             }
 
             if (!branch.body().isEmpty()) {
