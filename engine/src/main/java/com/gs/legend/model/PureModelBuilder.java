@@ -158,134 +158,233 @@ public final class PureModelBuilder implements ModelContext {
     private Map<String, List<Association>> classToAssociations;  // className → associations referencing that class
 
     /**
-     * Batch variant of {@link #addSource(String)}: registers every source in order, then runs
-     * downstream phases (name resolution, classification, buildPureFunctions) per source.
+     * Batch ingest — the primary entry point for multi-source models. Runs the model-build
+     * pipeline once over the entire batch so that cross-source forward references resolve
+     * at every phase:
      *
-     * <p>Today this is a convenience loop — each source still triggers a full
-     * {@code buildPureFunctions} + cycle-detect pass, so the net cost is O(N) per source for
-     * N cumulative user functions. A future refinement can amortise to a single rebuild at
-     * the end; the public shape stays the same.
+     * <ol>
+     *   <li><b>Parse</b> every source up front (cached via {@link ParseCache}).</li>
+     *   <li><b>Phase 0</b> — intern every element FQN across all sources.</li>
+     *   <li><b>Phase 0.5</b> — merge every non-strict source's imports (explicit +
+     *       auto-imports of own package) into the shared {@link ImportScope} so
+     *       {@link NameResolver} sees cross-source wildcards.</li>
+     *   <li><b>Phase 1</b> — per source, name-resolve its definitions against the unified
+     *       imports + FQN set.</li>
+     *   <li><b>Phase 2</b> — register enums across the batch.</li>
+     *   <li><b>Phase 3a</b> — stub every class across the batch (names only) so class
+     *       bodies at phase 3b can cross-reference.</li>
+     *   <li><b>Phase 3b</b> — register class bodies.</li>
+     *   <li><b>Phase 4</b> — resolve superclass references once.</li>
+     *   <li><b>Phase 5a</b> — register associations + databases across the batch.</li>
+     *   <li><b>Phase 5b</b> — resolve database includes once.</li>
+     *   <li><b>Phase 5c</b> — register mappings, services, profiles, functions, connections,
+     *       runtimes across the batch.</li>
+     *   <li><b>Phase 5d</b> — resolve mapping includes once.</li>
+     *   <li><b>Phase 6</b> — {@code buildPureFunctions} + call-graph cycle detection once.</li>
+     * </ol>
      *
-     * <p>Cross-source forward references within the batch still go through the lenient
-     * {@code NameRef}-pass-through path until the last source that defines the target is
-     * added (see {@code PureModelBuilder#classifyFunctionSigType}).
+     * <p><strong>Default is interpreted++.</strong> Function <em>body</em> type-checking is
+     * NOT performed here — that is the opt-in {@link #compile()} verb's job. Callers who
+     * want full eager verification invoke it after {@code addSources}.
      *
-     * @param pureSources Pure source strings, ingested left-to-right
+     * @param pureSources Pure source strings, ingested as a batch
      * @return this builder for chaining
      */
     public PureModelBuilder addSources(String... pureSources) {
+        // Invalidate lazy indexes — new definitions may add associations / joins.
+        classToAssociations = null;
+
+        // Parse every source once up front.
+        List<SourceState> states = new ArrayList<>(pureSources.length);
         for (String src : pureSources) {
-            addSource(src);
+            com.gs.legend.parser.ParseResult parsed = ParseCache.global().getOrParse(src);
+            boolean isStrict = strict || src.stripLeading().startsWith("\"use strict\"");
+            states.add(new SourceState(parsed, isStrict));
+        }
+
+        // PHASE 0 (batch): intern every element FQN across the entire batch so later
+        // phases see the full name universe.
+        for (SourceState s : states) {
+            for (PackageableElement def : s.rawDefinitions) {
+                symbols.intern(def.qualifiedName());
+            }
+        }
+
+        // PHASE 0.5 (batch): merge imports (explicit + auto-imports of own package) from
+        // every non-strict source. Done before any NameResolver runs so wildcards from
+        // later sources are in scope for earlier sources.
+        for (SourceState s : states) {
+            if (s.isStrict) continue;
+            for (String pkg : s.parsed.imports().getWildcardImports()) {
+                imports.addImport(pkg + "::*");
+            }
+            for (var entry : s.parsed.imports().getTypeImports().entrySet()) {
+                imports.addImport(entry.getValue());
+            }
+            for (PackageableElement def : s.rawDefinitions) {
+                String pkg = def.packagePath();
+                if (!pkg.isEmpty()) imports.addImport(pkg + "::*");
+            }
+        }
+
+        // PHASE 1 (per source): name resolution against the unified imports + FQN set.
+        for (SourceState s : states) {
+            if (s.isStrict) {
+                s.definitions = s.rawDefinitions;
+            } else {
+                s.definitions = NameResolver.resolveDefinitions(
+                        s.rawDefinitions, imports, symbols.allFqns());
+            }
+        }
+
+        // PHASE 2 (batch): enums first — needed for type resolution in class bodies.
+        for (SourceState s : states) {
+            for (PackageableElement def : s.definitions) {
+                if (def instanceof EnumDefinition enumDef) addEnum(enumDef);
+            }
+        }
+
+        // PHASE 3a (batch): class stubs across the batch so phase 3b can cross-reference.
+        for (SourceState s : states) {
+            for (PackageableElement def : s.definitions) {
+                if (def instanceof ClassDefinition classDef) registerClassStub(classDef);
+            }
+        }
+
+        // PHASE 3b (batch): class bodies — now cross-source class references resolve
+        // via the phase-3a stubs.
+        for (SourceState s : states) {
+            for (PackageableElement def : s.definitions) {
+                if (def instanceof ClassDefinition classDef) addClass(classDef);
+            }
+        }
+
+        // PHASE 4 (once): resolve superclass references across all registered classes.
+        resolveSuperclasses();
+
+        // PHASE 5a (batch): associations + databases.
+        for (SourceState s : states) {
+            for (PackageableElement def : s.definitions) {
+                switch (def) {
+                    case AssociationDefinition assocDef -> addAssociation(assocDef);
+                    case DatabaseDefinition dbDef -> addDatabase(dbDef);
+                    default -> { }
+                }
+            }
+        }
+
+        // PHASE 5b (once): database includes.
+        resolveDatabaseIncludes();
+
+        // PHASE 5c (batch): remaining element kinds.
+        for (SourceState s : states) {
+            for (PackageableElement def : s.definitions) {
+                switch (def) {
+                    case ClassDefinition ignored -> { }
+                    case EnumDefinition ignored -> { }
+                    case AssociationDefinition ignored -> { }
+                    case DatabaseDefinition ignored -> { }
+                    case MappingDefinition mappingDef -> addMapping(mappingDef);
+                    case ServiceDefinition serviceDef -> addService(serviceDef);
+                    case ProfileDefinition profileDef -> addProfile(profileDef);
+                    case FunctionDefinition funcDef -> addFunction(funcDef);
+                    case ConnectionDefinition connDef -> addConnection(connDef);
+                    case RuntimeDefinition runtimeDef -> addRuntime(runtimeDef);
+                }
+            }
+        }
+
+        // PHASE 5d (once): mapping includes.
+        resolveMappingIncludes();
+
+        // PHASE 6 (once): pre-resolve function bodies + build typed PureFunctions + detect
+        // call-graph cycles. Skipped only if the entire batch is strict (caller guarantees
+        // pre-resolved bodies).
+        boolean anyNonStrict = states.stream().anyMatch(s -> !s.isStrict);
+        if (anyNonStrict) {
+            buildPureFunctions();
+        }
+
+        return this;
+    }
+
+    /**
+     * Per-source state threaded through the batch phases in {@link #addSources}. The
+     * {@code definitions} field is set by phase 1 (name resolution) and then read by
+     * later phases.
+     */
+    private static final class SourceState {
+        final com.gs.legend.parser.ParseResult parsed;
+        final List<PackageableElement> rawDefinitions;
+        final boolean isStrict;
+        List<PackageableElement> definitions;
+
+        SourceState(com.gs.legend.parser.ParseResult parsed, boolean isStrict) {
+            this.parsed = parsed;
+            this.rawDefinitions = parsed.definitions();
+            this.isStrict = isStrict;
+            this.definitions = parsed.definitions();
+        }
+    }
+
+    /**
+     * Opt-in full body verification. Iterates every ingested
+     * {@link com.gs.legend.model.m3.PureFunction} and invokes
+     * {@link com.gs.legend.compiler.TypeChecker#check(com.gs.legend.model.m3.PureFunction)}
+     * on it, which type-checks the body against the declared signature and memoizes the
+     * compiled form.
+     *
+     * <p><strong>Default is interpreted++.</strong> {@code addSource} / {@code addSources}
+     * already validates signatures, classifies known types, and rejects cyclic call graphs
+     * at ingest. Function <em>body</em> type-checking stays lazy — a TypeChecker that
+     * compiles a query will only pay body-compile cost for functions it actually walks.
+     * {@code compile()} is the opt-in verb that flips that trade: pay O(N) now to surface
+     * every body-level error (declared-vs-actual return type, unresolved reference inside
+     * a body, overload mismatch at a nested call site, etc.) before any query runs.
+     *
+     * <p>Idempotent and re-runnable: {@code TypeChecker.check(PureFunction)} memoizes by
+     * identity, so repeat calls are no-ops for functions already verified in this checker.
+     *
+     * <p>Uses a fresh {@link com.gs.legend.compiler.TypeChecker} rooted at {@code this}
+     * builder. Callers who want to share a compiled side table with subsequent queries can
+     * pass their own TypeChecker via {@link #compile(com.gs.legend.compiler.TypeChecker)}.
+     *
+     * @return this builder for chaining
+     */
+    public PureModelBuilder compile() {
+        return compile(new com.gs.legend.compiler.TypeChecker(this));
+    }
+
+    /**
+     * Variant of {@link #compile()} that lets the caller supply a specific
+     * {@link com.gs.legend.compiler.TypeChecker}. Every ingested
+     * {@link com.gs.legend.model.m3.PureFunction} is checked on that instance, so its
+     * internal memoization tables are pre-warmed.
+     */
+    public PureModelBuilder compile(com.gs.legend.compiler.TypeChecker tc) {
+        for (int id = 0; id < pureFunctions.size(); id++) {
+            List<com.gs.legend.model.m3.PureFunction> list = pureFunctions.get(id);
+            if (list == null) continue;
+            for (var pf : list) {
+                tc.check(pf);
+            }
         }
         return this;
     }
 
     /**
-     * Adds Pure definitions from source code.
-     * 
+     * Adds a single Pure source to the model. Thin wrapper around
+     * {@link #addSources(String...)} so single-source and multi-source ingestion share
+     * one code path — no drift, single implementation to maintain.
+     *
+     * <p>Default is interpreted++: no body verification. Call {@link #compile()} afterwards
+     * for full eager verification.
+     *
      * @param pureSource The Pure source code
      * @return this builder for chaining
      */
     public PureModelBuilder addSource(String pureSource) {
-        // Invalidate lazy indexes — new definitions may add associations/joins
-        classToAssociations = null;
-
-        com.gs.legend.parser.ParseResult parsed = ParseCache.global().getOrParse(pureSource);
-        boolean isStrict = strict || pureSource.stripLeading().startsWith("\"use strict\"");
-        List<PackageableElement> rawDefinitions = parsed.definitions();
-
-        // PHASE 0: Register ALL element FQNs (needed by SymbolTable for int-keyed lookups)
-        for (PackageableElement def : rawDefinitions) {
-            symbols.intern(def.qualifiedName());
-        }
-
-        // PHASE 1: Name resolution — resolve simple names to FQN using imports.
-        // In strict mode, skip entirely — caller guarantees all names are FQN.
-        // Imports only feed NameResolver, so skip merging them too.
-        List<PackageableElement> definitions;
-        if (isStrict) {
-            definitions = rawDefinitions;
-        } else {
-            // Merge imports from this source into the builder's import scope
-            for (String pkg : parsed.imports().getWildcardImports()) {
-                imports.addImport(pkg + "::*");
-            }
-            for (var entry : parsed.imports().getTypeImports().entrySet()) {
-                imports.addImport(entry.getValue());
-            }
-            // Auto-import packages from the current source's own definitions
-            // (mirrors legend-engine: package-local names resolve without explicit imports)
-            for (PackageableElement def : rawDefinitions) {
-                String pkg = def.packagePath();
-                if (!pkg.isEmpty()) {
-                    imports.addImport(pkg + "::*");
-                }
-            }
-            definitions = NameResolver.resolveDefinitions(rawDefinitions, imports, symbols.allFqns());
-        }
-
-        // PHASE 2: Register enums first (needed for type resolution in classes)
-        for (PackageableElement def : definitions) {
-            if (def instanceof EnumDefinition enumDef) {
-                addEnum(enumDef);
-            }
-        }
-
-        // PHASE 3a: Register class stubs (names only, no properties yet)
-        // This allows forward references between classes
-        for (PackageableElement def : definitions) {
-            if (def instanceof ClassDefinition classDef) {
-                registerClassStub(classDef);
-            }
-        }
-
-        // PHASE 3b: Resolve properties now that all class names are registered
-        for (PackageableElement def : definitions) {
-            if (def instanceof ClassDefinition classDef) {
-                addClass(classDef);
-            }
-        }
-
-        // PHASE 4: Resolve superclass references now that all classes are registered
-        resolveSuperclasses();
-
-        // PHASE 5a: Process associations and databases first (order matters: includes need DBs)
-        for (PackageableElement def : definitions) {
-            switch (def) {
-                case AssociationDefinition assocDef -> addAssociation(assocDef);
-                case DatabaseDefinition dbDef -> addDatabase(dbDef);
-                default -> { }
-            }
-        }
-
-        // PHASE 5b: Resolve database includes before mappings reference included tables
-        resolveDatabaseIncludes();
-
-        // PHASE 5c: Process mappings and remaining definitions
-        for (PackageableElement def : definitions) {
-            switch (def) {
-                case ClassDefinition ignored -> { }
-                case EnumDefinition ignored -> { }
-                case AssociationDefinition ignored -> { }
-                case DatabaseDefinition ignored -> { }
-                case MappingDefinition mappingDef -> addMapping(mappingDef);
-                case ServiceDefinition serviceDef -> addService(serviceDef);
-                case ProfileDefinition profileDef -> addProfile(profileDef);
-                case FunctionDefinition funcDef -> addFunction(funcDef);
-                case ConnectionDefinition connDef -> addConnection(connDef);
-                case RuntimeDefinition runtimeDef -> addRuntime(runtimeDef);
-            }
-        }
-
-        // PHASE 5d: Resolve mapping includes (copy class mappings from included mappings)
-        resolveMappingIncludes();
-
-        // PHASE 6: Pre-resolve function bodies and build typed downstream PureFunctions.
-        if (!isStrict) {
-            buildPureFunctions();
-        }
-
-        return this;
+        return addSources(pureSource);
     }
 
     /**
@@ -429,6 +528,13 @@ public final class PureModelBuilder implements ModelContext {
         // that walks user-function bodies (TypeChecker, PlanGenerator) can then assume
         // the graph is a DAG and no longer needs its own recursion guard.
         detectCallGraphCycles();
+
+        // DIAGNOSTIC: -Dlegend.lite.forceCompile=true forces body verification on every
+        // addSource so we can measure the blast radius of making compile() mandatory.
+        // Not for production. Leaves interpreted++ as the default when the flag is off.
+        if (Boolean.getBoolean("legend.lite.forceCompile")) {
+            compile();
+        }
     }
 
     /**

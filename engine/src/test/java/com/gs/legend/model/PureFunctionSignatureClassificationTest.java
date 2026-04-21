@@ -1,5 +1,6 @@
 package com.gs.legend.model;
 
+import com.gs.legend.compiler.PureCompileException;
 import com.gs.legend.model.m3.PureFunction;
 import com.gs.legend.model.m3.Type;
 import org.junit.jupiter.api.Test;
@@ -9,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Targeted coverage for {@link PureModelBuilder#buildPureFunction}'s signature
@@ -198,15 +200,18 @@ class PureFunctionSignatureClassificationTest {
     }
 
     @Test
-    void crossSourceLateBindingRetroactivelyClassifiesEarlierFunctionSigs() {
-        // Lenient contract's payoff: when a function is ingested before the class it
-        // references, its signature starts as NameRef. A subsequent addSource that
-        // declares the class triggers buildPureFunctions to rerun over all ingested
-        // functions, and the earlier signature is retroactively promoted to ClassType.
-        //
-        // This is convenient at small scale. Note the cost: rebuild is O(N) per
-        // addSource, so M sources over N functions is O(N x M) — the motivation for
-        // a future addSources batch entry that can classify once over a frozen set.
+    void crossSourceForwardRefBehaviorMatchesActiveMode() {
+        // Sequential addSource with a cross-source forward reference is a mode-dependent
+        // scenario:
+        //  - Interpreted++ (default): addSource(func) accepts the dangling NameRef; a
+        //    later addSource(class) retroactively rebuilds and promotes the signature
+        //    to ClassType. O(N) rebuild per addSource is the motivation for the
+        //    addSources(...) batch entry.
+        //  - Force-compile (-Dlegend.lite.forceCompile=true): addSource(func) eagerly
+        //    runs compile() on the body, which dereferences $f.name against an
+        //    unresolved type and fails at ingest. Force-compile structurally cannot
+        //    support sequential forward refs (the later source that would resolve the
+        //    reference hasn't been parsed yet).
         String funcSource = """
                 function model::usesFirm(f: other::Firm[1]): String[1]
                 {
@@ -217,21 +222,29 @@ class PureFunctionSignatureClassificationTest {
                 Class other::Firm { name: String[1]; }
                 """;
 
-        var builder = new PureModelBuilder().addSource(funcSource);
+        if (Boolean.getBoolean("legend.lite.forceCompile")) {
+            // Under force-compile, the first addSource must reject the unresolved ref.
+            assertThrows(PureCompileException.class,
+                    () -> new PureModelBuilder().addSource(funcSource),
+                    "force-compile: addSource must reject a body that dereferences an "
+                            + "unresolved forward-ref type");
+        } else {
+            // Interpreted++: ingest is lenient; the signature starts as NameRef and is
+            // retroactively promoted when the class source is added later.
+            var builder = new PureModelBuilder().addSource(funcSource);
 
-        // Pre: class source not yet added, so signature carries NameRef.
-        PureFunction pfBefore = builder.findFunction("model::usesFirm").getFirst();
-        assertInstanceOf(Type.NameRef.class, pfBefore.parameters().getFirst().type(),
-                "Before class source is added, the unresolved FQN must carry as NameRef");
+            PureFunction pfBefore = builder.findFunction("model::usesFirm").getFirst();
+            assertInstanceOf(Type.NameRef.class, pfBefore.parameters().getFirst().type(),
+                    "Before class source is added, the unresolved FQN must carry as NameRef");
 
-        builder.addSource(classSource);
+            builder.addSource(classSource);
 
-        // Post: rerun classified the signature. findFunction returns the rebuilt
-        // PureFunction with the promoted type.
-        PureFunction pfAfter = builder.findFunction("model::usesFirm").getFirst();
-        assertEquals(new Type.ClassType("other::Firm"),
-                pfAfter.parameters().getFirst().type(),
-                "After the class source is added, the signature must be retroactively classified");
+            PureFunction pfAfter = builder.findFunction("model::usesFirm").getFirst();
+            assertEquals(new Type.ClassType("other::Firm"),
+                    pfAfter.parameters().getFirst().type(),
+                    "After the class source is added, the signature must be "
+                            + "retroactively classified");
+        }
     }
 
     // ---- helpers ----

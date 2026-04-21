@@ -73,16 +73,22 @@ class CompileFunctionTest {
 
     @Test
     void returnTypeMismatchFailsLoudly() {
-        var built = build("""
+        // Contract: a declared-vs-actual return type mismatch surfaces somewhere in the
+        // build-then-check pipeline with a message that names both types. Under
+        // interpreted++ the error comes from tc.check; under -Dlegend.lite.forceCompile it
+        // surfaces earlier at addSource. Widening the assertThrows scope to span both
+        // steps keeps the test timing-agnostic.
+        String source = """
                 function test::mismatch(a: Integer[1]): String[1]
                 {
                     $a + 1
                 }
-                """);
-        var tc = new TypeChecker(built.modelCtx());
-
-        var ex = assertThrows(PureCompileException.class,
-                () -> tc.check(built.pf("test::mismatch")));
+                """;
+        var ex = assertThrows(PureCompileException.class, () -> {
+            var built = build(source);
+            var tc = new TypeChecker(built.modelCtx());
+            tc.check(built.pf("test::mismatch"));
+        });
         assertTrue(ex.getMessage().contains("String") && ex.getMessage().contains("Integer"),
                 "Error must mention both the declared return type and the actual body type. Got: "
                         + ex.getMessage());
