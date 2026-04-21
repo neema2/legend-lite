@@ -97,6 +97,30 @@ public class TypeChecker implements TypeCheckEnv {
      */
     private final Map<String, CompiledElement> compiledElements = new HashMap<>();
 
+    /**
+     * Overload-aware memoization for {@link CompiledFunction}, keyed by
+     * {@link com.gs.legend.model.m3.PureFunction} identity. Functions differ from other
+     * {@link PackageableElement}s in that overloads share an FQN, so FQN-keyed caching
+     * (as in {@link #compiledElements}) would collide across overloads.
+     *
+     * <p>{@link com.gs.legend.model.m3.PureFunction} is built once per overload during
+     * {@link com.gs.legend.model.PureModelBuilder#assemble()}; each instance is immutable
+     * and unique to its (FQN + signature) combo, making identity-keyed caching
+     * content-correct without a separate content hash.
+     */
+    private final Map<com.gs.legend.model.m3.PureFunction, CompiledFunction> compiledFunctions =
+            new IdentityHashMap<>();
+
+    /**
+     * Recursion guard for function compilation. A {@link com.gs.legend.model.m3.PureFunction}
+     * is added on entry to {@link #compileFunction(com.gs.legend.model.m3.PureFunction)} and
+     * removed on exit. If the same function is encountered transitively during its own body
+     * compile, that is a recursive user function — which legend-lite does not support — and
+     * we throw a clear error instead of letting it blow the stack.
+     */
+    private final Set<com.gs.legend.model.m3.PureFunction> currentlyCompiling =
+            Collections.newSetFromMap(new IdentityHashMap<>());
+
     public TypeChecker(ModelContext modelContext) {
         this.modelContext = Objects.requireNonNull(modelContext, "ModelContext must not be null");
     }
@@ -196,7 +220,11 @@ public class TypeChecker implements TypeCheckEnv {
         CompiledElement compiled = switch (e) {
             case ClassDefinition cd       -> compileClass(cd);
             case MappingDefinition md     -> compileMapping(md);
-            case FunctionDefinition fd    -> compileFunction(fd);
+            case FunctionDefinition fd    -> throw new PureCompileException(
+                    "FunctionDefinition is a parse-layer element and cannot be compiled "
+                            + "directly. Resolve it to a PureFunction via "
+                            + "ModelContext.findFunction(fqn) and call check(PureFunction) instead. "
+                            + "Offending FQN: " + fd.qualifiedName());
             case ServiceDefinition sd     -> compileService(sd);
             case AssociationDefinition ad -> compileAssociation(ad);
             case DatabaseDefinition dd    -> compileDatabase(dd);
@@ -209,12 +237,25 @@ public class TypeChecker implements TypeCheckEnv {
         return compiled;
     }
 
+    /**
+     * Compiles a {@link com.gs.legend.model.m3.PureFunction} (the typed downstream
+     * metamodel form) to a {@link CompiledFunction}. This is the canonical entry point
+     * for function compilation — the compiler does not consume the parse-layer
+     * {@link FunctionDefinition}; that is the {@link com.gs.legend.model.PureModelBuilder}'s
+     * input.
+     *
+     * <p>Memoized via {@link #compiledFunctions}, keyed by PureFunction identity so
+     * overloads (which share an FQN) get distinct cache entries.
+     */
+    public CompiledFunction check(com.gs.legend.model.m3.PureFunction pf) {
+        Objects.requireNonNull(pf, "PureFunction must not be null");
+        return compileFunction(pf);
+    }
+
     /** Narrow-return overload — same dispatch, more precise return type. */
     public CompiledClass       check(ClassDefinition cd)       { return (CompiledClass)       check((PackageableElement) cd); }
     /** Narrow-return overload. */
     public CompiledMapping     check(MappingDefinition md)     { return (CompiledMapping)     check((PackageableElement) md); }
-    /** Narrow-return overload. */
-    public CompiledFunction    check(FunctionDefinition fd)    { return (CompiledFunction)    check((PackageableElement) fd); }
     /** Narrow-return overload. */
     public CompiledService     check(ServiceDefinition sd)     { return (CompiledService)     check((PackageableElement) sd); }
     /** Narrow-return overload. */
@@ -280,9 +321,95 @@ public class TypeChecker implements TypeCheckEnv {
         return new CompiledMapping(md.qualifiedName(), List.copyOf(mappedClasses), SourceLocation.UNKNOWN);
     }
 
-    private CompiledFunction compileFunction(FunctionDefinition fd) {
-        throw new UnsupportedOperationException(
-                "Phase 1b: compileFunction not yet implemented for " + fd.qualifiedName());
+    /**
+     * Detects if a {@link Type} represents a {@code Relation<(col:Type,...)>} and, if so,
+     * builds its row {@link Type.Schema}. Accepts either the pre-classified
+     * {@link Type.Relation} form or the parsed {@link Type.GenericType} form. Returns
+     * {@code null} for any non-Relation type.
+     */
+    private Type.Schema asRelationSchema(Type t) {
+        if (t instanceof Type.Relation rel) return rel.schema();
+        if (t instanceof Type.GenericType p
+                && isRelationRawType(p.rawType())
+                && !p.typeArgs().isEmpty()
+                && p.typeArgs().get(0) instanceof Type.RelationTypeVar rtv) {
+            var columns = new java.util.LinkedHashMap<String, Type>();
+            for (var col : rtv.columns()) {
+                columns.put(col.name(), resolveUserSignatureType(col.type()));
+            }
+            return Type.Schema.withoutPivot(columns);
+        }
+        return null;
+    }
+
+    /**
+     * Compiles a typed {@link com.gs.legend.model.m3.PureFunction} to a
+     * {@link CompiledFunction}.
+     *
+     * <p>Flow:
+     * <ol>
+     *   <li>Consult {@link #compiledFunctions} cache (keyed by PureFunction identity
+     *       for overload awareness) — return cached if present.</li>
+     *   <li>Bind each parameter into a fresh {@link CompilationContext}.</li>
+     *   <li>Compile the body via the shared {@link #compileBodyInContext} primitive,
+     *       validating declared return type + multiplicity.</li>
+     *   <li>Project typed parameters to {@link CompiledParameter}, wrap the compiled
+     *       body in {@link CompiledExpression}, and cache the resulting
+     *       {@link CompiledFunction}.</li>
+     * </ol>
+     */
+    private CompiledFunction compileFunction(com.gs.legend.model.m3.PureFunction pureFn) {
+        CompiledFunction cached = compiledFunctions.get(pureFn);
+        if (cached != null) return cached;
+
+        // Recursion guard — legend-lite does not support recursive user functions.
+        if (!currentlyCompiling.add(pureFn)) {
+            throw new PureCompileException(
+                    "Recursive user functions are not supported: '" + pureFn.qualifiedName()
+                            + "' transitively calls itself during body compilation. "
+                            + "Rewrite without recursion.");
+        }
+        try {
+            // Bind declared parameters into a fresh context. Relation params get schema
+            // binding so $rel.COL resolves via {@link CompilationContext#getRelationType};
+            // everything else (Primitive, ClassType/NameRef, FunctionType, etc.) goes
+            // through the generic lambda-param channel.
+            CompilationContext ctx = new CompilationContext();
+            for (var p : pureFn.parameters()) {
+                Type.Schema relationSchema = asRelationSchema(p.type());
+                if (relationSchema != null) {
+                    ctx = ctx.withRelationType(p.name(), relationSchema);
+                } else {
+                    ctx = ctx.withLambdaParam(p.name(), p.type());
+                }
+            }
+
+            // Compile body + validate declared return against actual body result.
+            compileBodyInContext(
+                    pureFn.body(), ctx,
+                    pureFn.returnType(), pureFn.returnMultiplicity(),
+                    "Function '" + pureFn.qualifiedName() + "'");
+
+            ValueSpecification root = pureFn.body().get(pureFn.body().size() - 1);
+            CompiledExpression body = new CompiledExpression(root, types,
+                    new CompiledDependencies(classPropertyAccesses, associationNavigations));
+
+            List<com.gs.legend.compiled.CompiledParameter> compiledParams = pureFn.parameters().stream()
+                    .map(p -> new com.gs.legend.compiled.CompiledParameter(p.name(), p.type(), p.multiplicity()))
+                    .toList();
+
+            CompiledFunction result = new CompiledFunction(
+                    pureFn.qualifiedName(),
+                    compiledParams,
+                    pureFn.returnType(),
+                    pureFn.returnMultiplicity(),
+                    body,
+                    SourceLocation.UNKNOWN);
+            compiledFunctions.put(pureFn, result);
+            return result;
+        } finally {
+            currentlyCompiling.remove(pureFn);
+        }
     }
 
     private CompiledService compileService(ServiceDefinition sd) {
@@ -546,12 +673,13 @@ public class TypeChecker implements TypeCheckEnv {
      */
     private TypeInfo inlineUserFunction(AppliedFunction af,
             List<com.gs.legend.model.m3.PureFunction> candidates, CompilationContext ctx) {
-        // 1. Recursion guard
-        CompilationContext inlineCtx = ctx.withIncrementedDepth();
+        // Recursion is caught by the currentlyCompiling identity guard in check(PureFunction);
+        // deep non-recursive call chains are bounded by the user's call graph depth.
+        CompilationContext inlineCtx = ctx;
 
         int argCount = af.parameters().size();
 
-        // 2. Arity filter
+        // 2. Arity filter.
         var arityMatches = candidates.stream()
                 .filter(f -> f.parameters().size() == argCount)
                 .toList();
@@ -563,15 +691,14 @@ public class TypeChecker implements TypeCheckEnv {
                                     .distinct().sorted().toList());
         }
 
-        // 3. Compile args and resolve overload by type.
-        // Bidirectional: for function-typed params, push expected types into lambda params.
+        // 3. Compile args (bidirectional for Function-typed params — push expected
+        //    lambda signatures in before walking their bodies).
         var firstMatch = arityMatches.get(0);
         List<TypeInfo> argTypes = new ArrayList<>(argCount);
         for (int i = 0; i < argCount; i++) {
             var arg = af.parameters().get(i);
             var param = firstMatch.parameters().get(i);
             if (param.type() instanceof Type.FunctionType ft && arg instanceof LambdaFunction lambda) {
-                // Arity check before bidirectional compilation
                 int expectedArity = ft.params().size();
                 if (lambda.parameters().size() != expectedArity) {
                     throw new PureCompileException(
@@ -584,57 +711,89 @@ public class TypeChecker implements TypeCheckEnv {
                 argTypes.add(compileExpr(arg, inlineCtx));
             }
         }
+
+        // 4. Resolve overload based on compiled arg types.
         var pureFn = resolveOverload(af.function(), arityMatches, argTypes);
 
-        // 4. Call-site type check: validate scalar arg types against declared param types.
-        // Function-typed params are already validated in step 3 (arity + bidirectional body check).
+        // 5. Ensure the function is compiled. This is the unified pipeline:
+        //    check(pureFn) compiles the declared body ONCE per (TypeChecker, PureFunction),
+        //    validating signature + return types. Cached in compiledFunctions.
+        //    Declaration-level bugs (body doesn't satisfy declared return, etc.) surface here,
+        //    independent of the specific call-site arg types.
+        CompiledFunction compiled = check(pureFn);
+
+        // 6. Call-site signature validation against the canonical CompiledFunction.parameters.
+        validateCallSiteArgTypes(af, compiled, argTypes);
+        validateCallSiteArgMultiplicity(af, compiled, argTypes);
+
+        // 7. Specialization — substitute arg ASTs into a body clone.
+        var bindings = new HashMap<String, ValueSpecification>();
         for (int i = 0; i < pureFn.parameters().size(); i++) {
-            var param = pureFn.parameters().get(i);
+            bindings.put(pureFn.parameters().get(i).name(), af.parameters().get(i));
+        }
+        List<ValueSpecification> substituted = pureFn.body().stream()
+                .map(stmt -> substituteParams(stmt, bindings))
+                .toList();
+
+        // 8. Re-stamp the specialized body with narrowed (actual) arg types.
+        //    No return validation — that already happened in check(pureFn) against declared types;
+        //    specialization narrows, so it can only refine, not violate.
+        TypeInfo bodyResult = compileBodyInContext(
+                substituted, inlineCtx, null, null, "Function '" + af.function() + "' call");
+        ValueSpecification resultNode = substituted.getLast();
+
+        // 9. Stamp TypeInfo with inlinedBody for PlanGenerator.
+        TypeInfo result = TypeInfo.from(bodyResult).inlinedBody(resultNode).build();
+        types.put(af, result);
+        return result;
+    }
+
+    /** Call-site arg-type validation against the canonical compiled signature. */
+    private void validateCallSiteArgTypes(
+            AppliedFunction af, CompiledFunction compiled, List<TypeInfo> argTypes) {
+        for (int i = 0; i < compiled.parameters().size(); i++) {
+            var param = compiled.parameters().get(i);
             var argInfo = argTypes.get(i);
+            if (param.type() instanceof Type.FunctionType) continue; // bidirectional already checked
 
-            if (param.type() instanceof Type.FunctionType) continue; // already checked in step 3
+            if (argInfo.type() == null) continue;
+            Type declaredType = param.type();
+            if (declaredType == Primitive.ANY) continue;
 
-            // Scalar param: compare compiled arg type vs declared type.
-            if (argInfo.type() != null) {
-                Type declaredType = param.type();
-                if (declaredType == Primitive.ANY) continue;
+            if (declaredType instanceof Type.GenericType p
+                    && isRelationRawType(p.rawType())
+                    && !p.typeArgs().isEmpty()
+                    && p.typeArgs().get(0) instanceof Type.RelationTypeVar) {
+                Type declaredGeneric = resolveUserSignatureType(declaredType);
+                checkRelationSchemaCompatibility(
+                        af.function(), param.name(), argInfo.type(), declaredGeneric);
+                continue;
+            }
 
-                // Schema-aware check for Relation<(col:Type)> params
-                if (declaredType instanceof Type.GenericType p
-                        && isRelationRawType(p.rawType())
-                        && !p.typeArgs().isEmpty()
-                        && p.typeArgs().get(0) instanceof Type.RelationTypeVar) {
-                    Type declaredGeneric = resolveUserSignatureType(declaredType);
-                    checkRelationSchemaCompatibility(
-                            af.function(), param.name(), argInfo.type(), declaredGeneric);
-                    continue;
-                }
-
-                if (!isSubtype(argInfo.type(), declaredType)) {
-                    throw new PureCompileException(
-                            "Function '" + af.function() + "' parameter '" + param.name()
-                                    + "' expects " + declaredType.typeName()
-                                    + " but got " + argInfo.type().typeName());
-                }
+            if (!isSubtype(argInfo.type(), declaredType)) {
+                throw new PureCompileException(
+                        "Function '" + af.function() + "' parameter '" + param.name()
+                                + "' expects " + declaredType.typeName()
+                                + " but got " + argInfo.type().typeName());
             }
         }
+    }
 
-        // 4b. Multiplicity check: actual range must fit within declared range.
-        // [1] accepts only [1]; [0..1] accepts [1] or [0..1]; [*] accepts anything.
-        for (int i = 0; i < pureFn.parameters().size(); i++) {
-            var param = pureFn.parameters().get(i);
+    /** Call-site arg-multiplicity validation against the canonical compiled signature. */
+    private void validateCallSiteArgMultiplicity(
+            AppliedFunction af, CompiledFunction compiled, List<TypeInfo> argTypes) {
+        for (int i = 0; i < compiled.parameters().size(); i++) {
+            var param = compiled.parameters().get(i);
             var argInfo = argTypes.get(i);
             if (param.type() instanceof Type.FunctionType) continue;
 
             var actualMult = argInfo.expressionType().multiplicity();
             var declMult = param.multiplicity();
             int declLower = declMult.lowerBound();
-            Integer declUpper = declMult.upperBound(); // null = unbounded
+            Integer declUpper = declMult.upperBound();
 
-            // actual.lower must be ≥ declared.lower (actual guarantees enough)
             boolean lowerOk = actualMult.lowerBound() >= declLower;
-            // actual.upper must be ≤ declared.upper (actual doesn't exceed max)
-            boolean upperOk = declUpper == null // declared [*] or [1..*] → no upper limit
+            boolean upperOk = declUpper == null
                     || (actualMult.upperBound() != null && actualMult.upperBound() <= declUpper);
 
             if (!lowerOk || !upperOk) {
@@ -644,52 +803,6 @@ public class TypeChecker implements TypeCheckEnv {
                                 + " but got " + actualMult);
             }
         }
-
-        // 5. Get pre-resolved body. PureFunction.body is always populated by PureModelBuilder —
-        // no null-check fallback (AGENTS.md rule #6: fail loudly if a consumer gets an
-        // unbuilt PureFunction).
-        List<ValueSpecification> bodyStmts = pureFn.body();
-
-        // 6. Build bindings: paramName → argument AST
-        var bindings = new HashMap<String, ValueSpecification>();
-        for (int i = 0; i < pureFn.parameters().size(); i++) {
-            bindings.put(pureFn.parameters().get(i).name(), af.parameters().get(i));
-        }
-
-        // 7. Substitute params in each body statement
-        List<ValueSpecification> substituted = bodyStmts.stream()
-                .map(stmt -> substituteParams(stmt, bindings))
-                .toList();
-
-        // 8. Compile body with let-chaining
-        TypeInfo bodyResult = compileBodyStatements(substituted, inlineCtx);
-        ValueSpecification resultNode = substituted.getLast();
-
-        // 9. Return type validation
-        if (bodyResult.type() != null) {
-            Type declaredReturn = pureFn.returnType();
-            if (declaredReturn != Primitive.ANY) {
-                // Schema-aware return check for Relation<(col:Type)> return types (covariant)
-                if (declaredReturn instanceof Type.GenericType p
-                        && isRelationRawType(p.rawType())
-                        && !p.typeArgs().isEmpty()
-                        && p.typeArgs().get(0) instanceof Type.RelationTypeVar) {
-                    Type declaredGeneric = resolveUserSignatureType(declaredReturn);
-                    // Covariant: body's actual schema must be ⊇ declared return schema
-                    checkRelationSchemaCompatibility(
-                            af.function(), "<return>", bodyResult.type(), declaredGeneric);
-                } else if (!isSubtype(bodyResult.type(), declaredReturn)) {
-                    throw new PureCompileException(
-                            "Function '" + af.function() + "' declares return type " + declaredReturn.typeName()
-                                    + " but body returns " + bodyResult.type().typeName());
-                }
-            }
-        }
-
-        // 10. Stamp TypeInfo with inlinedBody for PlanGenerator
-        TypeInfo result = TypeInfo.from(bodyResult).inlinedBody(resultNode).build();
-        types.put(af, result);
-        return result;
     }
 
     /**
@@ -796,6 +909,82 @@ public class TypeChecker implements TypeCheckEnv {
     // ========== Body Compilation ==========
 
     /**
+     * The single body-compile primitive. All four body-compile sites (top-level user
+     * function, call-site inline specialization, lambda with pushed-in expected FunctionType,
+     * lambda with inferred types) route through here for the actual body walk + optional
+     * return validation.
+     *
+     * <p><strong>Caller responsibilities:</strong>
+     * <ul>
+     *   <li>Build the {@link CompilationContext} with whatever lambda/function parameter
+     *       bindings are appropriate for the site.</li>
+     *   <li>Decide whether to validate return — pass {@code expectedReturnType == null}
+     *       <em>and</em> {@code expectedReturnMult == null} to skip (lambda inference case).</li>
+     *   <li>Stamp the outer AST node ({@code LambdaFunction}, {@code AppliedFunction} call
+     *       site) based on the returned {@link TypeInfo}. This primitive does not touch
+     *       the outer node.</li>
+     * </ul>
+     *
+     * <p><strong>Primitive responsibilities:</strong>
+     * <ul>
+     *   <li>Compile body statements with let-chaining via {@link #compileBodyStatements}.</li>
+     *   <li>If {@code expectedReturnType != null}: validate the last statement's type fits
+     *       (covariant for {@code Relation<(...)>}, subtype otherwise, {@link Primitive#ANY}
+     *       bypasses).</li>
+     *   <li>If {@code expectedReturnMult != null}: validate the last statement's
+     *       multiplicity fits (lower/upper bound check).</li>
+     *   <li>Fail loudly on mismatch — no defaulting, per AGENTS.md rule #4.</li>
+     * </ul>
+     */
+    private TypeInfo compileBodyInContext(
+            List<ValueSpecification> body,
+            CompilationContext ctx,
+            Type expectedReturnType,
+            com.gs.legend.model.m3.Multiplicity expectedReturnMult,
+            String errorContext) {
+        if (body.isEmpty()) {
+            throw new PureCompileException(errorContext + ": empty body");
+        }
+
+        TypeInfo bodyResult = compileBodyStatements(body, ctx);
+
+        // Return type validation — Relation gets structural compare, everything else is subtype.
+        if (expectedReturnType != null
+                && bodyResult.type() != null
+                && expectedReturnType != Primitive.ANY) {
+            if (expectedReturnType instanceof Type.GenericType p
+                    && isRelationRawType(p.rawType())
+                    && !p.typeArgs().isEmpty()
+                    && p.typeArgs().get(0) instanceof Type.RelationTypeVar) {
+                Type resolvedDeclared = resolveUserSignatureType(expectedReturnType);
+                checkRelationSchemaCompatibility(
+                        errorContext, "<return>", bodyResult.type(), resolvedDeclared);
+            } else if (!isSubtype(bodyResult.type(), expectedReturnType)) {
+                throw new PureCompileException(
+                        errorContext + " declares return type " + expectedReturnType.typeName()
+                                + " but body returns " + bodyResult.type().typeName());
+            }
+        }
+
+        // Multiplicity validation.
+        if (expectedReturnMult != null) {
+            var actualMult = bodyResult.expressionType().multiplicity();
+            int declLower = expectedReturnMult.lowerBound();
+            Integer declUpper = expectedReturnMult.upperBound();
+            boolean lowerOk = actualMult.lowerBound() >= declLower;
+            boolean upperOk = declUpper == null
+                    || (actualMult.upperBound() != null && actualMult.upperBound() <= declUpper);
+            if (!lowerOk || !upperOk) {
+                throw new PureCompileException(
+                        errorContext + ": body multiplicity " + actualMult
+                                + " does not fit declared " + expectedReturnMult);
+            }
+        }
+
+        return bodyResult;
+    }
+
+    /**
      * Compiles a list of body statements with let-chaining.
      * Intermediate let-statements enrich the context; the final statement is the result.
      * Used by inlineUserFunction, compileLambda, and compileLambdaWithExpectedType.
@@ -838,26 +1027,17 @@ public class TypeChecker implements TypeCheckEnv {
             lambdaCtx = lambdaCtx.withLambdaParam(paramName, paramType);
         }
 
-        // 2. Compile body with let-chaining
-        if (lambda.body().isEmpty()) {
-            throw new PureCompileException("Empty lambda body");
-        }
-        TypeInfo bodyResult = compileBodyStatements(lambda.body(), lambdaCtx);
+        // 2. Compile body + validate return via the shared body-compile primitive.
+        // Only validate Primitive / EnumType returns — other kinds (ClassType, Relation,
+        // TypeVar) can appear in native signatures and aren't checkable here without
+        // a Bindings accumulator.
+        Type expectedReturn = expectedFT.returnType();
+        Type validateReturn = (expectedReturn instanceof Primitive || expectedReturn instanceof Type.EnumType)
+                ? expectedReturn : null;
+        TypeInfo bodyResult = compileBodyInContext(
+                lambda.body(), lambdaCtx, validateReturn, null, "Lambda");
 
-        // 3. Validate return type against expected (signatures are fully resolved —
-        // the expected return is a Primitive/EnumType/ClassType directly, not a NameRef).
-        if (bodyResult.type() != null) {
-            Type expectedReturn = expectedFT.returnType();
-            if (expectedReturn instanceof Primitive || expectedReturn instanceof Type.EnumType) {
-                if (expectedReturn != Primitive.ANY && !isSubtype(bodyResult.type(), expectedReturn)) {
-                    throw new PureCompileException(
-                            "Lambda return type mismatch: expected " + expectedReturn.typeName()
-                                    + " but body returns " + bodyResult.type().typeName());
-                }
-            }
-        }
-
-        // Stamp the lambda itself with the body result type
+        // 3. Stamp the lambda itself with the body result type.
         if (bodyResult.isScalar() && bodyResult.type() != null) {
             return scalarTyped(lambda, bodyResult.type());
         }
@@ -1013,9 +1193,10 @@ public class TypeChecker implements TypeCheckEnv {
             throw new PureCompileException("Unresolved type for lambda");
         }
 
-        // Multi-statement body: process let bindings, compile final expression
-        // Matches legend-pure's M3 model: lambda body IS the statement list
-        TypeInfo bodyInfo = compileBodyStatements(lf.body(), lambdaCtx);
+        // Multi-statement body: process let bindings, compile final expression.
+        // Matches legend-pure's M3 model: lambda body IS the statement list.
+        // Inference mode — no expected return type (caller will stamp the outer lambda).
+        TypeInfo bodyInfo = compileBodyInContext(lf.body(), lambdaCtx, null, null, "Lambda");
         if (bodyInfo.isScalar() && bodyInfo.type() != null) {
             // Propagate multiplicity from body — if body is MANY (list-producing),
             // the lambda must also be MANY so UNNEST is applied at the root.
@@ -1070,6 +1251,19 @@ public class TypeChecker implements TypeCheckEnv {
         throw new PureCompileException("Unresolved type for variable: " + v.name());
     }
 
+    /**
+     * Extracts a class FQN from a {@link Type} that represents a user class reference —
+     * either fully classified ({@link Type.ClassType}) or still lazy ({@link Type.NameRef}).
+     * Returns {@code null} for types that aren't class references (primitives, enums,
+     * relations, tuples, etc.). Per AGENTS.md §5, NameRef stays lazy until a genuine
+     * use site; property access is exactly such a site.
+     */
+    private static String classFqnFor(Type t) {
+        if (t instanceof Type.ClassType(String qn)) return qn;
+        if (t instanceof Type.NameRef nr) return nr.qualifiedName();
+        return null;
+    }
+
     private TypeInfo compileProperty(AppliedProperty ap, CompilationContext ctx) {
         if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof Variable v) {
             Type.Schema relType = ctx.getRelationType(v.name());
@@ -1091,13 +1285,16 @@ public class TypeChecker implements TypeCheckEnv {
                     return scalarTyped(ap, colType);
                 }
             }
-            // Lambda param with ClassType: resolve field type from model context
-            if (paramType instanceof Type.ClassType(String qualifiedName) && modelContext != null) {
-                var classOpt = modelContext.findClass(qualifiedName);
+            // Lambda param owning a user class (ClassType or NameRef): resolve field type via
+            // modelContext. NameRef stays lazy until this use site per AGENTS.md §5 — property
+            // access is precisely where "we genuinely need the class's structure".
+            String classFqn = classFqnFor(paramType);
+            if (classFqn != null && modelContext != null) {
+                var classOpt = modelContext.findClass(classFqn);
                 if (classOpt.isPresent()) {
                     var propOpt = classOpt.get().findProperty(ap.property(), modelContext);
                     if (propOpt.isPresent()) {
-                        classPropertyAccesses.computeIfAbsent(qualifiedName, k -> new HashSet<>()).add(ap.property());
+                        classPropertyAccesses.computeIfAbsent(classFqn, k -> new HashSet<>()).add(ap.property());
                         Type fieldType = propOpt.get().type();
                         var info = TypeInfo.builder()
                                 .expressionType(ExpressionType.one(fieldType))
@@ -1111,10 +1308,10 @@ public class TypeChecker implements TypeCheckEnv {
                 // Person_Address)
                 // These are first-class properties in Pure, just stored on the Association
                 // rather than the Class.
-                var assocNav = modelContext.findAssociationByProperty(qualifiedName, ap.property());
+                var assocNav = modelContext.findAssociationByProperty(classFqn, ap.property());
                 if (assocNav.isPresent()) {
                     var nav = assocNav.get();
-                    associationNavigations.computeIfAbsent(qualifiedName, k -> new HashSet<>()).add(ap.property());
+                    associationNavigations.computeIfAbsent(classFqn, k -> new HashSet<>()).add(ap.property());
                     Type targetType = new Type.ClassType(nav.targetClassName());
                     var info = TypeInfo.builder()
                             .expressionType(nav.isToMany()
@@ -1201,12 +1398,9 @@ public class TypeChecker implements TypeCheckEnv {
         if (!ap.parameters().isEmpty() && ap.parameters().get(0) instanceof AppliedProperty ownerAp) {
             TypeInfo ownerInfo = compileExpr(ownerAp, ctx);
             if (ownerInfo != null && modelContext != null) {
-                // Extract the ClassType — type is now directly Address, not List<Address>
-                Type ownerType = ownerInfo.type();
-                String className = null;
-                if (ownerType instanceof Type.ClassType(String qn)) {
-                    className = qn;
-                }
+                // Extract the class FQN (ClassType or NameRef — both carry an FQN; NameRef stays
+                // lazy until this use site per AGENTS.md §5).
+                String className = classFqnFor(ownerInfo.type());
                 if (className != null) {
                     var classOpt = modelContext.findClass(className);
                     if (classOpt.isPresent()) {
@@ -1371,40 +1565,28 @@ public class TypeChecker implements TypeCheckEnv {
     public record CompilationContext(
             Map<String, Type.Schema> relationTypes,
             Map<String, Type> lambdaParams,
-            Map<String, ValueSpecification> letBindings,
-            int inlineDepth) {
-
-        private static final int MAX_INLINE_DEPTH = 32;
+            Map<String, ValueSpecification> letBindings) {
 
         public CompilationContext() {
-            this(Map.of(), Map.of(), Map.of(), 0);
+            this(Map.of(), Map.of(), Map.of());
         }
 
         public CompilationContext withRelationType(String paramName, Type.Schema type) {
             var newTypes = new HashMap<>(relationTypes);
             newTypes.put(paramName, type);
-            return new CompilationContext(Map.copyOf(newTypes), lambdaParams, letBindings, inlineDepth);
+            return new CompilationContext(Map.copyOf(newTypes), lambdaParams, letBindings);
         }
 
         public CompilationContext withLambdaParam(String name, Type type) {
             var m = new HashMap<>(lambdaParams);
             m.put(name, type); // type may be null for untyped params (e.g., forAll(e|...))
-            return new CompilationContext(relationTypes, Collections.unmodifiableMap(m), letBindings, inlineDepth);
+            return new CompilationContext(relationTypes, Collections.unmodifiableMap(m), letBindings);
         }
 
         public CompilationContext withLetBinding(String name, ValueSpecification value) {
             var m = new HashMap<>(letBindings);
             m.put(name, value);
-            return new CompilationContext(relationTypes, lambdaParams, Map.copyOf(m), inlineDepth);
-        }
-
-        public CompilationContext withIncrementedDepth() {
-            if (inlineDepth >= MAX_INLINE_DEPTH) {
-                throw new PureCompileException(
-                        "Maximum function inline depth (" + MAX_INLINE_DEPTH + ") exceeded. "
-                                + "This usually indicates a recursive function, which is not supported.");
-            }
-            return new CompilationContext(relationTypes, lambdaParams, letBindings, inlineDepth + 1);
+            return new CompilationContext(relationTypes, lambdaParams, Map.copyOf(m));
         }
 
         public boolean isLambdaParam(String name) {

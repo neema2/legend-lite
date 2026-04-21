@@ -65,6 +65,34 @@ public class EvalChecker extends AbstractChecker {
                 ValueSpecification lastStmt = lambda.body().get(lambda.body().size() - 1);
                 yield TypeInfo.from(bodyResult).inlinedBody(lastStmt).build();
             }
+            // $f->eval(args...) where $f is a Variable of FunctionType. Occurs during
+            // DECLARATION-time body compile of a user function whose signature declares a
+            // function-typed parameter (e.g., {Integer[1]->Integer[1]}[1]). We can't walk a
+            // body at this point — the Variable will be replaced with a concrete lambda at
+            // each call site by inlineUserFunction. Type-check using the FunctionType's
+            // declared return; the per-call specialization re-walks with the real lambda.
+            case Variable var -> {
+                TypeInfo varInfo = env.compileExpr(var, ctx);
+                if (!(varInfo.type() instanceof com.gs.legend.model.m3.Type.FunctionType ft)) {
+                    throw new PureCompileException(
+                            "eval(): first argument is a variable '" + var.name()
+                                    + "' that does not have a function type (got "
+                                    + (varInfo.type() == null ? "null" : varInfo.type().typeName())
+                                    + ")");
+                }
+                // Compile the other args for side effects (type-check them).
+                for (int i = 1; i < params.size(); i++) {
+                    env.compileExpr(params.get(i), ctx);
+                }
+                yield com.gs.legend.compiler.TypeInfo.builder()
+                        .expressionType(
+                                ft.returnMult() != null && ft.returnMult().upperBound() != null
+                                        && ft.returnMult().upperBound() > 1
+                                        ? com.gs.legend.compiler.ExpressionType.many(ft.returnType())
+                                        : com.gs.legend.compiler.ExpressionType.one(ft.returnType()))
+                        .inlinedBody(af)
+                        .build();
+            }
             default -> throw new PureCompileException(
                     "eval(): first argument must be a function reference, column spec, or lambda, got "
                             + params.get(0).getClass().getSimpleName());

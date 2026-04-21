@@ -521,7 +521,7 @@ class UserFunctionIntegrationTest {
         }
 
         @Test
-        @DisplayName("Recursion guard throws at depth > 32")
+        @DisplayName("Recursion guard throws on self-recursive user functions")
         void testRecursionGuardThrows() {
             String model = modelWith("""
                     function test::recurse(x: Integer[1]):Integer[1]
@@ -531,7 +531,7 @@ class UserFunctionIntegrationTest {
                     """);
             var ex = assertThrows(PureCompileException.class, () ->
                     plan(model, "|model::Person.all()->project([x|test::recurse($x.age)], ['val'])"));
-            assertTrue(ex.getMessage().contains("inline depth"),
+            assertTrue(ex.getMessage().contains("Recursive user functions are not supported"),
                     "Should report recursion: " + ex.getMessage());
         }
 
@@ -1218,11 +1218,13 @@ class UserFunctionIntegrationTest {
         }
 
         @Test
-        @DisplayName("Bare Relation param (no schema): still works via structural inlining")
+        @DisplayName("Typed Relation param: works with explicit schema declaration")
         void testBareRelationParamStillWorks() throws SQLException {
-            // Bare Any[*] without schema — no boundary check, structural validation via inlining
+            // Under decoupled check(PureFunction), bodies validate against declared signatures.
+            // Property access on a relation param requires the declared type to be a typed
+            // Relation<(...)> — Any[*] no longer structurally implies relation shape.
             String model = modelWith("""
-                    function test::bigAges(data: Any[*]):Any[*]
+                    function test::bigAges(data: Relation<(FIRST_NAME:String, AGE_VAL:Integer)>[1]):Relation<(FIRST_NAME:String, AGE_VAL:Integer)>[1]
                     {
                         $data->filter(x|$x.AGE_VAL > 30)
                     }
