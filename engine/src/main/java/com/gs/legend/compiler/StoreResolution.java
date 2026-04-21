@@ -19,10 +19,12 @@ import java.util.Map;
  * @param propertyToColumn Pure property name → physical column name (simple mappings)
  * @param properties       Per-property resolution descriptors (handles expression, enum, M2M)
  * @param joins            Association property → join resolution
- * @param filterExpr       Pre-compiled ~filter expression (null if none). Used by M2M filters only.
  * @param nested           True for struct-literal identity mappings (nested field access)
  * @param sourceSpec   Synthesized source Relation ValueSpec for relational mappings (null for M2M/identity).
  *                         Encapsulates tableReference + filter + distinct + join chains.
+ *                         Mapping filters (~filter) are synthesized into this chain as
+ *                         {@code filter(src | cond)} nodes by MappingNormalizer — no separate
+ *                         filterExpr field needed.
  * @param extendOverride   Cancellation info for extend nodes (null = not an extend node / all active).
  * @param sourceUrl        URL for external data sources (e.g., JSON data: or file: URI). Null for regular tables.
  *                         When set, PlanGenerator uses dialect.renderSourceUrl() instead of bare table name.
@@ -32,7 +34,6 @@ public record StoreResolution(
         Map<String, String> propertyToColumn,
         Map<String, PropertyResolution> properties,
         Map<String, JoinResolution> joins,
-        ValueSpecification filterExpr,
         boolean nested,
         ValueSpecification sourceSpec,
         ExtendOverride extendOverride,
@@ -44,10 +45,9 @@ public record StoreResolution(
             Map<String, String> propertyToColumn,
             Map<String, PropertyResolution> properties,
             Map<String, JoinResolution> joins,
-            ValueSpecification filterExpr,
             boolean nested,
             ValueSpecification sourceSpec) {
-        this(tableName, propertyToColumn, properties, joins, filterExpr, nested, sourceSpec, null, null);
+        this(tableName, propertyToColumn, properties, joins, nested, sourceSpec, null, null);
     }
 
     /** Constructor without sourceSpec, extendOverride, or sourceUrl (for M2M and identity mappings). */
@@ -56,14 +56,13 @@ public record StoreResolution(
             Map<String, String> propertyToColumn,
             Map<String, PropertyResolution> properties,
             Map<String, JoinResolution> joins,
-            ValueSpecification filterExpr,
             boolean nested) {
-        this(tableName, propertyToColumn, properties, joins, filterExpr, nested, null, null, null);
+        this(tableName, propertyToColumn, properties, joins, nested, null, null, null);
     }
 
     /** Factory for extend-only StoreResolutions (carries only cancellation info). */
     public static StoreResolution forExtend(ExtendOverride override) {
-        return new StoreResolution(null, Map.of(), Map.of(), Map.of(), null, false, null, override, null);
+        return new StoreResolution(null, Map.of(), Map.of(), Map.of(), false, null, override, null);
     }
 
     /**
@@ -151,11 +150,6 @@ public record StoreResolution(
     /** True if this resolution has any association joins. */
     public boolean hasJoins() {
         return joins != null && !joins.isEmpty();
-    }
-
-    /** True if this resolution has a mapping filter. */
-    public boolean hasFilter() {
-        return filterExpr != null;
     }
 
     /** True if this is an extend node with cancellation info. */

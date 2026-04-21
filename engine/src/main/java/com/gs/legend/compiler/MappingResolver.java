@@ -205,11 +205,11 @@ public final class MappingResolver {
         resolving.remove(className);
         var store = new StoreResolution(
                 tableName, propToCol, properties, joins,
-                null, rm.nested(), sourceSpec);
+                rm.nested(), sourceSpec);
         // Thread sourceUrl for external data sources (JSON data: / file: URIs)
         if (rm.sourceUrl() != null) {
             store = new StoreResolution(tableName, propToCol, properties, joins,
-                    null, rm.nested(), sourceSpec, null, rm.sourceUrl());
+                    rm.nested(), sourceSpec, null, rm.sourceUrl());
         }
         return store;
     }
@@ -308,7 +308,7 @@ public final class MappingResolver {
 
         return new StoreResolution(
                 sourceStore.tableName(), propToCol, properties, joins,
-                null, false, sourceSpec);
+                false, sourceSpec);
     }
 
     /**
@@ -335,7 +335,7 @@ public final class MappingResolver {
 
         var targetStore = new StoreResolution(
                 sourceStore.tableName(), propToCol, properties, joins,
-                null, false, sourceStore.sourceSpec());
+                false, sourceStore.sourceSpec());
 
         ValueSpecification current = sourceSpec;
         while (current instanceof AppliedFunction af) {
@@ -507,7 +507,7 @@ public final class MappingResolver {
             mergedProperties.putAll(subProperties);
             var mergedResolution = new StoreResolution(
                     assocTarget.tableName(), mergedPropToCol, mergedProperties,
-                    assocTarget.joins(), assocTarget.filterExpr(), assocTarget.nested());
+                    assocTarget.joins(), assocTarget.nested());
             joins.put(propName, new StoreResolution.JoinResolution(
                     existingJoin.targetTable(), existingJoin.sourceParam(),
                     existingJoin.targetParam(), existingJoin.isToMany(),
@@ -515,7 +515,7 @@ public final class MappingResolver {
                     mergedResolution, false));
         } else {
             var embeddedResolution = new StoreResolution(
-                    tableName, subPropToCol, subProperties, Map.of(), null, false);
+                    tableName, subPropToCol, subProperties, Map.of(), false);
             joins.put(propName, new StoreResolution.JoinResolution(
                     null, null, null, false, null, Set.of(), embeddedResolution, true));
         }
@@ -548,7 +548,7 @@ public final class MappingResolver {
         }
 
         var targetResolution = new StoreResolution(
-                targetTable, subPropToCol, subProperties, Map.of(), null, false);
+                targetTable, subPropToCol, subProperties, Map.of(), false);
         var joinRes = buildJoinResolution(targetTable, false, traverseAf, targetResolution);
         for (ColSpec cs : colSpecs) {
             joins.put(cs.name(), joinRes);
@@ -595,7 +595,7 @@ public final class MappingResolver {
             properties.put(prop, new StoreResolution.PropertyResolution.Column(col));
         }
         return new StoreResolution(tableName, propToCol, properties, Map.of(),
-                null, rm.nested(), null);
+                rm.nested(), null);
     }
 
     // ==================== Join Condition Helpers ====================
