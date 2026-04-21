@@ -47,10 +47,10 @@ public sealed interface TypedSpec permits
         // Struct construction
         TypedNewInstance,
         // Control flow + IO + user call
-        TypedIf, TypedLet, TypedMatch, TypedCast, TypedZip,
+        TypedIf, TypedLet, TypedBlock, TypedMatch, TypedCast, TypedZip,
         TypedWrite, TypedSerialize,
         TypedUserCall,
-        // Element reference (function, class, enum, runtime, store \u2026) by FQN
+        // Element reference (function, class, enum, runtime, store) by FQN
         TypedPackageableRef {
 
     /** Type + multiplicity. Every typed node has this. */
