@@ -34,11 +34,16 @@ public sealed interface TypedSpec permits
         TypedCByteArray, TypedEnumValue,
         // Bindings (3)
         TypedVariable, TypedLambda, TypedCollection,
+        // Relation sources (3)
+        TypedGetAll, TypedTableReference, TypedTdsLiteral,
         // Relation operators (10)
-        TypedGetAll, TypedFilter, TypedProject, TypedSort, TypedJoin, TypedGroupBy,
+        TypedFilter, TypedProject, TypedSort, TypedJoin, TypedGroupBy,
         TypedExtend, TypedSelect, TypedRename, TypedSlice,
-        // Scalar operators (4)
-        TypedPropertyAccess, TypedMap, TypedFold, TypedNativeCall {
+        // Scalar operators (4) + structural extract
+        TypedPropertyAccess, TypedMap, TypedFold, TypedNativeCall,
+        TypedStructExtract,
+        // Struct construction (1)
+        TypedNewInstance {
 
     /** Type + multiplicity. Every typed node has this. */
     ExpressionType info();
