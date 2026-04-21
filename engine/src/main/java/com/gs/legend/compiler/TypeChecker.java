@@ -293,8 +293,7 @@ public class TypeChecker implements TypeCheckEnv {
 
             CompiledExpression compiledSourceSpec = spec == null ? null
                     : new CompiledExpression(
-                            spec,
-                            types,
+                            compileExpr(spec, new CompilationContext()),
                             new CompiledDependencies(classPropertyAccesses, associationNavigations));
 
             mappedClasses.add(new CompiledMappedClass(
@@ -362,14 +361,15 @@ public class TypeChecker implements TypeCheckEnv {
             }
         }
 
-        // Compile body + validate declared return against actual body result.
-        compileBodyInContext(
+        // Compile body + validate declared return against actual body result —
+        // the last statement's TypedSpec becomes the function's HIR root.
+        com.gs.legend.compiler.typed.TypedSpec bodyHir = compileBodyInContext(
                 pureFn.body(), ctx,
                 pureFn.returnType(), pureFn.returnMultiplicity(),
                 "Function '" + pureFn.qualifiedName() + "'");
 
-        ValueSpecification root = pureFn.body().get(pureFn.body().size() - 1);
-        CompiledExpression body = new CompiledExpression(root, types,
+        CompiledExpression body = new CompiledExpression(
+                bodyHir,
                 new CompiledDependencies(classPropertyAccesses, associationNavigations));
 
         List<com.gs.legend.compiled.CompiledParameter> compiledParams = pureFn.parameters().stream()

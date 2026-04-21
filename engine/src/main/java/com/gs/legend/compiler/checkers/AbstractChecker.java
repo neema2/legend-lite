@@ -2,6 +2,7 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.model.m3.Multiplicity;
 import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Type;
@@ -887,7 +888,7 @@ public abstract class AbstractChecker implements FunctionChecker {
      */
     protected TypeChecker.CompilationContext bindLambdaParam(
             TypeChecker.CompilationContext ctx, String paramName,
-            Type resolvedType, TypeInfo source) {
+            Type resolvedType, TypedSpec source) {
         if (resolvedType == null) {
             throw new PureCompileException(
                     "Cannot bind lambda param '" + paramName + "': resolved type is null");
@@ -960,10 +961,10 @@ public abstract class AbstractChecker implements FunctionChecker {
     }
 
     /**
-     * Compiles all lambda body statements; returns the TypeInfo of the last.
+     * Compiles all lambda body statements; returns the TypedSpec of the last.
      */
-    protected TypeInfo compileLambdaBody(LambdaFunction lambda, TypeChecker.CompilationContext ctx) {
-        TypeInfo last = null;
+    protected TypedSpec compileLambdaBody(LambdaFunction lambda, TypeChecker.CompilationContext ctx) {
+        TypedSpec last = null;
         for (var stmt : lambda.body()) {
             last = env.compileExpr(stmt, ctx);
         }
@@ -1017,8 +1018,8 @@ public abstract class AbstractChecker implements FunctionChecker {
      *
      * @return The TypeInfo of the lambda body (last statement)
      */
-    protected TypeInfo compileLambdaArg(LambdaFunction lambda, Type.Parameter sigParam,
-                                        Bindings bindings, TypeInfo source,
+    protected TypedSpec compileLambdaArg(LambdaFunction lambda, Type.Parameter sigParam,
+                                        Bindings bindings, TypedSpec source,
                                         TypeChecker.CompilationContext ctx, String funcName) {
         Type.FunctionType ft = extractFunctionType(sigParam);
 
@@ -1036,7 +1037,7 @@ public abstract class AbstractChecker implements FunctionChecker {
         if (lambda.body().isEmpty()) {
             return null;
         }
-        TypeInfo bodyResult = compileLambdaBody(lambda, lambdaCtx);
+        TypedSpec bodyResult = compileLambdaBody(lambda, lambdaCtx);
 
         // Bind unbound return TypeVar from body result (e.g., V in map<T,V>)
         // This lets resolveOutput work without special-case logic downstream.
