@@ -2,6 +2,7 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedSpec;
 
 import java.util.List;
 
@@ -25,7 +26,7 @@ public class EvalChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         if (params.isEmpty()) {
@@ -33,65 +34,63 @@ public class EvalChecker extends AbstractChecker {
         }
 
         return switch (params.get(0)) {
-            // ~colName->eval($row) — column accessor applied to a row
-            // Rewrite to $row.colName (property access on the row)
+            // {@code ~colName->eval($row)} — rewrite to {@code $row.colName}.
             case ColSpec colSpec -> {
                 if (params.size() < 2) {
                     throw new PureCompileException(
                             "eval() on ~" + colSpec.name() + " requires a row argument");
                 }
-                // Compile the row argument to ensure it's typed
-                env.compileExpr(params.get(1), ctx);
-                // Rewrite to a property access: $row.colName
                 AppliedProperty propAccess = new AppliedProperty(
                         colSpec.name(), List.of(params.get(1)));
-                TypeInfo bodyResult = env.compileExpr(propAccess, ctx);
-                yield TypeInfo.from(bodyResult).inlinedBody(propAccess).build();
+                yield env.compileExpr(propAccess, ctx);
             }
-            // funcRef->eval(args...) — rewrite to direct function call
+            // {@code funcRef->eval(args...)} — rewrite to a direct call.
             case PackageableElementPtr(String fullPath) -> {
                 String funcName = stripTypeSignature(simpleName(fullPath));
                 List<ValueSpecification> args = params.subList(1, params.size());
-                AppliedFunction resolved = new AppliedFunction(funcName, args);
-                TypeInfo bodyResult = env.compileExpr(resolved, ctx);
-                yield TypeInfo.from(bodyResult).inlinedBody(resolved).build();
+                yield env.compileExpr(new AppliedFunction(funcName, args), ctx);
             }
-            // eval(lambda, args...) or eval(lambda)
+            // {@code eval(lambda, args...)} or {@code eval(lambda)}.
             case LambdaFunction lambda -> {
                 TypeChecker.CompilationContext evalCtx = params.size() > 1
                         ? bindLambdaArgs(lambda, params.subList(1, params.size()), ctx)
                         : ctx;
-                TypeInfo bodyResult = compileLambdaBody(lambda, evalCtx);
-                ValueSpecification lastStmt = lambda.body().get(lambda.body().size() - 1);
-                yield TypeInfo.from(bodyResult).inlinedBody(lastStmt).build();
+                yield compileLambdaBody(lambda, evalCtx);
             }
-            // $f->eval(args...) where $f is a Variable of FunctionType. Occurs during
-            // DECLARATION-time body compile of a user function whose signature declares a
-            // function-typed parameter (e.g., {Integer[1]->Integer[1]}[1]). We can't walk a
-            // body at this point — the Variable will be replaced with a concrete lambda at
-            // each call site by inlineUserFunction. Type-check using the FunctionType's
-            // declared return; the per-call specialization re-walks with the real lambda.
+            // {@code $f->eval(args...)} where {@code $f} is a Variable of
+            // FunctionType. Occurs during declaration-time body compile of a
+            // user function whose signature declares a function-typed
+            // parameter (e.g. {@code {Integer[1]->Integer[1]}[1]}). We can't
+            // walk a body at this point — the Variable will be replaced with a
+            // concrete lambda at each call site by {@code inlineUserFunction}.
+            // Type-check using the FunctionType's declared return; the
+            // per-call specialization re-walks with the real lambda.
             case Variable var -> {
-                TypeInfo varInfo = env.compileExpr(var, ctx);
-                if (!(varInfo.type() instanceof com.gs.legend.model.m3.Type.FunctionType ft)) {
+                TypedSpec varTyped = env.compileExpr(var, ctx);
+                if (!(varTyped instanceof com.gs.legend.compiler.typed.TypedVariable typedVar)) {
+                    throw new PureCompileException(
+                            "eval(): first argument '" + var.name()
+                                    + "' did not compile to a TypedVariable (got "
+                                    + varTyped.getClass().getSimpleName() + ")");
+                }
+                if (!(typedVar.type() instanceof com.gs.legend.model.m3.Type.FunctionType ft)) {
                     throw new PureCompileException(
                             "eval(): first argument is a variable '" + var.name()
                                     + "' that does not have a function type (got "
-                                    + (varInfo.type() == null ? "null" : varInfo.type().typeName())
+                                    + (typedVar.type() == null ? "null" : typedVar.type().typeName())
                                     + ")");
                 }
-                // Compile the other args for side effects (type-check them).
+                // Compile remaining args for type-check side effects.
+                java.util.List<TypedSpec> argSpecs = new java.util.ArrayList<>();
                 for (int i = 1; i < params.size(); i++) {
-                    env.compileExpr(params.get(i), ctx);
+                    argSpecs.add(env.compileExpr(params.get(i), ctx));
                 }
-                yield com.gs.legend.compiler.TypeInfo.builder()
-                        .expressionType(
-                                ft.returnMult() != null && ft.returnMult().upperBound() != null
-                                        && ft.returnMult().upperBound() > 1
-                                        ? com.gs.legend.compiler.ExpressionType.many(ft.returnType())
-                                        : com.gs.legend.compiler.ExpressionType.one(ft.returnType()))
-                        .inlinedBody(af)
-                        .build();
+                ExpressionType outType =
+                        ft.returnMult() != null && ft.returnMult().upperBound() != null
+                                && ft.returnMult().upperBound() > 1
+                                ? ExpressionType.many(ft.returnType())
+                                : ExpressionType.one(ft.returnType());
+                yield new com.gs.legend.compiler.typed.TypedEval(typedVar, argSpecs, outType);
             }
             default -> throw new PureCompileException(
                     "eval(): first argument must be a function reference, column spec, or lambda, got "

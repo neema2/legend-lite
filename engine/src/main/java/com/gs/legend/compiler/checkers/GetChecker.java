@@ -2,7 +2,10 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedNativeCall;
+import com.gs.legend.compiler.typed.TypedSpec;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -18,22 +21,22 @@ public class GetChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        // Compile args so they have TypeInfo for downstream PlanGenerator. Second arg's
-        // compiled type determines String-vs-Integer key dispatch at SQL rendering time.
-        env.compileExpr(params.get(0), ctx);
-        if (params.size() > 1) {
-            env.compileExpr(params.get(1), ctx);
+
+        // Compile every argument so downstream consumers have typed nodes. The key
+        // arg's compiled type (String vs Integer) picks field-vs-index semantics.
+        List<TypedSpec> args = new ArrayList<>(params.size());
+        for (ValueSpecification v : params) {
+            args.add(env.compileExpr(v, ctx));
         }
 
-        // Resolve against the registered signature — validates Variant source, returns
-        // Variant[0..1] from the signature rather than hardcoding.
+        // Resolve against the registered signature — validates the Variant source and
+        // returns {@code Variant[0..1]} from the signature rather than hard-coding.
         NativeFunctionDef def = resolveOverload("get", params, source);
         var bindings = unify(def, source.expressionType());
-        return TypeInfo.builder()
-                .expressionType(resolveOutput(def, bindings, "get()"))
-                .build();
+        return new TypedNativeCall(def, args,
+                resolveOutput(def, bindings, "get()"));
     }
 }

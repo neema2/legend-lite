@@ -2,6 +2,9 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedAggCall;
+import com.gs.legend.compiler.typed.TypedPivot;
+import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.model.m3.Type;
 
 import java.util.*;
@@ -35,7 +38,7 @@ public class PivotChecker extends AbstractChecker {
     }
 
     @Override
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         NativeFunctionDef def = resolveOverload("pivot", af.parameters(), source);
         unify(def, source.expressionType());
@@ -47,7 +50,7 @@ public class PivotChecker extends AbstractChecker {
                     "pivot() requires a Relation source with a known schema");
         }
 
-        // --- 1. Pivot columns (param 1): ColSpec or ColSpecArray ---
+        // Pivot columns: validate against source schema.
         List<String> pivotColumns = extractColumnNames(params.get(1));
         for (String col : pivotColumns) {
             if (!sourceSchema.columns().containsKey(col)) {
@@ -57,51 +60,35 @@ public class PivotChecker extends AbstractChecker {
             }
         }
 
-        // --- 2. Aggregate columns (always last param) ---
+        // Aggregate columns: always the last param, compiled to TypedAggCall.
         int aggParamIdx = params.size() - 1;
         List<ColSpec> aggSpecs = GroupByChecker.extractAggColSpecs(params.get(aggParamIdx));
-
         var groupByChecker = new GroupByChecker(env);
-        List<TypeInfo.AggColumnSpec> aggCols = new ArrayList<>();
+        List<TypedAggCall> aggs = new ArrayList<>(aggSpecs.size());
         for (ColSpec cs : aggSpecs) {
-            TypeInfo.AggColumnSpec acs = groupByChecker.compileAggColSpec(
-                    cs, new Type.Relation(sourceSchema), source, ctx);
-            aggCols.add(acs);
+            aggs.add(groupByChecker.compileTypedAggCall(
+                    cs, new Type.Relation(sourceSchema), source, ctx));
         }
 
-        // --- 3. Compute group-by columns: source − pivot − value columns ---
-        // Value columns are identified from fn1 body (simple property access)
+        // Group-by columns = source − pivot − value columns. Value columns are
+        // derived structurally from fn1's body when it's a direct property access.
         var groupByCols = new LinkedHashMap<>(sourceSchema.columns());
         pivotColumns.forEach(groupByCols::remove);
         for (ColSpec cs : aggSpecs) {
-            if (cs.function1() != null && !cs.function1().body().isEmpty()) {
-                ValueSpecification fn1Body = cs.function1().body().get(0);
-                if (fn1Body instanceof AppliedProperty ap) {
-                    groupByCols.remove(ap.property());
-                }
+            if (cs.function1() != null && !cs.function1().body().isEmpty()
+                    && cs.function1().body().get(0) instanceof AppliedProperty ap) {
+                groupByCols.remove(ap.property());
             }
         }
 
-        // --- 4. Build dynamic pivot columns using compiled return types ---
-        var dynamicCols = aggCols.stream()
-                .map(acs -> {
-                    Type returnType = acs.castType() != null
-                            ? acs.castType() : acs.returnType();
-                    return new Type.Schema.DynamicPivotColumn(
-                            acs.alias(), returnType);
-                })
+        // Dynamic pivot columns use the compiled return (or cast) types.
+        var dynamicCols = aggs.stream()
+                .map(a -> new Type.Schema.DynamicPivotColumn(
+                        a.alias(), a.castType().orElse(a.returnType())))
                 .toList();
-        var partialType = new Type.Schema(groupByCols, dynamicCols);
+        var outSchema = new Type.Schema(groupByCols, dynamicCols);
 
-        // Store pivot column names in columnSpecs (same pattern as groupBy group cols)
-        List<TypeInfo.ColumnSpec> pivotColSpecs = pivotColumns.stream()
-                .map(TypeInfo.ColumnSpec::col)
-                .toList();
-
-        return TypeInfo.builder()
-                .columnSpecs(pivotColSpecs)
-                .aggColumnSpecs(aggCols)
-                .expressionType(ExpressionType.one(new Type.Relation(partialType)))
-                .build();
+        return new TypedPivot(source, pivotColumns, aggs,
+                ExpressionType.one(new Type.Relation(outSchema)));
     }
 }

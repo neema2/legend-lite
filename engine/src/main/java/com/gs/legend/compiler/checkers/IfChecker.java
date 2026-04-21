@@ -3,6 +3,8 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedIf;
+import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.model.m3.Type;
 
 import java.util.List;
@@ -31,28 +33,24 @@ public class IfChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
 
-        // Compile condition (param[0])
-        env.compileExpr(params.get(0), ctx);
+        // Compile condition + both branch thunks. Each branch is a zero-arg
+        // lambda; compileExpr produces its body's TypedSpec (with the body's
+        // return type carried on .info()).
+        TypedSpec condition = env.compileExpr(params.get(0), ctx);
+        TypedSpec thenBranch = env.compileExpr(params.get(1), ctx);
+        TypedSpec elseBranch = params.size() >= 3
+                ? env.compileExpr(params.get(2), ctx) : null;
 
-        // Compile then-branch (param[1]) — thunk body return type
-        TypeInfo thenInfo = env.compileExpr(params.get(1), ctx);
-        Type resultType = thenInfo.type();
-
-        // Compile else-branch (param[2]) — thunk body return type
-        if (params.size() >= 3) {
-            TypeInfo elseInfo = env.compileExpr(params.get(2), ctx);
-            Type elseType = elseInfo.type();
-            if (!resultType.equals(elseType)) {
-                resultType = Type.commonSupertype(resultType, elseType);
-            }
+        // Result type = common supertype of branch return types.
+        Type resultType = thenBranch.type();
+        if (elseBranch != null && !resultType.equals(elseBranch.type())) {
+            resultType = Type.commonSupertype(resultType, elseBranch.type());
         }
-
-        return TypeInfo.builder()
-                .expressionType(ExpressionType.one(resultType))
-                .build();
+        return new TypedIf(condition, thenBranch, elseBranch,
+                ExpressionType.one(resultType));
     }
 }

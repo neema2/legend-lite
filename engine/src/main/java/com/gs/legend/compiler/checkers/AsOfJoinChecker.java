@@ -2,6 +2,9 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedAsOfJoin;
+import com.gs.legend.compiler.typed.TypedLambda;
+import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.model.m3.Type;
 
 import java.util.*;
@@ -32,50 +35,41 @@ public class AsOfJoinChecker extends AbstractChecker {
     }
 
     @Override
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-
-        // --- 1. Resolve overload (3, 4, or 5-param) ---
         NativeFunctionDef def = resolveOverload("asOfJoin", params, source);
 
-        TypeInfo left = source;
+        TypedSpec left = source;
+        TypedSpec right = env.compileExpr(params.get(1), ctx);
 
-        // --- 2. Compile right source (param[1]) ---
-        TypeInfo right = env.compileExpr(params.get(1), ctx);
-
-        // --- 3. Unify: bind T from left, V from right ---
         ExpressionType leftExpr = left.expressionType();
         ExpressionType rightExpr = right.expressionType();
         var bindings = unify(def, Arrays.asList(leftExpr, rightExpr, null, null));
 
-        // --- 4. Compile condition lambdas — signature-driven ---
         Type.Schema leftSchema = left.schema();
         Type.Schema rightSchema = right.schema();
 
-        // Match condition (param[2])
+        TypedLambda matchCondition = null;
         if (params.get(2) instanceof LambdaFunction matchLambda) {
-            compileConditionLambda(matchLambda, def, 2, bindings, left, right, ctx);
+            matchCondition = compileConditionLambda(
+                    matchLambda, def, 2, bindings, left, right, ctx);
         }
 
-        // Optional key condition (param[3], only if it's a lambda, not a CString prefix)
+        TypedLambda keyCondition = null;
         if (params.size() >= 4
                 && params.get(3) instanceof LambdaFunction keyLambda) {
-            compileConditionLambda(keyLambda, def, 3, bindings, left, right, ctx);
+            keyCondition = compileConditionLambda(
+                    keyLambda, def, 3, bindings, left, right, ctx);
         }
 
-        // --- 5. Prefix-as-binding-mutation ---
         String rightPrefix = extractRightPrefix(params);
         Map<String, String> renames = applyPrefixToBindings(
                 bindings, leftSchema, rightSchema, rightPrefix);
 
-        // --- 6. resolveOutput computes Relation<T+V'> ---
         ExpressionType outputExpr = resolveOutput(def, bindings, "asOfJoin");
-
-        return TypeInfo.builder()
-                .joinColumnRenames(renames)
-                .expressionType(outputExpr)
-                .build();
+        return new TypedAsOfJoin(left, right, matchCondition,
+                Optional.ofNullable(keyCondition), renames, outputExpr);
     }
 
     // ========== Helpers ==========
@@ -89,6 +83,7 @@ public class AsOfJoinChecker extends AbstractChecker {
             Type.Schema leftSchema,
             Type.Schema rightSchema,
             String rightPrefix) {
+
 
         Set<String> leftColNames = leftSchema.columns().keySet();
         Set<String> duplicates = new LinkedHashSet<>();
@@ -134,12 +129,12 @@ public class AsOfJoinChecker extends AbstractChecker {
      * <p>Extracts the FunctionType from the signature param at {@code paramIdx},
      * resolves each lambda param type from bindings, binds them, and compiles the body.
      */
-    private void compileConditionLambda(LambdaFunction lambda,
+    private TypedLambda compileConditionLambda(LambdaFunction lambda,
                                          NativeFunctionDef def, int paramIdx,
                                          Bindings bindings,
-                                         TypeInfo left, TypeInfo right,
+                                         TypedSpec left, TypedSpec right,
                                          TypeChecker.CompilationContext ctx) {
-        if (lambda.parameters().isEmpty() || lambda.body().isEmpty()) return;
+        if (lambda.parameters().isEmpty() || lambda.body().isEmpty()) return null;
 
         Type.FunctionType ft = extractFunctionType(def.params().get(paramIdx));
         if (lambda.parameters().size() != ft.params().size()) {
@@ -149,16 +144,22 @@ public class AsOfJoinChecker extends AbstractChecker {
         }
 
         TypeChecker.CompilationContext lambdaCtx = ctx;
-        TypeInfo[] sources = { left, right };
+        TypedSpec[] sources = { left, right };
+        List<com.gs.legend.compiler.typed.TypedParam> typedParams =
+                new ArrayList<>(ft.params().size());
         for (int i = 0; i < ft.params().size(); i++) {
             String paramName = lambda.parameters().get(i).name();
             Type resolvedType = resolve(ft.params().get(i).type(), bindings,
                     "asOfJoin() condition param " + i);
             lambdaCtx = bindLambdaParam(lambdaCtx, paramName, resolvedType, sources[i]);
+            typedParams.add(new com.gs.legend.compiler.typed.TypedParam(
+                    paramName, resolvedType,
+                    com.gs.legend.model.m3.Multiplicity.ONE));
         }
 
-        TypeInfo bodyType = compileLambdaBody(lambda, lambdaCtx);
-        validateLambdaReturn(bodyType, ft, bindings, "asOfJoin");
+        TypedSpec body = compileLambdaBody(lambda, lambdaCtx);
+        validateLambdaReturn(body, ft, bindings, "asOfJoin");
+        return new TypedLambda(typedParams, List.of(body), body.expressionType());
     }
 
     /**

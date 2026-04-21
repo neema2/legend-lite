@@ -2,6 +2,11 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedLambda;
+import com.gs.legend.compiler.typed.TypedProject;
+import com.gs.legend.compiler.typed.TypedProjectionCol;
+import com.gs.legend.compiler.typed.TypedPropertyAccess;
+import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.model.m3.Type;
 
 import java.util.*;
@@ -32,73 +37,60 @@ public class ProjectChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         NativeFunctionDef def = resolveOverload("project", params, source);
 
-        // Legacy TDS desugar: project([{lambdas}], ['aliases']) → project(~[alias:lambda, ...])
-        // Rewrite to arity-2, compile the rewritten AF (stamps in types map),
-        // return with inlinedBody so PlanGenerator follows to the rewritten node.
+        // Legacy TDS desugar: rewrite arity-3 form to arity-2 and recompile
+        // through the modern signature-driven path.
         if (def.arity() == 3) {
             AppliedFunction rewritten = rewriteLegacyProject(af,
                     (PureCollection) params.get(1), (PureCollection) params.get(2));
-            TypeInfo result = env.compileExpr(rewritten, ctx);
-            return TypeInfo.from(result).inlinedBody(rewritten).build();
+            return env.compileExpr(rewritten, ctx);
         }
 
-
-        // 1. Bind type variables from signature
         var bindings = unify(def, source.expressionType());
-
-        // 2. Extract ColSpecs from FuncColSpecArray param
         List<ColSpec> colSpecs = extractColSpecs(params.get(1));
-
-        // 3. Resolve lambda param type from signature
         Type.FunctionType ft = extractFunctionType(def.params().get(1));
         Type resolvedParamType = resolve(ft.params().get(0).type(), bindings,
                 "project() lambda param");
 
-        // 4. Type-check each ColSpec lambda → build output schema
         Map<String, Type> projectedColumns = new LinkedHashMap<>();
-        List<TypeInfo.ProjectionSpec> projectionSpecs = new ArrayList<>();
+        List<TypedProjectionCol> projections = new ArrayList<>(colSpecs.size());
 
         for (ColSpec cs : colSpecs) {
             String alias = cs.name();
             LambdaFunction lambda = cs.function1();
-
             if (lambda == null) {
-                // Simple column reference: ~prop → synthesize identity lambda
+                // Bare ~prop — synthesize identity lambda {x | $x.prop}.
                 lambda = new LambdaFunction(
                         List.of(new Variable("x")),
                         List.of(new AppliedProperty(alias, List.of(new Variable("x")))));
             }
 
-            // Bind lambda param
             String paramName = lambda.parameters().isEmpty() ? "x"
                     : lambda.parameters().get(0).name();
             TypeChecker.CompilationContext lambdaCtx = bindLambdaParam(
                     ctx, paramName, resolvedParamType, source);
+            TypedSpec body = compileLambdaBody(lambda, lambdaCtx);
 
-            // Compile body → type comes from the type system
-            TypeInfo bodyType = compileLambdaBody(lambda, lambdaCtx);
+            // Association path is now a field on {@link TypedPropertyAccess};
+            // previously required a sidecar lookup.
+            Optional<List<String>> associationPath = Optional.empty();
+            if (body instanceof TypedPropertyAccess tpa) {
+                associationPath = tpa.associationPath();
+            }
+            TypedLambda expr = GroupByChecker.buildTypedLambda(
+                    lambda, resolvedParamType, body);
 
-            // Read association path directly from TypeInfo (stamped by TypeChecker.compileProperty)
-            TypeInfo bodyInfo = env.lookupCompiled(lambda.body().get(0));
-            List<String> associationPath = bodyInfo != null ? bodyInfo.associationPath() : null;
-
-            projectedColumns.put(alias, bodyType.type());
-            projectionSpecs.add(new TypeInfo.ProjectionSpec(associationPath, alias));
+            projectedColumns.put(alias, body.type());
+            projections.add(new TypedProjectionCol(alias, expr, associationPath));
         }
 
-        // 5. Build output Relation<Schema>
-        Type.Schema resultSchema =
-                Type.Schema.withoutPivot(projectedColumns);
-
-        return TypeInfo.builder()
-                .projections(projectionSpecs)
-                .expressionType(ExpressionType.one(new Type.Relation(resultSchema)))
-                .build();
+        Type.Schema resultSchema = Type.Schema.withoutPivot(projectedColumns);
+        return new TypedProject(source, projections,
+                ExpressionType.one(new Type.Relation(resultSchema)));
     }
 
     // ========== Legacy TDS Desugaring ==========

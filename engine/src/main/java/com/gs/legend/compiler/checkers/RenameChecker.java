@@ -3,6 +3,9 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.ColRename;
+import com.gs.legend.compiler.typed.TypedRename;
+import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.model.m3.Type;
 
 import java.util.ArrayList;
@@ -34,45 +37,37 @@ public class RenameChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         NativeFunctionDef def = resolveOverload("rename", params, source);
         unify(def, source.expressionType()); // validate source matches signature generics
 
-        // 2. Source must be relational
         Type.Schema sourceSchema = source.schema();
         if (sourceSchema == null) {
             throw new PureCompileException("rename() requires a relational source");
         }
 
-        // 3. Extract old and new column names (single or batch)
         List<String> oldNames = extractColumnNames(params.get(1));
         List<String> newNames = extractColumnNames(params.get(2));
-
-        // 4. Validate old/new count match
         if (oldNames.size() != newNames.size()) {
             throw new PureCompileException(
                     "rename(): old column count (" + oldNames.size()
                             + ") must match new column count (" + newNames.size() + ")");
         }
-
-        // 5. Validate all old columns exist in source
         for (String oldName : oldNames) {
             sourceSchema.assertHasColumn(oldName);
         }
 
-        // 6. Build output schema by applying renames sequentially
+        // Apply renames sequentially; emit both the output schema and a typed
+        // list of ColRename pairs for downstream planning.
         Type.Schema outputSchema = sourceSchema;
-        List<TypeInfo.ColumnSpec> colSpecs = new ArrayList<>();
+        List<ColRename> renames = new ArrayList<>(oldNames.size());
         for (int i = 0; i < oldNames.size(); i++) {
             outputSchema = outputSchema.renameColumn(oldNames.get(i), newNames.get(i));
-            colSpecs.add(TypeInfo.ColumnSpec.renamed(oldNames.get(i), newNames.get(i)));
+            renames.add(new ColRename(oldNames.get(i), newNames.get(i)));
         }
-
-        return TypeInfo.builder()
-                .columnSpecs(colSpecs)
-                .expressionType(ExpressionType.one(new Type.Relation(outputSchema)))
-                .build();
+        return new TypedRename(source, renames,
+                ExpressionType.one(new Type.Relation(outputSchema)));
     }
 }

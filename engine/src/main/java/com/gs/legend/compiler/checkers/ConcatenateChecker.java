@@ -2,6 +2,8 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedConcatenate;
+import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Type;
 
@@ -30,52 +32,45 @@ public class ConcatenateChecker extends AbstractChecker {
     }
 
     @Override
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         var params = af.parameters();
         NativeFunctionDef def = resolveOverload("concatenate", params, source);
-        TypeInfo left = source;
-        TypeInfo right = env.compileExpr(params.get(1), ctx);
+        TypedSpec left = source;
+        TypedSpec right = env.compileExpr(params.get(1), ctx);
 
-        // 1. Scalar list concatenation: [1,2]->concatenate([3,4])
-        if (!left.isRelational()) {
+        // Scalar list concatenation: [1,2]->concatenate([3,4]).
+        if (!left.isRelation()) {
             if (left.type() == null) {
-                throw new PureCompileException("concatenate(): cannot determine type of left source");
+                throw new PureCompileException(
+                        "concatenate(): cannot determine type of left source");
             }
-            Type elemType = left.type();
-            return TypeInfo.builder()
-                    .expressionType(ExpressionType.many(elemType))
-                    .build();
+            return new TypedConcatenate(left, right, ExpressionType.many(left.type()));
         }
 
-        // 2. Bind type variables from signature (T from left source)
+        // Bind type variables from signature (T from left source).
         var bindings = unify(def, left.expressionType());
 
         Type.Schema leftSchema = left.schema();
         Type.Schema rightSchema = right.schema();
 
-        // 3. Class LCA: different class-based sources with different columns
-        if (left.type() instanceof com.gs.legend.model.m3.Type.ClassType
-                && right.type() instanceof com.gs.legend.model.m3.Type.ClassType
+        // Class LCA: different class-based sources with different columns.
+        if (left.type() instanceof Type.ClassType
+                && right.type() instanceof Type.ClassType
                 && leftSchema != null && rightSchema != null
                 && !leftSchema.columns().keySet().equals(rightSchema.columns().keySet())) {
-            TypeInfo lca = resolveClassLCA(left, right);
-            if (lca != null) return lca;
-            // No common supertype — variant list fallback
-            return TypeInfo.builder()
-                    .expressionType(ExpressionType.many(Primitive.ANY))
-                    .build();
+            ExpressionType lca = resolveClassLCA(left, right);
+            // No common supertype — fall back to an untyped variant list.
+            ExpressionType out = lca != null ? lca : ExpressionType.many(Primitive.ANY);
+            return new TypedConcatenate(left, right, out);
         }
 
-        // 4. Relational: strict column alignment
+        // Relational: strict column alignment; output from signature (Relation<T>[1]).
         if (leftSchema != null && rightSchema != null) {
             validateColumnAlignment(leftSchema, rightSchema);
         }
-
-        // Output from signature: Relation<T>[1]
-        return TypeInfo.builder()
-                .expressionType(resolveOutput(def, bindings, "concatenate()"))
-                .build();
+        return new TypedConcatenate(left, right,
+                resolveOutput(def, bindings, "concatenate()"));
     }
 
     /**

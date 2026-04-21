@@ -3,6 +3,8 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedSelect;
+import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.model.m3.Type;
 
 import java.util.List;
@@ -31,41 +33,28 @@ public class SelectChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         NativeFunctionDef def = resolveOverload("select", params, source);
-
-        // 1. Bind type variables from signature (T from source)
         var bindings = unify(def, source.expressionType());
 
-        // 2. Source must be relational
         Type.Schema sourceSchema = source.schema();
         if (sourceSchema == null) {
             throw new PureCompileException("select() requires a relational source");
         }
 
-        // 3. select() with no column arg = pass through, output type from signature
-        if (params.size() < 2) {
-            return TypeInfo.builder()
-                                        .expressionType(resolveOutput(def, bindings, "select()"))
-                    .build();
-        }
-
-        // 4. Extract and validate columns (enforces Z⊆T constraint)
-        List<String> cols = extractColumnNames(params.get(1));
+        // Pass-through overload (or empty col list): output = source schema.
+        List<String> cols = params.size() < 2 ? List.of() : extractColumnNames(params.get(1));
         if (cols.isEmpty()) {
-            return TypeInfo.builder()
-                                        .expressionType(resolveOutput(def, bindings, "select()"))
-                    .build();
+            return new TypedSelect(source, List.of(),
+                    resolveOutput(def, bindings, "select()"));
         }
-        sourceSchema.assertHasColumns(cols);
 
-        // 5. Output schema is the subset (Z from Relation<Z>)
+        // Columns overload: Z ⊆ T, output schema = source ↓ Z.
+        sourceSchema.assertHasColumns(cols);
         Type.Schema outputSchema = sourceSchema.onlyColumns(cols);
-        return TypeInfo.builder()
-                                .columnSpecs(cols.stream().map(TypeInfo.ColumnSpec::col).toList())
-                .expressionType(ExpressionType.one(new Type.Relation(outputSchema)))
-                .build();
+        return new TypedSelect(source, cols,
+                ExpressionType.one(new Type.Relation(outputSchema)));
     }
 }

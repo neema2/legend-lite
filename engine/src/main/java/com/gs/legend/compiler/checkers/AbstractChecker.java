@@ -81,7 +81,7 @@ public abstract class AbstractChecker implements FunctionChecker {
      */
     protected NativeFunctionDef resolveOverload(String funcName,
                                                  List<ValueSpecification> params,
-                                                 TypeInfo source) {
+                                                 TypedSpec source) {
         return resolveOverload(funcName, params, source, Map.of());
     }
 
@@ -107,7 +107,7 @@ public abstract class AbstractChecker implements FunctionChecker {
      */
     protected NativeFunctionDef resolveOverload(String funcName,
                                                  List<ValueSpecification> params,
-                                                 TypeInfo source,
+                                                 TypedSpec source,
                                                  Map<Integer, ExpressionType> compiledTypes) {
         var defs = BuiltinRegistry.instance().resolve(funcName);
         if (defs.isEmpty()) {
@@ -326,7 +326,7 @@ public abstract class AbstractChecker implements FunctionChecker {
      */
     private boolean matchesStructurally(NativeFunctionDef def,
                                         List<ValueSpecification> params,
-                                        TypeInfo source,
+                                        TypedSpec source,
                                         Map<Integer, ExpressionType> compiledTypes) {
         for (int i = 0; i < def.params().size() && i < params.size(); i++) {
             Type.Parameter sigParam = def.params().get(i);
@@ -357,7 +357,7 @@ public abstract class AbstractChecker implements FunctionChecker {
      * filtering (reject lambdas and class instances).
      */
     private boolean structuralMatch(Type expected, ValueSpecification actual,
-                                    TypeInfo source, boolean isSource,
+                                    TypedSpec source, boolean isSource,
                                     Type compiledType) {
         // PureCollection wraps multiple elements (e.g., [ascending(~id), ascending(~name)])
         // For Primitive/EnumType declared types with a compiled collection type, use that directly —
@@ -374,7 +374,7 @@ public abstract class AbstractChecker implements FunctionChecker {
         if (expectedLc != null) {
             return switch (expectedLc) {
                 case RELATION -> isSource
-                        ? (source != null && source.isRelational())
+                        ? (source != null && source.isRelation())
                         : (compiledType instanceof Type.Relation);
                 case COL_SPEC
                         -> actual instanceof com.gs.legend.ast.ColSpec;
@@ -407,7 +407,7 @@ public abstract class AbstractChecker implements FunctionChecker {
         }
         if (expected instanceof Type.TypeVar) {
             // TypeVar (T, V, etc.) matches anything EXCEPT Relation sources
-            return !isSource || source == null || !source.isRelational();
+            return !isSource || source == null || !source.isRelation();
         }
         if (expected instanceof Primitive p) {
             // Any is the top type — accepts everything
@@ -978,7 +978,7 @@ public abstract class AbstractChecker implements FunctionChecker {
      * Validates lambda return type AND multiplicity against a FunctionType.
      * Uses unifyType internally for type checking and validateMult for multiplicity.
      */
-    protected void validateLambdaReturn(TypeInfo bodyType, Type.FunctionType ft,
+    protected void validateLambdaReturn(TypedSpec bodyType, Type.FunctionType ft,
                                         Bindings bindings, String funcName) {
         String context = funcName + "() predicate return";
 
@@ -1009,52 +1009,94 @@ public abstract class AbstractChecker implements FunctionChecker {
     }
 
     /**
-     * Full lambda argument compilation: extract FunctionType from signature,
-     * bind lambda param, compile body, optionally validate return type.
+     * Compile a lambda argument end-to-end: extract its expected FunctionType
+     * from the signature, bind each parameter into a fresh
+     * {@link TypeChecker.CompilationContext}, compile the body, validate the
+     * declared return, and wrap everything into a {@link com.gs.legend.compiler.typed.TypedLambda}.
      *
-     * <p>Skips return validation when the return type is an unbound TypeVar
-     * (e.g., V in {@code map<T,V>}) since the return type is resolved
-     * FROM the body, not checked against it.
+     * <p>This is the single entry point every lambda-taking checker uses —
+     * callers never see the raw body {@link TypedSpec} nor assemble a
+     * {@code TypedLambda} themselves.
      *
-     * @return The TypeInfo of the lambda body (last statement)
+     * <p>Return-type handling:
+     * <ul>
+     *   <li>If {@code ft.returnType()} is an unbound {@link Type.TypeVar}
+     *       (e.g. {@code V} in {@code map<T,V>}), the body's resolved
+     *       {@link Type} is bound into {@code bindings} so {@link #resolveOutput}
+     *       can reconstruct the overall function's output type.</li>
+     *   <li>Otherwise, the body is validated against the declared return type
+     *       via {@link #validateLambdaReturn}.</li>
+     * </ul>
+     *
+     * <p>Failure modes — all loud, no silent defaults (AGENTS.md §4):
+     * <ul>
+     *   <li>Empty lambda body → {@link PureCompileException}.</li>
+     *   <li>Body type does not satisfy declared return → {@link PureCompileException}
+     *       from {@link #validateLambdaReturn}.</li>
+     * </ul>
+     *
+     * <p>The returned {@link com.gs.legend.compiler.typed.TypedLambda}'s
+     * {@code parameters} list carries resolved {@link Type} / {@link Multiplicity}
+     * for each param (from the signature + bindings); {@code body} is a
+     * single-element list holding the typed body; {@code info} is
+     * {@code body.info()} so downstream callers can read the lambda's return
+     * {@link ExpressionType} directly off the {@code TypedLambda}.
      */
-    protected TypedSpec compileLambdaArg(LambdaFunction lambda, Type.Parameter sigParam,
-                                        Bindings bindings, TypedSpec source,
-                                        TypeChecker.CompilationContext ctx, String funcName) {
+    protected com.gs.legend.compiler.typed.TypedLambda compileLambdaArg(
+            ValueSpecification arg, Type.Parameter sigParam,
+            Bindings bindings, TypedSpec source,
+            TypeChecker.CompilationContext ctx, String funcName) {
+        if (!(arg instanceof LambdaFunction lambda)) {
+            throw new PureCompileException(
+                    funcName + "(): lambda argument expected, got "
+                            + arg.getClass().getSimpleName());
+        }
         Type.FunctionType ft = extractFunctionType(sigParam);
 
-        // Bind lambda params (all of them, not just the first)
+        // Bind lambda params into a fresh ctx AND capture resolved (type, mult)
+        // for the typed parameter list on the returned TypedLambda.
         TypeChecker.CompilationContext lambdaCtx = ctx;
         int paramCount = Math.min(lambda.parameters().size(), ft.params().size());
+        var typedParams = new java.util.ArrayList<com.gs.legend.compiler.typed.TypedParam>(paramCount);
         for (int pi = 0; pi < paramCount; pi++) {
             String paramName = lambda.parameters().get(pi).name();
-            Type resolvedParamType = resolve(ft.params().get(pi).type(), bindings,
+            Type.Parameter ftParam = ft.params().get(pi);
+            Type resolvedType = resolve(ftParam.type(), bindings,
                     funcName + "() lambda param " + pi);
-            lambdaCtx = bindLambdaParam(lambdaCtx, paramName, resolvedParamType, source);
+            Multiplicity resolvedMult = resolveMult(ftParam.multiplicity(), bindings.mults(),
+                    funcName + "() lambda param " + pi + " mult");
+            typedParams.add(new com.gs.legend.compiler.typed.TypedParam(
+                    paramName, resolvedType, resolvedMult));
+            lambdaCtx = bindLambdaParam(lambdaCtx, paramName, resolvedType, source);
         }
 
-        // Compile body
         if (lambda.body().isEmpty()) {
-            return null;
+            throw new PureCompileException(
+                    funcName + "(): lambda body is empty — every lambda argument "
+                            + "must contain at least one expression");
         }
         TypedSpec bodyResult = compileLambdaBody(lambda, lambdaCtx);
 
-        // Bind unbound return TypeVar from body result (e.g., V in map<T,V>)
-        // This lets resolveOutput work without special-case logic downstream.
+        // If the declared return is an unbound TypeVar, bind it FROM the body
+        // so resolveOutput can reconstruct the enclosing function's result.
         if (ft.returnType() instanceof Type.TypeVar tv && !bindings.containsKey(tv.name())) {
             if (bodyResult.type() != null) {
                 bindings.put(tv.name(), bodyResult.type());
             }
         }
 
-        // Validate return type — skip for TypeVars we just bound from the body
-        // (they ARE the body result, so validation is tautological)
-        if (!(ft.returnType() instanceof Type.TypeVar tv2) || !bindings.containsKey(tv2.name())
+        // Validate declared return type — skip when we just bound it from the body
+        // (validation would be tautological).
+        if (!(ft.returnType() instanceof Type.TypeVar tv2)
+                || !bindings.containsKey(tv2.name())
                 || bindings.get(tv2.name()) != bodyResult.type()) {
             validateLambdaReturn(bodyResult, ft, bindings, funcName);
         }
 
-        return bodyResult;
+        return new com.gs.legend.compiler.typed.TypedLambda(
+                typedParams,
+                java.util.List.of(bodyResult),
+                bodyResult.info());
     }
 
     // ========== Shared utilities ==========
@@ -1156,15 +1198,18 @@ public abstract class AbstractChecker implements FunctionChecker {
     }
 
     /**
-     * Resolves the LCA of two class-typed sources into a TypeInfo.
+     * Resolves the LCA of two class-typed sources into an {@link ExpressionType}.
      *
-     * <p>Given left and right TypeInfos with ClassType element types, finds their
-     * lowest common ancestor and builds a relational schema from its properties.
-     * Returns null if the element types are not ClassTypes or no LCA exists.
+     * <p>Given two operands with {@link com.gs.legend.model.m3.Type.ClassType}
+     * element types, finds their lowest common ancestor and builds a relational
+     * schema ({@code Relation<props>[*]}) from its properties. Returns {@code null}
+     * if the element types aren't both class-typed or no LCA exists; callers
+     * decide how to handle that (typically a variant-list fallback).
      *
-     * <p>Reusable by any checker that combines two class sources (concatenate, join, etc.).
+     * <p>Reusable by any checker that combines two class sources (concatenate,
+     * join, …).
      */
-    protected TypeInfo resolveClassLCA(TypeInfo left, TypeInfo right) {
+    protected ExpressionType resolveClassLCA(TypedSpec left, TypedSpec right) {
         com.gs.legend.model.m3.Type leftElem = left.type();
         com.gs.legend.model.m3.Type rightElem = right.type();
 
@@ -1175,14 +1220,11 @@ public abstract class AbstractChecker implements FunctionChecker {
                 var lcaClass = lcaOpt.get();
                 var lcaCols = new java.util.LinkedHashMap<String, com.gs.legend.model.m3.Type>();
                 for (var prop : lcaClass.allProperties(env.modelContext())) {
-                    lcaCols.put(prop.name(),
-                            prop.type());
+                    lcaCols.put(prop.name(), prop.type());
                 }
                 var lcaRelType = com.gs.legend.model.m3.Type.Schema.withoutPivot(lcaCols);
-                return TypeInfo.builder()
-                        .expressionType(ExpressionType.many(
-                                new com.gs.legend.model.m3.Type.Relation(lcaRelType)))
-                        .build();
+                return ExpressionType.many(
+                        new com.gs.legend.model.m3.Type.Relation(lcaRelType));
             }
         }
         return null;

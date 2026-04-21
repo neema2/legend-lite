@@ -2,6 +2,8 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedGraphFetch;
+import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.model.m3.Type;
 
 import java.util.List;
@@ -19,13 +21,13 @@ public class GraphFetchChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
-        TypeInfo sourceInfo = env.compileExpr(af.parameters().get(0), ctx);
+        TypedSpec sourceTyped = env.compileExpr(af.parameters().get(0), ctx);
 
-        if (!(sourceInfo.type() instanceof Type.ClassType classType)) {
+        if (!(sourceTyped.type() instanceof Type.ClassType classType)) {
             throw new PureCompileException(
-                    "graphFetch() requires a class-based source, but got " + sourceInfo.type());
+                    "graphFetch() requires a class-based source, but got " + sourceTyped.type());
         }
 
         if (af.parameters().size() < 2) {
@@ -35,11 +37,10 @@ public class GraphFetchChecker extends AbstractChecker {
         ColSpecArray colSpecs = extractColSpecs(af.parameters().get(1));
         compileColSpecs(colSpecs, classType, ctx);
 
-        // Preserve source ClassType — graphFetch is a projection, not a type change.
-        // The JSON formatting is an execution concern handled by PlanGenerator.
-        return TypeInfo.builder()
-                .expressionType(sourceInfo.expressionType())
-                .build();
+        // Preserve the source's {@link ExpressionType} — graphFetch is a
+        // projection, not a type change. JSON formatting is an execution
+        // concern handled by {@code PlanGenerator}.
+        return new TypedGraphFetch(sourceTyped, sourceTyped.expressionType());
     }
 
     /** Compiles ColSpec fn1 lambdas and recurses into fn2 for nested properties. */
@@ -51,13 +52,14 @@ public class GraphFetchChecker extends AbstractChecker {
                         "graphFetch ColSpec '" + cs.name() + "' must have a lambda");
             }
             LambdaFunction fn1 = cs.function1();
-            String paramName = fn1.parameters().isEmpty() ? null : fn1.parameters().get(0).name();
+            String paramName = fn1.parameters().isEmpty() ? null
+                    : fn1.parameters().get(0).name();
             var lambdaCtx = bindLambdaParam(ctx, paramName, classType, null);
-            TypeInfo fn1Result = compileLambdaBody(fn1, lambdaCtx);
+            TypedSpec fn1Body = compileLambdaBody(fn1, lambdaCtx);
 
-            // Nested: fn2 wraps a ColSpecArray — recurse with fn1's result type
-            if (cs.function2() != null && fn1Result != null
-                    && fn1Result.type() instanceof Type.ClassType nestedType) {
+            // Nested: fn2 wraps a ColSpecArray — recurse with fn1's result type.
+            if (cs.function2() != null
+                    && fn1Body.type() instanceof Type.ClassType nestedType) {
                 ColSpecArray nested = extractNestedColSpecs(cs);
                 if (nested != null) {
                     compileColSpecs(nested, nestedType, ctx);

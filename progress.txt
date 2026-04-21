@@ -21,6 +21,27 @@ DONE (this session):
     compileExpr switch produces TypedSpec literal variants directly;
     check() returns CompiledExpression(root hir, deps).
 
+FOLLOWUPS (tighten during Phase C when consumer shape is known):
+  - TypedFrom.mapping / .runtime: currently TypedSpec; almost certainly want
+    String FQN. Tighten once PlanGenerator reveals the consumer shape.
+  - TypedNativeCall args: ColSpec params currently skipped from args list
+    (no TypedSpec representation for column-name tokens yet). PlanGen must
+    still read ColSpec names from AF.parameters(). Consider TypedColSpec or
+    wrapping name as TypedCString when PlanGen migrates.
+  - TypedSort keys: bare `sort(col)` with no key lambda emits empty keys
+    list; collection-sort on identity has no carrier for the sort direction.
+    Revisit when collection-sort consumer surfaces.
+
+PROGRESS on checker migrations (check() returns TypedSpec):
+  - Batch A (leaves): GetAll, TableReference, Tds                     [3/3 ✅]
+  - Batch B (passthrough): Filter/Slicing/Rename/Select/Distinct/
+    Concatenate/Cast/TypeConversion/Get/Flatten/From                  [11/11 ✅]
+  - Batch C (control flow): If, Let, Match, New                       [4/4 ✅]
+  - Batch D (scalar/IO/single-lambda): Write, Serialize, Map,
+    Fold, Sort, Scalar                                                [6/6 ✅]
+  - Batch E (structural): Extend, Project, GroupBy, Aggregate,
+    Pivot, Join, AsOfJoin, Eval, GraphFetch, Zip, Function            [0/11 🔴]
+
 REMAINING for Phase A (~2-3h focused sprint):
   - TypeChecker private methods still return TypeInfo; rewrite each to return
     the matching TypedSpec variant:

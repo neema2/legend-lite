@@ -2,6 +2,9 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedAggregate;
+import com.gs.legend.compiler.typed.TypedAggCall;
+import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.model.m3.Type;
 
 import java.util.*;
@@ -27,10 +30,10 @@ public class AggregateChecker extends AbstractChecker {
     }
 
     @Override
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         NativeFunctionDef def = resolveOverload("aggregate", af.parameters(), source);
-        unify(def, source.expressionType()); // validate source matches signature generics
+        unify(def, source.expressionType());
         List<ValueSpecification> params = af.parameters();
 
         Type.Schema sourceSchema = source.schema();
@@ -39,28 +42,25 @@ public class AggregateChecker extends AbstractChecker {
                     "aggregate() requires a Relation source with a known schema");
         }
 
+        // Compile each AggColSpec via the shared helper on GroupByChecker —
+        // produces a {@link TypedAggCall} directly, no legacy adapter.
         Map<String, Type> resultColumns = new LinkedHashMap<>();
-        List<TypeInfo.AggColumnSpec> aggCols = new ArrayList<>();
-
-        // --- Aggregate columns (param 1): AggColSpec or AggColSpecArray ---
+        List<TypedAggCall> aggs = new ArrayList<>();
         var groupByChecker = new GroupByChecker(env);
-        List<ColSpec> aggSpecs = GroupByChecker.extractAggColSpecs(params.get(1));
-        for (ColSpec cs : aggSpecs) {
-            TypeInfo.AggColumnSpec acs = groupByChecker.compileAggColSpec(
+        for (ColSpec cs : GroupByChecker.extractAggColSpecs(params.get(1))) {
+            TypedAggCall agg = groupByChecker.compileTypedAggCall(
                     cs, new Type.Relation(sourceSchema), source, ctx);
-            resultColumns.put(acs.alias(), acs.castType() != null ? acs.castType() : acs.returnType());
-            aggCols.add(acs);
+            resultColumns.put(agg.alias(),
+                    agg.castType().orElse(agg.returnType()));
+            aggs.add(agg);
         }
 
         if (resultColumns.isEmpty()) {
             throw new PureCompileException("aggregate() produced no output columns");
         }
 
-        // Output schema = R only (no group columns, unlike groupBy)
-        var schema = Type.Schema.withoutPivot(resultColumns);
-        return TypeInfo.builder()
-                .aggColumnSpecs(aggCols)
-                .expressionType(ExpressionType.one(new Type.Relation(schema)))
-                .build();
+        var outSchema = Type.Schema.withoutPivot(resultColumns); // R only — no group cols
+        return new TypedAggregate(source, aggs,
+                ExpressionType.one(new Type.Relation(outSchema)));
     }
 }

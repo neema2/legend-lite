@@ -4,6 +4,8 @@ import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.CString;
 import com.gs.legend.ast.TdsLiteral;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedSpec;
+import com.gs.legend.compiler.typed.TypedTdsLiteral;
 import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Type;
 
@@ -29,25 +31,22 @@ public class TdsChecker extends AbstractChecker {
     }
 
     @Override
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
-        // Validate arity against registered signature: tds(String[1], String[1])
+        // Validate arity + arg types against the signature: tds(String[1], String[1]).
         resolveOverload("tds", af.parameters(), source);
         // tds(CString("TDS"), CString(raw)) — raw is param[1]
         String raw = ((CString) af.parameters().get(1)).value();
         TdsLiteral tds = TdsLiteral.parse(raw);
 
-        // Build Relation schema — TdsLiteral.parse() guarantees every column has a type
+        // Build Relation schema — TdsLiteral.parse() guarantees every column has a type.
         Map<String, Type> columns = new LinkedHashMap<>();
         for (var col : tds.columns()) {
             columns.put(col.name(), mapTdsColumnType(col.type()));
         }
-
         var schema = Type.Schema.withoutPivot(columns);
-        return TypeInfo.builder()
-                .expressionType(ExpressionType.one(new Type.Relation(schema)))
-                .tdsLiteral(tds)
-                .build();
+        return new TypedTdsLiteral(tds,
+                ExpressionType.one(new Type.Relation(schema)));
     }
 
     /**

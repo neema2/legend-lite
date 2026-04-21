@@ -36,18 +36,22 @@ public sealed interface TypedSpec permits
         TypedVariable, TypedLambda, TypedCollection,
         // Relation sources (3)
         TypedGetAll, TypedTableReference, TypedTdsLiteral,
-        // Relation operators (10)
-        TypedFilter, TypedProject, TypedSort, TypedJoin, TypedGroupBy,
-        TypedExtend, TypedSelect, TypedRename, TypedSlice,
-        // Scalar operators (4) + structural extract
+        // Relation operators
+        TypedFilter, TypedProject, TypedSort, TypedJoin, TypedAsOfJoin,
+        TypedGroupBy, TypedAggregate, TypedPivot,
+        TypedExtend, TypedSelect, TypedRename, TypedSlice, TypedDistinct,
+        TypedFlatten, TypedConcatenate, TypedFrom, TypedGraphFetch,
+        // Scalar operators + structural extract
         TypedPropertyAccess, TypedMap, TypedFold, TypedNativeCall,
-        TypedStructExtract,
-        // Struct construction (1)
+        TypedStructExtract, TypedEval,
+        // Struct construction
         TypedNewInstance,
-        // Control flow (5) + IO (2) + user call (1)
+        // Control flow + IO + user call
         TypedIf, TypedLet, TypedMatch, TypedCast, TypedZip,
         TypedWrite, TypedSerialize,
-        TypedUserCall {
+        TypedUserCall,
+        // Element reference (function, class, enum, runtime, store \u2026) by FQN
+        TypedPackageableRef {
 
     /** Type + multiplicity. Every typed node has this. */
     ExpressionType info();

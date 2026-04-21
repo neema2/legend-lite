@@ -2,6 +2,17 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedAggCall;
+import com.gs.legend.compiler.typed.TypedColumnGroupKey;
+import com.gs.legend.compiler.typed.TypedExpressionGroupKey;
+import com.gs.legend.compiler.typed.TypedGroupBy;
+import com.gs.legend.compiler.typed.TypedGroupKey;
+import com.gs.legend.compiler.typed.TypedLambda;
+import com.gs.legend.compiler.typed.TypedNativeCall;
+import com.gs.legend.compiler.typed.TypedParam;
+import com.gs.legend.compiler.typed.TypedPropertyAccess;
+import com.gs.legend.compiler.typed.TypedSpec;
+import com.gs.legend.model.m3.Multiplicity;
 import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Type;
 
@@ -32,34 +43,28 @@ public class GroupByChecker extends AbstractChecker {
     }
 
     @Override
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         NativeFunctionDef def = resolveOverload("groupBy", params, source);
 
-        // Legacy TDS desugar: groupBy([keyFns], [agg(mapFn, aggFn)], ['aliases'])
-        //                   → groupBy(~[keyCols], ~[aggAlias:fn1:fn2])
-        // Branches on source type:
-        //   ClassType → FuncColSpec keys (with extraction lambdas) → matches class-source overload
-        //   Relation  → bare-name ColSpec keys → matches existing Relation overloads
+        // Legacy TDS desugar: rewrite arity-4 form and recompile through the
+        // modern path. Branches on source type: ClassType → FuncColSpec keys
+        // (extraction lambdas); Relation → bare-name ColSpec keys.
         if (def.arity() == 4) {
             boolean classSource = source.type() instanceof Type.ClassType;
             AppliedFunction rewritten = rewriteLegacyGroupBy(af,
                     (PureCollection) params.get(1), (PureCollection) params.get(2),
                     (PureCollection) params.get(3), classSource);
-            TypeInfo result = env.compileExpr(rewritten, ctx);
-            return TypeInfo.from(result).inlinedBody(rewritten).build();
+            return env.compileExpr(rewritten, ctx);
         }
 
-        unify(def, source.expressionType()); // validate source matches signature generics
+        unify(def, source.expressionType());
 
-        // Class-source overload: groupBy(cl:C[*], keys:FuncColSpecArray, aggs:AggColSpecArray)
-        // Keys have extraction lambdas (like project) — produces projections for PlanGenerator
         if (source.type() instanceof Type.ClassType) {
             return checkClassSource(af, def, source, ctx);
         }
 
-        // Relation-source overloads: bare-name keys validated against source schema
         Type.Schema sourceSchema = source.schema();
         if (sourceSchema == null) {
             throw new PureCompileException(
@@ -67,28 +72,27 @@ public class GroupByChecker extends AbstractChecker {
         }
 
         Map<String, Type> resultColumns = new LinkedHashMap<>();
-        List<TypeInfo.ColumnSpec> groupCols = new ArrayList<>();
-        List<TypeInfo.AggColumnSpec> aggCols = new ArrayList<>();
+        List<TypedGroupKey> keys = new ArrayList<>();
+        List<TypedAggCall> aggs = new ArrayList<>();
 
-        // --- Group columns (param 1): ~col or ~[col1, col2] ---
-        List<String> groupColNames = extractColumnNames(params.get(1));
-        for (String col : groupColNames) {
+        // Group columns: bare ~col / ~[col1,col2] — validated against source.
+        for (String col : extractColumnNames(params.get(1))) {
             if (!sourceSchema.columns().containsKey(col)) {
                 throw new PureCompileException(
                         "groupBy(): group column '" + col + "' not found in source. Available: "
                                 + sourceSchema.columns().keySet());
             }
             resultColumns.put(col, sourceSchema.columns().get(col));
-            groupCols.add(TypeInfo.ColumnSpec.col(col));
+            keys.add(new TypedColumnGroupKey(col, col));
         }
 
-        // --- Aggregate columns (param 2): AggColSpec or AggColSpecArray ---
+        // Aggregate columns: ~alias : fn1 : fn2.
         Type fn1ParamType = new Type.Relation(sourceSchema);
-        List<ColSpec> aggSpecs = extractAggColSpecs(params.get(2));
-        for (ColSpec cs : aggSpecs) {
-            TypeInfo.AggColumnSpec acs = compileAggColSpec(cs, fn1ParamType, source, ctx);
-            resultColumns.put(acs.alias(), acs.castType() != null ? acs.castType() : acs.returnType());
-            aggCols.add(acs);
+        for (ColSpec cs : extractAggColSpecs(params.get(2))) {
+            TypedAggCall agg = compileTypedAggCall(cs, fn1ParamType, source, ctx);
+            resultColumns.put(agg.alias(),
+                    agg.castType().orElse(agg.returnType()));
+            aggs.add(agg);
         }
 
         if (resultColumns.isEmpty()) {
@@ -96,11 +100,8 @@ public class GroupByChecker extends AbstractChecker {
         }
 
         var schema = Type.Schema.withoutPivot(resultColumns);
-        return TypeInfo.builder()
-                .columnSpecs(groupCols)
-                .aggColumnSpecs(aggCols)
-                .expressionType(ExpressionType.one(new Type.Relation(schema)))
-                .build();
+        return new TypedGroupBy(source, keys, aggs,
+                ExpressionType.one(new Type.Relation(schema)));
     }
 
     // ========== Class-source compilation ==========
@@ -112,27 +113,27 @@ public class GroupByChecker extends AbstractChecker {
      * extraction lambdas compiled against the ClassType. Produces {@link TypeInfo#projections()}
      * so PlanGenerator can resolve key columns via StoreResolution.
      */
-    private TypeInfo checkClassSource(AppliedFunction af, NativeFunctionDef def,
-                                      TypeInfo source, TypeChecker.CompilationContext ctx) {
+    private TypedSpec checkClassSource(AppliedFunction af, NativeFunctionDef def,
+                                       TypedSpec source,
+                                       TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         var bindings = unify(def, source.expressionType());
 
-        // Resolve lambda param type from signature (C[1])
         Type.FunctionType ft = extractFunctionType(def.params().get(1));
         Type resolvedParamType = resolve(ft.params().get(0).type(), bindings,
                 "groupBy() key lambda param");
 
         Map<String, Type> resultColumns = new LinkedHashMap<>();
-        List<TypeInfo.ColumnSpec> groupCols = new ArrayList<>();
-        List<TypeInfo.ProjectionSpec> projectionSpecs = new ArrayList<>();
+        List<TypedGroupKey> keys = new ArrayList<>();
 
-        // --- Key columns: FuncColSpec with extraction lambdas ---
-        List<ColSpec> keyColSpecs = extractColSpecs(params.get(1));
-        for (ColSpec cs : keyColSpecs) {
+        // Key columns: FuncColSpec with extraction lambdas compiled against
+        // the ClassType. Association paths are read off the typed body
+        // (was previously a sidecar lookup).
+        for (ColSpec cs : extractColSpecs(params.get(1))) {
             String alias = cs.name();
             LambdaFunction lambda = cs.function1();
             if (lambda == null) {
-                // Simple column reference: ~prop → synthesize identity lambda
+                // Bare ~prop — synthesize identity lambda {x | $x.prop}.
                 lambda = new LambdaFunction(
                         List.of(new Variable("x")),
                         List.of(new AppliedProperty(alias, List.of(new Variable("x")))));
@@ -141,22 +142,33 @@ public class GroupByChecker extends AbstractChecker {
                     : lambda.parameters().get(0).name();
             TypeChecker.CompilationContext lambdaCtx = bindLambdaParam(
                     ctx, paramName, resolvedParamType, source);
-            TypeInfo bodyType = compileLambdaBody(lambda, lambdaCtx);
-            TypeInfo bodyInfo = env.lookupCompiled(lambda.body().get(0));
-            List<String> associationPath = bodyInfo != null ? bodyInfo.associationPath() : null;
+            TypedSpec body = compileLambdaBody(lambda, lambdaCtx);
 
-            resultColumns.put(alias, bodyType.type());
-            groupCols.add(TypeInfo.ColumnSpec.col(alias));
-            projectionSpecs.add(new TypeInfo.ProjectionSpec(associationPath, alias));
+            List<String> associationPath = null;
+            if (body instanceof TypedPropertyAccess tpa && tpa.associationPath().isPresent()) {
+                associationPath = tpa.associationPath().get();
+            }
+            TypedLambda keyFn = buildTypedLambda(lambda, resolvedParamType, body);
+            if (associationPath != null) {
+                keys.add(new com.gs.legend.compiler.typed.TypedAssociationGroupKey(
+                        associationPath, alias));
+            } else {
+                keys.add(new TypedExpressionGroupKey(keyFn, alias));
+            }
+            resultColumns.put(alias, body.type());
         }
 
-        // --- Aggregate columns: compile fn1 against ClassType ---
-        List<ColSpec> aggSpecs = extractAggColSpecs(params.get(2));
-        List<TypeInfo.AggColumnSpec> aggCols = new ArrayList<>();
-        for (ColSpec cs : aggSpecs) {
-            TypeInfo.AggColumnSpec acs = compileAggColSpec(cs, resolvedParamType, source, ctx);
-            resultColumns.put(acs.alias(), acs.castType() != null ? acs.castType() : acs.returnType());
-            aggCols.add(acs);
+        // Aggregate columns: compile fn1 against the ClassType.
+        for (ColSpec cs : extractAggColSpecs(params.get(2))) {
+            TypedAggCall agg = compileTypedAggCall(cs, resolvedParamType, source, ctx);
+            resultColumns.put(agg.alias(),
+                    agg.castType().orElse(agg.returnType()));
+            // Class-source aggs get added below.
+        }
+        // Re-collect aggs (keep ordering consistent with resultColumns).
+        List<TypedAggCall> aggs = new ArrayList<>();
+        for (ColSpec cs : extractAggColSpecs(params.get(2))) {
+            aggs.add(compileTypedAggCall(cs, resolvedParamType, source, ctx));
         }
 
         if (resultColumns.isEmpty()) {
@@ -164,12 +176,8 @@ public class GroupByChecker extends AbstractChecker {
         }
 
         var schema = Type.Schema.withoutPivot(resultColumns);
-        return TypeInfo.builder()
-                .projections(projectionSpecs)
-                .columnSpecs(groupCols)
-                .aggColumnSpecs(aggCols)
-                .expressionType(ExpressionType.one(new Type.Relation(schema)))
-                .build();
+        return new TypedGroupBy(source, keys, aggs,
+                ExpressionType.one(new Type.Relation(schema)));
     }
 
     // ========== Aggregate column compilation ==========
@@ -187,66 +195,91 @@ public class GroupByChecker extends AbstractChecker {
      *   <li>rowMapper: {@code rowMapper($x.col1, $x.col2)} (for wavg, corr, etc.)</li>
      * </ul>
      */
-    TypeInfo.AggColumnSpec compileAggColSpec(ColSpec cs,
-                                             Type fn1ParamType,
-                                             TypeInfo source,
-                                             TypeChecker.CompilationContext ctx) {
+    /**
+     * Compiles a single aggregate ColSpec into a {@link TypedAggCall}. This is
+     * the shared helper used by both {@link GroupByChecker} and
+     * {@link AggregateChecker}.
+     *
+     * <p>Resolves the aggregate function from the fn2 body: if fn2's body
+     * compiles to a {@link TypedNativeCall}, its {@code func} IS the aggregate.
+     * No sidecar lookup; the typed tree carries the resolution.
+     */
+    TypedAggCall compileTypedAggCall(ColSpec cs, Type fn1ParamType,
+                                     TypedSpec source,
+                                     TypeChecker.CompilationContext ctx) {
         String alias = cs.name();
 
-        // --- fn1: compile map lambda ---
         if (cs.function1() == null || cs.function1().body().isEmpty()) {
             throw new PureCompileException(
-                    "groupBy(): aggregate spec '" + alias + "' is missing value extraction lambda (fn1)");
+                    "groupBy(): aggregate spec '" + alias
+                            + "' is missing value extraction lambda (fn1)");
         }
         LambdaFunction fn1 = cs.function1();
-        String fn1Param = fn1.parameters().isEmpty() ? null : fn1.parameters().get(0).name();
-        TypeChecker.CompilationContext fn1Ctx = bindLambdaParam(ctx, fn1Param, fn1ParamType, source);
-        TypeInfo fn1Result = compileLambdaBody(fn1, fn1Ctx);
+        String fn1Param = fn1.parameters().isEmpty() ? null
+                : fn1.parameters().get(0).name();
+        TypeChecker.CompilationContext fn1Ctx = bindLambdaParam(
+                ctx, fn1Param, fn1ParamType, source);
+        TypedSpec fn1Body = compileLambdaBody(fn1, fn1Ctx);
+        TypedLambda fn1Typed = buildTypedLambda(fn1, fn1ParamType, fn1Body);
 
-        // --- fn2: compile reduce lambda ---
         if (cs.function2() == null || cs.function2().body().isEmpty()) {
             throw new PureCompileException(
-                    "groupBy(): aggregate spec '" + alias + "' is missing aggregate lambda (fn2)");
+                    "groupBy(): aggregate spec '" + alias
+                            + "' is missing aggregate lambda (fn2)");
         }
         LambdaFunction fn2 = cs.function2();
-        String fn2Param = fn2.parameters().isEmpty() ? null : fn2.parameters().get(0).name();
-        // fn2 param has type K[*] — the collection of mapped values
-        TypeChecker.CompilationContext fn2Ctx = ctx.withLambdaParam(fn2Param, fn1Result.type());
-        TypeInfo fn2Result = compileLambdaBody(fn2, fn2Ctx);
+        String fn2Param = fn2.parameters().isEmpty() ? null
+                : fn2.parameters().get(0).name();
+        TypeChecker.CompilationContext fn2Ctx = ctx.withLambdaParam(
+                fn2Param, fn1Body.type());
+        TypedSpec fn2Body = compileLambdaBody(fn2, fn2Ctx);
+        TypedLambda fn2Typed = buildTypedLambda(fn2, fn1Body.type(), fn2Body);
 
-        // --- Resolve aggregate function from fn2 body (stamped by ScalarChecker) ---
-        var fn2Body = fn2.body().get(0);
-        AppliedFunction innerAf = unwrapCast(fn2Body, "groupBy()");
-        TypeInfo innerInfo = env.lookupCompiled(innerAf);
-        if (innerInfo == null || innerInfo.resolvedFunc() == null) {
+        // The aggregate function lives in the fn2 body — if it compiled to a
+        // {@link TypedNativeCall}, its {@code func} is the resolved def.
+        // Unwrap any outer cast() wrapper first.
+        TypedSpec inner = fn2Body;
+        Type castType = null;
+        if (fn2.body().get(0) instanceof AppliedFunction outerAf
+                && "cast".equals(simpleName(outerAf.function()))) {
+            castType = extractCastGenericType(fn2.body().get(0));
+            if (inner instanceof TypedNativeCall tnc && !tnc.args().isEmpty()) {
+                inner = tnc.args().get(0);
+            }
+        }
+        NativeFunctionDef resolved = inner instanceof TypedNativeCall tnc
+                ? tnc.func() : null;
+        if (resolved == null) {
             throw new PureCompileException(
                     "groupBy(): aggregate function in '" + alias
-                    + "' did not resolve — fn2 body must be a registered function");
-        }
-        NativeFunctionDef resolved = innerInfo.resolvedFunc();
-
-        // --- Extract cast type (if fn2 is wrapped in cast()) ---
-        Type castType = extractCastGenericType(fn2Body);
-
-        // --- Return type: use fn2 result, refined by cast if present ---
-        //
-        // Return type refinement — retrofit for under-specified aggregate signatures.
-        // Native signatures like {@code sum(Number[*]):Number[1]} declare a generic Number
-        // return because the signature grammar doesn't express type-dependent returns
-        // cleanly. Real semantics: sum/min/max/etc. preserve the input numeric type.
-        //
-        // TODO phase-2.5d: rewrite affected native signatures with bounded generic T
-        //   (e.g., {@code sum<T extends Number>(col:T[*]):T[1]}) and delete this refinement.
-        //   Any aggregate that genuinely returns Number (not T) must be audited — today
-        //   this code silently downgrades them. See ExtendChecker.compileAggregateExtend
-        //   for the mirror of this comment.
-        Type returnType = fn2Result.type();
-        if (returnType == Primitive.NUMBER && fn1Result.type() != null
-                && fn1Result.type().isNumeric()) {
-            returnType = fn1Result.type();
+                            + "' did not resolve — fn2 body must be a registered function");
         }
 
-        return new TypeInfo.AggColumnSpec(alias, resolved, returnType, castType);
+        // Return type refinement: generic {@code Number} aggregates preserve
+        // the fn1 input numeric type. See matching comment in
+        // {@code ExtendChecker.compileAggregateExtend}.
+        Type returnType = fn2Body.type();
+        if (returnType == Primitive.NUMBER && fn1Body.type() != null
+                && fn1Body.type().isNumeric()) {
+            returnType = fn1Body.type();
+        }
+
+        return new TypedAggCall(alias, resolved, fn1Typed, fn2Typed,
+                returnType, Optional.ofNullable(castType));
+    }
+
+    /**
+     * Builds a {@link TypedLambda} wrapper from a raw AST lambda plus its
+     * compiled body. Used when the shared {@code compileLambdaArg} pipeline
+     * doesn't apply (e.g., ColSpec-scoped lambdas with custom param types).
+     */
+    static TypedLambda buildTypedLambda(LambdaFunction lambda, Type paramType,
+                                         TypedSpec body) {
+        List<TypedParam> params = new ArrayList<>(lambda.parameters().size());
+        for (var v : lambda.parameters()) {
+            params.add(new TypedParam(v.name(), paramType, Multiplicity.ONE));
+        }
+        return new TypedLambda(params, List.of(body), body.expressionType());
     }
 
     // ========== Legacy TDS Desugaring ==========

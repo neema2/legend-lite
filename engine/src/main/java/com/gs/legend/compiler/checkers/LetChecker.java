@@ -1,8 +1,11 @@
 package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.AppliedFunction;
+import com.gs.legend.ast.CString;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedLet;
+import com.gs.legend.compiler.typed.TypedSpec;
 
 import java.util.Arrays;
 import java.util.List;
@@ -30,33 +33,25 @@ public class LetChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-
-        // 1. Resolve overload — disambiguated by arity (2-arg vs 1-arg)
         NativeFunctionDef def = resolveOverload("letFunction", params, source);
 
-        // 2. Compile params and unify T from the value expression
-        Bindings bindings;
+        // Compile the value expression + (when present) the name literal. Both
+        // contribute to the unification actuals so T binds from the value arg.
         if (params.size() >= 2) {
-            // Standard form: letFunction('varName', valueExpr)
-            TypeInfo nameInfo = env.compileExpr(params.get(0), ctx);
-            TypeInfo valueInfo = env.compileExpr(params.get(1), ctx);
-            bindings = unify(def, Arrays.asList(
-                    nameInfo.expressionType(),
-                    valueInfo.expressionType()
-            ));
-        } else {
-            // Single-param form: letFunction(valueExpr)
-            TypeInfo valueInfo = env.compileExpr(params.get(0), ctx);
-            bindings = unify(def, List.of(valueInfo.expressionType()));
+            TypedSpec nameTyped  = env.compileExpr(params.get(0), ctx);
+            TypedSpec valueTyped = env.compileExpr(params.get(1), ctx);
+            var bindings = unify(def, Arrays.asList(
+                    nameTyped.expressionType(), valueTyped.expressionType()));
+            ExpressionType outputType = resolveOutput(def, bindings, "letFunction()");
+            String name = ((CString) params.get(0)).value();
+            return new TypedLet(name, valueTyped, outputType);
         }
 
-        // 3. Output type from signature return type + bindings
-        ExpressionType outputType = resolveOutput(def, bindings, "letFunction()");
-        return TypeInfo.builder()
-                .expressionType(outputType)
-                .build();
+        // Single-param form: {@code letFunction(valueExpr)} is a no-op wrapper —
+        // typewise identical to its value. Collapse to the value's typed HIR.
+        return env.compileExpr(params.get(0), ctx);
     }
 }

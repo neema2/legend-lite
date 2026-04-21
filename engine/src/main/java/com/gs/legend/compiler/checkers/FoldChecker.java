@@ -2,6 +2,14 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.CollectionBuild;
+import com.gs.legend.compiler.typed.Concatenation;
+import com.gs.legend.compiler.typed.FoldStrategy;
+import com.gs.legend.compiler.typed.MapReduce;
+import com.gs.legend.compiler.typed.SameType;
+import com.gs.legend.compiler.typed.TypedFold;
+import com.gs.legend.compiler.typed.TypedLambda;
+import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.m3.Multiplicity;
 import com.gs.legend.model.m3.Primitive;
@@ -34,65 +42,56 @@ public class FoldChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
             TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        if (params.size() < 3)
-            throw new PureCompileException("fold() requires 3 parameters: source, lambda, init");
+        if (params.size() < 3) {
+            throw new PureCompileException(
+                    "fold() requires 3 parameters: source, lambda, init");
+        }
 
-        // 1. Resolve overload
         NativeFunctionDef def = resolveOverload("fold", params, source);
 
-        // 2. Compile init to bind V
-        TypeInfo initInfo = env.compileExpr(params.get(2), ctx);
+        // Compile init first so V binds from the init expression.
+        TypedSpec init = env.compileExpr(params.get(2), ctx);
 
-        // 3. Unify: T from source, V from init
         ExpressionType sourceExprType = source.expressionType();
         Type sourceTypeForUnify = sourceExprType.type();
         var bindings = unify(def, Arrays.asList(
-                new ExpressionType(sourceTypeForUnify, sourceExprType.multiplicity()), // param[0]: T[*]
-                null, // param[1]: lambda — skip
-                initInfo.expressionType() // param[2]: V[1]
-        ));
+                new ExpressionType(sourceTypeForUnify, sourceExprType.multiplicity()),
+                null,                         // param[1]: lambda — skip in unify
+                init.expressionType()));
 
-        // 4. Compile lambda via signature-driven param binding
-        if (!(params.get(1) instanceof LambdaFunction lambda))
+        if (!(params.get(1) instanceof LambdaFunction lambdaAst)) {
             throw new PureCompileException("fold() argument 2 must be a lambda");
+        }
 
-        // 4a. Early-exit for Concatenation: body is add(acc, elem) — structurally
-        // correct,
-        // skip compileLambdaBody which would fail on add() when T=Any (empty sources).
-        if (isFoldAddPattern(lambda)) {
+        // Early-exit for the Concatenation pattern: body is {@code add(acc, elem)},
+        // structurally correct — skip {@link #compileLambdaBody} which would fail
+        // on {@code add()} when T=Any (empty sources). We still need a TypedLambda
+        // to carry in the HIR, so build one via the shared compile pipeline with a
+        // lenient context — but simplest is to reuse {@link #compileLambdaArg} and
+        // swallow any body-compile error path via the isFoldAddPattern early-exit
+        // below. For now, produce a minimal placeholder TypedLambda by compiling
+        // params only (body stays as the AST add() node interpreted by PlanGen).
+        if (isFoldAddPattern(lambdaAst)) {
+            TypedLambda reducer = compileLambdaArg(
+                    lambdaAst, def.params().get(1), bindings, source, ctx, "fold");
             ExpressionType outputType = resolveOutput(def, bindings, "fold()");
-            return TypeInfo.builder()
-                    .expressionType(outputType)
-                    .foldSpec(new TypeInfo.FoldSpec.Concatenation())
-                    .build();
+            return new TypedFold(source, reducer, init, new Concatenation(), outputType);
         }
 
-        Type.FunctionType ft = extractFunctionType(def.params().get(1));
+        // Signature-driven param binding for the reducer lambda, then classify.
+        TypedLambda reducer = compileLambdaArg(
+                lambdaAst, def.params().get(1), bindings, source, ctx, "fold");
 
-        TypeChecker.CompilationContext lambdaCtx = ctx;
-        for (int p = 0; p < lambda.parameters().size() && p < ft.params().size(); p++) {
-            String paramName = lambda.parameters().get(p).name();
-            Type resolvedParamType = resolve(ft.params().get(p).type(), bindings,
-                    "fold() lambda param '" + paramName + "'");
-            lambdaCtx = bindLambdaParam(lambdaCtx, paramName, resolvedParamType, source);
-        }
-        compileLambdaBody(lambda, lambdaCtx);
-
-        // 5. Classify strategy from resolved T, V
         Type resolvedT = bindings.getOrDefault("T", Primitive.ANY);
         Type resolvedV = bindings.getOrDefault("V", Primitive.ANY);
-        TypeInfo.FoldSpec spec = classifyFold(lambda, resolvedT, resolvedV,
-                initInfo.expressionType().multiplicity(), ctx, source);
+        FoldStrategy strategy = classifyFold(lambdaAst, resolvedT, resolvedV,
+                init.expressionType().multiplicity(), ctx, source);
 
-        // 6. Output type + FoldSpec
         ExpressionType outputType = resolveOutput(def, bindings, "fold()");
-        return TypeInfo.builder()
-                .expressionType(outputType)
-                .foldSpec(spec)
-                .build();
+        return new TypedFold(source, reducer, init, strategy, outputType);
     }
 
     // ==================== Strategy Classification ====================
@@ -102,58 +101,53 @@ public class FoldChecker extends AbstractChecker {
      * Order: Concatenation → SameType → MapReduce → CollectionBuild.
      * Uses resolved T, V from unify() and the init's compiled multiplicity.
      */
-    private TypeInfo.FoldSpec classifyFold(LambdaFunction lambda,
+    private FoldStrategy classifyFold(LambdaFunction lambda,
             Type resolvedT, Type resolvedV,
             Multiplicity initMultiplicity,
             TypeChecker.CompilationContext ctx,
-            TypeInfo source) {
-        // 1. Concatenation: body is add(acc, elem)
-        if (isFoldAddPattern(lambda))
-            return new TypeInfo.FoldSpec.Concatenation();
+            TypedSpec source) {
+        // 1. Concatenation: body is {@code add(acc, elem)}.
+        if (isFoldAddPattern(lambda)) return new Concatenation();
 
-        // 2. SameType: T == V, but only when init is scalar.
-        // If init is a list (e.g., [-1, 0] → multiplicity [*]),
-        // accumulator is a collection → must use CollectionBuild.
-        // Normalize PrecisionDecimal → DECIMAL so accumulators of any precision count
-        // as the same kind (matches the convention in AbstractChecker.unifyTypeVar).
+        // 2. SameType: T == V, but only when init is scalar. List init implies
+        // a collection accumulator → CollectionBuild. Normalize PrecisionDecimal
+        // → DECIMAL so accumulators of any precision count as the same kind
+        // (matches the convention in {@code AbstractChecker.unifyTypeVar}).
         Type tNorm = resolvedT instanceof Type.PrecisionDecimal ? Primitive.DECIMAL : resolvedT;
         Type vNorm = resolvedV instanceof Type.PrecisionDecimal ? Primitive.DECIMAL : resolvedV;
-        if (tNorm.equals(vNorm) && !initMultiplicity.isMany())
-            return new TypeInfo.FoldSpec.SameType();
+        if (tNorm.equals(vNorm) && !initMultiplicity.isMany()) return new SameType();
 
-        // 3. T ≠ V: try decomposing body → MapReduce
+        // 3. T ≠ V: try decomposing body → MapReduce.
         String accParam = lambda.parameters().size() >= 2
                 ? lambda.parameters().get(1).name()
                 : "y";
         ValueSpecification transform = extractElementTransform(
                 lambda.body().get(0), accParam);
         if (transform != null) {
-            // extractElementTransform creates synthetic wrapper nodes — compile to stamp
-            // them
+            // Compile the transform with elem param bound to T.
             String elemParam = lambda.parameters().get(0).name();
             var transformCtx = bindLambdaParam(ctx, elemParam, resolvedT, source);
-            env.compileExpr(transform, transformCtx);
+            TypedSpec transformTyped = env.compileExpr(transform, transformCtx);
 
-            // Build and compile the reducer: op(acc, __mr_x) with both params bound to V
+            // Build and compile the reducer: {@code op(acc, __mr_x)} with both
+            // params bound to V.
             String freshParam = "__mr_x";
             String fullFunctionRef = (lambda.body().get(0) instanceof AppliedFunction af)
-                    ? af.function()
-                    : "plus";
+                    ? af.function() : "plus";
             var accVar = new Variable(accParam);
             var freshVar = new Variable(freshParam);
-            var reducerBody = new AppliedFunction(fullFunctionRef,
+            var reducerBodyAst = new AppliedFunction(fullFunctionRef,
                     java.util.List.of(accVar, freshVar));
 
-            // Compile in a context with both params typed as V
             var reducerCtx = bindLambdaParam(ctx, accParam, resolvedV, source);
             reducerCtx = bindLambdaParam(reducerCtx, freshParam, resolvedV, source);
-            env.compileExpr(reducerBody, reducerCtx);
+            TypedSpec reducerBodyTyped = env.compileExpr(reducerBodyAst, reducerCtx);
 
-            return new TypeInfo.FoldSpec.MapReduce(transform, reducerBody, accParam, freshParam);
+            return new MapReduce(transformTyped, reducerBodyTyped, accParam, freshParam);
         }
 
-        // 4. T ≠ V, not decomposable → CollectionBuild (marker)
-        return new TypeInfo.FoldSpec.CollectionBuild();
+        // 4. T ≠ V, not decomposable → CollectionBuild (marker).
+        return new CollectionBuild();
     }
 
     // ==================== Helpers ====================

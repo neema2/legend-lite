@@ -2,8 +2,13 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedNewInstance;
+import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.model.m3.PureClass;
 import com.gs.legend.model.m3.Type;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 
 /**
@@ -22,31 +27,29 @@ public class NewChecker extends AbstractChecker {
     }
 
     @Override
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
-        // Extract NewInstance from param[1]: new(PE(className), NewInstance(...))
+        // Parser shape: new(PackageableElementPtr(className), NewInstance(props...)).
         var data = (NewInstance) af.parameters().get(1);
-
         PureClass pureClass = resolveClass(data);
 
-        // Validate properties and compile value expressions
+        // Validate each property name against the class and compile its value
+        // expression to a typed child — preserves insertion order (LinkedHashMap).
+        Map<String, TypedSpec> values = new LinkedHashMap<>();
         for (var entry : data.properties().entrySet()) {
             String propName = entry.getKey();
-            var propOpt = pureClass.findProperty(propName, env.modelContext());
-            if (propOpt.isEmpty()) {
+            if (pureClass.findProperty(propName, env.modelContext()).isEmpty()) {
                 throw new PureCompileException(
                         "Struct literal: property '" + propName + "' not found in class '"
                                 + data.className() + "'");
             }
-            // Compile the property value expression so variables etc. are in the side table
-            env.compileExpr(entry.getValue(), ctx);
+            values.put(propName, env.compileExpr(entry.getValue(), ctx));
         }
 
-        return TypeInfo.builder()
-                .instanceLiteral(true)
-                .expressionType(ExpressionType.one(new Type.ClassType(
-                        findClass(data.className()).map(c -> c.qualifiedName()).orElse(data.className()))))
-                .build();
+        String resolvedFqn = findClass(data.className())
+                .map(c -> c.qualifiedName()).orElse(data.className());
+        return new TypedNewInstance(resolvedFqn, values,
+                ExpressionType.one(new Type.ClassType(resolvedFqn)));
     }
 
     private PureClass resolveClass(NewInstance data) {

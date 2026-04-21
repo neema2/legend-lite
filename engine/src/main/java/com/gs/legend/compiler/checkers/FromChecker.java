@@ -3,6 +3,9 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedFrom;
+import com.gs.legend.compiler.typed.TypedPackageableRef;
+import com.gs.legend.compiler.typed.TypedSpec;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,28 +35,43 @@ public class FromChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedFrom check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-
-        // 1. Resolve overload based on arity + source type
         NativeFunctionDef def = resolveOverload("from", params, source);
 
-        // 2. Compile all params and collect ExpressionTypes for unification
-        List<ExpressionType> actuals = new ArrayList<>();
-        actuals.add(source.expressionType());  // param[0] already compiled by caller
+        // Compile every non-source arg so downstream has typed nodes, and collect
+        // their ExpressionTypes (plus source's) for unification. Every non-source
+        // arg of from() is a mapping or runtime FQN reference, produced by
+        // TypeChecker.resolvePackageableElement \u2014 statically a TypedPackageableRef.
+        List<ExpressionType> actuals = new ArrayList<>(params.size());
+        actuals.add(source.expressionType());
+        List<TypedPackageableRef> compiled = new ArrayList<>(params.size() - 1);
         for (int i = 1; i < params.size(); i++) {
-            TypeInfo argInfo = env.compileExpr(params.get(i), ctx);
-            actuals.add(argInfo.expressionType());
+            TypedSpec arg = env.compileExpr(params.get(i), ctx);
+            actuals.add(arg.expressionType());
+            if (!(arg instanceof TypedPackageableRef ref)) {
+                throw new PureCompileException(
+                        "from() argument " + i + " must be a packageable element reference"
+                                + " (mapping or runtime FQN), got "
+                                + arg.getClass().getSimpleName());
+            }
+            compiled.add(ref);
         }
 
-        // 3. Unify type variables — bind T from source + validate param types
         var bindings = unify(def, actuals);
-
-        // 4. Output type from signature return type + bindings
         ExpressionType outputType = resolveOutput(def, bindings, "from()");
-        return TypeInfo.builder()
-                .expressionType(outputType)
-                .build();
+
+        // Three overloads mapped to (mapping, runtime):
+        //   from(source)                     → (null, null)
+        //   from(source, runtime)            → (null, runtime)
+        //   from(source, mapping, runtime)   → (mapping, runtime)  — M2M
+        TypedPackageableRef mapping = compiled.size() >= 2 ? compiled.get(0) : null;
+        TypedPackageableRef runtime = switch (compiled.size()) {
+            case 0 -> null;
+            case 1 -> compiled.get(0);
+            default -> compiled.get(1);
+        };
+        return new TypedFrom(source, mapping, runtime, outputType);
     }
 }

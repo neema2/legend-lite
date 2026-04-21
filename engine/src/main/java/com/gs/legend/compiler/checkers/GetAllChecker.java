@@ -4,6 +4,8 @@ import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.PackageableElementPtr;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedGetAll;
+import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.model.m3.Type;
 
 import java.util.List;
@@ -27,7 +29,7 @@ public class GetAllChecker extends AbstractChecker {
     }
 
     @Override
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         resolveOverload("getAll", params, null);
@@ -43,8 +45,7 @@ public class GetAllChecker extends AbstractChecker {
 
         env.compileSourceSpecFor(fqn);
 
-        return TypeInfo.builder()
-                .expressionType(ExpressionType.many(new Type.ClassType(fqn)))
-                .build();
+        return new TypedGetAll(fqn,
+                ExpressionType.many(new Type.ClassType(fqn)));
     }
 }

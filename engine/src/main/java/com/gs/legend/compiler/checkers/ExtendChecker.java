@@ -2,7 +2,9 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.*;
 import com.gs.legend.model.SymbolTable;
+import com.gs.legend.model.m3.Multiplicity;
 import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Type;
 
@@ -27,7 +29,7 @@ public class ExtendChecker extends AbstractChecker {
     }
 
     @Override
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         NativeFunctionDef def = resolveOverload("extend", af.parameters(), source);
         unify(def, source.expressionType());
@@ -45,14 +47,9 @@ public class ExtendChecker extends AbstractChecker {
             throw new PureCompileException("extend() requires a Relation source with a known schema");
         }
 
-        Map<String, Type> newColumns = new LinkedHashMap<>(sourceSchema.columns());
-        List<TypeInfo.WindowSpec> windowSpecs = new ArrayList<>();
-
-        // --- Compile over() clause ---
-        // compileOverClause validates each sub-component (ascending, rows, unbounded, etc.)
-        // individually via resolveOverload — no top-level over() resolution needed.
-        TypeInfo.OverSpec overSpec = null;
-        List<TypeInfo.TraversalSpec> traversalSpecs = null;
+        // --- Pass 1: collect over() and top-level traverse() clauses ---
+        TypedOver overSpec = null;
+        List<TraversalHop> topLevelHops = new ArrayList<>();
         List<Type.Schema> terminalSchemas = null;
         Type.Schema colSpecSchema = sourceSchema;
         for (int i = 1; i < params.size(); i++) {
@@ -62,77 +59,81 @@ public class ExtendChecker extends AbstractChecker {
                     overSpec = compileOverClause(paf, sourceSchema);
                 } else if ("traverse".equals(fn)) {
                     var result = compileTraverseClause(paf, sourceSchema, ctx);
-                    traversalSpecs = List.of(result.spec);
+                    topLevelHops.addAll(result.hops);
                     colSpecSchema = result.terminalSchema;
                 }
-            } else if (params.get(i) instanceof com.gs.legend.ast.PureCollection pc) {
-                // Multi-traverse: PureCollection of traverse() calls
-                traversalSpecs = new ArrayList<>();
+            } else if (params.get(i) instanceof PureCollection pc) {
+                // Multi-traverse: PureCollection of traverse() calls — each exposes
+                // its own terminal schema, bound to a distinct lambda param.
                 terminalSchemas = new ArrayList<>();
                 for (var elem : pc.values()) {
-                    if (elem instanceof AppliedFunction taf && "traverse".equals(simpleName(taf.function()))) {
+                    if (elem instanceof AppliedFunction taf
+                            && "traverse".equals(simpleName(taf.function()))) {
                         var result = compileTraverseClause(taf, sourceSchema, ctx);
-                        traversalSpecs.add(result.spec);
+                        topLevelHops.addAll(result.hops);
                         terminalSchemas.add(result.terminalSchema);
                     }
                 }
             }
         }
 
-        // --- Compile each ColSpec/ColSpecArray ---
-        // When traverse is present, colSpecSchema is the terminal table's schema
-        // so the colSpec lambda param binds to the terminal columns, not source.
+        // --- Pass 2: compile each ColSpec/ColSpecArray into a TypedExtendCol ---
+        Map<String, Type> newColumns = new LinkedHashMap<>(sourceSchema.columns());
+        List<TypedExtendCol> extensions = new ArrayList<>();
         for (int i = 1; i < params.size(); i++) {
             var p = params.get(i);
-            if (p instanceof AppliedFunction) continue; // over()/traverse() — already handled
-            if (p instanceof com.gs.legend.ast.PureCollection) continue; // multi-traverse — already handled
-            if (p instanceof com.gs.legend.ast.ColumnInstance ci) {
-                List<ColSpec> colSpecs = extractColSpecs(ci);
-                for (ColSpec cs : colSpecs) {
-                    // Association extend: fn1 is a 0-param lambda wrapping traverse().
-                    // Compile the traverse to stamp TypeInfo on condition body nodes
-                    // (MappingResolver + PlanGenerator need TypeInfo on join conditions).
-                    if (isAssociationExtend(cs)) {
-                        AppliedFunction innerTraverse = (AppliedFunction) cs.function1().body().get(0);
-                        var result = compileTraverseClause(innerTraverse, sourceSchema, ctx);
-                        traversalSpecs = List.of(result.spec);
-                        colSpecSchema = result.terminalSchema;
-                        continue;
-                    }
-                    // Embedded extend: fn1 is 0-param lambda wrapping ColSpecArray.
-                    // Resolved by MappingResolver — compiler skips.
-                    if (isEmbeddedExtend(cs)) {
-                        continue;
-                    }
-                    ColSpecResult result;
-                    if (terminalSchemas != null && cs.function1() != null
-                            && cs.function1().parameters().size() > 2) {
-                        // Multi-traverse: procedurally bind lambda params (src, t1, t2, ...)
-                        result = compileMultiTraverseColSpec(cs, sourceSchema, terminalSchemas, source, ctx);
-                    } else {
-                        result = compileColSpec(cs, colSpecSchema, sourceSchema, source, ctx, overSpec, def);
-                    }
-                    if (newColumns.containsKey(result.alias)) {
-                        throw new PureCompileException(
-                                "extend(): column '" + result.alias
-                                + "' already exists — use rename() first or choose a different name");
-                    }
-                    newColumns.put(result.alias, result.returnType);
-                    if (result.windowSpec != null) {
-                        windowSpecs.add(result.windowSpec);
-                    }
+            if (p instanceof AppliedFunction) continue;       // over()/traverse() — handled above
+            if (p instanceof PureCollection) continue;        // multi-traverse — handled above
+            if (!(p instanceof ColumnInstance ci)) continue;
+
+            for (ColSpec cs : extractColSpecs(ci)) {
+                // Association extend: fn1 is a 0-param lambda wrapping traverse().
+                // Compile the traverse to type-check the condition and expose the
+                // terminal schema to later scalar/window columns in this extend().
+                if (isAssociationExtend(cs)) {
+                    AppliedFunction innerTraverse =
+                            (AppliedFunction) cs.function1().body().get(0);
+                    var result = compileTraverseClause(innerTraverse, sourceSchema, ctx);
+                    topLevelHops.addAll(result.hops);
+                    colSpecSchema = result.terminalSchema;
+                    continue;
                 }
+                // Embedded extend: fn1 is 0-param lambda wrapping ColSpecArray.
+                // Resolved by MappingResolver; compiler skips.
+                if (isEmbeddedExtend(cs)) {
+                    continue;
+                }
+                TypedExtendCol col;
+                if (terminalSchemas != null && cs.function1() != null
+                        && cs.function1().parameters().size() > 2) {
+                    col = compileMultiTraverseColSpec(cs, sourceSchema,
+                            terminalSchemas, source, ctx);
+                } else {
+                    col = compileColSpec(cs, colSpecSchema, sourceSchema, source, ctx,
+                            overSpec, def);
+                }
+                if (newColumns.containsKey(col.alias())) {
+                    throw new PureCompileException(
+                            "extend(): column '" + col.alias()
+                            + "' already exists — use rename() first or choose a different name");
+                }
+                newColumns.put(col.alias(), extendColType(col));
+                extensions.add(col);
             }
         }
 
         var schema = new Type.Schema(newColumns, sourceSchema.dynamicPivotColumns());
-        var builder = TypeInfo.builder()
-                .windowSpecs(windowSpecs)
-                .expressionType(ExpressionType.one(new Type.Relation(schema)));
-        if (traversalSpecs != null) {
-            builder.traversalSpecs(traversalSpecs);
-        }
-        return builder.build();
+        return new TypedExtend(source, topLevelHops, extensions,
+                ExpressionType.one(new Type.Relation(schema)));
+    }
+
+    /** Pulls the output column type from a {@link TypedExtendCol} variant. */
+    private static Type extendColType(TypedExtendCol col) {
+        return switch (col) {
+            case TypedScalarExtendCol s -> s.returnType();
+            case TypedWindowExtendCol w -> w.castType().orElse(w.returnType());
+            case TypedTraverseExtendCol t -> t.expression().expressionType().type();
+        };
     }
 
     // ========== Class-source overload ==========
@@ -144,8 +145,8 @@ public class ExtendChecker extends AbstractChecker {
      * (stays in object space). Tracks projections so downstream project/graphFetch
      * and PlanGenerator can resolve the extend columns via StoreResolution.
      */
-    private TypeInfo checkClassSource(AppliedFunction af, NativeFunctionDef def,
-                                       TypeInfo source, TypeChecker.CompilationContext ctx) {
+    private TypedSpec checkClassSource(AppliedFunction af, NativeFunctionDef def,
+                                       TypedSpec source, TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         var bindings = unify(def, source.expressionType());
 
@@ -154,60 +155,33 @@ public class ExtendChecker extends AbstractChecker {
         Type resolvedParamType = resolve(ft.params().get(0).type(), bindings,
                 "extend() class-source lambda param");
 
-        if (!(params.get(1) instanceof com.gs.legend.ast.ColumnInstance ci)) {
+        if (!(params.get(1) instanceof ColumnInstance ci)) {
             throw new PureCompileException(
                     "extend() class-source: param 2 must be FuncColSpec/FuncColSpecArray, got "
                             + params.get(1).getClass().getSimpleName());
         }
-        List<ColSpec> colSpecs = extractColSpecs(ci);
-        List<TypeInfo.ProjectionSpec> projectionSpecs = new ArrayList<>();
 
-        for (ColSpec cs : colSpecs) {
+        List<TypedExtendCol> extensions = new ArrayList<>();
+        for (ColSpec cs : extractColSpecs(ci)) {
             String alias = cs.name();
             LambdaFunction lambda = cs.function1();
-
             if (lambda == null) {
-                // Simple property reference: ~prop → synthesize identity lambda
+                // Bare ~prop — synthesize {x | $x.prop}.
                 lambda = new LambdaFunction(
                         List.of(new Variable("x")),
                         List.of(new AppliedProperty(alias, List.of(new Variable("x")))));
             }
-
             String paramName = lambda.parameters().isEmpty() ? "x"
                     : lambda.parameters().get(0).name();
             TypeChecker.CompilationContext lambdaCtx = bindLambdaParam(
                     ctx, paramName, resolvedParamType, source);
-
-            compileLambdaBody(lambda, lambdaCtx);
-
-            // Read association path from TypeInfo (stamped by TypeChecker.compileProperty)
-            TypeInfo bodyInfo = env.lookupCompiled(lambda.body().get(0));
-            List<String> associationPath = bodyInfo != null ? bodyInfo.associationPath() : null;
-            projectionSpecs.add(new TypeInfo.ProjectionSpec(associationPath, alias));
+            TypedSpec body = compileLambdaBody(lambda, lambdaCtx);
+            TypedLambda expr = buildLambda(lambda, resolvedParamType, body);
+            extensions.add(new TypedScalarExtendCol(alias, expr, body.type()));
         }
 
-        // Return ClassType[*] — stays in object space
-        return TypeInfo.builder()
-                .projections(projectionSpecs)
-                .expressionType(source.expressionType())
-                .build();
-    }
-
-    // ========== Public helpers for PlanGenerator ==========
-
-    /**
-     * Extracts all ColSpecs from extend() params (skipping over() and source).
-     * Used by PlanGenerator to zip WindowSpec sidecar against AST ColSpec.
-     */
-    public static List<ColSpec> extractAllColSpecs(List<ValueSpecification> params) {
-        List<ColSpec> result = new ArrayList<>();
-        for (int i = 1; i < params.size(); i++) {
-            var p = params.get(i);
-            if (p instanceof AppliedFunction) continue; // over()
-            if (p instanceof ColSpecArray(List<ColSpec> specs)) result.addAll(specs);
-            else if (p instanceof ColSpec cs) result.add(cs);
-        }
-        return result;
+        // Class-source extend stays in object space — ClassType[*] unchanged.
+        return new TypedExtend(source, List.of(), extensions, source.expressionType());
     }
 
     // ========== Association / Embedded extend detection ==========
@@ -243,26 +217,20 @@ public class ExtendChecker extends AbstractChecker {
 
     // ========== ColSpec compilation ==========
 
-    private record ColSpecResult(String alias, Type returnType,
-                                  TypeInfo.WindowSpec windowSpec) {}
-
-    private ColSpecResult compileColSpec(ColSpec cs,
+    private TypedExtendCol compileColSpec(ColSpec cs,
                                           Type.Schema colSpecSchema,
                                           Type.Schema originalSourceSchema,
-                                          TypeInfo source,
+                                          TypedSpec source,
                                           TypeChecker.CompilationContext ctx,
-                                          TypeInfo.OverSpec overSpec,
+                                          TypedOver overSpec,
                                           NativeFunctionDef def) {
         String alias = cs.name();
-
-        // --- fn1: compile via compileLambdaBody (ALL inner functions type-checked) ---
         if (cs.function1() == null || cs.function1().body().isEmpty()) {
             throw new PureCompileException(
                     "extend(): spec '" + alias + "' is missing expression lambda (fn1)");
         }
         LambdaFunction fn1 = cs.function1();
 
-        // --- Signature-driven target typing ---
         // Extract lambda param types from the resolved extend() signature's FuncColSpec.
         // For traverse extends: S = original source schema, T = terminal (joined) table schema.
         // For non-traverse extends: S = T = source schema.
@@ -272,38 +240,37 @@ public class ExtendChecker extends AbstractChecker {
         bindings.put("T", new Type.Tuple(colSpecSchema));
 
         TypeChecker.CompilationContext fn1Ctx = ctx;
+        List<TypedParam> fn1Params = new ArrayList<>();
         for (int pi = 0; pi < fn1.parameters().size() && pi < sigFnType.params().size(); pi++) {
             String paramName = fn1.parameters().get(pi).name();
             Type sigType = sigFnType.params().get(pi).type();
-            Type resolvedType = resolve(sigType, bindings,
-                    "extend() lambda param " + pi);
+            Type resolvedType = resolve(sigType, bindings, "extend() lambda param " + pi);
             fn1Ctx = bindLambdaParam(fn1Ctx, paramName, resolvedType, source);
+            fn1Params.add(new TypedParam(paramName, resolvedType, Multiplicity.ONE));
         }
-        // compileLambdaBody → compileExpr → ScalarChecker → resolveOverload
-        // for EVERY function call inside fn1 body (rowNumber, rank, lag, sum, etc.)
-        TypeInfo fn1Result = compileLambdaBody(fn1, fn1Ctx);
+        TypedSpec fn1Body = compileLambdaBody(fn1, fn1Ctx);
+        TypedLambda fn1Lambda = new TypedLambda(fn1Params, List.of(fn1Body), fn1Body.expressionType());
 
+        // Aggregate extend (fn1 + fn2): mirrors GroupByChecker pattern.
         if (cs.function2() != null) {
-            // === Aggregate extend (fn1 + fn2) — same as GroupByChecker ===
-            return compileAggregateExtend(cs, fn1Result, source, ctx, overSpec);
+            return compileAggregateExtend(cs, fn1Lambda, fn1Body, source, ctx, overSpec);
         }
 
-        // === Scalar/ranking/window fn1-only ===
-        // No fallback — if the compiler couldn't infer a type for the lambda body, that's
-        // a compiler bug, not something to paper over with a default primitive.
-        if (fn1Result.type() == null) {
+        if (fn1Body.type() == null) {
             throw new PureCompileException(
-                    "extend(): lambda for column '" + cs.name() + "' has no inferred type — fix TypeChecker");
+                    "extend(): lambda for column '" + alias
+                            + "' has no inferred type — fix TypeChecker");
         }
-        Type returnType = fn1Result.type();
+        Type returnType = fn1Body.type();
 
-        // For window extends, look up the function resolved by ScalarChecker during
-        // compileLambdaBody — no re-resolution needed.
-        NativeFunctionDef resolvedFunc = lookupResolvedFunc(fn1);
-        var ws = overSpec != null && resolvedFunc != null
-                ? new TypeInfo.WindowSpec(resolvedFunc, overSpec, alias, returnType, null)
-                : null;
-        return new ColSpecResult(alias, returnType, ws);
+        // Window extend (over() present + fn1 resolves to a native window function).
+        NativeFunctionDef resolvedFunc = resolvedFuncFrom(fn1Body);
+        if (overSpec != null && resolvedFunc != null) {
+            return new TypedWindowExtendCol(alias, resolvedFunc, fn1Lambda,
+                    Optional.empty(), overSpec, returnType, Optional.empty());
+        }
+        // Plain scalar per-row extend.
+        return new TypedScalarExtendCol(alias, fn1Lambda, returnType);
     }
 
     /**
@@ -311,35 +278,44 @@ public class ExtendChecker extends AbstractChecker {
      * the source schema and each terminal schema. Bypasses signature matching since
      * the lambda arity (N+1) doesn't match any fixed extend() signature.
      */
-    private ColSpecResult compileMultiTraverseColSpec(
+    private TypedExtendCol compileMultiTraverseColSpec(
             ColSpec cs,
             Type.Schema sourceSchema,
             List<Type.Schema> terminalSchemas,
-            TypeInfo source,
+            TypedSpec source,
             TypeChecker.CompilationContext ctx) {
         String alias = cs.name();
         LambdaFunction fn1 = cs.function1();
         var lambdaParams = fn1.parameters();
 
-        // Bind param 0 → source schema (Tuple), params 1..N → terminal schemas
         TypeChecker.CompilationContext fn1Ctx = ctx;
-        // param 0 = src
+        List<TypedParam> typedParams = new ArrayList<>();
+
+        // param 0 = src (source schema)
         fn1Ctx = bindLambdaParam(fn1Ctx, lambdaParams.get(0).name(),
                 new Type.Tuple(sourceSchema), source);
-        // params 1..N = t1, t2, ...
+        typedParams.add(new TypedParam(lambdaParams.get(0).name(),
+                new Type.Tuple(sourceSchema), Multiplicity.ONE));
+
+        // params 1..N = t1, t2, ... (each terminal schema)
         for (int ti = 0; ti < terminalSchemas.size() && (ti + 1) < lambdaParams.size(); ti++) {
-            fn1Ctx = bindLambdaParam(fn1Ctx, lambdaParams.get(ti + 1).name(),
-                    new Type.Tuple(terminalSchemas.get(ti)), source);
+            String name = lambdaParams.get(ti + 1).name();
+            Type.Tuple t = new Type.Tuple(terminalSchemas.get(ti));
+            fn1Ctx = bindLambdaParam(fn1Ctx, name, t, source);
+            typedParams.add(new TypedParam(name, t, Multiplicity.ONE));
         }
 
-        TypeInfo fn1Result = compileLambdaBody(fn1, fn1Ctx);
-        // No fallback — the compiler must infer a type for every lambda body.
-        if (fn1Result.type() == null) {
+        TypedSpec body = compileLambdaBody(fn1, fn1Ctx);
+        if (body.type() == null) {
             throw new PureCompileException(
-                    "extend(): lambda for column '" + alias + "' has no inferred type — fix TypeChecker");
+                    "extend(): lambda for column '" + alias
+                            + "' has no inferred type — fix TypeChecker");
         }
-        Type returnType = fn1Result.type();
-        return new ColSpecResult(alias, returnType, null);
+        TypedLambda lambda = new TypedLambda(typedParams, List.of(body), body.expressionType());
+        // Multi-traverse column is expressed as a scalar extend over the joined
+        // rowset — the join wiring is captured by the enclosing TypedExtend's
+        // {@code traversalHops}.
+        return new TypedScalarExtendCol(alias, lambda, body.type());
     }
 
     /**
@@ -368,30 +344,30 @@ public class ExtendChecker extends AbstractChecker {
 
     /**
      * Aggregate extend: exact GroupByChecker pattern.
-     * fn1 extracts value, fn2 applies aggregate.
+     * fn1 extracts value, fn2 applies the aggregate function.
      */
-    private ColSpecResult compileAggregateExtend(ColSpec cs, TypeInfo fn1Result,
-                                                  TypeInfo source,
+    private TypedExtendCol compileAggregateExtend(ColSpec cs,
+                                                  TypedLambda fn1Lambda,
+                                                  TypedSpec fn1Body,
+                                                  TypedSpec source,
                                                   TypeChecker.CompilationContext ctx,
-                                                  TypeInfo.OverSpec overSpec) {
+                                                  TypedOver overSpec) {
         String alias = cs.name();
         LambdaFunction fn2 = cs.function2();
-        String fn2Param = fn2.parameters().isEmpty() ? null : fn2.parameters().get(0).name();
-        TypeChecker.CompilationContext fn2Ctx = ctx.withLambdaParam(fn2Param, fn1Result.type());
-        TypeInfo fn2Result = compileLambdaBody(fn2, fn2Ctx);
+        String fn2ParamName = fn2.parameters().isEmpty() ? null : fn2.parameters().get(0).name();
+        TypeChecker.CompilationContext fn2Ctx = ctx.withLambdaParam(fn2ParamName, fn1Body.type());
+        TypedSpec fn2Body = compileLambdaBody(fn2, fn2Ctx);
 
-        // Look up aggregate function from fn2 body (stamped by ScalarChecker)
-        var fn2Body = fn2.body().get(0);
-        AppliedFunction innerAf = unwrapCast(fn2Body, "extend()");
-        TypeInfo innerInfo = env.lookupCompiled(innerAf);
-        if (innerInfo == null || innerInfo.resolvedFunc() == null) {
+        // Locate the aggregate native function inside fn2 body.
+        ValueSpecification fn2AstBody = fn2.body().get(0);
+        NativeFunctionDef resolved = resolvedFuncFrom(fn2Body);
+        if (resolved == null) {
             throw new PureCompileException(
                     "extend(): aggregate function in '" + alias
                     + "' did not resolve — fn2 body must be a registered function");
         }
-        NativeFunctionDef resolved = innerInfo.resolvedFunc();
 
-        // Return type refinement — retrofit for under-specified aggregate signatures.
+        // Return-type refinement — retrofit for under-specified aggregate signatures.
         //
         // Aggregates like {@code sum(Number[*]):Number[1]} use generic Number in their native
         // signatures because the signature grammar doesn't express type-dependent returns
@@ -403,32 +379,38 @@ public class ExtendChecker extends AbstractChecker {
         //   (e.g., {@code sum<T>(col:T[*] where T extends Number):T[1]}) and delete this
         //   refinement. Any aggregate that legitimately returns Number (not T) must be
         //   audited — today this code silently downgrades them.
-        Type returnType = fn2Result.type();
-        if (returnType == Primitive.NUMBER && fn1Result.type() != null
-                && fn1Result.type().isNumeric()) {
-            returnType = fn1Result.type();
+        Type returnType = fn2Body.type();
+        if (returnType == Primitive.NUMBER && fn1Body.type() != null
+                && fn1Body.type().isNumeric()) {
+            returnType = fn1Body.type();
         }
-        Type castType = extractCastGenericType(fn2Body);
+        Type castType = extractCastGenericType(fn2AstBody);
 
-        // When there's no over() clause, aggregates need FUNC() OVER() (whole-relation).
-        // Create an empty OverSpec so PlanGenerator generates the OVER() clause.
-        var effectiveOver = overSpec != null ? overSpec
-                : new TypeInfo.OverSpec(List.of(), List.of(), null);
-        var ws = new TypeInfo.WindowSpec(resolved, effectiveOver, alias, returnType, castType);
-        Type colType = castType != null ? castType : returnType;
-        return new ColSpecResult(alias, colType, ws);
+        // Build fn2 as a TypedLambda: single param typed with fn1's output type.
+        TypedLambda fn2Lambda = new TypedLambda(
+                List.of(new TypedParam(
+                        fn2ParamName == null ? "x" : fn2ParamName,
+                        fn1Body.type(), Multiplicity.ONE)),
+                List.of(fn2Body), fn2Body.expressionType());
+
+        // When no over() clause is supplied, aggregates still need FUNC() OVER()
+        // (whole-relation window) — emit an empty TypedOver.
+        TypedOver effectiveOver = overSpec != null ? overSpec
+                : new TypedOver(List.of(), List.of(), Optional.empty());
+
+        return new TypedWindowExtendCol(alias, resolved, fn1Lambda,
+                Optional.of(fn2Lambda), effectiveOver, returnType,
+                Optional.ofNullable(castType));
     }
 
     // ========== Over clause compilation ==========
 
-    /**
-     * Compiles over() clause. All sub-functions type-checked via resolveOverload.
-     */
-    private TypeInfo.OverSpec compileOverClause(AppliedFunction overAf,
-                                                Type.Schema sourceSchema) {
+    /** Compiles over() clause. Validates each sub-function via resolveOverload. */
+    private TypedOver compileOverClause(AppliedFunction overAf,
+                                        Type.Schema sourceSchema) {
         List<String> partitionBy = new ArrayList<>();
-        List<TypeInfo.SortSpec> orderBy = new ArrayList<>();
-        TypeInfo.FrameSpec frame = null;
+        List<TypedSortKey> orderBy = new ArrayList<>();
+        TypedFrame frame = null;
 
         for (var p : overAf.parameters()) {
             if (p instanceof ColSpec cs) {
@@ -441,40 +423,39 @@ public class ExtendChecker extends AbstractChecker {
                 }
             } else if (p instanceof PureCollection(List<ValueSpecification> values)) {
                 for (var elem : values) {
-                    var sortSpec = compileSortSpec(elem, sourceSchema);
-                    if (sortSpec != null) orderBy.add(sortSpec);
+                    TypedSortKey sk = compileSortSpec(elem, sourceSchema);
+                    if (sk != null) orderBy.add(sk);
                 }
             } else if (p instanceof AppliedFunction paf) {
                 String fn = simpleName(paf.function());
-                var sortSpec = compileSortSpec(p, sourceSchema);
-                if (sortSpec != null) {
-                    orderBy.add(sortSpec);
+                TypedSortKey sk = compileSortSpec(p, sourceSchema);
+                if (sk != null) {
+                    orderBy.add(sk);
                 } else if ("rows".equals(fn)) {
                     resolveOverload("rows", paf.parameters(), null);
-                    frame = compileFrameSpec("rows", paf.parameters());
+                    frame = compileFrameSpec(FrameType.ROWS, paf.parameters());
                 } else if ("range".equals(fn) || "_range".equals(fn)) {
                     resolveOverload("_range", paf.parameters(), null);
-                    frame = compileFrameSpec("range", paf.parameters());
+                    frame = compileFrameSpec(FrameType.RANGE, paf.parameters());
                 }
             }
         }
-        return new TypeInfo.OverSpec(partitionBy, orderBy, frame);
+        return new TypedOver(partitionBy, orderBy, Optional.ofNullable(frame));
     }
 
-    private TypeInfo.SortSpec compileSortSpec(ValueSpecification vs,
-                                              Type.Schema sourceSchema) {
+    private TypedSortKey compileSortSpec(ValueSpecification vs, Type.Schema sourceSchema) {
         if (vs instanceof AppliedFunction af) {
             String fn = simpleName(af.function());
             if ("asc".equals(fn) || "ascending".equals(fn)) {
                 resolveOverload(fn, af.parameters(), null);
                 String col = extractColumnName(af.parameters().get(0));
                 sourceSchema.requireColumn(col);
-                return new TypeInfo.SortSpec(col, TypeInfo.SortDirection.ASC);
+                return new TypedColumnSortKey(col, SortDirection.ASC);
             } else if ("desc".equals(fn) || "descending".equals(fn)) {
                 resolveOverload(fn, af.parameters(), null);
                 String col = extractColumnName(af.parameters().get(0));
                 sourceSchema.requireColumn(col);
-                return new TypeInfo.SortSpec(col, TypeInfo.SortDirection.DESC);
+                return new TypedColumnSortKey(col, SortDirection.DESC);
             }
         }
         return null;
@@ -483,74 +464,60 @@ public class ExtendChecker extends AbstractChecker {
     // ========== Function resolution helpers ==========
 
     /**
-     * Looks up the resolved function from the types map for the inner function in fn1.
-     * compileLambdaBody already compiled all inner functions via ScalarChecker,
-     * which stamped resolvedFunc. We just look it up by AST node identity.
-     *
-     * <p>Handles 3 AST shapes produced by the parser:
+     * Extracts the resolved {@link NativeFunctionDef} from a typed lambda body.
+     * Handles the three AST shapes produced by the parser:
      * <ul>
-     *   <li>{@code $p->func($w,$r).property} → AppliedProperty wrapping AppliedFunction</li>
-     *   <li>{@code wrapper(innerFunc($w,$r), N)} → nested AppliedFunction (e.g., round(cumDist(), 2))</li>
-     *   <li>{@code func($r)} → direct AppliedFunction</li>
+     *   <li>{@code $p->func($w,$r).property} — a {@link TypedPropertyAccess} whose
+     *       source is a {@link TypedNativeCall}.</li>
+     *   <li>{@code wrapper(innerFunc($w,$r), N)} — a {@link TypedNativeCall}
+     *       whose first arg is itself a native call (e.g., {@code round(cumDist(), 2)}).</li>
+     *   <li>{@code func($r)} — a direct {@link TypedNativeCall}.</li>
      * </ul>
      */
-    private NativeFunctionDef lookupResolvedFunc(LambdaFunction fn1) {
-        if (fn1.body().isEmpty()) return null;
-        var body = fn1.body().get(0);
-
-        // $p->func($w,$r).property → extract func from inside AppliedProperty
-        if (body instanceof AppliedProperty ap && !ap.parameters().isEmpty()
-                && ap.parameters().get(0) instanceof AppliedFunction af) {
-            TypeInfo info = env.lookupCompiled(af);
-            return info != null ? info.resolvedFunc() : null;
+    private static NativeFunctionDef resolvedFuncFrom(TypedSpec body) {
+        TypedSpec inner = body;
+        if (inner instanceof TypedPropertyAccess tpa) {
+            inner = tpa.source();
         }
-        // Direct or wrapper function call
-        if (body instanceof AppliedFunction af) {
-            // wrapper(innerFunc($w,$r), N) → look up inner first
-            if (!af.parameters().isEmpty()
-                    && af.parameters().get(0) instanceof AppliedFunction inner) {
-                var defs = BuiltinRegistry.instance().resolve(simpleName(inner.function()));
-                if (!defs.isEmpty()) {
-                    TypeInfo info = env.lookupCompiled(inner);
-                    return info != null ? info.resolvedFunc() : null;
-                }
+        if (inner instanceof TypedNativeCall tnc) {
+            if (!tnc.args().isEmpty() && tnc.args().get(0) instanceof TypedNativeCall wrapped
+                    && !BuiltinRegistry.instance().resolve(wrapped.func().name()).isEmpty()) {
+                return wrapped.func();
             }
-            TypeInfo info = env.lookupCompiled(af);
-            return info != null ? info.resolvedFunc() : null;
+            return tnc.func();
         }
         return null;
     }
 
     // ========== Frame spec compilation ==========
 
-    private TypeInfo.FrameSpec compileFrameSpec(String frameType, List<ValueSpecification> params) {
-        TypeInfo.FrameBound start = resolveFrameBound(params, 0);
-        TypeInfo.FrameBound end = resolveFrameBound(params, 1);
+    private TypedFrame compileFrameSpec(FrameType frameType, List<ValueSpecification> params) {
+        TypedFrameBound start = resolveFrameBound(params, 0);
+        TypedFrameBound end = resolveFrameBound(params, 1);
         validateFrameBounds(start, end);
-        return new TypeInfo.FrameSpec(frameType, start, end);
+        return new TypedFrame(frameType, start, end);
     }
 
-    private TypeInfo.FrameBound resolveFrameBound(List<ValueSpecification> params, int idx) {
+    private TypedFrameBound resolveFrameBound(List<ValueSpecification> params, int idx) {
         if (idx >= params.size()) {
-            return idx == 0 ? TypeInfo.FrameBound.unbounded() : TypeInfo.FrameBound.currentRow();
+            return idx == 0 ? new Unbounded() : new CurrentRow();
         }
         var param = params.get(idx);
         if (param instanceof AppliedFunction af && "unbounded".equals(simpleName(af.function()))) {
             resolveOverload("unbounded", af.parameters(), null);
-            return TypeInfo.FrameBound.unbounded();
+            return new Unbounded();
         }
-        if (param instanceof AppliedFunction af && "minus".equals(simpleName(af.function()))) {
-            if (!af.parameters().isEmpty()) {
-                double v = extractNumericValue(af.parameters().get(af.parameters().size() - 1));
-                return TypeInfo.FrameBound.offset(-v);
-            }
+        if (param instanceof AppliedFunction af && "minus".equals(simpleName(af.function()))
+                && !af.parameters().isEmpty()) {
+            long v = extractNumericValue(af.parameters().get(af.parameters().size() - 1));
+            return new Offset(-v);
         }
-        double v = extractNumericValue(param);
-        if (v == 0) return TypeInfo.FrameBound.currentRow();
-        return TypeInfo.FrameBound.offset(v);
+        long v = extractNumericValue(param);
+        if (v == 0) return new CurrentRow();
+        return new Offset(v);
     }
 
-    private void validateFrameBounds(TypeInfo.FrameBound start, TypeInfo.FrameBound end) {
+    private void validateFrameBounds(TypedFrameBound start, TypedFrameBound end) {
         double startPos = boundPosition(start, true);
         double endPos = boundPosition(end, false);
         if (startPos > endPos) {
@@ -559,24 +526,23 @@ public class ExtendChecker extends AbstractChecker {
         }
     }
 
-    private double boundPosition(TypeInfo.FrameBound bound, boolean isStart) {
-        return switch (bound.type()) {
-            case UNBOUNDED -> isStart ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
-            case CURRENT_ROW -> 0;
-            case OFFSET -> bound.offset();
+    private double boundPosition(TypedFrameBound bound, boolean isStart) {
+        return switch (bound) {
+            case Unbounded u -> isStart ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
+            case CurrentRow c -> 0;
+            case Offset o -> o.value();
         };
     }
 
     // ========== Traverse clause compilation ==========
 
-    private record TraverseResult(TypeInfo.TraversalSpec spec,
-                                   Type.Schema terminalSchema) {}
+    private record TraverseResult(List<TraversalHop> hops, Type.Schema terminalSchema) {}
 
     private record HopParts(ValueSpecification target, LambdaFunction condition) {}
 
     /**
      * Compiles a traverse() clause: flattens the chain, resolves each hop's target table,
-     * type-checks each condition lambda, and builds a TraversalSpec.
+     * type-checks each condition lambda, and returns the typed hops plus the terminal schema.
      */
     private TraverseResult compileTraverseClause(AppliedFunction traverseAf,
                                                   Type.Schema sourceSchema,
@@ -584,22 +550,21 @@ public class ExtendChecker extends AbstractChecker {
         List<HopParts> hopParts = new ArrayList<>();
         flattenTraverseChain(traverseAf, hopParts);
 
-        List<TypeInfo.TraversalHop> hops = new ArrayList<>();
+        List<TraversalHop> hops = new ArrayList<>();
         Type.Schema prevSchema = sourceSchema;
 
         for (HopParts parts : hopParts) {
-            // Compile target via normal pipeline (TableReferenceChecker)
-            TypeInfo targetInfo = env.compileExpr(parts.target, ctx);
-            Type.Schema targetSchema = targetInfo.schema();
+            TypedSpec targetTyped = env.compileExpr(parts.target, ctx);
+            Type.Schema targetSchema = targetTyped.schema();
             if (targetSchema == null) {
                 throw new PureCompileException(
                         "traverse() target must be a Relation with a known schema");
             }
-            String tableName = targetInfo.resolvedTableName();
-            if (tableName == null) {
+            if (!(targetTyped instanceof TypedTableReference ttr)) {
                 throw new PureCompileException(
                         "traverse() target must be a tableReference() with a resolved table name");
             }
+            String tableName = ttr.tableName();
 
             LambdaFunction condLambda = parts.condition;
             if (condLambda.parameters().size() != 2) {
@@ -610,19 +575,25 @@ public class ExtendChecker extends AbstractChecker {
 
             String prevParam = condLambda.parameters().get(0).name();
             String hopParam = condLambda.parameters().get(1).name();
+            Type.Tuple prevT = new Type.Tuple(prevSchema);
+            Type.Tuple hopT = new Type.Tuple(targetSchema);
 
             TypeChecker.CompilationContext lambdaCtx = ctx
-                    .withLambdaParam(prevParam, new Type.Tuple(prevSchema))
-                    .withLambdaParam(hopParam, new Type.Tuple(targetSchema));
+                    .withLambdaParam(prevParam, prevT)
+                    .withLambdaParam(hopParam, hopT);
 
-            compileLambdaBody(condLambda, lambdaCtx);
+            TypedSpec condBody = compileLambdaBody(condLambda, lambdaCtx);
+            TypedLambda condTyped = new TypedLambda(
+                    List.of(
+                            new TypedParam(prevParam, prevT, Multiplicity.ONE),
+                            new TypedParam(hopParam, hopT, Multiplicity.ONE)),
+                    List.of(condBody), condBody.expressionType());
 
-            hops.add(new TypeInfo.TraversalHop(
-                    tableName, condLambda.body().get(0), prevParam, hopParam));
+            hops.add(new TraversalHop(tableName, condTyped));
             prevSchema = targetSchema;
         }
 
-        return new TraverseResult(new TypeInfo.TraversalSpec(hops), prevSchema);
+        return new TraverseResult(hops, prevSchema);
     }
 
     /**
@@ -670,11 +641,24 @@ public class ExtendChecker extends AbstractChecker {
     }
 
 
-    private double extractNumericValue(ValueSpecification vs) {
-        if (vs instanceof CInteger(Number value)) return value.doubleValue();
-        if (vs instanceof CFloat(double value)) return value;
-        if (vs instanceof CDecimal(java.math.BigDecimal value)) return value.doubleValue();
+    private long extractNumericValue(ValueSpecification vs) {
+        if (vs instanceof CInteger(Number value)) return value.longValue();
+        if (vs instanceof CFloat(double value)) return (long) value;
+        if (vs instanceof CDecimal(java.math.BigDecimal value)) return value.longValue();
         throw new PureCompileException(
                 "Expected numeric literal, got: " + vs.getClass().getSimpleName());
+    }
+
+    /**
+     * Builds a single-param {@link TypedLambda} whose param name comes from
+     * the AST lambda, typed with {@code paramType} and arity {@code [1]}.
+     * Shared by the class-source and relation-source paths.
+     */
+    private static TypedLambda buildLambda(LambdaFunction lambda, Type paramType, TypedSpec body) {
+        String paramName = lambda.parameters().isEmpty() ? "x"
+                : lambda.parameters().get(0).name();
+        return new TypedLambda(
+                List.of(new TypedParam(paramName, paramType, Multiplicity.ONE)),
+                List.of(body), body.expressionType());
     }
 }

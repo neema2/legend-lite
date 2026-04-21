@@ -4,6 +4,8 @@ import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.TypeAnnotation;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedCast;
+import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.model.SymbolTable;
 import com.gs.legend.model.m3.Type;
 
@@ -24,7 +26,7 @@ public class TypeConversionChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         String func = SymbolTable.extractSimpleName(af.function());
         return switch (func) {
@@ -38,67 +40,52 @@ public class TypeConversionChecker extends AbstractChecker {
     }
 
     /**
-     * {@code toOne<T>(values:T[*]):T[1]}
-     * Narrows multiplicity from [*] to [1]. Type is preserved.
+     * {@code toOne<T>(values:T[*]):T[1]} — narrow [*] to [1], preserve type.
+     * {@code targetType} on the cast is {@code null}: only multiplicity changes.
      */
-    private TypeInfo checkToOne(AppliedFunction af, TypeInfo source,
-                                TypeChecker.CompilationContext ctx) {
-        List<ValueSpecification> params = af.parameters();
-        resolveOverload("toOne", params, source);
-
-        if (params.size() > 1) env.compileExpr(params.get(1), ctx);
-
-        return TypeInfo.builder()
-                .expressionType(ExpressionType.one(source.type()))
-                .build();
-    }
-
-    /**
-     * {@code toMany<T,V>(source:T[0..1], type:V[0..1]):V[*]}
-     * Widens to [*] with target type V from @Type argument.
-     */
-    private TypeInfo checkToMany(AppliedFunction af, TypeInfo source,
+    private TypedSpec checkToOne(AppliedFunction af, TypedSpec source,
                                  TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        resolveOverload("toMany", params, source);
-
-        env.compileExpr(params.get(1), ctx);
-
-        Type targetType = ((TypeAnnotation) params.get(1)).resolve(env.modelContext());
-
-        return TypeInfo.builder()
-                .expressionType(ExpressionType.many(targetType))
-                .build();
+        resolveOverload("toOne", params, source);
+        if (params.size() > 1) env.compileExpr(params.get(1), ctx);
+        return new TypedCast(source, null, ExpressionType.one(source.type()));
     }
 
     /**
-     * {@code to<T,V>(source:T[0..1], type:V[0..1]):V[0..1]}
-     * Nullable conversion with target type V from @Type argument.
+     * {@code toMany<T,V>(source:T[0..1], type:V[0..1]):V[*]} — widen to [*] with
+     * target type V from the {@code @Type} argument.
      */
-    private TypeInfo checkTo(AppliedFunction af, TypeInfo source,
-                             TypeChecker.CompilationContext ctx) {
+    private TypedSpec checkToMany(AppliedFunction af, TypedSpec source,
+                                  TypeChecker.CompilationContext ctx) {
+        List<ValueSpecification> params = af.parameters();
+        resolveOverload("toMany", params, source);
+        env.compileExpr(params.get(1), ctx);
+        Type targetType = ((TypeAnnotation) params.get(1)).resolve(env.modelContext());
+        return new TypedCast(source, targetType, ExpressionType.many(targetType));
+    }
+
+    /**
+     * {@code to<T,V>(source:T[0..1], type:V[0..1]):V[0..1]} — nullable conversion
+     * with target type V.
+     */
+    private TypedSpec checkTo(AppliedFunction af, TypedSpec source,
+                              TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         resolveOverload("to", params, source);
-
         env.compileExpr(params.get(1), ctx);
-
         Type targetType = ((TypeAnnotation) params.get(1)).resolve(env.modelContext());
-
-        return TypeInfo.builder()
-                .expressionType(ExpressionType.zeroOrOne(targetType))
-                .build();
+        return new TypedCast(source, targetType, ExpressionType.zeroOrOne(targetType));
     }
 
     /**
-     * {@code toVariant(source:Any[*]):Variant[1]}
-     * Converts any value to a Variant (JSON) with multiplicity [1]. Return type flows
-     * from the native signature — no hardcoded Primitive constant here.
+     * {@code toVariant(source:Any[*]):Variant[1]} — return type flows from the
+     * native signature; {@code targetType} on the cast is set from the resolved
+     * output type so downstream consumers have the Variant type in hand.
      */
-    private TypeInfo checkToVariant(AppliedFunction af, TypeInfo source) {
+    private TypedSpec checkToVariant(AppliedFunction af, TypedSpec source) {
         NativeFunctionDef def = resolveOverload("toVariant", af.parameters(), source);
         var bindings = unify(def, source.expressionType());
-        return TypeInfo.builder()
-                .expressionType(resolveOutput(def, bindings, "toVariant()"))
-                .build();
+        ExpressionType out = resolveOutput(def, bindings, "toVariant()");
+        return new TypedCast(source, out.type(), out);
     }
 }

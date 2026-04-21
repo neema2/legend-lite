@@ -1,9 +1,11 @@
 package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.AppliedFunction;
-import com.gs.legend.ast.LambdaFunction;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedFilter;
+import com.gs.legend.compiler.typed.TypedLambda;
+import com.gs.legend.compiler.typed.TypedSpec;
 
 import java.util.List;
 
@@ -25,23 +27,21 @@ public class FilterChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         NativeFunctionDef def = resolveOverload("filter", params, source);
 
-        // 2. Validate source + bind type variables (one pass)
+        // Bind type variables from source against the chosen signature.
         var bindings = unify(def, source.expressionType());
 
-        // 3–5. Compile lambda arg via signature (bind param, compile body, validate return)
-        if (params.get(1) instanceof LambdaFunction lambda) {
-            compileLambdaArg(lambda, def.params().get(1), bindings, source, ctx, "filter");
-        }
+        // Compile predicate lambda — helper narrows VS → LambdaFunction and throws
+        // on mismatch, so no defensive instanceof check is needed here.
+        TypedLambda predicate = compileLambdaArg(
+                params.get(1), def.params().get(1), bindings, source, ctx, "filter");
 
-        // 6. Output type from signature's return type + bindings
+        // Output type from signature's return type + bindings.
         ExpressionType outputType = resolveOutput(def, bindings, "filter()");
-        return TypeInfo.builder()
-                .expressionType(outputType)
-                .build();
+        return new TypedFilter(source, predicate, outputType);
     }
 }

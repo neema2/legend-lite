@@ -3,6 +3,8 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedNativeCall;
+import com.gs.legend.compiler.typed.TypedSpec;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,28 +26,25 @@ public class ZipChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-
-        // 1. Resolve overload — zip always has arity 2
         NativeFunctionDef def = resolveOverload("zip", params, source);
 
-        // 2. Compile remaining params and collect ExpressionTypes
-        List<ExpressionType> actuals = new ArrayList<>();
-        actuals.add(source.expressionType());  // param[0] already compiled by caller
+        // Compile non-source args; collect typed children + ExpressionTypes for
+        // unification (T from set1, U from set2).
+        List<ExpressionType> actuals = new ArrayList<>(params.size());
+        List<TypedSpec> args = new ArrayList<>(params.size());
+        actuals.add(source.expressionType());
+        args.add(source);
         for (int i = 1; i < params.size(); i++) {
-            TypeInfo argInfo = env.compileExpr(params.get(i), ctx);
-            actuals.add(argInfo.expressionType());
+            TypedSpec arg = env.compileExpr(params.get(i), ctx);
+            actuals.add(arg.expressionType());
+            args.add(arg);
         }
 
-        // 3. Unify type variables — bind T from set1, U from set2
         var bindings = unify(def, actuals);
-
-        // 4. Output type from signature — Pair<T,U>[*]
-        ExpressionType outputType = resolveOutput(def, bindings, "zip()");
-        return TypeInfo.builder()
-                .expressionType(outputType)
-                .build();
+        ExpressionType outputType = resolveOutput(def, bindings, "zip()"); // Pair<T,U>[*]
+        return new TypedNativeCall(def, args, outputType);
     }
 }

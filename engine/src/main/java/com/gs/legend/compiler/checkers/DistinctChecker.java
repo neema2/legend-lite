@@ -3,6 +3,8 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedDistinct;
+import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.model.m3.Type;
 
 import java.util.List;
@@ -30,41 +32,29 @@ public class DistinctChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         NativeFunctionDef def = resolveOverload("distinct", params, source);
-
-        // 1. Bind type variables from signature (T from source)
         var bindings = unify(def, source.expressionType());
 
-        // 2. Source must be relational
         Type.Schema sourceSchema = source.schema();
         if (sourceSchema == null) {
             throw new PureCompileException("distinct() requires a relational source");
         }
 
-        // 3. distinct() with no column arg = output type from signature (Relation<T>[1])
-        if (params.size() < 2) {
-            return TypeInfo.builder()
-                                        .expressionType(resolveOutput(def, bindings, "distinct()"))
-                    .build();
-        }
-
-        // 4. Extract and validate columns (enforces X⊆T constraint)
-        List<String> cols = extractColumnNames(params.get(1));
+        // No-column overload (or explicit empty column list): dedup on all
+        // source columns; output schema = source schema (via resolveOutput).
+        List<String> cols = params.size() < 2 ? List.of() : extractColumnNames(params.get(1));
         if (cols.isEmpty()) {
-            return TypeInfo.builder()
-                                        .expressionType(resolveOutput(def, bindings, "distinct()"))
-                    .build();
+            return new TypedDistinct(source, List.of(),
+                    resolveOutput(def, bindings, "distinct()"));
         }
-        sourceSchema.assertHasColumns(cols);
 
-        // 5. Output schema is the subset (X from Relation<X>)
+        // Columns overload: enforce X ⊆ T, project to the subset.
+        sourceSchema.assertHasColumns(cols);
         Type.Schema outputSchema = sourceSchema.onlyColumns(cols);
-        return TypeInfo.builder()
-                                .columnSpecs(cols.stream().map(TypeInfo.ColumnSpec::col).toList())
-                .expressionType(ExpressionType.one(new Type.Relation(outputSchema)))
-                .build();
+        return new TypedDistinct(source, cols,
+                ExpressionType.one(new Type.Relation(outputSchema)));
     }
 }

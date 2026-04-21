@@ -4,6 +4,8 @@ import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.TypeAnnotation;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedCast;
+import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.model.m3.Multiplicity;
 import com.gs.legend.model.m3.Type;
 
@@ -33,33 +35,28 @@ public class CastChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
 
-        // 1. Validate arity against signature (exactly 2 params: source + @Type)
+        // Validate arity against signature (exactly 2 params: source + @Type).
         NativeFunctionDef def = resolveOverload("cast", params, source);
 
-        // 2. Validate source — unify binds nothing for Any[m] but validates structure
+        // Unify validates the source structure (Any[m] accepts any source).
         unify(def, source.expressionType());
 
-        // 3. Compile the @Type arg (param[1]) — registers it in the side table
+        // Compile the @Type arg (param[1]) — registers it in the side table.
         env.compileExpr(params.get(1), ctx);
 
-        // 4. Build unified Bindings: T from @Type, m from source multiplicity
+        // Bindings: T from @Type annotation, m from source's actual multiplicity.
         Type targetType = resolveTargetType(params.get(1));
         var bindings = new Bindings();
         bindings.put("T", targetType);
         Multiplicity sourceMult = source.expressionType().multiplicity();
         bindings.mults().put("m", sourceMult);
 
-        // 5. Resolve output T[m] from signature + bindings
         ExpressionType output = resolveOutput(def, bindings, "cast()");
-
-        // 7. Propagate source mapping through the cast
-        return TypeInfo.from(source)
-                .expressionType(output)
-                .build();
+        return new TypedCast(source, targetType, output);
     }
 
     /**

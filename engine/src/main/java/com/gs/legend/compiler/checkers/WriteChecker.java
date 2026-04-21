@@ -3,6 +3,8 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedSpec;
+import com.gs.legend.compiler.typed.TypedWrite;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,28 +32,24 @@ public class WriteChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-
-        // 1. Resolve overload (1-arg vs 2-arg form)
         NativeFunctionDef def = resolveOverload("write", params, source);
 
-        // 2. Compile all params and collect ExpressionTypes for unification
-        List<ExpressionType> actuals = new ArrayList<>();
-        actuals.add(source.expressionType());  // param[0] already compiled by caller
+        // Compile non-source args (the optional destination) and collect
+        // ExpressionTypes for unification. {@code source} is already compiled.
+        List<ExpressionType> actuals = new ArrayList<>(params.size());
+        actuals.add(source.expressionType());
+        TypedSpec destination = null;
         for (int i = 1; i < params.size(); i++) {
-            TypeInfo argInfo = env.compileExpr(params.get(i), ctx);
-            actuals.add(argInfo.expressionType());
+            TypedSpec arg = env.compileExpr(params.get(i), ctx);
+            actuals.add(arg.expressionType());
+            if (i == 1) destination = arg;
         }
 
-        // 3. Unify type variables — bind T from source relation
         var bindings = unify(def, actuals);
-
-        // 4. Output type from signature return type + bindings → Integer[1]
-        ExpressionType outputType = resolveOutput(def, bindings, "write()");
-        return TypeInfo.builder()
-                .expressionType(outputType)
-                .build();
+        ExpressionType outputType = resolveOutput(def, bindings, "write()"); // Integer[1]
+        return new TypedWrite(source, destination, outputType);
     }
 }

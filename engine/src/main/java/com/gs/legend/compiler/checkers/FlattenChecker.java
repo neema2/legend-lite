@@ -3,6 +3,8 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedFlatten;
+import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Type;
 
@@ -31,51 +33,37 @@ public class FlattenChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         NativeFunctionDef def = resolveOverload("flatten", params, source);
+        unify(def, source.expressionType());
 
-        // 1. Bind type variables from signature (T from source)
-        var bindings = unify(def, source.expressionType());
-
-        // 2. Extract column name from second param
-        String colName = null;
-        if (params.size() >= 2) {
-            List<String> names = extractColumnNames(params.get(1));
-            if (!names.isEmpty()) {
-                colName = names.get(0);
-            }
+        // flatten() always names exactly one column (signature enforces the ColSpec arg).
+        List<String> names = params.size() < 2
+                ? List.of() : extractColumnNames(params.get(1));
+        if (names.isEmpty()) {
+            throw new PureCompileException(
+                    "flatten(): expected a ColSpec argument naming the column to unnest");
         }
-        if (colName == null) {
-            // No column specified — pass through, use signature output
-            return TypeInfo.builder()
-                                        .expressionType(resolveOutput(def, bindings, "flatten()"))
-                    .build();
-        }
+        String colName = names.get(0);
 
-        // 3. Validate source has relational schema
         Type.Schema sourceSchema = source.schema();
         if (sourceSchema == null) {
-            throw new PureCompileException("flatten() requires a relational source with a known schema");
+            throw new PureCompileException(
+                    "flatten() requires a relational source with a known schema");
         }
-
-        // 4. Validate column exists in source
         if (!sourceSchema.columns().containsKey(colName)) {
             throw new PureCompileException(
                     "flatten(): column '" + colName + "' not found in source. Available: "
                             + sourceSchema.columns().keySet());
         }
 
-        // 5. Output schema: same as source, but flattened column → JSON type
+        // Output schema: source schema with the flattened column widened to Variant.
         Map<String, Type> resultColumns = new LinkedHashMap<>(sourceSchema.columns());
         resultColumns.put(colName, Primitive.VARIANT);
-
-        var flattenRelType = new Type.Schema(
-                resultColumns, sourceSchema.dynamicPivotColumns());
-        return TypeInfo.builder()
-                                .columnSpecs(List.of(TypeInfo.ColumnSpec.col(colName)))
-                .expressionType(ExpressionType.one(new Type.Relation(flattenRelType)))
-                .build();
+        var outputSchema = new Type.Schema(resultColumns, sourceSchema.dynamicPivotColumns());
+        return new TypedFlatten(source, colName,
+                ExpressionType.one(new Type.Relation(outputSchema)));
     }
 }

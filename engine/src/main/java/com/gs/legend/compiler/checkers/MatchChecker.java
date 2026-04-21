@@ -2,6 +2,7 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.model.m3.Multiplicity;
 import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.Type;
@@ -22,58 +23,55 @@ public class MatchChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypeInfo check(AppliedFunction af, TypeInfo source,
+    public TypedSpec check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
-        if (params.size() < 2)
-            throw new PureCompileException("match requires at least 2 parameters: value, branches");
+        if (params.size() < 2) {
+            throw new PureCompileException(
+                    "match requires at least 2 parameters: value, branches");
+        }
 
-        // 1. Compile input value — let errors propagate (no silent swallowing)
-        TypeInfo inputInfo = env.compileExpr(params.get(0), ctx);
-
-        // 2. Get input type from compiled result
-        Type inputType = resolveElementType(inputInfo);
-        if (inputType == null)
+        // Compile input value — errors propagate (no silent swallowing).
+        TypedSpec inputTyped = env.compileExpr(params.get(0), ctx);
+        Type inputType = inputTyped.type();
+        if (inputType == null) {
             throw new PureCompileException("match: cannot infer input type");
+        }
+        boolean inputIsMany = inputTyped.isMany();
 
-        // 3. Extract branches from Collection or single lambda (params[1])
+        // Extract branches from a PureCollection or a single lambda (params[1]).
         List<LambdaFunction> branches = extractBranches(params.get(1));
 
-        // 4. Determine if input is a collection (affects multiplicity matching)
-        boolean inputIsMany = inputInfo.isMany();
-
-        // 5. Find first matching branch by type + multiplicity, compile its body
+        // Static dispatch: pick the first branch whose param type + multiplicity
+        // matches the input, then return its compiled body directly. {@code match}
+        // is resolved at compile time here, so the typed HIR is the body itself —
+        // there is no residual runtime dispatch to preserve.
         for (var branch : branches) {
             if (branch.parameters().isEmpty()) continue;
             Variable branchParam = branch.parameters().get(0);
             if (branchParam.typeName() == null) continue;
-
             if (!typeMatches(branchParam.typeName(), inputType)) continue;
 
-            // Check multiplicity: if input is many, branch must accept many.
-            // branchParam.multiplicity() is already structured (parser produced it) — no re-parse.
             if (inputIsMany) {
                 Multiplicity branchMult = branchParam.multiplicity();
-                if (branchMult != null && !branchMult.isMany() && !branchMult.equals(Multiplicity.ZERO_ONE)
+                if (branchMult != null && !branchMult.isMany()
+                        && !branchMult.equals(Multiplicity.ZERO_ONE)
                         && !branchMult.equals(new Multiplicity.Bounded(0, 0))) {
                     continue;
                 }
             }
 
-            // Match found — compile body with branch params bound as let bindings
+            // Bind the branch's params as let bindings so references to them
+            // resolve to the input (and optional extra arg) when compiling the body.
             TypeChecker.CompilationContext matchCtx = ctx
                     .withLetBinding(branchParam.name(), params.get(0));
-
-            // Bind extra param (params[2]) if branch expects it
             if (branch.parameters().size() > 1 && params.size() > 2) {
                 matchCtx = matchCtx.withLetBinding(
                         branch.parameters().get(1).name(), params.get(2));
             }
 
             if (!branch.body().isEmpty()) {
-                ValueSpecification body = branch.body().get(0);
-                TypeInfo bodyInfo = env.compileExpr(body, matchCtx);
-                return TypeInfo.from(bodyInfo).inlinedBody(body).build();
+                return env.compileExpr(branch.body().get(0), matchCtx);
             }
         }
 
@@ -82,14 +80,6 @@ public class MatchChecker extends AbstractChecker {
     }
 
     // ==================== Helpers ====================
-
-    /**
-     * Returns the element type from a compiled TypeInfo.
-     */
-    private static Type resolveElementType(TypeInfo info) {
-        if (info == null || info.type() == null) return null;
-        return info.type();
-    }
 
     /**
      * Type-matches using the {@link Type} hierarchy: exact match, subtype in the primitive
