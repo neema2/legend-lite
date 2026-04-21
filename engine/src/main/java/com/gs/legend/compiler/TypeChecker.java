@@ -111,16 +111,6 @@ public class TypeChecker implements TypeCheckEnv {
     private final Map<com.gs.legend.model.m3.PureFunction, CompiledFunction> compiledFunctions =
             new IdentityHashMap<>();
 
-    /**
-     * Recursion guard for function compilation. A {@link com.gs.legend.model.m3.PureFunction}
-     * is added on entry to {@link #compileFunction(com.gs.legend.model.m3.PureFunction)} and
-     * removed on exit. If the same function is encountered transitively during its own body
-     * compile, that is a recursive user function — which legend-lite does not support — and
-     * we throw a clear error instead of letting it blow the stack.
-     */
-    private final Set<com.gs.legend.model.m3.PureFunction> currentlyCompiling =
-            Collections.newSetFromMap(new IdentityHashMap<>());
-
     public TypeChecker(ModelContext modelContext) {
         this.modelContext = Objects.requireNonNull(modelContext, "ModelContext must not be null");
     }
@@ -362,54 +352,47 @@ public class TypeChecker implements TypeCheckEnv {
         CompiledFunction cached = compiledFunctions.get(pureFn);
         if (cached != null) return cached;
 
-        // Recursion guard — legend-lite does not support recursive user functions.
-        if (!currentlyCompiling.add(pureFn)) {
-            throw new PureCompileException(
-                    "Recursive user functions are not supported: '" + pureFn.qualifiedName()
-                            + "' transitively calls itself during body compilation. "
-                            + "Rewrite without recursion.");
-        }
-        try {
-            // Bind declared parameters into a fresh context. Relation params get schema
-            // binding so $rel.COL resolves via {@link CompilationContext#getRelationType};
-            // everything else (Primitive, ClassType/NameRef, FunctionType, etc.) goes
-            // through the generic lambda-param channel.
-            CompilationContext ctx = new CompilationContext();
-            for (var p : pureFn.parameters()) {
-                Type.Schema relationSchema = asRelationSchema(p.type());
-                if (relationSchema != null) {
-                    ctx = ctx.withRelationType(p.name(), relationSchema);
-                } else {
-                    ctx = ctx.withLambdaParam(p.name(), p.type());
-                }
+        // Recursion guard lives at ingest: PureModelBuilder.detectCallGraphCycles rejects
+        // cyclic user-function call graphs, so any PureFunction reaching this point is
+        // part of a DAG and transitive compilation cannot loop back on itself.
+        //
+        // Bind declared parameters into a fresh context. Relation params get schema
+        // binding so $rel.COL resolves via {@link CompilationContext#getRelationType};
+        // everything else (Primitive, ClassType/NameRef, FunctionType, etc.) goes
+        // through the generic lambda-param channel.
+        CompilationContext ctx = new CompilationContext();
+        for (var p : pureFn.parameters()) {
+            Type.Schema relationSchema = asRelationSchema(p.type());
+            if (relationSchema != null) {
+                ctx = ctx.withRelationType(p.name(), relationSchema);
+            } else {
+                ctx = ctx.withLambdaParam(p.name(), p.type());
             }
-
-            // Compile body + validate declared return against actual body result.
-            compileBodyInContext(
-                    pureFn.body(), ctx,
-                    pureFn.returnType(), pureFn.returnMultiplicity(),
-                    "Function '" + pureFn.qualifiedName() + "'");
-
-            ValueSpecification root = pureFn.body().get(pureFn.body().size() - 1);
-            CompiledExpression body = new CompiledExpression(root, types,
-                    new CompiledDependencies(classPropertyAccesses, associationNavigations));
-
-            List<com.gs.legend.compiled.CompiledParameter> compiledParams = pureFn.parameters().stream()
-                    .map(p -> new com.gs.legend.compiled.CompiledParameter(p.name(), p.type(), p.multiplicity()))
-                    .toList();
-
-            CompiledFunction result = new CompiledFunction(
-                    pureFn.qualifiedName(),
-                    compiledParams,
-                    pureFn.returnType(),
-                    pureFn.returnMultiplicity(),
-                    body,
-                    SourceLocation.UNKNOWN);
-            compiledFunctions.put(pureFn, result);
-            return result;
-        } finally {
-            currentlyCompiling.remove(pureFn);
         }
+
+        // Compile body + validate declared return against actual body result.
+        compileBodyInContext(
+                pureFn.body(), ctx,
+                pureFn.returnType(), pureFn.returnMultiplicity(),
+                "Function '" + pureFn.qualifiedName() + "'");
+
+        ValueSpecification root = pureFn.body().get(pureFn.body().size() - 1);
+        CompiledExpression body = new CompiledExpression(root, types,
+                new CompiledDependencies(classPropertyAccesses, associationNavigations));
+
+        List<com.gs.legend.compiled.CompiledParameter> compiledParams = pureFn.parameters().stream()
+                .map(p -> new com.gs.legend.compiled.CompiledParameter(p.name(), p.type(), p.multiplicity()))
+                .toList();
+
+        CompiledFunction result = new CompiledFunction(
+                pureFn.qualifiedName(),
+                compiledParams,
+                pureFn.returnType(),
+                pureFn.returnMultiplicity(),
+                body,
+                SourceLocation.UNKNOWN);
+        compiledFunctions.put(pureFn, result);
+        return result;
     }
 
     private CompiledService compileService(ServiceDefinition sd) {
@@ -673,8 +656,8 @@ public class TypeChecker implements TypeCheckEnv {
      */
     private TypeInfo inlineUserFunction(AppliedFunction af,
             List<com.gs.legend.model.m3.PureFunction> candidates, CompilationContext ctx) {
-        // Recursion is caught by the currentlyCompiling identity guard in check(PureFunction);
-        // deep non-recursive call chains are bounded by the user's call graph depth.
+        // Recursion is rejected at ingest (PureModelBuilder.detectCallGraphCycles); any
+        // call chain reaching here is part of a DAG, bounded by the user's call-graph depth.
         CompilationContext inlineCtx = ctx;
 
         int argCount = af.parameters().size();
