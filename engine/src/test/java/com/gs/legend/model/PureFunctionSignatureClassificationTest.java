@@ -109,6 +109,55 @@ class PureFunctionSignatureClassificationTest {
     }
 
     @Test
+    void userClassNestedDeepInsideFunctionReturningFromRelationIsClassified() {
+        // Deep nesting: Function<{Relation<(col: model::Firm)>[1] -> String[1]}>.
+        // Classification must reach through FunctionType -> its parameter's GenericType ->
+        // RelationTypeVar -> column NameRef. Any missing recursion leaves the inner
+        // NameRef unresolved.
+        String source = """
+                Class model::Firm { name: String[1]; }
+                function model::applyToRel(
+                    f: Function<{Relation<(name: String, owner: model::Firm)>[1] -> String[1]}>[1]
+                ): String[1]
+                {
+                  ''
+                }
+                """;
+
+        PureFunction pf = new PureModelBuilder().addSource(source)
+                .findFunction("model::applyToRel").getFirst();
+
+        Type.FunctionType callback = findFunctionType(pf.parameters().getFirst().type());
+        assertNotNull(callback, "Parameter did not carry a FunctionType");
+        Type.Schema innerSchema = extractRelationSchema(callback.params().getFirst().type());
+        assertNotNull(innerSchema, "Callback's first param did not carry a Relation schema");
+        assertEquals(new Type.ClassType("model::Firm"), innerSchema.columns().get("owner"),
+                "Classification must reach a NameRef four levels deep "
+                        + "(FunctionType -> param -> Relation -> column)");
+    }
+
+    @Test
+    void mixedResolvedAndUnresolvedTypesInSameSigAreClassifiedPerLeaf() {
+        // Per-leaf independence: known FQNs classify, unknown ones stay as NameRef,
+        // in the same signature. Guards against an accidental all-or-nothing guard.
+        String source = """
+                Class model::Known { id: Integer[1]; }
+                function model::mixed(k: model::Known[1], u: other::Unknown[1]): Integer[1]
+                {
+                  1
+                }
+                """;
+
+        PureFunction pf = new PureModelBuilder().addSource(source)
+                .findFunction("model::mixed").getFirst();
+
+        assertEquals(new Type.ClassType("model::Known"), pf.parameters().get(0).type(),
+                "Known user class must classify even when a sibling param is unresolved");
+        assertInstanceOf(Type.NameRef.class, pf.parameters().get(1).type(),
+                "Unknown user class must stay as NameRef even when a sibling param is classified");
+    }
+
+    @Test
     void classificationIsIdentityNoOpWhenNothingChanges() {
         // All-primitive / all-classified signatures must short-circuit without
         // allocating new wrappers. A regression here doubles allocations per

@@ -158,6 +158,29 @@ public final class PureModelBuilder implements ModelContext {
     private Map<String, List<Association>> classToAssociations;  // className → associations referencing that class
 
     /**
+     * Batch variant of {@link #addSource(String)}: registers every source in order, then runs
+     * downstream phases (name resolution, classification, buildPureFunctions) per source.
+     *
+     * <p>Today this is a convenience loop — each source still triggers a full
+     * {@code buildPureFunctions} + cycle-detect pass, so the net cost is O(N) per source for
+     * N cumulative user functions. A future refinement can amortise to a single rebuild at
+     * the end; the public shape stays the same.
+     *
+     * <p>Cross-source forward references within the batch still go through the lenient
+     * {@code NameRef}-pass-through path until the last source that defines the target is
+     * added (see {@code PureModelBuilder#classifyFunctionSigType}).
+     *
+     * @param pureSources Pure source strings, ingested left-to-right
+     * @return this builder for chaining
+     */
+    public PureModelBuilder addSources(String... pureSources) {
+        for (String src : pureSources) {
+            addSource(src);
+        }
+        return this;
+    }
+
+    /**
      * Adds Pure definitions from source code.
      * 
      * @param pureSource The Pure source code
@@ -400,6 +423,145 @@ public final class PureModelBuilder implements ModelContext {
                 pureList.add(buildPureFunction(fd, resolved));
             }
             idPut(pureFunctions, id, pureList);
+        }
+
+        // Gate: reject cyclic user-function call graphs at ingest. Any downstream path
+        // that walks user-function bodies (TypeChecker, PlanGenerator) can then assume
+        // the graph is a DAG and no longer needs its own recursion guard.
+        detectCallGraphCycles();
+    }
+
+    /**
+     * DFS-based call-graph cycle detector over the current set of user {@link com.gs.legend.model.m3.PureFunction}s.
+     *
+     * <p>Graph nodes are {@code (fqn, arity)} pairs, not bare FQNs. Overloads of the same
+     * name with different arities — the dominant overload style in legend-lite — are
+     * therefore distinct nodes, so a 2-arg {@code foo} calling the 1-arg {@code foo}
+     * overload is NOT a cycle. Known limitation: same-arity overloads that differ only
+     * by parameter type still share a node; a rare false positive that can be worked
+     * around by distinct FQNs. Resolving the exact overload at every call site requires
+     * full type info and is left to the TypeChecker.
+     *
+     * <p>Cycle edges are collected by AST-walking each body's {@link com.gs.legend.ast.AppliedFunction}
+     * calls, keyed by target FQN and argument count. Error includes the cycle path
+     * ({@code foo/1 -> bar/2 -> foo/1}) for debuggability. Thrown as
+     * {@link com.gs.legend.compiler.PureCompileException} so callers of {@code addSource} /
+     * {@code addSources} see a uniform compilation error.
+     *
+     * <p>Complexity: O(V + E) where V is the number of (fqn, arity) pairs and E the sum
+     * of user-function calls across all bodies.
+     */
+    private void detectCallGraphCycles() {
+        Set<OverloadKey> nodes = new java.util.HashSet<>();
+        for (int id = 0; id < pureFunctions.size(); id++) {
+            List<com.gs.legend.model.m3.PureFunction> list = pureFunctions.get(id);
+            if (list == null) continue;
+            for (var pf : list) {
+                nodes.add(new OverloadKey(pf.qualifiedName(), pf.parameters().size()));
+            }
+        }
+        if (nodes.isEmpty()) return;
+
+        Map<OverloadKey, Set<OverloadKey>> callGraph = new HashMap<>();
+        for (int id = 0; id < pureFunctions.size(); id++) {
+            List<com.gs.legend.model.m3.PureFunction> list = pureFunctions.get(id);
+            if (list == null) continue;
+            for (var pf : list) {
+                OverloadKey self = new OverloadKey(pf.qualifiedName(), pf.parameters().size());
+                Set<OverloadKey> callees = callGraph.computeIfAbsent(
+                        self, k -> new java.util.HashSet<>());
+                for (var stmt : pf.body()) {
+                    collectUserFunctionCalls(stmt, nodes, callees);
+                }
+            }
+        }
+
+        // 3-color DFS: WHITE not visited, GRAY on the current stack, BLACK fully explored.
+        // Revisiting a GRAY node means a cycle; the path from that node back to itself is
+        // extracted from the current traversal stack for a clear error message.
+        Map<OverloadKey, Byte> color = new HashMap<>();
+        for (var n : nodes) color.put(n, (byte) 0);
+        java.util.Deque<OverloadKey> stack = new java.util.ArrayDeque<>();
+        for (var start : nodes) {
+            if (color.get(start) == (byte) 0) {
+                List<OverloadKey> cycle = dfsForCycle(start, callGraph, color, stack);
+                if (cycle != null) {
+                    throw new com.gs.legend.compiler.PureCompileException(
+                            "Cyclic user-function call graph detected: "
+                                    + cycle.stream().map(OverloadKey::toDisplay)
+                                            .collect(java.util.stream.Collectors.joining(" -> "))
+                                    + ". Recursive user functions are not supported.");
+                }
+            }
+        }
+    }
+
+    /** Node of the call graph: a function overload distinguished by FQN and arity. */
+    private record OverloadKey(String fqn, int arity) {
+        String toDisplay() {
+            return fqn + "/" + arity;
+        }
+    }
+
+    private static List<OverloadKey> dfsForCycle(
+            OverloadKey node, Map<OverloadKey, Set<OverloadKey>> graph,
+            Map<OverloadKey, Byte> color, java.util.Deque<OverloadKey> stack) {
+        color.put(node, (byte) 1); // GRAY
+        stack.push(node);
+        for (OverloadKey next : graph.getOrDefault(node, Set.of())) {
+            Byte c = color.get(next);
+            if (c == null) continue; // defensive: callee not in user-func set
+            if (c == (byte) 1) {
+                // Cycle: collect from `next` down to `node` in stack order, then append `next`.
+                List<OverloadKey> path = new ArrayList<>(stack); // iteration is head-first (LIFO)
+                java.util.Collections.reverse(path); // now root-first
+                List<OverloadKey> cycle = new ArrayList<>();
+                boolean started = false;
+                for (OverloadKey n : path) {
+                    if (n.equals(next)) started = true;
+                    if (started) cycle.add(n);
+                }
+                cycle.add(next);
+                return cycle;
+            }
+            if (c == (byte) 0) {
+                List<OverloadKey> found = dfsForCycle(next, graph, color, stack);
+                if (found != null) return found;
+            }
+        }
+        stack.pop();
+        color.put(node, (byte) 2); // BLACK
+        return null;
+    }
+
+    /**
+     * Walks a {@link com.gs.legend.ast.ValueSpecification} subtree and records every
+     * {@link com.gs.legend.ast.AppliedFunction} whose target (FQN, argCount) is a
+     * registered user-function overload. Terminals (literals, Variables,
+     * PackageableElementPtr) contribute no edges — only AppliedFunction,
+     * AppliedProperty parameters, LambdaFunction bodies, and PureCollection members
+     * carry AST children we need to descend into.
+     */
+    private static void collectUserFunctionCalls(
+            com.gs.legend.ast.ValueSpecification vs,
+            Set<OverloadKey> nodes,
+            Set<OverloadKey> out) {
+        switch (vs) {
+            case com.gs.legend.ast.AppliedFunction af -> {
+                OverloadKey callee = new OverloadKey(af.function(), af.parameters().size());
+                if (nodes.contains(callee)) out.add(callee);
+                for (var p : af.parameters()) collectUserFunctionCalls(p, nodes, out);
+            }
+            case com.gs.legend.ast.AppliedProperty ap -> {
+                for (var p : ap.parameters()) collectUserFunctionCalls(p, nodes, out);
+            }
+            case com.gs.legend.ast.LambdaFunction lf -> {
+                for (var b : lf.body()) collectUserFunctionCalls(b, nodes, out);
+            }
+            case com.gs.legend.ast.PureCollection c -> {
+                for (var v : c.values()) collectUserFunctionCalls(v, nodes, out);
+            }
+            default -> { /* terminal: literal, Variable, PackageableElementPtr, etc. */ }
         }
     }
 

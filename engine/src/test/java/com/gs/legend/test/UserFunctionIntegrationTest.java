@@ -529,10 +529,14 @@ class UserFunctionIntegrationTest {
                         test::recurse($x)
                     }
                     """);
+            // Cycle detection now runs at ingest (PureModelBuilder.buildPureFunctions),
+            // so the error surfaces from addSource inside plan() — before the query is
+            // even compiled. Message mentions the cycle path and names recursion.
             var ex = assertThrows(PureCompileException.class, () ->
                     plan(model, "|model::Person.all()->project([x|test::recurse($x.age)], ['val'])"));
-            assertTrue(ex.getMessage().contains("Recursive user functions are not supported"),
-                    "Should report recursion: " + ex.getMessage());
+            assertTrue(ex.getMessage().contains("test::recurse/1")
+                            && ex.getMessage().toLowerCase().contains("cycl"),
+                    "Should report recursion cycle involving test::recurse/1: " + ex.getMessage());
         }
 
         @Test
