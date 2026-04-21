@@ -48,7 +48,7 @@ public class JoinChecker extends AbstractChecker {
     }
 
     @Override
-    public TypedSpec check(AppliedFunction af, TypedSpec source,
+    public TypedJoin check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         NativeFunctionDef def = resolveOverload("join", params, source);

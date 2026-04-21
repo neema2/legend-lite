@@ -35,7 +35,7 @@ public class CastChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypedSpec check(AppliedFunction af, TypedSpec source,
+    public TypedCast check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
 

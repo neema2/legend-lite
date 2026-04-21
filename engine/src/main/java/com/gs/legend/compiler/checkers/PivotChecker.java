@@ -38,7 +38,7 @@ public class PivotChecker extends AbstractChecker {
     }
 
     @Override
-    public TypedSpec check(AppliedFunction af, TypedSpec source,
+    public TypedPivot check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         NativeFunctionDef def = resolveOverload("pivot", af.parameters(), source);
         unify(def, source.expressionType());

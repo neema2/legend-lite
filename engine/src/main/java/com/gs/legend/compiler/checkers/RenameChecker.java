@@ -37,7 +37,7 @@ public class RenameChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypedSpec check(AppliedFunction af, TypedSpec source,
+    public TypedRename check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         NativeFunctionDef def = resolveOverload("rename", params, source);

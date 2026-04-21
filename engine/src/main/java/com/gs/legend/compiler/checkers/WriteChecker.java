@@ -32,7 +32,7 @@ public class WriteChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypedSpec check(AppliedFunction af, TypedSpec source,
+    public TypedWrite check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         NativeFunctionDef def = resolveOverload("write", params, source);

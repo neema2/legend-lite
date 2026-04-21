@@ -44,7 +44,7 @@ public class SortChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypedSpec check(AppliedFunction af, TypedSpec source,
+    public TypedSort check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         String funcName = simpleName(af.function());
         var params = af.parameters();
@@ -97,7 +97,7 @@ public class SortChecker extends AbstractChecker {
      * Relation sort: sort<X,T>(rel:Relation<T>[1], sortInfo:SortInfo<X⊆T>[*]):Relation<T>[1]
      * Extracts SortSpecs from ascending(~col) / descending(~col) sort info params.
      */
-    private TypedSpec checkRelationSort(AppliedFunction af, TypedSpec source,
+    private TypedSort checkRelationSort(AppliedFunction af, TypedSpec source,
                                         NativeFunctionDef def) {
         List<ValueSpecification> params = af.parameters();
         var bindings = unify(def, source.expressionType());
@@ -121,7 +121,7 @@ public class SortChecker extends AbstractChecker {
      * <p>Pure AST→AST rewrite, then recompile through the modern path.
      * Same pattern as ProjectChecker.rewriteLegacyProject.
      */
-    private TypedSpec checkLegacySort(AppliedFunction af,
+    private TypedSort checkLegacySort(AppliedFunction af,
                                       TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
 
@@ -157,7 +157,8 @@ public class SortChecker extends AbstractChecker {
                 af.hasReceiver(),
                 af.sourceText(),
                 af.argTexts());
-        return env.compileExpr(rewritten, ctx);
+        // Recompile lands in checkRelationSort via the modern arity-2 path.
+        return (TypedSort) env.compileExpr(rewritten, ctx);
     }
 
     /**
@@ -216,7 +217,7 @@ public class SortChecker extends AbstractChecker {
      *   <li>{@code sort<T|m>(col:T[m], comp:{T[1],T[1]→Int[1]}[0..1]):T[m]}</li>
      * </ul>
      */
-    private TypedSpec checkCollectionSort(AppliedFunction af, TypedSpec source,
+    private TypedSort checkCollectionSort(AppliedFunction af, TypedSpec source,
                                           TypeChecker.CompilationContext ctx,
                                           NativeFunctionDef def) {
         List<ValueSpecification> params = af.parameters();
@@ -253,7 +254,7 @@ public class SortChecker extends AbstractChecker {
      * sortBy / sortByReversed: key lambda only, fixed direction. Uses
      * {@link #compileLambdaArg} — the full pipeline from {@code AbstractChecker}.
      */
-    private TypedSpec checkCollectionSortBy(AppliedFunction af, TypedSpec source,
+    private TypedSort checkCollectionSortBy(AppliedFunction af, TypedSpec source,
                                             TypeChecker.CompilationContext ctx,
                                             NativeFunctionDef def,
                                             SortDirection direction) {

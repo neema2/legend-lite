@@ -35,7 +35,7 @@ public class AsOfJoinChecker extends AbstractChecker {
     }
 
     @Override
-    public TypedSpec check(AppliedFunction af, TypedSpec source,
+    public TypedAsOfJoin check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         NativeFunctionDef def = resolveOverload("asOfJoin", params, source);

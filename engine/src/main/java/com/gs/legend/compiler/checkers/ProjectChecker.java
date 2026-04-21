@@ -37,7 +37,7 @@ public class ProjectChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypedSpec check(AppliedFunction af, TypedSpec source,
+    public TypedProject check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         NativeFunctionDef def = resolveOverload("project", params, source);
@@ -47,7 +47,8 @@ public class ProjectChecker extends AbstractChecker {
         if (def.arity() == 3) {
             AppliedFunction rewritten = rewriteLegacyProject(af,
                     (PureCollection) params.get(1), (PureCollection) params.get(2));
-            return env.compileExpr(rewritten, ctx);
+            // Recompile lands back in this checker's modern arity-2 branch \u2192 TypedProject.
+            return (TypedProject) env.compileExpr(rewritten, ctx);
         }
 
         var bindings = unify(def, source.expressionType());

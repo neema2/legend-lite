@@ -27,7 +27,7 @@ public class NewChecker extends AbstractChecker {
     }
 
     @Override
-    public TypedSpec check(AppliedFunction af, TypedSpec source,
+    public TypedNewInstance check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         // Parser shape: new(PackageableElementPtr(className), NewInstance(props...)).
         var data = (NewInstance) af.parameters().get(1);

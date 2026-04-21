@@ -32,7 +32,7 @@ public class ConcatenateChecker extends AbstractChecker {
     }
 
     @Override
-    public TypedSpec check(AppliedFunction af, TypedSpec source,
+    public TypedConcatenate check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         var params = af.parameters();
         NativeFunctionDef def = resolveOverload("concatenate", params, source);

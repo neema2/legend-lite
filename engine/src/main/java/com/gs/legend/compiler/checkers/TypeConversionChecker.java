@@ -26,7 +26,7 @@ public class TypeConversionChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypedSpec check(AppliedFunction af, TypedSpec source,
+    public TypedCast check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         String func = SymbolTable.extractSimpleName(af.function());
         return switch (func) {
@@ -43,7 +43,7 @@ public class TypeConversionChecker extends AbstractChecker {
      * {@code toOne<T>(values:T[*]):T[1]} — narrow [*] to [1], preserve type.
      * {@code targetType} on the cast is {@code null}: only multiplicity changes.
      */
-    private TypedSpec checkToOne(AppliedFunction af, TypedSpec source,
+    private TypedCast checkToOne(AppliedFunction af, TypedSpec source,
                                  TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         resolveOverload("toOne", params, source);
@@ -55,7 +55,7 @@ public class TypeConversionChecker extends AbstractChecker {
      * {@code toMany<T,V>(source:T[0..1], type:V[0..1]):V[*]} — widen to [*] with
      * target type V from the {@code @Type} argument.
      */
-    private TypedSpec checkToMany(AppliedFunction af, TypedSpec source,
+    private TypedCast checkToMany(AppliedFunction af, TypedSpec source,
                                   TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         resolveOverload("toMany", params, source);
@@ -68,7 +68,7 @@ public class TypeConversionChecker extends AbstractChecker {
      * {@code to<T,V>(source:T[0..1], type:V[0..1]):V[0..1]} — nullable conversion
      * with target type V.
      */
-    private TypedSpec checkTo(AppliedFunction af, TypedSpec source,
+    private TypedCast checkTo(AppliedFunction af, TypedSpec source,
                               TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         resolveOverload("to", params, source);
@@ -82,7 +82,7 @@ public class TypeConversionChecker extends AbstractChecker {
      * native signature; {@code targetType} on the cast is set from the resolved
      * output type so downstream consumers have the Variant type in hand.
      */
-    private TypedSpec checkToVariant(AppliedFunction af, TypedSpec source) {
+    private TypedCast checkToVariant(AppliedFunction af, TypedSpec source) {
         NativeFunctionDef def = resolveOverload("toVariant", af.parameters(), source);
         var bindings = unify(def, source.expressionType());
         ExpressionType out = resolveOutput(def, bindings, "toVariant()");

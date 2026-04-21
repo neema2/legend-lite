@@ -43,7 +43,7 @@ public class GroupByChecker extends AbstractChecker {
     }
 
     @Override
-    public TypedSpec check(AppliedFunction af, TypedSpec source,
+    public TypedGroupBy check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         NativeFunctionDef def = resolveOverload("groupBy", params, source);
@@ -56,7 +56,8 @@ public class GroupByChecker extends AbstractChecker {
             AppliedFunction rewritten = rewriteLegacyGroupBy(af,
                     (PureCollection) params.get(1), (PureCollection) params.get(2),
                     (PureCollection) params.get(3), classSource);
-            return env.compileExpr(rewritten, ctx);
+            // Recompile lands back in this checker's modern arity-3 branch.
+            return (TypedGroupBy) env.compileExpr(rewritten, ctx);
         }
 
         unify(def, source.expressionType());
@@ -113,7 +114,7 @@ public class GroupByChecker extends AbstractChecker {
      * extraction lambdas compiled against the ClassType. Produces {@link TypeInfo#projections()}
      * so PlanGenerator can resolve key columns via StoreResolution.
      */
-    private TypedSpec checkClassSource(AppliedFunction af, NativeFunctionDef def,
+    private TypedGroupBy checkClassSource(AppliedFunction af, NativeFunctionDef def,
                                        TypedSpec source,
                                        TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();

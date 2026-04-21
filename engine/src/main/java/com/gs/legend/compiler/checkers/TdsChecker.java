@@ -31,7 +31,7 @@ public class TdsChecker extends AbstractChecker {
     }
 
     @Override
-    public TypedSpec check(AppliedFunction af, TypedSpec source,
+    public TypedTdsLiteral check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         // Validate arity + arg types against the signature: tds(String[1], String[1]).
         resolveOverload("tds", af.parameters(), source);

@@ -27,7 +27,7 @@ public class TableReferenceChecker extends AbstractChecker {
     }
 
     @Override
-    public TypedSpec check(AppliedFunction af, TypedSpec source,
+    public TypedTableReference check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         // Validate arity + arg types against the signature.
         resolveOverload("tableReference", af.parameters(), source);

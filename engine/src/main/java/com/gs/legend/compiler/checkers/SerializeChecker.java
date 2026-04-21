@@ -23,7 +23,7 @@ public class SerializeChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypedSpec check(AppliedFunction af, TypedSpec source,
+    public TypedSerialize check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         TypedSpec sourceTyped = env.compileExpr(af.parameters().get(0), ctx);
 

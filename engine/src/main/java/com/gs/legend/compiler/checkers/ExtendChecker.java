@@ -29,7 +29,7 @@ public class ExtendChecker extends AbstractChecker {
     }
 
     @Override
-    public TypedSpec check(AppliedFunction af, TypedSpec source,
+    public TypedExtend check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         NativeFunctionDef def = resolveOverload("extend", af.parameters(), source);
         unify(def, source.expressionType());
@@ -145,7 +145,7 @@ public class ExtendChecker extends AbstractChecker {
      * (stays in object space). Tracks projections so downstream project/graphFetch
      * and PlanGenerator can resolve the extend columns via StoreResolution.
      */
-    private TypedSpec checkClassSource(AppliedFunction af, NativeFunctionDef def,
+    private TypedExtend checkClassSource(AppliedFunction af, NativeFunctionDef def,
                                        TypedSpec source, TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         var bindings = unify(def, source.expressionType());

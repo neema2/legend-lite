@@ -30,7 +30,7 @@ public class AggregateChecker extends AbstractChecker {
     }
 
     @Override
-    public TypedSpec check(AppliedFunction af, TypedSpec source,
+    public TypedAggregate check(AppliedFunction af, TypedSpec source,
                           TypeChecker.CompilationContext ctx) {
         NativeFunctionDef def = resolveOverload("aggregate", af.parameters(), source);
         unify(def, source.expressionType());

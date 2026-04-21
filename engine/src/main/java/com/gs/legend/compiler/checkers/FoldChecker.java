@@ -42,7 +42,7 @@ public class FoldChecker extends AbstractChecker {
         super(env);
     }
 
-    public TypedSpec check(AppliedFunction af, TypedSpec source,
+    public TypedFold check(AppliedFunction af, TypedSpec source,
             TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         if (params.size() < 3) {
