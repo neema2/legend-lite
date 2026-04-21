@@ -423,7 +423,7 @@ public final class PureModelBuilder implements ModelContext {
                                 + "(Phase 5 will move Type construction into PureModelBuilder; for now, producers are required to set it.)");
             }
             typedParams.add(new com.gs.legend.model.m3.Parameter(
-                    p.name(), paramType,
+                    p.name(), classifyFunctionSigType(paramType),
                     new com.gs.legend.model.m3.Multiplicity.Bounded(p.lowerBound(), p.upperBound())));
         }
 
@@ -439,11 +439,90 @@ public final class PureModelBuilder implements ModelContext {
                 fd.qualifiedName(),
                 /* typeParams */ List.of(),
                 typedParams,
-                returnType,
+                classifyFunctionSigType(returnType),
                 new com.gs.legend.model.m3.Multiplicity.Bounded(fd.returnLowerBound(), fd.returnUpperBound()),
                 resolvedBody,
                 fd.stereotypes(),
                 fd.taggedValues());
+    }
+
+    /**
+     * Classifies {@link Type.NameRef}s appearing in a function signature (param or return) to
+     * their typed variants ({@link Type.ClassType} / {@link Type.EnumType} / {@link Primitive} /
+     * {@link com.gs.legend.model.m3.LClass}) using the in-memory model. Structural forms
+     * (GenericType, FunctionType, RelationTypeVar, etc.) are walked and their children
+     * classified recursively.
+     *
+     * <p><strong>Lenient by design.</strong> Unknown names stay as {@link Type.NameRef}. This
+     * preserves the cross-source forward-reference contract: a function in source A may
+     * reference a class declared in source B not yet added. The TypeChecker still carries
+     * the NameRef fallback path for that case — kept until a future batch-ingest
+     * ({@code addSources}) lets us tighten to exhaustive classification.
+     *
+     * <p>Kind-map source: the builder's own {@code classes} / {@code enums} tables via
+     * {@link ModelContext#findType} — pure in-memory lookup, does not force lazy loading
+     * (AGENTS.md §5).
+     */
+    private Type classifyFunctionSigType(Type t) {
+        return switch (t) {
+            case Type.NameRef nr -> findType(nr.qualifiedName()).orElse(nr);
+            case Type.GenericType gt -> {
+                Type rawType = classifyFunctionSigType(gt.rawType());
+                List<Type> args = new ArrayList<>(gt.typeArgs().size());
+                boolean changed = rawType != gt.rawType();
+                for (Type arg : gt.typeArgs()) {
+                    Type c = classifyFunctionSigType(arg);
+                    if (c != arg) changed = true;
+                    args.add(c);
+                }
+                yield changed ? new Type.GenericType(rawType, args) : t;
+            }
+            case Type.FunctionType ft -> {
+                boolean changed = false;
+                List<Type.Parameter> newParams = new ArrayList<>(ft.params().size());
+                for (Type.Parameter pp : ft.params()) {
+                    Type c = classifyFunctionSigType(pp.type());
+                    if (c != pp.type()) {
+                        changed = true;
+                        newParams.add(new Type.Parameter(pp.name(), c, pp.multiplicity()));
+                    } else {
+                        newParams.add(pp);
+                    }
+                }
+                Type newReturn = classifyFunctionSigType(ft.returnType());
+                if (newReturn != ft.returnType()) changed = true;
+                yield changed ? new Type.FunctionType(newParams, newReturn, ft.returnMult()) : t;
+            }
+            case Type.RelationTypeVar rtv -> {
+                boolean changed = false;
+                List<Type.RelationTypeVar.Column> newCols = new ArrayList<>(rtv.columns().size());
+                for (Type.RelationTypeVar.Column col : rtv.columns()) {
+                    Type c = classifyFunctionSigType(col.type());
+                    if (c != col.type()) {
+                        changed = true;
+                        newCols.add(new Type.RelationTypeVar.Column(col.name(), c, col.multiplicity()));
+                    } else {
+                        newCols.add(col);
+                    }
+                }
+                yield changed ? new Type.RelationTypeVar(newCols) : t;
+            }
+            case Type.SchemaAlgebra sa -> {
+                Type l = classifyFunctionSigType(sa.left());
+                Type r = classifyFunctionSigType(sa.right());
+                yield (l == sa.left() && r == sa.right()) ? t : new Type.SchemaAlgebra(l, sa.op(), r);
+            }
+            // Already-classified / structural leaves — no NameRefs to classify.
+            case Primitive ignored -> t;
+            case Type.ClassType ignored -> t;
+            case Type.EnumType ignored -> t;
+            case Type.TypeVar ignored -> t;
+            case com.gs.legend.model.m3.LClass ignored -> t;
+            case Type.PrecisionDecimal ignored -> t;
+            case Type.Relation ignored -> t;
+            case Type.Tuple ignored -> t;
+            case Type.FunctionReference ignored -> t;
+        };
     }
 
     /**
