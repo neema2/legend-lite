@@ -67,8 +67,6 @@ public class TypeChecker implements TypeCheckEnv {
     private static final BuiltinRegistry builtinRegistry = BuiltinRegistry.instance();
 
     private final ModelContext modelContext;
-    /** Per-node type info, consumed by PlanGenerator. */
-    private final IdentityHashMap<ValueSpecification, TypeInfo> types = new IdentityHashMap<>();
     /** Class property accesses observed during compilation (className → property names). */
     private final Map<String, Set<String>> classPropertyAccesses = new HashMap<>();
     /** Association navigations observed during compilation (className → association property names). */
@@ -119,11 +117,6 @@ public class TypeChecker implements TypeCheckEnv {
         return modelContext;
     }
 
-    @Override
-    public TypeInfo lookupCompiled(ValueSpecification vs) {
-        return types.get(vs);
-    }
-
     /**
      * Compile a class's normalized sourceSpec (relational or M2M) once, idempotently.
      *
@@ -150,24 +143,23 @@ public class TypeChecker implements TypeCheckEnv {
 
     /**
      * Top-level compile: returns a {@link CompiledExpression} bundling the typed
-     * AST, per-node type side table, and dependency data.
+     * HIR root and member-level dependency data.
      */
     public CompiledExpression check(ValueSpecification vs) {
-        TypeInfo rootInfo = compileExpr(vs, new CompilationContext());
+        com.gs.legend.compiler.typed.TypedSpec root = compileExpr(vs, new CompilationContext());
 
-        if (rootInfo == null) {
+        if (root == null) {
             throw new PureCompileException(
-                    "TypeChecker: no TypeInfo stamped for root " + vs.getClass().getSimpleName());
+                    "TypeChecker: no TypedSpec produced for root " + vs.getClass().getSimpleName());
         }
-        if (rootInfo.expressionType() == null) {
+        if (root.info() == null) {
             throw new PureCompileException(
-                    "TypeChecker: expressionType not stamped for root " + vs.getClass().getSimpleName());
+                    "TypeChecker: ExpressionType not set on root " + vs.getClass().getSimpleName());
         }
 
         compileNeededAssociationTargets();
         return new CompiledExpression(
-                vs,
-                types,
+                root,
                 new CompiledDependencies(classPropertyAccesses, associationNavigations));
     }
 
@@ -457,7 +449,7 @@ public class TypeChecker implements TypeCheckEnv {
      * Called recursively for sub-expressions.
      */
     @Override
-    public TypeInfo compileExpr(ValueSpecification vs, CompilationContext ctx) {
+    public com.gs.legend.compiler.typed.TypedSpec compileExpr(ValueSpecification vs, CompilationContext ctx) {
         return switch (vs) {
             case AppliedFunction af -> compileFunction(af, ctx);
             case com.gs.legend.ast.ColumnInstance ci -> throw new PureCompileException(
@@ -470,21 +462,41 @@ public class TypeChecker implements TypeCheckEnv {
             case Variable v -> compileVariable(v, ctx);
             case AppliedProperty ap -> compileProperty(ap, ctx);
             case PackageableElementPtr pe -> resolvePackageableElement(pe);
-            case TypeAnnotation ta -> scalarTyped(ta, Primitive.STRING);
+            // TypeAnnotation is a type-reference argument only; callers (cast, etc.)
+            // inspect the VS directly. A passthrough typed wrapper would be pure
+            // noise — surface the misuse loudly.
+            case TypeAnnotation ta -> throw new PureCompileException(
+                    "TypeAnnotation '" + ta + "' cannot be a standalone expression — "
+                            + "it is only valid as the type argument of cast/@-annotation");
             case PureCollection coll -> compileCollection(coll, ctx);
-            // Literals — scalar with known type
-            case CInteger i -> scalarTyped(i, classifyInteger(i));
-            case CFloat f -> scalarTyped(f, Primitive.FLOAT);
-            case CDecimal d -> scalarTyped(d, classifyDecimal(d));
-            case CString s -> scalarTyped(s, Primitive.STRING);
-            case CBoolean b -> scalarTyped(b, Primitive.BOOLEAN);
-            case CDateTime dt -> scalarTyped(dt, Primitive.DATE_TIME);
-            case CStrictDate sd -> scalarTyped(sd, Primitive.STRICT_DATE);
-            case CStrictTime st -> scalarTyped(st, Primitive.STRICT_TIME);
-            case CLatestDate ld -> scalarTyped(ld, Primitive.DATE_TIME);
-            case CByteArray ba -> scalarTyped(ba, Primitive.STRING);
-            case EnumValue ev -> scalarTyped(ev, new Type.EnumType(ev.fullPath()));
-            case UnitInstance ui -> scalarTyped(ui, Primitive.FLOAT);
+            // Literals — one typed variant per literal kind
+            case CInteger i -> new com.gs.legend.compiler.typed.TypedCInteger(
+                    i.value(), ExpressionType.one(classifyInteger(i)));
+            case CFloat f -> new com.gs.legend.compiler.typed.TypedCFloat(
+                    f.value(), ExpressionType.one(Primitive.FLOAT));
+            case CDecimal d -> new com.gs.legend.compiler.typed.TypedCDecimal(
+                    d.value(), ExpressionType.one(classifyDecimal(d)));
+            case CString s -> new com.gs.legend.compiler.typed.TypedCString(
+                    s.value(), ExpressionType.one(Primitive.STRING));
+            case CBoolean b -> new com.gs.legend.compiler.typed.TypedCBoolean(
+                    b.value(), ExpressionType.one(Primitive.BOOLEAN));
+            case CDateTime dt -> new com.gs.legend.compiler.typed.TypedCDateTime(
+                    dt.value(), ExpressionType.one(Primitive.DATE_TIME));
+            case CStrictDate sd -> new com.gs.legend.compiler.typed.TypedCStrictDate(
+                    sd.value(), ExpressionType.one(Primitive.STRICT_DATE));
+            case CStrictTime st -> new com.gs.legend.compiler.typed.TypedCStrictTime(
+                    st.value(), ExpressionType.one(Primitive.STRICT_TIME));
+            case CLatestDate ld -> new com.gs.legend.compiler.typed.TypedCLatestDate(
+                    ExpressionType.one(Primitive.DATE_TIME));
+            case CByteArray ba -> new com.gs.legend.compiler.typed.TypedCByteArray(
+                    ba.value(), ExpressionType.one(Primitive.STRING));
+            case EnumValue ev -> new com.gs.legend.compiler.typed.TypedEnumValue(
+                    ev.fullPath(), ev.name(), ExpressionType.one(new Type.EnumType(ev.fullPath())));
+            // UnitInstance — carries a numeric value with a unit; for now model as
+            // a scalar float literal. Refine when the unit subsystem is typed.
+            case UnitInstance ui -> new com.gs.legend.compiler.typed.TypedCFloat(
+                    java.math.BigDecimal.valueOf(ui.value()),
+                    ExpressionType.one(Primitive.FLOAT));
         };
     }
 

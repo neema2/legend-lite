@@ -1,0 +1,48 @@
+Typed AST Big-Bang — Phase A in flight
+
+PLAN (frozen):
+  ~/.windsurf/plans/typed-ast-bigbang-mechanical-c0954a.md
+
+DECISIONS (locked):
+  1. Pure typed HIR (no sidecar map) — CompiledExpression(TypedSpec hir, deps).
+  2. Distinct control-flow variants (TypedIf/Let/Match/Cast/Zip/Write/Serialize).
+  3. TypedUserCall(args, body) wraps inlined body.
+  4. Phase A scope = compiler only; MappingResolver (B) + PlanGen (C) stay red.
+
+DONE (this session):
+  - 8 new TypedSpec variants added + wired to sealed permits list.
+  - TypedSpec: added expressionType() alias + type()/schema()/multiplicity()/
+    isRelation()/isScalar()/isMany() default methods.
+  - Literal variants retyped to match AST value types
+    (TypedCInteger: Number; TypedCDateTime/StrictDate/StrictTime: String).
+  - CompiledExpression reshaped to pure HIR: (TypedSpec hir, CompiledDependencies).
+  - TypeCheckEnv: compileExpr returns TypedSpec; lookupCompiled removed.
+  - TypeChecker: typedSpecs/types sidecar map removed; lookupCompiled removed;
+    compileExpr switch produces TypedSpec literal variants directly;
+    check() returns CompiledExpression(root hir, deps).
+
+REMAINING for Phase A (~2-3h focused sprint):
+  - TypeChecker private methods still return TypeInfo; rewrite each to return
+    the matching TypedSpec variant:
+      compileFunction    -> TypedSpec (per-af kind: native/user/control-flow)
+      compileLambda      -> TypedLambda
+      compileVariable    -> TypedVariable
+      compileProperty    -> TypedPropertyAccess
+      compileCollection  -> TypedCollection
+      compileNew         -> TypedNewInstance
+      inlineUserFunction -> TypedUserCall
+      resolvePackageableElement -> throw (not a standalone expr)
+      inlineStructExtract -> TypedStructExtract
+  - Delete dead helpers scalarTyped/scalarTypedMany/typed (no callers after
+    compileExpr flip; they still reference the removed `types` map).
+  - AbstractChecker: compileLambda / compileLambdaArg / buildTypedLambda return
+    TypedSpec / TypedLambda.
+  - 36 checkers: each check(...) returns TypedSpec; build the matching Typed*
+    variant at its single builder site; read child typed specs from
+    env.compileExpr return value (thread through; no lookup by VS key).
+  - Delete TypeInfo.java at the very end.
+
+REMAINING for Phase B (MappingResolver) — ~5 variant-read sites.
+REMAINING for Phase C (PlanGenerator) — ~35 variant-read sites.
+
+TESTS: expected red during Phase A; re-enable after B+C.

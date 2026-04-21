@@ -43,8 +43,39 @@ public sealed interface TypedSpec permits
         TypedPropertyAccess, TypedMap, TypedFold, TypedNativeCall,
         TypedStructExtract,
         // Struct construction (1)
-        TypedNewInstance {
+        TypedNewInstance,
+        // Control flow (5) + IO (2) + user call (1)
+        TypedIf, TypedLet, TypedMatch, TypedCast, TypedZip,
+        TypedWrite, TypedSerialize,
+        TypedUserCall {
 
     /** Type + multiplicity. Every typed node has this. */
     ExpressionType info();
+
+    // ----- Convenience delegates to info() (non-authoritative shortcuts) -----
+
+    /**
+     * Alias for {@link #info()} — matches the legacy {@code TypeInfo.expressionType()}
+     * accessor so existing consumer code compiles unchanged during the typed-HIR
+     * migration.
+     */
+    default ExpressionType expressionType() { return info(); }
+
+    /** The {@link com.gs.legend.model.m3.Type} of this expression. */
+    default com.gs.legend.model.m3.Type type() { return info().type(); }
+
+    /** The {@link com.gs.legend.model.m3.Multiplicity} of this expression. */
+    default com.gs.legend.model.m3.Multiplicity multiplicity() { return info().multiplicity(); }
+
+    /** @return schema if this is a relational expression, otherwise null. */
+    default com.gs.legend.model.m3.Type.Schema schema() { return info().schema(); }
+
+    /** @return true if this is a relational (tabular) expression. */
+    default boolean isRelation() { return info().isRelation(); }
+
+    /** @return true if this is a scalar (non-relational) expression. */
+    default boolean isScalar() { return info().isScalar(); }
+
+    /** @return true if multiplicity is MANY ([*] or [1..*]). */
+    default boolean isMany() { return info().isMany(); }
 }
