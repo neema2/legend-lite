@@ -316,7 +316,7 @@ public class TypeChecker implements TypeCheckEnv {
                 && p.typeArgs().get(0) instanceof Type.RelationTypeVar rtv) {
             var columns = new java.util.LinkedHashMap<String, Type>();
             for (var col : rtv.columns()) {
-                columns.put(col.name(), resolveUserSignatureType(col.type()));
+                columns.put(col.name(), classifyUserType(col.type()));
             }
             return Type.Schema.withoutPivot(columns);
         }
@@ -743,7 +743,7 @@ public class TypeChecker implements TypeCheckEnv {
                     && isRelationRawType(p.rawType())
                     && !p.typeArgs().isEmpty()
                     && p.typeArgs().get(0) instanceof Type.RelationTypeVar) {
-                Type declaredGeneric = resolveUserSignatureType(declaredType);
+                Type declaredGeneric = classifyUserType(declaredType);
                 checkRelationSchemaCompatibility(
                         af.function(), param.name(), argSpec.type(), declaredGeneric);
                 continue;
@@ -936,7 +936,7 @@ public class TypeChecker implements TypeCheckEnv {
                     && isRelationRawType(p.rawType())
                     && !p.typeArgs().isEmpty()
                     && p.typeArgs().get(0) instanceof Type.RelationTypeVar) {
-                Type resolvedDeclared = resolveUserSignatureType(expectedReturnType);
+                Type resolvedDeclared = classifyUserType(expectedReturnType);
                 checkRelationSchemaCompatibility(
                         errorContext, "<return>", bodyResult.type(), resolvedDeclared);
             } else if (!isSubtype(bodyResult.type(), expectedReturnType)) {
@@ -999,6 +999,26 @@ public class TypeChecker implements TypeCheckEnv {
         return new com.gs.legend.compiler.typed.TypedBlock(typedStmts, terminal.info());
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Delegates to {@link #compileBodyStatements} so built-in lambda arguments
+     * (dispatched through {@code AbstractChecker.compileLambdaArg}) and user-function
+     * bodies walk the statement list identically: intermediate {@code letFunction}
+     * statements bind into {@code letBindings} and emit {@link com.gs.legend.compiler.typed.TypedLet},
+     * multi-statement bodies wrap in {@link com.gs.legend.compiler.typed.TypedBlock},
+     * and single-statement bodies return the bare terminal node.
+     */
+    @Override
+    public com.gs.legend.compiler.typed.TypedSpec compileLambdaBody(
+            LambdaFunction lambda, CompilationContext ctx) {
+        if (lambda.body().isEmpty()) {
+            throw new PureCompileException(
+                    "Lambda body is empty — every lambda must contain at least one expression");
+        }
+        return compileBodyStatements(lambda.body(), ctx);
+    }
+
     // ========== Bidirectional Lambda Typing ==========
 
     /**
@@ -1016,7 +1036,7 @@ public class TypeChecker implements TypeCheckEnv {
         List<com.gs.legend.compiler.typed.TypedParam> typedParams = new ArrayList<>(lambda.parameters().size());
         for (int i = 0; i < paramCount; i++) {
             String paramName = lambda.parameters().get(i).name();
-            Type paramType = resolveUserSignatureType(expectedFT.params().get(i).type());
+            Type paramType = classifyUserType(expectedFT.params().get(i).type());
             lambdaCtx = lambdaCtx.withLambdaParam(paramName, paramType);
             typedParams.add(new com.gs.legend.compiler.typed.TypedParam(
                     paramName, paramType, expectedFT.params().get(i).multiplicity()));
@@ -1054,7 +1074,7 @@ public class TypeChecker implements TypeCheckEnv {
      * Native-signature-only variants (SchemaAlgebra, FunctionReference, RelationTypeVar
      * outside a Relation&lt;...&gt;, etc.) also throw.
      */
-    private Type resolveUserSignatureType(Type parsed) {
+    private Type classifyUserType(Type parsed) {
         return switch (parsed) {
             case Type.NameRef nr -> Type.resolve(nr.qualifiedName(), modelContext);
             case Primitive p -> p;
@@ -1068,7 +1088,7 @@ public class TypeChecker implements TypeCheckEnv {
                 // Relation<(col1:Type1, col2:Type2)> → Type.Relation(Schema)
                 var columns = new java.util.LinkedHashMap<String, Type>();
                 for (var col : rtv.columns()) {
-                    columns.put(col.name(), resolveUserSignatureType(col.type()));
+                    columns.put(col.name(), classifyUserType(col.type()));
                 }
                 yield new Type.Relation(Type.Schema.withoutPivot(columns));
             }

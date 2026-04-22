@@ -961,17 +961,21 @@ public abstract class AbstractChecker implements FunctionChecker {
     }
 
     /**
-     * Compiles all lambda body statements; returns the TypedSpec of the last.
+     * Compiles a lambda body via {@link TypeCheckEnv#compileLambdaBody} — the
+     * single source of truth for lambda-body statement walking, shared with
+     * user-function bodies. Intermediate {@code letFunction} statements bind
+     * into {@code letBindings} (emitting {@link com.gs.legend.compiler.typed.TypedLet}),
+     * multi-statement bodies wrap in {@link com.gs.legend.compiler.typed.TypedBlock},
+     * and the returned {@link TypedSpec} carries the terminal statement's type.
+     *
+     * <p>Historical note: this used to be a dumb for-loop that silently dropped
+     * intermediate statements, meaning a {@code let} in a built-in lambda arg
+     * (e.g., {@code map({p | let n = $p.name; $n->toUpper()})}) compiled
+     * differently than the same body inside a user function. Delegating to the
+     * shared primitive closes that asymmetry.
      */
     protected TypedSpec compileLambdaBody(LambdaFunction lambda, TypeChecker.CompilationContext ctx) {
-        TypedSpec last = null;
-        for (var stmt : lambda.body()) {
-            last = env.compileExpr(stmt, ctx);
-        }
-        if (last == null) {
-            throw new PureCompileException("Lambda body produced no type");
-        }
-        return last;
+        return env.compileLambdaBody(lambda, ctx);
     }
 
     /**

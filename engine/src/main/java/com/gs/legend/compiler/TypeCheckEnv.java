@@ -1,5 +1,6 @@
 package com.gs.legend.compiler;
 
+import com.gs.legend.ast.LambdaFunction;
 import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiler.typed.TypedSpec;
 
@@ -27,4 +28,18 @@ public interface TypeCheckEnv {
      * association targets) and the build path (compileMapping fan-out).
      */
     void compileSourceSpecFor(String classFqn);
+
+    /**
+     * Compile a lambda body as a statement list with let-chaining:
+     * intermediate {@code letFunction} statements emit {@link com.gs.legend.compiler.typed.TypedLet}
+     * and bind into the context's {@code letBindings}, the terminal statement's
+     * {@link TypedSpec} becomes the body's result, and multi-statement bodies
+     * are wrapped in a {@link com.gs.legend.compiler.typed.TypedBlock}.
+     *
+     * <p>Single source of truth for both user-function bodies (routed through
+     * the body-compile primitive) and built-in lambda arguments; guarantees
+     * identical let-binding semantics regardless of whether the lambda is
+     * passed to {@code map(..)}, {@code filter(..)}, or a user-declared function.
+     */
+    TypedSpec compileLambdaBody(LambdaFunction lambda, TypeChecker.CompilationContext ctx);
 }
