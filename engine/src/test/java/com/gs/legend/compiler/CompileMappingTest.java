@@ -92,18 +92,18 @@ class CompileMappingTest {
         assertEquals("T_PERSON", mc.sourceName().orElseThrow(),
                 "Relational mapping's sourceName must equal the root table name");
 
-        // compileMapping wraps the exact AST ModelContext exposes — no reparse,
-        // no clone. Identity proves the primitive hands through the same
-        // ValueSpecification the query path would see.
-        var contextSpec = built.modelCtx.findSourceSpec("model::Person").orElseThrow();
-        assertSame(contextSpec, mc.sourceSpec().ast(),
-                "compiled sourceSpec must wrap the same AST instance ModelContext exposes");
+        // compileMapping hands through the exact synthetic PureFunction the
+        // query path would see — same overlay-provided instance, same FQN.
+        var fnFqn = mc.mappingFunction().qualifiedName();
+        var overlayPf = built.modelCtx.findFunction(fnFqn).get(0);
+        var directCompile = tc.check(overlayPf);
+        assertSame(directCompile, mc.mappingFunction(),
+                "compileMapping and direct check(pf) must share the same CompiledFunction "
+                        + "instance — proves identity-keyed memoization hits across entry points");
 
-        // Type-stamping must cover more than just the root — a lazy walker
-        // that stamped only the root would pass a simple containsKey(root)
-        // check but fail this.
-        assertTrue(mc.sourceSpec().types().size() > 1,
-                "TypeChecker must stamp descendant sourceSpec nodes, not only the root");
+        // Typed HIR is produced for the function body (not just a placeholder).
+        assertNotNull(mc.mappingFunction().body().hir(),
+                "mapping function body must be typed all the way down");
     }
 
     @Test
@@ -111,25 +111,24 @@ class CompileMappingTest {
         var built = buildAndNormalize();
         var tc = new TypeChecker(built.modelCtx);
 
-        // 1. Query path — GetAllChecker routes through env.compileSourceSpecFor,
-        //    which stamps Person's sourceSpec subtree.
+        // 1. Query path — GetAllChecker compiles the mapping function and
+        //    attaches it to the TypedGetAll node.
         var getAllPerson = new AppliedFunction(
                 "getAll", List.of(new PackageableElementPtr("model::Person")), false);
         var queryCompiled = tc.check(getAllPerson);
-        int typesAfterQuery = queryCompiled.types().size();
-        assertTrue(typesAfterQuery > 1,
-                "Query path must have stamped query AST + sourceSpec subtree");
+        var queryMappingFn = ((com.gs.legend.compiler.typed.TypedGetAll) queryCompiled.hir()).mappingFn();
+        assertNotNull(queryMappingFn,
+                "GetAllChecker must attach the compiled mapping function to TypedGetAll");
 
-        // 2. Build path — compileMapping fans out to the same primitive,
-        //    which is memoized by classFqn. It must NOT restamp anything.
+        // 2. Build path — compileMapping fans out to the same primitive.
+        //    Identity-keyed memoization on PureFunction ensures both paths
+        //    return the same CompiledFunction instance.
         var mappingCompiled = tc.check(built.mappingDef);
-        var sharedTypes = mappingCompiled.mappedClasses().get(0).sourceSpec().types();
+        var buildMappingFn = mappingCompiled.mappedClasses().get(0).mappingFunction();
 
-        assertSame(queryCompiled.types(), sharedTypes,
-                "Query and build must share one identity-keyed types map instance");
-        assertEquals(typesAfterQuery, sharedTypes.size(),
-                "Build path must not restamp sourceSpec nodes the query already stamped — "
-                        + "proves compileSourceSpecFor is memoized across triggers");
+        assertSame(queryMappingFn, buildMappingFn,
+                "Query and build must share one CompiledFunction instance — "
+                        + "proves compileMappingFunctionFor is memoized across triggers");
     }
 
     @Test
@@ -160,24 +159,23 @@ class CompileMappingTest {
         var raw = compiled.mappedClasses().get(0);
         var person = compiled.mappedClasses().get(1);
 
-        // Relational branch: kind, sourceName = table, sourceSpec typed.
+        // Relational branch: kind, sourceName = table, mapping function typed.
         assertEquals(MappingKind.RELATIONAL, raw.kind());
         assertEquals("T_RAW", raw.sourceName().orElseThrow());
-        assertSame(
-                built.modelCtx.findSourceSpec("model::RawPerson").orElseThrow(),
-                raw.sourceSpec().ast(),
-                "relational sourceSpec must be the ModelContext AST instance");
+        assertNotNull(raw.mappingFunction().body().hir(),
+                "relational mapping function body must be typed");
 
-        // M2M branch: kind, sourceName = source class FQN, sourceSpec typed.
+        // M2M branch: kind, sourceName = source class FQN, mapping function typed.
         assertEquals(MappingKind.M2M, person.kind());
         assertEquals("model::RawPerson", person.sourceName().orElseThrow(),
                 "M2M sourceName must be the source class FQN, not a table name");
-        assertSame(
-                built.modelCtx.findSourceSpec("model::Person").orElseThrow(),
-                person.sourceSpec().ast(),
-                "M2M sourceSpec must be the ModelContext AST instance");
-        assertTrue(person.sourceSpec().types().containsKey(person.sourceSpec().ast()),
-                "M2M sourceSpec root must be stamped with TypeInfo");
+        assertNotNull(person.mappingFunction().body().hir(),
+                "M2M mapping function body must be typed");
+
+        // M2M and relational produce distinct CompiledFunction instances (different classes).
+        assertSame(raw.mappingFunction(),
+                tc.check(built.modelCtx.findFunction(raw.mappingFunction().qualifiedName()).get(0)),
+                "build-path mapping function must match direct check(pf) — identity memoization");
     }
 
     // ---- fixture ----

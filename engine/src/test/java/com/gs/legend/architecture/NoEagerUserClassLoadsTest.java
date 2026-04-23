@@ -199,8 +199,8 @@ class NoEagerUserClassLoadsTest {
         }
 
         @Override
-        public Optional<ValueSpecification> findSourceSpec(String className) {
-            return delegate.findSourceSpec(className);
+        public Optional<String> findMappingFunctionFqn(String className) {
+            return delegate.findMappingFunctionFqn(className);
         }
     }
 }

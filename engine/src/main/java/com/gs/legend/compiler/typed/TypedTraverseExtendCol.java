@@ -7,8 +7,4 @@ public record TypedTraverseExtendCol(
         String alias,
         List<TraversalHop> hops,
         TypedLambda expression
-) implements TypedExtendCol {
-    public TypedTraverseExtendCol {
-        hops = List.copyOf(hops);
-    }
-}
+) implements TypedExtendCol {}

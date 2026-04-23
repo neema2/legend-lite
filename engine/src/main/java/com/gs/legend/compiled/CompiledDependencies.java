@@ -14,6 +14,12 @@ import java.util.Set;
  *       body statically touches (via {@code $x.prop}).</li>
  *   <li>{@code associationNavigations} — which association-injected properties
  *       of each class the body statically navigates.</li>
+ *   <li>{@code mappingFunctions} — compiled mapping function per class FQN
+ *       that downstream passes (MappingResolver) need to walk. Populated as a
+ *       side-effect of {@code compileMappingFunctionFor}, covering both
+ *       root-class fetches and association-target fan-out. Not specific to
+ *       synthesized mapping functions — the same slot accommodates
+ *       user-authored mapping functions in the future.</li>
  * </ul>
  *
  * <p>The element-level used-set (authoritative input to Bazel's
@@ -23,10 +29,11 @@ import java.util.Set;
  */
 public record CompiledDependencies(
         Map<String, Set<String>> classPropertyAccesses,
-        Map<String, Set<String>> associationNavigations) {
+        Map<String, Set<String>> associationNavigations,
+        Map<String, CompiledFunction> mappingFunctions) {
 
     public static final CompiledDependencies EMPTY =
-            new CompiledDependencies(Map.of(), Map.of());
+            new CompiledDependencies(Map.of(), Map.of(), Map.of());
 
     /**
      * Derived: union of the two map key-sets — every class FQN statically

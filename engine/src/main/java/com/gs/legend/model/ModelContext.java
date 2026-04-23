@@ -125,19 +125,19 @@ public interface ModelContext {
     }
 
     /**
-     * Finds the normalized sourceSpec for a class — the single
-     * {@code ValueSpecification} chain synthesized by {@code MappingNormalizer}:
-     * <ul>
-     *   <li><b>Relational</b>: {@code tableReference → filter → join → extend(traverse) → distinct}</li>
-     *   <li><b>M2M</b>: {@code getAll("SrcClass") → filter → extend(~[...])}</li>
-     * </ul>
-     * Kind discrimination (if needed) lives on the def record
-     * ({@code ClassMappingDefinition.isM2M()}), not here.
+     * Returns the FQN of the synthetic mapping function that materializes
+     * rows for the given class in the active mapping scope.
+     *
+     * <p>Overlay provided by {@code MappingNormalizer.modelContext()} so
+     * {@link com.gs.legend.compiler.TypeChecker} can resolve per-class
+     * mapping function bodies without a direct {@code NormalizedMapping}
+     * dependency. Base implementation returns empty — only the per-query
+     * overlay knows about active mapping scope.
      *
      * @param className Simple or qualified class name
-     * @return The normalized sourceSpec, if this class has a mapping
+     * @return Synthetic mapping function FQN, if this class has a mapping
      */
-    default Optional<ValueSpecification> findSourceSpec(String className) {
+    default Optional<String> findMappingFunctionFqn(String className) {
         return Optional.empty();
     }
 

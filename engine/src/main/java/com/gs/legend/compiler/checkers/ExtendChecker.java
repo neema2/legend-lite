@@ -88,19 +88,31 @@ public class ExtendChecker extends AbstractChecker {
 
             for (ColSpec cs : extractColSpecs(ci)) {
                 // Association extend: fn1 is a 0-param lambda wrapping traverse().
-                // Compile the traverse to type-check the condition and expose the
-                // terminal schema to later scalar/window columns in this extend().
+                // Compile the traverse to type-check the condition and emit a
+                // first-class TypedAssociationExtendCol carrying the hops — no
+                // raw-AST pattern matching downstream. Also propagate the joined
+                // terminal schema so any subsequent scalar cols in the same
+                // extend() can reference the joined columns.
                 if (isAssociationExtend(cs)) {
                     AppliedFunction innerTraverse =
                             (AppliedFunction) cs.function1().body().get(0);
                     var result = compileTraverseClause(innerTraverse, sourceSchema, ctx);
                     topLevelHops.addAll(result.hops);
                     colSpecSchema = result.terminalSchema;
+                    // Target class's compiled mapping function is resolved by a
+                    // pass-2 fan-out over associationNavigations on TypeChecker,
+                    // exposed via CompiledDependencies.mappingFunctions. We
+                    // deliberately do not thread the owner class through the
+                    // compilation context to avoid mutable side-channel state.
+                    extensions.add(new TypedAssociationExtendCol(
+                            cs.name(), result.hops));
                     continue;
                 }
                 // Embedded extend: fn1 is 0-param lambda wrapping ColSpecArray.
-                // Resolved by MappingResolver; compiler skips.
+                // Emit a first-class TypedEmbeddedExtendCol so MappingResolver can
+                // lower it structurally without re-parsing the raw AST.
                 if (isEmbeddedExtend(cs)) {
+                    extensions.add(buildEmbeddedExtendCol(cs));
                     continue;
                 }
                 TypedExtendCol col;
@@ -133,6 +145,16 @@ public class ExtendChecker extends AbstractChecker {
             case TypedScalarExtendCol s -> s.returnType();
             case TypedWindowExtendCol w -> w.castType().orElse(w.returnType());
             case TypedTraverseExtendCol t -> t.expression().expressionType().type();
+            // Association and embedded extends do not contribute a column to the
+            // source schema — they are join markers / property-grouping markers
+            // and are skipped before this method is called via `continue` in the
+            // main extend() loop. Reaching here is a compiler invariant violation.
+            case TypedAssociationExtendCol a -> throw new IllegalStateException(
+                    "extendColType: TypedAssociationExtendCol '" + a.alias()
+                            + "' does not project a column — should be skipped before schema assembly");
+            case TypedEmbeddedExtendCol e -> throw new IllegalStateException(
+                    "extendColType: TypedEmbeddedExtendCol '" + e.alias()
+                            + "' does not project a column — should be skipped before schema assembly");
         };
     }
 
@@ -199,6 +221,33 @@ public class ExtendChecker extends AbstractChecker {
         if (fn1.body().isEmpty()) return false;
         return fn1.body().get(0) instanceof AppliedFunction af
                 && "traverse".equals(SymbolTable.extractSimpleName(af.function()));
+    }
+
+    /**
+     * Builds a {@link TypedEmbeddedExtendCol} from an embedded-extend ColSpec produced
+     * by {@code MappingNormalizer}. The inner {@link ColSpecArray} carries one ColSpec
+     * per sub-property, each with a 1-param lambda whose body is {@code $row.<COL>}.
+     * No type-checking is required — embedded extends are pure shape.
+     */
+    private static TypedEmbeddedExtendCol buildEmbeddedExtendCol(ColSpec cs) {
+        ColSpecArray subArray = (ColSpecArray) cs.function1().body().get(0);
+        List<TypedEmbeddedExtendCol.Sub> subs = new ArrayList<>();
+        for (ColSpec sub : subArray.colSpecs()) {
+            if (sub.function1() == null || sub.function1().body().isEmpty()) {
+                throw new PureCompileException(
+                        "embedded extend sub-property '" + sub.name()
+                                + "' has no expression lambda");
+            }
+            var body = sub.function1().body().get(0);
+            if (!(body instanceof AppliedProperty ap)) {
+                throw new PureCompileException(
+                        "embedded extend sub-property '" + sub.name()
+                                + "' body must be a simple property access, got "
+                                + body.getClass().getSimpleName());
+            }
+            subs.add(new TypedEmbeddedExtendCol.Sub(sub.name(), ap.property()));
+        }
+        return new TypedEmbeddedExtendCol(cs.name(), subs);
     }
 
     /**

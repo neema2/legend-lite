@@ -71,8 +71,16 @@ public class TypeChecker implements TypeCheckEnv {
     private final Map<String, Set<String>> classPropertyAccesses = new HashMap<>();
     /** Association navigations observed during compilation (className → association property names). */
     private final Map<String, Set<String>> associationNavigations = new HashMap<>();
-    /** Classes whose source relations have been compiled (prevents double-compilation in pass 2). */
-    private final Set<String> compiledSourceSpecs = new HashSet<>();
+    /**
+     * Compiled mapping functions keyed by class FQN. Populated as a side-effect
+     * of {@link #compileMappingFunctionFor(String)} — covers both the query-root
+     * fetch (via {@code GetAllChecker}) and pass-2 association-target fan-out
+     * (via {@link #compileNeededAssociationTargets()}). Exposed to downstream
+     * passes via {@code CompiledDependencies.mappingFunctions}, so
+     * {@code MappingResolver} can look up a class's compiled mapping body
+     * without holding a {@code TypeChecker} reference.
+     */
+    private final Map<String, CompiledFunction> mappingFunctions = new HashMap<>();
     /**
      * Memoization of compiled element results, keyed by element FQN.
      *
@@ -118,27 +126,46 @@ public class TypeChecker implements TypeCheckEnv {
     }
 
     /**
-     * Compile a class's normalized sourceSpec (relational or M2M) once, idempotently.
+     * Compile a class's synthetic mapping function to a {@link CompiledFunction}.
      *
-     * <p>Single primitive behind every place that needs "type-check this class's
-     * sourceSpec":
+     * <p>Single primitive behind every place that needs the compiled mapping-function
+     * body for a class:
      * <ul>
-     *   <li>Query path — {@code GetAllChecker} on a class reference.</li>
+     *   <li>Query path — {@code GetAllChecker} on a class reference, to attach
+     *       the compiled function to {@link com.gs.legend.compiler.typed.TypedGetAll}.</li>
      *   <li>Query path, pass-2 — association-target fan-out in
      *       {@link #compileNeededAssociationTargets()}.</li>
      *   <li>Build path — {@link #compileMapping(MappingDefinition)} fan-out.</li>
      * </ul>
      *
-     * <p>Guarded by {@link #compiledSourceSpecs}: a second call for the same
-     * {@code classFqn} within this {@code TypeChecker}'s lifetime is a no-op.
+     * <p>Resolves the function FQN via the {@link ModelContext#findMappingFunctionFqn}
+     * overlay (provided by {@code MappingNormalizer}), then compiles via
+     * {@link #check(com.gs.legend.model.m3.PureFunction)} — content-addressed
+     * memoization on {@link PureFunction} identity lives inside {@code check(pf)}
+     * (via {@link #compiledFunctions}), so repeat calls for the same class
+     * short-circuit there without needing a second FQN-keyed cache.
+     *
+     * <p>Throws if the class has no mapping in the active scope — the anchor is
+     * a hard contract, not a probe.
      */
     @Override
-    public void compileSourceSpecFor(String classFqn) {
-        if (compiledSourceSpecs.contains(classFqn)) return;
-        modelContext.findSourceSpec(classFqn).ifPresent(spec -> {
-            compiledSourceSpecs.add(classFqn);
-            compileExpr(spec, new CompilationContext());
-        });
+    public CompiledFunction compileMappingFunctionFor(String classFqn) {
+        CompiledFunction cached = mappingFunctions.get(classFqn);
+        if (cached != null) return cached;
+        String fnFqn = modelContext.findMappingFunctionFqn(classFqn)
+                .orElseThrow(() -> new PureCompileException(
+                        "No mapping in active scope for class '" + classFqn
+                                + "' — cannot compile mapping function"));
+        List<com.gs.legend.model.m3.PureFunction> candidates = modelContext.findFunction(fnFqn);
+        if (candidates.isEmpty()) {
+            throw new PureCompileException(
+                    "Mapping function '" + fnFqn + "' not found in model context");
+        }
+        CompiledFunction compiled = check(candidates.get(0));
+        // Expose on CompiledDependencies so MappingResolver can look the
+        // function up by class FQN without holding a TypeChecker reference.
+        mappingFunctions.put(classFqn, compiled);
+        return compiled;
     }
 
     /**
@@ -160,7 +187,7 @@ public class TypeChecker implements TypeCheckEnv {
         compileNeededAssociationTargets();
         return new CompiledExpression(
                 root,
-                new CompiledDependencies(classPropertyAccesses, associationNavigations));
+                new CompiledDependencies(classPropertyAccesses, associationNavigations, mappingFunctions));
     }
 
     // ============================================================
@@ -282,22 +309,16 @@ public class TypeChecker implements TypeCheckEnv {
         var mappedClasses = new ArrayList<CompiledMappedClass>();
         for (var cm : md.classMappings()) {
             String classFqn = cm.className();
-
-            // Primitive — handles both relational and M2M, idempotent with the
-            // query path's prior source-spec compilation for the same class.
-            compileSourceSpecFor(classFqn);
-
-            ValueSpecification spec = modelContext.findSourceSpec(classFqn).orElse(null);
+            // Single primitive — compiles the synthetic mapping function via
+            // the same path used by GetAllChecker and pass-2 association fan-out.
+            // Memoization on PureFunction identity inside check(pf) makes this
+            // idempotent with prior query-path compilation.
+            CompiledFunction mappingFunction = compileMappingFunctionFor(classFqn);
 
             MappingKind kind = cm.isM2M() ? MappingKind.M2M : MappingKind.RELATIONAL;
 
-            CompiledExpression compiledSourceSpec = spec == null ? null
-                    : new CompiledExpression(
-                            compileExpr(spec, new CompilationContext()),
-                            new CompiledDependencies(classPropertyAccesses, associationNavigations));
-
             mappedClasses.add(new CompiledMappedClass(
-                    classFqn, kind, compiledSourceSpec, cm.sourceName()));
+                    classFqn, kind, mappingFunction, cm.sourceName()));
         }
         return new CompiledMapping(md.qualifiedName(), List.copyOf(mappedClasses), SourceLocation.UNKNOWN);
     }
@@ -368,9 +389,13 @@ public class TypeChecker implements TypeCheckEnv {
                 pureFn.returnType(), pureFn.returnMultiplicity(),
                 "Function '" + pureFn.qualifiedName() + "'");
 
+        // Per-function body carries the same TypeChecker-level aggregated maps.
+        // Only the root CompiledExpression populates mappingFunctions meaningfully;
+        // individual function bodies pass an empty map because they are not the
+        // consumption point for MappingResolver lookups.
         CompiledExpression body = new CompiledExpression(
                 bodyHir,
-                new CompiledDependencies(classPropertyAccesses, associationNavigations));
+                new CompiledDependencies(classPropertyAccesses, associationNavigations, Map.of()));
 
         List<com.gs.legend.compiled.CompiledParameter> compiledParams = pureFn.parameters().stream()
                 .map(p -> new com.gs.legend.compiled.CompiledParameter(p.name(), p.type(), p.multiplicity()))
@@ -423,24 +448,42 @@ public class TypeChecker implements TypeCheckEnv {
     }
 
     /**
-     * Pass 2: compile source relations for classes whose associations the query navigates.
-     * After pass 1 (compileExpr), {@code associationNavigations} contains every
-     * className→propName pair the query touches. For each entry:
-     * 1. Compile the source class's source relation (if not already done) — stamps TypeInfo
-     *    on its traverse conditions.
-     * 2. Compile each target class's source relation — stamps TypeInfo on any join-chain
-     *    traverses the target class has (e.g., Firm with a @FirmCountry join chain).
+     * Pass 2: compiles the mapping function for every class reached through an
+     * association property observed during root-body typechecking.
+     *
+     * <p>Demand-driven worklist over the association closure. Each iteration:
+     * <ol>
+     *   <li>Scan {@link #associationNavigations} — populated by pass-1
+     *       typechecking whenever {@code $x.assocProp} is resolved — and
+     *       project each {@code (owner, prop)} pair onto its target class
+     *       via {@link ModelContext#findAssociationByProperty}.</li>
+     *   <li>Subtract classes already in {@link #mappingFunctions} (the
+     *       frontier — what's needed but not yet compiled).</li>
+     *   <li>If the frontier is empty, we've reached fixed point.</li>
+     *   <li>Otherwise, compile each frontier class. This may append more
+     *       entries to {@code associationNavigations} (deeper graphs,
+     *       bidirectional associations) — picked up by the next iteration.</li>
+     * </ol>
+     *
+     * <p>Termination: {@code mappingFunctions.keySet()} grows monotonically
+     * and the class universe is finite, so the frontier eventually empties.
+     * Cycles (e.g., Person ↔ Company) are handled by the memoization check in
+     * {@link #compileMappingFunctionFor}: a second call for the same class
+     * short-circuits on the cached result.
      */
     private void compileNeededAssociationTargets() {
-        if (modelContext == null) return;
-        // Iterate a snapshot — associationNavigations is not modified by compileExpr on source relations.
-        for (var entry : new ArrayList<>(associationNavigations.entrySet())) {
-            String className = entry.getKey();
-            compileSourceSpecFor(className);
-            for (String propName : entry.getValue()) {
-                modelContext.findAssociationByProperty(className, propName)
-                        .ifPresent(nav -> compileSourceSpecFor(nav.targetClassName()));
+        while (true) {
+            Set<String> needed = new HashSet<>();
+            for (var entry : associationNavigations.entrySet()) {
+                String owner = entry.getKey();
+                for (String prop : entry.getValue()) {
+                    modelContext.findAssociationByProperty(owner, prop)
+                            .ifPresent(nav -> needed.add(nav.targetClassName()));
+                }
             }
+            needed.removeAll(mappingFunctions.keySet());
+            if (needed.isEmpty()) return;
+            for (String target : needed) compileMappingFunctionFor(target);
         }
     }
 
@@ -723,6 +766,7 @@ public class TypeChecker implements TypeCheckEnv {
         return new com.gs.legend.compiler.typed.TypedUserCall(
                 pureFn.qualifiedName(),
                 List.copyOf(argSpecs),
+                compiled,
                 new ExpressionType(pureFn.returnType(), pureFn.returnMultiplicity()));
     }
 

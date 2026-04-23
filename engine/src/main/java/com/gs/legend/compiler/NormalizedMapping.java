@@ -1,9 +1,8 @@
 package com.gs.legend.compiler;
 
-import com.gs.legend.model.SymbolTable;
+import com.gs.legend.model.m3.PureFunction;
 import com.gs.legend.model.mapping.ClassMapping;
 
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -11,83 +10,101 @@ import java.util.Optional;
  * Immutable, self-contained snapshot of a single mapping scope.
  *
  * <p>Produced by {@link MappingNormalizer}, consumed by {@link MappingResolver}
- * and (indirectly via {@code ModelContext.findMappingExpression()}) by
- * {@link TypeChecker}.
+ * and {@link TypeChecker} (indirectly — {@code MappingNormalizer.modelContext()}
+ * overlays the snapshot's synthetic functions on the base model).
  *
  * <p>Replaces {@link com.gs.legend.model.mapping.MappingRegistry} for
  * MappingResolver. All M2M chains are pre-resolved at construction time —
  * no mutation methods exist.
  *
- * <p>All lookups resolve through {@link SymbolTable#resolveId(String)} —
- * both FQN and simple name lookups work without dual-key storage.
+ * <h3>Mapping-function synthesis</h3>
  *
- * <h3>Encapsulation Boundaries</h3>
+ * <p>Each class mapping contributes one <em>synthetic</em> {@link PureFunction}
+ * whose body is the synthesized source-relation AST (relational:
+ * {@code tableReference(...)->filter->extend(...)}; M2M: {@code getAll(srcClass)
+ * ->filter->extend(...)}). These synthetic functions are indistinguishable
+ * from user-authored functions — they live in the same per-query function
+ * namespace, are compiled by {@link TypeChecker#check(PureFunction)} just like
+ * any other function, and their bodies are walked by {@link MappingResolver}
+ * through the same primitive used for {@code TypedUserCall}.
+ *
+ * <p>Synthetic functions are named {@code <classFqn>::mappingFunction} — a
+ * reserved canonical suffix. A user-authored function with this FQN for a
+ * given class is treated as an intentional override (same pattern as Python's
+ * {@code __eq__}, Rust's {@code Default::default}, Go's {@code init}/{@code main}).
+ *
+ * <p>Per the cross-project-joins principle, the body of a synthetic mapping
+ * function refers to upstream data by <em>class</em>, never by another mapping's
+ * function FQN. Which mapping provides the upstream class is decided by the
+ * active {@code NormalizedMapping} at query time.
+ *
+ * <h3>Encapsulation boundaries</h3>
  * <ul>
- *   <li><b>TypeChecker</b> sees only {@link #findMappingExpression(String)}
- *       (via ModelContext delegation)</li>
- *   <li><b>MappingResolver</b> sees {@link #findClassMapping(String)}
- *       and {@link #findSourceSpec(String)} — read-only.
- *       Association joins are embedded in sourceSpec as extend() nodes
- *       with fn1=traverse (walked by MappingResolver directly).</li>
- *   <li>Neither sees {@code MappingRegistry} directly</li>
+ *   <li><b>TypeChecker</b> sees the synthetic functions transparently through
+ *       the {@code ModelContext.findFunction} overlay — no dedicated accessor.</li>
+ *   <li><b>MappingResolver</b> reads {@link #findClassMapping}.</li>
+ *   <li>Neither sees {@code MappingRegistry} directly.</li>
  * </ul>
+ *
+ * <h3>Why two function-indexed maps</h3>
+ *
+ * <p>The record carries the <em>same</em> set of synthetic {@link PureFunction}s
+ * indexed two different ways because there are two hot-path lookup directions:
+ * <ul>
+ *   <li>{@code mappingFunctionFqns}: <em>class FQN → function FQN</em>. Consumed by
+ *       {@link #findMappingFunctionFqn} when {@code TypeChecker.compileMappingFunctionFor}
+ *       asks "which function materializes this class?".</li>
+ *   <li>{@code mappingFunctions}: <em>function FQN → PureFunction</em>. Consumed by
+ *       {@link #findMappingFunction} from the {@code ModelContext.findFunction}
+ *       overlay when any function call resolves by FQN.</li>
+ * </ul>
+ * Collapsing to a single map would force one of the two lookups to scan O(n).
+ * Both lookups are called on every compiled body, so both indices are kept.
+ *
+ * <p>All keys are class / function FQN strings. Internal integer-handle lookups
+ * (via {@code SymbolTable}) are deliberately avoided at this module boundary
+ * so callers don't need to understand the compiler's symbol interning.
  */
-public final class NormalizedMapping {
+public record NormalizedMapping(
+        Map<String, ClassMapping> classMappings,
+        Map<String, String> mappingFunctionFqns,
+        Map<String, PureFunction> mappingFunctions) {
 
-    private final SymbolTable symbols;
-    private final Map<Integer, ClassMapping> classMappings;
-    private final Map<Integer, com.gs.legend.ast.ValueSpecification> sourceSpecs;
-
-    public NormalizedMapping(
-            SymbolTable symbols,
-            Map<Integer, ClassMapping> classMappings,
-            Map<Integer, com.gs.legend.ast.ValueSpecification> sourceSpecs) {
-        this.symbols = symbols;
-        this.classMappings = Map.copyOf(classMappings);
-        this.sourceSpecs = Map.copyOf(sourceSpecs);
+    /** Empty snapshot — no mappings, no synthetic functions. */
+    public static NormalizedMapping empty() {
+        return new NormalizedMapping(Map.of(), Map.of(), Map.of());
     }
 
     /**
-     * Finds a fully-resolved class mapping by class name (simple or qualified).
-     * Used by MappingResolver (replaces registry.findAnyMapping).
+     * Finds a fully-resolved class mapping by class FQN.
+     * Used by MappingResolver to drive per-class resolution.
      */
-    public Optional<ClassMapping> findClassMapping(String className) {
-        int id = symbols.resolveId(className);
-        return id >= 0 ? Optional.ofNullable(classMappings.get(id)) : Optional.empty();
+    public Optional<ClassMapping> findClassMapping(String classFqn) {
+        return Optional.ofNullable(classMappings.get(classFqn));
     }
 
     /**
-     * Returns the synthesized sourceSpec for a class (relational or M2M).
-     * Used by both {@code TypeChecker} (via {@code ModelContext.findSourceSpec()}
-     * delegation) and {@code MappingResolver} (directly on this snapshot).
+     * class FQN → mapping function FQN. Used by the
+     * {@code ModelContext.findMappingFunctionFqn} overlay so TypeChecker can
+     * locate which function body to compile for a given class's
+     * {@code getAll()}.
      */
-    public Optional<com.gs.legend.ast.ValueSpecification> findSourceSpec(String className) {
-        int id = symbols.resolveId(className);
-        return id >= 0 ? Optional.ofNullable(sourceSpecs.get(id)) : Optional.empty();
+    public Optional<String> findMappingFunctionFqn(String classFqn) {
+        return Optional.ofNullable(mappingFunctionFqns.get(classFqn));
     }
 
     /**
-     * @return true if this snapshot contains any class mappings
+     * function FQN → {@link PureFunction}. Used by the
+     * {@code ModelContext.findFunction} overlay so every downstream function
+     * call resolution unifies synthesized mapping functions with user
+     * functions through a single channel.
      */
+    public Optional<PureFunction> findMappingFunction(String fnFqn) {
+        return Optional.ofNullable(mappingFunctions.get(fnFqn));
+    }
+
+    /** @return true if this snapshot contains any class mappings. */
     public boolean hasClassMappings() {
         return !classMappings.isEmpty();
-    }
-
-    /**
-     * @return all class mappings in this scope (keyed by FQN)
-     */
-    public Map<String, ClassMapping> allClassMappings() {
-        var result = new LinkedHashMap<String, ClassMapping>(classMappings.size());
-        for (var entry : classMappings.entrySet()) {
-            result.put(symbols.nameOf(entry.getKey()), entry.getValue());
-        }
-        return Map.copyOf(result);
-    }
-
-    /**
-     * Empty snapshot — no mappings, no expressions.
-     */
-    public static NormalizedMapping empty() {
-        return new NormalizedMapping(new SymbolTable(), Map.of(), Map.of());
     }
 }

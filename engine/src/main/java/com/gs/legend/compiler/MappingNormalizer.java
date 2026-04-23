@@ -48,7 +48,10 @@ public final class MappingNormalizer {
     }
 
     /**
-     * Restricted view for TypeChecker — only sees findSourceSpec.
+     * Model context view for TypeChecker and MappingResolver — overlays the
+     * synthetic mapping functions onto the base model's {@code findFunction}
+     * channel, so synthetic functions are indistinguishable from user functions
+     * to both downstream consumers.
      */
     public ModelContext modelContext() {
         if (!normalized.hasClassMappings()) return model;
@@ -58,9 +61,17 @@ public final class MappingNormalizer {
             @Override public java.util.Optional<com.gs.legend.model.store.Table> findTable(String db, String name) { return model.findTable(db, name); }
             @Override public java.util.Optional<com.gs.legend.model.def.EnumDefinition> findEnum(String n) { return model.findEnum(n); }
             @Override public java.util.Map<String, AssociationNavigation> findAllAssociationNavigations(String c) { return model.findAllAssociationNavigations(c); }
-            @Override public java.util.List<com.gs.legend.model.m3.PureFunction> findFunction(String n) { return model.findFunction(n); }
-            @Override public java.util.Optional<com.gs.legend.ast.ValueSpecification> findSourceSpec(String className) {
-                return normalized.findSourceSpec(className);
+            @Override public java.util.List<com.gs.legend.model.m3.PureFunction> findFunction(String n) {
+                // Synthetic mapping functions win when the FQN matches — they
+                // live in the per-query mapping scope, overlayed on top of
+                // the model's permanent user-function registry. One expression,
+                // one Optional, one dispatch.
+                return normalized.findMappingFunction(n)
+                        .<java.util.List<com.gs.legend.model.m3.PureFunction>>map(java.util.List::of)
+                        .orElseGet(() -> model.findFunction(n));
+            }
+            @Override public java.util.Optional<String> findMappingFunctionFqn(String className) {
+                return normalized.findMappingFunctionFqn(className);
             }
         };
     }
@@ -85,17 +96,20 @@ public final class MappingNormalizer {
         }
 
         Map<Integer, ClassMapping> resolvedMappings = new HashMap<>();
-        Map<Integer, com.gs.legend.ast.ValueSpecification> sourceSpecs = new HashMap<>();
+        Map<Integer, com.gs.legend.ast.ValueSpecification> rawSourceSpecs = new LinkedHashMap<>();
 
-        // Phase 1: Resolve M2M chains
+        // Phase 1: Detect circular M2M chains + apply view macros.
+        // M2M chains no longer bake the upstream ClassMapping reference into
+        // PureClassMapping (object-identity shortcut is gone) — the upstream
+        // is resolved by FQN through this same NormalizedMapping at query time.
         Set<Integer> resolving = new HashSet<>();
         for (var entry : allMappings.entrySet()) {
             int classId = entry.getKey();
             ClassMapping cm = entry.getValue();
 
             if (cm instanceof PureClassMapping pcm) {
-                ClassMapping resolved = resolveM2MChain(pcm, allMappings, resolving);
-                resolvedMappings.put(classId, resolved);
+                detectM2MCycles(pcm, allMappings, resolving);
+                resolvedMappings.put(classId, pcm);
             } else if (cm instanceof RelationalMapping rm && rm.view() != null) {
                 // View macro: resolve PMs through the view once, store the resolved mapping.
                 // MappingResolver reads the resolved PMs — no second resolution needed.
@@ -124,7 +138,7 @@ public final class MappingNormalizer {
 
             var sourceSpec = synthesizeSourceSpec(rm);
             sourceSpec = addAssociationExtends(rm, className, sourceSpec, resolvedMappings);
-            sourceSpecs.put(classId, sourceSpec);
+            rawSourceSpecs.put(classId, sourceSpec);
         }
 
         // Phase 2b: Build M2M sourceSpec chains.
@@ -135,19 +149,91 @@ public final class MappingNormalizer {
             ClassMapping cm = entry.getValue();
             if (!(cm instanceof PureClassMapping pcm)) continue;
 
-            sourceSpecs.put(classId, synthesizeM2MSourceSpec(pcm));
+            rawSourceSpecs.put(classId, synthesizeM2MSourceSpec(pcm));
         }
 
-        return new NormalizedMapping(symbols, resolvedMappings, sourceSpecs);
+        // Phase 3: Wrap each raw sourceSpec AST as a synthetic PureFunction,
+        // deterministically named "<classFqn>::mappingFunction". These functions
+        // are compiled by TypeChecker exactly like user functions and walked
+        // by MappingResolver via the same primitive as TypedUserCall.
+        //
+        // "::mappingFunction" is a reserved canonical suffix: a future
+        // user-authored function with this name for a given class is
+        // treated as an intentional override of the synthesized default
+        // (same mechanism Python uses for __eq__, Rust for Default::default,
+        // Go for init/main, etc.). The overlay's findFunction path resolves
+        // both uniformly, so no special-casing is needed downstream.
+        //
+        // NormalizedMapping is FQN-keyed (no integer handles leak across the
+        // module boundary), so we convert from the internal classId-keyed
+        // representation here in one place.
+        Map<String, ClassMapping> classMappingsByFqn = new LinkedHashMap<>();
+        for (var entry : resolvedMappings.entrySet()) {
+            classMappingsByFqn.put(symbols.nameOf(entry.getKey()), entry.getValue());
+        }
+        Map<String, String> mappingFunctionFqns = new LinkedHashMap<>();
+        Map<String, com.gs.legend.model.m3.PureFunction> mappingFunctions = new LinkedHashMap<>();
+        for (var entry : rawSourceSpecs.entrySet()) {
+            String className = symbols.nameOf(entry.getKey());
+            String fnFqn = className + "::mappingFunction";
+            var pureFn = new com.gs.legend.model.m3.PureFunction(
+                    fnFqn,
+                    /* typeParams */ java.util.List.of(),
+                    /* parameters */ java.util.List.of(),
+                    /* returnType */ com.gs.legend.model.m3.Primitive.ANY,
+                    /* returnMult */ com.gs.legend.model.m3.Multiplicity.MANY,
+                    /* body       */ java.util.List.of(entry.getValue()),
+                    /* stereotypes */ java.util.List.of(),
+                    /* taggedValues */ java.util.List.of());
+            mappingFunctionFqns.put(className, fnFqn);
+            mappingFunctions.put(fnFqn, pureFn);
+        }
+
+        return new NormalizedMapping(classMappingsByFqn, mappingFunctionFqns, mappingFunctions);
     }
 
-    // ==================== M2M Chain Resolution ====================
+    // ==================== Chain Walking ====================
 
     /**
-     * Resolves M2M chains recursively. Same algorithm as the former
-     * MappingResolver.resolveM2MSource(), but runs at normalization time.
+     * Walks a class mapping's M2M source chain to its terminal relational
+     * mapping's {@link com.gs.legend.model.store.Table}. Returns {@code null}
+     * if the chain doesn't bottom out at a relational mapping in the active
+     * scope (e.g., the upstream class has no mapping here).
+     *
+     * <p>Replaces the former {@code pcm.sourceMapping().sourceTable()} shortcut
+     * — which baked the upstream reference into the mapping def — with an
+     * explicit, principle-compliant walk through the {@code NormalizedMapping}
+     * scope's class-FQN-keyed registry.
      */
-    private ClassMapping resolveM2MChain(
+    private com.gs.legend.model.store.Table terminalSourceTable(
+            ClassMapping cm, Map<Integer, ClassMapping> resolvedMappings) {
+        ClassMapping current = cm;
+        java.util.Set<Integer> seen = new HashSet<>();
+        while (current instanceof PureClassMapping pcm) {
+            int srcId = symbols.resolveId(pcm.sourceClassName());
+            if (srcId < 0 || !seen.add(srcId)) return null;
+            current = resolvedMappings.get(srcId);
+            if (current == null) return null;
+        }
+        if (current instanceof RelationalMapping rm) {
+            return rm.table();
+        }
+        return null;
+    }
+
+    // ==================== M2M Cycle Detection ====================
+
+    /**
+     * Detects circular M2M chains via DFS over the class-mapping graph.
+     *
+     * <p>Does <em>not</em> bake any upstream ClassMapping reference into the
+     * {@link PureClassMapping} — under the cross-project-joins principle, the
+     * upstream mapping is resolved by class FQN through this
+     * {@link NormalizedMapping} at query time. The old
+     * {@code withResolvedSource} / {@code pcm.sourceMapping()} shortcut is
+     * gone; this method purely guards against infinite chains.
+     */
+    private void detectM2MCycles(
             PureClassMapping pcm,
             Map<Integer, ClassMapping> allMappings,
             Set<Integer> resolving) {
@@ -161,24 +247,11 @@ public final class MappingNormalizer {
         int sourceId = symbols.resolveId(pcm.sourceClassName());
         ClassMapping sourceMapping = sourceId >= 0 ? allMappings.get(sourceId) : null;
 
-        if (sourceMapping == null) {
-            // Source class has no mapping in this scope — leave unresolved
-            return pcm;
-        }
-
-        // If source is also M2M, resolve it recursively first
         if (sourceMapping instanceof PureClassMapping srcPcm) {
             resolving.add(targetId);
-            sourceMapping = resolveM2MChain(srcPcm, allMappings, resolving);
+            detectM2MCycles(srcPcm, allMappings, resolving);
             resolving.remove(targetId);
-
-            // Update the source in allMappings so other chains can use the resolved version
-            allMappings.put(sourceId, sourceMapping);
         }
-
-        // Target class is tracked by FQN and resolved lazily at use sites (AGENTS.md §5).
-        // Only the source-mapping link needs filling in here.
-        return pcm.withResolvedSource(sourceMapping);
     }
 
     // ==================== Association Extends ====================
@@ -205,7 +278,13 @@ public final class MappingNormalizer {
 
             int targetId = symbols.resolveId(nav.targetClassName());
             ClassMapping targetCm = targetId >= 0 ? resolvedMappings.get(targetId) : null;
-            if (targetCm == null || targetCm.sourceTable() == null) continue;
+            // Walk M2M chains to their terminal relational mapping for the
+            // physical source-table. Under the cross-project-joins principle
+            // we no longer bake the source reference into PureClassMapping, so
+            // this walk goes through `resolvedMappings` instead of pcm.sourceMapping().
+            com.gs.legend.model.store.Table targetTable = terminalSourceTable(
+                    targetCm, resolvedMappings);
+            if (targetTable == null) continue;
 
             // Build traverse chain (supports self-joins via TargetColumnRef)
             var traverseCall = buildTraverseChain(sourceTable, java.util.List.of(nav.join()));

@@ -2,6 +2,7 @@ package com.gs.legend.compiler;
 
 import com.gs.legend.ast.LambdaFunction;
 import com.gs.legend.ast.ValueSpecification;
+import com.gs.legend.compiled.CompiledFunction;
 import com.gs.legend.compiler.typed.TypedSpec;
 
 /**
@@ -23,11 +24,19 @@ public interface TypeCheckEnv {
     com.gs.legend.model.ModelContext modelContext();
 
     /**
-     * Compile a class's sourceSpec (relational or M2M) once, idempotently.
-     * Single primitive shared by the query path (GetAllChecker, pass-2
-     * association targets) and the build path (compileMapping fan-out).
+     * Compile the synthetic mapping function for a class to a
+     * {@link CompiledFunction}, once per FQN (idempotent / memoized).
+     *
+     * <p>Single primitive shared by the query path ({@code GetAllChecker},
+     * pass-2 association-target fan-out) and the build path
+     * ({@code compileMapping}). Returns the compiled function so callers
+     * can attach it to typed HIR nodes (e.g. {@code TypedGetAll.mappingFn})
+     * without re-resolving downstream.
+     *
+     * @throws PureCompileException if the class has no mapping in the
+     *         active scope — the anchor is a hard contract, not a probe.
      */
-    void compileSourceSpecFor(String classFqn);
+    CompiledFunction compileMappingFunctionFor(String classFqn);
 
     /**
      * Compile a lambda body as a statement list with let-chaining:

@@ -3,6 +3,7 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.PackageableElementPtr;
 import com.gs.legend.ast.ValueSpecification;
+import com.gs.legend.compiled.CompiledFunction;
 import com.gs.legend.compiler.*;
 import com.gs.legend.compiler.typed.TypedGetAll;
 import com.gs.legend.compiler.typed.TypedSpec;
@@ -13,14 +14,15 @@ import java.util.List;
 /**
  * Checker for {@code getAll()}.
  *
- * <p>Returns {@code ClassType[*]} for both relational and M2M mappings and
- * ensures the class's normalized sourceSpec is type-stamped before
- * {@code PlanGenerator} looks at it. The sourceSpec walk itself is delegated
- * to {@link TypeCheckEnv#compileSourceSpecFor(String)} — the single
- * primitive shared with pass-2 association fan-out and the build-path
- * {@code compileMapping}. Target-class sourceSpecs (for associations the
- * query actually navigates) are still compiled on-demand by
- * {@code TypeChecker.compileNeededAssociationTargets()} (pass 2).
+ * <p>Returns {@code ClassType[*]} and ensures the class's synthetic mapping
+ * function is compiled and available in the shared function symbol table.
+ * Throws if the class has no mapping in the active scope — {@code .all()} on
+ * an unmapped class is a compile error, not a silently-empty result.
+ *
+ * <p>The compiled function is not embedded on the returned {@link TypedGetAll};
+ * downstream consumers (MappingResolver, PlanGenerator) resolve it via the
+ * shared function table on {@link com.gs.legend.compiled.CompiledExpression}
+ * combined with the runtime-specific binding on {@code NormalizedMapping}.
  */
 public class GetAllChecker extends AbstractChecker {
 
@@ -43,9 +45,9 @@ public class GetAllChecker extends AbstractChecker {
         // associationNavigations, storeClassNames) use consistent FQN keys.
         String fqn = findClass(fullPath).map(c -> c.qualifiedName()).orElse(fullPath);
 
-        env.compileSourceSpecFor(fqn);
+        CompiledFunction mappingFn = env.compileMappingFunctionFor(fqn);
 
-        return new TypedGetAll(fqn,
+        return new TypedGetAll(fqn, mappingFn,
                 ExpressionType.many(new Type.ClassType(fqn)));
     }
 }

@@ -1,68 +1,66 @@
 package com.gs.legend.compiler;
 
-import com.gs.legend.ast.ValueSpecification;
+import com.gs.legend.compiler.typed.TypedSpec;
 
 import java.util.Map;
 
 /**
  * Per-node store resolution produced by {@link MappingResolver}.
  *
- * <p>Same sidecar pattern as {@link TypeInfo}: an
- * {@code IdentityHashMap<ValueSpecification, StoreResolution>} maps AST nodes
- * to their resolved store info. PlanGenerator reads this instead of
- * {@link com.gs.legend.model.mapping.ClassMapping}.
+ * <p>Keyed sidecar: an {@code IdentityHashMap<TypedSpec, StoreResolution>}
+ * maps typed HIR nodes to their resolved physical-store info. PlanGenerator
+ * reads this alongside the typed HIR to emit SQL.
  *
  * <p>MappingResolver produces high-level descriptors (WHAT);
  * PlanGenerator renders SQL (HOW).
  *
- * @param tableName        Physical table name for the root source (e.g., "T_RAW_PERSON")
- * @param propertyToColumn Pure property name → physical column name (simple mappings)
- * @param properties       Per-property resolution descriptors (handles expression, enum, M2M)
- * @param joins            Association property → join resolution
- * @param nested           True for struct-literal identity mappings (nested field access)
- * @param sourceSpec   Synthesized source Relation ValueSpec for relational mappings (null for M2M/identity).
- *                         Encapsulates tableReference + filter + distinct + join chains.
- *                         Mapping filters (~filter) are synthesized into this chain as
- *                         {@code filter(src | cond)} nodes by MappingNormalizer — no separate
- *                         filterExpr field needed.
+ * @param tableName        Physical table name for the root source (e.g., "T_RAW_PERSON").
+ * @param className        FQN of the mapped class this resolution belongs to (null for
+ *                         identity mappings and extend-override markers).
+ * @param propertyToColumn Pure property name → physical column name (simple mappings).
+ * @param properties       Per-property resolution descriptors (handles expression, enum, M2M).
+ * @param joins            Association property → join resolution.
+ * @param nested           True for struct-literal identity mappings (nested field access).
  * @param extendOverride   Cancellation info for extend nodes (null = not an extend node / all active).
  * @param sourceUrl        URL for external data sources (e.g., JSON data: or file: URI). Null for regular tables.
  *                         When set, PlanGenerator uses dialect.renderSourceUrl() instead of bare table name.
  */
 public record StoreResolution(
         String tableName,
+        String className,
         Map<String, String> propertyToColumn,
         Map<String, PropertyResolution> properties,
         Map<String, JoinResolution> joins,
         boolean nested,
-        ValueSpecification sourceSpec,
         ExtendOverride extendOverride,
         String sourceUrl) {
 
-    /** Constructor without extendOverride or sourceUrl (default for all non-extend nodes). */
+    /** Physical store resolution without extendOverride or sourceUrl. */
     public StoreResolution(
             String tableName,
-            Map<String, String> propertyToColumn,
-            Map<String, PropertyResolution> properties,
-            Map<String, JoinResolution> joins,
-            boolean nested,
-            ValueSpecification sourceSpec) {
-        this(tableName, propertyToColumn, properties, joins, nested, sourceSpec, null, null);
-    }
-
-    /** Constructor without sourceSpec, extendOverride, or sourceUrl (for M2M and identity mappings). */
-    public StoreResolution(
-            String tableName,
+            String className,
             Map<String, String> propertyToColumn,
             Map<String, PropertyResolution> properties,
             Map<String, JoinResolution> joins,
             boolean nested) {
-        this(tableName, propertyToColumn, properties, joins, nested, null, null, null);
+        this(tableName, className, propertyToColumn, properties, joins, nested, null, null);
+    }
+
+    /** Physical store resolution with sourceUrl (external JSON / file sources). */
+    public StoreResolution(
+            String tableName,
+            String className,
+            Map<String, String> propertyToColumn,
+            Map<String, PropertyResolution> properties,
+            Map<String, JoinResolution> joins,
+            boolean nested,
+            String sourceUrl) {
+        this(tableName, className, propertyToColumn, properties, joins, nested, null, sourceUrl);
     }
 
     /** Factory for extend-only StoreResolutions (carries only cancellation info). */
     public static StoreResolution forExtend(ExtendOverride override) {
-        return new StoreResolution(null, Map.of(), Map.of(), Map.of(), false, null, override, null);
+        return new StoreResolution(null, null, Map.of(), Map.of(), Map.of(), false, override, null);
     }
 
     /**
@@ -87,12 +85,12 @@ public record StoreResolution(
         record Column(String columnName) implements PropertyResolution {}
 
         /**
-         * DynaFunction expression: property computed from a relational expression.
-         * PlanGenerator calls generateScalar on the expression instead of simple column lookup.
+         * DynaFunction expression: property computed from a typed relational
+         * expression (e.g., {@code concat($row.FIRST, ' ', $row.LAST)}).
          *
-         * @param expression Pre-compiled ValueSpecification expression tree
+         * @param expression Typed HIR for the computed expression.
          */
-        record DynaFunction(ValueSpecification expression) implements PropertyResolution {}
+        record DynaFunction(TypedSpec expression) implements PropertyResolution {}
 
         /**
          * Embedded column: sub-property resolves to a column on the PARENT table (no JOIN).
@@ -106,21 +104,23 @@ public record StoreResolution(
     /**
      * Resolved association navigation (property → JOIN).
      *
-     * @param targetTable      Physical table to join to
-     * @param sourceParam      Variable name for source side in joinCondition ValueSpec
-     * @param targetParam      Variable name for target side in joinCondition ValueSpec
-     * @param isToMany         True if association has [*] multiplicity
-     * @param joinCondition    Pre-converted join condition as ValueSpecification
-     * @param sourceColumns    Source-side column names referenced by the join condition (for graphFetch projection)
-     * @param targetResolution StoreResolution for the target table (for nested property access)
-     * @param embedded         True if this is an embedded mapping (sub-properties on parent table, no JOIN)
+     * @param targetTable      Physical table to join to.
+     * @param sourceParam      Variable name for source side in the join condition.
+     * @param targetParam      Variable name for target side in the join condition.
+     * @param isToMany         True if association has [*] multiplicity.
+     * @param joinCondition    Typed join predicate (2-param TypedLambda body).
+     *                         {@code null} for embedded mappings (no physical JOIN).
+     * @param sourceColumns    Source-side column names referenced by the join condition
+     *                         (used by graphFetch for projection).
+     * @param targetResolution {@link StoreResolution} for the target table.
+     * @param embedded         True if this is an embedded mapping (sub-properties on parent table, no JOIN).
      */
     public record JoinResolution(
             String targetTable,
             String sourceParam,
             String targetParam,
             boolean isToMany,
-            ValueSpecification joinCondition,
+            TypedSpec joinCondition,
             java.util.Set<String> sourceColumns,
             StoreResolution targetResolution,
             boolean embedded) {
@@ -128,7 +128,7 @@ public record StoreResolution(
         /** Convenience constructor for non-embedded joins. */
         public JoinResolution(
                 String targetTable, String sourceParam, String targetParam,
-                boolean isToMany, ValueSpecification joinCondition,
+                boolean isToMany, TypedSpec joinCondition,
                 java.util.Set<String> sourceColumns, StoreResolution targetResolution) {
             this(targetTable, sourceParam, targetParam, isToMany,
                     joinCondition, sourceColumns, targetResolution, false);
