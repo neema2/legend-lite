@@ -117,6 +117,15 @@ public class TypeChecker implements TypeCheckEnv {
     private final Map<com.gs.legend.model.m3.PureFunction, CompiledFunction> compiledFunctions =
             new IdentityHashMap<>();
 
+    /**
+     * Per-compile monotonic counter backing {@link #freshSymbol(String)}.
+     * Instance-scoped — each {@code TypeChecker} starts at zero so gensym'd
+     * names are deterministic within a single compilation and reset between
+     * compilations.
+     */
+    private final java.util.concurrent.atomic.AtomicInteger gensymCounter =
+            new java.util.concurrent.atomic.AtomicInteger();
+
     public TypeChecker(ModelContext modelContext) {
         this.modelContext = Objects.requireNonNull(modelContext, "ModelContext must not be null");
     }
@@ -1061,6 +1070,11 @@ public class TypeChecker implements TypeCheckEnv {
                     "Lambda body is empty — every lambda must contain at least one expression");
         }
         return compileBodyStatements(lambda.body(), ctx);
+    }
+
+    @Override
+    public String freshSymbol(String prefix) {
+        return prefix + gensymCounter.getAndIncrement();
     }
 
     // ========== Bidirectional Lambda Typing ==========

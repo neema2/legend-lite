@@ -81,6 +81,15 @@ public final class ControlFlowLowering {
         if (pureTypeName == null) {
             throw PlanGenNotPortedException.stage3(n, "cast:unnamed-target-type");
         }
+        // Variant-to-primitive cast: rewrite {@code VariantAccess} ({@code ->})
+        // to {@code VariantTextAccess} ({@code ->>}) so JSON string quotes are
+        // stripped before the CAST (legacy line 4053-4057). Applies to primitive
+        // scalar types only — Variant-to-Variant casts are identity.
+        if (n.targetType() instanceof com.gs.legend.model.m3.Primitive p
+                && p != com.gs.legend.model.m3.Primitive.VARIANT
+                && inner instanceof SqlExpr.VariantAccess va) {
+            inner = new SqlExpr.VariantTextAccess(va.expr(), va.key());
+        }
         return new SqlExpr.Cast(inner, pureTypeName);
     }
 

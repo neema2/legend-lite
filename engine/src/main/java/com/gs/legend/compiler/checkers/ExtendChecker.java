@@ -315,8 +315,9 @@ public class ExtendChecker extends AbstractChecker {
         // Window extend (over() present + fn1 resolves to a native window function).
         NativeFunctionDef resolvedFunc = resolvedFuncFrom(fn1Body);
         if (overSpec != null && resolvedFunc != null) {
-            return new TypedWindowExtendCol(alias, resolvedFunc, fn1Lambda,
-                    Optional.empty(), overSpec, returnType, Optional.empty());
+            return buildWindowCol(alias, fn1Lambda, fn1Body, resolvedFunc,
+                    /*reducer=*/ Optional.empty(), overSpec, returnType,
+                    /*castType=*/ null);
         }
         // Plain scalar per-row extend.
         return new TypedScalarExtendCol(alias, fn1Lambda, returnType);
@@ -447,9 +448,139 @@ public class ExtendChecker extends AbstractChecker {
         TypedOver effectiveOver = overSpec != null ? overSpec
                 : new TypedOver(List.of(), List.of(), Optional.empty());
 
-        return new TypedWindowExtendCol(alias, resolved, fn1Lambda,
-                Optional.of(fn2Lambda), effectiveOver, returnType,
+        // Aggregate window: funcArgs is the single value expression (fn1Body),
+        // reducer identifies which aggregate (sum/avg/...) via its body's
+        // terminal call, and there is no outerWrapper. The row-param name is
+        // the fn1 lambda's last parameter (matches the legacy convention for
+        // both 1-param aggregates {r|...} and 3-param windowed-aggregates {p,w,r|...}).
+        String rowParamName = lastParamName(fn1Lambda);
+        return new TypedWindowExtendCol(alias, resolved,
+                rowParamName,
+                List.of(fn1Body),
+                Optional.of(fn2Lambda),
+                /*outerWrapper=*/ Optional.empty(),
+                effectiveOver, returnType,
                 Optional.ofNullable(castType));
+    }
+
+    // ========== Window HIR construction ==========
+
+    /**
+     * Builds the new-shape {@link TypedWindowExtendCol} from a resolved window
+     * function and fn1 body, classifying one of the legacy pattern cases:
+     *
+     * <ol>
+     *   <li><b>Direct call</b> ({@code $p->rowNumber($r)}, {@code $p->ntile($r, 4)}):
+     *       fn1Body is a {@link TypedNativeCall}; funcArgs are the args with
+     *       variable/context references filtered out.</li>
+     *   <li><b>Property chain</b> ({@code $p->lag($r).salary}): fn1Body is a
+     *       {@link TypedPropertyAccess} whose source is the window call; the
+     *       property name becomes the leading funcArg (as a synthetic
+     *       property access on the row variable), followed by any non-variable
+     *       args of the inner call (offsets).</li>
+     *   <li><b>Wrapper</b> ({@code round(cumulativeDistribution($w,$r), 2)}):
+     *       fn1Body is a {@link TypedNativeCall} whose first arg is itself a
+     *       registered native call; the inner is the window func and the
+     *       outer becomes a {@link TypedWindowExtendCol.OuterWrapper} whose
+     *       expression substitutes a gensymmed {@link TypedVariable} for the
+     *       inner call. The lowering rule binds the wrapper's holeName to the
+     *       built window-call expression at substitution time.</li>
+     * </ol>
+     *
+     * Cases not yet classified fall back to a bare call (no funcArgs), which
+     * PlanGen will emit as {@code FUNC() OVER (...)} — a legal default that
+     * surfaces failures at execution time rather than silently producing bad
+     * SQL.
+     */
+    private TypedExtendCol buildWindowCol(String alias, TypedLambda fn1Lambda,
+                                           TypedSpec fn1Body,
+                                           NativeFunctionDef resolvedFunc,
+                                           Optional<TypedLambda> reducer,
+                                           TypedOver overSpec,
+                                           Type returnType,
+                                           Type castType) {
+        String rowParamName = lastParamName(fn1Lambda);
+        WindowShape shape = classifyWindowBody(fn1Body, rowParamName);
+        return new TypedWindowExtendCol(alias, resolvedFunc,
+                rowParamName,
+                shape.funcArgs,
+                reducer,
+                shape.outerWrapper,
+                overSpec, returnType,
+                Optional.ofNullable(castType));
+    }
+
+    /**
+     * Classified window body: funcArgs plus, when the body wraps the window
+     * call in a surrounding scalar, an {@link TypedWindowExtendCol.OuterWrapper}
+     * holder bundling the rewritten scalar expression with the gensymmed name
+     * of the {@link TypedVariable} it references.
+     */
+    private record WindowShape(
+            List<TypedSpec> funcArgs,
+            Optional<TypedWindowExtendCol.OuterWrapper> outerWrapper) {}
+
+    private WindowShape classifyWindowBody(TypedSpec body, String rowParamName) {
+        // Pattern 3 — wrapper: outerFunc(innerWindowCall, ...rest).
+        // Allocate a fresh symbol via the TypeCheckEnv gensym and substitute a
+        // TypedVariable for the inner call inside the rebuilt outer expression.
+        // At lowering time ExtendLowering binds that name to the built
+        // WindowCall in the LoweringContext, so the TypedVariable resolves via
+        // the standard variable pathway (no sentinel node required).
+        if (body instanceof TypedNativeCall outer
+                && !outer.args().isEmpty()
+                && outer.args().get(0) instanceof TypedNativeCall inner
+                && !BuiltinRegistry.instance().resolve(inner.func().name()).isEmpty()) {
+            List<TypedSpec> funcArgs = filterContextArgs(inner.args());
+            String holeName = env.freshSymbol("$$wh");
+            TypedSpec hole = new TypedVariable(holeName, Role.LET_BINDING, inner.expressionType());
+            List<TypedSpec> rewrittenOuterArgs = new ArrayList<>(outer.args().size());
+            rewrittenOuterArgs.add(hole);
+            for (int i = 1; i < outer.args().size(); i++) {
+                rewrittenOuterArgs.add(outer.args().get(i));
+            }
+            TypedSpec wrapperExpr = new TypedNativeCall(outer.func(), rewrittenOuterArgs, outer.info());
+            return new WindowShape(funcArgs,
+                    Optional.of(new TypedWindowExtendCol.OuterWrapper(wrapperExpr, holeName)));
+        }
+        // Pattern 2 — property chain: $p->lag($r).salary
+        if (body instanceof TypedPropertyAccess tpa
+                && tpa.source() instanceof TypedNativeCall inner) {
+            List<TypedSpec> funcArgs = new ArrayList<>();
+            // The property becomes the value arg: model it as a property
+            // access on the row variable so lowering resolves it to a column
+            // ref on the source alias.
+            TypedSpec rowVar = new TypedVariable(rowParamName, Role.LAMBDA_PARAM, tpa.info());
+            funcArgs.add(new TypedPropertyAccess(rowVar, tpa.property(), Optional.empty(), tpa.info()));
+            // Plus any non-variable inner args (e.g., lag's offset).
+            funcArgs.addAll(filterContextArgs(inner.args()));
+            return new WindowShape(funcArgs, Optional.empty());
+        }
+        // Pattern 4 — direct call: $p->rowNumber($r), $p->ntile($r, 4)
+        if (body instanceof TypedNativeCall tnc) {
+            return new WindowShape(filterContextArgs(tnc.args()), Optional.empty());
+        }
+        // Fallback — unknown shape; emit zero args and let PlanGen surface the issue.
+        return new WindowShape(List.of(), Optional.empty());
+    }
+
+    /**
+     * Filters out {@link TypedVariable} args (row / window / partition context
+     * references) that the window function receives structurally but that
+     * should not flow into the SQL call's arg list.
+     */
+    private static List<TypedSpec> filterContextArgs(List<TypedSpec> args) {
+        List<TypedSpec> out = new ArrayList<>(args.size());
+        for (TypedSpec a : args) {
+            if (!(a instanceof TypedVariable)) out.add(a);
+        }
+        return out;
+    }
+
+    /** Last lambda-parameter name, or {@code "r"} when the lambda has none. */
+    private static String lastParamName(TypedLambda lam) {
+        if (lam.parameters().isEmpty()) return "r";
+        return lam.parameters().get(lam.parameters().size() - 1).name();
     }
 
     // ========== Over clause compilation ==========

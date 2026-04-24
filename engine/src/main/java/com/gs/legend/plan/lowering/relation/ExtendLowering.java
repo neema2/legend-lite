@@ -114,73 +114,81 @@ public final class ExtendLowering {
     }
 
     /**
-     * {@code FUNC(fn1($row)) OVER (PARTITION BY ... ORDER BY ...)}.
+     * Structural lowering of a {@link TypedWindowExtendCol}:
      *
-     * <p>{@link TypedWindowExtendCol#func()} names the Pure native; {@code fn1}
-     * selects the value; {@code over} carries partition/order keys resolved
-     * against the same source alias. Two-arg window funcs ({@code lag(x, n)} /
-     * {@code lead}) carry {@code fn2} as the offset argument. Frame clauses
-     * (ROWS/RANGE BETWEEN) are deferred — dialects that support them can
-     * subclass {@link SqlExpr.WindowCall} once the HIR carries frame info.
+     * <ol>
+     *   <li>Bind the HIR's {@code rowParamName} to the source alias as an
+     *       {@link SqlExpr.Identifier} (carrying the extend's {@link StoreResolution}
+     *       so nested property accesses resolve against the right store).</li>
+     *   <li>Lower each {@code funcArg} as a scalar in that context.</li>
+     *   <li>Lower the {@code over()} partition / order clauses against the
+     *       source alias.</li>
+     *   <li>Build the {@link SqlExpr.WindowCall}. The Pure native name passes
+     *       through unchanged — {@link SqlExpr.WindowCall#toSql} delegates to
+     *       {@link com.gs.legend.sqlgen.SQLDialect#renderFunction}, the sole
+     *       source of truth for name translation (AGENTS.md invariant #3).</li>
+     *   <li>If {@link TypedWindowExtendCol#outerWrapper()} is present, bind
+     *       the gensymmed {@link TypedWindowExtendCol#holeName()} to the
+     *       built window call in the {@link LoweringContext} and lower the
+     *       wrapper. The {@link com.gs.legend.compiler.typed.TypedVariable}
+     *       placed by the checker at the substitution point resolves to
+     *       that SqlExpr via the standard variable-binding pathway.
+     *       Otherwise return the window call directly.</li>
+     * </ol>
+     *
+     * <p>No function-name classification lives here — the checker has already
+     * decomposed the AST into {@code funcArgs} / {@code reducer} /
+     * {@code outerWrapper}. This routine is purely structural.
+     *
+     * <p>Frame clauses (ROWS/RANGE BETWEEN) remain deferred — dialects that
+     * support them can subclass {@link SqlExpr.WindowCall} once the HIR
+     * carries frame info.
      */
     private static SqlExpr lowerWindowCol(TypedWindowExtendCol wc, List<String> aliasChain,
                                           Object store, LoweringContext ctx,
                                           TypedExtend owner,
                                           com.gs.legend.plan.lowering.NavScope scope) {
-        List<SqlExpr> args = new ArrayList<>(2);
-        args.add(lowerScalarLambda(wc.fn1(), aliasChain, store, ctx, owner, "extend:window:fn1", scope));
-        // {@code fn2} is polymorphic:
-        //   * For value functions ({@code lag} / {@code lead} / {@code nthValue}),
-        //     fn2 is a scalar offset/index argument — pass through as a 2nd SQL arg.
-        //   * For aggregate window functions ({@code plus}/{@code sum}/...),
-        //     fn2 is the reducer lambda whose {@code plus}-ness identifies the
-        //     aggregate (fn1 is the value to sum). It must NOT flow into args,
-        //     or DuckDB sees {@code sum(INTEGER, STRUCT(...))} — a binder error.
-        //   * Ranking / {@code row_number}-style window funcs have no fn2.
-        String funcName = wc.func().name();
-        if (wc.fn2().isPresent() && takesSecondScalarArg(funcName)) {
-            args.add(lowerScalarLambda(wc.fn2().get(), aliasChain, store, ctx, owner, "extend:window:fn2", scope));
-        }
-        TypedOver over = wc.over();
         String baseAlias = aliasChain.get(0);
+        StoreResolution storeRes = store instanceof StoreResolution sr ? sr : null;
+
+        // Bind the row-param name (e.g. {@code "r"} from {@code {p,w,r|...}}) so
+        // nested {@link TypedPropertyAccess} inside funcArgs resolves to columns
+        // on the source alias. A bare identifier representing the row is a stand-in
+        // — {@link com.gs.legend.plan.lowering.scalar.PropertyAccessLowering}
+        // reads the bound store from the {@link LoweringContext.VarBinding}.
+        LoweringContext bodyCtx = ctx.bindVar(wc.rowParamName(),
+                new SqlExpr.Identifier(baseAlias), storeRes);
+
+        // Lower the window-call arguments.
+        List<SqlExpr> args = new ArrayList<>(wc.funcArgs().size());
+        for (TypedSpec a : wc.funcArgs()) {
+            args.add(Lowerer.lowerScalar(a, bodyCtx));
+        }
+
+        // Lower the OVER clause.
+        TypedOver over = wc.over();
         List<SqlExpr> partitionBy = new ArrayList<>(over.partitionBy().size());
         for (String col : over.partitionBy()) {
             partitionBy.add(new SqlExpr.Column(baseAlias, resolveColumnName(col, store)));
         }
         List<SqlExpr.OrderByTerm> orderBy = new ArrayList<>(over.orderBy().size());
-        for (TypedSortKey key : over.orderBy()) orderBy.add(lowerSortKey(key, aliasChain, store, ctx, owner, scope));
-        // Map Pure-native name (e.g., {@code plus}) to its canonical
-        // aggregate/window name ({@code sum}) so the dialect's
-        // {@code renderFunction} can pick the correct SQL rendering. Same
-        // mapping table as {@link GroupByAggregateLowering#mapAggFunctionName}.
-        return new SqlExpr.WindowCall(mapWindowFunctionName(wc.func().name()),
+        for (TypedSortKey key : over.orderBy()) {
+            orderBy.add(lowerSortKey(key, aliasChain, store, ctx, owner, scope));
+        }
+
+        SqlExpr windowCall = new SqlExpr.WindowCall(wc.func().name(),
                 args, partitionBy, orderBy);
-    }
 
-    /**
-     * Value window functions where fn2 is a scalar offset / index:
-     * {@code lag(col, n)}, {@code lead(col, n)}, {@code nthValue(col, n)}.
-     * Everything else (aggregates, ranking) ignores fn2 in the SQL arg list.
-     */
-    private static boolean takesSecondScalarArg(String pureName) {
-        return switch (pureName) {
-            case "lag", "lead", "nthValue" -> true;
-            default -> false;
-        };
-    }
-
-    /** Same alias table as aggregate path — see {@code GroupByAggregateLowering}. */
-    private static String mapWindowFunctionName(String pureName) {
-        return switch (pureName) {
-            case "sum", "count", "max", "min", "avg", "stdDev", "variance" -> pureName.toLowerCase();
-            case "stdev", "std"                 -> "stddev";
-            case "average", "mean"              -> "avg";
-            case "distinct"                     -> "count";
-            case "plus"                         -> "sum";
-            case "times"                        -> "product";
-            case "size"                         -> "count";
-            default -> pureName;
-        };
+        // Substitute the window call into the outer wrapper (e.g.,
+        // {@code round($$wh0, 2)}) by binding the gensymmed hole name to
+        // the built window call. The TypedVariable the checker placed at
+        // the substitution point resolves via VariableLowering.
+        if (wc.outerWrapper().isPresent()) {
+            var ow = wc.outerWrapper().get();
+            LoweringContext wrapperCtx = bodyCtx.bindVar(ow.holeName(), windowCall, storeRes);
+            return Lowerer.lowerScalar(ow.expr(), wrapperCtx);
+        }
+        return windowCall;
     }
 
     /**

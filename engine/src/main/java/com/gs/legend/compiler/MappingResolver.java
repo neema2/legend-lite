@@ -193,8 +193,9 @@ public final class MappingResolver {
                     switch (col) {
                         case TypedScalarExtendCol s -> walk(s.expression(), ctx);
                         case TypedWindowExtendCol w -> {
-                            walk(w.fn1(), ctx);
-                            w.fn2().ifPresent(l -> walk(l, ctx));
+                            for (var a : w.funcArgs()) walk(a, ctx);
+                            w.reducer().ifPresent(l -> walk(l, ctx));
+                            w.outerWrapper().ifPresent(ow -> walk(ow.expr(), ctx));
                         }
                         case TypedTraverseExtendCol t -> walk(t.expression(), ctx);
                         case TypedAssociationExtendCol ignored -> { /* no expression to walk */ }
@@ -653,11 +654,20 @@ public final class MappingResolver {
                 }
             }
             case TypedWindowExtendCol w -> {
-                // Window-computed column — treated as a DynaFunction over the
-                // fn1 body (downstream PlanGenerator interprets window-ness
-                // from the original TypedWindowExtendCol node, not here).
+                // Window-computed column — treated as a DynaFunction over a
+                // representative sub-expression. Downstream PlanGenerator
+                // interprets window-ness from the original
+                // {@link TypedWindowExtendCol} node, not here; this dyna-body
+                // only exists so downstream property access can recurse into
+                // the expression. Priority:
+                //   1. outerWrapper (the whole scalar expression surrounding the window), if present;
+                //   2. first funcArg (for aggregate / value windows it's the value expression);
+                //   3. none — emit a bare column-alias property (ranking
+                //      windows have no inner expression to introspect).
                 propToCol.put(w.alias(), w.alias());
-                TypedSpec bodyExpr = extractLambdaBody(w.fn1());
+                TypedSpec bodyExpr = w.outerWrapper()
+                        .map(ow -> ow.expr())
+                        .orElse(w.funcArgs().isEmpty() ? null : w.funcArgs().get(0));
                 if (bodyExpr != null) {
                     properties.put(w.alias(),
                             new StoreResolution.PropertyResolution.DynaFunction(bodyExpr));

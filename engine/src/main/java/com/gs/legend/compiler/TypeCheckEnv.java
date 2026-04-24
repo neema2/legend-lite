@@ -51,4 +51,24 @@ public interface TypeCheckEnv {
      * passed to {@code map(..)}, {@code filter(..)}, or a user-declared function.
      */
     TypedSpec compileLambdaBody(LambdaFunction lambda, TypeChecker.CompilationContext ctx);
+
+    /**
+     * Generate a fresh synthetic identifier — a monotonic gensym, scoped to this
+     * {@link TypeChecker} instance (i.e. per compilation cycle).
+     *
+     * <p>Checkers that need to introduce a binding for an intermediate value
+     * (e.g. {@code ExtendChecker} naming the result of a window call inside an
+     * outer wrapper) call this to obtain a name that cannot collide with any
+     * user-written Pure identifier.
+     *
+     * <p>Uniqueness scope: sufficient for ANF-style let-insertion where the
+     * binding is created and consumed inside a single HIR sub-tree. The
+     * {@code $$} convention guarantees non-collision with user names; the
+     * counter guarantees non-collision between sibling inserted bindings.
+     *
+     * @param prefix  identifier prefix, typically starting with the reserved
+     *                {@code $$} marker (e.g. {@code "$$wh"}).
+     * @return  {@code prefix} concatenated with a fresh monotonic integer.
+     */
+    String freshSymbol(String prefix);
 }

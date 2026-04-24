@@ -508,11 +508,15 @@ public final class DuckDBDialect implements SQLDialect {
             case "minBy" -> "ARG_MIN";
 
             // --- Standard SQL aggregates (semantic name → SQL name) ---
-            case "sum" -> "SUM";
-            case "avg" -> "AVG";
-            case "count" -> "COUNT";
+            // Pure-native aliases map here too: {@code plus} used as a window
+            // reducer means SUM; {@code average}/{@code mean} → AVG; {@code size} → COUNT.
+            // Matches legacy {@code mapPureFuncToSql}.
+            case "sum", "plus" -> "SUM";
+            case "avg", "average", "mean" -> "AVG";
+            case "count", "size" -> "COUNT";
             case "min" -> "MIN";
             case "max" -> "MAX";
+            case "times" -> "PRODUCT";
 
             // --- Ranking (semantic name → SQL name) ---
             case "rowNumber" -> "ROW_NUMBER";
