@@ -45,8 +45,11 @@ public class CastChecker extends AbstractChecker {
         // Unify validates the source structure (Any[m] accepts any source).
         unify(def, source.expressionType());
 
-        // Compile the @Type arg (param[1]) — registers it in the side table.
-        env.compileExpr(params.get(1), ctx);
+        // Note: param[1] is a @Type annotation — consumed directly by
+        // {@link #resolveTargetType} below. Compiling it as an expression is
+        // not valid (the HIR refactor removed the side-table it used to
+        // register to, and {@link TypeChecker#compileExpr} now throws on
+        // {@link TypeAnnotation}).
 
         // Bindings: T from @Type annotation, m from source's actual multiplicity.
         Type targetType = resolveTargetType(params.get(1));

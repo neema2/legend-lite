@@ -96,11 +96,33 @@ public final class GroupByAggregateLowering {
         // DuckDB {@code PIVOT ... ON (colA, colB)} syntax later.
         String pivotCol = n.pivotColumns().get(0);
         List<SqlRelation.Agg> aggs = new ArrayList<>(n.aggs().size());
-        for (TypedAggCall a : n.aggs()) aggs.add(lowerAgg(a, aliased, inner, store));
+        for (TypedAggCall a : n.aggs()) {
+            SqlRelation.Agg agg = lowerAgg(a, aliased, inner, store);
+            // DuckDB PIVOT forbids qualified columns in the {@code USING}
+            // clause ({@code PIVOT expression cannot contain qualified columns}
+            // binder error). Rewrite {@code Column(alias, col)} → {@code ColumnRef(col)}
+            // so the aggregates reference pivot-source columns directly.
+            List<SqlExpr> unqualified = new ArrayList<>(agg.args().size());
+            for (SqlExpr e : agg.args()) unqualified.add(unqualify(e));
+            aggs.add(new SqlRelation.Agg(agg.alias(), agg.function(), unqualified, agg.distinct()));
+        }
         SqlRelation joined = Relations.install(aliased, aliased.alias(), store, scope, ctx);
         SqlRelation.PivotSpec spec = new SqlRelation.PivotSpec(
                 List.of(), pivotCol, List.of(), aggs);
         return new SqlRelation.Pivot(joined, spec, List.of());
+    }
+
+    /** Strip alias qualification: {@code t0.col} &rarr; {@code col}. */
+    private static SqlExpr unqualify(SqlExpr e) {
+        if (e instanceof SqlExpr.Column c) return new SqlExpr.ColumnRef(c.column());
+        if (e instanceof SqlExpr.FunctionCall fc) {
+            List<SqlExpr> newArgs = fc.args().stream().map(GroupByAggregateLowering::unqualify).toList();
+            return new SqlExpr.FunctionCall(fc.name(), newArgs);
+        }
+        if (e instanceof SqlExpr.Binary b) {
+            return new SqlExpr.Binary(unqualify(b.left()), b.op(), unqualify(b.right()));
+        }
+        return e;
     }
 
     // ==================== helpers ====================
@@ -207,8 +229,14 @@ public final class GroupByAggregateLowering {
         return switch (pureName) {
             case "sum", "count", "max", "min", "avg", "stdDev", "variance" -> pureName.toLowerCase();
             case "stdev", "std"                 -> "stddev";
-            case "average"                      -> "avg";
+            case "average", "mean"              -> "avg";
             case "distinct"                     -> "count"; // COUNT(DISTINCT x)
+            // Legacy {@code mapPureFuncToSql} (line 2172): {@code plus} in aggregate
+            // position is Pure's canonical name for SUM (from {@code fold+plus}
+            // decomposition); {@code times} is PRODUCT.
+            case "plus"                         -> "sum";
+            case "times"                        -> "product";
+            case "size"                         -> "count";
             default -> pureName;
         };
     }

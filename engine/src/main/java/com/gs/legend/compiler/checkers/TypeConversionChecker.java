@@ -47,7 +47,8 @@ public class TypeConversionChecker extends AbstractChecker {
                                  TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         resolveOverload("toOne", params, source);
-        if (params.size() > 1) env.compileExpr(params.get(1), ctx);
+        // @Type arg (param[1]) is consumed structurally; compileExpr throws on
+        // {@link TypeAnnotation} since the HIR refactor.
         return new TypedCast(source, null, ExpressionType.one(source.type()));
     }
 
@@ -59,7 +60,6 @@ public class TypeConversionChecker extends AbstractChecker {
                                   TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         resolveOverload("toMany", params, source);
-        env.compileExpr(params.get(1), ctx);
         Type targetType = ((TypeAnnotation) params.get(1)).resolve(env.modelContext());
         return new TypedCast(source, targetType, ExpressionType.many(targetType));
     }
@@ -72,7 +72,6 @@ public class TypeConversionChecker extends AbstractChecker {
                               TypeChecker.CompilationContext ctx) {
         List<ValueSpecification> params = af.parameters();
         resolveOverload("to", params, source);
-        env.compileExpr(params.get(1), ctx);
         Type targetType = ((TypeAnnotation) params.get(1)).resolve(env.modelContext());
         return new TypedCast(source, targetType, ExpressionType.zeroOrOne(targetType));
     }

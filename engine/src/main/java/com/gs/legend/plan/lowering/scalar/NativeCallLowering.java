@@ -44,9 +44,14 @@ public final class NativeCallLowering {
             case "or"                           -> new SqlExpr.Or(args);
             case "not"                          -> new SqlExpr.Not(requireArity(args, 1, name).get(0));
 
-            // Arithmetic
-            case "plus"                         -> binary(args, "+");
-            case "minus"                        -> binary(args, "-");
+            // Arithmetic — {@code plus} is overloaded on String (concat) and
+            // numeric types. Legacy {@code generateScalarFunctionCall} checked
+            // TypeInfo on the operands; we mirror that via the typed args'
+            // {@link com.gs.legend.compiler.ExpressionType}. Unary {@code plus}
+            // / {@code minus} are pass-through and negation respectively
+            // (legacy line 2702-2750).
+            case "plus"                         -> lowerPlus(n.args(), args);
+            case "minus", "sub"                 -> lowerMinus(args);
             case "times"                        -> binary(args, "*");
             case "divide"                       -> binary(args, "/");
 
@@ -71,6 +76,42 @@ public final class NativeCallLowering {
         List<SqlExpr> out = new ArrayList<>(args.size());
         for (TypedSpec a : args) out.add(Lowerer.lowerScalar(a, ctx));
         return out;
+    }
+
+    /**
+     * Pure {@code plus}: unary pass-through, binary string-concat ({@code ||}),
+     * or binary numeric add. Dispatch uses the typed args' static type —
+     * AGENTS.md invariant #2 forbids type inference here, but reading
+     * compiler-stamped {@link com.gs.legend.compiler.ExpressionType} from
+     * {@link TypedSpec#info()} is structural look-up, not inference.
+     */
+    private static SqlExpr lowerPlus(List<TypedSpec> typedArgs, List<SqlExpr> args) {
+        if (args.size() == 1) return args.get(0);
+        if (args.size() != 2) {
+            throw new IllegalStateException(
+                    "[plangen-c0954a] plus expects 1 or 2 args, got " + args.size());
+        }
+        boolean isStringConcat = false;
+        for (TypedSpec t : typedArgs) {
+            var info = t.info();
+            if (info != null && info.type() == com.gs.legend.model.m3.Primitive.STRING) {
+                isStringConcat = true;
+                break;
+            }
+        }
+        return new SqlExpr.Binary(args.get(0), isStringConcat ? "||" : "+", args.get(1));
+    }
+
+    /** Unary {@code minus} → {@code (-1 * x)}; binary → {@code a - b}. */
+    private static SqlExpr lowerMinus(List<SqlExpr> args) {
+        if (args.size() == 1) {
+            return new SqlExpr.Binary(new SqlExpr.NumericLiteral(-1), "*", args.get(0));
+        }
+        if (args.size() != 2) {
+            throw new IllegalStateException(
+                    "[plangen-c0954a] minus expects 1 or 2 args, got " + args.size());
+        }
+        return new SqlExpr.Binary(args.get(0), "-", args.get(1));
     }
 
     private static SqlExpr binary(List<SqlExpr> args, String op) {

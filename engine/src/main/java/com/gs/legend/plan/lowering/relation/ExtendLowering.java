@@ -139,7 +139,26 @@ public final class ExtendLowering {
         }
         List<SqlExpr.OrderByTerm> orderBy = new ArrayList<>(over.orderBy().size());
         for (TypedSortKey key : over.orderBy()) orderBy.add(lowerSortKey(key, aliasChain, store, ctx, owner, scope));
-        return new SqlExpr.WindowCall(wc.func().name(), args, partitionBy, orderBy);
+        // Map Pure-native name (e.g., {@code plus}) to its canonical
+        // aggregate/window name ({@code sum}) so the dialect's
+        // {@code renderFunction} can pick the correct SQL rendering. Same
+        // mapping table as {@link GroupByAggregateLowering#mapAggFunctionName}.
+        return new SqlExpr.WindowCall(mapWindowFunctionName(wc.func().name()),
+                args, partitionBy, orderBy);
+    }
+
+    /** Same alias table as aggregate path — see {@code GroupByAggregateLowering}. */
+    private static String mapWindowFunctionName(String pureName) {
+        return switch (pureName) {
+            case "sum", "count", "max", "min", "avg", "stdDev", "variance" -> pureName.toLowerCase();
+            case "stdev", "std"                 -> "stddev";
+            case "average", "mean"              -> "avg";
+            case "distinct"                     -> "count";
+            case "plus"                         -> "sum";
+            case "times"                        -> "product";
+            case "size"                         -> "count";
+            default -> pureName;
+        };
     }
 
     /**

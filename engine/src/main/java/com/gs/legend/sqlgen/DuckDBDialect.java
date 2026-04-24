@@ -409,6 +409,13 @@ public final class DuckDBDialect implements SQLDialect {
                         + "UNNEST(generate_series(0, len(" + l1 + ")-1)) AS rn) "
                         + "ORDER BY b " + dir + ", rn ASC LIMIT " + limit + ") sub)";
             }
+            case "toString": {
+                // Pure {@code toString(x)} — legacy line 2815-2826 emitted
+                // {@code CAST(x AS VARCHAR)} for the general case. Literal
+                // short-circuits (CDateTime / CStrictDate / PackageableElementPtr)
+                // are handled at the HIR layer before this point.
+                return "CAST(" + args.get(0) + " AS VARCHAR)";
+            }
             case "toUpperFirstCharacter": {
                 // UPPER(LEFT(s,1)) || SUBSTRING(s FROM 2)
                 String s = args.get(0);
@@ -451,10 +458,19 @@ public final class DuckDBDialect implements SQLDialect {
             case "right" -> "RIGHT";
             case "ltrim" -> "LTRIM";
             case "rtrim" -> "RTRIM";
+            case "trim" -> "TRIM";
+            case "length" -> "LENGTH";
             case "split" -> "STRING_SPLIT";
             case "matches" -> "REGEXP_MATCHES";
             case "jaroWinklerSimilarity" -> "JARO_WINKLER_SIMILARITY";
             case "hashCode" -> "HASH";
+            // Legacy PlanGenerator (line 2810-2814) hardcoded these to UPPER/LOWER/LENGTH/TRIM;
+            // the dialect now owns the mapping per AGENTS.md invariant #3.
+            case "toLower" -> "LOWER";
+            case "toUpper" -> "UPPER";
+            case "startsWith" -> "STARTS_WITH";
+            case "endsWith" -> "ENDS_WITH";
+            case "contains" -> "CONTAINS";
 
             case "decodeBase64" -> "FROM_BASE64";
             case "indexOf" -> "LIST_POSITION";
@@ -528,6 +544,8 @@ public final class DuckDBDialect implements SQLDialect {
             case "tanh" -> "TANH";
             case "cot" -> "COT";
             case "cbrt" -> "CBRT";
+            case "toDegrees" -> "DEGREES";
+            case "toRadians" -> "RADIANS";
 
             // --- Collection ---
             case "removeDuplicates" -> "LIST_DISTINCT";
