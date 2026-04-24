@@ -1,5 +1,6 @@
 package com.gs.legend.plan.lowering.relation;
 
+import com.gs.legend.compiler.Navigation;
 import com.gs.legend.compiler.typed.TypedColumnSortKey;
 import com.gs.legend.compiler.typed.TypedExpressionSortKey;
 import com.gs.legend.compiler.typed.TypedExtend;
@@ -43,20 +44,18 @@ public final class ExtendLowering {
         String srcAlias = aliased.alias();
         var store = ctx.storeFor(n.source());
 
-        // Install any top-level traversal hops as LEFT JOINs onto the source so
-        // extend-column lambdas can reference columns from the joined tables.
-        // Each hop's 2-param condition binds the source alias to its first
-        // parameter and a fresh per-hop alias to its second. We also collect
-        // the full alias chain [src, hop1, hop2, ...] so multi-param scalar
-        // lambdas can bind their N+1 parameters positionally.
-        SqlRelation joined = aliased;
-        List<String> aliasChain = new ArrayList<>();
-        aliasChain.add(srcAlias);
-        for (com.gs.legend.compiler.typed.TraversalHop hop : n.traversalHops()) {
-            String hopAlias = ctx.nextAlias();
-            aliasChain.add(hopAlias);
-            SqlRelation target = new SqlRelation.TableRef(
-                    null, hop.tableName(), hopAlias, List.of());
+        // Build an ephemeral List<Navigation.JoinNav> from the Extend's
+        // traversalHops and delegate physical install (alias allocation,
+        // TableRef construction, condition lowering, LEFT JOIN weaving) to
+        // Relations.install. The abstractAlias tokens are local-only ("$__hop_i")
+        // because Extend-hop bindings do not outlive this lowering call.
+        //
+        // At migration step 5, MR will emit an identical List<Navigation> via
+        // ResolvedMappings.navigations[this extend], and the ephemeral build
+        // below disappears — ExtendLowering reads the sidecar instead.
+        List<Navigation> navs = new ArrayList<>(n.traversalHops().size());
+        for (int i = 0; i < n.traversalHops().size(); i++) {
+            var hop = n.traversalHops().get(i);
             TypedLambda cond = hop.condition();
             if (cond.parameters().size() != 2) {
                 throw PlanGenNotPortedException.stage3(n, "extend:hop:non-binary-condition");
@@ -64,13 +63,21 @@ public final class ExtendLowering {
             if (cond.body().isEmpty()) {
                 throw PlanGenNotPortedException.stage3(n, "extend:hop:empty-condition");
             }
-            LoweringContext condCtx = ctx
-                    .withVar(cond.parameters().get(0).name(), new SqlExpr.Identifier(srcAlias))
-                    .withVar(cond.parameters().get(1).name(), new SqlExpr.Identifier(hopAlias))
-                    .withStore(store);
-            SqlExpr on = Lowerer.lowerScalar(cond.body().get(cond.body().size() - 1), condCtx);
-            joined = new SqlRelation.Join(joined, target, SqlRelation.JoinType.LEFT, on);
+            navs.add(new Navigation.JoinNav(
+                    List.of(),                                  // prefix: anonymous hop
+                    "$__hop_" + i,                              // local abstractAlias
+                    hop.tableName(),
+                    cond.parameters().get(0).name(),
+                    cond.parameters().get(1).name(),
+                    cond.body().get(cond.body().size() - 1),
+                    null,                                       // targetResolution (unused for Extend hops)
+                    false));                                    // isToMany (unused)
         }
+        Relations.Installed installed = Relations.install(aliased, srcAlias, navs, store, ctx);
+        SqlRelation joined = installed.relation();
+        List<String> aliasChain = new ArrayList<>(navs.size() + 1);
+        aliasChain.add(srcAlias);
+        aliasChain.addAll(installed.aliasTable().values());
 
         List<SqlRelation.ExtendCol> cols = new ArrayList<>(n.extensions().size());
         for (TypedExtendCol col : n.extensions()) {
