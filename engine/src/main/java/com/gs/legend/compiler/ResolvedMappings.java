@@ -49,13 +49,6 @@ public record ResolvedMappings(
     }
 
     /**
-     * Placeholder sealed interface — filled in at migration step 2 with
-     * {@code JoinNav / ExistsNav / SubqueryNav / LateralNav} permits. Until
-     * then, the {@code navigations} map remains empty and consumers skip it.
-     */
-    public interface Navigation {}
-
-    /**
      * Placeholder record — filled in at migration step 4 when MR starts
      * emitting access bindings.
      *

@@ -355,7 +355,7 @@ class StressTest {
                 var storeRes = new com.gs.legend.compiler.MappingResolver(
                         unit, normalizedMapping, builder).resolve();
                 resolveUs = (System.nanoTime() - t) / 1000;
-                storeCount = storeRes.size();
+                storeCount = storeRes.mappings().storeResolutions().size();
 
                 phase = "planGen";
                 t = System.nanoTime();
