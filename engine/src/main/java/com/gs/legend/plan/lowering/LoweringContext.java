@@ -1,5 +1,6 @@
 package com.gs.legend.plan.lowering;
 
+import com.gs.legend.compiler.ResolvedMappings;
 import com.gs.legend.compiler.StoreResolution;
 import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.plan.PlanGenerator;
@@ -8,7 +9,6 @@ import com.gs.legend.sqlgen.SqlExpr;
 import com.gs.legend.plan.lowering.relation.AssocJoinLifter;
 
 import java.util.HashMap;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -45,7 +45,7 @@ public final class LoweringContext {
         }
     }
 
-    private final IdentityHashMap<TypedSpec, StoreResolution> resolutions;
+    private final ResolvedMappings mappings;
     private final PlanGenerator.Mode mode;
     private final Map<String, SqlExpr> variableBindings;
     private final StoreResolution currentStore;
@@ -60,13 +60,13 @@ public final class LoweringContext {
      */
     private final Map<List<String>, AssocJoinLifter.Binding> assocBindings;
 
-    private LoweringContext(IdentityHashMap<TypedSpec, StoreResolution> resolutions,
+    private LoweringContext(ResolvedMappings mappings,
                             PlanGenerator.Mode mode,
                             Map<String, SqlExpr> variableBindings,
                             StoreResolution currentStore,
                             AliasSupplier aliases,
                             Map<List<String>, AssocJoinLifter.Binding> assocBindings) {
-        this.resolutions = resolutions;
+        this.mappings = mappings;
         this.mode = mode;
         this.variableBindings = variableBindings;
         this.currentStore = currentStore;
@@ -75,13 +75,13 @@ public final class LoweringContext {
     }
 
     /** Fresh root context for a plan generation run. */
-    public static LoweringContext root(IdentityHashMap<TypedSpec, StoreResolution> resolutions,
-                                       PlanGenerator.Mode mode) {
-        return new LoweringContext(resolutions, mode, Map.of(), null,
+    public static LoweringContext root(ResolvedMappings mappings, PlanGenerator.Mode mode) {
+        return new LoweringContext(mappings, mode, Map.of(), null,
                 new AliasSupplier(), Map.of());
     }
 
-    public IdentityHashMap<TypedSpec, StoreResolution> resolutions() { return resolutions; }
+    /** @return the full committed mapping sidecar produced by MappingResolver. */
+    public ResolvedMappings mappings() { return mappings; }
     public PlanGenerator.Mode mode() { return mode; }
     public Map<String, SqlExpr> variableBindings() { return variableBindings; }
 
@@ -97,7 +97,7 @@ public final class LoweringContext {
     public String nextAlias() { return aliases.next(); }
 
     /** @return resolved store for this typed node, or null if this node is not relational. */
-    public StoreResolution storeFor(TypedSpec node) { return resolutions.get(node); }
+    public StoreResolution storeFor(TypedSpec node) { return mappings.storeResolutions().get(node); }
 
     /** @return binding for a lambda parameter, or null if not in scope. */
     public SqlExpr lookupVar(String name) { return variableBindings.get(name); }
@@ -106,19 +106,19 @@ public final class LoweringContext {
     public LoweringContext withVar(String name, SqlExpr value) {
         Map<String, SqlExpr> next = new HashMap<>(variableBindings);
         next.put(name, value);
-        return new LoweringContext(resolutions, mode, Map.copyOf(next), currentStore, aliases, assocBindings);
+        return new LoweringContext(mappings, mode, Map.copyOf(next), currentStore, aliases, assocBindings);
     }
 
     /** Returns a new context with all the given bindings added. */
     public LoweringContext withVars(Map<String, SqlExpr> more) {
         Map<String, SqlExpr> next = new HashMap<>(variableBindings);
         next.putAll(more);
-        return new LoweringContext(resolutions, mode, Map.copyOf(next), currentStore, aliases, assocBindings);
+        return new LoweringContext(mappings, mode, Map.copyOf(next), currentStore, aliases, assocBindings);
     }
 
     /** Returns a new context with the given store as the "currently active" one. */
     public LoweringContext withStore(StoreResolution store) {
-        return new LoweringContext(resolutions, mode, variableBindings, store, aliases, assocBindings);
+        return new LoweringContext(mappings, mode, variableBindings, store, aliases, assocBindings);
     }
 
     /** @return the active association-path → alias+store map (never null; may be empty). */
@@ -130,7 +130,7 @@ public final class LoweringContext {
      * / Project / GroupBy / Sort) after {@link AssocJoinLifter#lift}.
      */
     public LoweringContext withAssocBindings(Map<List<String>, AssocJoinLifter.Binding> bindings) {
-        return new LoweringContext(resolutions, mode, variableBindings, currentStore, aliases,
+        return new LoweringContext(mappings, mode, variableBindings, currentStore, aliases,
                 bindings == null ? Map.of() : Map.copyOf(bindings));
     }
 }

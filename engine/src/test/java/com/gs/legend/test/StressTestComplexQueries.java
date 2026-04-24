@@ -323,8 +323,7 @@ class StressTestComplexQueries {
                 resolveUs = (System.nanoTime() - t) / 1000;
                 phase = "planGen";
                 t = System.nanoTime();
-                var plan = new com.gs.legend.plan.PlanGenerator(
-                        unit, dialect, storeRes).generate();
+                var plan = new com.gs.legend.plan.PlanGenerator(storeRes, dialect).generate();
                 planUs = (System.nanoTime() - t) / 1000;
                 System.out.println("    parse=" + parseUs + "us  typeCheck=" + typeUs + "us  resolve=" + resolveUs + "us  planGen=" + planUs + "us");
                 System.out.println("    SQL(" + plan.sql().length() + "chars): " + plan.sql().substring(0, Math.min(120, plan.sql().length())) + "...");
@@ -356,8 +355,7 @@ class StressTestComplexQueries {
                         unit, normalizedMapping, builder).resolve();
                 resolveNs += System.nanoTime() - t;
                 t = System.nanoTime();
-                var plan = new com.gs.legend.plan.PlanGenerator(
-                        unit, dialect, storeRes).generate();
+                var plan = new com.gs.legend.plan.PlanGenerator(storeRes, dialect).generate();
                 planNs += System.nanoTime() - t;
                 assertNotNull(plan.sql(), "Query " + q + " produced null SQL");
                 assertFalse(plan.sql().isBlank(), "Query " + q + " produced blank SQL");

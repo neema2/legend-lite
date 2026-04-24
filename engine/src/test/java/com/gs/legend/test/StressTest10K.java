@@ -339,12 +339,11 @@ class StressTest10K {
                 var storeRes = new com.gs.legend.compiler.MappingResolver(
                         unit, normalizedMapping, builder).resolve();
                 resolveUs = (System.nanoTime() - t) / 1000;
-                storeCount = storeRes.size();
+                storeCount = storeRes.mappings().storeResolutions().size();
 
                 phase = "planGen";
                 t = System.nanoTime();
-                var plan = new com.gs.legend.plan.PlanGenerator(
-                        unit, dialect, storeRes).generate();
+                var plan = new com.gs.legend.plan.PlanGenerator(storeRes, dialect).generate();
                 planUs = (System.nanoTime() - t) / 1000;
 
                 System.out.println("    parse=" + parseUs + "us  typeCheck=" + typeUs + "us  resolve=" + resolveUs + "us  planGen=" + planUs + "us");
@@ -380,8 +379,7 @@ class StressTest10K {
                         unit, normalizedMapping, builder).resolve();
                 resolveNs += System.nanoTime() - t;
                 t = System.nanoTime();
-                var plan = new com.gs.legend.plan.PlanGenerator(
-                        unit, dialect, storeRes).generate();
+                var plan = new com.gs.legend.plan.PlanGenerator(storeRes, dialect).generate();
                 planNs += System.nanoTime() - t;
                 assertNotNull(plan.sql(), "Query " + q + " produced null SQL");
                 assertFalse(plan.sql().isBlank(), "Query " + q + " produced blank SQL");

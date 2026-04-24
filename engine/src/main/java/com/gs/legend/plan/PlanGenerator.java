@@ -1,9 +1,10 @@
 package com.gs.legend.plan;
 
 import com.gs.legend.compiled.CompiledExpression;
+import com.gs.legend.compiled.ResolvedExpression;
 import com.gs.legend.compiler.MappingNormalizer;
 import com.gs.legend.compiler.MappingResolver;
-import com.gs.legend.compiler.StoreResolution;
+import com.gs.legend.compiler.ResolvedMappings;
 import com.gs.legend.compiler.TypeChecker;
 import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.model.m3.Type;
@@ -57,27 +58,29 @@ public final class PlanGenerator {
      */
     public enum Mode { SNAPSHOT, STREAMING }
 
-    private final CompiledExpression unit;
+    private final ResolvedExpression resolved;
     private final SQLDialect dialect;
-    private final IdentityHashMap<TypedSpec, StoreResolution> storeResolutions;
     private final Mode mode;
 
-    public PlanGenerator(CompiledExpression unit, SQLDialect dialect) {
-        this(unit, dialect, new IdentityHashMap<>(), Mode.SNAPSHOT);
+    /** Primary constructor: PlanGen consumes MappingResolver's output. */
+    public PlanGenerator(ResolvedExpression resolved, SQLDialect dialect) {
+        this(resolved, dialect, Mode.SNAPSHOT);
     }
 
-    public PlanGenerator(CompiledExpression unit, SQLDialect dialect,
-            IdentityHashMap<TypedSpec, StoreResolution> storeResolutions) {
-        this(unit, dialect, storeResolutions, Mode.SNAPSHOT);
-    }
-
-    public PlanGenerator(CompiledExpression unit, SQLDialect dialect,
-            IdentityHashMap<TypedSpec, StoreResolution> storeResolutions,
-            Mode mode) {
-        this.unit = unit;
+    public PlanGenerator(ResolvedExpression resolved, SQLDialect dialect, Mode mode) {
+        this.resolved = resolved;
         this.dialect = dialect;
-        this.storeResolutions = storeResolutions;
         this.mode = mode;
+    }
+
+    /**
+     * Test-only convenience: plan a {@link CompiledExpression} with empty mappings.
+     * Intended for cases that don't exercise mapping-dependent code paths
+     * (e.g., scalar-only or TDS-only queries).
+     */
+    public PlanGenerator(CompiledExpression unit, SQLDialect dialect) {
+        this(new ResolvedExpression(unit, ResolvedMappings.ofStoreResolutions(new IdentityHashMap<>())),
+                dialect, Mode.SNAPSHOT);
     }
 
     // ===== Static factories =====
@@ -103,32 +106,34 @@ public final class PlanGenerator {
         var vs = model.resolveQuery(query);
         var unit = new TypeChecker(normalizer.modelContext()).check(vs);
 
-        var storeResolutions = new MappingResolver(
+        var resolved = new MappingResolver(
                 unit, normalizer.normalizedMapping(), model).resolve();
-        return new PlanGenerator(unit, dialect, storeResolutions, mode).generate();
+        return new PlanGenerator(resolved, dialect, mode).generate();
     }
 
     // ===== Orchestration =====
 
     /** Three-pass pipeline: lower -> classify -> print. */
     public SingleExecutionPlan generate() {
-        var ctx = LoweringContext.root(storeResolutions, mode);
-        var rel = Lowerer.lowerRelation(unit.hir(), ctx);
-        var format = ResultFormatClassifier.classify(unit.hir());
-        // Future (Stage 3): if (format instanceof ResultFormat.Graph) rel = JsonEnvelope.wrap(rel, mode, unit.hir());
+        var ctx = LoweringContext.root(resolved.mappings(), mode);
+        var hir = resolved.hir();
+        var rel = Lowerer.lowerRelation(hir, ctx);
+        var format = ResultFormatClassifier.classify(hir);
+        // Future (Stage 3): if (format instanceof ResultFormat.Graph) rel = JsonEnvelope.wrap(rel, mode, hir);
         String sql = SqlRelationPrinter.print(rel, dialect);
 
-        Type.Schema schema = unit.hir().schema();
+        Type.Schema schema = hir.schema();
         return new SingleExecutionPlan(
                 new SQLExecutionNode(sql, schema, null),
-                unit.hir().info(),
+                hir.info(),
                 format);
     }
 
     // ===== Accessors =====
 
-    public CompiledExpression unit() { return unit; }
+    public ResolvedExpression resolved() { return resolved; }
+    public CompiledExpression unit() { return resolved.compiled(); }
     public SQLDialect dialect() { return dialect; }
-    public IdentityHashMap<TypedSpec, StoreResolution> storeResolutions() { return storeResolutions; }
+    public ResolvedMappings mappings() { return resolved.mappings(); }
     public Mode mode() { return mode; }
 }

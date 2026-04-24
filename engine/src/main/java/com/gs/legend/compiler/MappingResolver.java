@@ -2,6 +2,7 @@ package com.gs.legend.compiler;
 
 import com.gs.legend.compiled.CompiledExpression;
 import com.gs.legend.compiled.CompiledFunction;
+import com.gs.legend.compiled.ResolvedExpression;
 import com.gs.legend.compiler.typed.*;
 import com.gs.legend.model.ModelContext;
 import com.gs.legend.model.m3.PureClass;
@@ -81,13 +82,19 @@ public final class MappingResolver {
     }
 
     /**
-     * Resolves all mapping-dependent nodes in the typed HIR.
+     * Resolves all mapping-dependent nodes in the typed HIR and returns a
+     * {@link ResolvedExpression} pairing the input {@link CompiledExpression}
+     * with its committed {@link ResolvedMappings} sidecar.
      *
-     * @return per-node StoreResolution sidecar keyed by {@link TypedSpec}
+     * <p>Today only populates {@code storeResolutions}; {@code navigations}
+     * and {@code accessBindings} are left empty and populated in later
+     * migration steps. The wrapper type enforces phase ordering:
+     * PlanGenerator accepts a {@code ResolvedExpression}, not a bare
+     * {@code CompiledExpression}.
      */
-    public IdentityHashMap<TypedSpec, StoreResolution> resolve() {
+    public ResolvedExpression resolve() {
         walk(typeResult.hir(), null);
-        return resolutions;
+        return new ResolvedExpression(typeResult, ResolvedMappings.ofStoreResolutions(resolutions));
     }
 
     // ==================== Typed HIR walk ====================

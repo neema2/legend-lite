@@ -133,8 +133,7 @@ class StressDomainTest {
                 resolveNsTotal += resolveElapsed;
                 phase = "planGen";
                 t = System.nanoTime();
-                var plan = new com.gs.legend.plan.PlanGenerator(
-                        unit, dialect, storeRes).generate();
+                var plan = new com.gs.legend.plan.PlanGenerator(storeRes, dialect).generate();
                 long planElapsed = System.nanoTime() - t;
                 long planUs = planElapsed / 1_000;
                 planNsTotal += planElapsed;
