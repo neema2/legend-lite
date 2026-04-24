@@ -140,9 +140,9 @@ public final class ExtendLowering {
      * decomposed the AST into {@code funcArgs} / {@code reducer} /
      * {@code outerWrapper}. This routine is purely structural.
      *
-     * <p>Frame clauses (ROWS/RANGE BETWEEN) remain deferred — dialects that
-     * support them can subclass {@link SqlExpr.WindowCall} once the HIR
-     * carries frame info.
+     * <p>The {@code over()} frame clause (ROWS/RANGE BETWEEN …), when present
+     * on the HIR, is translated into a {@link SqlExpr.WindowFrame} via
+     * {@link #lowerFrame(java.util.Optional)}.
      */
     private static SqlExpr lowerWindowCol(TypedWindowExtendCol wc, List<String> aliasChain,
                                           Object store, LoweringContext ctx,
@@ -177,7 +177,7 @@ public final class ExtendLowering {
         }
 
         SqlExpr windowCall = new SqlExpr.WindowCall(wc.func().name(),
-                args, partitionBy, orderBy);
+                args, partitionBy, orderBy, lowerFrame(over.frame()));
 
         // Substitute the window call into the outer wrapper (e.g.,
         // {@code round($$wh0, 2)}) by binding the gensymmed hole name to
@@ -235,16 +235,64 @@ public final class ExtendLowering {
         return switch (k) {
             case TypedColumnSortKey c -> new SqlExpr.OrderByTerm(
                     new SqlExpr.Column(baseAlias, resolveColumnName(c.column(), store)),
-                    c.direction().name(), "");
+                    c.direction().name(), nullOrderFor(c.direction().name()));
             case TypedExpressionSortKey e -> new SqlExpr.OrderByTerm(
                     lowerScalarLambda(e.keyFn(), aliasChain, store, ctx, owner, "extend:window:order-key", scope),
-                    e.direction().name(), "");
+                    e.direction().name(), nullOrderFor(e.direction().name()));
         };
+    }
+
+    /**
+     * Pure/Legend null-ordering convention for window ORDER BY:
+     * DESC → {@code NULLS FIRST}, ASC → {@code NULLS LAST}. Matches legacy
+     * PlanGenerator (line 2068) and is consistent across DuckDB / Postgres /
+     * Snowflake default semantics made explicit in the emitted SQL.
+     */
+    private static String nullOrderFor(String direction) {
+        return "DESC".equalsIgnoreCase(direction) ? "NULLS FIRST" : "NULLS LAST";
     }
 
     private static String resolveColumnName(String property, Object store) {
         if (!(store instanceof com.gs.legend.compiler.StoreResolution sr)) return property;
         String c = sr.columnFor(property);
         return c != null ? c : property;
+    }
+
+    /**
+     * Translates a checker-side {@link com.gs.legend.compiler.typed.TypedFrame}
+     * into a dialect-agnostic {@link SqlExpr.WindowFrame}. Empty when no frame
+     * was declared on the {@code over()} clause.
+     *
+     * <p>Bound translation:
+     * <ul>
+     *   <li>{@link com.gs.legend.compiler.typed.Unbounded} →
+     *       {@link SqlExpr.UnboundedFrameBound} (UNBOUNDED PRECEDING / FOLLOWING
+     *       decided at render time by start/end position).</li>
+     *   <li>{@link com.gs.legend.compiler.typed.CurrentRow} →
+     *       {@link SqlExpr.CurrentRowFrameBound}.</li>
+     *   <li>{@link com.gs.legend.compiler.typed.Offset} → signed
+     *       {@link SqlExpr.OffsetFrameBound} (Pure's offset convention: negative
+     *       = PRECEDING, positive = FOLLOWING, zero = CURRENT ROW).</li>
+     * </ul>
+     */
+    private static java.util.Optional<SqlExpr.WindowFrame> lowerFrame(
+            java.util.Optional<com.gs.legend.compiler.typed.TypedFrame> frame) {
+        if (frame.isEmpty()) return java.util.Optional.empty();
+        var f = frame.get();
+        SqlExpr.FrameType type = switch (f.type()) {
+            case ROWS -> SqlExpr.FrameType.ROWS;
+            case RANGE -> SqlExpr.FrameType.RANGE;
+        };
+        return java.util.Optional.of(new SqlExpr.WindowFrame(
+                type, lowerFrameBound(f.start()), lowerFrameBound(f.end())));
+    }
+
+    private static SqlExpr.FrameBound lowerFrameBound(
+            com.gs.legend.compiler.typed.TypedFrameBound b) {
+        return switch (b) {
+            case com.gs.legend.compiler.typed.Unbounded u -> new SqlExpr.UnboundedFrameBound();
+            case com.gs.legend.compiler.typed.CurrentRow c -> new SqlExpr.CurrentRowFrameBound();
+            case com.gs.legend.compiler.typed.Offset o -> new SqlExpr.OffsetFrameBound(o.value());
+        };
     }
 }

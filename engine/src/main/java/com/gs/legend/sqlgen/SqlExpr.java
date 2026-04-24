@@ -606,17 +606,19 @@ public sealed interface SqlExpr {
     }
 
     /**
-     * Windowed function call: {@code FUNC(args) OVER (PARTITION BY … ORDER BY …)}.
+     * Windowed function call:
+     * {@code FUNC(args) OVER (PARTITION BY … ORDER BY … [ROWS|RANGE BETWEEN … AND …])}.
      * Function name is routed through {@link SQLDialect#renderFunction} so that
      * dialects can remap {@code rowNumber}→{@code ROW_NUMBER}, {@code rank}→
      * {@code RANK}, etc. Partition and order-by expressions are pre-rendered
-     * sub-expressions; frame clauses (ROWS/RANGE BETWEEN …) are not yet modelled
-     * and lower as an empty suffix — dialects that need them can swap in.
+     * sub-expressions; the frame clause, when present, is rendered inline.
      */
     record WindowCall(String name,
                       List<SqlExpr> args,
                       List<SqlExpr> partitionBy,
-                      List<OrderByTerm> orderBy) implements SqlExpr {
+                      List<OrderByTerm> orderBy,
+                      java.util.Optional<WindowFrame> frame) implements SqlExpr {
+
         @Override
         public String toSql(SQLDialect dialect) {
             var renderedArgs = args.stream()
@@ -640,9 +642,66 @@ public sealed interface SqlExpr {
                     if (i > 0) over.append(", ");
                     over.append(orderBy.get(i).toSql(dialect));
                 }
+                need = true;
+            }
+            if (frame.isPresent()) {
+                if (need) over.append(" ");
+                over.append(frame.get().toSql());
             }
             over.append(")");
             return call + over;
+        }
+    }
+
+    /**
+     * Window frame clause: {@code ROWS|RANGE BETWEEN <start> AND <end>}.
+     * Dialect-agnostic — standard SQL syntax is universal across DuckDB,
+     * Postgres, Snowflake, etc.
+     */
+    record WindowFrame(FrameType type, FrameBound start, FrameBound end) {
+        public String toSql() {
+            return type.name() + " BETWEEN "
+                    + start.toSql(/*isStart=*/true)
+                    + " AND "
+                    + end.toSql(/*isStart=*/false);
+        }
+    }
+
+    enum FrameType { ROWS, RANGE }
+
+    /** Window frame bound. {@code isStart} disambiguates UNBOUNDED's direction. */
+    sealed interface FrameBound {
+        String toSql(boolean isStart);
+    }
+
+    /** Unbounded — {@code UNBOUNDED PRECEDING} at start, {@code UNBOUNDED FOLLOWING} at end. */
+    record UnboundedFrameBound() implements FrameBound {
+        @Override public String toSql(boolean isStart) {
+            return isStart ? "UNBOUNDED PRECEDING" : "UNBOUNDED FOLLOWING";
+        }
+    }
+
+    /** {@code CURRENT ROW}. */
+    record CurrentRowFrameBound() implements FrameBound {
+        @Override public String toSql(boolean isStart) { return "CURRENT ROW"; }
+    }
+
+    /**
+     * Signed offset frame bound. Negative → {@code n PRECEDING}, positive →
+     * {@code n FOLLOWING}, zero → {@code CURRENT ROW} (normalized).
+     *
+     * <p>{@code double} to support fractional RANGE bounds (e.g. {@code 0.5
+     * FOLLOWING}); integral values (ROWS offsets) round-trip exactly and are
+     * rendered without a decimal point.
+     */
+    record OffsetFrameBound(double offset) implements FrameBound {
+        @Override public String toSql(boolean isStart) {
+            if (offset == 0) return "CURRENT ROW";
+            double mag = Math.abs(offset);
+            String lit = (mag == Math.floor(mag) && !Double.isInfinite(mag))
+                    ? String.valueOf((long) mag)
+                    : java.math.BigDecimal.valueOf(mag).stripTrailingZeros().toPlainString();
+            return lit + (offset < 0 ? " PRECEDING" : " FOLLOWING");
         }
     }
 }

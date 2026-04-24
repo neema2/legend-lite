@@ -498,7 +498,8 @@ public final class DuckDBDialect implements SQLDialect {
             case "corr" -> "CORR";
             case "covarSample" -> "COVAR_SAMP";
             case "covarPopulation" -> "COVAR_POP";
-            case "percentileCont" -> "QUANTILE_CONT";
+            // Pure-native alias: bare "percentile" defaults to continuous.
+            case "percentile", "percentileCont" -> "QUANTILE_CONT";
             case "percentileDisc" -> "QUANTILE_DISC";
 
             // --- Analytical ---
@@ -526,12 +527,14 @@ public final class DuckDBDialect implements SQLDialect {
             case "cumulativeDistribution" -> "CUME_DIST";
 
             // --- Value functions (semantic name → SQL name) ---
-            case "firstValue" -> "FIRST_VALUE";
-            case "lastValue" -> "LAST_VALUE";
+            // Pure-native aliases: bare "first"/"last" map to FIRST_VALUE/LAST_VALUE.
+            case "first", "firstValue" -> "FIRST_VALUE";
+            case "last", "lastValue" -> "LAST_VALUE";
             case "lag" -> "LAG";
             case "lead" -> "LEAD";
             case "ntile" -> "NTILE";
-            case "nthValue" -> "NTH_VALUE";
+            // Pure-native alias: bare "nth" is an alias for nthValue.
+            case "nth", "nthValue" -> "NTH_VALUE";
 
             // --- Math (semantic name → SQL name) ---
             case "round" -> "ROUND";

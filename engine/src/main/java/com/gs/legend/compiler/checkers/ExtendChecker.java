@@ -448,19 +448,45 @@ public class ExtendChecker extends AbstractChecker {
         TypedOver effectiveOver = overSpec != null ? overSpec
                 : new TypedOver(List.of(), List.of(), Optional.empty());
 
-        // Aggregate window: funcArgs is the single value expression (fn1Body),
-        // reducer identifies which aggregate (sum/avg/...) via its body's
-        // terminal call, and there is no outerWrapper. The row-param name is
-        // the fn1 lambda's last parameter (matches the legacy convention for
-        // both 1-param aggregates {r|...} and 3-param windowed-aggregates {p,w,r|...}).
+        // Aggregate window: funcArgs is the value expression (fn1Body) plus
+        // any non-variable trailing args from the reducer body (e.g. the
+        // separator literal in {@code $y->joinStrings('')} becomes the second
+        // arg to STRING_AGG). The reducer identifies which aggregate
+        // (sum/avg/joinStrings/...) via its body's terminal call. The
+        // row-param name is the fn1 lambda's last parameter (matches the
+        // legacy convention for both 1-param aggregates {r|...} and 3-param
+        // windowed-aggregates {p,w,r|...}).
         String rowParamName = lastParamName(fn1Lambda);
+        List<TypedSpec> funcArgs = new ArrayList<>();
+        funcArgs.add(fn1Body);
+        funcArgs.addAll(extractReducerExtraArgs(fn2Body));
         return new TypedWindowExtendCol(alias, resolved,
                 rowParamName,
-                List.of(fn1Body),
+                funcArgs,
                 Optional.of(fn2Lambda),
                 /*outerWrapper=*/ Optional.empty(),
                 effectiveOver, returnType,
                 Optional.ofNullable(castType));
+    }
+
+    /**
+     * Extracts literal / constant args from a reducer body beyond the
+     * reducer's own parameter. For {@code $y -> joinStrings(y, '')} the
+     * reducer call has two args: the variable {@code $y} (already represented
+     * by {@code fn1Body}) and the literal {@code ''}. The latter must flow
+     * into the aggregate's SQL call as the separator.
+     *
+     * <p>Skips {@link TypedVariable}s (they stand in for the reducer param and
+     * are structurally redundant with {@code fn1Body}).
+     */
+    private static List<TypedSpec> extractReducerExtraArgs(TypedSpec fn2Body) {
+        if (!(fn2Body instanceof TypedNativeCall call)) return List.of();
+        List<TypedSpec> out = new ArrayList<>();
+        for (TypedSpec a : call.args()) {
+            if (a instanceof TypedVariable) continue;
+            out.add(a);
+        }
+        return out;
     }
 
     // ========== Window HIR construction ==========
@@ -689,10 +715,10 @@ public class ExtendChecker extends AbstractChecker {
         }
         if (param instanceof AppliedFunction af && "minus".equals(simpleName(af.function()))
                 && !af.parameters().isEmpty()) {
-            long v = extractNumericValue(af.parameters().get(af.parameters().size() - 1));
+            double v = extractNumericValue(af.parameters().get(af.parameters().size() - 1));
             return new Offset(-v);
         }
-        long v = extractNumericValue(param);
+        double v = extractNumericValue(param);
         if (v == 0) return new CurrentRow();
         return new Offset(v);
     }
@@ -821,10 +847,10 @@ public class ExtendChecker extends AbstractChecker {
     }
 
 
-    private long extractNumericValue(ValueSpecification vs) {
-        if (vs instanceof CInteger(Number value)) return value.longValue();
-        if (vs instanceof CFloat(double value)) return (long) value;
-        if (vs instanceof CDecimal(java.math.BigDecimal value)) return value.longValue();
+    private double extractNumericValue(ValueSpecification vs) {
+        if (vs instanceof CInteger(Number value)) return value.doubleValue();
+        if (vs instanceof CFloat(double value)) return value;
+        if (vs instanceof CDecimal(java.math.BigDecimal value)) return value.doubleValue();
         throw new PureCompileException(
                 "Expected numeric literal, got: " + vs.getClass().getSimpleName());
     }
