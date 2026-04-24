@@ -288,21 +288,13 @@ public sealed interface SqlExpr {
         }
     }
 
-    /** EXISTS (subquery) */
-    record Exists(SqlBuilder subquery) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return "EXISTS (" + subquery.toSql(dialect) + ")";
-        }
-    }
-
-    /** Scalar subquery: (SELECT ... ) — used when a full query appears as an expression. */
-    record Subquery(SqlBuilder query) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return "(" + query.toSql(dialect) + ")";
-        }
-    }
+    // NOTE: Legacy {@code Exists(SqlBuilder)} and {@code Subquery(SqlBuilder)} records
+    // were removed in the c0954a port because {@code SqlBuilder} has been retired in
+    // favour of the {@link com.gs.legend.plan.sql.SqlRelation} MIR. When EXISTS /
+    // scalar-subquery support is re-introduced (Stage 3+), the new records will hold
+    // a {@link com.gs.legend.plan.sql.SqlRelation} and render via
+    // {@link com.gs.legend.plan.printing.SqlRelationPrinter}. The dependency is moved
+    // into a small bridge so {@code sqlgen} does not need to import {@code plan.**}.
 
     // ==================== CASE ====================
 
@@ -610,6 +602,47 @@ public sealed interface SqlExpr {
         @Override
         public String toSql(SQLDialect dialect) {
             return dialect.renderSourceUrl(url);
+        }
+    }
+
+    /**
+     * Windowed function call: {@code FUNC(args) OVER (PARTITION BY … ORDER BY …)}.
+     * Function name is routed through {@link SQLDialect#renderFunction} so that
+     * dialects can remap {@code rowNumber}→{@code ROW_NUMBER}, {@code rank}→
+     * {@code RANK}, etc. Partition and order-by expressions are pre-rendered
+     * sub-expressions; frame clauses (ROWS/RANGE BETWEEN …) are not yet modelled
+     * and lower as an empty suffix — dialects that need them can swap in.
+     */
+    record WindowCall(String name,
+                      List<SqlExpr> args,
+                      List<SqlExpr> partitionBy,
+                      List<OrderByTerm> orderBy) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            var renderedArgs = args.stream()
+                    .map(a -> a.toSql(dialect))
+                    .collect(Collectors.toList());
+            String call = dialect.renderFunction(name, renderedArgs);
+            StringBuilder over = new StringBuilder(" OVER (");
+            boolean need = false;
+            if (!partitionBy.isEmpty()) {
+                over.append("PARTITION BY ");
+                for (int i = 0; i < partitionBy.size(); i++) {
+                    if (i > 0) over.append(", ");
+                    over.append(partitionBy.get(i).toSql(dialect));
+                }
+                need = true;
+            }
+            if (!orderBy.isEmpty()) {
+                if (need) over.append(" ");
+                over.append("ORDER BY ");
+                for (int i = 0; i < orderBy.size(); i++) {
+                    if (i > 0) over.append(", ");
+                    over.append(orderBy.get(i).toSql(dialect));
+                }
+            }
+            over.append(")");
+            return call + over;
         }
     }
 }

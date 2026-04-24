@@ -345,10 +345,10 @@ class StressTest {
                 t = System.nanoTime();
                 var unit = new com.gs.legend.compiler.TypeChecker(modelCtx).check(vs);
                 typeUs = (System.nanoTime() - t) / 1000;
-                tiCount = unit.types().size();
-                for (var k : unit.types().keySet()) {
-                    if (k instanceof com.gs.legend.ast.AppliedProperty) apCount++;
-                }
+                // Post-big-bang: TypeInfo sidecar is replaced by TypedSpec HIR.
+                // Leave these diagnostic counters at zero until the stress harness is
+                // updated to walk the HIR (tracked by plangen-typed-port-c0954a).
+                tiCount = 0;
 
                 phase = "resolve";
                 t = System.nanoTime();

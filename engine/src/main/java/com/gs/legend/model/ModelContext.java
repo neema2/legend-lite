@@ -1,6 +1,5 @@
 package com.gs.legend.model;
 
-import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.model.m3.Primitive;
 import com.gs.legend.model.m3.PureClass;
 import com.gs.legend.model.m3.Type;

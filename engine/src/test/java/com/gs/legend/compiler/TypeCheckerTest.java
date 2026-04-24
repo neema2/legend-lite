@@ -61,7 +61,7 @@ class TypeCheckerTest {
         var vs = parse("#>{PersonDatabase.T_PERSON}#");
         var unit = compiler.check(vs);
 
-        Type.Schema rt = unit.typeInfoFor(unit.ast()).schema();
+        Type.Schema rt = unit.hir().schema();
         assertEquals(6, rt.size(), "Should have 6 columns");
         assertEquals(Primitive.STRING, rt.requireColumn("FIRST_NAME"));
         assertEquals(Primitive.STRING, rt.requireColumn("LAST_NAME"));
@@ -77,7 +77,7 @@ class TypeCheckerTest {
         var unit = compiler.check(vs);
 
         // Filter preserves ALL columns from source
-        Type.Schema rt = unit.typeInfoFor(unit.ast()).schema();
+        Type.Schema rt = unit.hir().schema();
         assertEquals(6, rt.size(), "Filter doesn't change column set");
         assertEquals(Primitive.INTEGER, rt.requireColumn("AGE"));
         assertEquals(Primitive.STRING, rt.requireColumn("FIRST_NAME"));
@@ -96,7 +96,7 @@ class TypeCheckerTest {
         var vs = parse("#>{PersonDatabase.T_PERSON}->sort(asc(~AGE))");
         var unit = compiler.check(vs);
 
-        assertEquals(6, unit.typeInfoFor(unit.ast()).schema().size(), "Sort preserves columns");
+        assertEquals(6, unit.hir().schema().size(), "Sort preserves columns");
     }
 
     @Test
@@ -112,7 +112,7 @@ class TypeCheckerTest {
         var vs = parse("#>{PersonDatabase.T_PERSON}->rename(~FIRST_NAME, ~NAME)");
         var unit = compiler.check(vs);
 
-        Type.Schema rt = unit.typeInfoFor(unit.ast()).schema();
+        Type.Schema rt = unit.hir().schema();
         assertFalse(rt.hasColumn("FIRST_NAME"), "Old column name should be gone");
         assertTrue(rt.hasColumn("NAME"), "New column name should exist");
         assertEquals(Primitive.STRING, rt.requireColumn("NAME"));
@@ -122,7 +122,7 @@ class TypeCheckerTest {
     void limitPreservesType() {
         var vs = parse("#>{PersonDatabase.T_PERSON}->limit(10)");
         var unit = compiler.check(vs);
-        assertEquals(6, unit.typeInfoFor(unit.ast()).schema().size());
+        assertEquals(6, unit.hir().schema().size());
     }
 
     @Test
@@ -130,7 +130,7 @@ class TypeCheckerTest {
         var vs = parse("#>{PersonDatabase.T_PERSON}->filter(x|$x.AGE > 18)->sort(asc(~FIRST_NAME))->limit(5)");
         var unit = compiler.check(vs);
 
-        Type.Schema rt = unit.typeInfoFor(unit.ast()).schema();
+        Type.Schema rt = unit.hir().schema();
         assertEquals(6, rt.size(), "Chained ops preserve columns");
         assertEquals(Primitive.INTEGER, rt.requireColumn("AGE"));
     }

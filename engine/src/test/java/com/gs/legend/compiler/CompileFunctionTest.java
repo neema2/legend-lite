@@ -47,8 +47,8 @@ class CompileFunctionTest {
 
         // Body is stamped — root has TypeInfo.
         var body = compiled.body();
-        assertNotNull(body.typeInfoFor(body.ast()),
-                "Function body root must be stamped with TypeInfo");
+        assertNotNull(body.hir(),
+                "Function body must carry a typed HIR root");
     }
 
     @Test
@@ -65,9 +65,8 @@ class CompileFunctionTest {
         CompiledFunction compiled = tc.check(built.pf("test::addOne"));
 
         // Final statement's type is the function's result — the $x reference.
-        var ast = compiled.body().ast();
-        var rootInfo = compiled.body().typeInfoFor(ast);
-        assertSame(Primitive.INTEGER, rootInfo.type(),
+        var root = compiled.body().hir();
+        assertSame(Primitive.INTEGER, root.type(),
                 "Multi-statement body's last statement must type-check to Integer");
     }
 
@@ -126,8 +125,15 @@ class CompileFunctionTest {
         // CompiledFunction body must wrap the exact AST instance PureFunction holds —
         // no copy, no rebuild.
         var pureFn = built.modelCtx().findFunction("test::identity").get(0);
-        assertSame(pureFn.body().get(pureFn.body().size() - 1), compiled.body().ast(),
-                "CompiledExpression.ast must be the same instance as PureFunction.body's last statement");
+        // Post-big-bang the body is a TypedSpec HIR tree (not the raw AST). We assert
+        // that the typed root has the expected type/shape — identity with the AST is
+        // no longer meaningful.
+        assertNotNull(compiled.body().hir(),
+                "CompiledExpression.hir must be populated for a function body");
+        assertSame(Primitive.STRING, compiled.body().hir().type(),
+                "Identity function over String[1] must type-check to String");
+        assertNotNull(pureFn.body().get(pureFn.body().size() - 1),
+                "Underlying PureFunction.body is still available as AST source-of-truth");
     }
 
     @Test

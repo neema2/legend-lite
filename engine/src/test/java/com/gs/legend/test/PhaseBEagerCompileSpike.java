@@ -133,9 +133,14 @@ class PhaseBEagerCompileSpike {
         String slowestKind = null;
         for (var pureClass : builder.getAllClasses().values()) {
             String fqn = pureClass.qualifiedName();
-            var specOpt = modelCtx.findSourceSpec(fqn);
-            if (specOpt.isEmpty()) continue;
-            ValueSpecification sourceSpec = specOpt.get();
+            // Post-big-bang: synthesized mapping functions live in ModelContext as
+            // PureFunctions keyed by "<Class>::mappingFunction" FQN (see MappingNormalizer).
+            var fnFqnOpt = modelCtx.findMappingFunctionFqn(fqn);
+            if (fnFqnOpt.isEmpty()) continue;
+            var fns = modelCtx.findFunction(fnFqnOpt.get());
+            if (fns.isEmpty() || fns.get(0).body().isEmpty()) continue;
+            var body = fns.get(0).body();
+            ValueSpecification sourceSpec = body.get(body.size() - 1);
             String kind = builder.getMappingRegistry().findPureClassMapping(fqn).isPresent()
                     ? "M2M" : "relational";
             long s = System.nanoTime();
