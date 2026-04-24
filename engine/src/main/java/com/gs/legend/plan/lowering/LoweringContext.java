@@ -6,10 +6,7 @@ import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.plan.PlanGenerator;
 import com.gs.legend.sqlgen.SqlExpr;
 
-import com.gs.legend.plan.lowering.relation.AssocJoinLifter;
-
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -45,39 +42,49 @@ public final class LoweringContext {
         }
     }
 
+    /**
+     * Variable binding: the resolved {@link SqlExpr} that a lambda param name
+     * resolves to, together with the {@link StoreResolution} associated with
+     * that binding (non-null when the variable's value is a relational row).
+     *
+     * <p>Bundling the store with the binding replaces the ambient {@code currentStore}
+     * pattern — each variable carries its own store, so multi-param lambdas
+     * (e.g., join conditions) resolve property accesses against the correct
+     * side's store.
+     */
+    public record VarBinding(SqlExpr expression, StoreResolution store) {}
+
     private final ResolvedMappings mappings;
     private final PlanGenerator.Mode mode;
-    private final Map<String, SqlExpr> variableBindings;
-    private final StoreResolution currentStore;
+    private final Map<String, SqlExpr> variableBindings;           // legacy surface (expression only)
+    private final Map<String, VarBinding> env;                     // new surface (expression + store)
     private final AliasSupplier aliases;
     /**
-     * Non-embedded association-path bindings installed by
-     * {@link AssocJoinLifter} before scalar lowering. Keyed by the path prefix
-     * (e.g., {@code [firm]} for {@code $p.firm.legalName}), mapped to the
-     * {@link SqlRelation}-level alias and the target {@link StoreResolution}.
-     * Consumed by {@link com.gs.legend.plan.lowering.scalar.PropertyAccessLowering}
-     * when it walks a non-embedded hop.
+     * Per-relational-rule scratch pad for collecting non-embedded association
+     * hops encountered during scalar lowering. {@code null} outside a
+     * lambda-bearing relational rule. Created fresh by the rule, consumed
+     * at rule exit via {@link Relations#install}.
      */
-    private final Map<List<String>, AssocJoinLifter.Binding> assocBindings;
+    private final NavScope navScope;
 
     private LoweringContext(ResolvedMappings mappings,
                             PlanGenerator.Mode mode,
                             Map<String, SqlExpr> variableBindings,
-                            StoreResolution currentStore,
+                            Map<String, VarBinding> env,
                             AliasSupplier aliases,
-                            Map<List<String>, AssocJoinLifter.Binding> assocBindings) {
+                            NavScope navScope) {
         this.mappings = mappings;
         this.mode = mode;
         this.variableBindings = variableBindings;
-        this.currentStore = currentStore;
+        this.env = env;
         this.aliases = aliases;
-        this.assocBindings = assocBindings;
+        this.navScope = navScope;
     }
 
     /** Fresh root context for a plan generation run. */
     public static LoweringContext root(ResolvedMappings mappings, PlanGenerator.Mode mode) {
-        return new LoweringContext(mappings, mode, Map.of(), null,
-                new AliasSupplier(), Map.of());
+        return new LoweringContext(mappings, mode, Map.of(), Map.of(),
+                new AliasSupplier(), null);
     }
 
     /** @return the full committed mapping sidecar produced by MappingResolver. */
@@ -85,16 +92,11 @@ public final class LoweringContext {
     public PlanGenerator.Mode mode() { return mode; }
     public Map<String, SqlExpr> variableBindings() { return variableBindings; }
 
-    /**
-     * Store resolution currently "in scope" for lowering a scalar sub-expression
-     * (e.g., the active store when evaluating a filter predicate, sort key, or
-     * project lambda). Relational operator rules install this via {@link #withStore}
-     * before recursing into their scalar lambdas.
-     */
-    public StoreResolution currentStore() { return currentStore; }
-
     /** @return next alias (t0, t1, …). Shared with child contexts. */
     public String nextAlias() { return aliases.next(); }
+
+    /** @return the underlying alias supplier (for helpers that need raw access). */
+    public AliasSupplier aliases() { return aliases; }
 
     /** @return resolved store for this typed node, or null if this node is not relational. */
     public StoreResolution storeFor(TypedSpec node) { return mappings.storeResolutions().get(node); }
@@ -102,35 +104,40 @@ public final class LoweringContext {
     /** @return binding for a lambda parameter, or null if not in scope. */
     public SqlExpr lookupVar(String name) { return variableBindings.get(name); }
 
-    /** Returns a new context with {@code name} bound to {@code value}. */
-    public LoweringContext withVar(String name, SqlExpr value) {
-        Map<String, SqlExpr> next = new HashMap<>(variableBindings);
-        next.put(name, value);
-        return new LoweringContext(mappings, mode, Map.copyOf(next), currentStore, aliases, assocBindings);
-    }
+    /** @return rich binding (expression + store) for a lambda parameter, or null if not bound via new surface. */
+    public VarBinding lookupBinding(String name) { return env.get(name); }
 
-    /** Returns a new context with all the given bindings added. */
-    public LoweringContext withVars(Map<String, SqlExpr> more) {
-        Map<String, SqlExpr> next = new HashMap<>(variableBindings);
-        next.putAll(more);
-        return new LoweringContext(mappings, mode, Map.copyOf(next), currentStore, aliases, assocBindings);
-    }
-
-    /** Returns a new context with the given store as the "currently active" one. */
-    public LoweringContext withStore(StoreResolution store) {
-        return new LoweringContext(mappings, mode, variableBindings, store, aliases, assocBindings);
-    }
-
-    /** @return the active association-path → alias+store map (never null; may be empty). */
-    public Map<List<String>, AssocJoinLifter.Binding> assocBindings() { return assocBindings; }
+    /** @return the active nav-scope, or null if not inside a lambda-bearing relational rule. */
+    public NavScope navScope() { return navScope; }
 
     /**
-     * Returns a new context carrying {@code bindings} as the active
-     * association-path map. Installed by single-param relational rules (Filter
-     * / Project / GroupBy / Sort) after {@link AssocJoinLifter#lift}.
+     * Rich variable binding: records both {@code expression} and the
+     * associated {@link StoreResolution}. The primary means of binding a
+     * lambda parameter — {@link com.gs.legend.plan.lowering.scalar.PropertyAccessLowering}
+     * reads the bound store directly from the {@link VarBinding}, replacing
+     * the ambient {@code currentStore} pattern.
+     *
+     * <p>Also mirrors into the legacy {@code variableBindings} map so
+     * {@link com.gs.legend.plan.lowering.scalar.VariableLowering} can resolve
+     * plain {@code $name} references without knowing about the env.
      */
-    public LoweringContext withAssocBindings(Map<List<String>, AssocJoinLifter.Binding> bindings) {
-        return new LoweringContext(mappings, mode, variableBindings, currentStore, aliases,
-                bindings == null ? Map.of() : Map.copyOf(bindings));
+    public LoweringContext bindVar(String name, SqlExpr value, StoreResolution store) {
+        Map<String, SqlExpr> legacy = new HashMap<>(variableBindings);
+        legacy.put(name, value);
+        Map<String, VarBinding> nextEnv = new HashMap<>(env);
+        nextEnv.put(name, new VarBinding(value, store));
+        return new LoweringContext(mappings, mode, Map.copyOf(legacy), Map.copyOf(nextEnv),
+                aliases, navScope);
+    }
+
+    /**
+     * Returns a new context carrying a fresh {@link NavScope}. Installed by
+     * lambda-bearing relational rules (Filter / Project / Sort / GroupBy /
+     * Aggregate / Extend) before descending into scalar bodies; consumed at
+     * rule exit when the rule installs its collected navigations.
+     */
+    public LoweringContext withNavScope(NavScope scope) {
+        return new LoweringContext(mappings, mode, variableBindings, env,
+                aliases, scope);
     }
 }

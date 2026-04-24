@@ -75,6 +75,11 @@ public final class StructLowering {
         // {@code $p.firm}). Unfold it into a deeper {@link TypedPropertyAccess}
         // with the extra hop appended to the association path so
         // {@link PropertyAccessLowering} can resolve it uniformly.
+        //
+        // NOTE: audited 2026-04; this branch fires ~325 times across the
+        // engine test suite. The cleaner fix is to have the compiler emit a
+        // flat TypedPropertyAccess(path=[firm, legalName]) directly; until
+        // that lands, the rewrite stays.
         if (n.source() instanceof com.gs.legend.compiler.typed.TypedPropertyAccess tpa) {
             java.util.List<String> existing = tpa.associationPath()
                     .orElse(java.util.List.of(tpa.property()));

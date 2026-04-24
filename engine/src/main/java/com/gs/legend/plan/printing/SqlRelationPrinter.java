@@ -43,8 +43,8 @@ public final class SqlRelationPrinter {
             case SqlRelation.Union r         -> printUnion(r, dialect);
             case SqlRelation.Join r          -> printJoin(r, dialect);
             case SqlRelation.Flatten r       -> throw notImpl(rel);
-            case SqlRelation.Pivot r         -> throw notImpl(rel);
-            case SqlRelation.AsOfJoin r      -> throw notImpl(rel);
+            case SqlRelation.Pivot r         -> printPivot(r, dialect);
+            case SqlRelation.AsOfJoin r      -> printAsOfJoin(r, dialect);
             case SqlRelation.WithCtes r      -> throw notImpl(rel);
         };
     }
@@ -317,6 +317,40 @@ public final class SqlRelationPrinter {
           .append(printAsFromItem(r.right(), dialect));
         if (r.type() != SqlRelation.JoinType.CROSS && r.on() != null) {
             sb.append(" ON ").append(r.on().toSql(dialect));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * {@code PIVOT (<source>) ON <pivotCol> USING AGG(x) AS alias, ...}. DuckDB
+     * pivot — grouping keys and pivot values are auto-inferred so the printer
+     * only emits {@code USING} aggregates. Ported from legacy
+     * {@code SqlBuilder.renderPivot}.
+     */
+    private static String printPivot(SqlRelation.Pivot r, SQLDialect dialect) {
+        StringBuilder sb = new StringBuilder("PIVOT (");
+        sb.append(print(r.source(), dialect));
+        sb.append(") ON ").append(dialect.quoteIdentifier(r.spec().pivotKey()));
+        sb.append(" USING ");
+        var aggs = r.spec().aggs();
+        for (int i = 0; i < aggs.size(); i++) {
+            if (i > 0) sb.append(", ");
+            var a = aggs.get(i);
+            sb.append(renderAgg(a, dialect))
+              .append(" AS ")
+              .append(dialect.quoteIdentifier(a.alias()));
+        }
+        return sb.toString();
+    }
+
+    private static String printAsOfJoin(SqlRelation.AsOfJoin r, SQLDialect dialect) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("SELECT * FROM ")
+          .append(printAsFromItem(r.left(), dialect))
+          .append(" ASOF LEFT JOIN ")
+          .append(printAsFromItem(r.right(), dialect));
+        if (r.spec().matchPredicate() != null) {
+            sb.append(" ON ").append(r.spec().matchPredicate().toSql(dialect));
         }
         return sb.toString();
     }

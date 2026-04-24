@@ -30,31 +30,32 @@ public final class PropertyAccessLowering {
     private PropertyAccessLowering() {}
 
     public static SqlExpr lower(TypedPropertyAccess n, LoweringContext ctx) {
+        // Non-variable source: property access on an arbitrary scalar expression
+        // (e.g., {@code foo(x).bar}, chained {@code $p.address.city} where the
+        // inner hop produces another TypedPropertyAccess). Lower the source
+        // recursively as a scalar and emit a SQL field access.
+        //
+        // Ported from legacy {@code generateScalar} AppliedProperty branch
+        // (line 2527-2533 of plangen-legacy-pre-port.java.txt) — "struct field
+        // access in lambda". Legacy emitted {@code FieldAccess(Identifier(owner), property)}
+        // for {@code $f.legalName}; we generalise to any scalar source.
         if (!(n.source() instanceof TypedVariable v)) {
-            throw PlanGenNotPortedException.stage3(n, "non-variable-source");
+            SqlExpr base = com.gs.legend.plan.lowering.Lowerer.lowerScalar(n.source(), ctx);
+            return new SqlExpr.FieldAccess(base, n.property());
         }
-        SqlExpr bound = ctx.lookupVar(v.name());
-        if (!(bound instanceof SqlExpr.Identifier id)) {
+        LoweringContext.VarBinding binding = ctx.lookupBinding(v.name());
+        if (binding == null) {
+            throw PlanGenNotPortedException.stage3(n, "property:unbound-variable:" + v.name());
+        }
+        if (!(binding.expression() instanceof SqlExpr.Identifier id)) {
             throw PlanGenNotPortedException.stage3(n, "property-on-column-binding");
         }
         String rowAlias = id.name();
-        StoreResolution store = ctx.currentStore();
+        StoreResolution store = binding.store();
 
-        // Association-path navigation: {@code associationPath} is the full chain
-        // including the terminal property (e.g., {@code $p.firm.name} carries
-        // {@code ["firm", "name"]}). The hops that need resolving against the
-        // store's joins are everything BEFORE the terminal — the last element
-        // is the property name already on {@link TypedPropertyAccess#property()}.
-        //
-        // Each hop is either:
-        //   - embedded: no physical JOIN, same alias, advance resolution;
-        //   - non-embedded: uses a LEFT JOIN pre-installed by
-        //     {@link com.gs.legend.plan.lowering.relation.AssocJoinLifter}, whose
-        //     bindings live on {@link LoweringContext#assocBindings}.
-        //   - otherwise surfaces as {@code associationPath:non-embedded:…}.
         List<String> path = n.associationPath().orElse(List.of());
         int hopCount = Math.max(0, path.size() - 1);
-        var bindings = ctx.assocBindings();
+        List<String> parentPrefix = List.of();
         for (int i = 0; i < hopCount; i++) {
             String assoc = path.get(i);
             if (store == null) {
@@ -64,18 +65,21 @@ public final class PropertyAccessLowering {
             if (jr == null) {
                 throw PlanGenNotPortedException.stage3(n, "associationPath:unresolved:" + assoc);
             }
+            List<String> prefix = List.copyOf(path.subList(0, i + 1));
             if (jr.embedded()) {
                 store = jr.targetResolution();
+                // parentPrefix advances so that any following non-embedded hop
+                // records its parent correctly even across embedded segments.
+                parentPrefix = prefix;
                 continue;
             }
-            List<String> prefix = List.copyOf(path.subList(0, i + 1));
-            var binding = bindings.get(prefix);
-            if (binding == null) {
+            if (ctx.navScope() == null) {
                 throw PlanGenNotPortedException.stage3(n,
-                        "associationPath:non-embedded:" + assoc);
+                        "associationPath:non-embedded-without-navscope:" + assoc);
             }
-            rowAlias = binding.alias();
-            store = binding.store();
+            rowAlias = ctx.navScope().navigate(prefix, parentPrefix, jr, ctx.aliases());
+            store = jr.targetResolution();
+            parentPrefix = prefix;
         }
         return new SqlExpr.Column(rowAlias, physicalColumnFor(n.property(), store));
     }

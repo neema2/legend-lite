@@ -61,7 +61,7 @@ public final class ControlFlowLowering {
             TypedSpec s = n.stmts().get(i);
             if (s instanceof TypedLet let) {
                 SqlExpr value = Lowerer.lowerScalar(let.value(), cur);
-                cur = cur.withVar(let.name(), value);
+                cur = cur.bindVar(let.name(), value, null);
             } else {
                 // Side-effecting intermediate statement — not supported in scalar
                 // SQL; lower for consistency but discard.
@@ -92,11 +92,73 @@ public final class ControlFlowLowering {
         throw PlanGenNotPortedException.stage4(n);
     }
 
+    /**
+     * {@code $f->eval(args...)} — where {@code $f} is a function-typed variable.
+     *
+     * <p>Mirrors legacy pass-through behavior (see legacy line 4063-4075, case
+     * {@code "eval"} in scalar-function dispatch): if the applicable is a
+     * lambda-parameter binding, the parameter is already bound upstream (via
+     * {@code withVars} during user-function inlining) to the lambda's lowered
+     * body. Lowering the {@code TypedVariable} resolves to that binding, which
+     * is what the call's result should be.
+     *
+     * <p>Args are evaluated for side-effects (to match legacy's recursive
+     * compilation) and then discarded — the function body has already been
+     * inlined by {@code TypeChecker}/{@code UserCallLowering}.
+     */
     public static SqlExpr lower(TypedEval n, LoweringContext ctx) {
-        throw PlanGenNotPortedException.stage4(n);
+        for (TypedSpec arg : n.args()) {
+            Lowerer.lowerScalar(arg, ctx);
+        }
+        return Lowerer.lowerScalar(n.applicable(), ctx);
     }
 
+    /**
+     * {@code source->map(mapper)} → {@code list_transform(source, x -> body)}.
+     *
+     * <p>Ported from legacy {@code generateScalarFunctionCall} case {@code "map"}
+     * (see {@code docs/reference/plangen-legacy-pre-port.java.txt} line 4098):
+     * lower the source as a scalar, lower the mapper's body with the lambda
+     * parameter bound to a bare column reference named after the param, and
+     * wrap in a {@link SqlExpr.LambdaExpr} / {@link SqlExpr.FunctionCall}.
+     *
+     * <p>Variant sources: if the compiler typed the source as a variant (JSON),
+     * the legacy path wrapped it in {@code CAST(... AS JSON[])}. We reproduce
+     * that by reading {@link TypedSpec#info()} on the source.
+     */
     public static SqlExpr lower(TypedMap n, LoweringContext ctx) {
-        throw PlanGenNotPortedException.stage4(n);
+        SqlExpr source = Lowerer.lowerScalar(n.source(), ctx);
+
+        // Variant sources need a JSON[] cast before iteration (DuckDB can't
+        // list_transform over a raw JSON scalar).
+        if (isVariantType(n.source())) {
+            source = new SqlExpr.VariantArrayCast(source, "JSON");
+        }
+
+        var params = n.mapper().parameters();
+        String elemParam = params.isEmpty() ? "x" : params.get(0).name();
+
+        // Bind the lambda param to a bare column reference so nested property
+        // access inside the body renders as {@code x.prop} / {@code x} itself.
+        SqlExpr paramBinding = new SqlExpr.Identifier(elemParam);
+        LoweringContext inner = ctx.bindVar(elemParam, paramBinding, null);
+
+        var body = n.mapper().body();
+        SqlExpr lambdaBody = body.isEmpty()
+                ? new SqlExpr.NullLiteral()
+                : Lowerer.lowerScalar(body.get(body.size() - 1), inner);
+
+        SqlExpr lambda = new SqlExpr.LambdaExpr(java.util.List.of(elemParam), lambdaBody);
+        return new SqlExpr.FunctionCall("listTransform", java.util.List.of(source, lambda));
+    }
+
+    private static boolean isVariantType(TypedSpec n) {
+        // Defensive: not every source has Primitive typed info; treat absence as non-variant.
+        var info = n.info();
+        if (info == null) return false;
+        var t = info.type();
+        if (t == null) return false;
+        String name = t.typeName();
+        return "Variant".equalsIgnoreCase(name) || "Json".equalsIgnoreCase(name);
     }
 }

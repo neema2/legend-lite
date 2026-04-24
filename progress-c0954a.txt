@@ -1,0 +1,165 @@
+Right-architecture migration (plan: assoc-right-arch-v3-c0954a.md)
+
+STATUS
+======
+Tests: 1372 passing / 257 failures / 1021 errors / 19 skipped (2669 total).
+Delta this session: +1 test (1371 → 1372). Net code: -250 LOC.
+
+The refactor is architecturally complete. It did NOT meaningfully move the test counter
+because it was a plumbing refactor, not a bug-fixing campaign. See "HONEST SCORECARD" below.
+
+ARCHITECTURE (done)
+===================
+  - NavScope.java: per-rule scratch pad; allocates real SQL aliases eagerly via ctx.aliases()
+    at PropertyAccessLowering discovery time (option B from plan §2.4). Dedups by path prefix;
+    parents tracked via Entry.parentPrefix for chained lookups.
+  - LoweringContext surface (6 fields, 11 methods):
+      mappings, mode, variableBindings, env, aliases, navScope
+      bindVar, withNavScope, lookupVar, lookupBinding, aliases(), navScope(),
+      storeFor, nextAlias, mappings(), mode(), variableBindings()
+  - PropertyAccessLowering: single path. Reads VarBinding.store() for root, walks
+    associationPath resolving non-embedded hops via NavScope.navigate(prefix, parentPrefix, jr).
+    Throws PlanGenNotPortedException (never falls back) on: non-variable source, unbound
+    variable, non-Identifier binding, unresolved association, or non-embedded hop without
+    NavScope (join conditions per plan §2.5).
+  - Relations.install(source, srcAlias, srcStore, scope, ctx): single overload.
+    Honors per-nav parent alias via scope.lookup(entry.parentPrefix()). Binds join-cond
+    sourceParam to parent alias (not always srcAlias — fixes latent chained-prefix bug).
+    Binds sourceParam to parentStore (srcStore for root), targetParam to j.targetResolution().
+  - FilterLowering / ProjectLowering / SortLimitLowering / GroupByAggregateLowering
+    (GroupBy + Aggregate) / ExtendLowering: all migrated to bindVar + shared NavScope +
+    Relations.install(scope).
+  - JoinLowering: per-side bindVar with each side's store. Fixes plan §2.1 latent bug
+    where both left and right params bound against left's store. Accounts for the +1 test.
+  - ExtendLowering: traversalHops pre-register into NavScope as synthetic [__hop_i] entries
+    with empty parentPrefix (matches legacy flat-install semantics: each traverse hop's
+    source binds to srcAlias). aliasChain built from NavScope.navigate return values so
+    multi-param extend lambdas ({src, hop1, hop2 | ...}) still positional-bind correctly.
+    One Relations.install call weaves both traversalHops + discovered-assoc navs.
+  - ControlFlowLowering.let: bindVar(name, value, null) — let values aren't row sources.
+
+DELETED
+=======
+  - AssocJoinLifter.java (233 LOC) — reflection-based pre-pass no longer needed.
+  - LoweringContext.currentStore field + currentStore() accessor + withStore() mutator.
+  - LoweringContext.withVar / withVars (legacy narrow binding).
+  - LoweringContext.assocBindings / withAssocBindings + imports.
+  - Relations.install(List<Navigation>) overload + Installed record + aliasTable.
+  - PropertyAccessLowering legacy lookupVar+currentStore+assocBindings fallback.
+  - All vestigial .withStore(...) defensive calls across 6 lowering rules.
+
+FILES CHANGED (11)
+==================
+  AssocJoinLifter.java              (deleted, -233)
+  LoweringContext.java              (-60 net)
+  NavScope.java                     (new, +94)
+  PropertyAccessLowering.java       (-20 net)
+  Relations.java                    (reshaped; -50 net)
+  ControlFlowLowering.java          (-1)
+  FilterLowering.java               (-10 net)
+  ProjectLowering.java              (-20 net)
+  SortLimitLowering.java            (-15 net)
+  GroupByAggregateLowering.java     (+15 net; signatures threaded store)
+  ExtendLowering.java               (-5 net; traversalHops now via NavScope)
+  JoinLowering.java                 (+2)
+
+HONEST SCORECARD
+================
+What the plan promised:
+  - §2.1: per-variable store binding, fixing two latent bugs (JoinLowering both-to-left,
+    AssocJoinLifter.lowerJoinCondition both-to-target). Fixed. Unlocks tests where
+    source/target stores disagree on a column name — that's a narrow class, realistically
+    single-digit test wins unless the codebase has many multi-store joins.
+  - §2.2-2.4: mechanism modernization (NavScope replaces AssocJoinLifter). Output-preserving.
+  - §4: "Expected regressions during iteration: association-navigation tests... Fixes
+    should converge as NavScope bugs are hunted." — the plan itself expected to STAY at
+    baseline during migration, not leap.
+
+What we delivered: +1 test. The plan did what the plan said. It was misframed as an
+association-test fix.
+
+What's ACTUALLY breaking tests (observed distribution of 1278 failures):
+  Bucket                                        Count   Assoc-related?
+  ──────────────────────────────────────────────────────────────────────────
+  TypeInferenceIntegrationTest                    232   No — scalar/collection lowering
+                                                          (`and([true,true])` returns
+                                                          `[true,true]` not `true`;
+                                                          `array.drop()` returns `[]`;
+                                                          `coalesce` returns `[]`)
+  DuckDBIntegrationTest                           107   Mostly no — greatest/max/mode/least
+                                                          return ArrayList instead of
+                                                          scalar; a few EXISTS-subquery
+                                                          assoc tests
+  Misc generic test.* package                     139   Mixed
+  ScalarFunctionIntegrationTest                    28   No — dialect function mapping
+  WindowFunctionTest                               25   No — window lowering
+  UserFunctionIntegrationTest$QueryReturning       20   No
+  ExtendWindowCheckerTest (5 sub-suites)          ~50   No — extend window checker bugs
+  ExtendCheckerTest (3 sub-suites)                ~30   No — extend checker bugs
+  GroupByCheckerTest (3 sub-suites)               ~30   Tangential
+  FoldChecker / SortChecker / other checkers      ~40   No
+  AssociationIntegrationTest                      ~17   YES (GraphFetch, to-many, stress)
+  RelationalMappingIntegrationTest               ~70   Partial (LazyJoinOpt, Otherwise,
+    (Traverse, LazyJoinOpt, Otherwise,                    Traverse, Aggregation, Comp)
+    Aggregation, Composition, ...)
+  RelationalMappingCompositionTest                ~30   Partial
+  204 distinct test classes total               1278
+
+Association-specific failures: ~100-150 out of 1278 (8-12%). The refactor couldn't have
+moved most of the counter even in principle.
+
+Why the assoc-related failures that DID exist didn't flip to green either:
+  1. Most need MR-level lazy extend pruning (sourceRelation pre-extends every assoc
+     column; downstream query uses only the local property; unused LEFT JOINs remain).
+     Example: testNoJoinWhenFilterUsesLocalProperty expects 0 JOINs, gets 3.
+  2. Some need NavScope dedup against pre-installed sourceRelation joins (OtherwiseMappings
+     expects 1 JOIN, gets 2 — one from sourceRelation extend + one from query NavScope).
+  3. GraphFetch to-many / EXISTS tests need SubqueryNav / ExistsNav variants. Plan v3
+     explicitly deferred these (Navigation.java:74-96).
+  4. TraverseTests need traversalHops deletion + full NavScope-discovered traverses.
+
+None of these are unlocked by plumbing cleanup alone.
+
+REMAINING CLEANUP (audited — all three are load-bearing, not dead code)
+========================================================================
+  - StructLowering struct-extract-on-assoc rewrite branch: AUDITED by replacing with a
+    throw. Fired ~325 times across the engine suite — the compiler emits
+    TypedStructExtract(TypedPropertyAccess) for association-struct access rather than a
+    flat TypedPropertyAccess with full path. Branch KEPT. The cleaner upstream fix is
+    to have the compiler emit a flat TypedPropertyAccess(path=[firm, legalName])
+    directly; until then the rewrite is mandatory.
+  - TypedExtend.traversalHops: AUDITED. Misread in plan §6 — these are top-level
+    traverse() clauses in extend parameters (syntactic construct distinct from
+    association navigation inside scalar extend bodies). Multi-param extend lambdas
+    ({src, hop1, hop2 | expr}) bind positionally to srcAlias + each hop's allocated
+    alias. NavScope covers assoc nav inside scalar bodies; traversalHops covers the
+    extend-level traverse() syntax. Both are needed. Field KEPT.
+  - TypedAssociationExtendCol / TypedEmbeddedExtendCol marker cols: AUDITED. Consumed
+    by MappingResolver (builds JoinResolution from TypedAssociationExtendCol.hops and
+    embedded subs from TypedEmbeddedExtendCol.subColumns). PlanGen correctly returns
+    null — the physical JOIN is installed by MR into the mapping's sourceRelation
+    extends, which PlanGen lowers through the normal path. KEPT.
+  - Stale doc comment in ExtendLowering.lowerExtendCol fixed (said "installed by
+    traversalHops" — actually installed by MappingResolver into sourceRelation).
+
+HIGHEST-LEVERAGE NEXT WORK (for actually moving the counter)
+=============================================================
+  1. Investigate TypeInferenceIntegrationTest (232 failures in one suite). Likely a
+     systematic regression in scalar/collection lowering. One root cause could unlock
+     hundreds of tests.
+  2. DuckDB scalar-function result-shape extraction (greatest/max/mode/least returning
+     ArrayList). Likely a single ResultExtractor bug affecting ~30+ tests.
+  3. Lazy extend pruning in MappingResolver — unlocks the ~20 LazyJoinOptimization /
+     OtherwiseMappings / AdvancedJoins row-count tests in one go. Prior work landed in
+     commit referenced by memory 50db8a68 (stampExtendOverrides + dependency closure);
+     verify it's still firing and extend it to cover these cases.
+  4. NavScope sourceRelation-alias dedup — when sourceRelation already has a LEFT JOIN
+     to T_FIRM with alias t2, NavScope.navigate([firm]) should reuse t2 instead of
+     installing t4. Requires threading sourceRelation's installed-alias map through
+     LoweringContext.
+  5. SubqueryNav / ExistsNav emission (plan reserved, v1 throws on encounter) — unlocks
+     to-many filter and graph-fetch-to-many tests.
+
+(1) and (2) are almost certainly unrelated to this refactor but are by far the biggest
+wins. (3)-(5) are assoc-specific follow-ups that the plumbing we just landed supports
+but doesn't implement.

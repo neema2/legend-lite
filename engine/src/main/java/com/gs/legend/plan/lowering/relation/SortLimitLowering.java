@@ -36,20 +36,9 @@ public final class SortLimitLowering {
         String alias = aliased.alias();
         var store = ctx.storeFor(n.source());
 
-        // Lift non-embedded association paths out of any expression-sort-key
-        // lambdas so they render as LEFT JOINs on the sort source.
-        java.util.Set<java.util.List<String>> allPaths = new java.util.LinkedHashSet<>();
-        for (TypedSortKey k : n.keys()) {
-            if (k instanceof TypedExpressionSortKey ek && !ek.keyFn().parameters().isEmpty()
-                    && !ek.keyFn().body().isEmpty()) {
-                String pn = ek.keyFn().parameters().get(0).name();
-                var body = ek.keyFn().body().get(ek.keyFn().body().size() - 1);
-                allPaths.addAll(AssocJoinLifter.collectPaths(body, pn));
-            }
-        }
-        var lifted = AssocJoinLifter.liftPaths(aliased, alias, store, allPaths, ctx);
-        SqlRelation joined = lifted.relation();
-        var bindings = lifted.bindings();
+        // Right-architecture path: one NavScope shared across all
+        // expression-sort-key lambdas; installed as LEFT JOINs at rule exit.
+        com.gs.legend.plan.lowering.NavScope scope = new com.gs.legend.plan.lowering.NavScope();
 
         List<SqlRelation.SortKey> keys = new ArrayList<>(n.keys().size());
         for (TypedSortKey k : n.keys()) {
@@ -72,15 +61,15 @@ public final class SortLimitLowering {
                 }
                 String p = ek.keyFn().parameters().get(0).name();
                 LoweringContext inner = ctx
-                        .withVar(p, new SqlExpr.Identifier(alias))
-                        .withStore(store)
-                        .withAssocBindings(bindings);
+                        .bindVar(p, new SqlExpr.Identifier(alias), store)
+                        .withNavScope(scope);
                 expr = Lowerer.lowerScalar(body.get(body.size() - 1), inner);
             } else {
                 throw PlanGenNotPortedException.stage3(n, "sortkey:" + k.getClass().getSimpleName());
             }
             keys.add(new SqlRelation.SortKey(expr, dir, SqlRelation.SortKey.NullOrder.DEFAULT));
         }
+        SqlRelation joined = Relations.install(aliased, alias, store, scope, ctx);
         return new SqlRelation.Sort(joined, keys);
     }
 

@@ -38,27 +38,10 @@ public final class ProjectLowering {
         String alias = aliased.alias();
         var store = ctx.storeFor(n.source());
 
-        // Collect every association path referenced by any projection body, so
-        // all of them share a single JOIN-chain on the aliased source.
-        java.util.Set<java.util.List<String>> allPaths = new java.util.LinkedHashSet<>();
-        for (TypedProjectionCol p : n.projections()) {
-            if (p.expression().parameters().isEmpty() || p.expression().body().isEmpty()) continue;
-            String pn = p.expression().parameters().get(0).name();
-            var body = p.expression().body().get(p.expression().body().size() - 1);
-            allPaths.addAll(AssocJoinLifter.collectPaths(body, pn));
-        }
-        var lifted = AssocJoinLifter.liftPaths(aliased, alias, store, allPaths, ctx);
-        SqlRelation joined = lifted.relation();
-        var bindings = lifted.bindings();
+        // Right-architecture path: one NavScope shared across all projection
+        // lambdas so duplicate prefixes dedupe to a single LEFT JOIN.
+        com.gs.legend.plan.lowering.NavScope scope = new com.gs.legend.plan.lowering.NavScope();
 
-        // {@code TypedProjectionCol.associationPath} mirrors the inner body's
-        // {@link com.gs.legend.compiler.typed.TypedPropertyAccess#associationPath()}
-        // and is purely informational at this layer — the lambda body carries
-        // all the structure we need, and the scalar lowering resolves
-        // association hops (embedded cases) through
-        // {@link com.gs.legend.plan.lowering.scalar.PropertyAccessLowering}.
-        // Non-embedded paths surface from that rule with a precise sub-case
-        // label, so this pass doesn't need to filter them upfront.
         List<SqlRelation.Projection> projections = new ArrayList<>(n.projections().size());
         for (TypedProjectionCol p : n.projections()) {
             TypedLambda lam = p.expression();
@@ -73,12 +56,12 @@ public final class ProjectLowering {
             TypedSpec terminal = body.get(body.size() - 1);
 
             LoweringContext inner = ctx
-                    .withVar(paramName, new SqlExpr.Identifier(alias))
-                    .withStore(store)
-                    .withAssocBindings(bindings);
+                    .bindVar(paramName, new SqlExpr.Identifier(alias), store)
+                    .withNavScope(scope);
             SqlExpr expr = Lowerer.lowerScalar(terminal, inner);
             projections.add(new SqlRelation.Projection(p.alias(), expr));
         }
+        SqlRelation joined = Relations.install(aliased, alias, store, scope, ctx);
         return new SqlRelation.Project(joined, projections);
     }
 }

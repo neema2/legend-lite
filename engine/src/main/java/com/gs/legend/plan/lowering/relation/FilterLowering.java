@@ -44,18 +44,17 @@ public final class FilterLowering {
         String paramName = pred.parameters().get(0).name();
         TypedSpec terminal = pred.body().get(pred.body().size() - 1);
 
-        // Lift any non-embedded association paths out of the predicate into
-        // physical LEFT JOINs on top of the source relation, then lower with
-        // the prefix→alias bindings visible to scalar rules.
+        // Right-architecture path: bind the lambda param with its store via
+        // bindVar, install a fresh NavScope for the predicate's scalar
+        // recursion, then install navs as LEFT JOINs at rule exit.
         var store = ctx.storeFor(n.source());
-        var lifted = AssocJoinLifter.lift(aliased, aliased.alias(), store,
-                paramName, terminal, ctx);
+        com.gs.legend.plan.lowering.NavScope scope = new com.gs.legend.plan.lowering.NavScope();
         LoweringContext predCtx = ctx
-                .withVar(paramName, new SqlExpr.Identifier(aliased.alias()))
-                .withStore(store)
-                .withAssocBindings(lifted.bindings());
+                .bindVar(paramName, new SqlExpr.Identifier(aliased.alias()), store)
+                .withNavScope(scope);
 
         SqlExpr predicate = Lowerer.lowerScalar(terminal, predCtx);
-        return new SqlRelation.Filter(lifted.relation(), predicate);
+        SqlRelation joined = Relations.install(aliased, aliased.alias(), store, scope, ctx);
+        return new SqlRelation.Filter(joined, predicate);
     }
 }

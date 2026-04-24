@@ -1,6 +1,6 @@
 package com.gs.legend.plan.lowering.relation;
 
-import com.gs.legend.compiler.Navigation;
+import com.gs.legend.compiler.StoreResolution;
 import com.gs.legend.compiler.typed.TypedColumnSortKey;
 import com.gs.legend.compiler.typed.TypedExpressionSortKey;
 import com.gs.legend.compiler.typed.TypedExtend;
@@ -44,16 +44,14 @@ public final class ExtendLowering {
         String srcAlias = aliased.alias();
         var store = ctx.storeFor(n.source());
 
-        // Build an ephemeral List<Navigation.JoinNav> from the Extend's
-        // traversalHops and delegate physical install (alias allocation,
-        // TableRef construction, condition lowering, LEFT JOIN weaving) to
-        // Relations.install. The abstractAlias tokens are local-only ("$__hop_i")
-        // because Extend-hop bindings do not outlive this lowering call.
-        //
-        // At migration step 5, MR will emit an identical List<Navigation> via
-        // ResolvedMappings.navigations[this extend], and the ephemeral build
-        // below disappears — ExtendLowering reads the sidecar instead.
-        List<Navigation> navs = new ArrayList<>(n.traversalHops().size());
+        // Single NavScope holds (a) traversalHops pre-registered as synthetic
+        // "[__hop_i]" entries with empty parentPrefix (so each hop's source
+        // binds to the root srcAlias, matching legacy flat-install semantics),
+        // and (b) any association navs discovered while lowering scalar extend
+        // bodies below. One Relations.install at rule exit weaves everything.
+        com.gs.legend.plan.lowering.NavScope scope = new com.gs.legend.plan.lowering.NavScope();
+        List<String> aliasChain = new ArrayList<>(n.traversalHops().size() + 1);
+        aliasChain.add(srcAlias);
         for (int i = 0; i < n.traversalHops().size(); i++) {
             var hop = n.traversalHops().get(i);
             TypedLambda cond = hop.condition();
@@ -63,27 +61,26 @@ public final class ExtendLowering {
             if (cond.body().isEmpty()) {
                 throw PlanGenNotPortedException.stage3(n, "extend:hop:empty-condition");
             }
-            navs.add(new Navigation.JoinNav(
-                    List.of(),                                  // prefix: anonymous hop
-                    "$__hop_" + i,                              // local abstractAlias
+            // Build a synthetic JoinResolution so we can reuse NavScope.navigate.
+            StoreResolution.JoinResolution jr = new StoreResolution.JoinResolution(
                     hop.tableName(),
                     cond.parameters().get(0).name(),
                     cond.parameters().get(1).name(),
-                    cond.body().get(cond.body().size() - 1),
-                    null,                                       // targetResolution (unused for Extend hops)
-                    false));                                    // isToMany (unused)
+                    false,                                                // isToMany
+                    cond.body().get(cond.body().size() - 1),               // joinCondition
+                    java.util.Set.of(),                                    // sourceColumns (unused here)
+                    null);                                                 // targetResolution
+            List<String> prefix = List.of("__hop_" + i);
+            String alias = scope.navigate(prefix, List.of(), jr, ctx.aliases());
+            aliasChain.add(alias);
         }
-        Relations.Installed installed = Relations.install(aliased, srcAlias, navs, store, ctx);
-        SqlRelation joined = installed.relation();
-        List<String> aliasChain = new ArrayList<>(navs.size() + 1);
-        aliasChain.add(srcAlias);
-        aliasChain.addAll(installed.aliasTable().values());
 
         List<SqlRelation.ExtendCol> cols = new ArrayList<>(n.extensions().size());
         for (TypedExtendCol col : n.extensions()) {
-            SqlRelation.ExtendCol lowered = lowerExtendCol(col, aliasChain, store, ctx, n);
+            SqlRelation.ExtendCol lowered = lowerExtendCol(col, aliasChain, store, ctx, n, scope);
             if (lowered != null) cols.add(lowered);
         }
+        SqlRelation joined = Relations.install(aliased, srcAlias, store, scope, ctx);
         return new SqlRelation.Extend(joined, cols);
     }
 
@@ -92,25 +89,27 @@ public final class ExtendLowering {
      * <p>Returns {@code null} for variants that don't project a column —
      * {@link com.gs.legend.compiler.typed.TypedAssociationExtendCol} and
      * {@link com.gs.legend.compiler.typed.TypedEmbeddedExtendCol} are pure
-     * join markers: the physical JOIN is already installed by traversalHops
-     * (for association) or handled as same-alias navigation (for embedded),
-     * so no new column is added to the source schema.
+     * join markers consumed by {@code MappingResolver}: the physical JOIN
+     * (or same-alias embedded nav) is installed by MR into the mapping's
+     * {@code sourceRelation} extends. PlanGen sees those as regular extends
+     * below and never needs to emit anything from the marker col itself.
      */
     private static SqlRelation.ExtendCol lowerExtendCol(
             TypedExtendCol col, List<String> aliasChain, Object store,
-            LoweringContext ctx, TypedExtend owner) {
+            LoweringContext ctx, TypedExtend owner,
+            com.gs.legend.plan.lowering.NavScope scope) {
         return switch (col) {
             case TypedScalarExtendCol sc -> new SqlRelation.ExtendCol(
                     sc.alias(),
-                    lowerScalarLambda(sc.expression(), aliasChain, store, ctx, owner, "extend:scalar"));
+                    lowerScalarLambda(sc.expression(), aliasChain, store, ctx, owner, "extend:scalar", scope));
             case TypedWindowExtendCol wc -> new SqlRelation.ExtendCol(
                     wc.alias(),
-                    lowerWindowCol(wc, aliasChain, store, ctx, owner));
+                    lowerWindowCol(wc, aliasChain, store, ctx, owner, scope));
             case com.gs.legend.compiler.typed.TypedAssociationExtendCol ignored -> null;
             case com.gs.legend.compiler.typed.TypedEmbeddedExtendCol ignored    -> null;
             case com.gs.legend.compiler.typed.TypedTraverseExtendCol t -> new SqlRelation.ExtendCol(
                     t.alias(),
-                    lowerScalarLambda(t.expression(), aliasChain, store, ctx, owner, "extend:traverse"));
+                    lowerScalarLambda(t.expression(), aliasChain, store, ctx, owner, "extend:traverse", scope));
         };
     }
 
@@ -126,11 +125,12 @@ public final class ExtendLowering {
      */
     private static SqlExpr lowerWindowCol(TypedWindowExtendCol wc, List<String> aliasChain,
                                           Object store, LoweringContext ctx,
-                                          TypedExtend owner) {
+                                          TypedExtend owner,
+                                          com.gs.legend.plan.lowering.NavScope scope) {
         List<SqlExpr> args = new ArrayList<>(2);
-        args.add(lowerScalarLambda(wc.fn1(), aliasChain, store, ctx, owner, "extend:window:fn1"));
+        args.add(lowerScalarLambda(wc.fn1(), aliasChain, store, ctx, owner, "extend:window:fn1", scope));
         wc.fn2().ifPresent(fn2 ->
-                args.add(lowerScalarLambda(fn2, aliasChain, store, ctx, owner, "extend:window:fn2")));
+                args.add(lowerScalarLambda(fn2, aliasChain, store, ctx, owner, "extend:window:fn2", scope)));
         TypedOver over = wc.over();
         String baseAlias = aliasChain.get(0);
         List<SqlExpr> partitionBy = new ArrayList<>(over.partitionBy().size());
@@ -138,7 +138,7 @@ public final class ExtendLowering {
             partitionBy.add(new SqlExpr.Column(baseAlias, resolveColumnName(col, store)));
         }
         List<SqlExpr.OrderByTerm> orderBy = new ArrayList<>(over.orderBy().size());
-        for (TypedSortKey key : over.orderBy()) orderBy.add(lowerSortKey(key, aliasChain, store, ctx, owner));
+        for (TypedSortKey key : over.orderBy()) orderBy.add(lowerSortKey(key, aliasChain, store, ctx, owner, scope));
         return new SqlExpr.WindowCall(wc.func().name(), args, partitionBy, orderBy);
     }
 
@@ -151,20 +151,28 @@ public final class ExtendLowering {
      */
     private static SqlExpr lowerScalarLambda(TypedLambda lam, List<String> aliasChain,
                                              Object store, LoweringContext ctx,
-                                             TypedExtend owner, String hint) {
+                                             TypedExtend owner, String hint,
+                                             com.gs.legend.plan.lowering.NavScope scope) {
         if (lam.parameters().isEmpty()) {
             throw PlanGenNotPortedException.stage3(owner, hint + ":no-params");
         }
         if (lam.body().isEmpty()) {
             throw PlanGenNotPortedException.stage3(owner, hint + ":empty-body");
         }
-        LoweringContext inner = ctx.withStore((com.gs.legend.compiler.StoreResolution) store);
+        com.gs.legend.compiler.StoreResolution srcStore =
+                (com.gs.legend.compiler.StoreResolution) store;
+        LoweringContext inner = ctx.withNavScope(scope);
         for (int i = 0; i < lam.parameters().size(); i++) {
             String paramName = lam.parameters().get(i).name();
             String alias = i < aliasChain.size()
                     ? aliasChain.get(i)
                     : aliasChain.get(aliasChain.size() - 1);
-            inner = inner.withVar(paramName, new SqlExpr.Identifier(alias));
+            // Only param[0] is the source row; higher-indexed params are hop
+            // table aliases without a StoreResolution (traverse hops carry
+            // null targetResolution in this rule). Bind them without a store
+            // so PropertyAccessLowering falls through to raw property names.
+            com.gs.legend.compiler.StoreResolution bindStore = (i == 0) ? srcStore : null;
+            inner = inner.bindVar(paramName, new SqlExpr.Identifier(alias), bindStore);
         }
         TypedSpec terminal = lam.body().get(lam.body().size() - 1);
         return Lowerer.lowerScalar(terminal, inner);
@@ -172,14 +180,15 @@ public final class ExtendLowering {
 
     private static SqlExpr.OrderByTerm lowerSortKey(TypedSortKey k, List<String> aliasChain,
                                                     Object store, LoweringContext ctx,
-                                                    TypedExtend owner) {
+                                                    TypedExtend owner,
+                                                    com.gs.legend.plan.lowering.NavScope scope) {
         String baseAlias = aliasChain.get(0);
         return switch (k) {
             case TypedColumnSortKey c -> new SqlExpr.OrderByTerm(
                     new SqlExpr.Column(baseAlias, resolveColumnName(c.column(), store)),
                     c.direction().name(), "");
             case TypedExpressionSortKey e -> new SqlExpr.OrderByTerm(
-                    lowerScalarLambda(e.keyFn(), aliasChain, store, ctx, owner, "extend:window:order-key"),
+                    lowerScalarLambda(e.keyFn(), aliasChain, store, ctx, owner, "extend:window:order-key", scope),
                     e.direction().name(), "");
         };
     }
