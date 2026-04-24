@@ -62,6 +62,11 @@ public final class NativeCallLowering {
             // Collection membership
             case "in"                           -> new SqlExpr.In(args.get(0), args.subList(1, args.size()));
 
+            // Variant access: {@code get($v, key)} — key may be a string (field)
+            // or integer (array index). Legacy line 3893-3906: emits VariantAccess
+            // / VariantIndex so the dialect renders {@code ->} / {@code ->>}.
+            case "get"                          -> lowerGet(n.args(), args);
+
             // Everything else: emit a structural {@code FunctionCall} carrying the
             // Pure native name. {@link SqlExpr.FunctionCall#toSql} delegates to
             // {@link com.gs.legend.sqlgen.SQLDialect#renderFunction}, which is
@@ -100,6 +105,29 @@ public final class NativeCallLowering {
             }
         }
         return new SqlExpr.Binary(args.get(0), isStringConcat ? "||" : "+", args.get(1));
+    }
+
+    /**
+     * Variant access: string key &rarr; {@code VariantAccess} ({@code ->});
+     * integer key &rarr; {@code VariantIndex}; dynamic key &rarr; rendered
+     * via {@code VariantAccess} with the compiled expression as the key.
+     */
+    private static SqlExpr lowerGet(List<TypedSpec> typedArgs, List<SqlExpr> args) {
+        if (args.size() != 2) {
+            throw new IllegalStateException(
+                    "[plangen-c0954a] get expects 2 args, got " + args.size());
+        }
+        SqlExpr source = args.get(0);
+        TypedSpec rawKey = typedArgs.get(1);
+        if (rawKey instanceof com.gs.legend.compiler.typed.TypedCString(String k, var info)) {
+            return new SqlExpr.VariantAccess(source, k);
+        }
+        if (rawKey instanceof com.gs.legend.compiler.typed.TypedCInteger(Number v, var info)) {
+            return new SqlExpr.VariantIndex(source, v.intValue());
+        }
+        // Dynamic key — fall back to FunctionCall {@code get} passthrough so
+        // the failure surfaces at the dialect instead of silently corrupting.
+        return new SqlExpr.FunctionCall("get", args);
     }
 
     /** Unary {@code minus} → {@code (-1 * x)}; binary → {@code a - b}. */

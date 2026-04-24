@@ -129,8 +129,18 @@ public final class ExtendLowering {
                                           com.gs.legend.plan.lowering.NavScope scope) {
         List<SqlExpr> args = new ArrayList<>(2);
         args.add(lowerScalarLambda(wc.fn1(), aliasChain, store, ctx, owner, "extend:window:fn1", scope));
-        wc.fn2().ifPresent(fn2 ->
-                args.add(lowerScalarLambda(fn2, aliasChain, store, ctx, owner, "extend:window:fn2", scope)));
+        // {@code fn2} is polymorphic:
+        //   * For value functions ({@code lag} / {@code lead} / {@code nthValue}),
+        //     fn2 is a scalar offset/index argument — pass through as a 2nd SQL arg.
+        //   * For aggregate window functions ({@code plus}/{@code sum}/...),
+        //     fn2 is the reducer lambda whose {@code plus}-ness identifies the
+        //     aggregate (fn1 is the value to sum). It must NOT flow into args,
+        //     or DuckDB sees {@code sum(INTEGER, STRUCT(...))} — a binder error.
+        //   * Ranking / {@code row_number}-style window funcs have no fn2.
+        String funcName = wc.func().name();
+        if (wc.fn2().isPresent() && takesSecondScalarArg(funcName)) {
+            args.add(lowerScalarLambda(wc.fn2().get(), aliasChain, store, ctx, owner, "extend:window:fn2", scope));
+        }
         TypedOver over = wc.over();
         String baseAlias = aliasChain.get(0);
         List<SqlExpr> partitionBy = new ArrayList<>(over.partitionBy().size());
@@ -145,6 +155,18 @@ public final class ExtendLowering {
         // mapping table as {@link GroupByAggregateLowering#mapAggFunctionName}.
         return new SqlExpr.WindowCall(mapWindowFunctionName(wc.func().name()),
                 args, partitionBy, orderBy);
+    }
+
+    /**
+     * Value window functions where fn2 is a scalar offset / index:
+     * {@code lag(col, n)}, {@code lead(col, n)}, {@code nthValue(col, n)}.
+     * Everything else (aggregates, ranking) ignores fn2 in the SQL arg list.
+     */
+    private static boolean takesSecondScalarArg(String pureName) {
+        return switch (pureName) {
+            case "lag", "lead", "nthValue" -> true;
+            default -> false;
+        };
     }
 
     /** Same alias table as aggregate path — see {@code GroupByAggregateLowering}. */
