@@ -15,7 +15,73 @@ import java.util.List;
  * <p>Mirrors legend-engine's {@code RelationalOperationElement} hierarchy,
  * simplified for legend-lite's needs.
  */
-public sealed interface SqlExpr {
+public sealed interface SqlExpr permits
+        SqlExpr.And,
+        SqlExpr.ArrayLiteral,
+        SqlExpr.AssociationRef,
+        SqlExpr.Between,
+        SqlExpr.Binary,
+        SqlExpr.BinaryArith,
+        SqlExpr.BinaryCompare,
+        SqlExpr.BoolLiteral,
+        SqlExpr.CaseWhen,
+        SqlExpr.Cast,
+        SqlExpr.Column,
+        SqlExpr.ColumnRef,
+        SqlExpr.CurrentDate,
+        SqlExpr.CurrentTimestamp,
+        SqlExpr.DateAdd,
+        SqlExpr.DateLiteral,
+        SqlExpr.DecimalLiteral,
+        SqlExpr.EndsWith,
+        SqlExpr.FieldAccess,
+        SqlExpr.FunctionCall,
+        SqlExpr.Grouped,
+        SqlExpr.Identifier,
+        SqlExpr.In,
+        SqlExpr.IntegerDivide,
+        SqlExpr.IntervalLiteral,
+        SqlExpr.IsNotNull,
+        SqlExpr.IsNull,
+        SqlExpr.JsonArrayAgg,
+        SqlExpr.JsonObject,
+        SqlExpr.LambdaExpr,
+        SqlExpr.ListContains,
+        SqlExpr.ListExtract,
+        SqlExpr.ListLength,
+        SqlExpr.ListSlice,
+        SqlExpr.Negate,
+        SqlExpr.Not,
+        SqlExpr.NullLiteral,
+        SqlExpr.NumericLiteral,
+        SqlExpr.Or,
+        SqlExpr.OrderByTerm,
+        SqlExpr.QualifiedStar,
+        SqlExpr.SearchedCase,
+        SqlExpr.SourceUrl,
+        SqlExpr.Star,
+        SqlExpr.StartsWith,
+        SqlExpr.StrPosition,
+        SqlExpr.StringConcat,
+        SqlExpr.StringLiteral,
+        SqlExpr.StructLiteral,
+        SqlExpr.TimeLiteral,
+        SqlExpr.TimestampLiteral,
+        SqlExpr.ToVariant,
+        SqlExpr.Unary,
+        SqlExpr.Unnest,
+        SqlExpr.VariantAccess,
+        SqlExpr.VariantArrayCast,
+        SqlExpr.VariantCast,
+        SqlExpr.VariantIndex,
+        SqlExpr.VariantLiteral,
+        SqlExpr.VariantScalarCast,
+        SqlExpr.VariantTextAccess,
+        SqlExpr.VariantTextExtract,
+        SqlExpr.WindowCall,
+        SqlExpr.WindowFunction,
+        SqlExpr.WindowSpec,
+        SqlExpr.WrappedWindowFunction {
 
     // ==================== Column References ====================
 
@@ -335,7 +401,10 @@ public sealed interface SqlExpr {
      * Window frame bound. {@code isStart} disambiguates {@code UNBOUNDED}'s
      * direction at codegen time.
      */
-    sealed interface FrameBound {}
+    sealed interface FrameBound permits
+            UnboundedFrameBound,
+            CurrentRowFrameBound,
+            OffsetFrameBound {}
 
     /** Unbounded — {@code UNBOUNDED PRECEDING} at start, {@code UNBOUNDED FOLLOWING} at end. */
     record UnboundedFrameBound() implements FrameBound {}

@@ -30,7 +30,27 @@ import java.util.Map;
  * {@code outputs()} return empty lists until the corresponding lowering rule is
  * ported.
  */
-public sealed interface SqlRelation {
+public sealed interface SqlRelation permits
+        SqlRelation.TableRef,
+        SqlRelation.Values,
+        SqlRelation.SourceExprRel,
+        SqlRelation.Filter,
+        SqlRelation.Project,
+        SqlRelation.Sort,
+        SqlRelation.Limit,
+        SqlRelation.Distinct,
+        SqlRelation.Rename,
+        SqlRelation.Select,
+        SqlRelation.Extend,
+        SqlRelation.GroupBy,
+        SqlRelation.Aggregate,
+        SqlRelation.Flatten,
+        SqlRelation.Pivot,
+        SqlRelation.Join,
+        SqlRelation.AsOfJoin,
+        SqlRelation.Union,
+        SqlRelation.SubqueryRel,
+        SqlRelation.WithCtes {
 
     /**
      * Ordered output column schema. Downstream ops reference columns by name;
