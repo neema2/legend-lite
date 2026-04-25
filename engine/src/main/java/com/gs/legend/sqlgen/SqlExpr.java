@@ -195,6 +195,99 @@ public sealed interface SqlExpr {
         }
     }
 
+    /**
+     * Typed arithmetic operator. Replaces stringly-typed {@link Binary} for
+     * arithmetic. The renderer decides operator spelling; nodes carry
+     * semantic ops resolved by the checker via overload resolution.
+     */
+    enum ArithOp {
+        PLUS("+"), MINUS("-"), TIMES("*"), DIVIDE("/"),
+        MOD("%"), POWER("^"), REM("%");
+        private final String sql;
+        ArithOp(String sql) { this.sql = sql; }
+        public String sql() { return sql; }
+    }
+
+    /** Typed binary arithmetic: left op right. Always parenthesised. */
+    record BinaryArith(ArithOp op, SqlExpr left, SqlExpr right) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return "(" + left.toSql(dialect) + " " + op.sql() + " " + right.toSql(dialect) + ")";
+        }
+    }
+
+    /** Typed string concatenation: left || right. Always parenthesised. */
+    record StringConcat(SqlExpr left, SqlExpr right) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return "(" + left.toSql(dialect) + " || " + right.toSql(dialect) + ")";
+        }
+    }
+
+    /** Typed unary negation: (-expr). */
+    record Negate(SqlExpr expr) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return "(- " + expr.toSql(dialect) + ")";
+        }
+    }
+
+    /**
+     * Typed comparison operator. Replaces stringly-typed {@link Binary} for
+     * comparisons. Comparison ops are not parenthesised (they sit inside
+     * larger boolean expressions which manage their own grouping).
+     */
+    enum CompareOp {
+        EQ("="), NE("<>"), LT("<"), LE("<="), GT(">"), GE(">=");
+        private final String sql;
+        CompareOp(String sql) { this.sql = sql; }
+        public String sql() { return sql; }
+    }
+
+    /** Typed binary comparison: left op right. */
+    record BinaryCompare(CompareOp op, SqlExpr left, SqlExpr right) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return left.toSql(dialect) + " " + op.sql() + " " + right.toSql(dialect);
+        }
+    }
+
+    // ==================== Lists ====================
+
+    /**
+     * Typed list element access by 1-based index. The bindings convert
+     * Pure 0-based indexing to SQL 1-based indexing at lowering time.
+     * Replaces stringly-typed {@code FunctionCall("listExtract", ...)}.
+     */
+    record ListExtract(SqlExpr list, SqlExpr index) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return dialect.renderListExtract(list.toSql(dialect), index.toSql(dialect));
+        }
+    }
+
+    /**
+     * Typed list slice: 1-based inclusive {@code [from, to]} bounds.
+     * Replaces stringly-typed {@code FunctionCall("listSlice", ...)}.
+     */
+    record ListSlice(SqlExpr list, SqlExpr from, SqlExpr to) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return dialect.renderListSlice(list.toSql(dialect), from.toSql(dialect), to.toSql(dialect));
+        }
+    }
+
+    /**
+     * Typed list length. Replaces stringly-typed
+     * {@code FunctionCall("listLength", ...)}.
+     */
+    record ListLength(SqlExpr list) implements SqlExpr {
+        @Override
+        public String toSql(SQLDialect dialect) {
+            return dialect.renderListLength(list.toSql(dialect));
+        }
+    }
+
     /** AND of multiple conditions. */
     record And(List<SqlExpr> conditions) implements SqlExpr {
         @Override

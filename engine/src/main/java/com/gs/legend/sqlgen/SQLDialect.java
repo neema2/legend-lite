@@ -183,6 +183,29 @@ public interface SQLDialect {
     String renderListContains(String listExpr, String elemExpr);
 
     /**
+     * Render 1-based list element access. Default ANSI form is
+     * {@code LIST_EXTRACT(list, index)}.
+     */
+    default String renderListExtract(String listExpr, String indexExpr) {
+        return "LIST_EXTRACT(" + listExpr + ", " + indexExpr + ")";
+    }
+
+    /**
+     * Render 1-based inclusive list slice. Default ANSI form is
+     * {@code LIST_SLICE(list, from, to)}.
+     */
+    default String renderListSlice(String listExpr, String fromExpr, String toExpr) {
+        return "LIST_SLICE(" + listExpr + ", " + fromExpr + ", " + toExpr + ")";
+    }
+
+    /**
+     * Render list length. Default ANSI form is {@code LEN(list)}.
+     */
+    default String renderListLength(String listExpr) {
+        return "LEN(" + listExpr + ")";
+    }
+
+    /**
      * Map a Pure type name to the SQL type name for CAST expressions.
      *
      * @param pureTypeName Pure type name (e.g., "String", "Integer", "Float")

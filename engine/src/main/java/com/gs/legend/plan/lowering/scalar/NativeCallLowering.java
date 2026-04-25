@@ -5,6 +5,8 @@ import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.plan.PlanGenNotPortedException;
 import com.gs.legend.plan.lowering.LoweringContext;
 import com.gs.legend.plan.lowering.Lowerer;
+import com.gs.legend.plan.lowering.natives.NativeBinding;
+import com.gs.legend.plan.lowering.natives.NativeBindings;
 import com.gs.legend.sqlgen.SqlExpr;
 
 import java.util.ArrayList;
@@ -30,6 +32,15 @@ public final class NativeCallLowering {
     public static SqlExpr lower(TypedNativeCall n, LoweringContext ctx) {
         String name = n.func().name();
         List<SqlExpr> args = lowerArgs(n.args(), ctx);
+        // Phase 1: delegate to the binding table if a binding exists for
+        // the resolved overload, otherwise fall through to legacy switch.
+        // The table is empty in Phase 1; subsequent phases register bindings
+        // per-overload and the corresponding legacy arms are removed.
+        // Phase 3.8 deletes the fallthrough entirely.
+        NativeBinding binding = NativeBindings.TABLE.find(n.func()).orElse(null);
+        if (binding != null) {
+            return binding.emit(n, args, ctx);
+        }
         return switch (name) {
             // Comparison
             case "equal", "eq"                  -> binary(args, "=");
@@ -66,6 +77,11 @@ public final class NativeCallLowering {
             // or integer (array index). Legacy line 3893-3906: emits VariantAccess
             // / VariantIndex so the dialect renders {@code ->} / {@code ->>}.
             case "get"                          -> lowerGet(n.args(), args);
+
+            // List positional access (head/first/last/tail/init/at/slice)
+            // migrated to {@link com.gs.legend.plan.lowering.natives.NativeBindings}
+            // (Phase 2). Window-context overloads of {@code first}/{@code last}
+            // remain owned by ExtendLowering.windowFuncName.
 
             // Everything else: emit a structural {@code FunctionCall} carrying the
             // Pure native name. {@link SqlExpr.FunctionCall#toSql} delegates to
@@ -157,4 +173,5 @@ public final class NativeCallLowering {
         }
         return args;
     }
+
 }
