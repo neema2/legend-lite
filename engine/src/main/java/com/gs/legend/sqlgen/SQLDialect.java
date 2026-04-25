@@ -345,4 +345,705 @@ public interface SQLDialect {
      * @return Complete SELECT SQL to be used as a subquery in FROM
      */
     String renderSourceUrl(String url);
+
+    // ====================================================================
+    // Codegen entry: pattern-match SqlExpr → SQL string.
+    //
+    // This is the ONE place SQL is produced from SqlExpr nodes. IR
+    // records are pure data (no `toSql` methods, no SQLDialect imports);
+    // this default implementation is the canonical codegen pass. Dialects
+    // override individual {@code renderXxx} helpers when they diverge from
+    // the ANSI / DuckDB-leaning defaults below — they do not override
+    // {@code render(SqlExpr)} itself.
+    //
+    // Per AGENTS.md invariant 3a (IR is data, codegen lives in the
+    // Dialect): if you need to add a new SqlExpr variant, add a new arm
+    // here, not a `toSql` method on the record.
+    // ====================================================================
+
+    default String render(SqlExpr e) {
+        return switch (e) {
+            // ---- Column references ----
+            case SqlExpr.Column c          -> quoteIdentifier(c.table()) + "." + quoteIdentifier(c.column());
+            case SqlExpr.ColumnRef c       -> quoteIdentifier(c.name());
+            case SqlExpr.Identifier i      -> i.name();
+            case SqlExpr.LambdaExpr l      -> renderLambda(l);
+
+            // ---- Literals ----
+            case SqlExpr.NumericLiteral n  -> n.value().toString();
+            case SqlExpr.DecimalLiteral d  -> d.value().toPlainString();
+            case SqlExpr.NullLiteral n     -> "NULL";
+            case SqlExpr.CurrentDate cd    -> "CURRENT_DATE";
+            case SqlExpr.CurrentTimestamp ct -> "CURRENT_TIMESTAMP";
+            case SqlExpr.IntervalLiteral il -> renderIntervalUnit(il.unit());
+            case SqlExpr.OrderByTerm o     -> render(o.column()) + " " + o.direction() + " " + o.nullOrder();
+            case SqlExpr.StringLiteral s   -> quoteStringLiteral(s.value());
+            case SqlExpr.BoolLiteral b     -> formatBoolean(b.value());
+            case SqlExpr.TimestampLiteral t -> formatTimestamp(t.value());
+            case SqlExpr.DateLiteral d     -> formatDate(d.value());
+            case SqlExpr.TimeLiteral t     -> formatTime(t.value());
+
+            // ---- Operators ----
+            case SqlExpr.Binary b          -> renderLegacyBinary(b);
+            case SqlExpr.Grouped g         -> "(" + render(g.inner()) + ")";
+            case SqlExpr.Unary u           -> u.op() + " " + render(u.operand());
+            case SqlExpr.BinaryArith b     -> "(" + render(b.left()) + " " + b.op().sql() + " " + render(b.right()) + ")";
+            case SqlExpr.StringConcat s    -> "(" + render(s.left()) + " || " + render(s.right()) + ")";
+            case SqlExpr.Negate n          -> "(- " + render(n.expr()) + ")";
+            case SqlExpr.BinaryCompare b   -> render(b.left()) + " " + b.op().sql() + " " + render(b.right());
+
+            // ---- Lists ----
+            case SqlExpr.ListExtract le    -> renderListExtract(render(le.list()), render(le.index()));
+            case SqlExpr.ListSlice ls      -> renderListSlice(render(ls.list()), render(ls.from()), render(ls.to()));
+            case SqlExpr.ListLength ll     -> renderListLength(render(ll.list()));
+
+            // ---- Boolean ----
+            case SqlExpr.And a             -> a.conditions().stream().map(this::render)
+                                                  .collect(java.util.stream.Collectors.joining(" AND ", "(", ")"));
+            case SqlExpr.Or o              -> o.conditions().stream().map(this::render)
+                                                  .collect(java.util.stream.Collectors.joining(" OR ", "(", ")"));
+            case SqlExpr.Not n             -> "NOT (" + render(n.expr()) + ")";
+
+            // ---- Function calls / type ops ----
+            case SqlExpr.FunctionCall fc   -> renderFunction(fc.name(),
+                                                  fc.args().stream().map(this::render).toList());
+            case SqlExpr.Cast c            -> "CAST(" + render(c.expr()) + " AS " + sqlTypeName(c.pureTypeName()) + ")";
+            case SqlExpr.IntegerDivide id  -> render(id.left()) + " // " + render(id.right());
+
+            // ---- Predicates ----
+            case SqlExpr.IsNull n          -> render(n.expr()) + " IS NULL";
+            case SqlExpr.IsNotNull n       -> render(n.expr()) + " IS NOT NULL";
+            case SqlExpr.In in             -> render(in.expr()) + " IN ("
+                                                  + in.values().stream().map(this::render)
+                                                       .collect(java.util.stream.Collectors.joining(", "))
+                                                  + ")";
+            case SqlExpr.Between b         -> render(b.expr()) + " BETWEEN " + render(b.low())
+                                                  + " AND " + render(b.high());
+
+            // ---- CASE ----
+            case SqlExpr.CaseWhen cw       -> "CASE WHEN " + render(cw.condition())
+                                                  + " THEN " + render(cw.thenExpr())
+                                                  + " ELSE " + render(cw.elseExpr()) + " END";
+            case SqlExpr.SearchedCase sc   -> renderSearchedCase(sc);
+
+            // ---- Dialect-delegated scalar ----
+            case SqlExpr.ListContains lc   -> renderListContains(render(lc.list()), render(lc.element()));
+            case SqlExpr.StartsWith sw     -> renderStartsWith(render(sw.str()), render(sw.prefix()));
+            case SqlExpr.EndsWith ew       -> renderEndsWith(render(ew.str()), render(ew.suffix()));
+            case SqlExpr.DateAdd da        -> renderDateAdd(render(da.date()), render(da.amount()), da.unit());
+            case SqlExpr.VariantTextExtract v -> renderVariantTextAccess(render(v.expr()), v.key());
+            case SqlExpr.FieldAccess fa    -> render(fa.base()) + "." + fa.field();
+            case SqlExpr.Unnest u          -> renderUnnestExpression(render(u.array()));
+            case SqlExpr.StrPosition sp    -> "POSITION(" + render(sp.substring()) + " IN " + render(sp.string()) + ")";
+
+            // ---- Window ----
+            case SqlExpr.WindowFunction wf -> render(wf.function()) + " OVER (" + render(wf.overClause()) + ")";
+            case SqlExpr.WindowSpec ws     -> renderWindowSpec(ws);
+            case SqlExpr.WindowCall wc     -> renderWindowCall(wc);
+
+            // ---- Star / qualified star ----
+            case SqlExpr.Star s            -> "*";
+            case SqlExpr.QualifiedStar qs  -> qs.table() + ".*";
+
+            // ---- Compile-time markers (must not reach codegen) ----
+            case SqlExpr.AssociationRef ar -> throw new IllegalStateException(
+                    "AssociationRef should be resolved before SQL generation: "
+                            + ar.hops() + "." + ar.targetCol());
+            case SqlExpr.WrappedWindowFunction w -> throw new IllegalStateException(
+                    "WrappedWindowFunction should be resolved before SQL generation: " + w.wrapperFunc());
+
+            // ---- Struct / Array ----
+            case SqlExpr.StructLiteral sl  -> {
+                var rendered = new java.util.LinkedHashMap<String, String>();
+                sl.fields().forEach((k, v) -> rendered.put(k, render(v)));
+                yield renderStructLiteral(rendered);
+            }
+            case SqlExpr.ArrayLiteral al   -> renderArrayLiteral(
+                    al.elements().stream().map(this::render).toList());
+
+            // ---- JSON ----
+            case SqlExpr.JsonObject jo     -> renderJsonObject(
+                    jo.keyValuePairs().stream().map(this::render).toList());
+            case SqlExpr.JsonArrayAgg ja   -> renderJsonArrayAgg(render(ja.expr()));
+
+            // ---- Variant ----
+            case SqlExpr.VariantLiteral v  -> renderVariantLiteral(render(v.expr()));
+            case SqlExpr.VariantAccess v   -> renderVariantAccess(render(v.expr()), v.key());
+            case SqlExpr.VariantIndex v    -> renderVariantIndex(render(v.expr()), v.index());
+            case SqlExpr.VariantTextAccess v -> renderVariantTextAccess(render(v.expr()), v.key());
+            case SqlExpr.ToVariant tv      -> renderToVariant(render(tv.expr()));
+            case SqlExpr.VariantArrayCast v -> renderVariantArrayCast(render(v.expr()), v.sqlType());
+            case SqlExpr.VariantScalarCast v -> renderVariantScalarCast(render(v.expr()), v.sqlType());
+            case SqlExpr.VariantCast vc    -> renderVariantCast(render(vc.expr()));
+
+            // ---- External data source ----
+            case SqlExpr.SourceUrl su      -> renderSourceUrl(su.url());
+        };
+    }
+
+    /**
+     * Lambda expression rendering — DuckDB style ({@code s -> body} for
+     * single-param, {@code ((y, x) -> body)} for multi-param). Override
+     * for dialects with different lambda syntax.
+     */
+    default String renderLambda(SqlExpr.LambdaExpr l) {
+        String body = render(l.body());
+        if (l.params().size() == 1) {
+            return l.params().get(0) + " -> " + body;
+        }
+        return "((" + String.join(", ", l.params()) + ") -> " + body + ")";
+    }
+
+    /**
+     * Legacy stringly-typed binary operator rendering. Kept until Phase
+     * 3.3 finishes the {@link SqlExpr.Binary} → {@link SqlExpr.BinaryArith}
+     * / {@link SqlExpr.BinaryCompare} migration; arithmetic and string
+     * concat ops parenthesise, comparison/logical ops do not.
+     */
+    default String renderLegacyBinary(SqlExpr.Binary b) {
+        String inner = render(b.left()) + " " + b.op() + " " + render(b.right());
+        return switch (b.op()) {
+            case "+", "-", "*", "/", "||", "//", "<<", ">>", "&", "|", "^" -> "(" + inner + ")";
+            default -> inner;
+        };
+    }
+
+    /**
+     * {@code CASE WHEN c1 THEN r1 [WHEN c2 THEN r2 …] [ELSE e] END}.
+     */
+    default String renderSearchedCase(SqlExpr.SearchedCase sc) {
+        StringBuilder sb = new StringBuilder("CASE");
+        for (var br : sc.branches()) {
+            sb.append(" WHEN ").append(render(br.condition()))
+              .append(" THEN ").append(render(br.result()));
+        }
+        if (sc.elseExpr() != null) {
+            sb.append(" ELSE ").append(render(sc.elseExpr()));
+        }
+        sb.append(" END");
+        return sb.toString();
+    }
+
+    /**
+     * {@code PARTITION BY … ORDER BY … <frame>} — the inner OVER clause
+     * body. Wrapped by {@code WindowFunction} or {@code WindowCall} with
+     * the surrounding parens.
+     */
+    default String renderWindowSpec(SqlExpr.WindowSpec ws) {
+        StringBuilder sb = new StringBuilder();
+        if (!ws.partitionBy().isEmpty()) {
+            sb.append("PARTITION BY ");
+            sb.append(ws.partitionBy().stream().map(this::render)
+                    .collect(java.util.stream.Collectors.joining(", ")));
+        }
+        if (!ws.orderBy().isEmpty()) {
+            if (!sb.isEmpty()) sb.append(" ");
+            sb.append("ORDER BY ");
+            sb.append(ws.orderBy().stream().map(this::render)
+                    .collect(java.util.stream.Collectors.joining(", ")));
+        }
+        if (ws.frame() != null && !ws.frame().isEmpty()) {
+            if (!sb.isEmpty()) sb.append(" ");
+            sb.append(ws.frame());
+        }
+        return sb.toString();
+    }
+
+    /**
+     * {@code FUNC(args) OVER (PARTITION BY … ORDER BY … [ROWS|RANGE …])}.
+     * The function name is routed through {@link #renderFunction} so
+     * dialects can remap window-position names ({@code rowNumber} →
+     * {@code ROW_NUMBER}, {@code firstValue} → {@code FIRST_VALUE}).
+     */
+    default String renderWindowCall(SqlExpr.WindowCall wc) {
+        String call = renderFunction(wc.name(),
+                wc.args().stream().map(this::render).toList());
+        StringBuilder over = new StringBuilder(" OVER (");
+        boolean need = false;
+        if (!wc.partitionBy().isEmpty()) {
+            over.append("PARTITION BY ");
+            for (int i = 0; i < wc.partitionBy().size(); i++) {
+                if (i > 0) over.append(", ");
+                over.append(render(wc.partitionBy().get(i)));
+            }
+            need = true;
+        }
+        if (!wc.orderBy().isEmpty()) {
+            if (need) over.append(" ");
+            over.append("ORDER BY ");
+            for (int i = 0; i < wc.orderBy().size(); i++) {
+                if (i > 0) over.append(", ");
+                over.append(render(wc.orderBy().get(i)));
+            }
+            need = true;
+        }
+        if (wc.frame().isPresent()) {
+            if (need) over.append(" ");
+            over.append(renderWindowFrame(wc.frame().get()));
+        }
+        over.append(")");
+        return call + over.toString();
+    }
+
+    /** {@code ROWS|RANGE BETWEEN <start> AND <end>}. ANSI-standard. */
+    default String renderWindowFrame(SqlExpr.WindowFrame f) {
+        return f.type().name() + " BETWEEN "
+                + renderFrameBound(f.start(), /*isStart=*/true)
+                + " AND "
+                + renderFrameBound(f.end(), /*isStart=*/false);
+    }
+
+    // ====================================================================
+    // Codegen entry: pattern-match SqlRelation → SQL string.
+    //
+    // Same role as render(SqlExpr): the ONE place SQL clause structure
+    // is produced from SqlRelation nodes. The IR (plan/sql/SqlRelation)
+    // is pure data; this default is the canonical codegen pass.
+    //
+    // Per AGENTS.md invariant 3a: do not add a SQL emission method to
+    // SqlRelation records. Add a new arm to render(SqlRelation) here.
+    // ====================================================================
+
+    default String render(com.gs.legend.plan.sql.SqlRelation rel) {
+        return switch (rel) {
+            case com.gs.legend.plan.sql.SqlRelation.SourceExprRel r -> renderSourceExpr(r);
+            case com.gs.legend.plan.sql.SqlRelation.TableRef r      -> renderTableRef(r);
+            case com.gs.legend.plan.sql.SqlRelation.Values r        -> renderValues(r);
+            case com.gs.legend.plan.sql.SqlRelation.Filter r        -> renderFilter(r);
+            case com.gs.legend.plan.sql.SqlRelation.Project r       -> renderProject(r);
+            case com.gs.legend.plan.sql.SqlRelation.Sort r          -> renderSort(r);
+            case com.gs.legend.plan.sql.SqlRelation.Limit r         -> renderLimit(r);
+            case com.gs.legend.plan.sql.SqlRelation.Distinct r      -> renderDistinct(r);
+            case com.gs.legend.plan.sql.SqlRelation.Rename r        -> renderRename(r);
+            case com.gs.legend.plan.sql.SqlRelation.Select r        -> renderSelect(r);
+            case com.gs.legend.plan.sql.SqlRelation.SubqueryRel r   -> renderSubqueryRel(r);
+            case com.gs.legend.plan.sql.SqlRelation.Extend r        -> renderExtend(r);
+            case com.gs.legend.plan.sql.SqlRelation.GroupBy r       -> renderGroupBy(r);
+            case com.gs.legend.plan.sql.SqlRelation.Aggregate r     -> renderAggregateRel(r);
+            case com.gs.legend.plan.sql.SqlRelation.Union r         -> renderUnion(r);
+            case com.gs.legend.plan.sql.SqlRelation.Join r          -> renderJoin(r);
+            case com.gs.legend.plan.sql.SqlRelation.Pivot r         -> renderPivot(r);
+            case com.gs.legend.plan.sql.SqlRelation.AsOfJoin r      -> renderAsOfJoin(r);
+            case com.gs.legend.plan.sql.SqlRelation.Flatten r       -> throw notImpl(r);
+            case com.gs.legend.plan.sql.SqlRelation.WithCtes r      -> throw notImpl(r);
+        };
+    }
+
+    private static UnsupportedOperationException notImpl(com.gs.legend.plan.sql.SqlRelation r) {
+        return new UnsupportedOperationException(
+                "[plangen] SQLDialect.render: not yet implemented for " + r.getClass().getSimpleName());
+    }
+
+    /**
+     * {@code SELECT <expr> AS <colAlias>} — a single-column source from a
+     * scalar expression (e.g. {@code |1+1}).
+     */
+    default String renderSourceExpr(com.gs.legend.plan.sql.SqlRelation.SourceExprRel r) {
+        String colAlias = r.outputs().isEmpty() ? "result" : r.outputs().get(0).name();
+        return "SELECT " + render(r.expr()) + " AS " + quoteIdentifier(colAlias);
+    }
+
+    /**
+     * {@code SELECT * FROM "TBL" AS "t0"}. Schema-qualified tables emit
+     * {@code "schema"."table"}; column-level projection lives in
+     * {@code Project}, so a bare TableRef is {@code SELECT *}.
+     */
+    default String renderTableRef(com.gs.legend.plan.sql.SqlRelation.TableRef r) {
+        String qualifiedTable = r.schema() != null
+                ? quoteIdentifier(r.schema()) + "." + quoteIdentifier(r.table())
+                : quoteIdentifier(r.table());
+        return "SELECT * FROM " + qualifiedTable + " AS " + quoteIdentifier(r.alias());
+    }
+
+    /**
+     * {@code SELECT * FROM (VALUES (...), ...) AS alias("c1","c2",...)}.
+     * Outer SELECT-star + inner VALUES works cross-dialect and keeps
+     * column aliasing explicit.
+     */
+    default String renderValues(com.gs.legend.plan.sql.SqlRelation.Values r) {
+        StringBuilder sb = new StringBuilder("SELECT * FROM (VALUES ");
+        for (int i = 0; i < r.rows().size(); i++) {
+            if (i > 0) sb.append(", ");
+            sb.append("(");
+            var row = r.rows().get(i);
+            for (int c = 0; c < row.size(); c++) {
+                if (c > 0) sb.append(", ");
+                sb.append(render(row.get(c)));
+            }
+            sb.append(")");
+        }
+        sb.append(") AS ").append(quoteIdentifier(r.alias())).append("(");
+        for (int i = 0; i < r.columnNames().size(); i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(quoteIdentifier(r.columnNames().get(i)));
+        }
+        return sb.append(")").toString();
+    }
+
+    /**
+     * {@code <source> WHERE <pred>}. When {@code source} is a bare
+     * {@code SELECT} (TableRef, Values, SourceExprRel) we fuse into a
+     * single statement; otherwise we wrap as a subquery.
+     */
+    default String renderFilter(com.gs.legend.plan.sql.SqlRelation.Filter r) {
+        return renderAsStatement(r.source()) + " WHERE " + render(r.predicate());
+    }
+
+    /**
+     * {@code SELECT a AS alias, b AS alias, ... FROM <source>}.
+     * Aliased-leaf sources stay inline; composite sources get wrapped.
+     */
+    default String renderProject(com.gs.legend.plan.sql.SqlRelation.Project r) {
+        StringBuilder sb = new StringBuilder("SELECT ");
+        for (int i = 0; i < r.projections().size(); i++) {
+            if (i > 0) sb.append(", ");
+            var p = r.projections().get(i);
+            sb.append(render(p.expr())).append(" AS ").append(quoteIdentifier(p.alias()));
+        }
+        return sb.append(" FROM ").append(renderAsFromItem(r.source())).toString();
+    }
+
+    /** {@code <source> ORDER BY k1 DIR, k2 DIR, ...}. */
+    default String renderSort(com.gs.legend.plan.sql.SqlRelation.Sort r) {
+        StringBuilder sb = new StringBuilder(renderAsStatement(r.source()));
+        sb.append(" ORDER BY ");
+        for (int i = 0; i < r.keys().size(); i++) {
+            if (i > 0) sb.append(", ");
+            var k = r.keys().get(i);
+            sb.append(render(k.expr())).append(" ").append(k.direction().name());
+        }
+        return sb.toString();
+    }
+
+    /** {@code <source> LIMIT n OFFSET off}. Non-positive fields omitted. */
+    default String renderLimit(com.gs.legend.plan.sql.SqlRelation.Limit r) {
+        StringBuilder sb = new StringBuilder(renderAsStatement(r.source()));
+        if (r.n() >= 0) sb.append(" LIMIT ").append(r.n());
+        if (r.offset() > 0) sb.append(" OFFSET ").append(r.offset());
+        return sb.toString();
+    }
+
+    /** {@code SELECT DISTINCT * FROM <source>}. */
+    default String renderDistinct(com.gs.legend.plan.sql.SqlRelation.Distinct r) {
+        return "SELECT DISTINCT * FROM " + renderAsFromItem(r.source());
+    }
+
+    /**
+     * {@code SELECT old1 AS new1, old2 AS new2, <passthrough cols> FROM <source>}.
+     * Non-renamed columns emit identity so the outer schema order matches
+     * {@code Rename#outputs()}.
+     */
+    default String renderRename(com.gs.legend.plan.sql.SqlRelation.Rename r) {
+        var alias = ensureFromAlias(r.source());
+        StringBuilder sb = new StringBuilder("SELECT ");
+        var cols = r.source().outputs();
+        for (int i = 0; i < cols.size(); i++) {
+            if (i > 0) sb.append(", ");
+            String name = cols.get(i).name();
+            String newName = r.renames().getOrDefault(name, name);
+            sb.append(quoteIdentifier(alias)).append(".").append(quoteIdentifier(name));
+            if (!newName.equals(name)) {
+                sb.append(" AS ").append(quoteIdentifier(newName));
+            }
+        }
+        return sb.append(" FROM ").append(renderAsFromItem(r.source())).toString();
+    }
+
+    /** {@code SELECT c1, c2, ... FROM <source>}. */
+    default String renderSelect(com.gs.legend.plan.sql.SqlRelation.Select r) {
+        StringBuilder sb = new StringBuilder("SELECT ");
+        for (int i = 0; i < r.columns().size(); i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(quoteIdentifier(r.columns().get(i)));
+        }
+        return sb.append(" FROM ").append(renderAsFromItem(r.source())).toString();
+    }
+
+    /**
+     * {@code SELECT <alias>.*, e1 AS n1, ... FROM <source>}. Extend
+     * preserves the source schema in full and appends computed columns.
+     */
+    default String renderExtend(com.gs.legend.plan.sql.SqlRelation.Extend r) {
+        String srcAlias = ensureFromAlias(r.source());
+        StringBuilder sb = new StringBuilder("SELECT ");
+        sb.append(quoteIdentifier(srcAlias)).append(".*");
+        for (var c : r.cols()) {
+            sb.append(", ").append(render(c.expr())).append(" AS ").append(quoteIdentifier(c.name()));
+        }
+        return sb.append(" FROM ").append(renderAsFromItem(r.source())).toString();
+    }
+
+    /** {@code (<inner>) AS alias} — explicit subquery wrapping. */
+    default String renderSubqueryRel(com.gs.legend.plan.sql.SqlRelation.SubqueryRel r) {
+        return "(" + render(r.inner()) + ") AS " + quoteIdentifier(r.alias());
+    }
+
+    /**
+     * {@code SELECT k1 AS "k0", ..., AGG1 AS a1, ... FROM <source>
+     * GROUP BY k1, ...}. Key aliases follow the {@code k<i>} convention
+     * for stable downstream schemas.
+     */
+    default String renderGroupBy(com.gs.legend.plan.sql.SqlRelation.GroupBy r) {
+        StringBuilder sb = new StringBuilder("SELECT ");
+        boolean first = true;
+        for (int i = 0; i < r.keys().size(); i++) {
+            if (!first) sb.append(", "); first = false;
+            sb.append(render(r.keys().get(i))).append(" AS ").append(quoteIdentifier("k" + i));
+        }
+        for (var a : r.aggs()) {
+            if (!first) sb.append(", "); first = false;
+            sb.append(renderAgg(a)).append(" AS ").append(quoteIdentifier(a.alias()));
+        }
+        sb.append(" FROM ").append(renderAsFromItem(r.source()));
+        if (!r.keys().isEmpty()) {
+            sb.append(" GROUP BY ");
+            for (int i = 0; i < r.keys().size(); i++) {
+                if (i > 0) sb.append(", ");
+                sb.append(render(r.keys().get(i)));
+            }
+        }
+        return sb.toString();
+    }
+
+    /** Key-less aggregate → single-row result. */
+    default String renderAggregateRel(com.gs.legend.plan.sql.SqlRelation.Aggregate r) {
+        StringBuilder sb = new StringBuilder("SELECT ");
+        for (int i = 0; i < r.aggs().size(); i++) {
+            if (i > 0) sb.append(", ");
+            var a = r.aggs().get(i);
+            sb.append(renderAgg(a)).append(" AS ").append(quoteIdentifier(a.alias()));
+        }
+        return sb.append(" FROM ").append(renderAsFromItem(r.source())).toString();
+    }
+
+    /**
+     * Render one aggregate emission. Dispatches on the typed
+     * {@link com.gs.legend.plan.sql.SqlAggregate} variant; {@code DISTINCT}
+     * wraps the unary argument when set.
+     */
+    default String renderAgg(com.gs.legend.plan.sql.SqlRelation.Agg a) {
+        return render(a.fn(), a.distinct());
+    }
+
+    /**
+     * Render a typed {@link com.gs.legend.plan.sql.SqlAggregate}. Exhaustive
+     * switch over the sealed hierarchy; no {@code default} arm. Override on
+     * a per-dialect basis when the SQL spelling differs (DuckDB
+     * {@code MEDIAN}, Snowflake {@code STDDEV_POP}, etc.).
+     */
+    default String render(com.gs.legend.plan.sql.SqlAggregate fn, boolean distinct) {
+        String name = aggregateName(fn);
+        String arg = render(aggregateArg(fn));
+        return distinct
+                ? name + "(DISTINCT " + arg + ")"
+                : name + "(" + arg + ")";
+    }
+
+    /** SQL function name for a {@link com.gs.legend.plan.sql.SqlAggregate}.
+     * Override per dialect when names diverge from the ANSI default. */
+    default String aggregateName(com.gs.legend.plan.sql.SqlAggregate fn) {
+        return switch (fn) {
+            case com.gs.legend.plan.sql.SqlAggregate.Sum s                  -> "SUM";
+            case com.gs.legend.plan.sql.SqlAggregate.Count c                -> "COUNT";
+            case com.gs.legend.plan.sql.SqlAggregate.Max m                  -> "MAX";
+            case com.gs.legend.plan.sql.SqlAggregate.Min m                  -> "MIN";
+            case com.gs.legend.plan.sql.SqlAggregate.Avg a                  -> "AVG";
+            case com.gs.legend.plan.sql.SqlAggregate.StdDev s               -> "STDDEV";
+            case com.gs.legend.plan.sql.SqlAggregate.Variance v             -> "VARIANCE";
+            case com.gs.legend.plan.sql.SqlAggregate.Product p              -> "PRODUCT";
+            case com.gs.legend.plan.sql.SqlAggregate.Median m               -> "MEDIAN";
+            case com.gs.legend.plan.sql.SqlAggregate.HashCode h             -> "HASH";
+            case com.gs.legend.plan.sql.SqlAggregate.JoinStrings j          -> "STRING_AGG";
+            case com.gs.legend.plan.sql.SqlAggregate.StdDevPopulation s     -> "STDDEV_POP";
+            case com.gs.legend.plan.sql.SqlAggregate.StdDevSample s         -> "STDDEV_SAMP";
+            case com.gs.legend.plan.sql.SqlAggregate.VariancePopulation v   -> "VAR_POP";
+            case com.gs.legend.plan.sql.SqlAggregate.VarianceSample v       -> "VAR_SAMP";
+            case com.gs.legend.plan.sql.SqlAggregate.PercentileCont p       -> "PERCENTILE_CONT";
+            case com.gs.legend.plan.sql.SqlAggregate.PercentileDisc p       -> "PERCENTILE_DISC";
+            case com.gs.legend.plan.sql.SqlAggregate.Corr c                 -> "CORR";
+            case com.gs.legend.plan.sql.SqlAggregate.CovarPopulation c      -> "COVAR_POP";
+            case com.gs.legend.plan.sql.SqlAggregate.CovarSample c          -> "COVAR_SAMP";
+            case com.gs.legend.plan.sql.SqlAggregate.MaxBy m                -> "MAX_BY";
+            case com.gs.legend.plan.sql.SqlAggregate.MinBy m                -> "MIN_BY";
+            case com.gs.legend.plan.sql.SqlAggregate.WeightedAvg w          -> "WAVG";
+        };
+    }
+
+    /** The single underlying expression of a unary aggregate. */
+    default SqlExpr aggregateArg(com.gs.legend.plan.sql.SqlAggregate fn) {
+        return switch (fn) {
+            case com.gs.legend.plan.sql.SqlAggregate.Sum s                  -> s.expr();
+            case com.gs.legend.plan.sql.SqlAggregate.Count c                -> c.expr();
+            case com.gs.legend.plan.sql.SqlAggregate.Max m                  -> m.expr();
+            case com.gs.legend.plan.sql.SqlAggregate.Min m                  -> m.expr();
+            case com.gs.legend.plan.sql.SqlAggregate.Avg a                  -> a.expr();
+            case com.gs.legend.plan.sql.SqlAggregate.StdDev s               -> s.expr();
+            case com.gs.legend.plan.sql.SqlAggregate.Variance v             -> v.expr();
+            case com.gs.legend.plan.sql.SqlAggregate.Product p              -> p.expr();
+            case com.gs.legend.plan.sql.SqlAggregate.Median m               -> m.expr();
+            case com.gs.legend.plan.sql.SqlAggregate.HashCode h             -> h.expr();
+            case com.gs.legend.plan.sql.SqlAggregate.JoinStrings j          -> j.expr();
+            case com.gs.legend.plan.sql.SqlAggregate.StdDevPopulation s     -> s.expr();
+            case com.gs.legend.plan.sql.SqlAggregate.StdDevSample s         -> s.expr();
+            case com.gs.legend.plan.sql.SqlAggregate.VariancePopulation v   -> v.expr();
+            case com.gs.legend.plan.sql.SqlAggregate.VarianceSample v       -> v.expr();
+            case com.gs.legend.plan.sql.SqlAggregate.PercentileCont p       -> p.expr();
+            case com.gs.legend.plan.sql.SqlAggregate.PercentileDisc p       -> p.expr();
+            case com.gs.legend.plan.sql.SqlAggregate.Corr c                 -> c.expr();
+            case com.gs.legend.plan.sql.SqlAggregate.CovarPopulation c      -> c.expr();
+            case com.gs.legend.plan.sql.SqlAggregate.CovarSample c          -> c.expr();
+            case com.gs.legend.plan.sql.SqlAggregate.MaxBy m                -> m.expr();
+            case com.gs.legend.plan.sql.SqlAggregate.MinBy m                -> m.expr();
+            case com.gs.legend.plan.sql.SqlAggregate.WeightedAvg w          -> w.expr();
+        };
+    }
+
+    /** {@code <left> UNION [ALL] <right>} — both sides are full SELECTs. */
+    default String renderUnion(com.gs.legend.plan.sql.SqlRelation.Union r) {
+        return render(r.left()) + (r.all() ? " UNION ALL " : " UNION ") + render(r.right());
+    }
+
+    /**
+     * {@code SELECT * FROM <left> <kind> JOIN <right> [ON <cond>]}. Both
+     * sides render as FROM-items so aliases are bound for the ON clause.
+     */
+    default String renderJoin(com.gs.legend.plan.sql.SqlRelation.Join r) {
+        String kind = renderJoinKeyword(r.type(), /*outer=*/false);
+        StringBuilder sb = new StringBuilder("SELECT * FROM ")
+                .append(renderAsFromItem(r.left()))
+                .append(" ").append(kind).append(" ")
+                .append(renderAsFromItem(r.right()));
+        if (r.type() != com.gs.legend.plan.sql.SqlRelation.JoinType.CROSS && r.on() != null) {
+            sb.append(" ON ").append(render(r.on()));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * {@code PIVOT (<source>) ON <pivotCol> USING AGG(x) AS alias, ...}.
+     * DuckDB pivot — grouping keys / pivot values are auto-inferred so we
+     * only emit the {@code USING} aggregates.
+     */
+    default String renderPivot(com.gs.legend.plan.sql.SqlRelation.Pivot r) {
+        StringBuilder sb = new StringBuilder("PIVOT (")
+                .append(render(r.source()))
+                .append(") ON ").append(quoteIdentifier(r.spec().pivotKey()))
+                .append(" USING ");
+        var aggs = r.spec().aggs();
+        for (int i = 0; i < aggs.size(); i++) {
+            if (i > 0) sb.append(", ");
+            var a = aggs.get(i);
+            sb.append(renderAgg(a)).append(" AS ").append(quoteIdentifier(a.alias()));
+        }
+        return sb.toString();
+    }
+
+    /** {@code SELECT * FROM <left> ASOF LEFT JOIN <right> ON <pred>}. */
+    default String renderAsOfJoin(com.gs.legend.plan.sql.SqlRelation.AsOfJoin r) {
+        StringBuilder sb = new StringBuilder("SELECT * FROM ")
+                .append(renderAsFromItem(r.left()))
+                .append(" ASOF LEFT JOIN ")
+                .append(renderAsFromItem(r.right()));
+        if (r.spec().matchPredicate() != null) {
+            sb.append(" ON ").append(render(r.spec().matchPredicate()));
+        }
+        return sb.toString();
+    }
+
+    // -------- structural helpers (shared between top-level and FROM-item) --------
+
+    /**
+     * Render a relation as a self-contained {@code SELECT} statement so
+     * trailing clauses ({@code ORDER BY}, {@code LIMIT}) attach cleanly.
+     * FROM-item-shaped sources ({@code SubqueryRel}, {@code Join},
+     * {@code TableRef}) need wrapping; others print as a statement already.
+     */
+    default String renderAsStatement(com.gs.legend.plan.sql.SqlRelation r) {
+        if (r instanceof com.gs.legend.plan.sql.SqlRelation.SubqueryRel
+                || r instanceof com.gs.legend.plan.sql.SqlRelation.Join
+                || r instanceof com.gs.legend.plan.sql.SqlRelation.TableRef) {
+            return "SELECT * FROM " + renderAsFromItem(r);
+        }
+        return render(r);
+    }
+
+    /**
+     * Render a relation as a {@code FROM}-clause item: aliased-leaf
+     * sources pass through unchanged, joins render inline so their
+     * left/right aliases stay visible to the outer predicate, everything
+     * else gets wrapped in an anonymous subquery.
+     */
+    default String renderAsFromItem(com.gs.legend.plan.sql.SqlRelation src) {
+        if (src instanceof com.gs.legend.plan.sql.SqlRelation.TableRef tr) {
+            String q = tr.schema() != null
+                    ? quoteIdentifier(tr.schema()) + "." + quoteIdentifier(tr.table())
+                    : quoteIdentifier(tr.table());
+            return q + " AS " + quoteIdentifier(tr.alias());
+        }
+        if (src instanceof com.gs.legend.plan.sql.SqlRelation.SubqueryRel sq) {
+            return renderSubqueryRel(sq);
+        }
+        if (src instanceof com.gs.legend.plan.sql.SqlRelation.Join j) {
+            return renderJoinBody(j);
+        }
+        String alias = src.alias() != null ? src.alias() : "_s";
+        return "(" + render(src) + ") AS " + quoteIdentifier(alias);
+    }
+
+    /** Render a {@link com.gs.legend.plan.sql.SqlRelation.Join} as a bare FROM-clause join chain (no outer SELECT *). */
+    default String renderJoinBody(com.gs.legend.plan.sql.SqlRelation.Join j) {
+        String kind = renderJoinKeyword(j.type(), /*outer=*/true);
+        StringBuilder sb = new StringBuilder()
+                .append(renderAsFromItem(j.left()))
+                .append(" ").append(kind).append(" ")
+                .append(renderAsFromItem(j.right()));
+        if (j.type() != com.gs.legend.plan.sql.SqlRelation.JoinType.CROSS && j.on() != null) {
+            sb.append(" ON ").append(render(j.on()));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Map join type to SQL keyword. {@code outer=true} emits the
+     * {@code OUTER}-qualified spelling used inside FROM-clause join
+     * chains; the top-level wrapper omits {@code OUTER} for brevity
+     * (both forms are semantically identical in standard SQL).
+     */
+    default String renderJoinKeyword(com.gs.legend.plan.sql.SqlRelation.JoinType t, boolean outer) {
+        return switch (t) {
+            case INNER -> "INNER JOIN";
+            case LEFT  -> outer ? "LEFT OUTER JOIN"  : "LEFT JOIN";
+            case RIGHT -> outer ? "RIGHT OUTER JOIN" : "RIGHT JOIN";
+            case FULL  -> outer ? "FULL OUTER JOIN"  : "FULL JOIN";
+            case CROSS -> "CROSS JOIN";
+        };
+    }
+
+    /**
+     * Best-effort alias for a relation we need to project columns off of.
+     * For a {@code Join} (rendered inline in FROM), walks down the left
+     * spine until an aliased leaf — that's the "source row" side of
+     * Extend / Rename that the outer {@code *} should pick columns from.
+     */
+    private static String ensureFromAlias(com.gs.legend.plan.sql.SqlRelation src) {
+        com.gs.legend.plan.sql.SqlRelation cur = src;
+        while (cur instanceof com.gs.legend.plan.sql.SqlRelation.Join j) cur = j.left();
+        return cur.alias() != null ? cur.alias() : "_s";
+    }
+
+    /** Window-frame bound: {@code UNBOUNDED PRECEDING} / {@code N FOLLOWING} etc. */
+    default String renderFrameBound(SqlExpr.FrameBound b, boolean isStart) {
+        return switch (b) {
+            case SqlExpr.UnboundedFrameBound u -> isStart ? "UNBOUNDED PRECEDING" : "UNBOUNDED FOLLOWING";
+            case SqlExpr.CurrentRowFrameBound c -> "CURRENT ROW";
+            case SqlExpr.OffsetFrameBound o -> {
+                if (o.offset() == 0) yield "CURRENT ROW";
+                double mag = Math.abs(o.offset());
+                String lit = (mag == Math.floor(mag) && !Double.isInfinite(mag))
+                        ? String.valueOf((long) mag)
+                        : java.math.BigDecimal.valueOf(mag).stripTrailingZeros().toPlainString();
+                yield lit + (o.offset() < 0 ? " PRECEDING" : " FOLLOWING");
+            }
+        };
+    }
 }

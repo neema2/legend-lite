@@ -10,7 +10,6 @@ import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.model.m3.Type;
 import com.gs.legend.plan.lowering.Lowerer;
 import com.gs.legend.plan.lowering.LoweringContext;
-import com.gs.legend.plan.printing.SqlRelationPrinter;
 import com.gs.legend.plan.resultformat.ResultFormatClassifier;
 import com.gs.legend.plan.sql.SqlRelation;
 import com.gs.legend.sqlgen.SQLDialect;
@@ -23,7 +22,7 @@ import java.util.IdentityHashMap;
  *
  * <p><strong>Three-IR pipeline</strong>:
  * <pre>
- *   TypedSpec (HIR)  --Lowerer-->  SqlRelation (MIR)  --SqlRelationPrinter-->  SQL text
+ *   TypedSpec (HIR)  --Lowerer-->  SqlRelation (MIR)  --SQLDialect.render-->  SQL text
  *                 \--ResultFormatClassifier--> ResultFormat
  * </pre>
  *
@@ -33,8 +32,9 @@ import java.util.IdentityHashMap;
  *   <li>{@code plan.lowering.relation.**} and {@code plan.lowering.scalar.**}
  *       — one file per operator family, sealed dispatch by {@link Lowerer}.</li>
  *   <li>{@code plan.sql} — the immutable {@link SqlRelation} MIR.</li>
- *   <li>{@code plan.printing} — dialect-specific text rendering, fusion &amp;
- *       subquery-wrap decisions.</li>
+ *   <li>{@link com.gs.legend.sqlgen.SQLDialect#render(SqlRelation)} —
+ *       dialect-owned codegen (per AGENTS.md invariant 3a, the IR is
+ *       data and the dialect is the only thing that emits SQL).</li>
  *   <li>{@code plan.resultformat} — execution-format classification.</li>
  * </ul>
  *
@@ -120,7 +120,7 @@ public final class PlanGenerator {
         var rel = Lowerer.lowerRelation(hir, ctx);
         var format = ResultFormatClassifier.classify(hir);
         // Future (Stage 3): if (format instanceof ResultFormat.Graph) rel = JsonEnvelope.wrap(rel, mode, hir);
-        String sql = SqlRelationPrinter.print(rel, dialect);
+        String sql = dialect.render(rel);
 
         Type.Schema schema = hir.schema();
         return new SingleExecutionPlan(

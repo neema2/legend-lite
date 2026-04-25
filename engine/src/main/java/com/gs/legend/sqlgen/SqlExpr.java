@@ -1,204 +1,92 @@
 package com.gs.legend.sqlgen;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
- * Structural SQL expression metamodel.
+ * Structural SQL expression IR. Pure data — no SQL emission methods, no
+ * {@link SQLDialect} dependency.
  *
- * <p>
- * Every SQL expression in the system is represented as a {@code SqlExpr} node.
- * No raw SQL strings — all rendering happens through {@link #toSql(SQLDialect)}
- * at serialization time, giving the dialect full control over syntax.
+ * <p>Per AGENTS.md invariant 3a: codegen is owned by the dialect's
+ * {@link SQLDialect#render(SqlExpr)} pattern match. Records here carry
+ * only the structural fields needed to reconstruct the SQL, never the
+ * SQL itself. New variants get a new arm in {@code render}; never a
+ * method on the record.
  *
- * <p>
- * Mirrors legend-engine's {@code RelationalOperationElement} hierarchy,
+ * <p>Mirrors legend-engine's {@code RelationalOperationElement} hierarchy,
  * simplified for legend-lite's needs.
  */
 public sealed interface SqlExpr {
 
-    /**
-     * Renders this expression to SQL using the given dialect.
-     * This is the ONLY place SQL text is produced from expressions.
-     */
-    String toSql(SQLDialect dialect);
-
     // ==================== Column References ====================
 
-    /** Qualified column: table.column */
-    record Column(String table, String column) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.quoteIdentifier(table) + "." + dialect.quoteIdentifier(column);
-        }
-    }
+    /** Qualified column: {@code table.column}. */
+    record Column(String table, String column) implements SqlExpr {}
 
     /** Unqualified column reference (used in ORDER BY, GROUP BY on aliases). */
-    record ColumnRef(String name) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.quoteIdentifier(name);
-        }
-    }
+    record ColumnRef(String name) implements SqlExpr {}
 
     /** Raw unquoted identifier — used for lambda parameter references. */
-    record Identifier(String name) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return name;
-        }
-    }
+    record Identifier(String name) implements SqlExpr {}
 
-    /** First-class lambda expression: ((p1, p2) -> body). */
-    record LambdaExpr(List<String> params, SqlExpr body) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            String bodyStr = body.toSql(dialect);
-            if (params.size() == 1) {
-                // Single-param: s -> body (DuckDB list_filter/list_transform style)
-                return params.get(0) + " -> " + bodyStr;
-            }
-            // Multi-param: ((y, x) -> body) (DuckDB list_reduce style)
-            String paramList = String.join(", ", params);
-            return "((" + paramList + ") -> " + bodyStr + ")";
-        }
-    }
+    /** First-class lambda expression: {@code ((p1, p2) -> body)}. */
+    record LambdaExpr(List<String> params, SqlExpr body) implements SqlExpr {}
 
     // ==================== Literals ====================
 
-    /** Numeric literal — takes an actual Number, renders via toString(). */
-    record NumericLiteral(Number value) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return value.toString();
-        }
-    }
+    /** Numeric literal — carries an actual {@link Number}. */
+    record NumericLiteral(Number value) implements SqlExpr {}
 
-    /** Decimal literal — renders BigDecimal with toPlainString() (no scientific notation). */
-    record DecimalLiteral(java.math.BigDecimal value) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return value.toPlainString();
-        }
-    }
+    /** Decimal literal — carries a {@link java.math.BigDecimal} (rendered without scientific notation). */
+    record DecimalLiteral(java.math.BigDecimal value) implements SqlExpr {}
 
-    /** NULL literal. */
-    record NullLiteral() implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return "NULL";
-        }
-    }
+    /** {@code NULL}. */
+    record NullLiteral() implements SqlExpr {}
 
-    /** CURRENT_DATE. */
-    record CurrentDate() implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return "CURRENT_DATE";
-        }
-    }
+    /** {@code CURRENT_DATE}. */
+    record CurrentDate() implements SqlExpr {}
 
-    /** CURRENT_TIMESTAMP. */
-    record CurrentTimestamp() implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return "CURRENT_TIMESTAMP";
-        }
-    }
+    /** {@code CURRENT_TIMESTAMP}. */
+    record CurrentTimestamp() implements SqlExpr {}
 
-    /** Interval unit literal — dialect-routed (e.g., 'DAY' in DuckDB). */
-    record IntervalLiteral(String unit) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.renderIntervalUnit(unit);
-        }
-    }
+    /** Interval unit literal (e.g. {@code 'DAY'}) — dialect-routed. */
+    record IntervalLiteral(String unit) implements SqlExpr {}
 
     /** ORDER BY term: column + direction + null ordering. Used in window specs. */
-    record OrderByTerm(SqlExpr column, String direction, String nullOrder) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return column.toSql(dialect) + " " + direction + " " + nullOrder;
-        }
-    }
+    record OrderByTerm(SqlExpr column, String direction, String nullOrder) implements SqlExpr {}
 
     /** String literal (dialect-quoted). */
-    record StringLiteral(String value) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.quoteStringLiteral(value);
-        }
-    }
+    record StringLiteral(String value) implements SqlExpr {}
 
     /** Boolean literal (dialect-formatted). */
-    record BoolLiteral(boolean value) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.formatBoolean(value);
-        }
-    }
+    record BoolLiteral(boolean value) implements SqlExpr {}
 
     /** Timestamp literal (dialect-formatted). */
-    record TimestampLiteral(String value) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.formatTimestamp(value);
-        }
-    }
+    record TimestampLiteral(String value) implements SqlExpr {}
 
     /** Date literal (dialect-formatted). */
-    record DateLiteral(String value) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.formatDate(value);
-        }
-    }
+    record DateLiteral(String value) implements SqlExpr {}
 
     /** Time literal (dialect-formatted). */
-    record TimeLiteral(String value) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.formatTime(value);
-        }
-    }
+    record TimeLiteral(String value) implements SqlExpr {}
 
     // ==================== Operators ====================
 
-    /** Binary operator: left op right */
-    record Binary(SqlExpr left, String op, SqlExpr right) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            String sql = left.toSql(dialect) + " " + op + " " + right.toSql(dialect);
-            // Arithmetic and string concat ops get parenthesized; comparison/logical ops
-            // don't
-            return switch (op) {
-                case "+", "-", "*", "/", "||", "//", "<<", ">>", "&", "|", "^" ->
-                    "(" + sql + ")";
-                default -> sql;
-            };
-        }
-    }
+    /**
+     * Stringly-typed binary operator (legacy). Kept until Phase 3.3
+     * finishes the migration to {@link BinaryArith} / {@link BinaryCompare}.
+     */
+    record Binary(SqlExpr left, String op, SqlExpr right) implements SqlExpr {}
 
-    /** Explicit parenthesization wrapper */
-    record Grouped(SqlExpr inner) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return "(" + inner.toSql(dialect) + ")";
-        }
-    }
+    /** Explicit parenthesization wrapper. */
+    record Grouped(SqlExpr inner) implements SqlExpr {}
 
-    /** Unary prefix operator: op expr (e.g., NOT, -) */
-    record Unary(String op, SqlExpr operand) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return op + " " + operand.toSql(dialect);
-        }
-    }
+    /** Unary prefix operator: {@code op expr} (e.g. {@code NOT}, {@code -}). Legacy. */
+    record Unary(String op, SqlExpr operand) implements SqlExpr {}
 
     /**
      * Typed arithmetic operator. Replaces stringly-typed {@link Binary} for
-     * arithmetic. The renderer decides operator spelling; nodes carry
-     * semantic ops resolved by the checker via overload resolution.
+     * arithmetic. Nodes carry semantic ops resolved by the checker via
+     * overload resolution; spelling decisions belong to the dialect.
      */
     enum ArithOp {
         PLUS("+"), MINUS("-"), TIMES("*"), DIVIDE("/"),
@@ -208,34 +96,18 @@ public sealed interface SqlExpr {
         public String sql() { return sql; }
     }
 
-    /** Typed binary arithmetic: left op right. Always parenthesised. */
-    record BinaryArith(ArithOp op, SqlExpr left, SqlExpr right) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return "(" + left.toSql(dialect) + " " + op.sql() + " " + right.toSql(dialect) + ")";
-        }
-    }
+    /** Typed binary arithmetic: {@code left op right}. Always parenthesised. */
+    record BinaryArith(ArithOp op, SqlExpr left, SqlExpr right) implements SqlExpr {}
 
-    /** Typed string concatenation: left || right. Always parenthesised. */
-    record StringConcat(SqlExpr left, SqlExpr right) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return "(" + left.toSql(dialect) + " || " + right.toSql(dialect) + ")";
-        }
-    }
+    /** Typed string concatenation: {@code left || right}. Always parenthesised. */
+    record StringConcat(SqlExpr left, SqlExpr right) implements SqlExpr {}
 
-    /** Typed unary negation: (-expr). */
-    record Negate(SqlExpr expr) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return "(- " + expr.toSql(dialect) + ")";
-        }
-    }
+    /** Typed unary negation: {@code (-expr)}. */
+    record Negate(SqlExpr expr) implements SqlExpr {}
 
     /**
      * Typed comparison operator. Replaces stringly-typed {@link Binary} for
-     * comparisons. Comparison ops are not parenthesised (they sit inside
-     * larger boolean expressions which manage their own grouping).
+     * comparisons.
      */
     enum CompareOp {
         EQ("="), NE("<>"), LT("<"), LE("<="), GT(">"), GE(">=");
@@ -244,13 +116,8 @@ public sealed interface SqlExpr {
         public String sql() { return sql; }
     }
 
-    /** Typed binary comparison: left op right. */
-    record BinaryCompare(CompareOp op, SqlExpr left, SqlExpr right) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return left.toSql(dialect) + " " + op.sql() + " " + right.toSql(dialect);
-        }
-    }
+    /** Typed binary comparison: {@code left op right}. Not parenthesised. */
+    record BinaryCompare(CompareOp op, SqlExpr left, SqlExpr right) implements SqlExpr {}
 
     // ==================== Lists ====================
 
@@ -259,542 +126,231 @@ public sealed interface SqlExpr {
      * Pure 0-based indexing to SQL 1-based indexing at lowering time.
      * Replaces stringly-typed {@code FunctionCall("listExtract", ...)}.
      */
-    record ListExtract(SqlExpr list, SqlExpr index) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.renderListExtract(list.toSql(dialect), index.toSql(dialect));
-        }
-    }
+    record ListExtract(SqlExpr list, SqlExpr index) implements SqlExpr {}
 
     /**
      * Typed list slice: 1-based inclusive {@code [from, to]} bounds.
      * Replaces stringly-typed {@code FunctionCall("listSlice", ...)}.
      */
-    record ListSlice(SqlExpr list, SqlExpr from, SqlExpr to) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.renderListSlice(list.toSql(dialect), from.toSql(dialect), to.toSql(dialect));
-        }
-    }
+    record ListSlice(SqlExpr list, SqlExpr from, SqlExpr to) implements SqlExpr {}
 
     /**
      * Typed list length. Replaces stringly-typed
      * {@code FunctionCall("listLength", ...)}.
      */
-    record ListLength(SqlExpr list) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.renderListLength(list.toSql(dialect));
-        }
-    }
+    record ListLength(SqlExpr list) implements SqlExpr {}
 
     /** AND of multiple conditions. */
-    record And(List<SqlExpr> conditions) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return conditions.stream()
-                    .map(c -> c.toSql(dialect))
-                    .collect(Collectors.joining(" AND ", "(", ")"));
-        }
-    }
+    record And(List<SqlExpr> conditions) implements SqlExpr {}
 
     /** OR of multiple conditions. */
-    record Or(List<SqlExpr> conditions) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return conditions.stream()
-                    .map(c -> c.toSql(dialect))
-                    .collect(Collectors.joining(" OR ", "(", ")"));
-        }
-    }
+    record Or(List<SqlExpr> conditions) implements SqlExpr {}
 
-    /** NOT expr */
-    record Not(SqlExpr expr) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return "NOT (" + expr.toSql(dialect) + ")";
-        }
-    }
+    /** {@code NOT expr}. */
+    record Not(SqlExpr expr) implements SqlExpr {}
 
     // ==================== Functions ====================
 
-    /** SQL function call: name(arg1, arg2, ...) */
-    record FunctionCall(String name, List<SqlExpr> args) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            var renderedArgs = args.stream()
-                    .map(a -> a.toSql(dialect))
-                    .collect(Collectors.toList());
-            return dialect.renderFunction(name, renderedArgs);
-        }
-    }
+    /** SQL function call: {@code name(arg1, arg2, ...)}. */
+    record FunctionCall(String name, List<SqlExpr> args) implements SqlExpr {}
 
-    /** CAST(expr AS typeName) — type name resolved through dialect. */
-    record Cast(SqlExpr expr, String pureTypeName) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return "CAST(" + expr.toSql(dialect) + " AS " + dialect.sqlTypeName(pureTypeName) + ")";
-        }
-    }
+    /** {@code CAST(expr AS typeName)} — type name resolved through dialect. */
+    record Cast(SqlExpr expr, String pureTypeName) implements SqlExpr {}
 
+    /** Integer division: {@code left // right}. */
+    record IntegerDivide(SqlExpr left, SqlExpr right) implements SqlExpr {}
 
-    /** Integer division: left // right — no outer parens around result. */
-    record IntegerDivide(SqlExpr left, SqlExpr right) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return left.toSql(dialect) + " // " + right.toSql(dialect);
-        }
-    }
+    /** {@code expr IS NULL}. */
+    record IsNull(SqlExpr expr) implements SqlExpr {}
 
-    /** expr IS NULL */
-    record IsNull(SqlExpr expr) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return expr.toSql(dialect) + " IS NULL";
-        }
-    }
+    /** {@code expr IS NOT NULL}. */
+    record IsNotNull(SqlExpr expr) implements SqlExpr {}
 
-    /** expr IS NOT NULL */
-    record IsNotNull(SqlExpr expr) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return expr.toSql(dialect) + " IS NOT NULL";
-        }
-    }
+    /** {@code expr IN (val1, val2, ...)}. */
+    record In(SqlExpr expr, List<SqlExpr> values) implements SqlExpr {}
 
-    /** expr IN (val1, val2, ...) */
-    record In(SqlExpr expr, List<SqlExpr> values) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            String vals = values.stream()
-                    .map(v -> v.toSql(dialect))
-                    .collect(Collectors.joining(", "));
-            return expr.toSql(dialect) + " IN (" + vals + ")";
-        }
-    }
-
-    /** expr BETWEEN low AND high */
-    record Between(SqlExpr expr, SqlExpr low, SqlExpr high) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return expr.toSql(dialect) + " BETWEEN " + low.toSql(dialect) + " AND " + high.toSql(dialect);
-        }
-    }
+    /** {@code expr BETWEEN low AND high}. */
+    record Between(SqlExpr expr, SqlExpr low, SqlExpr high) implements SqlExpr {}
 
     // NOTE: Legacy {@code Exists(SqlBuilder)} and {@code Subquery(SqlBuilder)} records
     // were removed in the c0954a port because {@code SqlBuilder} has been retired in
     // favour of the {@link com.gs.legend.plan.sql.SqlRelation} MIR. When EXISTS /
     // scalar-subquery support is re-introduced (Stage 3+), the new records will hold
-    // a {@link com.gs.legend.plan.sql.SqlRelation} and render via
-    // {@link com.gs.legend.plan.printing.SqlRelationPrinter}. The dependency is moved
-    // into a small bridge so {@code sqlgen} does not need to import {@code plan.**}.
+    // a {@link com.gs.legend.plan.sql.SqlRelation} and the dialect's
+    // {@link SQLDialect#render(com.gs.legend.plan.sql.SqlRelation)} arm
+    // emits the subquery SQL.
 
     // ==================== CASE ====================
 
-    /** CASE WHEN condition THEN thenExpr ELSE elseExpr END */
-    record CaseWhen(SqlExpr condition, SqlExpr thenExpr, SqlExpr elseExpr) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return "CASE WHEN " + condition.toSql(dialect) + " THEN " + thenExpr.toSql(dialect)
-                    + " ELSE " + elseExpr.toSql(dialect) + " END";
-        }
-    }
+    /** {@code CASE WHEN condition THEN thenExpr ELSE elseExpr END}. */
+    record CaseWhen(SqlExpr condition, SqlExpr thenExpr, SqlExpr elseExpr) implements SqlExpr {}
 
-    /** Multi-branch searched CASE: CASE WHEN c1 THEN r1 WHEN c2 THEN r2 ... ELSE elseExpr END */
+    /** Multi-branch searched CASE. */
     record SearchedCase(List<WhenBranch> branches, SqlExpr elseExpr) implements SqlExpr {
         public record WhenBranch(SqlExpr condition, SqlExpr result) {}
-        @Override
-        public String toSql(SQLDialect dialect) {
-            StringBuilder sb = new StringBuilder("CASE");
-            for (var branch : branches) {
-                sb.append(" WHEN ").append(branch.condition.toSql(dialect))
-                  .append(" THEN ").append(branch.result.toSql(dialect));
-            }
-            if (elseExpr != null) {
-                sb.append(" ELSE ").append(elseExpr.toSql(dialect));
-            }
-            sb.append(" END");
-            return sb.toString();
-        }
     }
 
-    // ==================== Dialect-specific (delegated) ====================
+    // ==================== Dialect-specific (delegated by codegen) ====================
 
-    /** Dialect-rendered list containment check. */
-    record ListContains(SqlExpr list, SqlExpr element) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.renderListContains(list.toSql(dialect), element.toSql(dialect));
-        }
-    }
+    /** List containment check. Dialect renders. */
+    record ListContains(SqlExpr list, SqlExpr element) implements SqlExpr {}
 
-    /** Dialect-rendered startsWith. */
-    record StartsWith(SqlExpr str, SqlExpr prefix) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.renderStartsWith(str.toSql(dialect), prefix.toSql(dialect));
-        }
-    }
+    /** {@code startsWith}. Dialect renders. */
+    record StartsWith(SqlExpr str, SqlExpr prefix) implements SqlExpr {}
 
-    /** Dialect-rendered endsWith. */
-    record EndsWith(SqlExpr str, SqlExpr suffix) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.renderEndsWith(str.toSql(dialect), suffix.toSql(dialect));
-        }
-    }
+    /** {@code endsWith}. Dialect renders. */
+    record EndsWith(SqlExpr str, SqlExpr suffix) implements SqlExpr {}
 
-    /** Dialect-rendered date arithmetic. */
-    record DateAdd(SqlExpr date, SqlExpr amount, String unit) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.renderDateAdd(date.toSql(dialect), amount.toSql(dialect), unit);
-        }
-    }
+    /** Date arithmetic. Dialect renders. */
+    record DateAdd(SqlExpr date, SqlExpr amount, String unit) implements SqlExpr {}
 
-    /** Dialect-rendered Variant text extraction (returns string value, not Variant). */
-    record VariantTextExtract(SqlExpr expr, String key) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.renderVariantTextAccess(expr.toSql(dialect), key);
-        }
-    }
+    /** Variant text extraction (returns string value, not Variant). Dialect renders. */
+    record VariantTextExtract(SqlExpr expr, String key) implements SqlExpr {}
 
-    /**
-     * Struct field access: base.field (for struct column paths like t.struct.prop).
-     */
-    record FieldAccess(SqlExpr base, String field) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return base.toSql(dialect) + "." + field;
-        }
-    }
+    /** Struct field access: {@code base.field} (for struct column paths like {@code t.struct.prop}). */
+    record FieldAccess(SqlExpr base, String field) implements SqlExpr {}
 
-    /** Dialect-rendered UNNEST(array). */
-    record Unnest(SqlExpr array) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.renderUnnestExpression(array.toSql(dialect));
-        }
-    }
+    /** {@code UNNEST(array)}. Dialect renders. */
+    record Unnest(SqlExpr array) implements SqlExpr {}
 
-    /** POSITION(substring IN string) — string index lookup. */
-    record StrPosition(SqlExpr substring, SqlExpr string) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return "POSITION(" + substring.toSql(dialect) + " IN " + string.toSql(dialect) + ")";
-        }
-    }
+    /** {@code POSITION(substring IN string)} — string index lookup. */
+    record StrPosition(SqlExpr substring, SqlExpr string) implements SqlExpr {}
 
     // ==================== Window Functions ====================
 
-    /** Window function: func OVER (overClause) */
-    record WindowFunction(SqlExpr function, SqlExpr overClause) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return function.toSql(dialect) + " OVER (" + overClause.toSql(dialect) + ")";
-        }
-    }
+    /** Window function: {@code func OVER (overClause)}. */
+    record WindowFunction(SqlExpr function, SqlExpr overClause) implements SqlExpr {}
 
-    /** Window specification: PARTITION BY ... ORDER BY ... ROWS/RANGE ... */
-    record WindowSpec(List<SqlExpr> partitionBy, List<SqlExpr> orderBy, String frame) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            StringBuilder sb = new StringBuilder();
-            if (!partitionBy.isEmpty()) {
-                sb.append("PARTITION BY ");
-                sb.append(partitionBy.stream().map(e -> e.toSql(dialect)).collect(Collectors.joining(", ")));
-            }
-            if (!orderBy.isEmpty()) {
-                if (!sb.isEmpty())
-                    sb.append(" ");
-                sb.append("ORDER BY ");
-                sb.append(orderBy.stream().map(e -> e.toSql(dialect)).collect(Collectors.joining(", ")));
-            }
-            if (frame != null && !frame.isEmpty()) {
-                if (!sb.isEmpty())
-                    sb.append(" ");
-                sb.append(frame);
-            }
-            return sb.toString();
-        }
-    }
+    /** Window specification: {@code PARTITION BY ... ORDER BY ... ROWS/RANGE ...}. */
+    record WindowSpec(List<SqlExpr> partitionBy, List<SqlExpr> orderBy, String frame) implements SqlExpr {}
 
-    // ==================== Aggregation ====================
+    // ==================== Aggregation / wildcards ====================
 
-    /** SELECT * */
-    record Star() implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return "*";
-        }
-    }
+    /** {@code SELECT *}. */
+    record Star() implements SqlExpr {}
 
-    /** Qualified star: table.* — used in joins to select all columns from one side. */
-    record QualifiedStar(String table) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return table + ".*";
-        }
-    }
+    /** Qualified star: {@code table.*} — used in joins to select all columns from one side. */
+    record QualifiedStar(String table) implements SqlExpr {}
 
     // ==================== Compile-time Markers ====================
 
     /**
-     * Association property reference — compile-time only.
-     * Created during scalar compilation when an association path (e.g.,
-     * $p.addresses.street or $e.dept.company.country)
-     * is detected. Consumed by resolveAssociationRefs to generate EXISTS subqueries.
-     * Must never reach toSql() — throws if it does.
+     * Association property reference — compile-time only. Created during
+     * scalar compilation when an association path (e.g. {@code $p.addresses.street}
+     * or {@code $e.dept.company.country}) is detected. Consumed by
+     * {@code resolveAssociationRefs} to generate EXISTS subqueries. Must
+     * never reach codegen — the dialect throws if it does.
      *
      * @param hops      Ordered list of association property names to traverse.
-     *                  Single-hop: ["addresses"]. Multi-hop: ["dept", "company"].
+     *                  Single-hop: {@code ["addresses"]}. Multi-hop: {@code ["dept", "company"]}.
      * @param targetCol The resolved column name on the final target table.
      */
-    record AssociationRef(java.util.List<String> hops, String targetCol) implements SqlExpr {
+    record AssociationRef(List<String> hops, String targetCol) implements SqlExpr {
         /** Convenience: first hop property name (used for single-hop lookups). */
         public String assocProp() { return hops.get(0); }
-
-        @Override
-        public String toSql(SQLDialect dialect) {
-            throw new IllegalStateException(
-                    "AssociationRef should be resolved before SQL generation: " + hops + "." + targetCol);
-        }
     }
 
     /**
-     * Wrapped window function — compile-time only.
-     * Represents a post-processor wrapping a window function,
-     * e.g., ROUND(CUME_DIST() OVER(...), 2).
-     * Created by extractWindowFunction, consumed by compileExtend which
-     * inserts the OVER clause between the inner function and extra args.
+     * Wrapped window function — compile-time only. Represents a
+     * post-processor wrapping a window function (e.g.
+     * {@code ROUND(CUME_DIST() OVER(...), 2)}). Created by
+     * {@code extractWindowFunction}, consumed by {@code compileExtend}
+     * which inserts the OVER clause between the inner function and extra
+     * args. Must never reach codegen.
      */
     record WrappedWindowFunction(String wrapperFunc, SqlExpr innerWindowFunc,
-            List<SqlExpr> extraArgs) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            throw new IllegalStateException(
-                    "WrappedWindowFunction should be resolved before SQL generation: " + wrapperFunc);
-        }
-    }
+                                 List<SqlExpr> extraArgs) implements SqlExpr {}
 
     // ==================== Struct / Array (dialect-delegated) ====================
 
-    /** Dialect-rendered struct literal. */
-    record StructLiteral(java.util.LinkedHashMap<String, SqlExpr> fields) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            var rendered = new java.util.LinkedHashMap<String, String>();
-            fields.forEach((k, v) -> rendered.put(k, v.toSql(dialect)));
-            return dialect.renderStructLiteral(rendered);
-        }
-    }
+    /** Struct literal. Dialect renders. */
+    record StructLiteral(java.util.LinkedHashMap<String, SqlExpr> fields) implements SqlExpr {}
 
-    /** Dialect-rendered array literal. */
-    record ArrayLiteral(List<SqlExpr> elements) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.renderArrayLiteral(
-                    elements.stream().map(e -> e.toSql(dialect)).collect(Collectors.toList()));
-        }
-    }
+    /** Array literal. Dialect renders. */
+    record ArrayLiteral(List<SqlExpr> elements) implements SqlExpr {}
 
     // ==================== JSON (dialect-delegated) ====================
 
-    /** Dialect-rendered JSON object: json_object(k1, v1, k2, v2, ...) */
-    record JsonObject(List<SqlExpr> keyValuePairs) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            var rendered = keyValuePairs.stream()
-                    .map(e -> e.toSql(dialect))
-                    .collect(Collectors.toList());
-            return dialect.renderJsonObject(rendered);
-        }
-    }
+    /** {@code json_object(k1, v1, k2, v2, ...)}. Dialect renders. */
+    record JsonObject(List<SqlExpr> keyValuePairs) implements SqlExpr {}
 
-    /** Dialect-rendered JSON array aggregation: json_group_array(expr) */
-    record JsonArrayAgg(SqlExpr expr) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.renderJsonArrayAgg(expr.toSql(dialect));
-        }
-    }
+    /** {@code json_group_array(expr)}. Dialect renders. */
+    record JsonArrayAgg(SqlExpr expr) implements SqlExpr {}
 
     // ==================== Variant Expressions ====================
-    // PlanGenerator emits these using Variant semantics.
-    // Each dialect decides the physical representation (DuckDB: JSON, Snowflake: VARIANT).
+    // PlanGenerator emits these using Variant semantics. Each dialect
+    // decides the physical representation (DuckDB: JSON, Snowflake: VARIANT).
 
-    /** Mark a literal value as Variant type. DuckDB: expr::JSON */
-    record VariantLiteral(SqlExpr expr) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.renderVariantLiteral(expr.toSql(dialect));
-        }
-    }
+    /** Mark a literal value as Variant type. */
+    record VariantLiteral(SqlExpr expr) implements SqlExpr {}
 
-    /** Access a Variant field by key (returns Variant). DuckDB: (expr)->'key' */
-    record VariantAccess(SqlExpr expr, String key) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.renderVariantAccess(expr.toSql(dialect), key);
-        }
-    }
+    /** Access a Variant field by key (returns Variant). */
+    record VariantAccess(SqlExpr expr, String key) implements SqlExpr {}
 
-    /** Access a Variant array element by index (returns Variant). DuckDB: (expr)->index */
-    record VariantIndex(SqlExpr expr, int index) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.renderVariantIndex(expr.toSql(dialect), index);
-        }
-    }
+    /** Access a Variant array element by index (returns Variant). */
+    record VariantIndex(SqlExpr expr, int index) implements SqlExpr {}
 
-    /** Extract text value from Variant by key (returns string). DuckDB: (expr)->>'key' */
-    record VariantTextAccess(SqlExpr expr, String key) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.renderVariantTextAccess(expr.toSql(dialect), key);
-        }
-    }
+    /** Extract text value from Variant by key (returns string). */
+    record VariantTextAccess(SqlExpr expr, String key) implements SqlExpr {}
 
-    /** Convert a value to Variant type. DuckDB: CAST(expr AS JSON) */
-    record ToVariant(SqlExpr expr) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.renderToVariant(expr.toSql(dialect));
-        }
-    }
+    /** Convert a value to Variant type. */
+    record ToVariant(SqlExpr expr) implements SqlExpr {}
 
-    /** Cast Variant to a typed array. DuckDB: CAST(expr AS BIGINT[]) */
-    record VariantArrayCast(SqlExpr expr, String sqlType) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.renderVariantArrayCast(expr.toSql(dialect), sqlType);
-        }
-    }
+    /** Cast Variant to a typed array. */
+    record VariantArrayCast(SqlExpr expr, String sqlType) implements SqlExpr {}
 
-    /** Cast Variant to a scalar type. DuckDB: CAST(expr AS BIGINT) */
-    record VariantScalarCast(SqlExpr expr, String sqlType) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.renderVariantScalarCast(expr.toSql(dialect), sqlType);
-        }
-    }
+    /** Cast Variant to a scalar type. */
+    record VariantScalarCast(SqlExpr expr, String sqlType) implements SqlExpr {}
 
-    /** Cast a value to VARIANT type for type preservation. Dialect-delegated. */
-    record VariantCast(SqlExpr expr) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.renderVariantCast(expr.toSql(dialect));
-        }
-    }
+    /** Cast a value to VARIANT type for type preservation. */
+    record VariantCast(SqlExpr expr) implements SqlExpr {}
 
     // ==================== External Data Source ====================
 
     /** External data source rendered as a subquery. Dialect renders the URL scheme. */
-    record SourceUrl(String url) implements SqlExpr {
-        @Override
-        public String toSql(SQLDialect dialect) {
-            return dialect.renderSourceUrl(url);
-        }
-    }
+    record SourceUrl(String url) implements SqlExpr {}
 
     /**
      * Windowed function call:
      * {@code FUNC(args) OVER (PARTITION BY … ORDER BY … [ROWS|RANGE BETWEEN … AND …])}.
-     * Function name is routed through {@link SQLDialect#renderFunction} so that
-     * dialects can remap {@code rowNumber}→{@code ROW_NUMBER}, {@code rank}→
-     * {@code RANK}, etc. Partition and order-by expressions are pre-rendered
-     * sub-expressions; the frame clause, when present, is rendered inline.
+     * Function name is routed through the dialect's
+     * {@link SQLDialect#renderFunction} mapping so dialects can remap
+     * {@code rowNumber}→{@code ROW_NUMBER}, {@code rank}→{@code RANK}, etc.
      */
     record WindowCall(String name,
                       List<SqlExpr> args,
                       List<SqlExpr> partitionBy,
                       List<OrderByTerm> orderBy,
-                      java.util.Optional<WindowFrame> frame) implements SqlExpr {
-
-        @Override
-        public String toSql(SQLDialect dialect) {
-            var renderedArgs = args.stream()
-                    .map(a -> a.toSql(dialect))
-                    .collect(Collectors.toList());
-            String call = dialect.renderFunction(name, renderedArgs);
-            StringBuilder over = new StringBuilder(" OVER (");
-            boolean need = false;
-            if (!partitionBy.isEmpty()) {
-                over.append("PARTITION BY ");
-                for (int i = 0; i < partitionBy.size(); i++) {
-                    if (i > 0) over.append(", ");
-                    over.append(partitionBy.get(i).toSql(dialect));
-                }
-                need = true;
-            }
-            if (!orderBy.isEmpty()) {
-                if (need) over.append(" ");
-                over.append("ORDER BY ");
-                for (int i = 0; i < orderBy.size(); i++) {
-                    if (i > 0) over.append(", ");
-                    over.append(orderBy.get(i).toSql(dialect));
-                }
-                need = true;
-            }
-            if (frame.isPresent()) {
-                if (need) over.append(" ");
-                over.append(frame.get().toSql());
-            }
-            over.append(")");
-            return call + over;
-        }
-    }
+                      java.util.Optional<WindowFrame> frame) implements SqlExpr {}
 
     /**
      * Window frame clause: {@code ROWS|RANGE BETWEEN <start> AND <end>}.
-     * Dialect-agnostic — standard SQL syntax is universal across DuckDB,
-     * Postgres, Snowflake, etc.
+     * Pure data; rendered by {@link SQLDialect#renderWindowFrame}.
      */
-    record WindowFrame(FrameType type, FrameBound start, FrameBound end) {
-        public String toSql() {
-            return type.name() + " BETWEEN "
-                    + start.toSql(/*isStart=*/true)
-                    + " AND "
-                    + end.toSql(/*isStart=*/false);
-        }
-    }
+    record WindowFrame(FrameType type, FrameBound start, FrameBound end) {}
 
     enum FrameType { ROWS, RANGE }
 
-    /** Window frame bound. {@code isStart} disambiguates UNBOUNDED's direction. */
-    sealed interface FrameBound {
-        String toSql(boolean isStart);
-    }
+    /**
+     * Window frame bound. {@code isStart} disambiguates {@code UNBOUNDED}'s
+     * direction at codegen time.
+     */
+    sealed interface FrameBound {}
 
     /** Unbounded — {@code UNBOUNDED PRECEDING} at start, {@code UNBOUNDED FOLLOWING} at end. */
-    record UnboundedFrameBound() implements FrameBound {
-        @Override public String toSql(boolean isStart) {
-            return isStart ? "UNBOUNDED PRECEDING" : "UNBOUNDED FOLLOWING";
-        }
-    }
+    record UnboundedFrameBound() implements FrameBound {}
 
     /** {@code CURRENT ROW}. */
-    record CurrentRowFrameBound() implements FrameBound {
-        @Override public String toSql(boolean isStart) { return "CURRENT ROW"; }
-    }
+    record CurrentRowFrameBound() implements FrameBound {}
 
     /**
      * Signed offset frame bound. Negative → {@code n PRECEDING}, positive →
-     * {@code n FOLLOWING}, zero → {@code CURRENT ROW} (normalized).
+     * {@code n FOLLOWING}, zero → {@code CURRENT ROW} (normalised at
+     * render time).
      *
-     * <p>{@code double} to support fractional RANGE bounds (e.g. {@code 0.5
-     * FOLLOWING}); integral values (ROWS offsets) round-trip exactly and are
-     * rendered without a decimal point.
+     * <p>{@code double} to support fractional RANGE bounds (e.g.
+     * {@code 0.5 FOLLOWING}); integral values (ROWS offsets) round-trip
+     * exactly and are rendered without a decimal point.
      */
-    record OffsetFrameBound(double offset) implements FrameBound {
-        @Override public String toSql(boolean isStart) {
-            if (offset == 0) return "CURRENT ROW";
-            double mag = Math.abs(offset);
-            String lit = (mag == Math.floor(mag) && !Double.isInfinite(mag))
-                    ? String.valueOf((long) mag)
-                    : java.math.BigDecimal.valueOf(mag).stripTrailingZeros().toPlainString();
-            return lit + (offset < 0 ? " PRECEDING" : " FOLLOWING");
-        }
-    }
+    record OffsetFrameBound(double offset) implements FrameBound {}
 }

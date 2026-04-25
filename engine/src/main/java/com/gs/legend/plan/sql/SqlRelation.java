@@ -14,7 +14,8 @@ import java.util.Map;
  * <ul>
  *   <li>All variants are immutable records.</li>
  *   <li>No dialect imports; no {@code toSql()}. Dialect-specific rendering lives in
- *       {@code com.gs.legend.plan.printing.SqlRelationPrinter}.</li>
+ *       {@link com.gs.legend.sqlgen.SQLDialect#render(SqlRelation)} (per AGENTS.md
+ *       invariant 3a: IR is data, codegen lives in the dialect).</li>
  *   <li>Every relation knows its {@link #outputs()} schema so downstream passes can
  *       resolve column references without re-walking the tree.</li>
  *   <li>Scalar sub-expressions are {@link SqlExpr} (already a clean sealed hierarchy).</li>
@@ -177,8 +178,10 @@ public sealed interface SqlRelation {
         public enum NullOrder { DEFAULT, FIRST, LAST }
     }
 
-    /** Aggregate: {@code function(args...) AS alias}. {@code distinct} covers {@code COUNT(DISTINCT …)}. */
-    record Agg(String alias, String function, List<SqlExpr> args, boolean distinct) {}
+    /** Aggregate emission: {@code <typed-aggregate> AS alias}. {@code distinct}
+     * covers {@code COUNT(DISTINCT …)}; the dialect threads it through
+     * {@code dialect.render(SqlAggregate, distinct)}. */
+    record Agg(String alias, SqlAggregate fn, boolean distinct) {}
 
     /** Extend column: new column defined by a scalar expression or window call. */
     record ExtendCol(String name, SqlExpr expr) {}

@@ -498,8 +498,10 @@ public final class DuckDBDialect implements SQLDialect {
             case "corr" -> "CORR";
             case "covarSample" -> "COVAR_SAMP";
             case "covarPopulation" -> "COVAR_POP";
-            // Pure-native alias: bare "percentile" defaults to continuous.
-            case "percentile", "percentileCont" -> "QUANTILE_CONT";
+            // {@code percentileCont} is canonical; bare {@code percentile} is
+            // a Pure-source alias normalized to {@code percentileCont} at the
+            // call-context boundary (window: ExtendLowering.lowerWindowCol).
+            case "percentileCont" -> "QUANTILE_CONT";
             case "percentileDisc" -> "QUANTILE_DISC";
 
             // --- Analytical ---
@@ -527,14 +529,21 @@ public final class DuckDBDialect implements SQLDialect {
             case "cumulativeDistribution" -> "CUME_DIST";
 
             // --- Value functions (semantic name → SQL name) ---
-            // Pure-native aliases: bare "first"/"last" map to FIRST_VALUE/LAST_VALUE.
-            case "first", "firstValue" -> "FIRST_VALUE";
-            case "last", "lastValue" -> "LAST_VALUE";
+            // Note: bare Pure aliases ({@code first}, {@code last}, {@code nth},
+            // {@code percentile}) are NOT mapped here — they overload between
+            // scalar/list and window contexts. Window-context callers
+            // (ExtendLowering.lowerWindowCol) normalize Pure aliases to the
+            // canonical *Value names below before calling the dialect; scalar
+            // callers (NativeCallLowering) rewrite list-context first/last/etc.
+            // to listExtract / listSlice expressions. Adding bare aliases here
+            // would silently route scalar list operations through window
+            // aggregates and corrupt their SQL.
+            case "firstValue" -> "FIRST_VALUE";
+            case "lastValue" -> "LAST_VALUE";
             case "lag" -> "LAG";
             case "lead" -> "LEAD";
             case "ntile" -> "NTILE";
-            // Pure-native alias: bare "nth" is an alias for nthValue.
-            case "nth", "nthValue" -> "NTH_VALUE";
+            case "nthValue" -> "NTH_VALUE";
 
             // --- Math (semantic name → SQL name) ---
             case "round" -> "ROUND";
@@ -724,5 +733,20 @@ public final class DuckDBDialect implements SQLDialect {
                     + quoteStringLiteral(path) + ")";
         }
         throw new UnsupportedOperationException("DuckDB: unsupported source URL scheme: " + url);
+    }
+
+    /** DuckDB-specific aggregate names: {@code QUANTILE_CONT}/{@code QUANTILE_DISC}
+     * (instead of ANSI {@code PERCENTILE_*}), {@code ARG_MAX}/{@code ARG_MIN}
+     * (instead of {@code MAX_BY}/{@code MIN_BY}). All other names match the
+     * ANSI defaults from {@link SQLDialect#aggregateName}. */
+    @Override
+    public String aggregateName(com.gs.legend.plan.sql.SqlAggregate fn) {
+        return switch (fn) {
+            case com.gs.legend.plan.sql.SqlAggregate.PercentileCont p -> "QUANTILE_CONT";
+            case com.gs.legend.plan.sql.SqlAggregate.PercentileDisc p -> "QUANTILE_DISC";
+            case com.gs.legend.plan.sql.SqlAggregate.MaxBy m          -> "ARG_MAX";
+            case com.gs.legend.plan.sql.SqlAggregate.MinBy m          -> "ARG_MIN";
+            default                                                   -> SQLDialect.super.aggregateName(fn);
+        };
     }
 }

@@ -2,7 +2,6 @@ package com.gs.legend.plan.resultformat;
 
 import com.gs.legend.compiler.typed.*;
 import com.gs.legend.model.m3.Type;
-import com.gs.legend.plan.PlanGenNotPortedException;
 import com.gs.legend.plan.ResultFormat;
 
 /**
