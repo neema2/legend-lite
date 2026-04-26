@@ -2,6 +2,7 @@ package com.gs.legend.compiler.checkers;
 
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
+import com.gs.legend.compiler.typed.TypedGraphTree;
 import com.gs.legend.compiler.typed.TypedSerialize;
 import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.model.m3.Type;
@@ -46,6 +47,16 @@ public class SerializeChecker extends AbstractChecker {
         // Output is Variant[1] (JSON). The {@code format} field tags the
         // serialization dialect — only JSON is currently supported.
         ExpressionType outputType = resolveOutput(def, bindings, "serialize()");
-        return new TypedSerialize(sourceTyped, "json", outputType);
+
+        // Reify the serialize tree (the second arg's #{Tree}# block) so the
+        // planner can shape the JSON envelope. The tree is optional at this
+        // checker level — a fall-back to the upstream graphFetch tree happens
+        // in {@link com.gs.legend.plan.lowering.JsonEnvelope#extractTree}.
+        List<TypedGraphTree> children = List.of();
+        if (params.size() >= 2) {
+            ColSpecArray csa = GraphFetchChecker.extractColSpecs(params.get(1));
+            if (csa != null) children = GraphFetchChecker.buildTree(csa);
+        }
+        return new TypedSerialize(sourceTyped, "json", children, outputType);
     }
 }

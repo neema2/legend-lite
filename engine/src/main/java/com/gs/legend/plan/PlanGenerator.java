@@ -119,7 +119,6 @@ public final class PlanGenerator {
         var hir = resolved.hir();
         var rel = Lowerer.lowerRelation(hir, ctx);
         var format = ResultFormatClassifier.classify(hir);
-        // Future (Stage 3): if (format instanceof ResultFormat.Graph) rel = JsonEnvelope.wrap(rel, mode, hir);
         String sql = dialect.render(rel);
 
         Type.Schema schema = hir.schema();

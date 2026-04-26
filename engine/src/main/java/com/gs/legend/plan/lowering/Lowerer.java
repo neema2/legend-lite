@@ -53,12 +53,12 @@ public final class Lowerer {
             case TypedFrom n        -> FromLowering.lower(n, ctx);
             case TypedGraphFetch n  -> GraphFetchLowering.lower(n, ctx);
 
-            // Pipeline terminators: {@code serialize} is a source-preserving output
-            // wrapper (the legacy PlanGen walked directly to its graphFetch source);
-            // we forward to the source's relation lowering. {@code write} is still
-            // on the stage-5 backlog — its INSERT lowering lands with the dedicated
-            // write pass.
-            case TypedSerialize n -> lowerRelation(n.source(), ctx);
+            // Pipeline terminators: {@code serialize} performs JSON-envelope
+            // wrapping over its lowered source (the format-conversion step
+            // declared by Pure's {@code serialize}). {@code write} is still
+            // on the stage-5 backlog — its INSERT lowering lands with the
+            // dedicated write pass.
+            case TypedSerialize n -> SerializeRelLowering.lower(n, ctx);
             case TypedWrite n     -> wrapScalar(SerializeLowering.lower(n, ctx), ctx, n);
 
             // UserCall: inline the callee's typed body and re-dispatch.

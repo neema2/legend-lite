@@ -3,7 +3,10 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
 import com.gs.legend.compiler.typed.TypedGraphFetch;
+import com.gs.legend.compiler.typed.TypedGraphTree;
 import com.gs.legend.compiler.typed.TypedSpec;
+
+import java.util.ArrayList;
 import com.gs.legend.model.m3.Type;
 
 import java.util.List;
@@ -40,7 +43,25 @@ public class GraphFetchChecker extends AbstractChecker {
         // Preserve the source's {@link ExpressionType} — graphFetch is a
         // projection, not a type change. JSON formatting is an execution
         // concern handled by {@code PlanGenerator}.
-        return new TypedGraphFetch(sourceTyped, sourceTyped.expressionType());
+        return new TypedGraphFetch(
+                sourceTyped, buildTree(colSpecs), sourceTyped.expressionType());
+    }
+
+    /**
+     * Reify the AST {@link ColSpecArray} into a list of {@link TypedGraphTree}.
+     * Each {@code ColSpec.fn1} is the auto-generated property accessor lambda;
+     * the property name is what we keep. {@code ColSpec.fn2} (when present)
+     * wraps a nested {@code ColSpecArray} — we recurse into its children.
+     */
+    static List<TypedGraphTree> buildTree(ColSpecArray csa) {
+        List<TypedGraphTree> out = new ArrayList<>(csa.colSpecs().size());
+        for (ColSpec cs : csa.colSpecs()) {
+            ColSpecArray nested = extractNestedColSpecs(cs);
+            out.add(new TypedGraphTree(
+                    cs.name(),
+                    nested == null ? List.of() : buildTree(nested)));
+        }
+        return out;
     }
 
     /** Compiles ColSpec fn1 lambdas and recurses into fn2 for nested properties. */
