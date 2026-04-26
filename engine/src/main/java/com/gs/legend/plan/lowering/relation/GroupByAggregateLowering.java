@@ -152,9 +152,9 @@ public final class GroupByAggregateLowering {
             case SqlAggregate.Corr c               -> new SqlAggregate.Corr(unqualify(c.x()), unqualify(c.y()));
             case SqlAggregate.CovarPopulation c    -> new SqlAggregate.CovarPopulation(unqualify(c.x()), unqualify(c.y()));
             case SqlAggregate.CovarSample c        -> new SqlAggregate.CovarSample(unqualify(c.x()), unqualify(c.y()));
-            case SqlAggregate.MaxBy m              -> new SqlAggregate.MaxBy(unqualify(m.expr()));
-            case SqlAggregate.MinBy m              -> new SqlAggregate.MinBy(unqualify(m.expr()));
-            case SqlAggregate.WeightedAvg w        -> new SqlAggregate.WeightedAvg(unqualify(w.expr()));
+            case SqlAggregate.MaxBy m              -> new SqlAggregate.MaxBy(unqualify(m.value()), unqualify(m.key()));
+            case SqlAggregate.MinBy m              -> new SqlAggregate.MinBy(unqualify(m.value()), unqualify(m.key()));
+            case SqlAggregate.WeightedAvg w        -> new SqlAggregate.WeightedAvg(unqualify(w.value()), unqualify(w.weight()));
         };
     }
 
@@ -228,14 +228,22 @@ public final class GroupByAggregateLowering {
         // fn1 produces the values being aggregated (first reducer operand).
         // {@link TypedAggCall#extraArgs()} carries the rest — the separator in
         // joinStrings(values, sep), the percentile p, the second column for
-        // corr(x, y) — extracted from fn2's body by GroupByChecker. Lower
-        // each in scalar context; the binding builds the typed multi-operand
-        // SqlAggregate variant from the full list.
+        // corr(x, y), the second column unpacked from rowMapper(value, key).
+        // Lower fn1 first, then lower each extra in the SAME scope as fn1's
+        // body — extras that reference fn1's parameter (e.g., the key column
+        // {@code $x.b} from {@code rowMapper($x.a, $x.b)}) need that param
+        // bound to the source alias.
         SqlExpr arg = lowerSingleParamLambda(a.fn1(), aliased.alias(), ctx, store);
         List<SqlExpr> args = new ArrayList<>(1 + a.extraArgs().size());
         args.add(arg);
-        for (TypedSpec extra : a.extraArgs()) {
-            args.add(Lowerer.lowerScalar(extra, ctx));
+        if (!a.extraArgs().isEmpty()) {
+            String fn1Param = a.fn1().parameters().isEmpty() ? null
+                    : a.fn1().parameters().get(0).name();
+            LoweringContext extrasCtx = fn1Param == null ? ctx
+                    : ctx.bindVar(fn1Param, new SqlExpr.Identifier(aliased.alias()), store);
+            for (TypedSpec extra : a.extraArgs()) {
+                args.add(Lowerer.lowerScalar(extra, extrasCtx));
+            }
         }
         // Dispatch on resolved NativeFunctionDef identity via AggregateBindings;
         // the binding emits the typed SqlAggregate variant directly. No

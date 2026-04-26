@@ -134,14 +134,26 @@ public sealed interface SqlAggregate permits
     /** {@code VAR_SAMP(expr)}. Pure: {@code varianceSample}. */
     record VarianceSample(SqlExpr expr) implements Reducer {}
 
-    /** {@code ARG_MAX(expr)} (DuckDB) / equivalent. Pure: {@code maxBy}. */
-    record MaxBy(SqlExpr expr) implements Reducer {}
+    /**
+     * {@code ARG_MAX(value, key)} (DuckDB) / {@code MAX_BY} (ANSI). Pure:
+     * {@code maxBy(values, keys)}, {@code maxBy(rowMapper(value, key))}.
+     * Returns the {@code value} from the row whose {@code key} is maximal.
+     */
+    record MaxBy(SqlExpr value, SqlExpr key) implements Reducer {}
 
-    /** {@code ARG_MIN(expr)} (DuckDB) / equivalent. Pure: {@code minBy}. */
-    record MinBy(SqlExpr expr) implements Reducer {}
+    /**
+     * {@code ARG_MIN(value, key)} (DuckDB) / {@code MIN_BY} (ANSI). Pure:
+     * {@code minBy(values, keys)}, {@code minBy(rowMapper(value, key))}.
+     */
+    record MinBy(SqlExpr value, SqlExpr key) implements Reducer {}
 
-    /** Weighted average. Pure: {@code wavg}. */
-    record WeightedAvg(SqlExpr expr) implements Reducer {}
+    /**
+     * Weighted average: {@code SUM(value * weight) / SUM(weight)}. Pure:
+     * {@code wavg(rowMapper(value, weight))}. There is no SQL primitive
+     * for weighted average — the dialect renders this as the composite
+     * expression with two SUMs and a divide.
+     */
+    record WeightedAvg(SqlExpr value, SqlExpr weight) implements Reducer {}
 
     // =====================================================================
     // Reducer records (multi-operand)

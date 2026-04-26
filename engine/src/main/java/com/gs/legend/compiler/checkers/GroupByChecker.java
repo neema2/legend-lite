@@ -267,6 +267,25 @@ public class GroupByChecker extends AbstractChecker {
                 ? List.copyOf(tnc.args().subList(1, tnc.args().size()))
                 : List.of();
 
+        // rowMapper unpacking: aggregates like corr/covar/maxBy/minBy/wavg
+        // have a Pure overload that takes a single {@code rowMapper(value, key)}
+        // bundling two columns. We rewrite this here into the canonical
+        // 2-operand form: fn1's body becomes just the value (rowMapper.args[0])
+        // and the key (rowMapper.args[1]) is added to extraArgs. Bindings then
+        // see args[0] = value, args[1] = key uniformly with the 2-arg numeric
+        // overloads (corr(x, y), covarSample(x, y), maxBy(values, keys)).
+        // The resolved NativeFunctionDef stays the rowMapper one; AggregateBindings
+        // binds both overloads to the same constructor.
+        if (fn1Body instanceof TypedNativeCall fn1Tnc
+                && fn1Tnc.func() == com.gs.legend.compiler.Pure.ROW_MAPPER__T_0_1__U_0_1
+                && fn1Tnc.args().size() == 2) {
+            TypedSpec value = fn1Tnc.args().get(0);
+            TypedSpec key   = fn1Tnc.args().get(1);
+            fn1Typed = new TypedLambda(fn1Typed.parameters(),
+                    java.util.List.of(value), value.info());
+            extraArgs = java.util.List.of(key);
+        }
+
         // Return type refinement: generic {@code Number} aggregates preserve
         // the fn1 input numeric type. See matching comment in
         // {@code ExtendChecker.compileAggregateExtend}.

@@ -90,19 +90,27 @@ public final class AggregateBindings {
                 Pure.MIN__INTEGER_MANY, Pure.MIN__FLOAT_MANY,
                 Pure.MIN__DATE_TIME_1__DATE_TIME_1, Pure.MIN__STRICT_DATE_1__STRICT_DATE_1, Pure.MIN__DATE_1__DATE_1,
                 Pure.MIN__DATE_TIME_MANY, Pure.MIN__STRICT_DATE_MANY, Pure.MIN__DATE_MANY);
-        bindAll(unary(SqlAggregate.MaxBy::new),
-                Pure.MAX_BY__T_MANY__FUNCTION_1, Pure.MAX_BY__T_MANY__FUNCTION_1__INTEGER_1,
+        // maxBy/minBy(values, keys) — the rowMapper-overload entries assume
+        // GroupByChecker has unpacked rowMapper(value, key) into args[0] and
+        // extraArgs[0], placing both at args[0] and args[1] here. The
+        // function-keyed overloads (with a closure as the second arg) aren't
+        // yet supported — they'd require lowering a Pure lambda into SQL
+        // ARG_MAX(value, lambda(value)), which DuckDB doesn't accept.
+        bindAll(args -> new SqlAggregate.MaxBy(args.get(0), args.get(1)),
                 Pure.MAX_BY__ROW_MAPPER_MANY,
                 Pure.MAX_BY__T_MANY__T_MANY, Pure.MAX_BY__T_MANY__T_MANY__INTEGER_1);
-        bindAll(unary(SqlAggregate.MinBy::new),
-                Pure.MIN_BY__T_MANY__FUNCTION_1, Pure.MIN_BY__T_MANY__FUNCTION_1__INTEGER_1,
+        bindAll(args -> new SqlAggregate.MinBy(args.get(0), args.get(1)),
                 Pure.MIN_BY__ROW_MAPPER_MANY,
                 Pure.MIN_BY__T_MANY__T_MANY, Pure.MIN_BY__T_MANY__T_MANY__INTEGER_1);
 
         // ----- means -----
         bindAll(unary(SqlAggregate.Avg::new),
                 Pure.AVG__NUMBER_MANY, Pure.AVERAGE__NUMBER_MANY, Pure.MEAN__NUMBER_MANY);
-        bind(Pure.WAVG__ROW_MAPPER_MANY,        unary(SqlAggregate.WeightedAvg::new));
+        // wavg(rowMapper(value, weight)) — same unpacking convention as
+        // corr/covar/maxBy: args[0] is value, args[1] is weight (set by
+        // GroupByChecker). The dialect renders the composite SUM/SUM form.
+        bind(Pure.WAVG__ROW_MAPPER_MANY,
+                args -> new SqlAggregate.WeightedAvg(args.get(0), args.get(1)));
         bind(Pure.MEDIAN__NUMBER_MANY,          unary(SqlAggregate.Median::new));
         bind(Pure.MODE__ANY_MANY,               unary(SqlAggregate.Mode::new));
 
@@ -141,15 +149,16 @@ public final class AggregateBindings {
                 args -> new SqlAggregate.PercentileDisc(args.get(0), args.get(1)));
 
         // ----- correlation / covariance (binary) -----
-        // 2-arg numeric: corr(x, y). 1-arg rowMapper variants pack both columns
-        // into a single struct expression — for now we fall back to (x, x) (the
-        // legacy behavior; rowMapper unpacking is a separate concern and
-        // currently passes a single struct expr through args.get(0)).
-        bindAll(args -> new SqlAggregate.Corr(args.get(0), args.size() > 1 ? args.get(1) : args.get(0)),
+        // Both overloads converge on args[0] = x, args[1] = y after checker
+        // normalisation. The 2-arg numeric overload (corr(x, y)) flows the
+        // second column through the standard fn2-extraArgs path; the
+        // rowMapper overload (corr(rowMapper(x, y))) is unpacked by
+        // GroupByChecker so y lands at extraArgs[0]. Either way args.size()==2.
+        bindAll(args -> new SqlAggregate.Corr(args.get(0), args.get(1)),
                 Pure.CORR__NUMBER_MANY__NUMBER_MANY, Pure.CORR__ROW_MAPPER_MANY);
-        bindAll(args -> new SqlAggregate.CovarPopulation(args.get(0), args.size() > 1 ? args.get(1) : args.get(0)),
+        bindAll(args -> new SqlAggregate.CovarPopulation(args.get(0), args.get(1)),
                 Pure.COVAR_POPULATION__NUMBER_MANY__NUMBER_MANY, Pure.COVAR_POPULATION__ROW_MAPPER_MANY);
-        bindAll(args -> new SqlAggregate.CovarSample(args.get(0), args.size() > 1 ? args.get(1) : args.get(0)),
+        bindAll(args -> new SqlAggregate.CovarSample(args.get(0), args.get(1)),
                 Pure.COVAR_SAMPLE__NUMBER_MANY__NUMBER_MANY, Pure.COVAR_SAMPLE__ROW_MAPPER_MANY);
 
         // ----- joinStrings (separator REQUIRED in the typed variant) -----

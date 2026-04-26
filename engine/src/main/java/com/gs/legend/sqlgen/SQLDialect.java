@@ -853,9 +853,16 @@ public interface SQLDialect {
             case com.gs.legend.plan.sql.SqlAggregate.StdDevSample s         -> unary("STDDEV_SAMP", s.expr());
             case com.gs.legend.plan.sql.SqlAggregate.VariancePopulation v   -> unary("VAR_POP", v.expr());
             case com.gs.legend.plan.sql.SqlAggregate.VarianceSample v       -> unary("VAR_SAMP", v.expr());
-            case com.gs.legend.plan.sql.SqlAggregate.MaxBy m                -> unary("MAX_BY", m.expr());
-            case com.gs.legend.plan.sql.SqlAggregate.MinBy m                -> unary("MIN_BY", m.expr());
-            case com.gs.legend.plan.sql.SqlAggregate.WeightedAvg w          -> unary("WAVG", w.expr());
+            case com.gs.legend.plan.sql.SqlAggregate.MaxBy m                ->
+                    "MAX_BY(" + render(m.value()) + ", " + render(m.key()) + ")";
+            case com.gs.legend.plan.sql.SqlAggregate.MinBy m                ->
+                    "MIN_BY(" + render(m.value()) + ", " + render(m.key()) + ")";
+            // No SQL primitive for weighted average — emit the composite
+            // form: (SUM(value * weight) / SUM(weight)). Wrapped in parens
+            // so it's safe inside larger expressions.
+            case com.gs.legend.plan.sql.SqlAggregate.WeightedAvg w          ->
+                    "(SUM(" + render(w.value()) + " * " + render(w.weight())
+                            + ") / SUM(" + render(w.weight()) + "))";
             // -- Reducers (multi-operand) --
             case com.gs.legend.plan.sql.SqlAggregate.JoinStrings j          ->
                     "STRING_AGG(" + render(j.expr()) + ", " + render(j.separator()) + ")";

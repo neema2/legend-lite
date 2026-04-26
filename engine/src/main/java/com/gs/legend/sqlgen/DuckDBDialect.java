@@ -754,9 +754,9 @@ public final class DuckDBDialect implements SQLDialect {
             case com.gs.legend.plan.sql.SqlAggregate.PercentileDisc p ->
                     "QUANTILE_DISC(" + render(p.expr()) + ", " + render(p.p()) + ")";
             case com.gs.legend.plan.sql.SqlAggregate.MaxBy m ->
-                    "ARG_MAX(" + render(m.expr()) + ")";
+                    "ARG_MAX(" + render(m.value()) + ", " + render(m.key()) + ")";
             case com.gs.legend.plan.sql.SqlAggregate.MinBy m ->
-                    "ARG_MIN(" + render(m.expr()) + ")";
+                    "ARG_MIN(" + render(m.value()) + ", " + render(m.key()) + ")";
             default -> SQLDialect.super.render(fn);
         };
     }
