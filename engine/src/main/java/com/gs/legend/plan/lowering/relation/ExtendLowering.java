@@ -39,6 +39,24 @@ public final class ExtendLowering {
     private ExtendLowering() {}
 
     public static SqlRelation lower(TypedExtend n, LoweringContext ctx) {
+        // ExtendOverride: MappingResolver may stamp a cancellation marker on
+        // this extend node (synth-body extends whose extension cols / hops
+        // aren't used by the query). Two pruning levels:
+        //   1. Fully-cancelled — skip the entire extend node. This also
+        //      drops the {@code traversalHops}, eliminating spurious JOINs
+        //      that would otherwise come from association extends.
+        //   2. Partial — keep the extend, but filter individual cols by
+        //      {@code isActive(alias)} below. (Hop-level filtering for
+        //      partially-cancelled association extends isn't supported —
+        //      synth-body produces one association per extend, so partial
+        //      never applies to association cols today.)
+        StoreResolution selfStore = ctx.storeFor(n);
+        StoreResolution.ExtendOverride override =
+                selfStore != null && selfStore.hasExtendOverride()
+                        ? selfStore.extendOverride() : null;
+        if (override != null && override.isFullyCancelled()) {
+            return Lowerer.lowerRelation(n.source(), ctx);
+        }
         SqlRelation src = Lowerer.lowerRelation(n.source(), ctx);
         SqlRelation aliased = Relations.ensureAliased(src, ctx);
         String srcAlias = aliased.alias();
@@ -77,11 +95,25 @@ public final class ExtendLowering {
 
         List<SqlRelation.ExtendCol> cols = new ArrayList<>(n.extensions().size());
         for (TypedExtendCol col : n.extensions()) {
+            // Per-col filter for partial overrides — matches legacy plangen
+            // generateExtend lines 2005/2049 (`!extendOverride.isActive(cs.name()) continue`).
+            if (override != null && !override.isActive(extendColAlias(col))) continue;
             SqlRelation.ExtendCol lowered = lowerExtendCol(col, aliasChain, store, ctx, n, scope);
             if (lowered != null) cols.add(lowered);
         }
         SqlRelation joined = Relations.install(aliased, srcAlias, store, scope, ctx);
         return new SqlRelation.Extend(joined, cols);
+    }
+
+    /** Output alias of any {@link TypedExtendCol} variant. */
+    private static String extendColAlias(TypedExtendCol col) {
+        return switch (col) {
+            case TypedScalarExtendCol s         -> s.alias();
+            case TypedWindowExtendCol w         -> w.alias();
+            case com.gs.legend.compiler.typed.TypedTraverseExtendCol t -> t.alias();
+            case com.gs.legend.compiler.typed.TypedAssociationExtendCol a -> a.alias();
+            case com.gs.legend.compiler.typed.TypedEmbeddedExtendCol e -> e.alias();
+        };
     }
 
     /**

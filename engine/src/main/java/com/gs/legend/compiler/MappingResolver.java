@@ -1137,24 +1137,54 @@ public final class MappingResolver {
      * they are lowered to {@link StoreResolution.JoinResolution}s and are
      * gated independently by graphFetch / association navigation.
      */
+    /**
+     * Stamp an {@link StoreResolution.ExtendOverride} on this extend node
+     * when any of its extension columns is unused by the query — so
+     * {@code ExtendLowering} can skip the cancelled cols (and, for
+     * {@link TypedAssociationExtendCol} / {@link TypedEmbeddedExtendCol},
+     * their corresponding traversal joins).
+     *
+     * <p>Two pools of "used" aliases:
+     * <ul>
+     *   <li><b>Property accesses</b>: scalar/window/traverse extends whose
+     *       alias is read as {@code $row.alias} downstream.</li>
+     *   <li><b>Association navigations</b>: association/embedded extends
+     *       whose alias is navigated as {@code $row.alias.something}
+     *       downstream.</li>
+     * </ul>
+     *
+     * <p>Critical for synthetic-body extends from
+     * {@code MappingNormalizer.addAssociationExtends}: each such extend
+     * carries exactly one association col plus its traversal hops, and
+     * unconditionally emitting all of them produces spurious LEFT JOINs
+     * in the SQL even when the query never navigates the association.
+     * Marking unused association extends as fully cancelled prunes the
+     * JOIN at lowering time.
+     */
     private void stampExtendOverrideIfNeeded(TypedExtend ext, String className) {
-        Set<String> extAliases = new HashSet<>();
+        Set<String> propAliases = new HashSet<>();
+        Set<String> assocAliases = new HashSet<>();
         for (var col : ext.extensions()) {
             switch (col) {
-                case TypedScalarExtendCol s -> extAliases.add(s.alias());
-                case TypedWindowExtendCol w -> extAliases.add(w.alias());
-                case TypedTraverseExtendCol t -> extAliases.add(t.alias());
-                case TypedAssociationExtendCol ignored -> { }
-                case TypedEmbeddedExtendCol ignored -> { }
+                case TypedScalarExtendCol s -> propAliases.add(s.alias());
+                case TypedWindowExtendCol w -> propAliases.add(w.alias());
+                case TypedTraverseExtendCol t -> propAliases.add(t.alias());
+                case TypedAssociationExtendCol a -> assocAliases.add(a.alias());
+                case TypedEmbeddedExtendCol e -> assocAliases.add(e.alias());
             }
         }
-        if (extAliases.isEmpty()) return;
+        int total = propAliases.size() + assocAliases.size();
+        if (total == 0) return;
 
         Set<String> usedProps = typeResult.dependencies().classPropertyAccesses()
                 .getOrDefault(className, Set.of());
-        Set<String> active = new HashSet<>(extAliases);
-        active.retainAll(usedProps);
-        if (active.size() == extAliases.size()) return; // all used — no override
+        Set<String> neededAssocs = typeResult.dependencies().associationNavigations()
+                .getOrDefault(className, Set.of());
+
+        Set<String> active = new HashSet<>();
+        for (String a : propAliases)  if (usedProps.contains(a))    active.add(a);
+        for (String a : assocAliases) if (neededAssocs.contains(a)) active.add(a);
+        if (active.size() == total) return; // all used — no override needed
 
         resolutions.put(ext, StoreResolution.forExtend(
                 new StoreResolution.ExtendOverride(active)));
