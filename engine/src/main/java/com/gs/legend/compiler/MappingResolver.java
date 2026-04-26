@@ -1192,12 +1192,17 @@ public final class MappingResolver {
 
         Set<String> usedProps = typeResult.dependencies().classPropertyAccesses()
                 .getOrDefault(className, Set.of());
-        Set<String> neededAssocs = typeResult.dependencies().associationNavigations()
-                .getOrDefault(className, Set.of());
 
+        // Synth-body association/embedded extends are always cancellable: every
+        // downstream consumer that genuinely needs an association traversal
+        // installs its own LEFT JOIN on demand via NavScope (project) or its
+        // own EXISTS (filter SemiJoin). The eager extend's LEFT JOIN is purely
+        // redundant — and worse, for to-many associations it inflates rows
+        // before the SemiJoin can de-duplicate. So we don't pair assocAliases
+        // with associationNavigations here; only propAliases count toward the
+        // active set. (Empty active = isFullyCancelled() in ExtendLowering.)
         Set<String> active = new HashSet<>();
         for (String a : propAliases)  if (usedProps.contains(a))    active.add(a);
-        for (String a : assocAliases) if (neededAssocs.contains(a)) active.add(a);
         if (active.size() == total) return; // all used — no override needed
 
         resolutions.put(ext, StoreResolution.forExtend(
