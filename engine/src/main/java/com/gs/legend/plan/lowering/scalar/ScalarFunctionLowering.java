@@ -5,8 +5,7 @@ import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.plan.PlanGenNotPortedException;
 import com.gs.legend.plan.lowering.LoweringContext;
 import com.gs.legend.plan.lowering.Lowerer;
-import com.gs.legend.plan.lowering.natives.NativeBinding;
-import com.gs.legend.plan.lowering.natives.NativeBindings;
+import com.gs.legend.plan.lowering.natives.ScalarBindings;
 import com.gs.legend.sqlgen.SqlExpr;
 
 import java.util.ArrayList;
@@ -26,20 +25,20 @@ import java.util.List;
  * {@link PlanGenNotPortedException} tagged {@code stage-3-native:&lt;funcName&gt;}
  * so progress can be measured per-function in test runs.
  */
-public final class NativeCallLowering {
-    private NativeCallLowering() {}
+public final class ScalarFunctionLowering {
+    private ScalarFunctionLowering() {}
 
     public static SqlExpr lower(TypedNativeCall n, LoweringContext ctx) {
         String name = n.func().name();
         List<SqlExpr> args = lowerArgs(n.args(), ctx);
-        // Phase 1: delegate to the binding table if a binding exists for
-        // the resolved overload, otherwise fall through to legacy switch.
-        // The table is empty in Phase 1; subsequent phases register bindings
-        // per-overload and the corresponding legacy arms are removed.
-        // Phase 3.8 deletes the fallthrough entirely.
-        NativeBinding binding = NativeBindings.TABLE.find(n.func()).orElse(null);
-        if (binding != null) {
-            return binding.emit(n, args, ctx);
+        // Delegate to ScalarBindings if a binding exists for the resolved
+        // overload, otherwise fall through to the legacy stringly-typed
+        // switch below. Each phase migrates more arms to typed bindings.
+        // Phase D drains the legacy switch entirely; lookup() then throws
+        // on miss like AggregateBindings/WindowBindings.
+        var scalarBinding = ScalarBindings.lookup(n.func());
+        if (scalarBinding.isPresent()) {
+            return scalarBinding.get().build(n, args, ctx);
         }
         return switch (name) {
             // Comparison

@@ -534,7 +534,7 @@ public final class DuckDBDialect implements SQLDialect {
             // scalar/list and window contexts. Window-context callers
             // (ExtendLowering.lowerWindowCol) normalize Pure aliases to the
             // canonical *Value names below before calling the dialect; scalar
-            // callers (NativeCallLowering) rewrite list-context first/last/etc.
+            // callers (ScalarFunctionLowering) rewrite list-context first/last/etc.
             // to listExtract / listSlice expressions. Adding bare aliases here
             // would silently route scalar list operations through window
             // aggregates and corrupt their SQL.
@@ -735,18 +735,29 @@ public final class DuckDBDialect implements SQLDialect {
         throw new UnsupportedOperationException("DuckDB: unsupported source URL scheme: " + url);
     }
 
-    /** DuckDB-specific aggregate names: {@code QUANTILE_CONT}/{@code QUANTILE_DISC}
-     * (instead of ANSI {@code PERCENTILE_*}), {@code ARG_MAX}/{@code ARG_MIN}
-     * (instead of {@code MAX_BY}/{@code MIN_BY}). All other names match the
-     * ANSI defaults from {@link SQLDialect#aggregateName}. */
+    /**
+     * DuckDB-specific aggregate spellings:
+     * <ul>
+     *   <li>{@code QUANTILE_CONT(expr, p)} / {@code QUANTILE_DISC(expr, p)} —
+     *       function-call form, no {@code WITHIN GROUP}.</li>
+     *   <li>{@code ARG_MAX(expr)} / {@code ARG_MIN(expr)} (replacing
+     *       {@code MAX_BY}/{@code MIN_BY}).</li>
+     * </ul>
+     * Every other variant falls through to the ANSI render in
+     * {@link SQLDialect#render(com.gs.legend.plan.sql.SqlAggregate)}.
+     */
     @Override
-    public String aggregateName(com.gs.legend.plan.sql.SqlAggregate fn) {
+    public String render(com.gs.legend.plan.sql.SqlAggregate fn) {
         return switch (fn) {
-            case com.gs.legend.plan.sql.SqlAggregate.PercentileCont p -> "QUANTILE_CONT";
-            case com.gs.legend.plan.sql.SqlAggregate.PercentileDisc p -> "QUANTILE_DISC";
-            case com.gs.legend.plan.sql.SqlAggregate.MaxBy m          -> "ARG_MAX";
-            case com.gs.legend.plan.sql.SqlAggregate.MinBy m          -> "ARG_MIN";
-            default                                                   -> SQLDialect.super.aggregateName(fn);
+            case com.gs.legend.plan.sql.SqlAggregate.PercentileCont p ->
+                    "QUANTILE_CONT(" + render(p.expr()) + ", " + render(p.p()) + ")";
+            case com.gs.legend.plan.sql.SqlAggregate.PercentileDisc p ->
+                    "QUANTILE_DISC(" + render(p.expr()) + ", " + render(p.p()) + ")";
+            case com.gs.legend.plan.sql.SqlAggregate.MaxBy m ->
+                    "ARG_MAX(" + render(m.expr()) + ")";
+            case com.gs.legend.plan.sql.SqlAggregate.MinBy m ->
+                    "ARG_MIN(" + render(m.expr()) + ")";
+            default -> SQLDialect.super.render(fn);
         };
     }
 }

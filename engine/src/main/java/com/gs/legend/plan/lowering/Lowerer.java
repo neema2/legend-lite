@@ -78,7 +78,7 @@ public final class Lowerer {
             case TypedVariable        n -> wrapScalar(VariableLowering.lower(n, ctx), ctx);
             case TypedPropertyAccess  n -> wrapScalar(PropertyAccessLowering.lower(n, ctx), ctx);
             case TypedFold            n -> wrapScalar(FoldLowering.lower(n, ctx), ctx);
-            case TypedNativeCall      n -> wrapScalar(NativeCallLowering.lower(n, ctx), ctx);
+            case TypedNativeCall      n -> wrapScalar(ScalarFunctionLowering.lower(n, ctx), ctx);
             case TypedNewInstance     n -> wrapScalar(StructLowering.lower(n, ctx), ctx);
             case TypedStructExtract   n -> wrapScalar(StructLowering.lower(n, ctx), ctx);
             case TypedCollection      n -> wrapScalar(StructLowering.lower(n, ctx), ctx);
@@ -127,7 +127,7 @@ public final class Lowerer {
             case TypedVariable        n -> VariableLowering.lower(n, ctx);
             case TypedPropertyAccess  n -> PropertyAccessLowering.lower(n, ctx);
             case TypedFold            n -> FoldLowering.lower(n, ctx);
-            case TypedNativeCall      n -> NativeCallLowering.lower(n, ctx);
+            case TypedNativeCall      n -> ScalarFunctionLowering.lower(n, ctx);
 
             case TypedNewInstance     n -> StructLowering.lower(n, ctx);
             case TypedStructExtract   n -> StructLowering.lower(n, ctx);

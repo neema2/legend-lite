@@ -79,9 +79,7 @@ public sealed interface SqlExpr permits
         SqlExpr.VariantTextAccess,
         SqlExpr.VariantTextExtract,
         SqlExpr.WindowCall,
-        SqlExpr.WindowFunction,
-        SqlExpr.WindowSpec,
-        SqlExpr.WrappedWindowFunction {
+        SqlExpr.WindowSpec {
 
     // ==================== Column References ====================
 
@@ -284,9 +282,6 @@ public sealed interface SqlExpr permits
 
     // ==================== Window Functions ====================
 
-    /** Window function: {@code func OVER (overClause)}. */
-    record WindowFunction(SqlExpr function, SqlExpr overClause) implements SqlExpr {}
-
     /** Window specification: {@code PARTITION BY ... ORDER BY ... ROWS/RANGE ...}. */
     record WindowSpec(List<SqlExpr> partitionBy, List<SqlExpr> orderBy, String frame) implements SqlExpr {}
 
@@ -315,17 +310,6 @@ public sealed interface SqlExpr permits
         /** Convenience: first hop property name (used for single-hop lookups). */
         public String assocProp() { return hops.get(0); }
     }
-
-    /**
-     * Wrapped window function — compile-time only. Represents a
-     * post-processor wrapping a window function (e.g.
-     * {@code ROUND(CUME_DIST() OVER(...), 2)}). Created by
-     * {@code extractWindowFunction}, consumed by {@code compileExtend}
-     * which inserts the OVER clause between the inner function and extra
-     * args. Must never reach codegen.
-     */
-    record WrappedWindowFunction(String wrapperFunc, SqlExpr innerWindowFunc,
-                                 List<SqlExpr> extraArgs) implements SqlExpr {}
 
     // ==================== Struct / Array (dialect-delegated) ====================
 
@@ -379,12 +363,13 @@ public sealed interface SqlExpr permits
     /**
      * Windowed function call:
      * {@code FUNC(args) OVER (PARTITION BY … ORDER BY … [ROWS|RANGE BETWEEN … AND …])}.
-     * Function name is routed through the dialect's
-     * {@link SQLDialect#renderFunction} mapping so dialects can remap
-     * {@code rowNumber}→{@code ROW_NUMBER}, {@code rank}→{@code RANK}, etc.
+     * The {@code fn} field is a typed {@link com.gs.legend.plan.sql.SqlAggregate}
+     * variant — any sub-category ({@code Reducer}, {@code RankingFn},
+     * {@code ValueFn}). Reducers render identically here and in agg context;
+     * ranking and value functions only appear here. Dispatch happens via
+     * {@link SQLDialect#render(com.gs.legend.plan.sql.SqlAggregate)}.
      */
-    record WindowCall(String name,
-                      List<SqlExpr> args,
+    record WindowCall(com.gs.legend.plan.sql.SqlAggregate fn,
                       List<SqlExpr> partitionBy,
                       List<OrderByTerm> orderBy,
                       java.util.Optional<WindowFrame> frame) implements SqlExpr {}

@@ -14,6 +14,7 @@ import com.gs.legend.plan.PlanGenNotPortedException;
 import com.gs.legend.plan.lowering.LoweringContext;
 import com.gs.legend.plan.lowering.Lowerer;
 import com.gs.legend.plan.lowering.Relations;
+import com.gs.legend.plan.lowering.natives.AggregateBindings;
 import com.gs.legend.plan.sql.SqlAggregate;
 import com.gs.legend.plan.sql.SqlRelation;
 import com.gs.legend.sqlgen.SqlExpr;
@@ -104,7 +105,7 @@ public final class GroupByAggregateLowering {
             // binder error). Rewrite {@code Column(alias, col)} → {@code ColumnRef(col)}
             // inside the aggregate's argument so the aggregates reference
             // pivot-source columns directly.
-            aggs.add(new SqlRelation.Agg(agg.alias(), unqualifyAgg(agg.fn()), agg.distinct()));
+            aggs.add(new SqlRelation.Agg(agg.alias(), unqualifyAgg(agg.fn())));
         }
         SqlRelation joined = Relations.install(aliased, aliased.alias(), store, scope, ctx);
         SqlRelation.PivotSpec spec = new SqlRelation.PivotSpec(
@@ -125,11 +126,13 @@ public final class GroupByAggregateLowering {
         return e;
     }
 
-    /** Apply {@link #unqualify(SqlExpr)} to a typed aggregate's argument. */
-    private static SqlAggregate unqualifyAgg(SqlAggregate fn) {
+    /** Apply {@link #unqualify(SqlExpr)} to a typed reducer's argument(s). */
+    private static SqlAggregate.Reducer unqualifyAgg(SqlAggregate.Reducer fn) {
         return switch (fn) {
             case SqlAggregate.Sum s                -> new SqlAggregate.Sum(unqualify(s.expr()));
             case SqlAggregate.Count c              -> new SqlAggregate.Count(unqualify(c.expr()));
+            // CountStar has no operand to unqualify — it's structurally invariant.
+            case SqlAggregate.CountStar cs         -> cs;
             case SqlAggregate.Max m                -> new SqlAggregate.Max(unqualify(m.expr()));
             case SqlAggregate.Min m                -> new SqlAggregate.Min(unqualify(m.expr()));
             case SqlAggregate.Avg a                -> new SqlAggregate.Avg(unqualify(a.expr()));
@@ -137,17 +140,18 @@ public final class GroupByAggregateLowering {
             case SqlAggregate.Variance v           -> new SqlAggregate.Variance(unqualify(v.expr()));
             case SqlAggregate.Product p            -> new SqlAggregate.Product(unqualify(p.expr()));
             case SqlAggregate.Median m             -> new SqlAggregate.Median(unqualify(m.expr()));
+            case SqlAggregate.Mode m               -> new SqlAggregate.Mode(unqualify(m.expr()));
             case SqlAggregate.HashCode h           -> new SqlAggregate.HashCode(unqualify(h.expr()));
-            case SqlAggregate.JoinStrings j        -> new SqlAggregate.JoinStrings(unqualify(j.expr()));
+            case SqlAggregate.JoinStrings j        -> new SqlAggregate.JoinStrings(unqualify(j.expr()), unqualify(j.separator()));
             case SqlAggregate.StdDevPopulation s   -> new SqlAggregate.StdDevPopulation(unqualify(s.expr()));
             case SqlAggregate.StdDevSample s       -> new SqlAggregate.StdDevSample(unqualify(s.expr()));
             case SqlAggregate.VariancePopulation v -> new SqlAggregate.VariancePopulation(unqualify(v.expr()));
             case SqlAggregate.VarianceSample v     -> new SqlAggregate.VarianceSample(unqualify(v.expr()));
-            case SqlAggregate.PercentileCont p     -> new SqlAggregate.PercentileCont(unqualify(p.expr()));
-            case SqlAggregate.PercentileDisc p     -> new SqlAggregate.PercentileDisc(unqualify(p.expr()));
-            case SqlAggregate.Corr c               -> new SqlAggregate.Corr(unqualify(c.expr()));
-            case SqlAggregate.CovarPopulation c    -> new SqlAggregate.CovarPopulation(unqualify(c.expr()));
-            case SqlAggregate.CovarSample c        -> new SqlAggregate.CovarSample(unqualify(c.expr()));
+            case SqlAggregate.PercentileCont p     -> new SqlAggregate.PercentileCont(unqualify(p.expr()), unqualify(p.p()));
+            case SqlAggregate.PercentileDisc p     -> new SqlAggregate.PercentileDisc(unqualify(p.expr()), unqualify(p.p()));
+            case SqlAggregate.Corr c               -> new SqlAggregate.Corr(unqualify(c.x()), unqualify(c.y()));
+            case SqlAggregate.CovarPopulation c    -> new SqlAggregate.CovarPopulation(unqualify(c.x()), unqualify(c.y()));
+            case SqlAggregate.CovarSample c        -> new SqlAggregate.CovarSample(unqualify(c.x()), unqualify(c.y()));
             case SqlAggregate.MaxBy m              -> new SqlAggregate.MaxBy(unqualify(m.expr()));
             case SqlAggregate.MinBy m              -> new SqlAggregate.MinBy(unqualify(m.expr()));
             case SqlAggregate.WeightedAvg w        -> new SqlAggregate.WeightedAvg(unqualify(w.expr()));
@@ -220,52 +224,20 @@ public final class GroupByAggregateLowering {
         // body is redundant to the typed aggregate: dispatching on
         // {@link TypedAggCall#func()} alone is sufficient. Dialects own specialised
         // rendering of each {@link SqlAggregate} variant.
+        // fn1 produces the value being aggregated. We pass it as the only
+        // arg in the args list — multi-arg aggregates (joinStrings sep,
+        // percentile p, corr y) silently lose their second operand here.
+        // That's a pre-existing limitation; fixing it correctly belongs in
+        // the frontend (TypeChecker should flatten reducer extras into a
+        // typed extraArgs list on TypedAggCall), not in lowering. Tracked
+        // separately.
         SqlExpr arg = lowerSingleParamLambda(a.fn1(), aliased.alias(), ctx, store);
-        boolean distinct = "distinct".equalsIgnoreCase(a.func().name());
-        // {@code distinct(x)} maps to {@code COUNT(DISTINCT x)} only if used in a
-        // count position; otherwise the DISTINCT is hoisted onto whatever
-        // aggregate wraps it. Stage 5 only emits the DISTINCT marker.
-        return new SqlRelation.Agg(a.alias(), pickAggregate(a.func().name(), arg), distinct);
-    }
-
-    /**
-     * Map a Pure aggregate native name to its typed {@link SqlAggregate}
-     * variant. This is the {@code Bindings.fc(String)} replacement for the
-     * aggregate surface (Phase A). Unknown names throw — the upstream
-     * {@code TypeChecker} or this dispatch must be extended; we never fall
-     * back to a stringly-typed catch-all.
-     */
-    private static SqlAggregate pickAggregate(String pureName, SqlExpr arg) {
-        return switch (pureName) {
-            case "sum", "plus"                  -> new SqlAggregate.Sum(arg);
-            case "count", "size", "distinct"    -> new SqlAggregate.Count(arg);
-            case "max"                          -> new SqlAggregate.Max(arg);
-            case "min"                          -> new SqlAggregate.Min(arg);
-            case "avg", "average", "mean"       -> new SqlAggregate.Avg(arg);
-            case "stdDev", "stdev", "std"       -> new SqlAggregate.StdDev(arg);
-            case "variance"                     -> new SqlAggregate.Variance(arg);
-            case "times"                        -> new SqlAggregate.Product(arg);
-            case "median"                       -> new SqlAggregate.Median(arg);
-            case "hashCode"                     -> new SqlAggregate.HashCode(arg);
-            case "joinStrings"                  -> new SqlAggregate.JoinStrings(arg);
-            case "stdDevPopulation"             -> new SqlAggregate.StdDevPopulation(arg);
-            case "stdDevSample"                 -> new SqlAggregate.StdDevSample(arg);
-            case "variancePopulation"           -> new SqlAggregate.VariancePopulation(arg);
-            case "varianceSample"               -> new SqlAggregate.VarianceSample(arg);
-            // Bare {@code percentile} normalizes to {@code percentileCont} — the same
-            // canonicalization legacy {@code DuckDBDialect.renderFunction} performs
-            // for window-context calls (ExtendLowering.lowerWindowCol).
-            case "percentile", "percentileCont" -> new SqlAggregate.PercentileCont(arg);
-            case "percentileDisc"               -> new SqlAggregate.PercentileDisc(arg);
-            case "corr"                         -> new SqlAggregate.Corr(arg);
-            case "covarPopulation"              -> new SqlAggregate.CovarPopulation(arg);
-            case "covarSample"                  -> new SqlAggregate.CovarSample(arg);
-            case "maxBy"                        -> new SqlAggregate.MaxBy(arg);
-            case "minBy"                        -> new SqlAggregate.MinBy(arg);
-            case "wavg"                         -> new SqlAggregate.WeightedAvg(arg);
-            default -> throw PlanGenNotPortedException.stage3(null,
-                    "agg:unknown-pure-native:" + pureName);
-        };
+        // Dispatch on resolved NativeFunctionDef identity via AggregateBindings;
+        // the binding emits the typed SqlAggregate variant directly. No
+        // out-of-band flags — every operand the renderer needs is carried
+        // inside the variant. See AGENTS.md invariant 2.
+        SqlAggregate.Reducer agg = AggregateBindings.lookup(a.func()).build(List.of(arg));
+        return new SqlRelation.Agg(a.alias(), agg);
     }
 
     private static SqlExpr lowerSingleParamLambda(TypedLambda lam, String srcAlias, LoweringContext ctx,

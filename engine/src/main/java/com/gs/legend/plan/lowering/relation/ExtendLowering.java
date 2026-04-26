@@ -176,8 +176,12 @@ public final class ExtendLowering {
             orderBy.add(lowerSortKey(key, aliasChain, store, ctx, owner, scope));
         }
 
-        SqlExpr windowCall = new SqlExpr.WindowCall(windowFuncName(wc.func().name()),
-                args, partitionBy, orderBy, lowerFrame(over.frame()));
+        // Dispatch on resolved NativeFunctionDef identity via WindowBindings.
+        // No string switch on Pure name — see AGENTS.md invariant 2.
+        SqlExpr windowCall = new SqlExpr.WindowCall(
+                com.gs.legend.plan.lowering.natives.WindowBindings
+                        .lookup(wc.func()).build(args),
+                partitionBy, orderBy, lowerFrame(over.frame()));
 
         // Substitute the window call into the outer wrapper (e.g.,
         // {@code round($$wh0, 2)}) by binding the gensymmed hole name to
@@ -239,30 +243,6 @@ public final class ExtendLowering {
             case TypedExpressionSortKey e -> new SqlExpr.OrderByTerm(
                     lowerScalarLambda(e.keyFn(), aliasChain, store, ctx, owner, "extend:window:order-key", scope),
                     e.direction().name(), nullOrderFor(e.direction().name()));
-        };
-    }
-
-    /**
-     * Normalizes Pure-source window-function aliases to their canonical SQL
-     * counterparts <em>at the window/call-context boundary</em>, before the
-     * dialect's {@link com.gs.legend.sqlgen.SQLDialect#renderFunction} is
-     * invoked.
-     *
-     * <p>The same Pure name has different lowerings depending on context:
-     * {@code first(list)} in a scalar context becomes {@code listExtract(list,
-     * 1)} (handled by {@link com.gs.legend.plan.lowering.scalar.NativeCallLowering}),
-     * while {@code first} inside an {@code over(...)} clause becomes
-     * {@code FIRST_VALUE} (handled here). Centralizing the alias map in the
-     * dialect would silently route scalar list operations through window
-     * aggregates and corrupt their SQL.
-     */
-    private static String windowFuncName(String pureName) {
-        return switch (pureName) {
-            case "first"      -> "firstValue";
-            case "last"       -> "lastValue";
-            case "nth"        -> "nthValue";
-            case "percentile" -> "percentileCont";
-            default           -> pureName;
         };
     }
 

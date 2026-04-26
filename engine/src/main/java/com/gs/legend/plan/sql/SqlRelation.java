@@ -198,10 +198,15 @@ public sealed interface SqlRelation permits
         public enum NullOrder { DEFAULT, FIRST, LAST }
     }
 
-    /** Aggregate emission: {@code <typed-aggregate> AS alias}. {@code distinct}
-     * covers {@code COUNT(DISTINCT …)}; the dialect threads it through
-     * {@code dialect.render(SqlAggregate, distinct)}. */
-    record Agg(String alias, SqlAggregate fn, boolean distinct) {}
+    /** Aggregate emission: {@code <reducer> AS alias}. Typed as
+     * {@link SqlAggregate.Reducer} — javac forbids ranking/value functions
+     * ({@code Lag}, {@code RowNumber}, etc.) in {@code GROUP BY} position;
+     * those only appear inside {@code SqlExpr.WindowCall}. The variant
+     * carries every operand the renderer needs; no out-of-band flags.
+     * {@code COUNT(DISTINCT x)} would be a separate sealed variant
+     * ({@code SqlAggregate.CountDistinct(SqlExpr)}) if/when a Pure native
+     * targets it; see {@link SqlAggregate}. */
+    record Agg(String alias, SqlAggregate.Reducer fn) {}
 
     /** Extend column: new column defined by a scalar expression or window call. */
     record ExtendCol(String name, SqlExpr expr) {}

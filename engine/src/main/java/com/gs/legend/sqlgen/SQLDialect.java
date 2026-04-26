@@ -437,7 +437,6 @@ public interface SQLDialect {
             case SqlExpr.StrPosition sp    -> "POSITION(" + render(sp.substring()) + " IN " + render(sp.string()) + ")";
 
             // ---- Window ----
-            case SqlExpr.WindowFunction wf -> render(wf.function()) + " OVER (" + render(wf.overClause()) + ")";
             case SqlExpr.WindowSpec ws     -> renderWindowSpec(ws);
             case SqlExpr.WindowCall wc     -> renderWindowCall(wc);
 
@@ -449,8 +448,6 @@ public interface SQLDialect {
             case SqlExpr.AssociationRef ar -> throw new IllegalStateException(
                     "AssociationRef should be resolved before SQL generation: "
                             + ar.hops() + "." + ar.targetCol());
-            case SqlExpr.WrappedWindowFunction w -> throw new IllegalStateException(
-                    "WrappedWindowFunction should be resolved before SQL generation: " + w.wrapperFunc());
 
             // ---- Struct / Array ----
             case SqlExpr.StructLiteral sl  -> {
@@ -551,13 +548,12 @@ public interface SQLDialect {
 
     /**
      * {@code FUNC(args) OVER (PARTITION BY … ORDER BY … [ROWS|RANGE …])}.
-     * The function name is routed through {@link #renderFunction} so
-     * dialects can remap window-position names ({@code rowNumber} →
-     * {@code ROW_NUMBER}, {@code firstValue} → {@code FIRST_VALUE}).
+     * The {@code fn} dispatches via the unified {@link #render(com.gs.legend.plan.sql.SqlAggregate)};
+     * reducer variants render identically to agg context, ranking and value
+     * variants are window-only.
      */
     default String renderWindowCall(SqlExpr.WindowCall wc) {
-        String call = renderFunction(wc.name(),
-                wc.args().stream().map(this::render).toList());
+        String call = render(wc.fn());
         StringBuilder over = new StringBuilder(" OVER (");
         boolean need = false;
         if (!wc.partitionBy().isEmpty()) {
@@ -584,6 +580,7 @@ public interface SQLDialect {
         over.append(")");
         return call + over.toString();
     }
+
 
     /** {@code ROWS|RANGE BETWEEN <start> AND <end>}. ANSI-standard. */
     default String renderWindowFrame(SqlExpr.WindowFrame f) {
@@ -816,86 +813,83 @@ public interface SQLDialect {
         return sb.append(" FROM ").append(renderAsFromItem(r.source())).toString();
     }
 
-    /**
-     * Render one aggregate emission. Dispatches on the typed
-     * {@link com.gs.legend.plan.sql.SqlAggregate} variant; {@code DISTINCT}
-     * wraps the unary argument when set.
-     */
+    /** Render one aggregate emission. Dispatches on the typed
+     * {@link com.gs.legend.plan.sql.SqlAggregate} variant. */
     default String renderAgg(com.gs.legend.plan.sql.SqlRelation.Agg a) {
-        return render(a.fn(), a.distinct());
+        return render(a.fn());
     }
 
     /**
-     * Render a typed {@link com.gs.legend.plan.sql.SqlAggregate}. Exhaustive
-     * switch over the sealed hierarchy; no {@code default} arm. Override on
-     * a per-dialect basis when the SQL spelling differs (DuckDB
-     * {@code MEDIAN}, Snowflake {@code STDDEV_POP}, etc.).
+     * Render a typed {@link com.gs.legend.plan.sql.SqlAggregate}. Single
+     * exhaustive switch over the unified hierarchy — reducer variants render
+     * the same in agg context and window context (the surrounding
+     * {@code OVER (...)} clause is the only difference); ranking and value
+     * variants are window-only but share this dispatch path. javac enforces
+     * exhaustiveness via the sealed {@code permits} clauses; no
+     * {@code default} arms (AGENTS.md invariant 3).
+     *
+     * <p>Override on a per-dialect basis when the SQL spelling differs
+     * (DuckDB {@code QUANTILE_CONT}, {@code ARG_MAX}, etc.).
+     *
+     * <p>No {@code distinct} flag. {@code COUNT(DISTINCT x)} would be a
+     * separate sealed variant when a Pure native targets it.
      */
-    default String render(com.gs.legend.plan.sql.SqlAggregate fn, boolean distinct) {
-        String name = aggregateName(fn);
-        String arg = render(aggregateArg(fn));
-        return distinct
-                ? name + "(DISTINCT " + arg + ")"
-                : name + "(" + arg + ")";
-    }
-
-    /** SQL function name for a {@link com.gs.legend.plan.sql.SqlAggregate}.
-     * Override per dialect when names diverge from the ANSI default. */
-    default String aggregateName(com.gs.legend.plan.sql.SqlAggregate fn) {
+    default String render(com.gs.legend.plan.sql.SqlAggregate fn) {
         return switch (fn) {
-            case com.gs.legend.plan.sql.SqlAggregate.Sum s                  -> "SUM";
-            case com.gs.legend.plan.sql.SqlAggregate.Count c                -> "COUNT";
-            case com.gs.legend.plan.sql.SqlAggregate.Max m                  -> "MAX";
-            case com.gs.legend.plan.sql.SqlAggregate.Min m                  -> "MIN";
-            case com.gs.legend.plan.sql.SqlAggregate.Avg a                  -> "AVG";
-            case com.gs.legend.plan.sql.SqlAggregate.StdDev s               -> "STDDEV";
-            case com.gs.legend.plan.sql.SqlAggregate.Variance v             -> "VARIANCE";
-            case com.gs.legend.plan.sql.SqlAggregate.Product p              -> "PRODUCT";
-            case com.gs.legend.plan.sql.SqlAggregate.Median m               -> "MEDIAN";
-            case com.gs.legend.plan.sql.SqlAggregate.HashCode h             -> "HASH";
-            case com.gs.legend.plan.sql.SqlAggregate.JoinStrings j          -> "STRING_AGG";
-            case com.gs.legend.plan.sql.SqlAggregate.StdDevPopulation s     -> "STDDEV_POP";
-            case com.gs.legend.plan.sql.SqlAggregate.StdDevSample s         -> "STDDEV_SAMP";
-            case com.gs.legend.plan.sql.SqlAggregate.VariancePopulation v   -> "VAR_POP";
-            case com.gs.legend.plan.sql.SqlAggregate.VarianceSample v       -> "VAR_SAMP";
-            case com.gs.legend.plan.sql.SqlAggregate.PercentileCont p       -> "PERCENTILE_CONT";
-            case com.gs.legend.plan.sql.SqlAggregate.PercentileDisc p       -> "PERCENTILE_DISC";
-            case com.gs.legend.plan.sql.SqlAggregate.Corr c                 -> "CORR";
-            case com.gs.legend.plan.sql.SqlAggregate.CovarPopulation c      -> "COVAR_POP";
-            case com.gs.legend.plan.sql.SqlAggregate.CovarSample c          -> "COVAR_SAMP";
-            case com.gs.legend.plan.sql.SqlAggregate.MaxBy m                -> "MAX_BY";
-            case com.gs.legend.plan.sql.SqlAggregate.MinBy m                -> "MIN_BY";
-            case com.gs.legend.plan.sql.SqlAggregate.WeightedAvg w          -> "WAVG";
+            // -- Reducers (unary) --
+            case com.gs.legend.plan.sql.SqlAggregate.CountStar cs           -> "COUNT(*)";
+            case com.gs.legend.plan.sql.SqlAggregate.Sum s                  -> unary("SUM", s.expr());
+            case com.gs.legend.plan.sql.SqlAggregate.Count c                -> unary("COUNT", c.expr());
+            case com.gs.legend.plan.sql.SqlAggregate.Max m                  -> unary("MAX", m.expr());
+            case com.gs.legend.plan.sql.SqlAggregate.Min m                  -> unary("MIN", m.expr());
+            case com.gs.legend.plan.sql.SqlAggregate.Avg a                  -> unary("AVG", a.expr());
+            case com.gs.legend.plan.sql.SqlAggregate.StdDev s               -> unary("STDDEV", s.expr());
+            case com.gs.legend.plan.sql.SqlAggregate.Variance v             -> unary("VARIANCE", v.expr());
+            case com.gs.legend.plan.sql.SqlAggregate.Product p              -> unary("PRODUCT", p.expr());
+            case com.gs.legend.plan.sql.SqlAggregate.Median m               -> unary("MEDIAN", m.expr());
+            case com.gs.legend.plan.sql.SqlAggregate.Mode m                 -> unary("MODE", m.expr());
+            case com.gs.legend.plan.sql.SqlAggregate.HashCode h             -> unary("HASH", h.expr());
+            case com.gs.legend.plan.sql.SqlAggregate.StdDevPopulation s     -> unary("STDDEV_POP", s.expr());
+            case com.gs.legend.plan.sql.SqlAggregate.StdDevSample s         -> unary("STDDEV_SAMP", s.expr());
+            case com.gs.legend.plan.sql.SqlAggregate.VariancePopulation v   -> unary("VAR_POP", v.expr());
+            case com.gs.legend.plan.sql.SqlAggregate.VarianceSample v       -> unary("VAR_SAMP", v.expr());
+            case com.gs.legend.plan.sql.SqlAggregate.MaxBy m                -> unary("MAX_BY", m.expr());
+            case com.gs.legend.plan.sql.SqlAggregate.MinBy m                -> unary("MIN_BY", m.expr());
+            case com.gs.legend.plan.sql.SqlAggregate.WeightedAvg w          -> unary("WAVG", w.expr());
+            // -- Reducers (multi-operand) --
+            case com.gs.legend.plan.sql.SqlAggregate.JoinStrings j          ->
+                    "STRING_AGG(" + render(j.expr()) + ", " + render(j.separator()) + ")";
+            case com.gs.legend.plan.sql.SqlAggregate.PercentileCont p       ->
+                    "PERCENTILE_CONT(" + render(p.p()) + ") WITHIN GROUP (ORDER BY " + render(p.expr()) + ")";
+            case com.gs.legend.plan.sql.SqlAggregate.PercentileDisc p       ->
+                    "PERCENTILE_DISC(" + render(p.p()) + ") WITHIN GROUP (ORDER BY " + render(p.expr()) + ")";
+            case com.gs.legend.plan.sql.SqlAggregate.Corr c                 ->
+                    "CORR(" + render(c.x()) + ", " + render(c.y()) + ")";
+            case com.gs.legend.plan.sql.SqlAggregate.CovarPopulation c      ->
+                    "COVAR_POP(" + render(c.x()) + ", " + render(c.y()) + ")";
+            case com.gs.legend.plan.sql.SqlAggregate.CovarSample c          ->
+                    "COVAR_SAMP(" + render(c.x()) + ", " + render(c.y()) + ")";
+            // -- Ranking functions (zero-arg, window-only) --
+            case com.gs.legend.plan.sql.SqlAggregate.RowNumber r            -> "ROW_NUMBER()";
+            case com.gs.legend.plan.sql.SqlAggregate.Rank r                 -> "RANK()";
+            case com.gs.legend.plan.sql.SqlAggregate.DenseRank r            -> "DENSE_RANK()";
+            case com.gs.legend.plan.sql.SqlAggregate.PercentRank r          -> "PERCENT_RANK()";
+            case com.gs.legend.plan.sql.SqlAggregate.CumulativeDistribution r -> "CUME_DIST()";
+            // -- Value functions (window-only) --
+            case com.gs.legend.plan.sql.SqlAggregate.FirstValue f           -> "FIRST_VALUE(" + render(f.expr()) + ")";
+            case com.gs.legend.plan.sql.SqlAggregate.LastValue l            -> "LAST_VALUE(" + render(l.expr()) + ")";
+            case com.gs.legend.plan.sql.SqlAggregate.Lag l                  ->
+                    "LAG(" + String.join(", ", l.args().stream().map(this::render).toList()) + ")";
+            case com.gs.legend.plan.sql.SqlAggregate.Lead l                 ->
+                    "LEAD(" + String.join(", ", l.args().stream().map(this::render).toList()) + ")";
+            case com.gs.legend.plan.sql.SqlAggregate.Ntile n                -> "NTILE(" + render(n.buckets()) + ")";
+            case com.gs.legend.plan.sql.SqlAggregate.NthValue n             -> "NTH_VALUE(" + render(n.expr()) + ", " + render(n.n()) + ")";
         };
     }
 
-    /** The single underlying expression of a unary aggregate. */
-    default SqlExpr aggregateArg(com.gs.legend.plan.sql.SqlAggregate fn) {
-        return switch (fn) {
-            case com.gs.legend.plan.sql.SqlAggregate.Sum s                  -> s.expr();
-            case com.gs.legend.plan.sql.SqlAggregate.Count c                -> c.expr();
-            case com.gs.legend.plan.sql.SqlAggregate.Max m                  -> m.expr();
-            case com.gs.legend.plan.sql.SqlAggregate.Min m                  -> m.expr();
-            case com.gs.legend.plan.sql.SqlAggregate.Avg a                  -> a.expr();
-            case com.gs.legend.plan.sql.SqlAggregate.StdDev s               -> s.expr();
-            case com.gs.legend.plan.sql.SqlAggregate.Variance v             -> v.expr();
-            case com.gs.legend.plan.sql.SqlAggregate.Product p              -> p.expr();
-            case com.gs.legend.plan.sql.SqlAggregate.Median m               -> m.expr();
-            case com.gs.legend.plan.sql.SqlAggregate.HashCode h             -> h.expr();
-            case com.gs.legend.plan.sql.SqlAggregate.JoinStrings j          -> j.expr();
-            case com.gs.legend.plan.sql.SqlAggregate.StdDevPopulation s     -> s.expr();
-            case com.gs.legend.plan.sql.SqlAggregate.StdDevSample s         -> s.expr();
-            case com.gs.legend.plan.sql.SqlAggregate.VariancePopulation v   -> v.expr();
-            case com.gs.legend.plan.sql.SqlAggregate.VarianceSample v       -> v.expr();
-            case com.gs.legend.plan.sql.SqlAggregate.PercentileCont p       -> p.expr();
-            case com.gs.legend.plan.sql.SqlAggregate.PercentileDisc p       -> p.expr();
-            case com.gs.legend.plan.sql.SqlAggregate.Corr c                 -> c.expr();
-            case com.gs.legend.plan.sql.SqlAggregate.CovarPopulation c      -> c.expr();
-            case com.gs.legend.plan.sql.SqlAggregate.CovarSample c          -> c.expr();
-            case com.gs.legend.plan.sql.SqlAggregate.MaxBy m                -> m.expr();
-            case com.gs.legend.plan.sql.SqlAggregate.MinBy m                -> m.expr();
-            case com.gs.legend.plan.sql.SqlAggregate.WeightedAvg w          -> w.expr();
-        };
+    /** Helper for the unary {@code FN(expr)} shape. */
+    private String unary(String name, SqlExpr expr) {
+        return name + "(" + render(expr) + ")";
     }
 
     /** {@code <left> UNION [ALL] <right>} — both sides are full SELECTs. */
