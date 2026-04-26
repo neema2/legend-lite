@@ -87,8 +87,15 @@ public final class PropertyAccessLowering {
     /**
      * @return the physical column name for {@code property}, using the active
      *         {@link StoreResolution} when available. Falls through to the raw
-     *         property name only when no resolution is in scope (e.g., TDS
-     *         literals and raw table refs, which have no mapping layer).
+     *         property name when no resolution is in scope or the property
+     *         isn't mapped — matching legacy behavior.
+     *
+     * <p><b>The fallback is a known smell.</b> The codebase currently
+     * synthesizes {@link TypedPropertyAccess} nodes carrying physical column
+     * names directly (via enum-mapping + association-join synthesis paths in
+     * {@code MappingNormalizer}); the fallback returns those untouched so the
+     * SQL emits correctly. Tightening to throw on missing-property requires
+     * fixing every upstream leak first — tracked as Phase C.2.
      */
     private static String physicalColumnFor(String property, StoreResolution store) {
         if (store == null) return property;

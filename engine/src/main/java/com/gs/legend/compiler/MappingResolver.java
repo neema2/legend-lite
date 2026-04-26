@@ -135,22 +135,81 @@ public final class MappingResolver {
             }
 
             // ----- Relation source terminals -----
-            case TypedTableReference ignored -> {
-                // Terminal; no class-level resolution produced here —
-                // the enclosing getAll's resolveClassFetch drives the resolution.
+            case TypedTableReference ref -> {
+                // Direct table reference (#>{db.TABLE} syntax) — bypasses
+                // any class mapping; the schema lives on the node's typed
+                // info as a {@link Type.Relation}. Build an identity store
+                // keyed by the column names from that schema so downstream
+                // property accesses (which reference physical column names
+                // for table refs) resolve cleanly.
+                if (!(ref.info().type() instanceof Type.Relation rel)) {
+                    throw new IllegalStateException(
+                            "[mapping-resolver] TypedTableReference info is not a Relation type: "
+                                    + ref.info().type());
+                }
+                resolutions.put(node, buildSchemaStore(rel.schema().columns().keySet()));
             }
-            case TypedTdsLiteral ignored -> {
-                // Inline TDS literal — no mapping required.
+            case TypedTdsLiteral lit -> {
+                // Inline TDS literal: identity store keyed by declared column
+                // names. The literal IS its own physical schema — VALUES (...)
+                // exposes columns by their declared names.
+                List<String> cols = lit.data().columns().stream()
+                        .map(com.gs.legend.ast.TdsLiteral.TdsColumn::name).toList();
+                resolutions.put(node, buildSchemaStore(cols));
             }
 
-            // ----- Relation operators: inherit from first operand -----
+            // ----- Pass-through relation operators (no SQL rename) -----
             case TypedFilter op -> propagate(node, op.source(), List.of(op.predicate()), active);
+            case TypedSort op -> propagate(node, op.source(), List.of(), active);
+
+            // ----- Schema-changing relation operators -----
+            // Each builds a NEW StoreResolution reflecting the output schema:
+            // post-schema rows are TDSes whose columns are the operator's
+            // declared output aliases. Inner expressions (project bodies,
+            // group keys, agg lambdas, etc.) walk against the UPSTREAM store
+            // because they reference the source's columns/properties.
             case TypedProject op -> {
                 walk(op.source(), active);
-                inherit(node, op.source(), active);
-                for (var c : op.projections()) walk(c.expression(), resolutions.get(node));
+                StoreResolution upstream = requireResolution(op.source(), active);
+                for (var c : op.projections()) walk(c.expression(), upstream);
+                List<String> aliases = op.projections().stream()
+                        .map(TypedProjectionCol::alias).toList();
+                resolutions.put(node, buildSchemaStore(aliases));
             }
-            case TypedSort op -> propagate(node, op.source(), List.of(), active);
+            case TypedGroupBy op -> {
+                walk(op.source(), active);
+                StoreResolution upstream = requireResolution(op.source(), active);
+                for (var agg : op.aggs()) {
+                    walk(agg.fn1(), upstream);
+                    walk(agg.fn2(), upstream);
+                }
+                List<String> aliases = new java.util.ArrayList<>();
+                for (TypedGroupKey k : op.keys()) aliases.add(groupKeyAlias(k));
+                for (TypedAggCall a : op.aggs()) aliases.add(a.alias());
+                resolutions.put(node, buildSchemaStore(aliases));
+            }
+            case TypedAggregate op -> {
+                walk(op.source(), active);
+                StoreResolution upstream = requireResolution(op.source(), active);
+                for (var agg : op.aggs()) {
+                    walk(agg.fn1(), upstream);
+                    walk(agg.fn2(), upstream);
+                }
+                List<String> aliases = op.aggs().stream()
+                        .map(TypedAggCall::alias).toList();
+                resolutions.put(node, buildSchemaStore(aliases));
+            }
+            case TypedPivot op -> {
+                walk(op.source(), active);
+                // Static schema = pivot grouping columns + agg aliases. The
+                // pivot-spread columns (one per distinct pivot value × agg)
+                // are dynamic and not represented statically; static Pure
+                // code cannot reference them by name anyway.
+                List<String> aliases = new java.util.ArrayList<>();
+                aliases.addAll(op.pivotColumns());
+                for (TypedAggCall a : op.aggs()) aliases.add(a.alias());
+                resolutions.put(node, buildSchemaStore(aliases));
+            }
             case TypedJoin op -> propagate(node, op.left(), List.of(op.right(), op.condition()), active);
             case TypedAsOfJoin op -> {
                 walk(op.left(), active);
@@ -160,25 +219,6 @@ public final class MappingResolver {
                 op.keyCondition().ifPresent(k -> walk(k, activeFinal));
                 inherit(node, op.left(), active);
             }
-            case TypedGroupBy op -> {
-                walk(op.source(), active);
-                inherit(node, op.source(), active);
-                StoreResolution ctx = resolutions.get(node);
-                for (var agg : op.aggs()) {
-                    walk(agg.fn1(), ctx);
-                    walk(agg.fn2(), ctx);
-                }
-            }
-            case TypedAggregate op -> {
-                walk(op.source(), active);
-                inherit(node, op.source(), active);
-                StoreResolution ctx = resolutions.get(node);
-                for (var agg : op.aggs()) {
-                    walk(agg.fn1(), ctx);
-                    walk(agg.fn2(), ctx);
-                }
-            }
-            case TypedPivot op -> propagate(node, op.source(), List.of(), active);
             case TypedExtend op -> {
                 walk(op.source(), active);
                 inherit(node, op.source(), active);
@@ -203,8 +243,16 @@ public final class MappingResolver {
                     }
                 }
             }
-            case TypedSelect op -> propagate(node, op.source(), List.of(), active);
-            case TypedRename op -> propagate(node, op.source(), List.of(), active);
+            case TypedSelect op -> {
+                walk(op.source(), active);
+                StoreResolution upstream = requireResolution(op.source(), active);
+                resolutions.put(node, restrictStore(upstream, op.cols()));
+            }
+            case TypedRename op -> {
+                walk(op.source(), active);
+                StoreResolution upstream = requireResolution(op.source(), active);
+                resolutions.put(node, renameStore(upstream, op.renames()));
+            }
             case TypedSlice op -> propagate(node, op.source(), List.of(), active);
             case TypedDistinct op -> propagate(node, op.source(), List.of(), active);
             case TypedFlatten op -> propagate(node, op.source(), List.of(), active);
@@ -309,6 +357,116 @@ public final class MappingResolver {
         if (chosen != null) {
             resolutions.put(node, chosen);
         }
+    }
+
+    /**
+     * Returns the upstream relation's stamped resolution, falling back to the
+     * incoming {@code active} context when the source has no stamp. Used by
+     * schema-changing operators that need to walk inner expressions against
+     * the upstream schema. The {@code active} fallback handles cases where the
+     * source is a node kind not yet stamping its resolution (e.g., a literal
+     * or expression source not in the relation hierarchy).
+     *
+     * <p>TODO: Phase C.2 — once every relation node stamps a faithful
+     * resolution, drop the {@code active} fallback and throw on null.
+     */
+    private StoreResolution requireResolution(TypedSpec source, StoreResolution active) {
+        StoreResolution res = resolutions.get(source);
+        return res != null ? res : active;
+    }
+
+    /**
+     * Build an identity StoreResolution from a list of column aliases. Each
+     * alias is its own physical column. No className, no tableName, no joins
+     * — the row is a TDS, not a class instance.
+     *
+     * <p>Used by:
+     * <ul>
+     *   <li>TDS literal sources (the literal IS its own physical schema).</li>
+     *   <li>Schema-changing operators (project, groupBy, aggregate, pivot)
+     *       whose SQL output renames columns to the operator's declared
+     *       aliases.</li>
+     * </ul>
+     */
+    private static StoreResolution buildSchemaStore(java.util.Collection<String> aliases) {
+        Map<String, String> propToCol = new LinkedHashMap<>();
+        Map<String, StoreResolution.PropertyResolution> properties = new LinkedHashMap<>();
+        for (String alias : aliases) {
+            propToCol.put(alias, alias);
+            properties.put(alias, new StoreResolution.PropertyResolution.Column(alias));
+        }
+        return new StoreResolution(null, null,
+                java.util.Collections.unmodifiableMap(propToCol),
+                java.util.Collections.unmodifiableMap(properties),
+                Map.of(), false);
+    }
+
+    /**
+     * Apply a list of column renames to an upstream store. Each renamed
+     * property's entry is replaced: the new name becomes its own physical
+     * column (the SQL emits {@code OLD AS NEW}, exposing the column under
+     * the new name downstream). Other properties pass through unchanged.
+     * Joins keyed by the renamed property are removed (an association can't
+     * be renamed and remain navigable as a join in our model).
+     */
+    private static StoreResolution renameStore(StoreResolution upstream,
+                                               List<com.gs.legend.compiler.typed.ColRename> renames) {
+        Map<String, String> propToCol = new LinkedHashMap<>(upstream.propertyToColumn());
+        Map<String, StoreResolution.PropertyResolution> properties =
+                new LinkedHashMap<>(upstream.properties());
+        Map<String, StoreResolution.JoinResolution> joins =
+                new LinkedHashMap<>(upstream.joins());
+        for (var r : renames) {
+            propToCol.remove(r.from());
+            properties.remove(r.from());
+            joins.remove(r.from());
+            propToCol.put(r.to(), r.to());
+            properties.put(r.to(), new StoreResolution.PropertyResolution.Column(r.to()));
+        }
+        return new StoreResolution(
+                upstream.tableName(), upstream.className(),
+                java.util.Collections.unmodifiableMap(propToCol),
+                java.util.Collections.unmodifiableMap(properties),
+                java.util.Collections.unmodifiableMap(joins),
+                upstream.nested(),
+                upstream.extendOverride(), upstream.sourceUrl());
+    }
+
+    /**
+     * Restrict an upstream store to a subset of columns ({@code select(...)}).
+     * Properties / propToCol entries / joins not in the kept set are dropped.
+     */
+    private static StoreResolution restrictStore(StoreResolution upstream,
+                                                 List<String> keptColumns) {
+        Set<String> kept = Set.copyOf(keptColumns);
+        Map<String, String> propToCol = new LinkedHashMap<>();
+        Map<String, StoreResolution.PropertyResolution> properties = new LinkedHashMap<>();
+        Map<String, StoreResolution.JoinResolution> joins = new LinkedHashMap<>();
+        for (var e : upstream.propertyToColumn().entrySet()) {
+            if (kept.contains(e.getKey())) propToCol.put(e.getKey(), e.getValue());
+        }
+        for (var e : upstream.properties().entrySet()) {
+            if (kept.contains(e.getKey())) properties.put(e.getKey(), e.getValue());
+        }
+        for (var e : upstream.joins().entrySet()) {
+            if (kept.contains(e.getKey())) joins.put(e.getKey(), e.getValue());
+        }
+        return new StoreResolution(
+                upstream.tableName(), upstream.className(),
+                java.util.Collections.unmodifiableMap(propToCol),
+                java.util.Collections.unmodifiableMap(properties),
+                java.util.Collections.unmodifiableMap(joins),
+                upstream.nested(),
+                upstream.extendOverride(), upstream.sourceUrl());
+    }
+
+    /** Extract the output alias for a typed group-by key. */
+    private static String groupKeyAlias(TypedGroupKey k) {
+        return switch (k) {
+            case TypedColumnGroupKey c      -> c.alias();
+            case TypedExpressionGroupKey e  -> e.alias();
+            case TypedAssociationGroupKey a -> a.alias();
+        };
     }
 
     // ==================== TypedGetAll / synthetic-function resolution ====================
