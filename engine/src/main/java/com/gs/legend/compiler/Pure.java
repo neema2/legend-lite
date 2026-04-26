@@ -493,6 +493,7 @@ public final class Pure {
     public static final NativeFunctionDef CAST__ANY_m__T_1 = signature("native function cast<T|m>(source:meta::pure::metamodel::type::Any[m], type:T[1]):T[m];");
     public static final NativeFunctionDef TO_VARIANT__ANY_MANY = signature("native function toVariant(source:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::variant::Variant[1];");
     public static final NativeFunctionDef TABLE_REFERENCE__STRING_1__STRING_1 = signature("native function tableReference(db:meta::pure::metamodel::type::String[1], name:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
+    public static final NativeFunctionDef SOURCE_URL__STRING_1 = signature("native function sourceUrl(url:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
     public static final NativeFunctionDef TDS__STRING_1__STRING_1 = signature("native function tds(tag:meta::pure::metamodel::type::String[1], raw:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
     public static final NativeFunctionDef GET_ALL__CLASS_1 = signature("native function getAll<T>(class:meta::pure::metamodel::type::Class<T>[1]):T[*];");
     public static final NativeFunctionDef GET_ALL__CLASS_1__DATE_1 = signature("native function getAll<T>(class:meta::pure::metamodel::type::Class<T>[1], date:meta::pure::metamodel::type::Date[1]):T[*];");

@@ -472,9 +472,6 @@ public interface SQLDialect {
             case SqlExpr.VariantArrayCast v -> renderVariantArrayCast(render(v.expr()), v.sqlType());
             case SqlExpr.VariantScalarCast v -> renderVariantScalarCast(render(v.expr()), v.sqlType());
             case SqlExpr.VariantCast vc    -> renderVariantCast(render(vc.expr()));
-
-            // ---- External data source ----
-            case SqlExpr.SourceUrl su      -> renderSourceUrl(su.url());
         };
     }
 
@@ -604,6 +601,7 @@ public interface SQLDialect {
     default String render(com.gs.legend.plan.sql.SqlRelation rel) {
         return switch (rel) {
             case com.gs.legend.plan.sql.SqlRelation.SourceExprRel r -> renderSourceExpr(r);
+            case com.gs.legend.plan.sql.SqlRelation.SourceUrl r     -> renderSourceUrl(r.url());
             case com.gs.legend.plan.sql.SqlRelation.TableRef r      -> renderTableRef(r);
             case com.gs.legend.plan.sql.SqlRelation.Values r        -> renderValues(r);
             case com.gs.legend.plan.sql.SqlRelation.Filter r        -> renderFilter(r);

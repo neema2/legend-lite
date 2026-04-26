@@ -31,6 +31,7 @@ public final class Lowerer {
             // Relation sources
             case TypedGetAll n         -> SourceLowering.lower(n, ctx);
             case TypedTableReference n -> SourceLowering.lower(n, ctx);
+            case TypedSourceUrl n      -> SourceLowering.lower(n, ctx);
             case TypedTdsLiteral n     -> SourceLowering.lower(n, ctx);
 
             // Relation operators
@@ -151,6 +152,7 @@ public final class Lowerer {
             // asking for a scalar value from one is a bug upstream.
             case TypedGetAll n         -> throw notScalar(n);
             case TypedTableReference n -> throw notScalar(n);
+            case TypedSourceUrl n      -> throw notScalar(n);
             case TypedTdsLiteral n     -> throw notScalar(n);
             case TypedFilter n      -> throw notScalar(n);
             case TypedProject n     -> throw notScalar(n);

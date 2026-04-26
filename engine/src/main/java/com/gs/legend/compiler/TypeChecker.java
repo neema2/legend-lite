@@ -653,6 +653,7 @@ public class TypeChecker implements TypeCheckEnv {
             // --- Relation Sources ---
             case "getAll" -> new com.gs.legend.compiler.checkers.GetAllChecker(this).check(af, source, ctx);
             case "tableReference" -> new com.gs.legend.compiler.checkers.TableReferenceChecker(this).check(af, source, ctx);
+            case "sourceUrl" -> new com.gs.legend.compiler.checkers.SourceUrlChecker(this).check(af, source, ctx);
             case "tds" -> new com.gs.legend.compiler.checkers.TdsChecker(this).check(af, source, ctx);
             // --- Object Construction ---
             case "new" -> compileNew(af, ctx);

@@ -22,8 +22,6 @@ import java.util.Map;
  * @param joins            Association property → join resolution.
  * @param nested           True for struct-literal identity mappings (nested field access).
  * @param extendOverride   Cancellation info for extend nodes (null = not an extend node / all active).
- * @param sourceUrl        URL for external data sources (e.g., JSON data: or file: URI). Null for regular tables.
- *                         When set, PlanGenerator uses dialect.renderSourceUrl() instead of bare table name.
  */
 public record StoreResolution(
         String tableName,
@@ -32,10 +30,9 @@ public record StoreResolution(
         Map<String, PropertyResolution> properties,
         Map<String, JoinResolution> joins,
         boolean nested,
-        ExtendOverride extendOverride,
-        String sourceUrl) {
+        ExtendOverride extendOverride) {
 
-    /** Physical store resolution without extendOverride or sourceUrl. */
+    /** Physical store resolution without extendOverride. */
     public StoreResolution(
             String tableName,
             String className,
@@ -43,24 +40,12 @@ public record StoreResolution(
             Map<String, PropertyResolution> properties,
             Map<String, JoinResolution> joins,
             boolean nested) {
-        this(tableName, className, propertyToColumn, properties, joins, nested, null, null);
-    }
-
-    /** Physical store resolution with sourceUrl (external JSON / file sources). */
-    public StoreResolution(
-            String tableName,
-            String className,
-            Map<String, String> propertyToColumn,
-            Map<String, PropertyResolution> properties,
-            Map<String, JoinResolution> joins,
-            boolean nested,
-            String sourceUrl) {
-        this(tableName, className, propertyToColumn, properties, joins, nested, null, sourceUrl);
+        this(tableName, className, propertyToColumn, properties, joins, nested, null);
     }
 
     /** Factory for extend-only StoreResolutions (carries only cancellation info). */
     public static StoreResolution forExtend(ExtendOverride override) {
-        return new StoreResolution(null, null, Map.of(), Map.of(), Map.of(), false, override, null);
+        return new StoreResolution(null, null, Map.of(), Map.of(), Map.of(), false, override);
     }
 
     /**

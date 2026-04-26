@@ -58,7 +58,6 @@ public sealed interface SqlExpr permits
         SqlExpr.OrderByTerm,
         SqlExpr.QualifiedStar,
         SqlExpr.SearchedCase,
-        SqlExpr.SourceUrl,
         SqlExpr.Star,
         SqlExpr.StartsWith,
         SqlExpr.StrPosition,
@@ -354,11 +353,6 @@ public sealed interface SqlExpr permits
 
     /** Cast a value to VARIANT type for type preservation. */
     record VariantCast(SqlExpr expr) implements SqlExpr {}
-
-    // ==================== External Data Source ====================
-
-    /** External data source rendered as a subquery. Dialect renders the URL scheme. */
-    record SourceUrl(String url) implements SqlExpr {}
 
     /**
      * Windowed function call:

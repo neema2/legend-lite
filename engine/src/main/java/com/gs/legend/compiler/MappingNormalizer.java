@@ -374,14 +374,30 @@ public final class MappingNormalizer {
      * </ol>
      */
     private com.gs.legend.ast.ValueSpecification synthesizeSourceSpec(RelationalMapping rm) {
-        // 1. Base: tableReference(db, name) — looked up by TableReferenceChecker
-        String tableDb = rm.table().db();
-        // Bare SQL name for join condition table matching (join conditions use bare names)
-        String tableSqlName = rm.table().dbName();
-        com.gs.legend.ast.ValueSpecification source = new com.gs.legend.ast.AppliedFunction(
-                "tableReference",
-                java.util.List.of(new com.gs.legend.ast.CString(tableDb), new com.gs.legend.ast.CString(tableSqlName)),
-                false);
+        // 1. Base: either tableReference(db, name) for physical tables, or
+        //    sourceUrl(url) for external data-source classes (e.g. those bound
+        //    to a {@code JsonModelConnection}). The URL form lets the synth
+        //    body honestly describe its source as a URL instead of a fake
+        //    {@code _json_<Class>} table; downstream extends fan the single
+        //    {@code data} column into property columns via {@code get($row.data, '<prop>')}.
+        com.gs.legend.ast.ValueSpecification source;
+        // Bare SQL name for join condition table matching (join conditions use bare names).
+        // For URL sources there is no underlying table; traverse-extends keyed off
+        // this name will simply not match any join chains (URL-source classes
+        // cannot have property-mapping join chains by construction).
+        String tableSqlName = rm.table() != null ? rm.table().dbName() : null;
+        if (rm.sourceUrl() != null) {
+            source = new com.gs.legend.ast.AppliedFunction(
+                    "sourceUrl",
+                    java.util.List.of(new com.gs.legend.ast.CString(rm.sourceUrl())),
+                    false);
+        } else {
+            String tableDb = rm.table().db();
+            source = new com.gs.legend.ast.AppliedFunction(
+                    "tableReference",
+                    java.util.List.of(new com.gs.legend.ast.CString(tableDb), new com.gs.legend.ast.CString(tableSqlName)),
+                    false);
+        }
 
         // PMs are already view-resolved (Phase 1 macro expansion) — use directly.
         java.util.List<com.gs.legend.model.store.PropertyMapping> effectivePMs = rm.propertyMappings();

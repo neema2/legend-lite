@@ -34,8 +34,8 @@ public sealed interface TypedSpec permits
         TypedCByteArray, TypedEnumValue,
         // Bindings (3)
         TypedVariable, TypedLambda, TypedCollection,
-        // Relation sources (3)
-        TypedGetAll, TypedTableReference, TypedTdsLiteral,
+        // Relation sources (4)
+        TypedGetAll, TypedTableReference, TypedTdsLiteral, TypedSourceUrl,
         // Relation operators
         TypedFilter, TypedProject, TypedSort, TypedJoin, TypedAsOfJoin,
         TypedGroupBy, TypedAggregate, TypedPivot,

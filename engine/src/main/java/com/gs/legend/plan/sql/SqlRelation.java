@@ -34,6 +34,7 @@ public sealed interface SqlRelation permits
         SqlRelation.TableRef,
         SqlRelation.Values,
         SqlRelation.SourceExprRel,
+        SqlRelation.SourceUrl,
         SqlRelation.Filter,
         SqlRelation.Project,
         SqlRelation.Sort,
@@ -76,6 +77,15 @@ public sealed interface SqlRelation permits
     /** Inline {@code VALUES (...)} table literal. */
     record Values(List<List<SqlExpr>> rows, List<String> columnNames,
                   String alias, List<OutputCol> outputs) implements SqlRelation {}
+
+    /**
+     * External data source rendered to a complete SELECT subquery by the
+     * dialect (e.g., {@code data:} JSON URI → {@code SELECT unnest(...)
+     * AS "data"}, {@code file:} → {@code SELECT json AS "data" FROM
+     * read_json_objects('...')}). The dialect owns the URL-scheme
+     * dispatch via {@link com.gs.legend.sqlgen.SQLDialect#renderSourceUrl}.
+     */
+    record SourceUrl(String url, String alias, List<OutputCol> outputs) implements SqlRelation {}
 
     /**
      * Scalar-as-relation: wraps a {@link SqlExpr} so a whole-plan root that is

@@ -157,6 +157,19 @@ public final class MappingResolver {
                         .map(com.gs.legend.ast.TdsLiteral.TdsColumn::name).toList();
                 resolutions.put(node, buildSchemaStore(cols));
             }
+            case TypedSourceUrl src -> {
+                // External URL source: identity store keyed by the relation's
+                // declared column names. For JSON-source classes the schema
+                // is a single {@code data} VARIANT column; downstream extends
+                // (synthesised by {@code MappingNormalizer.variantIdentity})
+                // fan it into property columns via {@code get($row.data, '<prop>')}.
+                if (!(src.info().type() instanceof Type.Relation rel)) {
+                    throw new IllegalStateException(
+                            "[mapping-resolver] TypedSourceUrl info is not a Relation type: "
+                                    + src.info().type());
+                }
+                resolutions.put(node, buildSchemaStore(rel.schema().columns().keySet()));
+            }
 
             // ----- Pass-through relation operators (no SQL rename) -----
             case TypedFilter op -> propagate(node, op.source(), List.of(op.predicate()), active);
@@ -429,7 +442,7 @@ public final class MappingResolver {
                 java.util.Collections.unmodifiableMap(properties),
                 java.util.Collections.unmodifiableMap(joins),
                 upstream.nested(),
-                upstream.extendOverride(), upstream.sourceUrl());
+                upstream.extendOverride());
     }
 
     /**
@@ -457,7 +470,7 @@ public final class MappingResolver {
                 java.util.Collections.unmodifiableMap(properties),
                 java.util.Collections.unmodifiableMap(joins),
                 upstream.nested(),
-                upstream.extendOverride(), upstream.sourceUrl());
+                upstream.extendOverride());
     }
 
     /** Extract the output alias for a typed group-by key. */
@@ -538,7 +551,7 @@ public final class MappingResolver {
         //    the live mutable maps inside it — the single synth-body walk
         //    below layers extensions directly into them.
         var store = new StoreResolution(tableName, classFqn, propToCol, properties, joins,
-                rm.nested(), rm.sourceUrl());
+                rm.nested());
 
         // 4. One walk over the synth sourceSpec body: layers extend-derived
         //    overrides (scalar → DynaFunction, traverse → column, association
@@ -738,6 +751,7 @@ public final class MappingResolver {
                 if (innerRes != null) resolutions.put(innerGa, innerRes);
             }
             case TypedTableReference ignored -> { /* terminal */ }
+            case TypedSourceUrl ignored -> { /* terminal — external URL source */ }
             default -> {
                 TypedSpec src = relationSource(node);
                 if (src != null) walkSourceSpec(src, store, upstream);

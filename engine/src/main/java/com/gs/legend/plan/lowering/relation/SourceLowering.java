@@ -34,18 +34,34 @@ public final class SourceLowering {
                 outputsFromSchema(n.info().schema()));
     }
 
+    // ---------------- TypedSourceUrl ----------------
+
+    /**
+     * External data-source root: {@code sourceUrl(<url>)}. The dialect renders
+     * the URL into a complete subquery (scheme-dependent — {@code data:} → JSON
+     * unnest, {@code file:} → {@code read_json_objects}, etc.). Everything
+     * outside this method is dialect-agnostic; URL-scheme dispatch lives in
+     * {@link com.gs.legend.sqlgen.SQLDialect#renderSourceUrl}.
+     */
+    public static SqlRelation lower(com.gs.legend.compiler.typed.TypedSourceUrl n,
+                                    LoweringContext ctx) {
+        String alias = ctx.nextAlias();
+        return new SqlRelation.SourceUrl(
+                n.url(), alias,
+                outputsFromSchema(n.info().schema()));
+    }
+
     // ---------------- TypedGetAll ----------------
 
     /**
-     * {@code ClassName.all()} root. Three paths, in priority order:
+     * {@code ClassName.all()} root. Two paths, in priority order:
      * <ol>
-     *   <li><strong>External source URL</strong> ({@link StoreResolution#sourceUrl()})
-     *       — dialect-rendered {@code SELECT * FROM <url-expr>}.</li>
      *   <li><strong>Mapping-function body</strong> — recursively lower
      *       {@code mappingFn.body().hir()}. This is the typed HIR equivalent of the
-     *       legacy {@code store.sourceSpec()} chain (table ref + filter + distinct
-     *       + joins) and covers all non-identity relational mappings plus M2M
-     *       (model-to-model) mappings.</li>
+     *       legacy {@code store.sourceSpec()} chain (source terminal + filter + distinct
+     *       + joins) and covers all relational mappings (physical-table-backed
+     *       and external-URL-backed via {@link com.gs.legend.compiler.typed.TypedSourceUrl})
+     *       plus M2M (model-to-model) mappings.</li>
      *   <li><strong>Identity fallback</strong> — plain {@code SELECT *} from
      *       {@code store.tableName()} with a fresh alias.</li>
      * </ol>
@@ -58,17 +74,13 @@ public final class SourceLowering {
                             + ". MappingResolver must stamp every TypedGetAll.");
         }
 
-        if (store.sourceUrl() != null) {
-            String alias = ctx.nextAlias();
-            return new SqlRelation.SourceExprRel(
-                    new SqlExpr.SourceUrl(store.sourceUrl()),
-                    alias,
-                    outputsFromSchema(n.info().schema()));
-        }
-
-        // Mapping-function body carries the compiled source-relation HIR (table ref,
-        // optional filter/distinct/joins). Recurse to lower it; MappingResolver has
-        // already stamped StoreResolutions on the inner relational nodes.
+        // Mapping-function body carries the compiled source-relation HIR — the
+        // synth source terminal is either a {@link TypedTableReference} (physical
+        // tables) or a {@link com.gs.legend.compiler.typed.TypedSourceUrl}
+        // (external URL-backed classes, e.g. {@code JsonModelConnection}), with
+        // optional filter/distinct/joins/extends layered on top. Recurse to
+        // lower it; MappingResolver has already stamped StoreResolutions on
+        // the inner relational nodes.
         if (n.mappingFn() != null && n.mappingFn().body() != null) {
             var body = n.mappingFn().body().hir();
             return Lowerer.lowerRelation(body, ctx);
