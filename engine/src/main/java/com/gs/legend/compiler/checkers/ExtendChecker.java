@@ -682,6 +682,12 @@ public class ExtendChecker extends AbstractChecker {
      */
     private static NativeFunctionDef resolvedFuncFrom(TypedSpec body) {
         TypedSpec inner = body;
+        // Unwrap an outer cast() — `cast($x->plus(), @Integer)` puts the
+        // aggregate inside a TypedCast (or a cast TypedNativeCall when the
+        // checker compiled it as a native).
+        if (inner instanceof com.gs.legend.compiler.typed.TypedCast tc) {
+            inner = tc.expr();
+        }
         if (inner instanceof TypedPropertyAccess tpa) {
             inner = tpa.source();
         }

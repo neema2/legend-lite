@@ -3,6 +3,7 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.*;
 import com.gs.legend.compiler.*;
 import com.gs.legend.compiler.typed.TypedAggCall;
+import com.gs.legend.compiler.typed.TypedCast;
 import com.gs.legend.compiler.typed.TypedColumnGroupKey;
 import com.gs.legend.compiler.typed.TypedExpressionGroupKey;
 import com.gs.legend.compiler.typed.TypedGroupBy;
@@ -238,13 +239,17 @@ public class GroupByChecker extends AbstractChecker {
 
         // The aggregate function lives in the fn2 body — if it compiled to a
         // {@link TypedNativeCall}, its {@code func} is the resolved def.
-        // Unwrap any outer cast() wrapper first.
+        // Unwrap any outer cast() wrapper first. Cast may compile to either
+        // {@link TypedCast} (the dedicated coercion node) or to a
+        // {@link TypedNativeCall} for {@code cast} — handle both shapes.
         TypedSpec inner = fn2Body;
         Type castType = null;
         if (fn2.body().get(0) instanceof AppliedFunction outerAf
                 && "cast".equals(simpleName(outerAf.function()))) {
             castType = extractCastGenericType(fn2.body().get(0));
-            if (inner instanceof TypedNativeCall tnc && !tnc.args().isEmpty()) {
+            if (inner instanceof TypedCast tc) {
+                inner = tc.expr();
+            } else if (inner instanceof TypedNativeCall tnc && !tnc.args().isEmpty()) {
                 inner = tnc.args().get(0);
             }
         }
