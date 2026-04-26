@@ -18,7 +18,6 @@ import java.util.List;
 public sealed interface SqlExpr permits
         SqlExpr.And,
         SqlExpr.ArrayLiteral,
-        SqlExpr.AssociationRef,
         SqlExpr.Between,
         SqlExpr.Binary,
         SqlExpr.BinaryArith,
@@ -237,11 +236,10 @@ public sealed interface SqlExpr permits
 
     // NOTE: Legacy {@code Exists(SqlBuilder)} and {@code Subquery(SqlBuilder)} records
     // were removed in the c0954a port because {@code SqlBuilder} has been retired in
-    // favour of the {@link com.gs.legend.plan.sql.SqlRelation} MIR. When EXISTS /
-    // scalar-subquery support is re-introduced (Stage 3+), the new records will hold
-    // a {@link com.gs.legend.plan.sql.SqlRelation} and the dialect's
-    // {@link SQLDialect#render(com.gs.legend.plan.sql.SqlRelation)} arm
-    // emits the subquery SQL.
+    // favour of the {@link com.gs.legend.plan.sql.SqlRelation} MIR. SEMIJOIN is
+    // expressed as a first-class {@link com.gs.legend.plan.sql.SqlRelation.SemiJoin}
+    // operator (filter EXISTS); scalar / correlated subqueries will be reintroduced
+    // as new records when graphFetch lowering needs them.
 
     // ==================== CASE ====================
 
@@ -291,24 +289,6 @@ public sealed interface SqlExpr permits
 
     /** Qualified star: {@code table.*} — used in joins to select all columns from one side. */
     record QualifiedStar(String table) implements SqlExpr {}
-
-    // ==================== Compile-time Markers ====================
-
-    /**
-     * Association property reference — compile-time only. Created during
-     * scalar compilation when an association path (e.g. {@code $p.addresses.street}
-     * or {@code $e.dept.company.country}) is detected. Consumed by
-     * {@code resolveAssociationRefs} to generate EXISTS subqueries. Must
-     * never reach codegen — the dialect throws if it does.
-     *
-     * @param hops      Ordered list of association property names to traverse.
-     *                  Single-hop: {@code ["addresses"]}. Multi-hop: {@code ["dept", "company"]}.
-     * @param targetCol The resolved column name on the final target table.
-     */
-    record AssociationRef(List<String> hops, String targetCol) implements SqlExpr {
-        /** Convenience: first hop property name (used for single-hop lookups). */
-        public String assocProp() { return hops.get(0); }
-    }
 
     // ==================== Struct / Array (dialect-delegated) ====================
 

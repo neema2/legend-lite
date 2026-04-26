@@ -48,6 +48,7 @@ public sealed interface SqlRelation permits
         SqlRelation.Flatten,
         SqlRelation.Pivot,
         SqlRelation.Join,
+        SqlRelation.SemiJoin,
         SqlRelation.AsOfJoin,
         SqlRelation.Union,
         SqlRelation.SubqueryRel,
@@ -170,6 +171,27 @@ public sealed interface SqlRelation permits
             out.addAll(right.outputs());
             return List.copyOf(out);
         }
+    }
+
+    /**
+     * Left semi-join: {@code left ⋉_{condition} right}. Returns rows from
+     * {@code left} where ≥1 row in {@code right} satisfies {@code condition}.
+     * Cardinality-preserving on the left — the right side is existence-tested,
+     * not joined for column projection.
+     *
+     * <p>This is the algebraic primitive used by association-aware filters
+     * ({@code $p->filter(p | $p.firm.name == 'X')}). The dialect renders to
+     * {@code EXISTS (SELECT 1 FROM right WHERE condition)} on platforms without
+     * native SEMIJOIN syntax.
+     *
+     * <p>Outputs and alias() delegate to the left side; the right side
+     * contributes nothing to the result schema. The condition refers to both
+     * outer (left) and inner (right) aliases — outer references are correlated
+     * subquery references when rendered as EXISTS.
+     */
+    record SemiJoin(SqlRelation left, SqlRelation right, SqlExpr condition) implements SqlRelation {
+        @Override public List<OutputCol> outputs() { return left.outputs(); }
+        @Override public String alias() { return left.alias(); }
     }
 
     record AsOfJoin(SqlRelation left, SqlRelation right, AsOfSpec spec) implements SqlRelation {
