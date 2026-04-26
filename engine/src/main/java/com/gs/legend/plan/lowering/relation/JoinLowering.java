@@ -59,11 +59,11 @@ public final class JoinLowering {
 
         SqlExpr on = Lowerer.lowerScalar(terminal, inner);
         SqlRelation.JoinType type = switch (n.joinType()) {
-            case INNER -> SqlRelation.JoinType.INNER;
-            case LEFT  -> SqlRelation.JoinType.LEFT;
-            case RIGHT -> SqlRelation.JoinType.RIGHT;
-            case FULL  -> SqlRelation.JoinType.FULL;
-            case CROSS -> SqlRelation.JoinType.CROSS;
+            case INNER       -> SqlRelation.JoinType.INNER;
+            case LEFT_OUTER  -> SqlRelation.JoinType.LEFT;
+            case RIGHT_OUTER -> SqlRelation.JoinType.RIGHT;
+            case FULL_OUTER  -> SqlRelation.JoinType.FULL;
+            case CROSS       -> SqlRelation.JoinType.CROSS;
         };
 
         SqlRelation join = new SqlRelation.Join(left, right, type, on);

@@ -1369,30 +1369,39 @@ public class TypeChecker implements TypeCheckEnv {
             return compileExpr(projectNode, ctx);
         }
 
-        // 5. ClassType result without instance literal (e.g., at(1) returning a single
+        // 5. Multi-hop association chain: $p.dept.org.name.
+        //    Must run BEFORE the struct-extract fallback below: when an
+        //    AppliedProperty receiver lands here with a ClassType result
+        //    (e.g., $p.dept typed as Dept), this branch resolves the next
+        //    hop's property against that class. Falling through to the
+        //    generic struct-extract would erase the class type to ANY and
+        //    break further hops.
+        //
+        //    The recursive {@code compileExpr} already produced a flat TPA
+        //    for the receiver (its {@code associationPath} carries every
+        //    hop walked so far). We simply append this level's property to
+        //    that path — reusing the inner source — so the result stays
+        //    flat (a single {@code TypedPropertyAccess} rooted at the
+        //    underlying variable, never a nested chain of TPAs).
+        if (ownerTyped instanceof com.gs.legend.compiler.typed.TypedPropertyAccess inner
+                && inner.associationPath().isPresent()) {
+            String className = classFqnFor(ownerTyped.type());
+            var resolved = resolvePropertyOnClass(className, ap.property(), inner.source());
+            if (resolved instanceof com.gs.legend.compiler.typed.TypedPropertyAccess tpa) {
+                var path = new ArrayList<>(inner.associationPath().get());
+                path.add(ap.property());
+                return new com.gs.legend.compiler.typed.TypedPropertyAccess(
+                        inner.source(), tpa.property(),
+                        java.util.Optional.of(List.copyOf(path)), tpa.info());
+            }
+            if (resolved != null) return resolved;
+        }
+
+        // 6. ClassType result without instance literal (e.g., at(1) returning a single
         //    struct): synthesize a struct-extract on the typed owner.
         if (ownerTyped.type() instanceof Type.ClassType) {
             return new com.gs.legend.compiler.typed.TypedStructExtract(
                     ownerTyped, ap.property(), ExpressionType.one(Primitive.ANY));
-        }
-
-        // 6. Multi-hop association chain: $p.addresses.city.
-        if (receiver instanceof AppliedProperty) {
-            String className = classFqnFor(ownerTyped.type());
-            if (className != null && modelContext != null) {
-                var resolved = resolvePropertyOnClass(className, ap.property(), ownerTyped);
-                if (resolved != null) {
-                    // Expand the association path to the full chain for multi-hop nav.
-                    List<String> fullPath = collectPropertyChain(ap);
-                    if (resolved instanceof com.gs.legend.compiler.typed.TypedPropertyAccess tpa
-                            && tpa.associationPath().isPresent()) {
-                        return new com.gs.legend.compiler.typed.TypedPropertyAccess(
-                                tpa.source(), tpa.property(),
-                                java.util.Optional.of(fullPath), tpa.info());
-                    }
-                    return resolved;
-                }
-            }
         }
 
         throw new PureCompileException("Unresolved type for property: " + ap.property());
@@ -1451,21 +1460,6 @@ public class TypeChecker implements TypeCheckEnv {
         }
         return new com.gs.legend.compiler.typed.TypedStructExtract(
                 tni, field, ExpressionType.one(fieldType));
-    }
-
-    /**
-     * Collects the full property chain from a multi-hop AppliedProperty.
-     * E.g., $e.firm.legalName → ["firm", "legalName"].
-     */
-    private static List<String> collectPropertyChain(AppliedProperty ap) {
-        var path = new java.util.ArrayList<String>();
-        path.add(ap.property());
-        ValueSpecification current = ap.parameters().isEmpty() ? null : ap.parameters().get(0);
-        while (current instanceof AppliedProperty ownerAp) {
-            path.addFirst(ownerAp.property());
-            current = ownerAp.parameters().isEmpty() ? null : ownerAp.parameters().get(0);
-        }
-        return List.copyOf(path);
     }
 
     private com.gs.legend.compiler.typed.TypedCollection compileCollection(

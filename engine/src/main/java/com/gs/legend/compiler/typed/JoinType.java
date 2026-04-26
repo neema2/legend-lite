@@ -1,7 +1,11 @@
 package com.gs.legend.compiler.typed;
 
 /**
- * Join kind. Covers Pure's {@code meta::pure::functions::relation::JoinKind}
- * ({@code INNER, LEFT, RIGHT, FULL}) plus {@code CROSS} from mapping-layer joins.
+ * Join kind. Names match Pure's
+ * {@code meta::pure::functions::relation::JoinKind} verbatim
+ * ({@code INNER, LEFT_OUTER, RIGHT_OUTER, FULL_OUTER}); {@code CROSS} is
+ * added for mapping-layer joins. Using Pure's spellings means
+ * {@link Enum#valueOf} parses the EnumValue's name directly with no
+ * translation step.
  */
-public enum JoinType { INNER, LEFT, RIGHT, FULL, CROSS }
+public enum JoinType { INNER, LEFT_OUTER, RIGHT_OUTER, FULL_OUTER, CROSS }

@@ -910,7 +910,7 @@ public interface SQLDialect {
      * sides render as FROM-items so aliases are bound for the ON clause.
      */
     default String renderJoin(com.gs.legend.plan.sql.SqlRelation.Join r) {
-        String kind = renderJoinKeyword(r.type(), /*outer=*/false);
+        String kind = renderJoinKeyword(r.type(), /*outer=*/true);
         StringBuilder sb = new StringBuilder("SELECT * FROM ")
                 .append(renderAsFromItem(r.left()))
                 .append(" ").append(kind).append(" ")
@@ -1006,10 +1006,11 @@ public interface SQLDialect {
     }
 
     /**
-     * Map join type to SQL keyword. {@code outer=true} emits the
-     * {@code OUTER}-qualified spelling used inside FROM-clause join
-     * chains; the top-level wrapper omits {@code OUTER} for brevity
-     * (both forms are semantically identical in standard SQL).
+     * Map join type to SQL keyword. {@code outer=true} renders the
+     * OUTER-qualified spelling ({@code LEFT OUTER JOIN}); {@code outer=false}
+     * renders the short form ({@code LEFT JOIN}). Both are semantically
+     * identical in standard SQL — call sites pass {@code outer=true} so
+     * generated SQL is unambiguous about the join semantics.
      */
     default String renderJoinKeyword(com.gs.legend.plan.sql.SqlRelation.JoinType t, boolean outer) {
         return switch (t) {
