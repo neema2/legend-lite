@@ -256,6 +256,17 @@ public class GroupByChecker extends AbstractChecker {
                             + "' did not resolve — fn2 body must be a registered function");
         }
 
+        // Extra reducer operands: multi-operand aggregates carry their
+        // additional args inside fn2's body (e.g., joinStrings(values, sep)
+        // — the separator is at args[1]; corr(x, y), percentile(values, p)).
+        // The first arg is the fn2 lambda parameter ({@code $y}) — that's
+        // what fn1 produces. Args 1..N are the typed extra operands; pass
+        // them through to lowering so each variant can be constructed with
+        // every operand it needs (see SqlAggregate multi-operand records).
+        List<TypedSpec> extraArgs = inner instanceof TypedNativeCall tnc && tnc.args().size() > 1
+                ? List.copyOf(tnc.args().subList(1, tnc.args().size()))
+                : List.of();
+
         // Return type refinement: generic {@code Number} aggregates preserve
         // the fn1 input numeric type. See matching comment in
         // {@code ExtendChecker.compileAggregateExtend}.
@@ -265,7 +276,7 @@ public class GroupByChecker extends AbstractChecker {
             returnType = fn1Body.type();
         }
 
-        return new TypedAggCall(alias, resolved, fn1Typed, fn2Typed,
+        return new TypedAggCall(alias, resolved, fn1Typed, fn2Typed, extraArgs,
                 returnType, Optional.ofNullable(castType));
     }
 

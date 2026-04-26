@@ -116,14 +116,27 @@ public final class AggregateBindings {
         bind(Pure.VARIANCE_SAMPLE__NUMBER_MANY,     unary(SqlAggregate.VarianceSample::new));
 
         // ----- quantiles (percentile/percentileCont/percentileDisc) -----
-        // 2-arg: (values, p). The 4-arg percentile(values, p, ascending, continuous)
-        // is treated as percentileCont (continuous=true canonical); ascending and
-        // continuous flags aren't currently honoured at lowering — same behaviour
-        // as the legacy switch.
+        // 2-arg forms default to ascending=true and continuous=true.
+        // 4-arg percentile(values, p, ascending, continuous) honours both
+        // flags. Pure's ascending=false semantics is "compute the (1-p)
+        // quantile from the ascending sort" — implemented at binding time
+        // by emitting (1 - p) as the SQL operand. continuous chooses
+        // PercentileCont vs PercentileDisc. Both flags must be boolean
+        // literals at compile time — read statically via literalBool().
         bindAll(args -> new SqlAggregate.PercentileCont(args.get(0), args.get(1)),
                 Pure.PERCENTILE__NUMBER_MANY__NUMBER_1,
-                Pure.PERCENTILE__NUMBER_MANY__NUMBER_1__BOOLEAN_1__BOOLEAN_1,
                 Pure.PERCENTILE_CONT__NUMBER_MANY__NUMBER_1);
+        bind(Pure.PERCENTILE__NUMBER_MANY__NUMBER_1__BOOLEAN_1__BOOLEAN_1, args -> {
+            boolean ascending  = literalBool(args.get(2));
+            boolean continuous = literalBool(args.get(3));
+            SqlExpr p = ascending
+                    ? args.get(1)
+                    : new SqlExpr.BinaryArith(SqlExpr.ArithOp.MINUS,
+                            new SqlExpr.NumericLiteral(1), args.get(1));
+            return continuous
+                    ? new SqlAggregate.PercentileCont(args.get(0), p)
+                    : new SqlAggregate.PercentileDisc(args.get(0), p);
+        });
         bind(Pure.PERCENTILE_DISC__NUMBER_MANY__NUMBER_1,
                 args -> new SqlAggregate.PercentileDisc(args.get(0), args.get(1)));
 
@@ -154,6 +167,20 @@ public final class AggregateBindings {
     /** Helper: a binding that builds a unary {@link SqlAggregate} from {@code args.get(0)}. */
     private static Binding unary(java.util.function.Function<SqlExpr, SqlAggregate.Reducer> ctor) {
         return args -> ctor.apply(args.get(0));
+    }
+
+    /**
+     * Read a compile-time boolean literal from a lowered {@link SqlExpr}.
+     * Used by aggregates like {@code percentile(values, p, ascending,
+     * continuous)} where the trailing flags must be statically known to
+     * decide which {@link SqlAggregate} variant (or which ORDER BY
+     * direction) to emit. Throws when the operand is not a literal —
+     * dynamic flags are not currently supported.
+     */
+    private static boolean literalBool(SqlExpr e) {
+        if (e instanceof SqlExpr.BoolLiteral bl) return bl.value();
+        throw new IllegalStateException(
+                "[agg-binding] expected boolean literal flag, got " + e);
     }
 
     /** Bind one Pure-constant overload to a single agg lowering. */

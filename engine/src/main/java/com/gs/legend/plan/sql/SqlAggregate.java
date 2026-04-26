@@ -155,15 +155,21 @@ public sealed interface SqlAggregate permits
     record JoinStrings(SqlExpr expr, SqlExpr separator) implements Reducer {}
 
     /**
-     * {@code QUANTILE_CONT(p) WITHIN GROUP (ORDER BY expr)} (DuckDB) /
-     * {@code PERCENTILE_CONT(p) WITHIN GROUP (ORDER BY expr)} (ANSI).
-     * Pure: {@code percentileCont(values, p)}, {@code percentile(values, p)}
-     * (the bare form normalises to PercentileCont at lowering).
+     * {@code PERCENTILE_CONT(p) WITHIN GROUP (ORDER BY expr)}. Pure:
+     * {@code percentileCont(values, p)}, {@code percentile(values, p, true,
+     * true)}. The descending-percentile case
+     * ({@code percentile(values, p, false, true)}) is normalised at binding
+     * time by inverting {@code p} → {@code 1 - p}; the variant carries only
+     * the effective p, so the renderer never sees an "ascending" flag.
      */
     record PercentileCont(SqlExpr expr, SqlExpr p) implements Reducer {}
 
-    /** {@code PERCENTILE_DISC(p) WITHIN GROUP (ORDER BY expr)}.
-     * Pure: {@code percentileDisc(values, p)}. */
+    /**
+     * {@code PERCENTILE_DISC(p) WITHIN GROUP (ORDER BY expr)}. Pure:
+     * {@code percentileDisc(values, p)}, {@code percentile(values, p, _,
+     * false)}. Same inversion convention as {@link PercentileCont} for
+     * descending order.
+     */
     record PercentileDisc(SqlExpr expr, SqlExpr p) implements Reducer {}
 
     /** {@code CORR(x, y)}. Pure: {@code corr(x, y)}. */

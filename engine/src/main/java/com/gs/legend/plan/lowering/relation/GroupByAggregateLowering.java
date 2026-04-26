@@ -224,19 +224,24 @@ public final class GroupByAggregateLowering {
         // body is redundant to the typed aggregate: dispatching on
         // {@link TypedAggCall#func()} alone is sufficient. Dialects own specialised
         // rendering of each {@link SqlAggregate} variant.
-        // fn1 produces the value being aggregated. We pass it as the only
-        // arg in the args list — multi-arg aggregates (joinStrings sep,
-        // percentile p, corr y) silently lose their second operand here.
-        // That's a pre-existing limitation; fixing it correctly belongs in
-        // the frontend (TypeChecker should flatten reducer extras into a
-        // typed extraArgs list on TypedAggCall), not in lowering. Tracked
-        // separately.
+        //
+        // fn1 produces the values being aggregated (first reducer operand).
+        // {@link TypedAggCall#extraArgs()} carries the rest — the separator in
+        // joinStrings(values, sep), the percentile p, the second column for
+        // corr(x, y) — extracted from fn2's body by GroupByChecker. Lower
+        // each in scalar context; the binding builds the typed multi-operand
+        // SqlAggregate variant from the full list.
         SqlExpr arg = lowerSingleParamLambda(a.fn1(), aliased.alias(), ctx, store);
+        List<SqlExpr> args = new ArrayList<>(1 + a.extraArgs().size());
+        args.add(arg);
+        for (TypedSpec extra : a.extraArgs()) {
+            args.add(Lowerer.lowerScalar(extra, ctx));
+        }
         // Dispatch on resolved NativeFunctionDef identity via AggregateBindings;
         // the binding emits the typed SqlAggregate variant directly. No
         // out-of-band flags — every operand the renderer needs is carried
         // inside the variant. See AGENTS.md invariant 2.
-        SqlAggregate.Reducer agg = AggregateBindings.lookup(a.func()).build(List.of(arg));
+        SqlAggregate.Reducer agg = AggregateBindings.lookup(a.func()).build(args);
         return new SqlRelation.Agg(a.alias(), agg);
     }
 
