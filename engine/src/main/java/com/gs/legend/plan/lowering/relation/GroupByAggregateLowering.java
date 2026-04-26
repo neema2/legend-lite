@@ -56,8 +56,10 @@ public final class GroupByAggregateLowering {
         var store = ctx.storeFor(n.source());
         com.gs.legend.plan.lowering.NavScope scope = new com.gs.legend.plan.lowering.NavScope();
         LoweringContext inner = ctx.withNavScope(scope);
-        List<SqlExpr> keys = new ArrayList<>(n.keys().size());
-        for (TypedGroupKey k : n.keys()) keys.add(lowerKey(k, aliased, inner, store));
+        List<SqlRelation.Projection> keys = new ArrayList<>(n.keys().size());
+        for (TypedGroupKey k : n.keys()) {
+            keys.add(new SqlRelation.Projection(k.alias(), lowerKey(k, aliased, inner, store)));
+        }
         List<SqlRelation.Agg> aggs = new ArrayList<>(n.aggs().size());
         for (TypedAggCall a : n.aggs()) aggs.add(lowerAgg(a, aliased, inner, store));
         SqlRelation joined = Relations.install(aliased, aliased.alias(), store, scope, ctx);

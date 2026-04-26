@@ -776,16 +776,17 @@ public interface SQLDialect {
     }
 
     /**
-     * {@code SELECT k1 AS "k0", ..., AGG1 AS a1, ... FROM <source>
-     * GROUP BY k1, ...}. Key aliases follow the {@code k<i>} convention
-     * for stable downstream schemas.
+     * {@code SELECT key1 AS "alias1", ..., AGG1 AS a1, ... FROM <source>
+     * GROUP BY key1, ...}. Each key carries its user-supplied ColSpec
+     * alias from the typed AST so downstream operators can reference the
+     * grouped columns by name.
      */
     default String renderGroupBy(com.gs.legend.plan.sql.SqlRelation.GroupBy r) {
         StringBuilder sb = new StringBuilder("SELECT ");
         boolean first = true;
-        for (int i = 0; i < r.keys().size(); i++) {
+        for (var k : r.keys()) {
             if (!first) sb.append(", "); first = false;
-            sb.append(render(r.keys().get(i))).append(" AS ").append(quoteIdentifier("k" + i));
+            sb.append(render(k.expr())).append(" AS ").append(quoteIdentifier(k.alias()));
         }
         for (var a : r.aggs()) {
             if (!first) sb.append(", "); first = false;
@@ -796,7 +797,7 @@ public interface SQLDialect {
             sb.append(" GROUP BY ");
             for (int i = 0; i < r.keys().size(); i++) {
                 if (i > 0) sb.append(", ");
-                sb.append(render(r.keys().get(i)));
+                sb.append(render(r.keys().get(i).expr()));
             }
         }
         return sb.toString();

@@ -132,10 +132,10 @@ public sealed interface SqlRelation permits
         }
     }
 
-    record GroupBy(SqlRelation source, List<SqlExpr> keys, List<Agg> aggs) implements SqlRelation {
+    record GroupBy(SqlRelation source, List<Projection> keys, List<Agg> aggs) implements SqlRelation {
         @Override public List<OutputCol> outputs() {
             var out = new java.util.ArrayList<OutputCol>();
-            for (int i = 0; i < keys.size(); i++) out.add(new OutputCol("k" + i, null));
+            for (var k : keys) out.add(new OutputCol(k.alias(), null));
             for (var a : aggs) out.add(new OutputCol(a.alias(), null));
             return List.copyOf(out);
         }
