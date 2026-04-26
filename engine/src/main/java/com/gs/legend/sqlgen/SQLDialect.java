@@ -419,6 +419,7 @@ public interface SQLDialect {
                                                   + ")";
             case SqlExpr.Between b         -> render(b.expr()) + " BETWEEN " + render(b.low())
                                                   + " AND " + render(b.high());
+            case SqlExpr.Exists ex         -> "EXISTS (" + renderAsStatement(ex.relation()) + ")";
 
             // ---- CASE ----
             case SqlExpr.CaseWhen cw       -> "CASE WHEN " + render(cw.condition())
@@ -612,7 +613,6 @@ public interface SQLDialect {
             case com.gs.legend.plan.sql.SqlRelation.Aggregate r     -> renderAggregateRel(r);
             case com.gs.legend.plan.sql.SqlRelation.Union r         -> renderUnion(r);
             case com.gs.legend.plan.sql.SqlRelation.Join r          -> renderJoin(r);
-            case com.gs.legend.plan.sql.SqlRelation.SemiJoin r      -> renderSemiJoin(r);
             case com.gs.legend.plan.sql.SqlRelation.Pivot r         -> renderPivot(r);
             case com.gs.legend.plan.sql.SqlRelation.AsOfJoin r      -> renderAsOfJoin(r);
             case com.gs.legend.plan.sql.SqlRelation.Flatten r       -> throw notImpl(r);
@@ -675,16 +675,8 @@ public interface SQLDialect {
      * {@code <source> WHERE <pred>}. When {@code source} is a bare
      * {@code SELECT} (TableRef, Values, SourceExprRel) we fuse into a
      * single statement; otherwise we wrap as a subquery.
-     *
-     * <p>When {@code source} is a {@link com.gs.legend.plan.sql.SqlRelation.SemiJoin}
-     * the predicate is fused with the SemiJoin's EXISTS clause via {@code AND}
-     * to avoid {@code WHERE ... WHERE} collisions: each SemiJoin in a chain
-     * appends an {@code AND EXISTS (...)} term to a single outer WHERE.
      */
     default String renderFilter(com.gs.legend.plan.sql.SqlRelation.Filter r) {
-        if (r.source() instanceof com.gs.legend.plan.sql.SqlRelation.SemiJoin sj) {
-            return renderSemiJoin(sj) + " AND " + render(r.predicate());
-        }
         return renderAsStatement(r.source()) + " WHERE " + render(r.predicate());
     }
 
@@ -919,42 +911,6 @@ public interface SQLDialect {
                 .append(renderAsFromItem(r.right()));
         if (r.type() != com.gs.legend.plan.sql.SqlRelation.JoinType.CROSS && r.on() != null) {
             sb.append(" ON ").append(render(r.on()));
-        }
-        return sb.toString();
-    }
-
-    /**
-     * {@code <left> WHERE EXISTS (SELECT 1 FROM <right> WHERE <cond>)}.
-     *
-     * <p>SEMIJOIN is rendered as a correlated EXISTS subquery on platforms
-     * without native SEMIJOIN syntax (i.e., everywhere we currently target).
-     * The left side renders as a complete statement; the right side is
-     * unwrapped into the EXISTS subquery's FROM clause so its alias is
-     * bound for the condition.
-     *
-     * <p>When SEMIJOIN is wrapped in a {@link com.gs.legend.plan.sql.SqlRelation.Filter},
-     * {@link #renderFilter} fuses the predicates to avoid {@code WHERE ... WHERE}
-     * collisions. See that method for the fused form.
-     */
-    default String renderSemiJoin(com.gs.legend.plan.sql.SqlRelation.SemiJoin r) {
-        // Chained SEMIJOINs: peel off all left-nested SemiJoins, render the
-        // base statement once, then AND-append each EXISTS clause. This keeps
-        // a single outer WHERE for the entire SEMIJOIN chain.
-        java.util.Deque<com.gs.legend.plan.sql.SqlRelation.SemiJoin> chain = new java.util.ArrayDeque<>();
-        com.gs.legend.plan.sql.SqlRelation cursor = r;
-        while (cursor instanceof com.gs.legend.plan.sql.SqlRelation.SemiJoin s) {
-            chain.push(s);
-            cursor = s.left();
-        }
-        StringBuilder sb = new StringBuilder(renderAsStatement(cursor));
-        sb.append(" WHERE ");
-        boolean first = true;
-        for (com.gs.legend.plan.sql.SqlRelation.SemiJoin s : chain) {
-            if (!first) sb.append(" AND ");
-            sb.append("EXISTS (SELECT 1 FROM ")
-              .append(renderAsFromItem(s.right()))
-              .append(" WHERE ").append(render(s.condition())).append(")");
-            first = false;
         }
         return sb.toString();
     }

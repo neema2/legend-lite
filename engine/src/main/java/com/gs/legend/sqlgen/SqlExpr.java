@@ -33,6 +33,7 @@ public sealed interface SqlExpr permits
         SqlExpr.DateLiteral,
         SqlExpr.DecimalLiteral,
         SqlExpr.EndsWith,
+        SqlExpr.Exists,
         SqlExpr.FieldAccess,
         SqlExpr.FunctionCall,
         SqlExpr.Grouped,
@@ -234,12 +235,20 @@ public sealed interface SqlExpr permits
     /** {@code expr BETWEEN low AND high}. */
     record Between(SqlExpr expr, SqlExpr low, SqlExpr high) implements SqlExpr {}
 
-    // NOTE: Legacy {@code Exists(SqlBuilder)} and {@code Subquery(SqlBuilder)} records
-    // were removed in the c0954a port because {@code SqlBuilder} has been retired in
-    // favour of the {@link com.gs.legend.plan.sql.SqlRelation} MIR. SEMIJOIN is
-    // expressed as a first-class {@link com.gs.legend.plan.sql.SqlRelation.SemiJoin}
-    // operator (filter EXISTS); scalar / correlated subqueries will be reintroduced
-    // as new records when graphFetch lowering needs them.
+    /**
+     * Boolean-typed scalar existential: {@code EXISTS (<correlated relation>)}.
+     *
+     * <p>SQL's EXISTS is fundamentally a Boolean scalar, not a relational
+     * operator — it composes through the predicate tree (AND/OR/NOT, nested,
+     * inside CASE, etc.) like any other Boolean. Filter lowering uses this
+     * to express assoc-crossing leaves as inline EXISTS subqueries, which
+     * compose correctly under disjunction and negation.
+     *
+     * <p>The wrapped {@link com.gs.legend.plan.sql.SqlRelation} is rendered
+     * as a complete SELECT statement; outer-alias references in its WHERE
+     * clause are correlated subquery references at SQL level.
+     */
+    record Exists(com.gs.legend.plan.sql.SqlRelation relation) implements SqlExpr {}
 
     // ==================== CASE ====================
 

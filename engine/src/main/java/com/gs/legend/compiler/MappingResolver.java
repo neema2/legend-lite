@@ -1196,9 +1196,9 @@ public final class MappingResolver {
         // Synth-body association/embedded extends are always cancellable: every
         // downstream consumer that genuinely needs an association traversal
         // installs its own LEFT JOIN on demand via NavScope (project) or its
-        // own EXISTS (filter SemiJoin). The eager extend's LEFT JOIN is purely
-        // redundant — and worse, for to-many associations it inflates rows
-        // before the SemiJoin can de-duplicate. So we don't pair assocAliases
+        // own scalar EXISTS (filter, via SqlExpr.Exists). The eager extend's
+        // LEFT JOIN is purely redundant — and worse, for to-many associations
+        // it inflates rows before the EXISTS subquery can de-duplicate. So we don't pair assocAliases
         // with associationNavigations here; only propAliases count toward the
         // active set. (Empty active = isFullyCancelled() in ExtendLowering.)
         Set<String> active = new HashSet<>();
