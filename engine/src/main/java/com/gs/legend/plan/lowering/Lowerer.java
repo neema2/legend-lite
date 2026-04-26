@@ -58,38 +58,38 @@ public final class Lowerer {
             // on the stage-5 backlog — its INSERT lowering lands with the dedicated
             // write pass.
             case TypedSerialize n -> lowerRelation(n.source(), ctx);
-            case TypedWrite n     -> wrapScalar(SerializeLowering.lower(n, ctx), ctx);
+            case TypedWrite n     -> wrapScalar(SerializeLowering.lower(n, ctx), ctx, n);
 
             // UserCall: inline the callee's typed body and re-dispatch.
             case TypedUserCall n -> lowerRelation(n.callee().body().hir(), ctx);
 
             // Scalar-at-root: wrap as a one-row single-column SELECT.
-            case TypedCInteger   n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx);
-            case TypedCFloat     n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx);
-            case TypedCDecimal   n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx);
-            case TypedCString    n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx);
-            case TypedCBoolean   n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx);
-            case TypedCDateTime  n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx);
-            case TypedCStrictDate n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx);
-            case TypedCStrictTime n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx);
-            case TypedCLatestDate n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx);
-            case TypedCByteArray n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx);
-            case TypedEnumValue  n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx);
-            case TypedVariable        n -> wrapScalar(VariableLowering.lower(n, ctx), ctx);
-            case TypedPropertyAccess  n -> wrapScalar(PropertyAccessLowering.lower(n, ctx), ctx);
-            case TypedFold            n -> wrapScalar(FoldLowering.lower(n, ctx), ctx);
-            case TypedNativeCall      n -> wrapScalar(ScalarFunctionLowering.lower(n, ctx), ctx);
-            case TypedNewInstance     n -> wrapScalar(StructLowering.lower(n, ctx), ctx);
-            case TypedStructExtract   n -> wrapScalar(StructLowering.lower(n, ctx), ctx);
-            case TypedCollection      n -> wrapScalar(StructLowering.lower(n, ctx), ctx);
-            case TypedIf    n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx);
-            case TypedLet   n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx);
-            case TypedBlock n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx);
-            case TypedMatch n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx);
-            case TypedCast  n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx);
-            case TypedZip   n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx);
-            case TypedEval  n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx);
-            case TypedMap   n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx);
+            case TypedCInteger   n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx, n);
+            case TypedCFloat     n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx, n);
+            case TypedCDecimal   n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx, n);
+            case TypedCString    n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx, n);
+            case TypedCBoolean   n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx, n);
+            case TypedCDateTime  n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx, n);
+            case TypedCStrictDate n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx, n);
+            case TypedCStrictTime n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx, n);
+            case TypedCLatestDate n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx, n);
+            case TypedCByteArray n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx, n);
+            case TypedEnumValue  n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx, n);
+            case TypedVariable        n -> wrapScalar(VariableLowering.lower(n, ctx), ctx, n);
+            case TypedPropertyAccess  n -> wrapScalar(PropertyAccessLowering.lower(n, ctx), ctx, n);
+            case TypedFold            n -> wrapScalar(FoldLowering.lower(n, ctx), ctx, n);
+            case TypedNativeCall      n -> wrapScalar(ScalarFunctionLowering.lower(n, ctx), ctx, n);
+            case TypedNewInstance     n -> wrapScalar(StructLowering.lower(n, ctx), ctx, n);
+            case TypedStructExtract   n -> wrapScalar(StructLowering.lower(n, ctx), ctx, n);
+            case TypedCollection      n -> wrapScalar(StructLowering.lower(n, ctx), ctx, n);
+            case TypedIf    n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx, n);
+            case TypedLet   n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx, n);
+            case TypedBlock n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx, n);
+            case TypedMatch n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx, n);
+            case TypedCast  n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx, n);
+            case TypedZip   n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx, n);
+            case TypedEval  n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx, n);
+            case TypedMap   n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx, n);
 
             // Lambda at a relation entry: result is the last body statement (matches
             // the legacy PlanGen behaviour for {@code LambdaFunction}). Parameters, if
@@ -188,11 +188,22 @@ public final class Lowerer {
                 "relational node cannot be lowered as a scalar; caller bug");
     }
 
-    /** Wrap a scalar expression as a one-row one-column {@link SqlRelation.SourceExprRel}. */
-    private static SqlRelation wrapScalar(SqlExpr expr, LoweringContext ctx) {
+    /**
+     * Wrap a scalar expression as a one-row one-column {@link SqlRelation.SourceExprRel}.
+     *
+     * <p>When the originating typed node has multiplicity MANY, the scalar
+     * expression is wrapped in {@code UNNEST(...)} so a list value (e.g.
+     * {@code [1,2,3]} or the result of {@code listConcat}) is unfolded into
+     * N independent rows. Mirrors legacy plangen lines 271-277 — single-list
+     * scalar values (multiplicity ONE returning a list) are left as-is.
+     */
+    private static SqlRelation wrapScalar(SqlExpr expr, LoweringContext ctx, TypedSpec node) {
         String alias = ctx.nextAlias();
+        SqlExpr value = (node.info() != null && node.info().isMany())
+                ? new SqlExpr.Unnest(expr)
+                : expr;
         return new SqlRelation.SourceExprRel(
-                expr, alias,
+                value, alias,
                 java.util.List.of(new SqlRelation.OutputCol("result", null)));
     }
 }
