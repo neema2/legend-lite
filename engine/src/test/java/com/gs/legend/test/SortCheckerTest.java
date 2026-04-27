@@ -182,7 +182,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
         @DisplayName("sort class by property ascending (default)")
         void testClassSortAsc() throws SQLException {
             var result = executeRelation(
-                    "Person.all()->sort({p|$p.age})->project(~[name:p|$p.firstName, age:p|$p.age])");
+                    "Person.all()->sortBy({p|$p.age})->project(~[name:p|$p.firstName, age:p|$p.age])");
             assertNotNull(result);
             assertEquals(3, result.rows().size());
             // Jane(28), John(30), Bob(45)
@@ -219,7 +219,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
         void testClassSortByAssociation() throws SQLException {
             // sort by primaryAddress.city (to-one): Chicago(Jane), Detroit(Bob), New York(John)
             var result = executeRelation("""
-                    Person.all()->sort({p|$p.primaryAddress.city})
+                    Person.all()->sortBy({p|$p.primaryAddress.city})
                       ->project(~[name:p|$p.firstName, age:p|$p.age])""");
             assertNotNull(result);
             assertEquals(3, result.rows().size());
@@ -240,7 +240,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
             var result = executeRelation("""
                     Person.all()
                       ->filter(p|$p.age > 25)
-                      ->sort({p|$p.age})
+                      ->sortBy({p|$p.age})
                       ->project(~[name:p|$p.firstName, age:p|$p.age])""");
             assertNotNull(result);
             assertEquals(3, result.rows().size());
@@ -345,7 +345,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
             var result = executeRelation("""
                     Person.all()
                       ->filter(p|$p.age > 25)
-                      ->sort({p|$p.firstName})
+                      ->sortBy({p|$p.firstName})
                       ->filter(p|$p.lastName == 'Smith')
                       ->project(~[name:p|$p.firstName, age:p|$p.age])""");
             assertNotNull(result);

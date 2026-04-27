@@ -1,6 +1,7 @@
 package com.gs.legend.plan.lowering;
 
 import com.gs.legend.compiler.typed.*;
+import com.gs.legend.model.m3.Type;
 import com.gs.legend.plan.PlanGenNotPortedException;
 import com.gs.legend.plan.lowering.relation.*;
 import com.gs.legend.plan.lowering.scalar.*;
@@ -76,7 +77,14 @@ public final class Lowerer {
             case TypedCLatestDate n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx, n);
             case TypedCByteArray n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx, n);
             case TypedEnumValue  n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx, n);
-            case TypedVariable        n -> wrapScalar(VariableLowering.lower(n, ctx), ctx, n);
+            // Variable in relation context: pattern-match the binding kind.
+            // {@link LoweringContext.Rel} — a {@code let r = <rel-expr>}
+            // captured as typed HIR — re-lowers the captured node in place.
+            // Anything else (Scalar, or unbound) falls through to the scalar
+            // form wrapped as a one-row relation.
+            case TypedVariable n -> ctx.lookupBinding(n.name()) instanceof LoweringContext.Rel rel
+                    ? lowerRelation(rel.node(), ctx)
+                    : wrapScalar(VariableLowering.lower(n, ctx), ctx, n);
             case TypedPropertyAccess  n -> wrapScalar(PropertyAccessLowering.lower(n, ctx), ctx, n);
             case TypedFold            n -> wrapScalar(FoldLowering.lower(n, ctx), ctx, n);
             case TypedNativeCall      n -> wrapScalar(ScalarFunctionLowering.lower(n, ctx), ctx, n);
@@ -84,8 +92,30 @@ public final class Lowerer {
             case TypedStructExtract   n -> wrapScalar(StructLowering.lower(n, ctx), ctx, n);
             case TypedCollection      n -> wrapScalar(StructLowering.lower(n, ctx), ctx, n);
             case TypedIf    n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx, n);
-            case TypedLet   n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx, n);
-            case TypedBlock n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx, n);
+            // {@code let x = e}: forwards to the scalar form when {@code e} is
+            // scalar-typed; when {@code e} is relational the value flows into
+            // the surrounding {@link TypedBlock}'s rel-binding pass.
+            //
+            // TODO(cte-migration): the {@code instanceof Type.Relation} dispatch
+            // here and in {@link #lowerBlockRelation} is a known smell — the
+            // kind is statically known at type-check time but re-derived at
+            // every consumer. Folding it into the IR (split {@code TypedLet}
+            // into {@code TypedScalarLet}/{@code TypedRelLet}) would give
+            // case-dispatch with exhaustiveness checking, and provide a
+            // clean attachment point for CTE-specific state (alias name,
+            // materialization hint, correlated-capture flag) when {@code
+            // bindRel} graduates from "capture HIR + re-lower per reference"
+            // to "lower once + emit as a CTE referenced by alias". Deferred
+            // to that migration so the IR shape can be designed against
+            // the real CTE requirements rather than guessed at now.
+            case TypedLet   n -> n.value().type() instanceof Type.Relation
+                    ? lowerRelation(n.value(), ctx)
+                    : wrapScalar(ControlFlowLowering.lower(n, ctx), ctx, n);
+            // Block: process intermediate {@code let}s (binding scalar values
+            // via {@link LoweringContext#bindVar}, relational values via
+            // {@link LoweringContext#bindRel}); dispatch the final statement
+            // by its own type.
+            case TypedBlock n -> lowerBlockRelation(n, ctx);
             case TypedMatch n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx, n);
             case TypedCast  n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx, n);
             case TypedZip   n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx, n);
@@ -188,6 +218,56 @@ public final class Lowerer {
     private static PlanGenNotPortedException notScalar(TypedSpec node) {
         return new PlanGenNotPortedException(node, "dispatch-bug",
                 "relational node cannot be lowered as a scalar; caller bug");
+    }
+
+    /**
+     * Lower a {@link TypedBlock} in relational position. Handles the
+     * {@code let x = e1; let y = e2; ...; finalExpr} idiom where any
+     * {@code ei} or the {@code finalExpr} may itself be relational.
+     *
+     * <p>Each intermediate statement is processed in order:
+     * <ul>
+     *   <li>{@link TypedLet} with relational value type — bound via
+     *       {@link LoweringContext#bindRel(String, TypedSpec)} so a
+     *       downstream {@code $x} reference re-lowers the original HIR
+     *       in its appropriate (scalar or relational) context.</li>
+     *   <li>{@link TypedLet} with scalar value type — bound via the
+     *       existing scalar-lowering + {@link LoweringContext#bindVar}
+     *       path.</li>
+     *   <li>Anything else — lowered for side-effect parity with
+     *       {@link com.gs.legend.plan.lowering.scalar.ControlFlowLowering}
+     *       and discarded.</li>
+     * </ul>
+     *
+     * <p>The final statement is dispatched on its own type: relational
+     * statements go through {@link #lowerRelation} directly, scalar
+     * statements go through {@link #wrapScalar}. This is what closes the
+     * "{@code TypedXxx (dispatch-bug). relational node cannot be lowered
+     * as a scalar; caller bug}" gap that surfaced when blocks ended in
+     * (or bound) relational expressions like {@code TypedFilter},
+     * {@code TypedProject}, {@code TypedTdsLiteral}, etc.
+     */
+    private static SqlRelation lowerBlockRelation(TypedBlock n, LoweringContext ctx) {
+        LoweringContext cur = ctx;
+        int last = n.stmts().size() - 1;
+        for (int i = 0; i < last; i++) {
+            TypedSpec s = n.stmts().get(i);
+            if (s instanceof TypedLet let) {
+                if (let.value().type() instanceof Type.Relation) {
+                    cur = cur.bindRel(let.name(), let.value());
+                } else {
+                    SqlExpr value = lowerScalar(let.value(), cur);
+                    cur = cur.bindVar(let.name(), value, null);
+                }
+            } else {
+                // Side-effecting intermediate — lower for parity, discard.
+                lowerScalar(s, cur);
+            }
+        }
+        TypedSpec tail = n.stmts().get(last);
+        return tail.type() instanceof Type.Relation
+                ? lowerRelation(tail, cur)
+                : wrapScalar(lowerScalar(tail, cur), cur, tail);
     }
 
     /**

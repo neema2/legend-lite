@@ -43,21 +43,36 @@ public final class LoweringContext {
     }
 
     /**
-     * Variable binding: the resolved {@link SqlExpr} that a lambda param name
-     * resolves to, together with the {@link StoreResolution} associated with
-     * that binding (non-null when the variable's value is a relational row).
+     * Sealed lambda-parameter / let-binding entry. Two variants:
      *
-     * <p>Bundling the store with the binding replaces the ambient {@code currentStore}
-     * pattern — each variable carries its own store, so multi-param lambdas
-     * (e.g., join conditions) resolve property accesses against the correct
-     * side's store.
+     * <ul>
+     *   <li>{@link Scalar} — the bound value is a scalar SQL expression
+     *       (a row alias like {@code t0}, a literal, or a computed scalar).
+     *       Carries the associated {@link StoreResolution} when the value
+     *       represents a relational row, so {@link com.gs.legend.plan.lowering.scalar.PropertyAccessLowering}
+     *       can resolve {@code $p.prop} against the correct store.</li>
+     *   <li>{@link Rel} — the bound value is itself a relational expression
+     *       ({@code let r = SomeClass.all()->...}); the typed HIR is
+     *       captured and re-lowered at every {@code $r} reference inside a
+     *       relational position. In scalar position the binding is invisible
+     *       (lookup falls through to identifier emission, mirroring legend-engine).</li>
+     * </ul>
+     *
+     * <p>One sealed type, one binding map: replaces the previous trio of
+     * {@code variableBindings} / {@code env} / {@code relBindings} maps
+     * that routed bindings by value-kind across separate dictionaries.
      */
-    public record VarBinding(SqlExpr expression, StoreResolution store) {}
+    public sealed interface VarBinding permits Scalar, Rel {}
+
+    /** Scalar binding: SQL expression plus optional store for property resolution. */
+    public record Scalar(SqlExpr expression, StoreResolution store) implements VarBinding {}
+
+    /** Relational binding: typed HIR re-lowered in place at each reference. */
+    public record Rel(TypedSpec node) implements VarBinding {}
 
     private final ResolvedMappings mappings;
     private final PlanGenerator.Mode mode;
-    private final Map<String, SqlExpr> variableBindings;           // legacy surface (expression only)
-    private final Map<String, VarBinding> env;                     // new surface (expression + store)
+    private final Map<String, VarBinding> env;
     private final AliasSupplier aliases;
     /**
      * Per-relational-rule scratch pad for collecting non-embedded association
@@ -69,13 +84,11 @@ public final class LoweringContext {
 
     private LoweringContext(ResolvedMappings mappings,
                             PlanGenerator.Mode mode,
-                            Map<String, SqlExpr> variableBindings,
                             Map<String, VarBinding> env,
                             AliasSupplier aliases,
                             NavScope navScope) {
         this.mappings = mappings;
         this.mode = mode;
-        this.variableBindings = variableBindings;
         this.env = env;
         this.aliases = aliases;
         this.navScope = navScope;
@@ -83,14 +96,12 @@ public final class LoweringContext {
 
     /** Fresh root context for a plan generation run. */
     public static LoweringContext root(ResolvedMappings mappings, PlanGenerator.Mode mode) {
-        return new LoweringContext(mappings, mode, Map.of(), Map.of(),
-                new AliasSupplier(), null);
+        return new LoweringContext(mappings, mode, Map.of(), new AliasSupplier(), null);
     }
 
     /** @return the full committed mapping sidecar produced by MappingResolver. */
     public ResolvedMappings mappings() { return mappings; }
     public PlanGenerator.Mode mode() { return mode; }
-    public Map<String, SqlExpr> variableBindings() { return variableBindings; }
 
     /** @return next alias (t0, t1, …). Shared with child contexts. */
     public String nextAlias() { return aliases.next(); }
@@ -101,33 +112,48 @@ public final class LoweringContext {
     /** @return resolved store for this typed node, or null if this node is not relational. */
     public StoreResolution storeFor(TypedSpec node) { return mappings.storeResolutions().get(node); }
 
-    /** @return binding for a lambda parameter, or null if not in scope. */
-    public SqlExpr lookupVar(String name) { return variableBindings.get(name); }
+    /**
+     * Scalar lookup. Returns the bound {@link SqlExpr} for a {@link Scalar}
+     * binding, {@code null} otherwise (including when {@code name} is
+     * {@link Rel}-bound — relational bindings are invisible in scalar
+     * position so the caller can fall through to identifier emission).
+     */
+    public SqlExpr lookupVar(String name) {
+        return env.get(name) instanceof Scalar s ? s.expression() : null;
+    }
 
-    /** @return rich binding (expression + store) for a lambda parameter, or null if not bound via new surface. */
+    /** @return raw binding (sealed variant) for {@code name}, or {@code null} if not in scope. */
     public VarBinding lookupBinding(String name) { return env.get(name); }
 
     /** @return the active nav-scope, or null if not inside a lambda-bearing relational rule. */
     public NavScope navScope() { return navScope; }
 
     /**
-     * Rich variable binding: records both {@code expression} and the
-     * associated {@link StoreResolution}. The primary means of binding a
-     * lambda parameter — {@link com.gs.legend.plan.lowering.scalar.PropertyAccessLowering}
-     * reads the bound store directly from the {@link VarBinding}, replacing
-     * the ambient {@code currentStore} pattern.
-     *
-     * <p>Also mirrors into the legacy {@code variableBindings} map so
-     * {@link com.gs.legend.plan.lowering.scalar.VariableLowering} can resolve
-     * plain {@code $name} references without knowing about the env.
+     * Bind a scalar value to {@code name}. The bound expression is what
+     * {@code $name} resolves to in scalar position (lambda parameters,
+     * scalar {@code let} statements). The optional {@link StoreResolution}
+     * is non-null when the binding represents a relational row — it lets
+     * {@link com.gs.legend.plan.lowering.scalar.PropertyAccessLowering}
+     * resolve {@code $name.prop} against the right store without an ambient
+     * {@code currentStore} stack.
      */
     public LoweringContext bindVar(String name, SqlExpr value, StoreResolution store) {
-        Map<String, SqlExpr> legacy = new HashMap<>(variableBindings);
-        legacy.put(name, value);
-        Map<String, VarBinding> nextEnv = new HashMap<>(env);
-        nextEnv.put(name, new VarBinding(value, store));
-        return new LoweringContext(mappings, mode, Map.copyOf(legacy), Map.copyOf(nextEnv),
-                aliases, navScope);
+        Map<String, VarBinding> next = new HashMap<>(env);
+        next.put(name, new Scalar(value, store));
+        return new LoweringContext(mappings, mode, Map.copyOf(next), aliases, navScope);
+    }
+
+    /**
+     * Bind a typed HIR node as a relational value for {@code name}. Used by
+     * block-lowering for {@code let r = <rel-expr>} statements. References
+     * to {@code $r} in relational position re-lower the captured HIR; in
+     * scalar position the binding is invisible (lookup falls through),
+     * mirroring legend-engine.
+     */
+    public LoweringContext bindRel(String name, TypedSpec node) {
+        Map<String, VarBinding> next = new HashMap<>(env);
+        next.put(name, new Rel(node));
+        return new LoweringContext(mappings, mode, Map.copyOf(next), aliases, navScope);
     }
 
     /**
@@ -137,7 +163,6 @@ public final class LoweringContext {
      * rule exit when the rule installs its collected navigations.
      */
     public LoweringContext withNavScope(NavScope scope) {
-        return new LoweringContext(mappings, mode, variableBindings, env,
-                aliases, scope);
+        return new LoweringContext(mappings, mode, env, aliases, scope);
     }
 }

@@ -1657,7 +1657,7 @@ class AssociationIntegrationTest {
         @DisplayName("graphFetch: to-many addresses as nested JSON array")
         void testGraphFetchToManyAddresses() throws SQLException {
             var json = execGraph(fullModel(), """
-                    Person.all()->sort({p|$p.name})
+                    Person.all()->sortBy({p|$p.name})
                         ->graphFetch(#{ Person { name, addresses { city } } }#)
                         ->serialize(#{ Person { name, addresses { city } } }#)
                     """);
@@ -1675,7 +1675,7 @@ class AssociationIntegrationTest {
         @DisplayName("graphFetch: to-one firm as nested JSON object")
         void testGraphFetchToOneFirm() throws SQLException {
             var json = execGraph(fullModel(), """
-                    Person.all()->sort({p|$p.name})
+                    Person.all()->sortBy({p|$p.name})
                         ->graphFetch(#{ Person { name, firm { legalName } } }#)
                         ->serialize(#{ Person { name, firm { legalName } } }#)
                     """);
@@ -1689,7 +1689,7 @@ class AssociationIntegrationTest {
         @DisplayName("graphFetch: mixed to-one + to-many in same fetch")
         void testGraphFetchMixedToOneAndToMany() throws SQLException {
             var json = execGraph(fullModel(), """
-                    Person.all()->sort({p|$p.name})
+                    Person.all()->sortBy({p|$p.name})
                         ->graphFetch(#{ Person { name, firm { legalName }, addresses { city } } }#)
                         ->serialize(#{ Person { name, firm { legalName }, addresses { city } } }#)
                     """);
@@ -1765,7 +1765,7 @@ class AssociationIntegrationTest {
         @DisplayName("graphFetch: scalar props only — no association overhead")
         void testGraphFetchScalarOnly() throws SQLException {
             var json = execGraph(fullModel(), """
-                    Person.all()->sort({p|$p.name})
+                    Person.all()->sortBy({p|$p.name})
                         ->graphFetch(#{ Person { name, id } }#)
                         ->serialize(#{ Person { name, id } }#)
                     """);

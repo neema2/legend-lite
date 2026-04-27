@@ -297,6 +297,67 @@ public final class DuckDBDialect implements SQLDialect {
                 return "(CASE WHEN " + args.get(1) + " > 62 THEN CAST(1 AS BIGINT) << " + args.get(1)
                         + " ELSE " + args.get(0) + " >> " + args.get(1) + " END)";
             }
+
+            // --- Bitwise / arithmetic operators ---
+            // DuckDB exposes these only as infix operators, not named scalar
+            // functions; mirror the legend-engine port.
+            case "bitAnd":         return "(" + args.get(0) + " & "  + args.get(1) + ")";
+            case "bitOr":          return "(" + args.get(0) + " | "  + args.get(1) + ")";
+            // Pure {@code bitShiftLeft} / {@code bitShiftRight} throw on shifts
+            // greater than 62 bits (PCT semantics). DuckDB's native {@code <<}
+            // / {@code >>} silently wrap, so guard with a CASE that promotes
+            // the shift into a {@code CAST(1 AS BIGINT) << shift} that DuckDB
+            // explicitly rejects with an overflow error. Mirrors the existing
+            // {@code bitShiftRightSafe} arm above.
+            case "bitShiftLeft":   return "(CASE WHEN " + args.get(1) + " > 62 THEN CAST(1 AS BIGINT) << " + args.get(1)
+                    + " ELSE " + args.get(0) + " << " + args.get(1) + " END)";
+            case "bitShiftRight":  return "(CASE WHEN " + args.get(1) + " > 62 THEN CAST(1 AS BIGINT) << " + args.get(1)
+                    + " ELSE " + args.get(0) + " >> " + args.get(1) + " END)";
+            // Pure {@code rem} returns the remainder (sign matches dividend) —
+            // matches DuckDB's MOD semantics for integer args.
+            case "rem":            return "MOD(" + args.get(0) + ", " + args.get(1) + ")";
+
+            // --- Date parts ---
+            // {@code monthNumber} is the integer-returning sibling of
+            // {@code monthName}; share the rendering with {@code month}.
+            case "monthNumber":    return "MONTH(" + args.get(0) + ")";
+
+            // --- Numeric parsing ---
+            // {@code parseInteger(s)} → CAST as BIGINT (Pure Integer is 64-bit).
+            case "parseInteger":   return "CAST(" + args.get(0) + " AS BIGINT)";
+
+            // --- Date arithmetic ---
+            // {@code adjust(date, n, unit)} adds {@code n} units to {@code date}.
+            // The {@code unit} arg is the lowered Pure enum string literal
+            // ({@code 'DAYS'}, {@code 'MONTHS'}, …); DuckDB's date_add takes
+            // an INTERVAL constructed from that string with multiplication.
+            case "adjust": {
+                // args: [date, n, unitString]
+                String unit = args.get(2);
+                // Strip surrounding quotes from string literals so we can drop
+                // it into INTERVAL N <unit>. The string is always a literal
+                // (the enum reference is lowered to the bare enum-value name).
+                String unitStripped = unit.length() >= 2 && unit.startsWith("'") && unit.endsWith("'")
+                        ? unit.substring(1, unit.length() - 1)
+                        : unit;
+                // Map the Pure unit to a DuckDB INTERVAL keyword. Pure uses
+                // plural names ({@code DAYS}); DuckDB accepts both, but
+                // standardise on the singular for readability.
+                String intervalUnit = switch (unitStripped) {
+                    case "YEARS"        -> "YEAR";
+                    case "MONTHS"       -> "MONTH";
+                    case "WEEKS"        -> "WEEK";
+                    case "DAYS"         -> "DAY";
+                    case "HOURS"        -> "HOUR";
+                    case "MINUTES"      -> "MINUTE";
+                    case "SECONDS"      -> "SECOND";
+                    case "MILLISECONDS" -> "MILLISECOND";
+                    case "MICROSECONDS" -> "MICROSECOND";
+                    default              -> unitStripped;
+                };
+                return "(" + args.get(0) + " + (" + args.get(1)
+                        + " * INTERVAL '1 " + intervalUnit + "'))";
+            }
             case "listSort":
                 // args: [list] or [list, direction]
                 if (args.size() > 1) {

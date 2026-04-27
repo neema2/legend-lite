@@ -44,14 +44,18 @@ public final class PropertyAccessLowering {
             return new SqlExpr.FieldAccess(base, n.property());
         }
         LoweringContext.VarBinding binding = ctx.lookupBinding(v.name());
-        if (binding == null) {
+        if (!(binding instanceof LoweringContext.Scalar scalar)) {
+            // Property access requires a scalar row binding. {@code null}
+            // (unbound) and {@link LoweringContext.Rel} (let-bound relational
+            // expression) are both invalid here — you can't take {@code .prop}
+            // off a relation, only off a row.
             throw PlanGenNotPortedException.stage3(n, "property:unbound-variable:" + v.name());
         }
-        if (!(binding.expression() instanceof SqlExpr.Identifier id)) {
+        if (!(scalar.expression() instanceof SqlExpr.Identifier id)) {
             throw PlanGenNotPortedException.stage3(n, "property-on-column-binding");
         }
         String rowAlias = id.name();
-        StoreResolution store = binding.store();
+        StoreResolution store = scalar.store();
 
         List<String> path = n.associationPath().orElse(List.of());
         int hopCount = Math.max(0, path.size() - 1);

@@ -782,7 +782,7 @@ class M2MChainIntegrationTest {
         @Test
         @DisplayName("sort through M2M chain")
         void testSortThroughChain() throws SQLException {
-            var r = exec("StaffMember.all()->sort({x|$x.age})->project(~[fullName:x|$x.fullName, age:x|$x.age])");
+            var r = exec("StaffMember.all()->sortBy({x|$x.age})->project(~[fullName:x|$x.fullName, age:x|$x.age])");
             assertEquals(4, r.rowCount());
             assertEquals("Carol White", col(r, 0).get(0));
             assertEquals("Dave Brown", col(r, 0).get(3));
@@ -791,7 +791,7 @@ class M2MChainIntegrationTest {
         @Test
         @DisplayName("2-hop + sort")
         void testTwoHopSort() throws SQLException {
-            var r = exec("StaffCard.all()->sort({x|$x.displayName})->project(~[displayName:x|$x.displayName])");
+            var r = exec("StaffCard.all()->sortBy({x|$x.displayName})->project(~[displayName:x|$x.displayName])");
             assertEquals(4, r.rowCount());
             assertEquals("ALICE SMITH", col(r, 0).get(0));
             assertEquals("BOB JONES", col(r, 0).get(1));
