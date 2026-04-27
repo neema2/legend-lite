@@ -62,8 +62,8 @@ public final class Lowerer {
             case TypedSerialize n -> SerializeRelLowering.lower(n, ctx);
             case TypedWrite n     -> wrapScalar(SerializeLowering.lower(n, ctx), ctx, n);
 
-            // UserCall: inline the callee's typed body and re-dispatch.
-            case TypedUserCall n -> lowerRelation(n.callee().body().hir(), ctx);
+            // UserCall: bind actuals to formals and inline the callee body.
+            case TypedUserCall n -> lowerRelation(n.callee().body().hir(), bindUserCallArgs(n, ctx));
 
             // Scalar-at-root: wrap as a one-row single-column SELECT.
             case TypedCInteger   n -> wrapScalar(LiteralLowering.lower(n, ctx), ctx, n);
@@ -176,7 +176,7 @@ public final class Lowerer {
             case TypedSerialize n -> SerializeLowering.lower(n, ctx);
             case TypedWrite     n -> SerializeLowering.lower(n, ctx);
 
-            case TypedUserCall n -> lowerScalar(n.callee().body().hir(), ctx);
+            case TypedUserCall n -> lowerScalar(n.callee().body().hir(), bindUserCallArgs(n, ctx));
 
             // Relational nodes cannot appear in a scalar position directly. A caller
             // asking for a scalar value from one is a bug upstream.
@@ -268,6 +268,41 @@ public final class Lowerer {
         return tail.type() instanceof Type.Relation
                 ? lowerRelation(tail, cur)
                 : wrapScalar(lowerScalar(tail, cur), cur, tail);
+    }
+
+    /**
+     * Bind a {@link TypedUserCall}'s actuals to the callee's formal
+     * parameter names so the inlined body can resolve {@code $param}
+     * references. Without this, lowering the body emits bare identifiers
+     * (e.g. {@code SELECT (a * 2) AS "doubledAge" FROM "T_PERSON" AS "t0"})
+     * for unbound formals.
+     *
+     * <p>Dispatches per arg by typed kind: relational args are bound via
+     * {@link LoweringContext#bindRel} (re-lowered at each {@code $r}
+     * reference inside the body, matching how {@code TypedVariable} in
+     * relation context handles them), scalar args are eagerly lowered via
+     * {@link #lowerScalar} and bound via {@link LoweringContext#bindVar}.
+     */
+    private static LoweringContext bindUserCallArgs(TypedUserCall n, LoweringContext ctx) {
+        var formals = n.callee().parameters();
+        var actuals = n.args();
+        if (formals.size() != actuals.size()) {
+            throw new PlanGenNotPortedException(n, "user-call:arity-mismatch",
+                    "callee=" + n.functionFqn() + " formals=" + formals.size()
+                            + " actuals=" + actuals.size());
+        }
+        LoweringContext cur = ctx;
+        for (int i = 0; i < formals.size(); i++) {
+            String name = formals.get(i).name();
+            TypedSpec actual = actuals.get(i);
+            if (actual.isRelation()) {
+                cur = cur.bindRel(name, actual);
+            } else {
+                SqlExpr value = lowerScalar(actual, cur);
+                cur = cur.bindVar(name, value, null);
+            }
+        }
+        return cur;
     }
 
     /**
