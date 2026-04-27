@@ -7,7 +7,10 @@ import com.gs.legend.compiler.typed.TypedFilter;
 import com.gs.legend.compiler.typed.TypedLambda;
 import com.gs.legend.compiler.typed.TypedNativeCall;
 import com.gs.legend.compiler.typed.TypedSpec;
+import com.gs.legend.model.m3.Primitive;
+import com.gs.legend.model.m3.Type;
 import com.gs.legend.plan.PlanGenNotPortedException;
+// (Type imported for paramType parameter at the top of {@link #lower}.)
 import com.gs.legend.plan.lowering.LoweringContext;
 import com.gs.legend.plan.lowering.Lowerer;
 import com.gs.legend.plan.lowering.NavScope;
@@ -68,12 +71,22 @@ public final class FilterLowering {
             throw PlanGenNotPortedException.stage3(n, "filter-empty-body");
         }
         String paramName = pred.parameters().get(0).name();
+        Type paramType = pred.parameters().get(0).type();
         TypedSpec terminal = pred.body().get(pred.body().size() - 1);
 
         StoreResolution outerStore = ctx.storeFor(n.source());
         String outerAlias = aliased.alias();
-        LoweringContext baseCtx = ctx.bindVar(
-                paramName, new SqlExpr.Identifier(outerAlias), outerStore);
+        // Collection-of-scalars filter (e.g. {@code [1,2,3]->filter(x|$x>3)}):
+        // the source is a single-column UNNEST relation and {@code $x} refers
+        // to the unnested element directly — bind to the column, not the row
+        // alias, otherwise the predicate emits a bare {@code t0} identifier
+        // that has no FROM-clause referent. Class-source filters keep the
+        // row-alias binding so {@code $x.prop} can resolve via property
+        // access.
+        SqlExpr paramBinding = paramType instanceof Primitive
+                ? new SqlExpr.Column(outerAlias, Lowerer.SCALAR_WRAP_COLUMN)
+                : new SqlExpr.Identifier(outerAlias);
+        LoweringContext baseCtx = ctx.bindVar(paramName, paramBinding, outerStore);
 
         SqlExpr predicate = processBoolean(terminal, baseCtx, outerAlias, outerStore);
         if (isTrue(predicate)) {
@@ -190,5 +203,6 @@ public final class FilterLowering {
     private static boolean isTrue(SqlExpr e) {
         return e instanceof SqlExpr.BoolLiteral bl && bl.value();
     }
+
 }
 

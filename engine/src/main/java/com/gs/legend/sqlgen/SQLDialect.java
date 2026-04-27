@@ -960,6 +960,14 @@ public interface SQLDialect {
                 || r instanceof com.gs.legend.plan.sql.SqlRelation.TableRef) {
             return "SELECT * FROM " + renderAsFromItem(r);
         }
+        // SourceExprRel whose expression is UNNEST(...) must be wrapped in a
+        // FROM subquery — DuckDB rejects {@code SELECT UNNEST(...) AS x WHERE ...}
+        // because UNNEST in a top-level projection cannot be filtered. Wrapping
+        // gives {@code SELECT * FROM (SELECT UNNEST(...) AS x) AS t0 WHERE ...}.
+        if (r instanceof com.gs.legend.plan.sql.SqlRelation.SourceExprRel sr
+                && sr.expr() instanceof SqlExpr.Unnest) {
+            return "SELECT * FROM " + renderAsFromItem(r);
+        }
         return render(r);
     }
 

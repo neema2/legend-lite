@@ -27,9 +27,14 @@ public final class StructLowering {
     private StructLowering() {}
 
     public static SqlExpr lower(TypedCollection n, LoweringContext ctx) {
-        if (n.values().size() == 1) {
-            return Lowerer.lowerScalar(n.values().get(0), ctx);
-        }
+        // Always emit {@link SqlExpr.ArrayLiteral}, even for singleton
+        // collections. The TypedCollection's type system multiplicity is
+        // MANY (set in {@code TypeChecker.compileCollection}); unwrapping a
+        // singleton to a bare scalar breaks any downstream consumer that
+        // needs an array shape — most visibly {@code [42]->filter(...)},
+        // where {@link com.gs.legend.plan.lowering.Lowerer#wrapScalar}
+        // emits {@code UNNEST(...)} on a MANY-typed source and DuckDB
+        // rejects {@code UNNEST(42)} (not a list).
         List<SqlExpr> elements = new ArrayList<>(n.values().size());
         for (TypedSpec v : n.values()) elements.add(Lowerer.lowerScalar(v, ctx));
         return new SqlExpr.ArrayLiteral(elements);

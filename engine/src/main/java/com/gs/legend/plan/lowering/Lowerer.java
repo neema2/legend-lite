@@ -271,6 +271,15 @@ public final class Lowerer {
     }
 
     /**
+     * Output column name produced by {@link #wrapScalar}. Consumers that
+     * need to reference the unnested scalar value of a wrapped collection
+     * source ({@code [1,2,3]->filter(x|$x>3)}) can bind their lambda
+     * parameter to {@code Column(alias, SCALAR_WRAP_COLUMN)} rather than
+     * the bare row alias.
+     */
+    public static final String SCALAR_WRAP_COLUMN = "result";
+
+    /**
      * Wrap a scalar expression as a one-row one-column {@link SqlRelation.SourceExprRel}.
      *
      * <p>When the originating typed node has multiplicity MANY, the scalar
@@ -286,6 +295,6 @@ public final class Lowerer {
                 : expr;
         return new SqlRelation.SourceExprRel(
                 value, alias,
-                java.util.List.of(new SqlRelation.OutputCol("result", null)));
+                java.util.List.of(new SqlRelation.OutputCol(SCALAR_WRAP_COLUMN, null)));
     }
 }
