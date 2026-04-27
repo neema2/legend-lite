@@ -222,11 +222,17 @@ public final class DuckDBDialect implements SQLDialect {
             case "extractHour":
                 return "EXTRACT(HOUR FROM " + args.get(0) + ")";
             case "timeBucket": {
-                // args: [quantity, unitString, dateExpr]
-                String qty = args.get(0);
-                String unit = args.get(1);
+                // Pure {@code timeBucket(date, qty, unit)}: bucket {@code date}
+                // by {@code qty} of {@code unit}. DuckDB's {@code TIME_BUCKET}
+                // takes {@code (INTERVAL, ts)}: emit
+                // {@code TIME_BUCKET(INTERVAL 'qty <singular-unit>', date)}.
+                // The unit literal is the lowered Pure enum string ('DAYS',
+                // 'WEEKS', …); strip quotes and singularise.
+                String date = args.get(0);
+                String qty = args.get(1);
+                String unit = args.get(2);
                 if (unit.startsWith("'") && unit.endsWith("'")) unit = unit.substring(1, unit.length() - 1);
-                return "TIME_BUCKET(INTERVAL '" + qty + " " + unit + "', " + args.get(2) + ")";
+                return "TIME_BUCKET(INTERVAL '" + qty + " " + pureUnitToDuckDbInterval(unit) + "', " + date + ")";
             }
             case "format":
                 return renderFormat(args);
@@ -325,6 +331,74 @@ public final class DuckDBDialect implements SQLDialect {
             // --- Numeric parsing ---
             // {@code parseInteger(s)} → CAST as BIGINT (Pure Integer is 64-bit).
             case "parseInteger":   return "CAST(" + args.get(0) + " AS BIGINT)";
+            // {@code parseDecimal(s)} accepts strings like '3.14' and '3.14d'
+            // (with a trailing 'd' suffix). Strip the suffix at SQL-build time
+            // via REPLACE so any literal or column expression works, then CAST
+            // to DOUBLE — Pure Decimal maps to DuckDB DOUBLE for arithmetic.
+            case "parseDecimal":   return "CAST(REPLACE(" + args.get(0) + ", 'd', '') AS DOUBLE)";
+            // {@code parseDate(s)} accepts ISO-8601 timestamps with optional
+            // timezone. DuckDB's TIMESTAMPTZ CAST handles the common forms
+            // (date-only, date+time, date+time+offset).
+            case "parseDate":      return "CAST(" + args.get(0) + " AS TIMESTAMPTZ)";
+
+            // --- Boolean ---
+            // Pure {@code xor(a, b)} is logical XOR. DuckDB has no XOR
+            // operator, but {@code (a <> b)} is exactly XOR for booleans.
+            case "xor":            return "(" + args.get(0) + " <> " + args.get(1) + ")";
+
+            // --- String padding ---
+            // Pure {@code rpad(s, len)} (2-arg form, default fill = space).
+            // DuckDB's RPAD requires a 3-arg form — supply the default.
+            case "rpad":
+                if (args.size() == 2) return "RPAD(" + args.get(0) + ", " + args.get(1) + ", ' ')";
+                return "RPAD(" + String.join(", ", args) + ")";
+
+            // --- Date helpers ---
+            // {@code datePart(d)} (single-arg) extracts the date portion of a
+            // date / timestamp — i.e., a date-truncate-to-day. DuckDB CAST to
+            // DATE drops the time. Different from the standard SQL
+            // {@code datepart(part, date)} (which extracts a numeric part);
+            // Pure's unary form is what's overloaded here.
+            case "datePart":       return "CAST(" + args.get(0) + " AS DATE)";
+
+            // {@code date(year [, month [, day [, hour [, minute [, second]]]]])}
+            // — Pure constructor with 1-7 positional args. Map to MAKE_DATE
+            // (≤3 args) or MAKE_TIMESTAMP (≥4). Defaults fill in 1 for
+            // missing month/day, 0 for missing time components.
+            case "date": {
+                String yr = args.get(0);
+                String mon = args.size() > 1 ? args.get(1) : "1";
+                String day = args.size() > 2 ? args.get(2) : "1";
+                if (args.size() <= 3) {
+                    return "MAKE_DATE(" + yr + ", " + mon + ", " + day + ")";
+                }
+                String hr  = args.get(3);
+                String min = args.size() > 4 ? args.get(4) : "0";
+                String sec = args.size() > 5 ? args.get(5) : "0";
+                // 7th arg (millis) is folded into seconds as a fraction since
+                // MAKE_TIMESTAMP only takes 6 positional args.
+                return "MAKE_TIMESTAMP(" + yr + ", " + mon + ", " + day + ", "
+                        + hr + ", " + min + ", " + sec + ")";
+            }
+
+            // --- Collection ---
+            // Pure {@code zip(a, b)} pairs elements positionally into structs.
+            // Same expansion as the existing {@code listZip} arm — shared
+            // FQN, just a different simple-name dispatch path.
+            case "zip": {
+                String a = args.get(0);
+                String b = args.get(1);
+                return "list_transform(GENERATE_SERIES(1, LEAST(LEN(" + a + "), LEN(" + b + "))), "
+                        + "_zip_i -> {'first': LIST_EXTRACT(" + a + ", _zip_i), "
+                        + "'second': LIST_EXTRACT(" + b + ", _zip_i)})";
+            }
+
+            // --- Statistics ---
+            // Pure {@code percentile(list, p)} — scalar quantile of a list
+            // expression. DuckDB's {@code QUANTILE_CONT} is an aggregate, so
+            // use the LIST_AGGR shim already established for
+            // {@code listPercentileCont}.
+            case "percentile":     return "LIST_AGGR(" + args.get(0) + ", 'quantile_cont', " + args.get(1) + ")";
 
             // --- Date arithmetic ---
             // {@code adjust(date, n, unit)} adds {@code n} units to {@code date}.
@@ -332,31 +406,12 @@ public final class DuckDBDialect implements SQLDialect {
             // ({@code 'DAYS'}, {@code 'MONTHS'}, …); DuckDB's date_add takes
             // an INTERVAL constructed from that string with multiplication.
             case "adjust": {
-                // args: [date, n, unitString]
-                String unit = args.get(2);
-                // Strip surrounding quotes from string literals so we can drop
-                // it into INTERVAL N <unit>. The string is always a literal
-                // (the enum reference is lowered to the bare enum-value name).
-                String unitStripped = unit.length() >= 2 && unit.startsWith("'") && unit.endsWith("'")
-                        ? unit.substring(1, unit.length() - 1)
-                        : unit;
-                // Map the Pure unit to a DuckDB INTERVAL keyword. Pure uses
-                // plural names ({@code DAYS}); DuckDB accepts both, but
-                // standardise on the singular for readability.
-                String intervalUnit = switch (unitStripped) {
-                    case "YEARS"        -> "YEAR";
-                    case "MONTHS"       -> "MONTH";
-                    case "WEEKS"        -> "WEEK";
-                    case "DAYS"         -> "DAY";
-                    case "HOURS"        -> "HOUR";
-                    case "MINUTES"      -> "MINUTE";
-                    case "SECONDS"      -> "SECOND";
-                    case "MILLISECONDS" -> "MILLISECOND";
-                    case "MICROSECONDS" -> "MICROSECOND";
-                    default              -> unitStripped;
-                };
+                // args: [date, n, unitString]. The unit is the lowered Pure
+                // enum string ('DAYS', 'MONTHS', …); strip quotes and map via
+                // the shared {@link #pureUnitToDuckDbInterval} helper.
+                String unit = stripQuotes(args.get(2));
                 return "(" + args.get(0) + " + (" + args.get(1)
-                        + " * INTERVAL '1 " + intervalUnit + "'))";
+                        + " * INTERVAL '1 " + pureUnitToDuckDbInterval(unit) + "'))";
             }
             case "listSort":
                 // args: [list] or [list, direction]
@@ -432,19 +487,22 @@ public final class DuckDBDialect implements SQLDialect {
             case "arrayToString":
                 return "COALESCE(ARRAY_TO_STRING(" + args.get(0) + ", " + args.get(1) + "), '')";
             case "dateDiff": {
-                // args: [unit, start, end]
-                String unit = args.get(0);
-                // Strip quotes from unit literal (e.g., 'WEEK' -> WEEK)
+                // Pure {@code dateDiff(start, end, unit)} — note the unit is
+                // the THIRD parameter (lowered Pure enum string literal like
+                // 'DAYS', 'WEEKS', …), not the first. DuckDB's
+                // {@code DATE_DIFF(part, start, end)} expects the part as
+                // arg[0] — re-order and singularise.
+                String start = args.get(0);
+                String end = args.get(1);
+                String unit = args.get(2);
                 if (unit.startsWith("'") && unit.endsWith("'")) unit = unit.substring(1, unit.length() - 1);
-                if ("WEEK".equalsIgnoreCase(unit)) {
+                String part = pureUnitToDuckDbInterval(unit);
+                if ("week".equals(part)) {
                     // DuckDB has no native WEEK diff — decompose:
-                    // (DATE_DIFF('day', start, end) + CAST(EXTRACT(DOW FROM start) AS INTEGER)) // 7
-                    String start = args.get(1);
-                    String end = args.get(2);
                     return "(DATE_DIFF('day', " + start + ", " + end
                             + ") + CAST(EXTRACT(DOW FROM " + start + ") AS INTEGER)) // 7";
                 }
-                return "DATE_DIFF(" + String.join(", ", args) + ")";
+                return "DATE_DIFF('" + part + "', " + start + ", " + end + ")";
             }
             case "listMinMaxBy": {
                 // args: [list1, list2, aggFunc]
@@ -653,6 +711,30 @@ public final class DuckDBDialect implements SQLDialect {
     private static String stripQuotes(String s) {
         if (s.startsWith("'") && s.endsWith("'")) return s.substring(1, s.length() - 1);
         return s;
+    }
+
+    /**
+     * Map a Pure {@code DurationUnit} string ({@code 'YEARS'},
+     * {@code 'DAYS'}, …) to its DuckDB singular lowercase equivalent
+     * ({@code 'year'}, {@code 'day'}, …). Used by all date helpers
+     * (timeBucket, dateDiff, adjust) so the unit translation lives in
+     * exactly one place. Already-stripped of surrounding quotes by the
+     * caller; falls through to {@code lowerCase()} for any unrecognised
+     * unit so future enum additions degrade gracefully.
+     */
+    private static String pureUnitToDuckDbInterval(String unit) {
+        return switch (unit) {
+            case "YEARS"        -> "year";
+            case "MONTHS"       -> "month";
+            case "WEEKS"        -> "week";
+            case "DAYS"         -> "day";
+            case "HOURS"        -> "hour";
+            case "MINUTES"      -> "minute";
+            case "SECONDS"      -> "second";
+            case "MILLISECONDS" -> "millisecond";
+            case "MICROSECONDS" -> "microsecond";
+            default              -> unit.toLowerCase();
+        };
     }
 
     /**
