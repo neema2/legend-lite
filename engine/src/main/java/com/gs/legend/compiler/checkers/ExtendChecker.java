@@ -48,8 +48,12 @@ public class ExtendChecker extends AbstractChecker {
         }
 
         // --- Pass 1: collect over() and top-level traverse() clauses ---
+        // Each traverse clause becomes one {@link TraversalSpec}; hops within
+        // a spec chain (hop[i] parents hop[i-1]), specs themselves all root at
+        // the source alias — mirrors the legacy plangen's per-spec prevAlias
+        // reset.
         TypedOver overSpec = null;
-        List<TraversalHop> topLevelHops = new ArrayList<>();
+        List<TraversalSpec> traversalSpecs = new ArrayList<>();
         List<Type.Schema> terminalSchemas = null;
         Type.Schema colSpecSchema = sourceSchema;
         for (int i = 1; i < params.size(); i++) {
@@ -59,18 +63,20 @@ public class ExtendChecker extends AbstractChecker {
                     overSpec = compileOverClause(paf, sourceSchema);
                 } else if ("traverse".equals(fn)) {
                     var result = compileTraverseClause(paf, sourceSchema, ctx);
-                    topLevelHops.addAll(result.hops);
+                    traversalSpecs.add(new TraversalSpec(result.hops));
                     colSpecSchema = result.terminalSchema;
                 }
             } else if (params.get(i) instanceof PureCollection pc) {
                 // Multi-traverse: PureCollection of traverse() calls — each exposes
                 // its own terminal schema, bound to a distinct lambda param.
+                // Each element is a separate spec; chains are independent (e.g.
+                // {@code summary = concat(@OrdCust|.NAME, ' ', @OrdProd|.NAME)}).
                 terminalSchemas = new ArrayList<>();
                 for (var elem : pc.values()) {
                     if (elem instanceof AppliedFunction taf
                             && "traverse".equals(simpleName(taf.function()))) {
                         var result = compileTraverseClause(taf, sourceSchema, ctx);
-                        topLevelHops.addAll(result.hops);
+                        traversalSpecs.add(new TraversalSpec(result.hops));
                         terminalSchemas.add(result.terminalSchema);
                     }
                 }
@@ -97,7 +103,7 @@ public class ExtendChecker extends AbstractChecker {
                     AppliedFunction innerTraverse =
                             (AppliedFunction) cs.function1().body().get(0);
                     var result = compileTraverseClause(innerTraverse, sourceSchema, ctx);
-                    topLevelHops.addAll(result.hops);
+                    traversalSpecs.add(new TraversalSpec(result.hops));
                     colSpecSchema = result.terminalSchema;
                     // Target class's compiled mapping function is resolved by a
                     // pass-2 fan-out over associationNavigations on TypeChecker,
@@ -135,7 +141,7 @@ public class ExtendChecker extends AbstractChecker {
         }
 
         var schema = new Type.Schema(newColumns, sourceSchema.dynamicPivotColumns());
-        return new TypedExtend(source, topLevelHops, extensions,
+        return new TypedExtend(source, traversalSpecs, extensions,
                 ExpressionType.one(new Type.Relation(schema)));
     }
 

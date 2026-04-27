@@ -11,19 +11,25 @@ import java.util.List;
  * window, or traverse. PlanGenerator pattern-matches on the subvariant; no flags.
  *
  * <p>When a top-level {@code traverse()} clause appears as an extend parameter
- * (not wrapping a ColSpec), the resolved hops are recorded in
- * {@code traversalHops}. Those hops apply <em>before</em> the column extensions
- * are evaluated, exposing the terminal table's columns to every scalar/window
- * column in {@code extensions}. Empty when no top-level traverse is present.
+ * (not wrapping a ColSpec), the resolved hops are recorded as a {@link TraversalSpec}
+ * in {@link #traversalSpecs}. A {@link com.gs.legend.ast.PureCollection} of
+ * traverses (multi-join DynaFunction mappings) yields one spec per element;
+ * each association-extend ColSpec contributes its own spec. Each spec's hops
+ * apply <em>before</em> the column extensions are evaluated, exposing the
+ * terminal tables' columns to every scalar/window column in {@code extensions}.
+ *
+ * <p>Spec boundaries matter to lowering: hops <em>within</em> one spec chain
+ * ({@code source -> hop0 -> hop1 -> ...}) but each spec re-roots at the
+ * source alias, matching legacy plangen semantics.
  */
 public record TypedExtend(
         TypedSpec source,
-        List<TraversalHop> traversalHops,
+        List<TraversalSpec> traversalSpecs,
         List<TypedExtendCol> extensions,
         ExpressionType info
 ) implements TypedSpec {
     public TypedExtend {
-        traversalHops = List.copyOf(traversalHops);
+        traversalSpecs = List.copyOf(traversalSpecs);
         extensions = List.copyOf(extensions);
     }
 }

@@ -62,35 +62,60 @@ public final class ExtendLowering {
         String srcAlias = aliased.alias();
         var store = ctx.storeFor(n.source());
 
-        // Single NavScope holds (a) traversalHops pre-registered as synthetic
-        // "[__hop_i]" entries with empty parentPrefix (so each hop's source
-        // binds to the root srcAlias, matching legacy flat-install semantics),
-        // and (b) any association navs discovered while lowering scalar extend
-        // bodies below. One Relations.install at rule exit weaves everything.
+        // Single NavScope holds (a) the resolved traversal specs pre-registered
+        // as synthetic "[__hop_s_i]" entries and (b) any association navs
+        // discovered while lowering scalar extend bodies below. One
+        // Relations.install at rule exit weaves everything.
+        //
+        // Spec / hop semantics — mirrors legacy plangen
+        // ({@code docs/reference/plangen-legacy-pre-port.java.txt:1981-1993}):
+        //   for each spec:
+        //     prevAlias = sourceAlias            // reset between specs
+        //     for each hop in spec:
+        //       allocate hopAlias
+        //       JOIN target ON cond[prev->prevAlias, hop->hopAlias]
+        //       prevAlias = hopAlias             // chain within spec
+        //     terminalAliases.add(prevAlias)
+        //
+        // {@code aliasChain} is the lambda-param binding vector:
+        // index 0 = source alias, index i+1 = terminal alias of spec i.
+        // Multi-traverse lambdas like {@code {src, t1, t2 | …}} bind each
+        // {@code t_i} to the corresponding spec's terminal.
         com.gs.legend.plan.lowering.NavScope scope = new com.gs.legend.plan.lowering.NavScope();
-        List<String> aliasChain = new ArrayList<>(n.traversalHops().size() + 1);
+        List<String> aliasChain = new ArrayList<>(n.traversalSpecs().size() + 1);
         aliasChain.add(srcAlias);
-        for (int i = 0; i < n.traversalHops().size(); i++) {
-            var hop = n.traversalHops().get(i);
-            TypedLambda cond = hop.condition();
-            if (cond.parameters().size() != 2) {
-                throw PlanGenNotPortedException.stage3(n, "extend:hop:non-binary-condition");
+        for (int s = 0; s < n.traversalSpecs().size(); s++) {
+            var spec = n.traversalSpecs().get(s);
+            String terminalAlias = srcAlias;
+            for (int i = 0; i < spec.hops().size(); i++) {
+                var hop = spec.hops().get(i);
+                TypedLambda cond = hop.condition();
+                if (cond.parameters().size() != 2) {
+                    throw PlanGenNotPortedException.stage3(n, "extend:hop:non-binary-condition");
+                }
+                if (cond.body().isEmpty()) {
+                    throw PlanGenNotPortedException.stage3(n, "extend:hop:empty-condition");
+                }
+                // Build a synthetic JoinResolution so we can reuse NavScope.navigate.
+                StoreResolution.JoinResolution jr = new StoreResolution.JoinResolution(
+                        hop.tableName(),
+                        cond.parameters().get(0).name(),
+                        cond.parameters().get(1).name(),
+                        false,                                                // isToMany
+                        cond.body().get(cond.body().size() - 1),               // joinCondition
+                        java.util.Set.of(),                                    // sourceColumns (unused here)
+                        null);                                                 // targetResolution
+                // Per-spec scoped prefix keeps spec s's hop i distinct from
+                // spec s'-1's hop i (otherwise NavScope dedups them).
+                List<String> prefix = List.of("__hop_" + s + "_" + i);
+                // Chain within spec: hop 0 parents to source (empty
+                // parentPrefix); hop i > 0 parents to spec s's hop i-1.
+                List<String> parentPrefix = i == 0
+                        ? List.of()
+                        : List.of("__hop_" + s + "_" + (i - 1));
+                terminalAlias = scope.navigate(prefix, parentPrefix, jr, ctx.aliases());
             }
-            if (cond.body().isEmpty()) {
-                throw PlanGenNotPortedException.stage3(n, "extend:hop:empty-condition");
-            }
-            // Build a synthetic JoinResolution so we can reuse NavScope.navigate.
-            StoreResolution.JoinResolution jr = new StoreResolution.JoinResolution(
-                    hop.tableName(),
-                    cond.parameters().get(0).name(),
-                    cond.parameters().get(1).name(),
-                    false,                                                // isToMany
-                    cond.body().get(cond.body().size() - 1),               // joinCondition
-                    java.util.Set.of(),                                    // sourceColumns (unused here)
-                    null);                                                 // targetResolution
-            List<String> prefix = List.of("__hop_" + i);
-            String alias = scope.navigate(prefix, List.of(), jr, ctx.aliases());
-            aliasChain.add(alias);
+            aliasChain.add(terminalAlias);
         }
 
         List<SqlRelation.ExtendCol> cols = new ArrayList<>(n.extensions().size());
