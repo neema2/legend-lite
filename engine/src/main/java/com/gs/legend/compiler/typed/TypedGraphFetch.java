@@ -1,6 +1,7 @@
 package com.gs.legend.compiler.typed;
 
 import com.gs.legend.compiler.ExpressionType;
+import com.gs.legend.compiler.NativeFunctionDef;
 
 import java.util.List;
 
@@ -19,8 +20,9 @@ import java.util.List;
 public record TypedGraphFetch(
         TypedSpec source,
         List<TypedGraphTree> children,
+        NativeFunctionDef def,
         ExpressionType info
-) implements TypedSpec {
+) implements TypedNative {
     public TypedGraphFetch {
         children = children == null ? List.of() : List.copyOf(children);
     }

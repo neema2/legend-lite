@@ -1,6 +1,7 @@
 package com.gs.legend.compiler.typed;
 
 import com.gs.legend.compiler.ExpressionType;
+import com.gs.legend.compiler.NativeFunctionDef;
 
 import java.util.List;
 
@@ -26,8 +27,9 @@ public record TypedExtend(
         TypedSpec source,
         List<TraversalSpec> traversalSpecs,
         List<TypedExtendCol> extensions,
+        NativeFunctionDef def,
         ExpressionType info
-) implements TypedSpec {
+) implements TypedNative {
     public TypedExtend {
         traversalSpecs = List.copyOf(traversalSpecs);
         extensions = List.copyOf(extensions);

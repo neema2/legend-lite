@@ -57,6 +57,6 @@ public class SerializeChecker extends AbstractChecker {
             ColSpecArray csa = GraphFetchChecker.extractColSpecs(params.get(1));
             if (csa != null) children = GraphFetchChecker.buildTree(csa);
         }
-        return new TypedSerialize(sourceTyped, "json", children, outputType);
+        return new TypedSerialize(sourceTyped, "json", children, def, outputType);
     }
 }

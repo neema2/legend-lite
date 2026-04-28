@@ -47,14 +47,14 @@ public class SelectChecker extends AbstractChecker {
         // Pass-through overload (or empty col list): output = source schema.
         List<String> cols = params.size() < 2 ? List.of() : extractColumnNames(params.get(1));
         if (cols.isEmpty()) {
-            return new TypedSelect(source, List.of(),
+            return new TypedSelect(source, List.of(), def,
                     resolveOutput(def, bindings, "select()"));
         }
 
         // Columns overload: Z ⊆ T, output schema = source ↓ Z.
         sourceSchema.assertHasColumns(cols);
         Type.Schema outputSchema = sourceSchema.onlyColumns(cols);
-        return new TypedSelect(source, cols,
+        return new TypedSelect(source, cols, def,
                 ExpressionType.one(new Type.Relation(outputSchema)));
     }
 }

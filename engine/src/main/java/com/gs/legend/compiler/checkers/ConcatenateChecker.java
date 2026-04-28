@@ -45,7 +45,7 @@ public class ConcatenateChecker extends AbstractChecker {
                 throw new PureCompileException(
                         "concatenate(): cannot determine type of left source");
             }
-            return new TypedConcatenate(left, right, ExpressionType.many(left.type()));
+            return new TypedConcatenate(left, right, def, ExpressionType.many(left.type()));
         }
 
         // Bind type variables from signature (T from left source).
@@ -62,14 +62,14 @@ public class ConcatenateChecker extends AbstractChecker {
             ExpressionType lca = resolveClassLCA(left, right);
             // No common supertype — fall back to an untyped variant list.
             ExpressionType out = lca != null ? lca : ExpressionType.many(Primitive.ANY);
-            return new TypedConcatenate(left, right, out);
+            return new TypedConcatenate(left, right, def, out);
         }
 
         // Relational: strict column alignment; output from signature (Relation<T>[1]).
         if (leftSchema != null && rightSchema != null) {
             validateColumnAlignment(leftSchema, rightSchema);
         }
-        return new TypedConcatenate(left, right,
+        return new TypedConcatenate(left, right, def,
                 resolveOutput(def, bindings, "concatenate()"));
     }
 

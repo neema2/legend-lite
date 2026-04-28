@@ -141,7 +141,7 @@ public class ExtendChecker extends AbstractChecker {
         }
 
         var schema = new Type.Schema(newColumns, sourceSchema.dynamicPivotColumns());
-        return new TypedExtend(source, traversalSpecs, extensions,
+        return new TypedExtend(source, traversalSpecs, extensions, def,
                 ExpressionType.one(new Type.Relation(schema)));
     }
 
@@ -209,7 +209,7 @@ public class ExtendChecker extends AbstractChecker {
         }
 
         // Class-source extend stays in object space — ClassType[*] unchanged.
-        return new TypedExtend(source, List.of(), extensions, source.expressionType());
+        return new TypedExtend(source, List.of(), extensions, def, source.expressionType());
     }
 
     // ========== Association / Embedded extend detection ==========

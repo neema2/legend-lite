@@ -69,7 +69,7 @@ public class SlicingChecker extends AbstractChecker {
         ExpressionType outputType = resolveOutput(def, bindings, funcName + "()");
         long offset = extractOffset(funcName, params);
         long limit  = extractLimit(funcName, params);
-        return new TypedSlice(source, offset, limit, outputType);
+        return new TypedSlice(source, offset, limit, def, outputType);
     }
 
     /** Offset in rows; 0 unless the op skips rows ({@code drop}/{@code slice}). */

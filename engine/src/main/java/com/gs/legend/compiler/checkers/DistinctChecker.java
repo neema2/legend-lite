@@ -47,14 +47,14 @@ public class DistinctChecker extends AbstractChecker {
         // source columns; output schema = source schema (via resolveOutput).
         List<String> cols = params.size() < 2 ? List.of() : extractColumnNames(params.get(1));
         if (cols.isEmpty()) {
-            return new TypedDistinct(source, List.of(),
+            return new TypedDistinct(source, List.of(), def,
                     resolveOutput(def, bindings, "distinct()"));
         }
 
         // Columns overload: enforce X ⊆ T, project to the subset.
         sourceSchema.assertHasColumns(cols);
         Type.Schema outputSchema = sourceSchema.onlyColumns(cols);
-        return new TypedDistinct(source, cols,
+        return new TypedDistinct(source, cols, def,
                 ExpressionType.one(new Type.Relation(outputSchema)));
     }
 }

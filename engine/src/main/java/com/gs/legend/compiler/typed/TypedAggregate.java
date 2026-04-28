@@ -1,6 +1,7 @@
 package com.gs.legend.compiler.typed;
 
 import com.gs.legend.compiler.ExpressionType;
+import com.gs.legend.compiler.NativeFunctionDef;
 
 import java.util.List;
 
@@ -13,8 +14,9 @@ import java.util.List;
 public record TypedAggregate(
         TypedSpec source,
         List<TypedAggCall> aggs,
+        NativeFunctionDef def,
         ExpressionType info
-) implements TypedSpec {
+) implements TypedNative {
     public TypedAggregate {
         aggs = List.copyOf(aggs);
     }

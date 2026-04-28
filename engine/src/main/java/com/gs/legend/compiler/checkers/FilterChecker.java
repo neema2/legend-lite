@@ -42,6 +42,6 @@ public class FilterChecker extends AbstractChecker {
 
         // Output type from signature's return type + bindings.
         ExpressionType outputType = resolveOutput(def, bindings, "filter()");
-        return new TypedFilter(source, predicate, outputType);
+        return new TypedFilter(source, predicate, def, outputType);
     }
 }

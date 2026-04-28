@@ -88,7 +88,7 @@ public class PivotChecker extends AbstractChecker {
                 .toList();
         var outSchema = new Type.Schema(groupByCols, dynamicCols);
 
-        return new TypedPivot(source, pivotColumns, aggs,
+        return new TypedPivot(source, pivotColumns, aggs, def,
                 ExpressionType.one(new Type.Relation(outSchema)));
     }
 }

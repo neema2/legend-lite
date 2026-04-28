@@ -1,6 +1,7 @@
 package com.gs.legend.compiler.typed;
 
 import com.gs.legend.compiler.ExpressionType;
+import com.gs.legend.compiler.NativeFunctionDef;
 
 import java.util.Map;
 import java.util.Optional;
@@ -19,8 +20,9 @@ public record TypedAsOfJoin(
         TypedLambda matchCondition,
         Optional<TypedLambda> keyCondition,
         Map<String, String> renames,
+        NativeFunctionDef def,
         ExpressionType info
-) implements TypedSpec {
+) implements TypedNative {
     public TypedAsOfJoin {
         renames = Map.copyOf(renames);
     }

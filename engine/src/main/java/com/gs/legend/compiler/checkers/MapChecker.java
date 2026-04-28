@@ -61,6 +61,6 @@ public class MapChecker extends AbstractChecker {
         // Output type is V[*] or V[0..1] — V was bound by compileLambdaArg from
         // the body's return type.
         ExpressionType outputType = resolveOutput(def, bindings, "map()");
-        return new TypedMap(source, mapper, outputType);
+        return new TypedMap(source, mapper, def, outputType);
     }
 }

@@ -78,7 +78,7 @@ public class JoinChecker extends AbstractChecker {
                 bindings, leftSchema, rightSchema, rightPrefix);
 
         ExpressionType outputExpr = resolveOutput(def, bindings, "join");
-        return new TypedJoin(left, right, condition, joinType, renames, outputExpr);
+        return new TypedJoin(left, right, condition, joinType, renames, def, outputExpr);
     }
 
     // ========== Helpers ==========

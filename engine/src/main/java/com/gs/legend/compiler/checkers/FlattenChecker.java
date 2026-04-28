@@ -63,7 +63,7 @@ public class FlattenChecker extends AbstractChecker {
         Map<String, Type> resultColumns = new LinkedHashMap<>(sourceSchema.columns());
         resultColumns.put(colName, Primitive.VARIANT);
         var outputSchema = new Type.Schema(resultColumns, sourceSchema.dynamicPivotColumns());
-        return new TypedFlatten(source, colName,
+        return new TypedFlatten(source, colName, def,
                 ExpressionType.one(new Type.Relation(outputSchema)));
     }
 }

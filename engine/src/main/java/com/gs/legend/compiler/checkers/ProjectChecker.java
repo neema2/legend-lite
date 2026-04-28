@@ -90,7 +90,7 @@ public class ProjectChecker extends AbstractChecker {
         }
 
         Type.Schema resultSchema = Type.Schema.withoutPivot(projectedColumns);
-        return new TypedProject(source, projections,
+        return new TypedProject(source, projections, def,
                 ExpressionType.one(new Type.Relation(resultSchema)));
     }
 

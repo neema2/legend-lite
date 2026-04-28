@@ -108,7 +108,7 @@ public final class Lowerer {
             // to "lower once + emit as a CTE referenced by alias". Deferred
             // to that migration so the IR shape can be designed against
             // the real CTE requirements rather than guessed at now.
-            case TypedLet   n -> n.value().type() instanceof Type.Relation
+            case TypedLet   n -> isRelationalSource(n.value(), ctx)
                     ? lowerRelation(n.value(), ctx)
                     : wrapScalar(ControlFlowLowering.lower(n, ctx), ctx, n);
             // Block: process intermediate {@code let}s (binding scalar values
@@ -184,21 +184,26 @@ public final class Lowerer {
             case TypedTableReference n -> throw notScalar(n);
             case TypedSourceUrl n      -> throw notScalar(n);
             case TypedTdsLiteral n     -> throw notScalar(n);
-            case TypedFilter n      -> throw notScalar(n);
+            // Dual-form records: relational arm above (lowerRelation),
+            // scalar-list arm below. Routing predicate (isRelationalSource)
+            // at outer call-sites picks which switch this node enters.
+            case TypedFilter n      -> FilterLowering.lowerAsListExpr(n, ctx);
+            case TypedSort n        -> SortLimitLowering.lowerAsListExpr(n, ctx);
+            case TypedSlice n       -> SortLimitLowering.lowerAsListExpr(n, ctx);
+            case TypedDistinct n    -> SelectRenameLowering.lowerAsListExpr(n, ctx);
+            case TypedConcatenate n -> ConcatenateLowering.lowerAsListExpr(n, ctx);
+            case TypedFlatten n     -> FlattenLowering.lowerAsListExpr(n, ctx);
+
+            // Relational-only records: Pure has no scalar overload for them.
             case TypedProject n     -> throw notScalar(n);
-            case TypedSort n        -> throw notScalar(n);
-            case TypedSlice n       -> throw notScalar(n);
             case TypedSelect n      -> throw notScalar(n);
             case TypedRename n      -> throw notScalar(n);
-            case TypedDistinct n    -> throw notScalar(n);
-            case TypedConcatenate n -> throw notScalar(n);
             case TypedExtend n      -> throw notScalar(n);
             case TypedGroupBy n     -> throw notScalar(n);
             case TypedAggregate n   -> throw notScalar(n);
             case TypedPivot n       -> throw notScalar(n);
             case TypedJoin n        -> throw notScalar(n);
             case TypedAsOfJoin n    -> throw notScalar(n);
-            case TypedFlatten n     -> throw notScalar(n);
             case TypedFrom n        -> throw notScalar(n);
             case TypedGraphFetch n  -> throw notScalar(n);
 
@@ -218,6 +223,34 @@ public final class Lowerer {
     private static PlanGenNotPortedException notScalar(TypedSpec node) {
         return new PlanGenNotPortedException(node, "dispatch-bug",
                 "relational node cannot be lowered as a scalar; caller bug");
+    }
+
+    /**
+     * True when the given typed node lowers as a relational {@link SqlRelation}
+     * (vs. a scalar {@link SqlExpr}).
+     *
+     * <ul>
+     *   <li>{@code info().type() instanceof Type.Relation} — TDS-shape producers
+     *       stamped by the type-checker (TypedTdsLiteral, TypedProject,
+     *       TypedExtend, TypedGroupBy, TypedSelect, TypedJoin, …).</li>
+     *   <li>{@code ctx.storeFor(node) != null} — mapped class extents whose Pure
+     *       type is {@code ClassType[*]} but whose execution shape is a relation
+     *       (TypedGetAll over a mapped class, plus relational ops chained on
+     *       top of one). MappingResolver propagates the StoreResolution along
+     *       the chain.</li>
+     * </ul>
+     *
+     * <p>Anything failing both clauses is a scalar list / scalar value
+     * ({@code [1,2,3]}, {@code ^Person(…)} instance literals, primitives).
+     *
+     * <p>Used at type-erasing routing boundaries: {@code TypedLet}'s value,
+     * {@code TypedBlock}'s let-bindings and tail, {@code TypedUserCall}'s
+     * actual arguments. Every other dispatch in {@link #lowerRelation} /
+     * {@link #lowerScalar} is structural (record kind alone determines the arm).
+     */
+    private static boolean isRelationalSource(TypedSpec n, LoweringContext ctx) {
+        return n.info().type() instanceof Type.Relation
+            || ctx.storeFor(n) != null;
     }
 
     /**
@@ -253,7 +286,7 @@ public final class Lowerer {
         for (int i = 0; i < last; i++) {
             TypedSpec s = n.stmts().get(i);
             if (s instanceof TypedLet let) {
-                if (let.value().type() instanceof Type.Relation) {
+                if (isRelationalSource(let.value(), cur)) {
                     cur = cur.bindRel(let.name(), let.value());
                 } else {
                     SqlExpr value = lowerScalar(let.value(), cur);
@@ -265,7 +298,7 @@ public final class Lowerer {
             }
         }
         TypedSpec tail = n.stmts().get(last);
-        return tail.type() instanceof Type.Relation
+        return isRelationalSource(tail, cur)
                 ? lowerRelation(tail, cur)
                 : wrapScalar(lowerScalar(tail, cur), cur, tail);
     }
@@ -295,7 +328,7 @@ public final class Lowerer {
         for (int i = 0; i < formals.size(); i++) {
             String name = formals.get(i).name();
             TypedSpec actual = actuals.get(i);
-            if (actual.isRelation()) {
+            if (isRelationalSource(actual, cur)) {
                 cur = cur.bindRel(name, actual);
             } else {
                 SqlExpr value = lowerScalar(actual, cur);

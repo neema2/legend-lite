@@ -67,3 +67,58 @@ REMAINING for Phase B (MappingResolver) — ~5 variant-read sites.
 REMAINING for Phase C (PlanGenerator) — ~35 variant-read sites.
 
 TESTS: expected red during Phase A; re-enable after B+C.
+
+================================================================================
+Filter/Sort dual-form routing (worked-example-992f1a) — 2026-04-28
+Plan: ~/.windsurf/plans/filter-worked-example-992f1a.md (master 992f1a)
+
+DELTA: 363 -> 360 broken (3 fixed, 0 regressions).
+FIXED:
+  - LetCheckerTest$LetCollections.testLetIntegerList
+  - LetCheckerTest$LetCollections.testLetStringList
+  - StructFilterIntegrationTest.testStructFilterSimpleProperty
+
+CHANGES:
+  - Lowerer.java: added isRelationalSource(node, ctx) helper (two clauses:
+    info().type() instanceof Type.Relation || ctx.storeFor(n) != null);
+    replaced 4 routing predicates (let bind, var ref, block, user-call body).
+  - SqlExpr.java: 4 new typed records (ListFilter/ListSort/ListConcat/
+    ListDistinct) + permits entries.
+  - SQLDialect.java: 4 default render arms with DuckDB-leaning helpers.
+  - 6 *Lowering modules: lowerAsListExpr companions on Filter, Sort, Slice,
+    Distinct (in SelectRenameLowering), Concatenate, Flatten (stub).
+  - Lowerer.lowerScalar: replaced 6 throw-notScalar arms with calls to
+    lowerAsListExpr. Relational-only records (Project, Select, Rename,
+    Extend, GroupBy, Aggregate, Pivot, Join, AsOfJoin, From, GraphFetch)
+    keep notScalar (no Pure scalar overload).
+
+WHY ONLY +3 (master plan §1.1 estimated ~17):
+  Master plan conflated error-count with broken-test-count. Phase A
+  eliminated ALL TypedFilter/Sort/Slice/Distinct/Concatenate dispatch-bugs,
+  but tests stuck at those errors typically had OTHER blockers in the chain.
+  Specifically: ScalarFunctionLowering.lowerArgs blindly calls lowerScalar
+  on every arg; relational args (size(rel), first(rel), etc.) recurse into
+  scalar arms and hit relational leaves (TypedTdsLiteral/GetAll/etc.) with
+  no scalar arm. Error site moved deeper, test still red.
+
+KEY FINDING — first()/head() are NOT Pure Relation functions:
+  Pure has: first<T>(T[*]):T[0..1] (collection-only), first(rel,window,row)
+  (window-context only), and limit<T>(rel:Relation,n:Int):Relation<T> for
+  relations. There is NO first(Relation):Relation overload in
+  Pure.java#FIRST_*. Legacy plangen at plangen-legacy-pre-port.java.txt:480
+  had a non-spec hack (case "first" -> generateFirst -> LIMIT 1).
+  Tests like SlicingCheckerTest.testFirst exercise this hack
+  (#TDS#->sort()->first()); they were broken in baseline AND remain broken.
+  NOT Phase A's responsibility.
+
+REMAINING DISPATCH-BUGS (downstream of lowerArgs, NOT routing):
+  TypedPivot:10, TypedTdsLiteral:5, TypedPackageableRef:4, TypedProject:2,
+  TypedGetAll:1.
+
+FOLLOWUPS:
+  - first/head policy decision: legacy-hack-shim in TypeChecker (normalize
+    first(Relation) -> TypedSlice(0,1)) OR rewrite tests to use limit(rel,1).
+  - ScalarFunctionLowering.lowerArgs needs per-native handlers for scalars
+    consuming relations (size, count, exists, first/head, ...). Phase D-G.
+
+BASELINE: progress/baseline-failures.txt (363 broken pre-change).

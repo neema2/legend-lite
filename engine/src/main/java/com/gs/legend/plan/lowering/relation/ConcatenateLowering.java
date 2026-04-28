@@ -25,4 +25,16 @@ public final class ConcatenateLowering {
         SqlRelation right = Lowerer.lowerRelation(n.right(), ctx);
         return new SqlRelation.Union(left, right, /* all = */ true);
     }
+
+    /**
+     * Lower {@link TypedConcatenate} as a scalar list expression
+     * ({@code [1,2]->concatenate([3,4])}). Heterogeneous-type VARIANT element
+     * wrapping (legacy lines 3618-3666) is deferred — current scope assumes
+     * left/right element types unify.
+     */
+    public static com.gs.legend.sqlgen.SqlExpr lowerAsListExpr(TypedConcatenate n, LoweringContext ctx) {
+        return new com.gs.legend.sqlgen.SqlExpr.ListConcat(
+                Lowerer.lowerScalar(n.left(),  ctx),
+                Lowerer.lowerScalar(n.right(), ctx));
+    }
 }

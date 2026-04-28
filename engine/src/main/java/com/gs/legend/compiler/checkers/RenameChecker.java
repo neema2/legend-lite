@@ -67,7 +67,7 @@ public class RenameChecker extends AbstractChecker {
             outputSchema = outputSchema.renameColumn(oldNames.get(i), newNames.get(i));
             renames.add(new ColRename(oldNames.get(i), newNames.get(i)));
         }
-        return new TypedRename(source, renames,
+        return new TypedRename(source, renames, def,
                 ExpressionType.one(new Type.Relation(outputSchema)));
     }
 }

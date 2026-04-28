@@ -1,6 +1,7 @@
 package com.gs.legend.compiler.typed;
 
 import com.gs.legend.compiler.ExpressionType;
+import com.gs.legend.compiler.NativeFunctionDef;
 
 /**
  * {@code source->fold(reducer, init)} — reduction over a collection.
@@ -15,5 +16,6 @@ public record TypedFold(
         TypedLambda reducer,
         TypedSpec init,
         FoldStrategy strategy,
+        NativeFunctionDef def,
         ExpressionType info
-) implements TypedSpec {}
+) implements TypedNative {}

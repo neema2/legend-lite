@@ -50,6 +50,6 @@ public class WriteChecker extends AbstractChecker {
 
         var bindings = unify(def, actuals);
         ExpressionType outputType = resolveOutput(def, bindings, "write()"); // Integer[1]
-        return new TypedWrite(source, destination, outputType);
+        return new TypedWrite(source, destination, def, outputType);
     }
 }

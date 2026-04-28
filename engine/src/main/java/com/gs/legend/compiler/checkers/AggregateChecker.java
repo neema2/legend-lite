@@ -60,7 +60,7 @@ public class AggregateChecker extends AbstractChecker {
         }
 
         var outSchema = Type.Schema.withoutPivot(resultColumns); // R only — no group cols
-        return new TypedAggregate(source, aggs,
+        return new TypedAggregate(source, aggs, def,
                 ExpressionType.one(new Type.Relation(outSchema)));
     }
 }

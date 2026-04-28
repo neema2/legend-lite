@@ -90,7 +90,8 @@ public class EvalChecker extends AbstractChecker {
                                 && ft.returnMult().upperBound() > 1
                                 ? ExpressionType.many(ft.returnType())
                                 : ExpressionType.one(ft.returnType());
-                yield new com.gs.legend.compiler.typed.TypedEval(typedVar, argSpecs, outType);
+                NativeFunctionDef evalDef = resolveOverload("eval", params, varTyped);
+                yield new com.gs.legend.compiler.typed.TypedEval(typedVar, argSpecs, evalDef, outType);
             }
             default -> throw new PureCompileException(
                     "eval(): first argument must be a function reference, column spec, or lambda, got "

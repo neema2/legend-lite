@@ -69,7 +69,7 @@ public class AsOfJoinChecker extends AbstractChecker {
 
         ExpressionType outputExpr = resolveOutput(def, bindings, "asOfJoin");
         return new TypedAsOfJoin(left, right, matchCondition,
-                Optional.ofNullable(keyCondition), renames, outputExpr);
+                Optional.ofNullable(keyCondition), renames, def, outputExpr);
     }
 
     // ========== Helpers ==========

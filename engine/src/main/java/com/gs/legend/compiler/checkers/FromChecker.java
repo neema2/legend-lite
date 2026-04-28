@@ -72,6 +72,6 @@ public class FromChecker extends AbstractChecker {
             case 1 -> compiled.get(0);
             default -> compiled.get(1);
         };
-        return new TypedFrom(source, mapping, runtime, outputType);
+        return new TypedFrom(source, mapping, runtime, def, outputType);
     }
 }

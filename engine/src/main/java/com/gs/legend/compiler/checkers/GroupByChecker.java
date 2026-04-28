@@ -102,7 +102,7 @@ public class GroupByChecker extends AbstractChecker {
         }
 
         var schema = Type.Schema.withoutPivot(resultColumns);
-        return new TypedGroupBy(source, keys, aggs,
+        return new TypedGroupBy(source, keys, aggs, def,
                 ExpressionType.one(new Type.Relation(schema)));
     }
 
@@ -178,7 +178,7 @@ public class GroupByChecker extends AbstractChecker {
         }
 
         var schema = Type.Schema.withoutPivot(resultColumns);
-        return new TypedGroupBy(source, keys, aggs,
+        return new TypedGroupBy(source, keys, aggs, def,
                 ExpressionType.one(new Type.Relation(schema)));
     }
 

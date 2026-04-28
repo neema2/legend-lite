@@ -18,8 +18,11 @@ public record TypedNativeCall(
         NativeFunctionDef func,
         List<TypedSpec> args,
         ExpressionType info
-) implements TypedSpec {
+) implements TypedNative {
     public TypedNativeCall {
         args = List.copyOf(args);
     }
+
+    /** {@link TypedNative#def()} alias for {@link #func()} (semantic identity). */
+    @Override public NativeFunctionDef def() { return func; }
 }

@@ -78,7 +78,7 @@ public class FoldChecker extends AbstractChecker {
             TypedLambda reducer = compileLambdaArg(
                     lambdaAst, def.params().get(1), bindings, source, ctx, "fold");
             ExpressionType outputType = resolveOutput(def, bindings, "fold()");
-            return new TypedFold(source, reducer, init, new Concatenation(), outputType);
+            return new TypedFold(source, reducer, init, new Concatenation(), def, outputType);
         }
 
         // Signature-driven param binding for the reducer lambda, then classify.
@@ -91,7 +91,7 @@ public class FoldChecker extends AbstractChecker {
                 init.expressionType().multiplicity(), ctx, source);
 
         ExpressionType outputType = resolveOutput(def, bindings, "fold()");
-        return new TypedFold(source, reducer, init, strategy, outputType);
+        return new TypedFold(source, reducer, init, strategy, def, outputType);
     }
 
     // ==================== Strategy Classification ====================

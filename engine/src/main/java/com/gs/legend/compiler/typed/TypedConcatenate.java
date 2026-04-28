@@ -1,6 +1,7 @@
 package com.gs.legend.compiler.typed;
 
 import com.gs.legend.compiler.ExpressionType;
+import com.gs.legend.compiler.NativeFunctionDef;
 
 /**
  * Union-all of two inputs: {@code left->concatenate(right)} or {@code left->union(right)}.
@@ -17,5 +18,6 @@ import com.gs.legend.compiler.ExpressionType;
 public record TypedConcatenate(
         TypedSpec left,
         TypedSpec right,
+        NativeFunctionDef def,
         ExpressionType info
-) implements TypedSpec {}
+) implements TypedNative {}

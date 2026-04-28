@@ -1,6 +1,7 @@
 package com.gs.legend.compiler.typed;
 
 import com.gs.legend.compiler.ExpressionType;
+import com.gs.legend.compiler.NativeFunctionDef;
 
 /**
  * {@code source->map(mapper)} — covers both explicit {@code map} and
@@ -9,5 +10,6 @@ import com.gs.legend.compiler.ExpressionType;
 public record TypedMap(
         TypedSpec source,
         TypedLambda mapper,
+        NativeFunctionDef def,
         ExpressionType info
-) implements TypedSpec {}
+) implements TypedNative {}

@@ -82,4 +82,53 @@ public final class SortLimitLowering {
         SqlRelation src = Lowerer.lowerRelation(n.source(), ctx);
         return new SqlRelation.Limit(src, n.limit(), n.offset());
     }
+
+    /**
+     * Lower {@link TypedSort} as a scalar list expression. Empty {@code keys}
+     * → identity {@code list_sort(list)}; non-empty → keyed sort via
+     * {@link SqlExpr.ListSort.SortKey} entries. Column-name sort keys are not
+     * supported on scalar lists (no named columns); they would indicate a
+     * type-checker bug.
+     */
+    public static SqlExpr lowerAsListExpr(TypedSort n, LoweringContext ctx) {
+        SqlExpr list = Lowerer.lowerScalar(n.source(), ctx);
+        List<SqlExpr.ListSort.SortKey> keys = new ArrayList<>(n.keys().size());
+        for (TypedSortKey k : n.keys()) {
+            boolean desc = k.direction() == com.gs.legend.compiler.typed.SortDirection.DESC;
+            if (k instanceof TypedExpressionSortKey ek) {
+                if (ek.keyFn().parameters().size() != 1) {
+                    throw PlanGenNotPortedException.stage3(n, "sort-list-multi-param-lambda");
+                }
+                if (ek.keyFn().body().isEmpty()) {
+                    throw PlanGenNotPortedException.stage3(n, "sort-list-empty-lambda-body");
+                }
+                String p = ek.keyFn().parameters().get(0).name();
+                LoweringContext inner = ctx.bindVar(p, new SqlExpr.Identifier(p), null);
+                SqlExpr body = Lowerer.lowerScalar(
+                        ek.keyFn().body().get(ek.keyFn().body().size() - 1), inner);
+                keys.add(new SqlExpr.ListSort.SortKey(
+                        new SqlExpr.LambdaExpr(List.of(p), body), desc));
+            } else {
+                throw PlanGenNotPortedException.stage3(n, "sort-list-column-key");
+            }
+        }
+        return new SqlExpr.ListSort(list, keys);
+    }
+
+    /**
+     * Lower {@link TypedSlice} as a scalar list expression. Pure 0-based
+     * {@code [offset, offset+limit)} → SQL 1-based inclusive
+     * {@code [offset+1, offset+limit]}. Unbounded ({@code limit < 0}) is
+     * currently rare enough to defer.
+     */
+    public static SqlExpr lowerAsListExpr(TypedSlice n, LoweringContext ctx) {
+        SqlExpr list = Lowerer.lowerScalar(n.source(), ctx);
+        if (n.limit() < 0) {
+            throw PlanGenNotPortedException.stage3(n, "slice-list-unbounded");
+        }
+        return new SqlExpr.ListSlice(
+                list,
+                new SqlExpr.NumericLiteral(n.offset() + 1),
+                new SqlExpr.NumericLiteral(n.offset() + n.limit()));
+    }
 }

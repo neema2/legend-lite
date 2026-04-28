@@ -182,6 +182,35 @@ public final class FilterLowering {
         return new SqlExpr.Exists(filtered);
     }
 
+    /**
+     * Lower {@link TypedFilter} as a scalar list expression. Mirrors legacy
+     * {@code case "filter"} (lines 4015-4029 of plangen-legacy-pre-port.java.txt).
+     *
+     * <p>No association resolution: Pure {@code T[*]} semantics don't include
+     * relational mapping. Lambda parameter binds as a bare
+     * {@link SqlExpr.Identifier}; body lowers via {@code lowerScalar}.
+     */
+    public static SqlExpr lowerAsListExpr(TypedFilter n, LoweringContext ctx) {
+        SqlExpr list = Lowerer.lowerScalar(n.source(), ctx);
+        TypedLambda pred = n.predicate();
+        if (pred.parameters().size() != 1) {
+            throw new PureCompileException(
+                    "[plangen-c0954a] filter predicate must have exactly 1 parameter, got "
+                            + pred.parameters().size());
+        }
+        if (pred.body().isEmpty()) {
+            throw PlanGenNotPortedException.stage3(n, "filter-empty-body");
+        }
+        String paramName = pred.parameters().get(0).name();
+        LoweringContext inner = ctx.bindVar(
+                paramName, new SqlExpr.Identifier(paramName), null);
+        SqlExpr body = Lowerer.lowerScalar(
+                pred.body().get(pred.body().size() - 1), inner);
+        return new SqlExpr.ListFilter(
+                list,
+                new SqlExpr.LambdaExpr(List.of(paramName), body));
+    }
+
     /** AND-fold a list, dropping trivially-true entries and unwrapping singletons. */
     private static SqlExpr andOf(List<SqlExpr> parts) {
         List<SqlExpr> kept = new ArrayList<>(parts.size());

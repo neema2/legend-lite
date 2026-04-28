@@ -107,7 +107,7 @@ public class SortChecker extends AbstractChecker {
                 : List.of();
 
         ExpressionType outputType = resolveOutput(def, bindings, "sort()");
-        return new TypedSort(source, keys, outputType);
+        return new TypedSort(source, keys, def, outputType);
     }
 
     /**
@@ -247,7 +247,7 @@ public class SortChecker extends AbstractChecker {
                 : List.of();
 
         ExpressionType outputType = resolveOutput(def, bindings, "sort()");
-        return new TypedSort(source, keys, outputType);
+        return new TypedSort(source, keys, def, outputType);
     }
 
     /**
@@ -266,7 +266,7 @@ public class SortChecker extends AbstractChecker {
         ExpressionType outputType = resolveOutput(def, bindings, "sortBy()");
         return new TypedSort(source,
                 List.of(new TypedExpressionSortKey(keyLambda, direction)),
-                outputType);
+                def, outputType);
     }
 
     /**

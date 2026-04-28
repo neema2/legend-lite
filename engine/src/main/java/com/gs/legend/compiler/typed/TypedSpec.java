@@ -28,6 +28,13 @@ import com.gs.legend.compiler.ExpressionType;
  * package as the sealed parent in unnamed modules.
  */
 public sealed interface TypedSpec permits
+        // Applied-native records (carry resolved NativeFunctionDef via TypedNative).
+        // Includes TypedFilter, TypedSort, TypedSlice, TypedConcatenate, TypedDistinct,
+        // TypedFlatten, TypedRename, TypedSelect, TypedFold, TypedMap, TypedZip,
+        // TypedExtend, TypedProject, TypedJoin, TypedAsOfJoin, TypedGroupBy,
+        // TypedAggregate, TypedPivot, TypedFrom, TypedSerialize, TypedWrite,
+        // TypedGraphFetch, TypedEval, TypedNativeCall, TypedAggCall, TypedWindowExtendCol.
+        TypedNative,
         // Literals (11)
         TypedCInteger, TypedCFloat, TypedCDecimal, TypedCString, TypedCBoolean,
         TypedCDateTime, TypedCStrictDate, TypedCStrictTime, TypedCLatestDate,
@@ -36,19 +43,12 @@ public sealed interface TypedSpec permits
         TypedVariable, TypedLambda, TypedCollection,
         // Relation sources (4)
         TypedGetAll, TypedTableReference, TypedTdsLiteral, TypedSourceUrl,
-        // Relation operators
-        TypedFilter, TypedProject, TypedSort, TypedJoin, TypedAsOfJoin,
-        TypedGroupBy, TypedAggregate, TypedPivot,
-        TypedExtend, TypedSelect, TypedRename, TypedSlice, TypedDistinct,
-        TypedFlatten, TypedConcatenate, TypedFrom, TypedGraphFetch,
-        // Scalar operators + structural extract
-        TypedPropertyAccess, TypedMap, TypedFold, TypedNativeCall,
-        TypedStructExtract, TypedEval,
+        // Scalar operators + structural extract (non-native)
+        TypedPropertyAccess, TypedStructExtract,
         // Struct construction
         TypedNewInstance,
-        // Control flow + IO + user call
-        TypedIf, TypedLet, TypedBlock, TypedMatch, TypedCast, TypedZip,
-        TypedWrite, TypedSerialize,
+        // Control flow + user call
+        TypedIf, TypedLet, TypedBlock, TypedMatch, TypedCast,
         TypedUserCall,
         // Element reference (function, class, enum, runtime, store) by FQN
         TypedPackageableRef {

@@ -42,4 +42,16 @@ public final class SelectRenameLowering {
         if (n.columns().isEmpty()) return new SqlRelation.Distinct(src);
         return new SqlRelation.Distinct(new SqlRelation.Select(src, n.columns()));
     }
+
+    /**
+     * Lower {@link TypedDistinct} as a scalar list expression. Lists don't have
+     * named columns, so a non-empty {@code columns} subset on a scalar list
+     * source would indicate a type-checker bug.
+     */
+    public static com.gs.legend.sqlgen.SqlExpr lowerAsListExpr(TypedDistinct n, LoweringContext ctx) {
+        if (!n.columns().isEmpty()) {
+            throw com.gs.legend.plan.PlanGenNotPortedException.stage3(n, "distinct-list-column-subset");
+        }
+        return new com.gs.legend.sqlgen.SqlExpr.ListDistinct(Lowerer.lowerScalar(n.source(), ctx));
+    }
 }

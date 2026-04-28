@@ -1,6 +1,7 @@
 package com.gs.legend.compiler.typed;
 
 import com.gs.legend.compiler.ExpressionType;
+import com.gs.legend.compiler.NativeFunctionDef;
 
 import java.util.List;
 
@@ -14,8 +15,9 @@ public record TypedPivot(
         TypedSpec source,
         List<String> pivotColumns,
         List<TypedAggCall> aggs,
+        NativeFunctionDef def,
         ExpressionType info
-) implements TypedSpec {
+) implements TypedNative {
     public TypedPivot {
         pivotColumns = List.copyOf(pivotColumns);
         aggs = List.copyOf(aggs);

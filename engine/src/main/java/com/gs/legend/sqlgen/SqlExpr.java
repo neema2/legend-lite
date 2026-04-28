@@ -46,10 +46,14 @@ public sealed interface SqlExpr permits
         SqlExpr.JsonArrayAgg,
         SqlExpr.JsonObject,
         SqlExpr.LambdaExpr,
+        SqlExpr.ListConcat,
         SqlExpr.ListContains,
+        SqlExpr.ListDistinct,
         SqlExpr.ListExtract,
+        SqlExpr.ListFilter,
         SqlExpr.ListLength,
         SqlExpr.ListSlice,
+        SqlExpr.ListSort,
         SqlExpr.Negate,
         SqlExpr.Not,
         SqlExpr.NullLiteral,
@@ -196,6 +200,29 @@ public sealed interface SqlExpr permits
      * Replaces stringly-typed {@code FunctionCall("listSlice", ...)}.
      */
     record ListSlice(SqlExpr list, SqlExpr from, SqlExpr to) implements SqlExpr {}
+
+    /**
+     * List filter: {@code list -> filter(λ)}. Lowers {@code TypedFilter}
+     * over a non-relational source. Body is a {@link LambdaExpr} of one
+     * parameter returning Boolean. Dialect renders (e.g., DuckDB
+     * {@code list_filter(list, x -> body)}).
+     */
+    record ListFilter(SqlExpr list, LambdaExpr predicate) implements SqlExpr {}
+
+    /**
+     * List sort: {@code list -> sort(keys)}. Lowers {@code TypedSort} over
+     * a non-relational source. Empty {@code keys} = identity sort ascending.
+     * Each key carries an extractor lambda and a direction.
+     */
+    record ListSort(SqlExpr list, List<SortKey> keys) implements SqlExpr {
+        public record SortKey(LambdaExpr keyFn, boolean descending) {}
+    }
+
+    /** Concatenate two lists. Lowers {@code TypedConcatenate} over non-relational sources. */
+    record ListConcat(SqlExpr left, SqlExpr right) implements SqlExpr {}
+
+    /** Remove duplicates: {@code list -> distinct()}. */
+    record ListDistinct(SqlExpr list) implements SqlExpr {}
 
     /**
      * Typed list length. Replaces stringly-typed

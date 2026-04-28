@@ -206,6 +206,47 @@ public interface SQLDialect {
     }
 
     /**
+     * Render {@code list -> filter(λ)}. Default DuckDB form:
+     * {@code list_filter(list, lambda)}. Dialects without list lambdas
+     * (e.g., SQLite) should override and throw {@link UnsupportedOperationException}.
+     */
+    default String renderListFilter(String listExpr, String lambdaExpr) {
+        return "list_filter(" + listExpr + ", " + lambdaExpr + ")";
+    }
+
+    /**
+     * Render {@code list -> sort([keys])}. Default DuckDB form:
+     * {@code list_sort(list)} for unkeyed; keyed sort uses
+     * {@code list_transform(list_sort(list_transform(list, λ)), …)}
+     * or {@code list_sort(list_transform(list, λ))} variants per dialect.
+     * @param listExpr already-rendered list
+     * @param ls the original {@link SqlExpr.ListSort} to introspect for keys/dirs
+     */
+    default String renderListSort(String listExpr, SqlExpr.ListSort ls) {
+        if (ls.keys().isEmpty()) {
+            return "list_sort(" + listExpr + ")";
+        }
+        if (ls.keys().size() == 1) {
+            var k = ls.keys().get(0);
+            String dir = k.descending() ? ", 'DESC'" : ", 'ASC'";
+            String keyed = "list_transform(" + listExpr + ", " + render(k.keyFn()) + ")";
+            return "list_sort(" + keyed + dir + ")";
+        }
+        throw new UnsupportedOperationException(
+                "ListSort with multiple keys not yet implemented in dialect: " + getClass().getSimpleName());
+    }
+
+    /** Render {@code list_concat(left, right)}. */
+    default String renderListConcat(String leftExpr, String rightExpr) {
+        return "list_concat(" + leftExpr + ", " + rightExpr + ")";
+    }
+
+    /** Render {@code list_distinct(list)}. */
+    default String renderListDistinct(String listExpr) {
+        return "list_distinct(" + listExpr + ")";
+    }
+
+    /**
      * Map a Pure type name to the SQL type name for CAST expressions.
      *
      * @param pureTypeName Pure type name (e.g., "String", "Integer", "Float")
@@ -396,6 +437,10 @@ public interface SQLDialect {
             case SqlExpr.ListExtract le    -> renderListExtract(render(le.list()), render(le.index()));
             case SqlExpr.ListSlice ls      -> renderListSlice(render(ls.list()), render(ls.from()), render(ls.to()));
             case SqlExpr.ListLength ll     -> renderListLength(render(ll.list()));
+            case SqlExpr.ListFilter lf     -> renderListFilter(render(lf.list()), render(lf.predicate()));
+            case SqlExpr.ListSort ls       -> renderListSort(render(ls.list()), ls);
+            case SqlExpr.ListConcat lc     -> renderListConcat(render(lc.left()), render(lc.right()));
+            case SqlExpr.ListDistinct ld   -> renderListDistinct(render(ld.list()));
 
             // ---- Boolean ----
             case SqlExpr.And a             -> a.conditions().stream().map(this::render)
