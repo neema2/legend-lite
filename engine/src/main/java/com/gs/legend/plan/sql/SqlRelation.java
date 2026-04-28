@@ -42,6 +42,7 @@ public sealed interface SqlRelation permits
         SqlRelation.Distinct,
         SqlRelation.Rename,
         SqlRelation.Select,
+        SqlRelation.SelectExcept,
         SqlRelation.Extend,
         SqlRelation.GroupBy,
         SqlRelation.Aggregate,
@@ -125,6 +126,30 @@ public sealed interface SqlRelation permits
             return source.outputs().stream()
                     .map(c -> new OutputCol(renames.getOrDefault(c.name(), c.name()), c.type()))
                     .toList();
+        }
+    }
+
+    /**
+     * {@code SELECT * EXCLUDE (excludes), <addExpr0> AS <addName0>, … FROM source}.
+     * Lets a relation drop a fixed set of source columns and graft on
+     * synthetic ones in a single typed step (used today by multi-column
+     * pivot to project a {@code _pivot_key} composite from the underlying
+     * pivot columns). DuckDB-specific syntax; other dialects must
+     * implement an equivalent rewrite (e.g. enumerate the kept columns).
+     */
+    record SelectExcept(SqlRelation source, List<String> excludeColumns,
+                        List<ExtendCol> additions) implements SqlRelation {
+        public SelectExcept {
+            excludeColumns = List.copyOf(excludeColumns);
+            additions = List.copyOf(additions);
+        }
+        @Override public List<OutputCol> outputs() {
+            List<OutputCol> kept = source.outputs().stream()
+                    .filter(c -> !excludeColumns.contains(c.name()))
+                    .toList();
+            List<OutputCol> result = new java.util.ArrayList<>(kept);
+            for (ExtendCol ec : additions) result.add(new OutputCol(ec.name(), null));
+            return List.copyOf(result);
         }
     }
 
@@ -224,9 +249,23 @@ public sealed interface SqlRelation permits
     /** Kinds of joins. */
     enum JoinType { INNER, LEFT, RIGHT, FULL, CROSS }
 
-    /** Placeholder for pivot specs until {@code TypedPivot} is ported (Stage 3). */
+    /**
+     * Pivot spec.
+     *
+     * <p>{@code pivotKey} is the column the spread keys on. For
+     * multi-column pivots, the lowering wraps the {@link Pivot} source
+     * in a {@link SelectExcept} that materialises a composite key column
+     * (typically named {@code _pivot_key}) by concatenating the source
+     * pivot columns with
+     * {@link com.gs.legend.model.m3.Type.Schema.DynamicPivotColumn#SEPARATOR}
+     * — so this spec stays a flat single-key shape.
+     */
     record PivotSpec(List<String> groupingKeys, String pivotKey, List<SqlExpr> pivotValues,
-                     List<Agg> aggs) {}
+                     List<Agg> aggs) {
+        public PivotSpec {
+            pivotValues = pivotValues != null ? List.copyOf(pivotValues) : List.of();
+        }
+    }
 
     /** Placeholder for as-of-join specs until {@code TypedAsOfJoin} is ported (Stage 3). */
     record AsOfSpec(SqlExpr matchPredicate, List<SortKey> orderKeys) {}

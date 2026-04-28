@@ -71,7 +71,11 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
                     SAN, 2012, 3000
                 #->pivot(~[year], ~[total:x|$x.treePlanted:y|$y->plus()])
                 """);
-            assertFalse(result.rows().isEmpty(), "Should have pivot results");
+            // 2 city groups × 2 spread cols + city = 3 cols, 2 rows.
+            assertEquals(2, result.rowCount(), "Should have 2 rows (NYC, SAN)");
+            assertEquals(3, result.columns().size(),
+                    "Should have 3 columns (city + 2011__|__total + 2012__|__total): got "
+                            + result.columns().stream().map(c -> c.name()).toList());
 
             // Static columns: city (year removed as pivot column, treePlanted removed as value column)
             assertTrue(hasColumn(result, "city"), "Should have 'city' group column");
@@ -109,6 +113,11 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
                 #->pivot(~[year], ~[sum:x|$x.treePlanted:y|$y->plus(), count:x|1:y|$y->plus()])
                 """);
 
+            // 2 cities × 2 years × 2 aggs + city = 5 cols, 2 rows.
+            assertEquals(2, result.rowCount(), "Should have 2 rows (NYC, SAN)");
+            assertEquals(5, result.columns().size(),
+                    "Should have 5 columns (city + {2011,2012} × {sum,count}): got "
+                            + result.columns().stream().map(c -> c.name()).toList());
             assertTrue(hasPivotColumn(result, "sum"), "Should have 'sum' aggregate columns");
             assertTrue(hasPivotColumn(result, "count"), "Should have 'count' aggregate columns");
 
@@ -123,9 +132,15 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
                     assertPivotValue(result, row, "2012", "sum", 7600);
                     assertPivotValue(result, row, "2012", "count", 1);
                 } else if ("SAN".equals(city)) {
-                    // SAN 2011: sum=2000, count=1
+                    // SAN 2011: sum=2000, count=1, no 2012 data
                     assertPivotValue(result, row, "2011", "sum", 2000);
                     assertPivotValue(result, row, "2011", "count", 1);
+                    int san2012Sum   = columnIndex(result, "2012__|__sum");
+                    int san2012Count = columnIndex(result, "2012__|__count");
+                    assertNull(row.get(san2012Sum),   "SAN 2012 sum should be NULL");
+                    assertNull(row.get(san2012Count), "SAN 2012 count should be NULL");
+                } else {
+                    fail("Unexpected city: " + city);
                 }
             }
         }
@@ -154,6 +169,7 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
                 """);
             assertTrue(sql.contains("SUM(1)"), "Should use SUM(1) for literal count. Got: " + sql);
 
+            assertEquals(2, result.rowCount(), "Should have 2 rows (NYC, SAN)");
             int cityIdx = columnIndex(result, "city");
             for (Row row : result.rows()) {
                 String city = row.get(cityIdx).toString();
@@ -161,6 +177,8 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
                     assertPivotValue(result, row, "2011", "cnt", 2);
                 } else if ("SAN".equals(city)) {
                     assertPivotValue(result, row, "2011", "cnt", 1);
+                } else {
+                    fail("Unexpected city: " + city);
                 }
             }
         }
@@ -188,6 +206,7 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
             assertTrue(sql.contains("SUM("), "Should contain SUM function");
             assertTrue(sql.contains("*"), "Should contain multiplication operator");
 
+            assertEquals(2, result.rowCount(), "Should have 2 rows (NYC, SAN)");
             int cityIdx = columnIndex(result, "city");
             for (Row row : result.rows()) {
                 String city = row.get(cityIdx).toString();
@@ -197,6 +216,8 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
                 } else if ("SAN".equals(city)) {
                     // SAN 2011: 50*4 = 200
                     assertPivotValue(result, row, "2011", "weighted", 200);
+                } else {
+                    fail("Unexpected city: " + city);
                 }
             }
         }
@@ -222,19 +243,41 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
                 """;
             String sql = generateSql(pure);
 
-            // Multi-column pivot should use EXCLUDE and __|__ separator
+            // Multi-column pivot should use EXCLUDE and __|__ separator.
+            // Synthetic key column name is minted via ctx.nextAlias(),
+            // so assert structural shape rather than its exact spelling.
             assertTrue(sql.contains("EXCLUDE"), "Should use EXCLUDE to remove pivot columns");
             assertTrue(sql.contains("|| '__|__' ||"), "Should use __|__ separator");
-            assertTrue(sql.contains("_pivot_key"), "Should create _pivot_key");
 
             var result = executeRelation(pure);
-            // Should aggregate: 2020 has USA_NYC (150), USA_LA (200); 2021 has UK_LDN (300)
+            // 2 rows (year groups), 4 cols: year + 3 spread totals.
             assertEquals(2, result.rowCount(), "Should have 2 rows (one per year)");
 
-            // Column names should contain __|__ between pivoted values
-            boolean hasSeparator = result.columns().stream()
-                    .anyMatch(c -> c.name().contains("__|__"));
-            assertTrue(hasSeparator, "Column names should use __|__ separator");
+            int yearIdx = columnIndex(result, "year");
+            int usaNycIdx  = findColumnContaining(result.columns().stream().map(c -> c.name()).toList(), "USA__|__NYC");
+            int usaLaIdx   = findColumnContaining(result.columns().stream().map(c -> c.name()).toList(), "USA__|__LA");
+            int ukLdnIdx   = findColumnContaining(result.columns().stream().map(c -> c.name()).toList(), "UK__|__LDN");
+            assertTrue(usaNycIdx >= 0 && usaLaIdx >= 0 && ukLdnIdx >= 0,
+                    "Spread columns must be named <country>__|__<city>__|__<alias>: got "
+                            + result.columns().stream().map(c -> c.name()).toList());
+
+            // Aggregated values per year:
+            //   2020 → USA/NYC=150 (100+50), USA/LA=200, UK/LDN=NULL
+            //   2021 → USA/NYC=NULL,         USA/LA=NULL, UK/LDN=300
+            for (Row row : result.rows()) {
+                int year = ((Number) row.get(yearIdx)).intValue();
+                if (year == 2020) {
+                    assertEquals(150, ((Number) row.get(usaNycIdx)).intValue(), "2020 USA/NYC = 100+50");
+                    assertEquals(200, ((Number) row.get(usaLaIdx)).intValue(),  "2020 USA/LA  = 200");
+                    assertNull(row.get(ukLdnIdx), "2020 UK/LDN should be NULL (no data)");
+                } else if (year == 2021) {
+                    assertNull(row.get(usaNycIdx), "2021 USA/NYC should be NULL");
+                    assertNull(row.get(usaLaIdx),  "2021 USA/LA should be NULL");
+                    assertEquals(300, ((Number) row.get(ukLdnIdx)).intValue(), "2021 UK/LDN = 300");
+                } else {
+                    fail("Unexpected year: " + year);
+                }
+            }
         }
 
         @Test
@@ -250,14 +293,25 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
                 """;
 
             var result = executeRelation(pure);
-            assertFalse(result.rows().isEmpty(), "Should have results");
+            // All rows are year=2011 → 1 group. Spread × 2 aggs × 2 (country,city)
+            // pairs = 4 spread cols + the year group col = 5 columns, 1 row.
+            assertEquals(1, result.rowCount(), "Should have 1 row (single year group)");
 
-            boolean hasSumCol = result.columns().stream()
-                    .anyMatch(c -> c.name().contains("sum"));
-            boolean hasCountCol = result.columns().stream()
-                    .anyMatch(c -> c.name().contains("count"));
-            assertTrue(hasSumCol, "Should have sum pivot columns");
-            assertTrue(hasCountCol, "Should have count pivot columns");
+            List<String> names = result.columns().stream().map(c -> c.name()).toList();
+            int usaNycSum   = findColumnContaining(names, "USA__|__NYC__|__sum");
+            int usaNycCount = findColumnContaining(names, "USA__|__NYC__|__count");
+            int ukLdnSum    = findColumnContaining(names, "UK__|__LDN__|__sum");
+            int ukLdnCount  = findColumnContaining(names, "UK__|__LDN__|__count");
+            assertTrue(usaNycSum >= 0 && usaNycCount >= 0 && ukLdnSum >= 0 && ukLdnCount >= 0,
+                    "Expected spread columns for both (country,city) × {sum,count}: got " + names);
+
+            Row row = result.rows().get(0);
+            // USA/NYC has 5000 + 3000 → sum=8000, count=2
+            assertEquals(8000, ((Number) row.get(usaNycSum)).intValue(),   "USA/NYC sum");
+            assertEquals(2,    ((Number) row.get(usaNycCount)).intValue(), "USA/NYC count");
+            // UK/LDN has 3000 → sum=3000, count=1
+            assertEquals(3000, ((Number) row.get(ukLdnSum)).intValue(),    "UK/LDN sum");
+            assertEquals(1,    ((Number) row.get(ukLdnCount)).intValue(),  "UK/LDN count");
         }
     }
 
@@ -617,10 +671,15 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
                 """);
 
             assertTrue(sql.contains("PIVOT"), "Should contain PIVOT keyword");
-            assertTrue(sql.contains("ON"), "Should contain ON keyword");
+            assertTrue(sql.contains("ON \"year\""), "Should pivot ON the source's year column directly (no synthetic key)");
             assertTrue(sql.contains("USING"), "Should contain USING keyword");
             assertTrue(sql.contains("SUM("), "Should use SUM aggregate");
             assertTrue(sql.contains("\"_|__total\""), "Should alias as \"_|__total\"");
+            // Single-column pivot must NOT take the multi-column path:
+            // no SelectExcept wrapper, no separator concatenation.
+            assertFalse(sql.contains("EXCLUDE"), "Single-column pivot should not emit EXCLUDE");
+            assertFalse(sql.contains("|| '__|__' ||"),
+                    "Single-column pivot should not synthesize a composite key");
         }
 
         @Test
@@ -634,7 +693,11 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
                 """);
 
             assertTrue(sql.contains("EXCLUDE"), "Should use EXCLUDE clause");
-            assertTrue(sql.contains("\"_pivot_key\""), "Should create _pivot_key alias");
+            // Pivot-key alias is synthetic (minted via ctx.nextAlias()) —
+            // assert only that some alias is introduced and used as the
+            // PIVOT key, not its exact spelling.
+            assertTrue(sql.matches(".*EXCLUDE \\(\"country\", \"city\"\\),.*"),
+                    "EXCLUDE should drop the source pivot columns");
             assertTrue(sql.contains("|| '__|__' ||"),
                     "Should concatenate pivot columns with __|__ separator");
             assertTrue(sql.contains("\"_|__total\""), "Should alias aggregate as \"_|__total\"");

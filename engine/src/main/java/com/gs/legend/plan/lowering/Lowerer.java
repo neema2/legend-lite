@@ -117,7 +117,13 @@ public final class Lowerer {
             // by its own type.
             case TypedBlock n -> lowerBlockRelation(n, ctx);
             case TypedMatch n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx, n);
-            case TypedCast  n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx, n);
+            // Relation-typed cast (e.g. {@code pivot()->cast(@Relation<...>)})
+            // is a structural schema declaration — the cast does no value
+            // work; the inner relation flows through unchanged. Only wrap
+            // as scalar when the target type isn't a relation.
+            case TypedCast  n -> n.targetType() instanceof com.gs.legend.model.m3.Type.Relation
+                    ? lowerRelation(n.expr(), ctx)
+                    : wrapScalar(ControlFlowLowering.lower(n, ctx), ctx, n);
             case TypedZip   n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx, n);
             case TypedEval  n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx, n);
             case TypedMap   n -> wrapScalar(ControlFlowLowering.lower(n, ctx), ctx, n);

@@ -1,20 +1,11 @@
-BASELINE: tests=2670 failures=99 errors=206 skipped=19 broken=305
+BASELINE: tests=2670 failures=95 errors=167 skipped=19 broken=262
 ======================================================================
 ERROR	com.gs.legend.architecture.NoEagerUserClassLoadsTest.typeCheckingDoesNotLoadColdUserElements
 ERROR	com.gs.legend.test.AssociationIntegrationTest$WildStress.testSelfJoinTwoHops
 ERROR	com.gs.legend.test.ComputedProjectIntegrationTest.testFilterPostProject
 ERROR	com.gs.legend.test.ComputedProjectIntegrationTest.testSimpleProjectList_pctExpression
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testComparisonOperationAfterSize
-ERROR	com.gs.legend.test.DuckDBIntegrationTest.testExtendFilterSelectGroupByPivot
-ERROR	com.gs.legend.test.DuckDBIntegrationTest.testGroupByPivot
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testMinNumbers_preservesOriginalType
-ERROR	com.gs.legend.test.DuckDBIntegrationTest.testPCT_test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort
-ERROR	com.gs.legend.test.DuckDBIntegrationTest.testPivotCastFilter
-ERROR	com.gs.legend.test.DuckDBIntegrationTest.testPivotCastGroupByExtend
-ERROR	com.gs.legend.test.DuckDBIntegrationTest.testPivotExtend
-ERROR	com.gs.legend.test.DuckDBIntegrationTest.testPivotNullForMissingValues
-ERROR	com.gs.legend.test.DuckDBIntegrationTest.testPivotWithComputedMultiplicationExpression
-ERROR	com.gs.legend.test.DuckDBIntegrationTest.testPivotWithLiteralCountExpression
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testPureSyntaxIsAfterBeforeDay
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testPureSyntaxIsOnDay
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testPureSyntaxIsOnOrAfterBeforeDay
@@ -60,22 +51,6 @@ ERROR	com.gs.legend.test.M2MIntegrationTest.testDeepFetchNullAddress
 ERROR	com.gs.legend.test.M2MIntegrationTest.testDeepFetchOneToMany
 ERROR	com.gs.legend.test.M2MIntegrationTest.testDeepFetchOneToOne
 ERROR	com.gs.legend.test.M2MIntegrationTest.testNewPipelineDeepFetch1to1Valid
-ERROR	com.gs.legend.test.PivotCheckerTest$ChainedOperations.testPivotThenCastThenGroupBy
-ERROR	com.gs.legend.test.PivotCheckerTest$ChainedOperations.testPivotThenExtend
-ERROR	com.gs.legend.test.PivotCheckerTest$ChainedOperations.testPivotThenFilter
-ERROR	com.gs.legend.test.PivotCheckerTest$ChainedOperations.testPivotThenSort
-ERROR	com.gs.legend.test.PivotCheckerTest$ComplexSourceChains.testExtendFilterSelectGroupByPivot
-ERROR	com.gs.legend.test.PivotCheckerTest$ComplexSourceChains.testGroupByThenPivot
-ERROR	com.gs.legend.test.PivotCheckerTest$FullPipelineWithNulls.testPivotWithNulls
-ERROR	com.gs.legend.test.PivotCheckerTest$MultiColumnPivot.testMultiColumnMultipleAggregates
-ERROR	com.gs.legend.test.PivotCheckerTest$NullSemantics.testNullForMissingPivotValues
-ERROR	com.gs.legend.test.PivotCheckerTest$NullSemantics.testSingleRowPerGroup
-ERROR	com.gs.legend.test.PivotCheckerTest$SingleColumnPivot.testComputedMultiplicationExpression
-ERROR	com.gs.legend.test.PivotCheckerTest$SingleColumnPivot.testLiteralCountExpression
-ERROR	com.gs.legend.test.PivotCheckerTest$SingleColumnPivot.testSingleColumnMultipleAggregates
-ERROR	com.gs.legend.test.PivotCheckerTest$SingleColumnPivot.testSingleColumnSingleAggregate
-ERROR	com.gs.legend.test.PivotCheckerTest$TypeParity.testMultiAggregateTypesParity
-ERROR	com.gs.legend.test.PivotCheckerTest$TypeParity.testPivotColumnsPreserveIntegerType
 ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$EmbeddedMappings.testEmbeddedFilter
 ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$EmbeddedMappings.testEmbeddedMultiProperty
 ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$EmbeddedMappings.testEmbeddedNoJoinSql
@@ -103,16 +78,6 @@ ERROR	com.gs.legend.test.SlicingCheckerTest$SlicingErrors.testFirstThenProjectRe
 ERROR	com.gs.legend.test.StructFilterIntegrationTest.testExistsInSelectFilterLegalName
 ERROR	com.gs.legend.test.StructFilterIntegrationTest.testExistsInSelectFilterLegalNameP3
 ERROR	com.gs.legend.test.StructFilterIntegrationTest.testExistsInSelectFilterNoMatch
-ERROR	com.gs.legend.test.TypeConversionCheckerTest$ClassCast.testClassProjectCastAggregate
-ERROR	com.gs.legend.test.TypeConversionCheckerTest$ClassCast.testClassProjectCastDropColumns
-ERROR	com.gs.legend.test.TypeConversionCheckerTest$IdentityCast.testDoubleCastNarrows
-ERROR	com.gs.legend.test.TypeConversionCheckerTest$IdentityCast.testIdentityCastThenFilter
-ERROR	com.gs.legend.test.TypeConversionCheckerTest$PivotCast.testPivotCastExtendSum
-ERROR	com.gs.legend.test.TypeConversionCheckerTest$PivotCast.testPivotCastFilterOnPivotCol
-ERROR	com.gs.legend.test.TypeConversionCheckerTest$PivotCast.testPivotCastGroupBy
-ERROR	com.gs.legend.test.TypeConversionCheckerTest$QuotedNames.testQuotedColumnSort
-ERROR	com.gs.legend.test.TypeConversionCheckerTest$SqlGeneration.testCastSqlNoKeyword
-ERROR	com.gs.legend.test.TypeConversionCheckerTest$SqlGeneration.testPivotCastFilterSql
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.anyAudit_T2b_path6_nestedStructValAccess
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.anyAudit_T6_mixedTypeListDetected
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testAddToList
@@ -130,7 +95,6 @@ ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testCorrScalarWithEmptyLis
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testDivideWithScale
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testDropNegative
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testExistsOnStructArray
-ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testExtendFilterSelectGroupByPivotExtendSortLimit
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testFindLiteral
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testFindOnStructArrayReturnsMap
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testFold_FromVariant
@@ -176,9 +140,6 @@ ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testMinScalar
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testMultiIf
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testPercentileContOnList
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testPercentileContOnListQuartile
-ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testPivotMultiAggregateWithCount
-ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testPivotMultiAggregateWithExpressionValue
-ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testPivotSingleAggregate
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testSliceNegativeStart
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testSortDescending
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testSortWithKeyFunction
@@ -233,15 +194,11 @@ FAILURE	com.gs.legend.test.DuckDBIntegrationTest.testMaxNumbers_preservesInteger
 FAILURE	com.gs.legend.test.DuckDBIntegrationTest.testMode_IntegerOnlyList_returnsLong
 FAILURE	com.gs.legend.test.DuckDBIntegrationTest.testMode_MixedNumericList_returnsDouble
 FAILURE	com.gs.legend.test.DuckDBIntegrationTest.testModeNumber_preservesIntegerType
-FAILURE	com.gs.legend.test.DuckDBIntegrationTest.testMultiColumnPivotColumnNaming
 FAILURE	com.gs.legend.test.DuckDBIntegrationTest.testPureAssociationExistsSqlStructure
 FAILURE	com.gs.legend.test.DuckDBIntegrationTest.testPureAssociationNavigationInFilter
 FAILURE	com.gs.legend.test.DuckDBIntegrationTest.testPureCombineFilterAndProjectThroughAssociation
 FAILURE	com.gs.legend.test.DuckDBIntegrationTest.testPureSyntaxSortByAndLimit
 FAILURE	com.gs.legend.test.FoldCheckerTest$MapReduce.testFoldStructToString
-FAILURE	com.gs.legend.test.PivotCheckerTest$MultiColumnPivot.testTwoColumnPivot
-FAILURE	com.gs.legend.test.PivotCheckerTest$SqlGeneration.testMultiColumnPivotSql
-FAILURE	com.gs.legend.test.PivotCheckerTest$SqlGeneration.testSingleColumnPivotSql
 FAILURE	com.gs.legend.test.RelationalMappingIntegrationTest$BareClassQueries.testBareFilter
 FAILURE	com.gs.legend.test.RelationalMappingIntegrationTest$BareClassQueries.testBareLimit
 FAILURE	com.gs.legend.test.RelationalMappingIntegrationTest$BareClassQueries.testBareSort

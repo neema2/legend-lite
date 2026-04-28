@@ -96,9 +96,6 @@ public final class GroupByAggregateLowering {
         if (n.pivotColumns().isEmpty()) {
             throw PlanGenNotPortedException.stage3(n, "pivot:no-pivot-column");
         }
-        // Stage 5 scope: single pivot column. Multi-column pivots land with
-        // DuckDB {@code PIVOT ... ON (colA, colB)} syntax later.
-        String pivotCol = n.pivotColumns().get(0);
         List<SqlRelation.Agg> aggs = new ArrayList<>(n.aggs().size());
         for (TypedAggCall a : n.aggs()) {
             SqlRelation.Agg agg = lowerAgg(a, aliased, inner, store);
@@ -110,9 +107,41 @@ public final class GroupByAggregateLowering {
             aggs.add(new SqlRelation.Agg(agg.alias(), unqualifyAgg(agg.fn())));
         }
         SqlRelation joined = Relations.install(aliased, aliased.alias(), store, scope, ctx);
+        // Single-column pivot: source column drives the spread directly.
+        // Multi-column pivot: wrap source in a SelectExcept that drops
+        // the original pivot columns and projects a synthetic
+        // {@code _pivot_key} = {@code col1 || SEP || col2 || …}. The
+        // PIVOT then keys on that single column. Decoder splits result
+        // column names back on SEPARATOR.
+        String pivotKey;
+        SqlRelation pivotSource;
+        if (n.pivotColumns().size() == 1) {
+            pivotKey = n.pivotColumns().get(0);
+            pivotSource = joined;
+        } else {
+            // Synthesise a fresh, unique-by-construction key column name
+            // off the same alias supplier the rest of the lowering uses
+            // ({@code t0}, {@code t1}, …). The synthetic column never
+            // escapes to user schema — PIVOT consumes it and emits the
+            // {@code <value>__|__<alias>} spread columns instead.
+            pivotKey = ctx.nextAlias();
+            String sep = com.gs.legend.model.m3.Type.Schema.DynamicPivotColumn.SEPARATOR;
+            SqlExpr keyExpr = null;
+            for (String col : n.pivotColumns()) {
+                SqlExpr ref = new SqlExpr.ColumnRef(col);
+                keyExpr = (keyExpr == null) ? ref
+                        : new SqlExpr.StringConcat(
+                                new SqlExpr.StringConcat(keyExpr,
+                                        new SqlExpr.StringLiteral(sep)),
+                                ref);
+            }
+            pivotSource = new SqlRelation.SelectExcept(
+                    joined, n.pivotColumns(),
+                    List.of(new SqlRelation.ExtendCol(pivotKey, keyExpr)));
+        }
         SqlRelation.PivotSpec spec = new SqlRelation.PivotSpec(
-                List.of(), pivotCol, List.of(), aggs);
-        return new SqlRelation.Pivot(joined, spec, List.of());
+                List.of(), pivotKey, List.of(), aggs);
+        return new SqlRelation.Pivot(pivotSource, spec, List.of());
     }
 
     /** Strip alias qualification: {@code t0.col} &rarr; {@code col}. */

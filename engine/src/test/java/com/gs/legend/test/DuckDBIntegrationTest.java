@@ -4573,7 +4573,11 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertTrue(sql.contains("EXCLUDE"), "Should use EXCLUDE to remove pivot columns");
         // Verify the concatenation with __|__ separator is in the SQL
         assertTrue(sql.contains("|| '__|__' ||"), "Should use __|__ separator for multi-column pivot");
-        assertTrue(sql.contains("_pivot_key"), "Should create _pivot_key for concatenated columns");
+        // Synthetic pivot-key column name is minted via ctx.nextAlias() —
+        // assert structural shape (EXCLUDE drops both source columns)
+        // rather than the exact spelling of the synthetic alias.
+        assertTrue(sql.matches(".*EXCLUDE \\(\"country\", \"city\"\\),.*"),
+                "EXCLUDE should drop the source pivot columns");
 
         var result = executeRelation(pureQuery);
         System.out.println("Multi-column pivot result columns: " + result.columns());

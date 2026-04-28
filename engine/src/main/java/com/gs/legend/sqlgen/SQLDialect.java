@@ -439,7 +439,7 @@ public interface SQLDialect {
             case SqlExpr.Grouped g         -> "(" + render(g.inner()) + ")";
             case SqlExpr.Unary u           -> u.op() + " " + render(u.operand());
             case SqlExpr.BinaryArith b     -> "(" + render(b.left()) + " " + b.op().sql() + " " + render(b.right()) + ")";
-            case SqlExpr.StringConcat s    -> "(" + render(s.left()) + " || " + render(s.right()) + ")";
+            case SqlExpr.StringConcat s    -> "(" + flattenStringConcat(s) + ")";
             case SqlExpr.Negate n          -> "(- " + render(n.expr()) + ")";
             case SqlExpr.BinaryCompare b   -> render(b.left()) + " " + b.op().sql() + " " + render(b.right());
 
@@ -539,6 +539,30 @@ public interface SQLDialect {
             return l.params().get(0) + " -> " + body;
         }
         return "((" + String.join(", ", l.params()) + ") -> " + body + ")";
+    }
+
+    /**
+     * Flatten a tree of {@link SqlExpr.StringConcat} nodes into a single
+     * left-to-right {@code a || b || c} sequence (no inner parens).
+     * {@code ||} is associative so this is semantically identical to a
+     * pairwise rendering, but produces flat readable SQL — and lets the
+     * lowering build concat chains structurally without paying the
+     * over-parenthesisation cost.
+     */
+    private String flattenStringConcat(SqlExpr.StringConcat root) {
+        StringBuilder sb = new StringBuilder();
+        appendConcatTerms(sb, root);
+        return sb.toString();
+    }
+
+    private void appendConcatTerms(StringBuilder sb, SqlExpr e) {
+        if (e instanceof SqlExpr.StringConcat sc) {
+            appendConcatTerms(sb, sc.left());
+            sb.append(" || ");
+            appendConcatTerms(sb, sc.right());
+        } else {
+            sb.append(render(e));
+        }
     }
 
     /**
@@ -678,6 +702,7 @@ public interface SQLDialect {
             case com.gs.legend.plan.sql.SqlRelation.Distinct r      -> renderDistinct(r);
             case com.gs.legend.plan.sql.SqlRelation.Rename r        -> renderRename(r);
             case com.gs.legend.plan.sql.SqlRelation.Select r        -> renderSelect(r);
+            case com.gs.legend.plan.sql.SqlRelation.SelectExcept r  -> renderSelectExcept(r);
             case com.gs.legend.plan.sql.SqlRelation.SubqueryRel r   -> renderSubqueryRel(r);
             case com.gs.legend.plan.sql.SqlRelation.Extend r        -> renderExtend(r);
             case com.gs.legend.plan.sql.SqlRelation.GroupBy r       -> renderGroupBy(r);
@@ -817,6 +842,27 @@ public interface SQLDialect {
         for (int i = 0; i < r.columns().size(); i++) {
             if (i > 0) sb.append(", ");
             sb.append(quoteIdentifier(r.columns().get(i)));
+        }
+        return sb.append(" FROM ").append(renderAsFromItem(r.source())).toString();
+    }
+
+    /**
+     * {@code SELECT * EXCLUDE (e1, e2, ...), <addExpr> AS <addName>, … FROM <source>}.
+     * DuckDB-specific projection that drops a fixed set of source
+     * columns and appends synthetic ones in a single step. Used by
+     * multi-column pivot to materialise the {@code _pivot_key}
+     * composite without enumerating every kept column.
+     */
+    default String renderSelectExcept(com.gs.legend.plan.sql.SqlRelation.SelectExcept r) {
+        StringBuilder sb = new StringBuilder("SELECT * EXCLUDE (");
+        for (int i = 0; i < r.excludeColumns().size(); i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(quoteIdentifier(r.excludeColumns().get(i)));
+        }
+        sb.append(")");
+        for (var c : r.additions()) {
+            sb.append(", ").append(render(c.expr()))
+                    .append(" AS ").append(quoteIdentifier(c.name()));
         }
         return sb.append(" FROM ").append(renderAsFromItem(r.source())).toString();
     }
@@ -992,15 +1038,38 @@ public interface SQLDialect {
      * only emit the {@code USING} aggregates.
      */
     default String renderPivot(com.gs.legend.plan.sql.SqlRelation.Pivot r) {
+        // DuckDB pivot's source must be a SELECT statement, not a
+        // {@code (subquery) AS alias} from-item. Use renderAsStatement so
+        // FROM-item-shaped sources (SubqueryRel, Join, TableRef) are
+        // wrapped as {@code SELECT * FROM …} — otherwise an inline
+        // {@code (...) AS "tN"} inside {@code PIVOT (...)} trips the
+        // DuckDB parser ("syntax error at or near \")\"").
+        // Multi-column pivots arrive with the source already wrapped in
+        // a {@link SqlRelation.SelectExcept} that materialises the
+        // composite {@code _pivot_key} column — no extra preprocessing
+        // here.
+        var spec = r.spec();
         StringBuilder sb = new StringBuilder("PIVOT (")
-                .append(render(r.source()))
-                .append(") ON ").append(quoteIdentifier(r.spec().pivotKey()))
+                .append(renderAsStatement(r.source()))
+                .append(") ON ").append(quoteIdentifier(spec.pivotKey()))
                 .append(" USING ");
-        var aggs = r.spec().aggs();
+        var aggs = spec.aggs();
+        // Alias prefix trick (mirrors legacy plangen): DuckDB names each
+        // spread column {@code <pivotValue>_<alias>}, joining the value to
+        // the alias with a single underscore. We want the final column to
+        // contain {@code <pivotValue>__|__<alias>} so that
+        // {@link com.gs.legend.model.m3.Type.Schema.DynamicPivotColumn#SEPARATOR}
+        // ({@code "__|__"}) can recover the alias suffix at result-decode
+        // time. Encode this by aliasing the aggregate as
+        // {@code "_|__" + alias} — DuckDB injects its own leading {@code _},
+        // making the joined name {@code <value>_ + _|__<alias> = <value>__|__<alias>}.
+        String aliasJoin = com.gs.legend.model.m3.Type.Schema.DynamicPivotColumn.SEPARATOR
+                .substring(1); // "_|__"
         for (int i = 0; i < aggs.size(); i++) {
             if (i > 0) sb.append(", ");
             var a = aggs.get(i);
-            sb.append(renderAgg(a)).append(" AS ").append(quoteIdentifier(a.alias()));
+            sb.append(renderAgg(a)).append(" AS ")
+                    .append(quoteIdentifier(aliasJoin + a.alias()));
         }
         return sb.toString();
     }
