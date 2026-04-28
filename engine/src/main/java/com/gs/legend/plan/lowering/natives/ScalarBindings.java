@@ -2,7 +2,13 @@ package com.gs.legend.plan.lowering.natives;
 
 import com.gs.legend.compiler.NativeFunctionDef;
 import com.gs.legend.compiler.Pure;
+import com.gs.legend.compiler.typed.TypedCDateTime;
+import com.gs.legend.compiler.typed.TypedCStrictDate;
+import com.gs.legend.compiler.typed.TypedCString;
+import com.gs.legend.compiler.typed.TypedEnumValue;
 import com.gs.legend.compiler.typed.TypedNativeCall;
+import com.gs.legend.compiler.typed.TypedPackageableRef;
+import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.plan.lowering.LoweringContext;
 import com.gs.legend.sqlgen.SqlExpr;
 
@@ -103,11 +109,152 @@ public final class ScalarBindings {
 
         // ----- min/max over a list (greatest/least) ----------------------
         // Pure: greatest(values:Any[*]):Any[0..1] / least(values:Any[*]):Any[0..1].
-        // Single-list-arg shape; dialect renders as list_max / list_min.
-        bind(Pure.GREATEST__ANY_MANY,
-                (call, args, ctx) -> new SqlExpr.Greatest(args.get(0)));
-        bind(Pure.LEAST__ANY_MANY,
-                (call, args, ctx) -> new SqlExpr.Least(args.get(0)));
+        // The single overload accepts both a list ([*]) and a scalar promoted
+        // to a singleton list. Inspect the typed input's multiplicity:
+        //   • [*]  → list_max / list_min over the lowered list value.
+        //   • else → identity passthrough (greatest/least of a single value
+        //            is the value itself; matches legacy plangen at
+        //            "case greatest/least → if (params.size() == 1) yield x").
+        bind(Pure.GREATEST__ANY_MANY, (call, args, ctx) ->
+                isManyArg(call, 0) ? new SqlExpr.Greatest(args.get(0)) : args.get(0));
+        bind(Pure.LEAST__ANY_MANY, (call, args, ctx) ->
+                isManyArg(call, 0) ? new SqlExpr.Least(args.get(0)) : args.get(0));
+
+        // ----- indexOf overload dispatch ---------------------------------
+        // Pure: indexOf(s:String[1], sub:String[1]):Integer[1] (and 3-arg
+        //   form with fromIndex) — string lookup. DuckDB INSTR is 1-based;
+        //   Pure is 0-based with -1 for "not found". INSTR returns 0 when
+        //   not found, so subtracting 1 gives -1 ✓.
+        // Pure: indexOf<T>(set:T[*], val:T[1]):Integer[1] — list lookup.
+        //   DuckDB LIST_POSITION is 1-based; same -1 convention applies.
+        bindAll((call, args, ctx) -> stringIndexOf(args),
+                Pure.INDEX_OF__STRING_1__STRING_1);
+        bind(Pure.INDEX_OF__STRING_1__STRING_1__INTEGER_1, (call, args, ctx) ->
+                // ((fromIndex + INSTR(SUBSTRING(s, fromIndex+1), sub)) - 1)
+                // delegate to the existing dialect "indexOfFrom" composite.
+                new SqlExpr.FunctionCall("indexOfFrom",
+                        List.of(args.get(0), args.get(1), args.get(2))));
+        bind(Pure.INDEX_OF__T_MANY__T_1, (call, args, ctx) ->
+                new SqlExpr.BinaryArith(SqlExpr.ArithOp.MINUS,
+                        new SqlExpr.FunctionCall("LIST_POSITION",
+                                List.of(args.get(0), args.get(1))),
+                        intLit(1)));
+
+        // ----- hash dispatch ---------------------------------------------
+        // Pure: hash(s:String[1]):String[1] — single-arg returns DuckDB's
+        //   default HASH() which is BIGINT (matches HashCode test
+        //   expectations).
+        // Pure: hash(s:String[1], algo:HashType[1]):String[1] — algorithm
+        //   may arrive as TypedEnumValue (HashType.MD5), TypedCString
+        //   ('MD5'), or TypedPackageableRef (.MD5 path). All three resolve
+        //   to a per-algorithm function: MD5(), SHA1(), SHA256().
+        bind(Pure.HASH__STRING_1, (call, args, ctx) ->
+                new SqlExpr.FunctionCall("HASH", List.of(args.get(0))));
+        bind(Pure.HASH__STRING_1__HASH_TYPE_1, (call, args, ctx) -> {
+            String algo = readHashAlgo(call.args().get(1));
+            return new SqlExpr.FunctionCall(algo, List.of(args.get(0)));
+        });
+
+        // ----- has<DatePart>(date) ---------------------------------------
+        // Pure semantics: returns Boolean — "does the date instance carry
+        // this part?". The answer depends on the **literal value's
+        // precision**, not just the typed kind: e.g. {@code %2015-04-15T17}
+        // is a CDateTime but has no minute component, so {@code hasMinute}
+        // returns false. The dispatch mirrors legacy plangen exactly:
+        //   • CDateTime literal → inspect the value string for the part.
+        //   • CStrictDate literal → only year/month/day are present.
+        //   • Column ref / non-literal → emit the part-extraction call
+        //     (MONTH/DAY/HOUR/…) which DuckDB returns as Integer; tests
+        //     asserting Number-castable truthiness rely on this.
+        bind(Pure.HAS_MONTH__DATE_1, (call, args, ctx) -> {
+            TypedSpec a = call.args().get(0);
+            if (a instanceof TypedCStrictDate || a instanceof TypedCDateTime) {
+                return new SqlExpr.BoolLiteral(true);
+            }
+            return new SqlExpr.FunctionCall("MONTH", List.of(args.get(0)));
+        });
+        bind(Pure.HAS_DAY__DATE_1, (call, args, ctx) -> {
+            TypedSpec a = call.args().get(0);
+            if (a instanceof TypedCDateTime) {
+                return new SqlExpr.BoolLiteral(true);
+            }
+            if (a instanceof TypedCStrictDate sd) {
+                return new SqlExpr.BoolLiteral(sd.value().matches("\\d{4}-\\d{2}-\\d{2}.*"));
+            }
+            return new SqlExpr.FunctionCall("DAY", List.of(args.get(0)));
+        });
+        bind(Pure.HAS_HOUR__DATE_1, (call, args, ctx) -> {
+            TypedSpec a = call.args().get(0);
+            if (a instanceof TypedCDateTime) return new SqlExpr.BoolLiteral(true);
+            if (a instanceof TypedCStrictDate) return new SqlExpr.BoolLiteral(false);
+            return new SqlExpr.FunctionCall("HOUR", List.of(args.get(0)));
+        });
+        bind(Pure.HAS_MINUTE__DATE_1, (call, args, ctx) -> {
+            TypedSpec a = call.args().get(0);
+            if (a instanceof TypedCDateTime dt) {
+                // Dates like %2015-04-15T17 have hour but no minute.
+                return new SqlExpr.BoolLiteral(dt.value().matches(".*T\\d{2}:\\d{2}.*"));
+            }
+            if (a instanceof TypedCStrictDate) return new SqlExpr.BoolLiteral(false);
+            return new SqlExpr.FunctionCall("MINUTE", List.of(args.get(0)));
+        });
+        bind(Pure.HAS_SECOND__DATE_1, (call, args, ctx) -> {
+            TypedSpec a = call.args().get(0);
+            if (a instanceof TypedCDateTime dt) {
+                return new SqlExpr.BoolLiteral(dt.value().matches(".*T\\d{2}:\\d{2}:\\d{2}.*"));
+            }
+            if (a instanceof TypedCStrictDate) return new SqlExpr.BoolLiteral(false);
+            return new SqlExpr.FunctionCall("SECOND", List.of(args.get(0)));
+        });
+        bind(Pure.HAS_SUBSECOND__DATE_1, (call, args, ctx) -> {
+            TypedSpec a = call.args().get(0);
+            if (a instanceof TypedCDateTime dt) {
+                return new SqlExpr.BoolLiteral(dt.value().matches(".*\\.\\d+.*"));
+            }
+            // CStrictDate / column refs: no subsecond component possible
+            // for the literal cases; column refs always lack subsecond
+            // precision in our DuckDB types.
+            return new SqlExpr.BoolLiteral(false);
+        });
+    }
+
+    /**
+     * Lower the 2-arg string indexOf:
+     *   {@code (INSTR(s, sub) - 1)} — DuckDB INSTR is 1-based (0 = not found),
+     *   Pure is 0-based (-1 = not found).
+     */
+    private static SqlExpr stringIndexOf(List<SqlExpr> args) {
+        return new SqlExpr.BinaryArith(SqlExpr.ArithOp.MINUS,
+                new SqlExpr.FunctionCall("INSTR", List.of(args.get(0), args.get(1))),
+                intLit(1));
+    }
+
+    /**
+     * Read the hash algorithm name off a typed AST node. Accepts the three
+     * shapes Pure produces for {@code HashType} arguments: enum value,
+     * string literal, and packageable reference path.
+     */
+    private static String readHashAlgo(TypedSpec algoSpec) {
+        if (algoSpec instanceof TypedEnumValue ev) {
+            return ev.member().toUpperCase();
+        }
+        if (algoSpec instanceof TypedCString cs) {
+            return cs.value().toUpperCase();
+        }
+        if (algoSpec instanceof TypedPackageableRef pr) {
+            String fullPath = pr.fullPath();
+            if (fullPath.contains("SHA256")) return "SHA256";
+            if (fullPath.contains("SHA1"))   return "SHA1";
+            if (fullPath.contains("MD5"))    return "MD5";
+        }
+        throw new IllegalStateException(
+                "[scalar-binding] hash() algorithm must be a literal HashType; got " + algoSpec);
+    }
+
+    /** True when arg {@code i} of the typed call has [*] multiplicity. */
+    private static boolean isManyArg(TypedNativeCall call, int i) {
+        TypedSpec a = call.args().get(i);
+        return a.info() != null && a.info().isMany();
     }
 
     /** Bind one Pure-constant overload to a single scalar lowering. */

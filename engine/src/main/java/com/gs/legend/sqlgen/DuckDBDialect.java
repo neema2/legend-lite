@@ -551,24 +551,9 @@ public final class DuckDBDialect implements SQLDialect {
             // --- char(code): DuckDB parses bare `char` as a type, use CHR. ---
             case "char":
                 return "CHR(" + args.get(0) + ")";
-            // --- indexOf(s, needle): DuckDB STRPOS is 1-based, returns 0 when
-            //     not found. Pure semantics: 0-based index, -1 when not found.
-            //     Both transforms by subtracting 1.
-            case "indexOf":
-                return "(STRPOS(" + args.get(0) + ", " + args.get(1) + ") - 1)";
-            // --- has<Part>(date): for typed column refs, legacy plangen
-            //     emits the part-extraction function itself (MONTH/DAY/HOUR/
-            //     MINUTE/SECOND) which DuckDB returns as INTEGER. Tests assert
-            //     non-zero rather than true/false because of this. Pure-literal
-            //     paths (CDate/CDateTime) compute the boolean answer at compile
-            //     time and never reach this default arm.
-            case "hasYear":     return "YEAR(" + args.get(0) + ")";
-            case "hasMonth":    return "MONTH(" + args.get(0) + ")";
-            case "hasDay":      return "DAY(" + args.get(0) + ")";
-            case "hasHour":     return "HOUR(" + args.get(0) + ")";
-            case "hasMinute":   return "EXTRACT(MINUTE FROM " + args.get(0) + ")";
-            case "hasSecond":   return "EXTRACT(SECOND FROM " + args.get(0) + ")";
-            case "hasSubsecond":return "EXTRACT(MILLISECOND FROM " + args.get(0) + ")";
+            // (indexOf, hash, has* dispatch lives in ScalarBindings — those
+            // emissions need the typed AST to choose the right SQL form
+            // based on overload identity / literal-kind / multiplicity.)
             // --- numeric parsers/casts ---
             case "toFloat":
             case "parseFloat":
@@ -577,6 +562,37 @@ public final class DuckDBDialect implements SQLDialect {
                 return "CAST(" + args.get(0) + " AS DECIMAL)";
             case "parseBoolean":
                 return "CAST(" + args.get(0) + " AS BOOLEAN)";
+            // --- substring(s, start, end): Pure is 0-based, end-exclusive
+            //     ([start, end) chars). DuckDB SUBSTRING(s, pos, len) is
+            //     1-based with explicit length: pos=start+1, len=end-start.
+            case "substring": {
+                if (args.size() == 3) {
+                    return "SUBSTRING(" + args.get(0) + ", " + args.get(1)
+                            + " + 1, " + args.get(2) + " - " + args.get(1) + ")";
+                }
+                if (args.size() == 2) {
+                    return "SUBSTRING(" + args.get(0) + ", " + args.get(1) + " + 1)";
+                }
+                break;
+            }
+            // --- splitPart(s, delim, n): Pure is 0-based; DuckDB SPLIT_PART
+            //     is 1-based, so add 1.
+            case "splitPart":
+                return "SPLIT_PART(" + args.get(0) + ", " + args.get(1)
+                        + ", " + args.get(2) + " + 1)";
+            // --- hash(s, algorithm): dispatch on the literal algorithm
+            //     enum (passed as a quoted string at this layer). DuckDB's
+            //     bare HASH() returns a BIGINT, not a hex digest, so route
+            //     by name to the per-algorithm function.
+            case "hash": {
+                String algo = stripQuotes(args.get(1)).toUpperCase();
+                return switch (algo) {
+                    case "MD5"    -> "MD5("    + args.get(0) + ")";
+                    case "SHA1"   -> "SHA1("   + args.get(0) + ")";
+                    case "SHA256" -> "SHA256(" + args.get(0) + ")";
+                    default       -> "HASH("   + args.get(0) + ")";
+                };
+            }
         }
 
         String sqlName = switch (pureName) {
@@ -599,10 +615,8 @@ public final class DuckDBDialect implements SQLDialect {
 
             // --- String ---
             case "reverseString" -> "REVERSE";
-            case "splitPart" -> "SPLIT_PART";
             case "joinStrings" -> "STRING_AGG";
             case "levenshteinDistance" -> "LEVENSHTEIN";
-            case "hash" -> "HASH";
 
             // --- New string functions ---
             case "left" -> "LEFT";
