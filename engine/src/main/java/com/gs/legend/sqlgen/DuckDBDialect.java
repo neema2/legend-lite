@@ -335,7 +335,10 @@ public final class DuckDBDialect implements SQLDialect {
             // (with a trailing 'd' suffix). Strip the suffix at SQL-build time
             // via REPLACE so any literal or column expression works, then CAST
             // to DOUBLE — Pure Decimal maps to DuckDB DOUBLE for arithmetic.
-            case "parseDecimal":   return "CAST(REPLACE(" + args.get(0) + ", 'd', '') AS DOUBLE)";
+            // Cast input to VARCHAR before REPLACE: when the test source is
+            // a numeric column (e.g. inferred DECIMAL from a TDS literal),
+            // REPLACE rejects non-VARCHAR. Mirrors legacy comment at line 2952.
+            case "parseDecimal":   return "CAST(REPLACE(CAST(" + args.get(0) + " AS VARCHAR), 'd', '') AS DOUBLE)";
             // {@code parseDate(s)} accepts ISO-8601 timestamps with optional
             // timezone. DuckDB's TIMESTAMPTZ CAST handles the common forms
             // (date-only, date+time, date+time+offset).
@@ -545,6 +548,35 @@ public final class DuckDBDialect implements SQLDialect {
                 String s = args.get(0);
                 return "(LOWER(LEFT(" + s + ", 1)) || SUBSTRING(" + s + " FROM 2))";
             }
+            // --- char(code): DuckDB parses bare `char` as a type, use CHR. ---
+            case "char":
+                return "CHR(" + args.get(0) + ")";
+            // --- indexOf(s, needle): DuckDB STRPOS is 1-based, returns 0 when
+            //     not found. Pure semantics: 0-based index, -1 when not found.
+            //     Both transforms by subtracting 1.
+            case "indexOf":
+                return "(STRPOS(" + args.get(0) + ", " + args.get(1) + ") - 1)";
+            // --- has<Part>(date): for typed column refs, legacy plangen
+            //     emits the part-extraction function itself (MONTH/DAY/HOUR/
+            //     MINUTE/SECOND) which DuckDB returns as INTEGER. Tests assert
+            //     non-zero rather than true/false because of this. Pure-literal
+            //     paths (CDate/CDateTime) compute the boolean answer at compile
+            //     time and never reach this default arm.
+            case "hasYear":     return "YEAR(" + args.get(0) + ")";
+            case "hasMonth":    return "MONTH(" + args.get(0) + ")";
+            case "hasDay":      return "DAY(" + args.get(0) + ")";
+            case "hasHour":     return "HOUR(" + args.get(0) + ")";
+            case "hasMinute":   return "EXTRACT(MINUTE FROM " + args.get(0) + ")";
+            case "hasSecond":   return "EXTRACT(SECOND FROM " + args.get(0) + ")";
+            case "hasSubsecond":return "EXTRACT(MILLISECOND FROM " + args.get(0) + ")";
+            // --- numeric parsers/casts ---
+            case "toFloat":
+            case "parseFloat":
+                return "CAST(" + args.get(0) + " AS DOUBLE)";
+            case "toDecimal":
+                return "CAST(" + args.get(0) + " AS DECIMAL)";
+            case "parseBoolean":
+                return "CAST(" + args.get(0) + " AS BOOLEAN)";
         }
 
         String sqlName = switch (pureName) {
@@ -592,7 +624,6 @@ public final class DuckDBDialect implements SQLDialect {
             case "contains" -> "CONTAINS";
 
             case "decodeBase64" -> "FROM_BASE64";
-            case "indexOf" -> "LIST_POSITION";
 
             // --- Math ---
             case "roundHalfEven" -> "ROUND_EVEN";

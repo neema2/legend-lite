@@ -36,7 +36,9 @@ public sealed interface SqlExpr permits
         SqlExpr.Exists,
         SqlExpr.FieldAccess,
         SqlExpr.FunctionCall,
+        SqlExpr.Greatest,
         SqlExpr.Grouped,
+        SqlExpr.Least,
         SqlExpr.Identifier,
         SqlExpr.In,
         SqlExpr.IntegerDivide,
@@ -229,6 +231,16 @@ public sealed interface SqlExpr permits
      * {@code FunctionCall("listLength", ...)}.
      */
     record ListLength(SqlExpr list) implements SqlExpr {}
+
+    /**
+     * Pure {@code greatest(values:Any[*]):Any[0..1]}. Always single-list-arg
+     * shape (Pure has no variadic overload). Dialect renders as
+     * {@code list_max(arg)} (DuckDB) or equivalent.
+     */
+    record Greatest(SqlExpr listArg) implements SqlExpr {}
+
+    /** Pure {@code least(values:Any[*]):Any[0..1]}. See {@link Greatest}. */
+    record Least(SqlExpr listArg) implements SqlExpr {}
 
     /** AND of multiple conditions. */
     record And(List<SqlExpr> conditions) implements SqlExpr {}

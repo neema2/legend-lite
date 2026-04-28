@@ -100,6 +100,14 @@ public final class ScalarBindings {
                 new SqlExpr.ListSlice(args.get(0),
                         new SqlExpr.BinaryArith(SqlExpr.ArithOp.PLUS, args.get(1), intLit(1)),
                         args.get(2)));
+
+        // ----- min/max over a list (greatest/least) ----------------------
+        // Pure: greatest(values:Any[*]):Any[0..1] / least(values:Any[*]):Any[0..1].
+        // Single-list-arg shape; dialect renders as list_max / list_min.
+        bind(Pure.GREATEST__ANY_MANY,
+                (call, args, ctx) -> new SqlExpr.Greatest(args.get(0)));
+        bind(Pure.LEAST__ANY_MANY,
+                (call, args, ctx) -> new SqlExpr.Least(args.get(0)));
     }
 
     /** Bind one Pure-constant overload to a single scalar lowering. */

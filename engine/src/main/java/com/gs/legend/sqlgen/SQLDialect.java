@@ -246,6 +246,16 @@ public interface SQLDialect {
         return "list_distinct(" + listExpr + ")";
     }
 
+    /** Render {@code list_max(list)} (Pure {@code greatest}). */
+    default String renderGreatest(String listExpr) {
+        return "list_max(" + listExpr + ")";
+    }
+
+    /** Render {@code list_min(list)} (Pure {@code least}). */
+    default String renderLeast(String listExpr) {
+        return "list_min(" + listExpr + ")";
+    }
+
     /**
      * Map a Pure type name to the SQL type name for CAST expressions.
      *
@@ -441,6 +451,8 @@ public interface SQLDialect {
             case SqlExpr.ListSort ls       -> renderListSort(render(ls.list()), ls);
             case SqlExpr.ListConcat lc     -> renderListConcat(render(lc.left()), render(lc.right()));
             case SqlExpr.ListDistinct ld   -> renderListDistinct(render(ld.list()));
+            case SqlExpr.Greatest gr       -> renderGreatest(render(gr.listArg()));
+            case SqlExpr.Least le2         -> renderLeast(render(le2.listArg()));
 
             // ---- Boolean ----
             case SqlExpr.And a             -> a.conditions().stream().map(this::render)
@@ -591,7 +603,21 @@ public interface SQLDialect {
      * variants are window-only.
      */
     default String renderWindowCall(SqlExpr.WindowCall wc) {
-        String call = render(wc.fn());
+        String overClause = renderOverClause(wc);
+        // WeightedAvg has no SQL primitive — agg context renders it as the
+        // composite (SUM(v*w) / SUM(w)). In window context, the OVER suffix
+        // applies to a single window function call, so we must distribute it
+        // across BOTH SUMs (otherwise SQL parses ' / SUM(...)) OVER ()' as a
+        // syntax error). Mirrors generateWindowed behaviour in legacy plangen.
+        if (wc.fn() instanceof com.gs.legend.plan.sql.SqlAggregate.WeightedAvg w) {
+            return "(SUM(" + render(w.value()) + " * " + render(w.weight()) + ")" + overClause
+                    + " / SUM(" + render(w.weight()) + ")" + overClause + ")";
+        }
+        return render(wc.fn()) + overClause;
+    }
+
+    /** Builds the {@code OVER (PARTITION BY … ORDER BY … <frame>)} suffix. */
+    default String renderOverClause(SqlExpr.WindowCall wc) {
         StringBuilder over = new StringBuilder(" OVER (");
         boolean need = false;
         if (!wc.partitionBy().isEmpty()) {
@@ -616,7 +642,7 @@ public interface SQLDialect {
             over.append(renderWindowFrame(wc.frame().get()));
         }
         over.append(")");
-        return call + over.toString();
+        return over.toString();
     }
 
 

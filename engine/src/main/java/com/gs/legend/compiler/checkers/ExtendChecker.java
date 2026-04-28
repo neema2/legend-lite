@@ -463,6 +463,14 @@ public class ExtendChecker extends AbstractChecker {
         // legacy convention for both 1-param aggregates {r|...} and 3-param
         // windowed-aggregates {p,w,r|...}).
         String rowParamName = lastParamName(fn1Lambda);
+        // funcArgs is the typed reducer-arg list: fn1's body (which may itself
+        // be a structured call like {@code rowMapper(a, b)} for the
+        // bivariate-aggregate sugar) plus any non-variable trailing args from
+        // the reducer body (e.g. the separator literal in joinStrings). The
+        // checker stays structurally honest — no per-function unpacking;
+        // bindings pattern-match on their own dispatch key in
+        // {@link com.gs.legend.plan.lowering.natives.WindowBindings} /
+        // {@link com.gs.legend.plan.lowering.natives.AggregateBindings}.
         List<TypedSpec> funcArgs = new ArrayList<>();
         funcArgs.add(fn1Body);
         funcArgs.addAll(extractReducerExtraArgs(fn2Body));

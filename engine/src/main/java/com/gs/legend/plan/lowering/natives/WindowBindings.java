@@ -2,9 +2,13 @@ package com.gs.legend.plan.lowering.natives;
 
 import com.gs.legend.compiler.NativeFunctionDef;
 import com.gs.legend.compiler.Pure;
+import com.gs.legend.compiler.typed.TypedSpec;
+import com.gs.legend.plan.lowering.Lowerer;
+import com.gs.legend.plan.lowering.LoweringContext;
 import com.gs.legend.plan.sql.SqlAggregate;
 import com.gs.legend.sqlgen.SqlExpr;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,39 +46,42 @@ public final class WindowBindings {
     private WindowBindings() {}
 
     /**
-     * One binding per resolved overload. Receives the lowered argument list
-     * (already evaluated against the row context) and emits a typed
-     * {@link SqlAggregate} variant — any sub-category.
+     * One binding per resolved overload. Receives the typed argument list and
+     * a {@link LoweringContext} already bound to the window's row scope; the
+     * binding lowers each typed arg via {@link Lowerer#lowerScalar} and emits
+     * a typed {@link SqlAggregate} variant. Same shape as
+     * {@link AggregateBindings.Binding} so scalar agg overloads can promote
+     * directly into window context without a wrapping adapter.
      */
     @FunctionalInterface
     public interface Binding {
-        SqlAggregate build(List<SqlExpr> args);
+        SqlAggregate build(List<TypedSpec> args, LoweringContext ctx);
     }
 
     private static final Map<NativeFunctionDef, Binding> TABLE = new HashMap<>();
 
     static {
         // --- Ranking (zero-arg windows) -----------------------------------
-        bind(Pure.ROW_NUMBER__RELATION_1__T_1,                         args -> new SqlAggregate.RowNumber());
-        bind(Pure.RANK__RELATION_1__WINDOW_1__T_1,                     args -> new SqlAggregate.Rank());
-        bind(Pure.DENSE_RANK__RELATION_1__WINDOW_1__T_1,               args -> new SqlAggregate.DenseRank());
-        bind(Pure.PERCENT_RANK__RELATION_1__WINDOW_1__T_1,             args -> new SqlAggregate.PercentRank());
-        bind(Pure.CUMULATIVE_DISTRIBUTION__RELATION_1__WINDOW_1__T_1,  args -> new SqlAggregate.CumulativeDistribution());
+        bind(Pure.ROW_NUMBER__RELATION_1__T_1,                         (args, ctx) -> new SqlAggregate.RowNumber());
+        bind(Pure.RANK__RELATION_1__WINDOW_1__T_1,                     (args, ctx) -> new SqlAggregate.Rank());
+        bind(Pure.DENSE_RANK__RELATION_1__WINDOW_1__T_1,               (args, ctx) -> new SqlAggregate.DenseRank());
+        bind(Pure.PERCENT_RANK__RELATION_1__WINDOW_1__T_1,             (args, ctx) -> new SqlAggregate.PercentRank());
+        bind(Pure.CUMULATIVE_DISTRIBUTION__RELATION_1__WINDOW_1__T_1,  (args, ctx) -> new SqlAggregate.CumulativeDistribution());
 
         // --- Value functions ----------------------------------------------
         // first/last/nth also have scalar-list overloads bound by NativeBindings
         // (LIST_EXTRACT). The Pure constants here are specifically the
         // window-context overloads (Relation<T>, _Window<T>, T) — distinct
         // typed identifiers. No predicate filtering needed.
-        bind(Pure.FIRST__RELATION_1__WINDOW_1__T_1,            args -> new SqlAggregate.FirstValue(args.get(0)));
-        bind(Pure.LAST__RELATION_1__WINDOW_1__T_1,             args -> new SqlAggregate.LastValue(args.get(0)));
-        bind(Pure.NTH__RELATION_1__WINDOW_1__T_1__INTEGER_1,   args -> new SqlAggregate.NthValue(args.get(0), args.get(1)));
-        bind(Pure.NTILE__RELATION_1__T_1__INTEGER_1,           args -> new SqlAggregate.Ntile(args.get(0)));
+        bind(Pure.FIRST__RELATION_1__WINDOW_1__T_1,            (args, ctx) -> new SqlAggregate.FirstValue(lower(args, ctx, 0)));
+        bind(Pure.LAST__RELATION_1__WINDOW_1__T_1,             (args, ctx) -> new SqlAggregate.LastValue(lower(args, ctx, 0)));
+        bind(Pure.NTH__RELATION_1__WINDOW_1__T_1__INTEGER_1,   (args, ctx) -> new SqlAggregate.NthValue(lower(args, ctx, 0), lower(args, ctx, 1)));
+        bind(Pure.NTILE__RELATION_1__T_1__INTEGER_1,           (args, ctx) -> new SqlAggregate.Ntile(lower(args, ctx, 0)));
 
         // Lag/Lead — both arity-2 and arity-3 (with offset) overloads.
-        bindAll(args -> new SqlAggregate.Lag(List.copyOf(args)),
+        bindAll((args, ctx) -> new SqlAggregate.Lag(lowerAll(args, ctx)),
                 Pure.LAG__RELATION_1__T_1, Pure.LAG__RELATION_1__T_1__INTEGER_1);
-        bindAll(args -> new SqlAggregate.Lead(List.copyOf(args)),
+        bindAll((args, ctx) -> new SqlAggregate.Lead(lowerAll(args, ctx)),
                 Pure.LEAD__RELATION_1__T_1, Pure.LEAD__RELATION_1__T_1__INTEGER_1);
 
         // --- Reducers (window-context overloads) --------------------------
@@ -89,9 +96,9 @@ public final class WindowBindings {
         // checker for {p,w,r|$p->count($w,$r)}) lowers to CountStar; with one
         // operand it lowers to Count(arg). Two distinct typed variants — no
         // null sneaks into the renderer.
-        bind(Pure.COUNT__RELATION_1__WINDOW_1__T_1, args -> args.isEmpty()
+        bind(Pure.COUNT__RELATION_1__WINDOW_1__T_1, (args, ctx) -> args.isEmpty()
                 ? new SqlAggregate.CountStar()
-                : new SqlAggregate.Count(args.get(0)));
+                : new SqlAggregate.Count(lower(args, ctx, 0)));
         bindAll(reducer(SqlAggregate.Avg::new),
                 Pure.AVG__RELATION_1__WINDOW_1__T_1,
                 Pure.AVERAGE__RELATION_1__WINDOW_1__T_1,
@@ -113,25 +120,25 @@ public final class WindowBindings {
         // TypedWindowExtendCol). Failing loudly is better than silently
         // emitting wrong SQL.
         bind(Pure.PERCENTILE__RELATION_1__WINDOW_1__T_1,
-                args -> { throw new UnsupportedOperationException(
+                (args, ctx) -> { throw new UnsupportedOperationException(
                         "window percentile requires p operand; not yet wired through frontend"); });
         bind(Pure.CORR__RELATION_1__WINDOW_1__T_1,
-                args -> { throw new UnsupportedOperationException(
+                (args, ctx) -> { throw new UnsupportedOperationException(
                         "window corr requires second column; not yet wired through frontend"); });
         bind(Pure.COVAR_POPULATION__RELATION_1__WINDOW_1__T_1,
-                args -> { throw new UnsupportedOperationException(
+                (args, ctx) -> { throw new UnsupportedOperationException(
                         "window covarPopulation requires second column; not yet wired through frontend"); });
         bind(Pure.COVAR_SAMPLE__RELATION_1__WINDOW_1__T_1,
-                args -> { throw new UnsupportedOperationException(
+                (args, ctx) -> { throw new UnsupportedOperationException(
                         "window covarSample requires second column; not yet wired through frontend"); });
 
         // --- Scalar agg overloads usable in window position ---------------
         // Some Pure expressions resolve to the scalar agg overload even when
         // used in window position (e.g., {p,w,r|$r->plus()} where plus has
         // only a scalar T[*] overload, not a window-specific one). Promote
-        // each AggregateBindings entry to a window binding by exposing the
-        // same Reducer-producing function — Reducer widens to SqlAggregate
-        // automatically, no wrapping needed. Window-specific overloads
+        // each AggregateBindings entry to a window binding directly — the
+        // signatures are identical (typed args + ctx) so Reducer widens to
+        // SqlAggregate without a wrapping adapter. Window-specific overloads
         // bound above win via the containsKey guard.
         for (Map.Entry<NativeFunctionDef, AggregateBindings.Binding> e : AggregateBindings.snapshot().entrySet()) {
             NativeFunctionDef def = e.getKey();
@@ -141,16 +148,28 @@ public final class WindowBindings {
         }
     }
 
+    /** Lower one positional typed arg in the binding's row-bound context. */
+    private static SqlExpr lower(List<TypedSpec> args, LoweringContext ctx, int i) {
+        return Lowerer.lowerScalar(args.get(i), ctx);
+    }
+
+    /** Lower every typed arg in order; used by Lag/Lead which take a list. */
+    private static List<SqlExpr> lowerAll(List<TypedSpec> args, LoweringContext ctx) {
+        List<SqlExpr> out = new ArrayList<>(args.size());
+        for (TypedSpec a : args) out.add(Lowerer.lowerScalar(a, ctx));
+        return out;
+    }
+
     /**
      * Build a window-binding from a one-arg {@link SqlAggregate.Reducer}
      * constructor. Used for window-context overloads of sum/avg/min/max/
-     * etc. — the lowered argument is the row expression evaluated in the
-     * OVER frame.
+     * etc. — the typed argument is the row expression lowered in the
+     * OVER frame's row context.
      */
     private static Binding reducer(java.util.function.Function<SqlExpr, SqlAggregate.Reducer> ctor) {
         // Tolerate empty args list — count() with no operand lowers to COUNT(*),
         // which the checker should have routed to the CountStar arm above.
-        return args -> ctor.apply(args.isEmpty() ? null : args.get(0));
+        return (args, ctx) -> ctor.apply(args.isEmpty() ? null : lower(args, ctx, 0));
     }
 
     /** Bind one Pure-constant overload to a single window lowering. */

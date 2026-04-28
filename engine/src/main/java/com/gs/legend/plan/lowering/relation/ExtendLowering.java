@@ -216,13 +216,8 @@ public final class ExtendLowering {
         LoweringContext bodyCtx = ctx.bindVar(wc.rowParamName(),
                 new SqlExpr.Identifier(baseAlias), storeRes);
 
-        // Lower the window-call arguments.
-        List<SqlExpr> args = new ArrayList<>(wc.funcArgs().size());
-        for (TypedSpec a : wc.funcArgs()) {
-            args.add(Lowerer.lowerScalar(a, bodyCtx));
-        }
-
-        // Lower the OVER clause.
+        // Lower the OVER clause first — purely structural, doesn't depend on
+        // the window-call args.
         TypedOver over = wc.over();
         List<SqlExpr> partitionBy = new ArrayList<>(over.partitionBy().size());
         for (String col : over.partitionBy()) {
@@ -234,10 +229,13 @@ public final class ExtendLowering {
         }
 
         // Dispatch on resolved NativeFunctionDef identity via WindowBindings.
-        // No string switch on Pure name — see AGENTS.md invariant 2.
+        // The binding receives the typed funcArgs + the row-bound context and
+        // lowers each operand it consumes; this lets bindings whose overload
+        // signature describes a structured arg (e.g. RowMapper<T,U>) inspect
+        // the typed tree directly. See AGENTS.md invariant 2.
         SqlExpr windowCall = new SqlExpr.WindowCall(
                 com.gs.legend.plan.lowering.natives.WindowBindings
-                        .lookup(wc.func()).build(args),
+                        .lookup(wc.func()).build(wc.funcArgs(), bodyCtx),
                 partitionBy, orderBy, lowerFrame(over.frame()));
 
         // Substitute the window call into the outer wrapper (e.g.,

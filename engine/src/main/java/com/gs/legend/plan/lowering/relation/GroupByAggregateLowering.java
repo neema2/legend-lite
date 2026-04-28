@@ -227,32 +227,35 @@ public final class GroupByAggregateLowering {
         // {@link TypedAggCall#func()} alone is sufficient. Dialects own specialised
         // rendering of each {@link SqlAggregate} variant.
         //
-        // fn1 produces the values being aggregated (first reducer operand).
-        // {@link TypedAggCall#extraArgs()} carries the rest — the separator in
-        // joinStrings(values, sep), the percentile p, the second column for
-        // corr(x, y), the second column unpacked from rowMapper(value, key).
-        // Lower fn1 first, then lower each extra in the SAME scope as fn1's
-        // body — extras that reference fn1's parameter (e.g., the key column
-        // {@code $x.b} from {@code rowMapper($x.a, $x.b)}) need that param
-        // bound to the source alias.
-        SqlExpr arg = lowerSingleParamLambda(a.fn1(), aliased.alias(), ctx, store);
-        List<SqlExpr> args = new ArrayList<>(1 + a.extraArgs().size());
-        args.add(arg);
-        if (!a.extraArgs().isEmpty()) {
-            String fn1Param = a.fn1().parameters().isEmpty() ? null
-                    : a.fn1().parameters().get(0).name();
-            LoweringContext extrasCtx = fn1Param == null ? ctx
-                    : ctx.bindVar(fn1Param, new SqlExpr.Identifier(aliased.alias()), store);
-            for (TypedSpec extra : a.extraArgs()) {
-                args.add(Lowerer.lowerScalar(extra, extrasCtx));
-            }
-        }
-        // Dispatch on resolved NativeFunctionDef identity via AggregateBindings;
-        // the binding emits the typed SqlAggregate variant directly. No
-        // out-of-band flags — every operand the renderer needs is carried
-        // inside the variant. See AGENTS.md invariant 2.
-        SqlAggregate.Reducer agg = AggregateBindings.lookup(a.func()).build(args);
+        // fn1 produces the values being aggregated (first reducer operand);
+        // {@link TypedAggCall#extraArgs()} carries the rest. Build a typed
+        // arg list (fn1's terminal body + extras) and a row-bound context
+        // for the binding. The binding owns its lowering — it lowers each
+        // typed arg via {@code Lowerer.lowerScalar}, and bindings whose
+        // overload signature carries a structured arg (rowMapper-overloads
+        // of corr/covar/maxBy/minBy/wavg) destructure the typed tree
+        // directly. See AGENTS.md invariant 2.
+        TypedSpec fn1Body = fn1TerminalBody(a.fn1());
+        List<TypedSpec> typedArgs = new ArrayList<>(1 + a.extraArgs().size());
+        typedArgs.add(fn1Body);
+        typedArgs.addAll(a.extraArgs());
+        String fn1Param = a.fn1().parameters().isEmpty() ? null
+                : a.fn1().parameters().get(0).name();
+        LoweringContext bindingCtx = fn1Param == null ? ctx
+                : ctx.bindVar(fn1Param, new SqlExpr.Identifier(aliased.alias()), store);
+        SqlAggregate.Reducer agg = AggregateBindings.lookup(a.func()).build(typedArgs, bindingCtx);
         return new SqlRelation.Agg(a.alias(), agg);
+    }
+
+    /** Extract fn1's terminal body expression (the value being aggregated). */
+    private static TypedSpec fn1TerminalBody(TypedLambda fn1) {
+        if (fn1.parameters().size() != 1) {
+            throw PlanGenNotPortedException.stage3(null, "agg:multi-param-lambda");
+        }
+        if (fn1.body().isEmpty()) {
+            throw PlanGenNotPortedException.stage3(null, "agg:empty-body");
+        }
+        return fn1.body().get(fn1.body().size() - 1);
     }
 
     private static SqlExpr lowerSingleParamLambda(TypedLambda lam, String srcAlias, LoweringContext ctx,

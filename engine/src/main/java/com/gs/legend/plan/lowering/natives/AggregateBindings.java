@@ -2,6 +2,11 @@ package com.gs.legend.plan.lowering.natives;
 
 import com.gs.legend.compiler.NativeFunctionDef;
 import com.gs.legend.compiler.Pure;
+import com.gs.legend.compiler.typed.TypedCBoolean;
+import com.gs.legend.compiler.typed.TypedNativeCall;
+import com.gs.legend.compiler.typed.TypedSpec;
+import com.gs.legend.plan.lowering.Lowerer;
+import com.gs.legend.plan.lowering.LoweringContext;
 import com.gs.legend.plan.sql.SqlAggregate;
 import com.gs.legend.sqlgen.SqlExpr;
 
@@ -13,10 +18,13 @@ import java.util.Map;
  * Aggregate dispatch table keyed by typed {@link NativeFunctionDef} constants
  * from {@link Pure}.
  *
- * <p>Each binding receives the FULL lowered argument list — multi-operand
- * aggregates (joinStrings/percentile/corr/covar) consume their second/third
- * args here. Single-arg aggregates use {@code args.get(0)} via the
- * {@link #unary(java.util.function.Function)} helper.
+ * <p>Each binding receives the typed argument list and a {@link LoweringContext}
+ * already bound to the aggregate's row scope. The binding lowers what it needs
+ * via {@link Lowerer#lowerScalar(TypedSpec, LoweringContext)}. This shape lets
+ * bindings whose overload signature describes a structured argument (e.g. the
+ * {@code RowMapper<T,U>} overloads of corr/covar/maxBy/minBy/wavg) destructure
+ * the typed tree directly — no checker-side unpacking required, and no
+ * synthetic transport SqlExprs.
  *
  * <p>The frontend has resolved each {@code TypedAggCall.func()} to a specific
  * overload; lowering looks up the entry by its {@link Pure} constant and emits
@@ -34,20 +42,22 @@ public final class AggregateBindings {
     private AggregateBindings() {}
 
     /**
-     * One binding per resolved overload. Receives the already-lowered
-     * argument list — for multi-operand aggregates (joinStrings, percentile,
-     * corr, …) the second/third args are inside this list and the binding
-     * picks them out by index. Returns a typed {@link SqlAggregate} variant;
-     * everything the renderer needs is carried inside the variant.
+     * One binding per resolved overload. Receives the typed argument list and
+     * a {@link LoweringContext} already bound to the aggregate's row scope;
+     * the binding lowers each typed arg it needs via
+     * {@link Lowerer#lowerScalar(TypedSpec, LoweringContext)}. Returns a typed
+     * {@link SqlAggregate} variant — everything the renderer needs is carried
+     * inside the variant.
      *
      * <p>The same binding is invoked from agg context
-     * ({@code GroupByAggregateLowering}) and lifted into window context
-     * ({@code WindowAggregateBindings.OfAggregate}); both paths hand the full
-     * args list through.
+     * ({@code GroupByAggregateLowering}) and from window context
+     * ({@code ExtendLowering.lowerWindowCol} via the
+     * {@code AggregateBindings.snapshot()} bridge); both paths hand typed
+     * args + a properly-bound context through.
      */
     @FunctionalInterface
     public interface Binding {
-        SqlAggregate.Reducer build(List<SqlExpr> args);
+        SqlAggregate.Reducer build(List<TypedSpec> args, LoweringContext ctx);
     }
 
     private static final Map<NativeFunctionDef, Binding> TABLE = new HashMap<>();
@@ -55,6 +65,11 @@ public final class AggregateBindings {
     static {
         // ----- count / size -----
         bindAll(unary(SqlAggregate.Count::new), Pure.COUNT__T_MANY, Pure.SIZE__T_MANY);
+        // NOTE on multi-operand bindings: they call {@code lower(args, ctx, i)}
+        // for each typed arg they consume — keeping lowering inside the binding
+        // so each variant decides what to lower (and what to inspect as typed
+        // metadata, e.g. percentile's literalBool flags) instead of receiving
+        // pre-lowered SqlExprs.
         // NOTE: distinct(rel) and distinct(rel, ~cols) are RELATION-returning
         // functions in Pure (they produce a deduplicated relation), not
         // aggregates. They have no business in this table. The legacy
@@ -77,6 +92,7 @@ public final class AggregateBindings {
                 Pure.TIMES__INTEGER_1__INTEGER_1, Pure.TIMES__FLOAT_1__FLOAT_1,
                 Pure.TIMES__DECIMAL_1__DECIMAL_1, Pure.TIMES__NUMBER_1__NUMBER_1);
 
+
         // ----- min / max / extrema-by -----
         bindAll(unary(SqlAggregate.Max::new),
                 Pure.MAX__NUMBER_MANY,
@@ -90,27 +106,27 @@ public final class AggregateBindings {
                 Pure.MIN__INTEGER_MANY, Pure.MIN__FLOAT_MANY,
                 Pure.MIN__DATE_TIME_1__DATE_TIME_1, Pure.MIN__STRICT_DATE_1__STRICT_DATE_1, Pure.MIN__DATE_1__DATE_1,
                 Pure.MIN__DATE_TIME_MANY, Pure.MIN__STRICT_DATE_MANY, Pure.MIN__DATE_MANY);
-        // maxBy/minBy(values, keys) — the rowMapper-overload entries assume
-        // GroupByChecker has unpacked rowMapper(value, key) into args[0] and
-        // extraArgs[0], placing both at args[0] and args[1] here. The
-        // function-keyed overloads (with a closure as the second arg) aren't
-        // yet supported — they'd require lowering a Pure lambda into SQL
-        // ARG_MAX(value, lambda(value)), which DuckDB doesn't accept.
-        bindAll(args -> new SqlAggregate.MaxBy(args.get(0), args.get(1)),
-                Pure.MAX_BY__ROW_MAPPER_MANY,
+        // maxBy/minBy(values, keys) — separate bindings per overload shape:
+        // the 2-arg numeric form receives [value, key] as positional typed
+        // args; the rowMapper form receives a single typed rowMapper call
+        // and destructures it locally. The function-keyed overloads (with a
+        // closure as the second arg) aren't yet supported — they'd require
+        // lowering a Pure lambda into SQL ARG_MAX(value, lambda(value)),
+        // which DuckDB doesn't accept.
+        bindAll(binary(SqlAggregate.MaxBy::new),
                 Pure.MAX_BY__T_MANY__T_MANY, Pure.MAX_BY__T_MANY__T_MANY__INTEGER_1);
-        bindAll(args -> new SqlAggregate.MinBy(args.get(0), args.get(1)),
-                Pure.MIN_BY__ROW_MAPPER_MANY,
+        bindAll(binary(SqlAggregate.MinBy::new),
                 Pure.MIN_BY__T_MANY__T_MANY, Pure.MIN_BY__T_MANY__T_MANY__INTEGER_1);
+        bind(Pure.MAX_BY__ROW_MAPPER_MANY, rowMapperBinary(SqlAggregate.MaxBy::new));
+        bind(Pure.MIN_BY__ROW_MAPPER_MANY, rowMapperBinary(SqlAggregate.MinBy::new));
 
         // ----- means -----
         bindAll(unary(SqlAggregate.Avg::new),
                 Pure.AVG__NUMBER_MANY, Pure.AVERAGE__NUMBER_MANY, Pure.MEAN__NUMBER_MANY);
-        // wavg(rowMapper(value, weight)) — same unpacking convention as
-        // corr/covar/maxBy: args[0] is value, args[1] is weight (set by
-        // GroupByChecker). The dialect renders the composite SUM/SUM form.
-        bind(Pure.WAVG__ROW_MAPPER_MANY,
-                args -> new SqlAggregate.WeightedAvg(args.get(0), args.get(1)));
+        // wavg(rowMapper(value, weight)) → SqlAggregate.WeightedAvg(value, weight).
+        // The binding's dispatch key (WAVG__ROW_MAPPER_MANY) guarantees its
+        // single typed arg is a RowMapper-shaped call; destructure locally.
+        bind(Pure.WAVG__ROW_MAPPER_MANY, rowMapperBinary(SqlAggregate.WeightedAvg::new));
         bind(Pure.MEDIAN__NUMBER_MANY,          unary(SqlAggregate.Median::new));
         bind(Pure.MODE__ANY_MANY,               unary(SqlAggregate.Mode::new));
 
@@ -131,41 +147,43 @@ public final class AggregateBindings {
         // by emitting (1 - p) as the SQL operand. continuous chooses
         // PercentileCont vs PercentileDisc. Both flags must be boolean
         // literals at compile time — read statically via literalBool().
-        bindAll(args -> new SqlAggregate.PercentileCont(args.get(0), args.get(1)),
+        bindAll(binary(SqlAggregate.PercentileCont::new),
                 Pure.PERCENTILE__NUMBER_MANY__NUMBER_1,
                 Pure.PERCENTILE_CONT__NUMBER_MANY__NUMBER_1);
-        bind(Pure.PERCENTILE__NUMBER_MANY__NUMBER_1__BOOLEAN_1__BOOLEAN_1, args -> {
+        bind(Pure.PERCENTILE__NUMBER_MANY__NUMBER_1__BOOLEAN_1__BOOLEAN_1, (args, ctx) -> {
             boolean ascending  = literalBool(args.get(2));
             boolean continuous = literalBool(args.get(3));
+            SqlExpr values = lower(args, ctx, 0);
+            SqlExpr pRaw = lower(args, ctx, 1);
             SqlExpr p = ascending
-                    ? args.get(1)
+                    ? pRaw
                     : new SqlExpr.BinaryArith(SqlExpr.ArithOp.MINUS,
-                            new SqlExpr.NumericLiteral(1), args.get(1));
+                            new SqlExpr.NumericLiteral(1), pRaw);
             return continuous
-                    ? new SqlAggregate.PercentileCont(args.get(0), p)
-                    : new SqlAggregate.PercentileDisc(args.get(0), p);
+                    ? new SqlAggregate.PercentileCont(values, p)
+                    : new SqlAggregate.PercentileDisc(values, p);
         });
-        bind(Pure.PERCENTILE_DISC__NUMBER_MANY__NUMBER_1,
-                args -> new SqlAggregate.PercentileDisc(args.get(0), args.get(1)));
+        bind(Pure.PERCENTILE_DISC__NUMBER_MANY__NUMBER_1, binary(SqlAggregate.PercentileDisc::new));
 
         // ----- correlation / covariance (binary) -----
-        // Both overloads converge on args[0] = x, args[1] = y after checker
-        // normalisation. The 2-arg numeric overload (corr(x, y)) flows the
-        // second column through the standard fn2-extraArgs path; the
-        // rowMapper overload (corr(rowMapper(x, y))) is unpacked by
-        // GroupByChecker so y lands at extraArgs[0]. Either way args.size()==2.
-        bindAll(args -> new SqlAggregate.Corr(args.get(0), args.get(1)),
-                Pure.CORR__NUMBER_MANY__NUMBER_MANY, Pure.CORR__ROW_MAPPER_MANY);
-        bindAll(args -> new SqlAggregate.CovarPopulation(args.get(0), args.get(1)),
-                Pure.COVAR_POPULATION__NUMBER_MANY__NUMBER_MANY, Pure.COVAR_POPULATION__ROW_MAPPER_MANY);
-        bindAll(args -> new SqlAggregate.CovarSample(args.get(0), args.get(1)),
-                Pure.COVAR_SAMPLE__NUMBER_MANY__NUMBER_MANY, Pure.COVAR_SAMPLE__ROW_MAPPER_MANY);
+        // Two overload shapes per aggregate, two distinct bindings:
+        //   • Numeric  : args = [x, y] positional typed specs.
+        //   • RowMapper: args = [rowMapper(x, y)] — single typed call whose
+        //     own args carry x and y. The binding destructures locally;
+        //     the dispatch key encodes the shape, so no per-arg identity
+        //     check is needed inside the binding body.
+        bind(Pure.CORR__NUMBER_MANY__NUMBER_MANY,                binary(SqlAggregate.Corr::new));
+        bind(Pure.CORR__ROW_MAPPER_MANY,                         rowMapperBinary(SqlAggregate.Corr::new));
+        bind(Pure.COVAR_POPULATION__NUMBER_MANY__NUMBER_MANY,    binary(SqlAggregate.CovarPopulation::new));
+        bind(Pure.COVAR_POPULATION__ROW_MAPPER_MANY,             rowMapperBinary(SqlAggregate.CovarPopulation::new));
+        bind(Pure.COVAR_SAMPLE__NUMBER_MANY__NUMBER_MANY,        binary(SqlAggregate.CovarSample::new));
+        bind(Pure.COVAR_SAMPLE__ROW_MAPPER_MANY,                 rowMapperBinary(SqlAggregate.CovarSample::new));
 
         // ----- joinStrings (separator REQUIRED in the typed variant) -----
         // joinStrings(values, sep) → STRING_AGG(values, sep). The 4-arg form
         // (values, sep, prefix, suffix) is lowered as joinStrings(values, sep)
         // for now — prefix/suffix aren't currently honoured.
-        bindAll(args -> new SqlAggregate.JoinStrings(args.get(0), args.get(1)),
+        bindAll(binary(SqlAggregate.JoinStrings::new),
                 Pure.JOIN_STRINGS__STRING_MANY__STRING_1,
                 Pure.JOIN_STRINGS__STRING_MANY__STRING_1__STRING_1__STRING_1);
 
@@ -175,19 +193,53 @@ public final class AggregateBindings {
 
     /** Helper: a binding that builds a unary {@link SqlAggregate} from {@code args.get(0)}. */
     private static Binding unary(java.util.function.Function<SqlExpr, SqlAggregate.Reducer> ctor) {
-        return args -> ctor.apply(args.get(0));
+        return (args, ctx) -> ctor.apply(lower(args, ctx, 0));
+    }
+
+    /** Helper: a binding that builds a binary {@link SqlAggregate} from {@code args[0], args[1]}. */
+    private static Binding binary(java.util.function.BiFunction<SqlExpr, SqlExpr, SqlAggregate.Reducer> ctor) {
+        return (args, ctx) -> ctor.apply(lower(args, ctx, 0), lower(args, ctx, 1));
     }
 
     /**
-     * Read a compile-time boolean literal from a lowered {@link SqlExpr}.
-     * Used by aggregates like {@code percentile(values, p, ascending,
-     * continuous)} where the trailing flags must be statically known to
-     * decide which {@link SqlAggregate} variant (or which ORDER BY
-     * direction) to emit. Throws when the operand is not a literal —
-     * dynamic flags are not currently supported.
+     * Helper for the rowMapper-overload of a bivariate aggregate. The single
+     * typed arg is structurally a {@link TypedNativeCall} whose own args are
+     * the value and key — guaranteed by the overload's signature
+     * ({@code RowMapper<T,U>}). Destructure locally, lower each side in the
+     * caller-provided context, and feed the binary {@link SqlAggregate}
+     * constructor. No reference to {@link Pure#ROW_MAPPER__T_0_1__U_0_1}
+     * needed — the dispatch key alone encodes the structure.
      */
-    private static boolean literalBool(SqlExpr e) {
-        if (e instanceof SqlExpr.BoolLiteral bl) return bl.value();
+    private static Binding rowMapperBinary(
+            java.util.function.BiFunction<SqlExpr, SqlExpr, SqlAggregate.Reducer> ctor) {
+        return (args, ctx) -> {
+            TypedSpec sole = args.get(0);
+            if (!(sole instanceof TypedNativeCall pair) || pair.args().size() != 2) {
+                throw new IllegalStateException(
+                        "[agg-binding] rowMapper-overload expected a 2-arg rowMapper call, got "
+                                + sole);
+            }
+            return ctor.apply(
+                    Lowerer.lowerScalar(pair.args().get(0), ctx),
+                    Lowerer.lowerScalar(pair.args().get(1), ctx));
+        };
+    }
+
+    /** Lower one positional typed arg in the binding's row-bound context. */
+    private static SqlExpr lower(List<TypedSpec> args, LoweringContext ctx, int i) {
+        return Lowerer.lowerScalar(args.get(i), ctx);
+    }
+
+    /**
+     * Read a compile-time boolean literal directly off the typed AST. Used by
+     * aggregates like {@code percentile(values, p, ascending, continuous)}
+     * where the trailing flags must be statically known to decide which
+     * {@link SqlAggregate} variant (or ORDER BY direction) to emit. Throws
+     * when the operand is not a {@link TypedCBoolean} — dynamic flags are
+     * not currently supported.
+     */
+    private static boolean literalBool(TypedSpec e) {
+        if (e instanceof TypedCBoolean bl) return bl.value();
         throw new IllegalStateException(
                 "[agg-binding] expected boolean literal flag, got " + e);
     }
