@@ -4,9 +4,11 @@ import com.gs.legend.compiler.ResolvedMappings;
 import com.gs.legend.compiler.StoreResolution;
 import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.plan.PlanGenerator;
+import com.gs.legend.plan.sql.SqlRelation;
 import com.gs.legend.sqlgen.SqlExpr;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -164,5 +166,52 @@ public final class LoweringContext {
      */
     public LoweringContext withNavScope(NavScope scope) {
         return new LoweringContext(mappings, mode, env, aliases, scope);
+    }
+
+    /**
+     * Type-erasing routing predicate: {@code true} when {@code n} should be
+     * lowered as a relation, {@code false} when as a scalar.
+     *
+     * <p>Two clauses match a relational source:
+     * <ul>
+     *   <li>The expression's static type is {@link com.gs.legend.model.m3.Type.Relation}
+     *       (TDS / table-typed expressions).</li>
+     *   <li>{@link #storeFor(TypedSpec)} returns non-null — a {@link StoreResolution}
+     *       was stamped, meaning the expression is rooted in a class table
+     *       or class-collection literal.</li>
+     * </ul>
+     */
+    public boolean isRelationalSource(TypedSpec n) {
+        return n.info().type() instanceof com.gs.legend.model.m3.Type.Relation
+                || storeFor(n) != null;
+    }
+
+    /**
+     * Wrap a precomputed scalar {@link SqlExpr} as a one-row one-column
+     * {@link SqlRelation.SourceExprRel}. {@code UNNEST(...)} is added when
+     * {@code node.info().isMany()} so list values unfold into N rows.
+     *
+     * <p>Internal helper for {@link #toRelation(TypedSpec)}; rules that
+     * need a scalar-as-relation should call {@code toRelation} (which
+     * handles lowering + wrapping in one shot).
+     */
+    private SqlRelation wrapScalar(SqlExpr expr, TypedSpec node) {
+        SqlExpr value = node.info().isMany()
+                ? new SqlExpr.Unnest(expr)
+                : expr;
+        return new SqlRelation.SourceExprRel(
+                value, nextAlias(),
+                List.of(new SqlRelation.OutputCol(Lowerer.SCALAR_WRAP_COLUMN, null)));
+    }
+
+    /**
+     * Single entry point for "produce a relation from any typed node":
+     * relational sources go through {@link Lowerer#lowerRelation};
+     * everything else lowers as scalar and wraps. No special-case rules.
+     */
+    public SqlRelation toRelation(TypedSpec n) {
+        return isRelationalSource(n)
+                ? Lowerer.lowerRelation(n, this)
+                : wrapScalar(Lowerer.lowerScalar(n, this), n);
     }
 }

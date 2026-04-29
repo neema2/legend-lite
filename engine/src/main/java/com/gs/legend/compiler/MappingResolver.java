@@ -326,6 +326,17 @@ public final class MappingResolver {
                 for (var stmt : lam.body()) walk(stmt, active);
             }
             case TypedCollection coll -> {
+                // Class-typed collection (`[^Class(...), ^Class(...)]`) →
+                // multi-row VALUES of that class. Stamp the identity store
+                // so downstream sees flat property columns. Primitive /
+                // enum collections (`[1,2,3]`, `[E.A, E.B]`) keep no store
+                // and lower as scalar arrays; the instanceof is the
+                // legitimate class-vs-non-class dispatch.
+                if (coll.info().type() instanceof Type.ClassType ct) {
+                    StoreResolution res = resolveIdentity(ct.qualifiedName());
+                    resolutions.put(node, res);
+                    active = res;
+                }
                 for (var v : coll.values()) walk(v, active);
             }
 
@@ -625,10 +636,15 @@ public final class MappingResolver {
         if (propOpt.isEmpty()) return srcJoin;
         boolean isToMany = !propOpt.get().multiplicity().isSingular();
         if (isToMany == srcJoin.isToMany()) return srcJoin;
-        return new StoreResolution.JoinResolution(
-                srcJoin.targetTable(), srcJoin.sourceParam(), srcJoin.targetParam(),
-                isToMany, srcJoin.joinCondition(), srcJoin.sourceColumns(),
-                srcJoin.targetResolution(), srcJoin.embedded());
+        return switch (srcJoin) {
+            case StoreResolution.JoinResolution.FkJoin fk -> new StoreResolution.JoinResolution.FkJoin(
+                    fk.targetTable(), fk.sourceParam(), fk.targetParam(),
+                    isToMany, fk.joinCondition(), fk.sourceColumns(), fk.targetResolution());
+            case StoreResolution.JoinResolution.Embedded e -> new StoreResolution.JoinResolution.Embedded(
+                    isToMany, e.targetResolution());
+            case StoreResolution.JoinResolution.StructArrayUnnest u -> new StoreResolution.JoinResolution.StructArrayUnnest(
+                    u.arrayProperty(), isToMany, u.targetResolution());
+        };
     }
 
     /**
@@ -972,7 +988,7 @@ public final class MappingResolver {
         Set<String> sourceCols = sourceParam == null
                 ? Set.of() : extractSourceColumns(condBody, sourceParam);
 
-        return new StoreResolution.JoinResolution(
+        return new StoreResolution.JoinResolution.FkJoin(
                 targetTable != null ? targetTable : lastHop.tableName(),
                 sourceParam, targetParam,
                 nav.isToMany(),
@@ -1061,10 +1077,12 @@ public final class MappingResolver {
                     new StoreResolution.PropertyResolution.EmbeddedColumn(sub.columnName()));
         }
 
-        if (existing != null && !existing.embedded()) {
-            // Association + embedded collision: fold sub-cols into the
-            // association's target resolution, keeping the physical JOIN.
-            var assocTarget = existing.targetResolution();
+        // Association + embedded collision: fold sub-cols into the existing
+        // FK join's target resolution, keeping the physical JOIN. (Embedded
+        // and StructArrayUnnest don't collide here — they don't carry an
+        // FK target to merge into.)
+        if (existing instanceof StoreResolution.JoinResolution.FkJoin fk) {
+            var assocTarget = fk.targetResolution();
             var mergedPropToCol = new LinkedHashMap<>(assocTarget.propertyToColumn());
             mergedPropToCol.putAll(subPropToCol);
             var mergedProperties = new LinkedHashMap<>(assocTarget.properties());
@@ -1073,17 +1091,16 @@ public final class MappingResolver {
                     assocTarget.tableName(), assocTarget.className(),
                     mergedPropToCol, mergedProperties,
                     assocTarget.joins(), assocTarget.nested());
-            return new StoreResolution.JoinResolution(
-                    existing.targetTable(), existing.sourceParam(),
-                    existing.targetParam(), existing.isToMany(),
-                    existing.joinCondition(), existing.sourceColumns(),
-                    mergedTarget, /* embedded */ false);
+            return new StoreResolution.JoinResolution.FkJoin(
+                    fk.targetTable(), fk.sourceParam(),
+                    fk.targetParam(), fk.isToMany(),
+                    fk.joinCondition(), fk.sourceColumns(),
+                    mergedTarget);
         }
 
-        StoreResolution embedded = new StoreResolution(
+        StoreResolution embeddedTarget = new StoreResolution(
                 parentTable, null, subPropToCol, subProperties, Map.of(), false);
-        return new StoreResolution.JoinResolution(
-                null, null, null, false, null, Set.of(), embedded, true);
+        return new StoreResolution.JoinResolution.Embedded(false, embeddedTarget);
     }
 
     /**
@@ -1127,8 +1144,8 @@ public final class MappingResolver {
             if (modelContext.findClass(targetFqn).isEmpty()) continue;
             StoreResolution targetResolution = resolveIdentity(targetFqn);
             if (targetResolution == null) continue;
-            joins.put(prop.name(), new StoreResolution.JoinResolution(
-                    null, null, null, true, null, Set.of(), targetResolution));
+            joins.put(prop.name(), new StoreResolution.JoinResolution.StructArrayUnnest(
+                    prop.name(), true, targetResolution));
         }
     }
 

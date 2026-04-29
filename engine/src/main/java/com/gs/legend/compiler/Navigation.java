@@ -38,7 +38,7 @@ import java.util.List;
  * and {@code abstractAlias} (MR-assigned token that PlanGen maps to a real SQL
  * alias via {@code variableBindings}).
  */
-public sealed interface Navigation permits Navigation.JoinNav,
+public sealed interface Navigation permits Navigation.JoinNav, Navigation.UnnestNav,
         Navigation.ExistsNav, Navigation.SubqueryNav, Navigation.LateralNav {
 
     /** Path prefix this navigation resolves (e.g., {@code ["firm"]} for {@code $p.firm.name}). */
@@ -70,6 +70,28 @@ public sealed interface Navigation permits Navigation.JoinNav,
             TypedSpec condition,
             StoreResolution targetResolution,
             boolean isToMany) implements Navigation { }
+
+    /**
+     * Inline struct-array UNNEST hop. Lowered by
+     * {@link com.gs.legend.plan.lowering.Relations#install} as
+     * {@code LEFT JOIN <SqlRelation.LateralUnnest> ON TRUE}.
+     *
+     * <p>{@code arrayProperty} is the column on the parent row holding the
+     * struct array. The dialect projects {@code targetResolution}'s fields
+     * up to the alias level so downstream property access is uniform
+     * {@code Column(alias, prop)} (architecture doc §1: row-shape uniformity).
+     *
+     * @param prefix           Path prefix this nav resolves.
+     * @param abstractAlias    MR-assigned alias token.
+     * @param arrayProperty    Property name (= column name for identity stores)
+     *                         on the parent row that holds the struct array.
+     * @param targetResolution Identity store for the element class.
+     */
+    record UnnestNav(
+            List<String> prefix,
+            String abstractAlias,
+            String arrayProperty,
+            StoreResolution targetResolution) implements Navigation { }
 
     /**
      * Reserved for {@code filter(... exists ...)} patterns. Step 6 fills in the

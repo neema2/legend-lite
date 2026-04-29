@@ -35,6 +35,7 @@ public sealed interface SqlRelation permits
         SqlRelation.Values,
         SqlRelation.SourceExprRel,
         SqlRelation.SourceUrl,
+        SqlRelation.LateralUnnest,
         SqlRelation.Filter,
         SqlRelation.Project,
         SqlRelation.Sort,
@@ -95,6 +96,31 @@ public sealed interface SqlRelation permits
      */
     record SourceExprRel(SqlExpr expr, String alias,
                          List<OutputCol> outputs) implements SqlRelation {}
+
+    /**
+     * FROM-clause UNNEST table-source for inline struct-arrays. Renders as
+     * {@code FROM UNNEST(<arrayExpr>) AS _u(elem)} with each element-field
+     * projected up so the alias exposes flat columns at the row level
+     * (architecture: row-shape uniformity — {@code alias."<f>"} resolves
+     * directly).
+     *
+     * <p>Distinct from {@link SqlExpr.Unnest}, which is the scalar-context
+     * value operator (used by {@code Lowerer.wrapScalar} for primitive-array
+     * collections). This variant binds a row-form usable as a join source.
+     *
+     * @param arrayExpr      Outer column reference holding the struct array.
+     * @param alias          Outer alias bound to the unnested rows.
+     * @param elementFields  Logical fields each struct element exposes; the
+     *                       dialect projects them by name so downstream sees
+     *                       {@code alias."<f>"}.
+     */
+    record LateralUnnest(SqlExpr arrayExpr, String alias, List<String> elementFields,
+                         List<OutputCol> outputs) implements SqlRelation {
+        public LateralUnnest {
+            elementFields = List.copyOf(elementFields);
+            outputs = List.copyOf(outputs);
+        }
+    }
 
     // ==================== Unary relational ops ====================
 

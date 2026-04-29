@@ -97,7 +97,7 @@ public final class ExtendLowering {
                     throw PlanGenNotPortedException.stage3(n, "extend:hop:empty-condition");
                 }
                 // Build a synthetic JoinResolution so we can reuse NavScope.navigate.
-                StoreResolution.JoinResolution jr = new StoreResolution.JoinResolution(
+                StoreResolution.JoinResolution jr = new StoreResolution.JoinResolution.FkJoin(
                         hop.tableName(),
                         cond.parameters().get(0).name(),
                         cond.parameters().get(1).name(),

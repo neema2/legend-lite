@@ -35,14 +35,22 @@ import java.util.Map;
  */
 public final class NavScope {
 
-    /** Registered navigation entry: the committed JoinNav plus its parent's prefix (for chained lookups). */
-    public record Entry(Navigation.JoinNav nav, List<String> parentPrefix, StoreResolution targetResolution) {}
+    /** Registered navigation entry: the committed nav plus its parent's prefix (for chained lookups). */
+    public record Entry(Navigation nav, List<String> parentPrefix, StoreResolution targetResolution) {}
 
     private final Map<List<String>, Entry> registry = new LinkedHashMap<>();
 
     /**
      * Register (or reuse) a navigation hop. Returns the abstract alias token for this hop's
      * target — always identical to the caller's rowAlias going forward for further hops.
+     *
+     * <p>Sealed switch on {@link JoinResolution}:
+     * <ul>
+     *   <li>{@link JoinResolution.FkJoin} → {@link Navigation.JoinNav}.</li>
+     *   <li>{@link JoinResolution.StructArrayUnnest} → {@link Navigation.UnnestNav}.</li>
+     *   <li>{@link JoinResolution.Embedded} must be advanced past by the caller; reaching
+     *       this site with an Embedded resolution is a caller bug.</li>
+     * </ul>
      *
      * @param prefix        Full path prefix after this hop (e.g., {@code [firm, owner]}).
      * @param parentPrefix  The prefix that precedes this hop (caller's "before" prefix).
@@ -56,15 +64,22 @@ public final class NavScope {
         if (existing != null) return existing.nav.abstractAlias();
 
         String alias = aliases.next();
-        Navigation.JoinNav nav = new Navigation.JoinNav(
-                prefix,
-                alias,                              // abstractAlias == real alias (no separate tokens)
-                jr.targetTable(),
-                jr.sourceParam(),
-                jr.targetParam(),
-                jr.joinCondition(),
-                jr.targetResolution(),
-                jr.isToMany());
+        Navigation nav = switch (jr) {
+            case JoinResolution.FkJoin fk -> new Navigation.JoinNav(
+                    prefix, alias,
+                    fk.targetTable(),
+                    fk.sourceParam(), fk.targetParam(),
+                    fk.joinCondition(),
+                    fk.targetResolution(),
+                    fk.isToMany());
+            case JoinResolution.StructArrayUnnest u -> new Navigation.UnnestNav(
+                    prefix, alias,
+                    u.arrayProperty(),
+                    u.targetResolution());
+            case JoinResolution.Embedded ignored -> throw new IllegalStateException(
+                    "NavScope.navigate: Embedded must be advanced past by caller, "
+                            + "not registered as a nav hop (prefix=" + prefix + ")");
+        };
         registry.put(prefix, new Entry(nav, parentPrefix, jr.targetResolution()));
         return alias;
     }
@@ -83,7 +98,7 @@ public final class NavScope {
      * Suitable for hand-off to {@link Relations#install}.
      */
     public List<Navigation> toList() {
-        return new ArrayList<>(registry.values().stream().map(e -> (Navigation) e.nav).toList());
+        return new ArrayList<>(registry.values().stream().map(Entry::nav).toList());
     }
 
     public boolean isEmpty() {

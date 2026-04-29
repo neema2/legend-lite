@@ -12,7 +12,9 @@ import com.gs.legend.compiler.typed.TypedZip;
 import com.gs.legend.plan.PlanGenNotPortedException;
 import com.gs.legend.plan.lowering.LoweringContext;
 import com.gs.legend.plan.lowering.Lowerer;
+import com.gs.legend.plan.sql.SqlRelation;
 import com.gs.legend.sqlgen.SqlExpr;
+import com.gs.legend.model.m3.Type;
 
 /**
  * Scalar-side control-flow lowering:
@@ -169,5 +171,57 @@ public final class ControlFlowLowering {
         if (t == null) return false;
         String name = t.typeName();
         return "Variant".equalsIgnoreCase(name) || "Json".equalsIgnoreCase(name);
+    }
+
+    // ====================================================================
+    // Relational entry points — operator-specific routing decisions for
+    // TypedBlock and TypedCast at relation root. Lowerer's case statement
+    // delegates straight here; no `?:` lives in the dispatch layer.
+    // ====================================================================
+
+    /**
+     * Lower a {@link TypedBlock} at relational position.
+     *
+     * <p>Walks intermediate statements: each {@link TypedLet} binds its
+     * value (relational values via {@link LoweringContext#bindRel} —
+     * the captured HIR is re-lowered at each {@code $r} reference;
+     * scalar values via {@link LoweringContext#bindVar}). Non-let
+     * intermediates are lowered for side-effect parity and discarded.
+     * The block's value is the tail dispatched via
+     * {@link LoweringContext#toRelation}.
+     */
+    public static SqlRelation lowerBlock(TypedBlock n, LoweringContext ctx) {
+        LoweringContext cur = ctx;
+        int last = n.stmts().size() - 1;
+        for (int i = 0; i < last; i++) {
+            TypedSpec s = n.stmts().get(i);
+            if (s instanceof TypedLet let) {
+                if (cur.isRelationalSource(let.value())) {
+                    cur = cur.bindRel(let.name(), let.value());
+                } else {
+                    SqlExpr value = Lowerer.lowerScalar(let.value(), cur);
+                    cur = cur.bindVar(let.name(), value, null);
+                }
+            } else {
+                // Side-effecting intermediate — lower for parity, discard.
+                Lowerer.lowerScalar(s, cur);
+            }
+        }
+        return cur.toRelation(n.stmts().get(last));
+    }
+
+    /**
+     * Lower a {@link TypedCast} at relational position.
+     *
+     * <p>A cast to a {@link Type.Relation} is a structural schema
+     * declaration with no value work — the inner relation flows through
+     * unchanged. Other cast targets lower as scalar via
+     * {@link LoweringContext#toRelation}, which emits the {@code CAST(...)}
+     * and wraps as a one-row relation.
+     */
+    public static SqlRelation lowerCast(TypedCast n, LoweringContext ctx) {
+        return n.targetType() instanceof Type.Relation
+                ? Lowerer.lowerRelation(n.expr(), ctx)
+                : ctx.toRelation(n);
     }
 }

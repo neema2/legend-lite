@@ -233,7 +233,7 @@ public final class GroupByAggregateLowering {
                         "groupby:assoc-key:unresolved:" + assoc);
             }
             List<String> prefix = List.copyOf(path.subList(0, i + 1));
-            if (jr.embedded()) {
+            if (jr instanceof com.gs.legend.compiler.StoreResolution.JoinResolution.Embedded) {
                 curStore = jr.targetResolution();
                 parentPrefix = prefix;
                 continue;

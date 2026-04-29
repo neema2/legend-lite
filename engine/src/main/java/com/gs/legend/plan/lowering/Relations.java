@@ -53,36 +53,69 @@ public final class Relations {
         if (scope == null || scope.isEmpty()) return source;
         SqlRelation rel = source;
         for (Navigation nav : scope.toList()) {
-            if (!(nav instanceof Navigation.JoinNav j)) {
-                throw new IllegalStateException(
-                        "Relations.install(scope): only JoinNav supported, got " + nav.getClass());
-            }
-            String alias = j.abstractAlias();                  // real alias (option B)
-            NavScope.Entry entry = scope.lookup(j.prefix());
+            NavScope.Entry entry = scope.lookup(nav.prefix());
             String parentAlias = entry.parentPrefix().isEmpty()
                     ? srcAlias
                     : scope.lookup(entry.parentPrefix()).nav().abstractAlias();
-            SqlRelation target = new SqlRelation.TableRef(null, j.targetTable(), alias, List.of());
-            TypedSpec cond = j.condition();
-            if (cond == null) {
-                throw new IllegalStateException(
-                        "Relations.install: JoinNav.condition is null for prefix=" + j.prefix());
-            }
-            // Parent's store (source side of this hop's join) is either the
-            // caller's source store (parent root) or the target resolution of
-            // the parent nav. Pull it off the parent entry; fall back to the
-            // nav's own target resolution when parent is root and caller
-            // didn't thread a store (TDS case — no store resolution).
-            StoreResolution parentStore = entry.parentPrefix().isEmpty()
-                    ? srcStore
-                    : scope.lookup(entry.parentPrefix()).targetResolution();
-            LoweringContext condCtx = ctx
-                    .bindVar(j.sourceParam(), new SqlExpr.Identifier(parentAlias), parentStore)
-                    .bindVar(j.targetParam(), new SqlExpr.Identifier(alias), j.targetResolution());
-            SqlExpr on = Lowerer.lowerScalar(cond, condCtx);
-            rel = new SqlRelation.Join(rel, target, SqlRelation.JoinType.LEFT, on);
+            rel = switch (nav) {
+                case Navigation.JoinNav j     -> installJoin(rel, j, entry, parentAlias, srcStore, scope, ctx);
+                case Navigation.UnnestNav u   -> installUnnest(rel, u, parentAlias);
+                case Navigation.ExistsNav x   -> throw new IllegalStateException(
+                        "Relations.install: ExistsNav not supported (prefix=" + x.prefix() + ")");
+                case Navigation.SubqueryNav s -> throw new IllegalStateException(
+                        "Relations.install: SubqueryNav not supported (prefix=" + s.prefix() + ")");
+                case Navigation.LateralNav l  -> throw new IllegalStateException(
+                        "Relations.install: LateralNav not supported (prefix=" + l.prefix() + ")");
+            };
         }
         return rel;
     }
 
+    /**
+     * Install a {@link Navigation.JoinNav} as {@code LEFT JOIN target ON condition}.
+     * Body extracted verbatim from the previous monolithic loop.
+     */
+    private static SqlRelation installJoin(SqlRelation rel, Navigation.JoinNav j,
+                                           NavScope.Entry entry, String parentAlias,
+                                           StoreResolution srcStore, NavScope scope,
+                                           LoweringContext ctx) {
+        String alias = j.abstractAlias();
+        SqlRelation target = new SqlRelation.TableRef(null, j.targetTable(), alias, List.of());
+        TypedSpec cond = j.condition();
+        if (cond == null) {
+            throw new IllegalStateException(
+                    "Relations.install: JoinNav.condition is null for prefix=" + j.prefix());
+        }
+        // Parent's store (source side of this hop's join) is either the
+        // caller's source store (parent root) or the target resolution of
+        // the parent nav. Pull it off the parent entry; fall back to the
+        // nav's own target resolution when parent is root and caller
+        // didn't thread a store (TDS case — no store resolution).
+        StoreResolution parentStore = entry.parentPrefix().isEmpty()
+                ? srcStore
+                : scope.lookup(entry.parentPrefix()).targetResolution();
+        LoweringContext condCtx = ctx
+                .bindVar(j.sourceParam(), new SqlExpr.Identifier(parentAlias), parentStore)
+                .bindVar(j.targetParam(), new SqlExpr.Identifier(alias), j.targetResolution());
+        SqlExpr on = Lowerer.lowerScalar(cond, condCtx);
+        return new SqlRelation.Join(rel, target, SqlRelation.JoinType.LEFT, on);
+    }
+
+    /**
+     * Install a {@link Navigation.UnnestNav} as
+     * {@code LEFT JOIN <LateralUnnest(parent.<arrayProperty>, alias, fields)> ON TRUE}.
+     * The dialect projects each element field up so {@code alias."<field>"}
+     * resolves directly — no caller-side struct drilling (architecture: row-shape
+     * uniformity). {@code ON TRUE} preserves outer rows whose array is empty;
+     * unnested element-field columns are NULL on those rows.
+     */
+    private static SqlRelation installUnnest(SqlRelation rel, Navigation.UnnestNav u,
+                                             String parentAlias) {
+        SqlExpr arrayRef = new SqlExpr.Column(parentAlias, u.arrayProperty());
+        List<String> fields = List.copyOf(u.targetResolution().propertyToColumn().values());
+        SqlRelation right = new SqlRelation.LateralUnnest(
+                arrayRef, u.abstractAlias(), fields, List.of());
+        return new SqlRelation.Join(rel, right, SqlRelation.JoinType.LEFT,
+                new SqlExpr.BoolLiteral(true));
+    }
 }

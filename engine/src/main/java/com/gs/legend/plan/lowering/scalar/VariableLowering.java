@@ -1,7 +1,9 @@
 package com.gs.legend.plan.lowering.scalar;
 
 import com.gs.legend.compiler.typed.TypedVariable;
+import com.gs.legend.plan.lowering.Lowerer;
 import com.gs.legend.plan.lowering.LoweringContext;
+import com.gs.legend.plan.sql.SqlRelation;
 import com.gs.legend.sqlgen.SqlExpr;
 
 /**
@@ -27,5 +29,21 @@ public final class VariableLowering {
         SqlExpr bound = ctx.lookupVar(n.name());
         if (bound != null) return bound;
         return new SqlExpr.Identifier(n.name());
+    }
+
+    /**
+     * Lower a {@link TypedVariable} at relational position.
+     *
+     * <p>When the variable is bound as a captured relational HIR
+     * ({@code let r = SomeClass.all()->...}; later {@code $r->filter(...)}),
+     * re-lower the captured node so the relational form materialises in
+     * place. Otherwise route through the generic
+     * {@link LoweringContext#toRelation}, which wraps the scalar form as
+     * a one-row relation.
+     */
+    public static SqlRelation lowerVariable(TypedVariable n, LoweringContext ctx) {
+        return ctx.lookupBinding(n.name()) instanceof LoweringContext.Rel rel
+                ? Lowerer.lowerRelation(rel.node(), ctx)
+                : ctx.toRelation(n);
     }
 }

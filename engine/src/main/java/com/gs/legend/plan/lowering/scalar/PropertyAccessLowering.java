@@ -70,7 +70,7 @@ public final class PropertyAccessLowering {
                 throw PlanGenNotPortedException.stage3(n, "associationPath:unresolved:" + assoc);
             }
             List<String> prefix = List.copyOf(path.subList(0, i + 1));
-            if (jr.embedded()) {
+            if (jr instanceof JoinResolution.Embedded) {
                 store = jr.targetResolution();
                 // parentPrefix advances so that any following non-embedded hop
                 // records its parent correctly even across embedded segments.

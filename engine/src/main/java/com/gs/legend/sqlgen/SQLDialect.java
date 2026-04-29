@@ -693,6 +693,7 @@ public interface SQLDialect {
         return switch (rel) {
             case com.gs.legend.plan.sql.SqlRelation.SourceExprRel r -> renderSourceExpr(r);
             case com.gs.legend.plan.sql.SqlRelation.SourceUrl r     -> renderSourceUrl(r.url());
+            case com.gs.legend.plan.sql.SqlRelation.LateralUnnest r -> renderLateralUnnest(r);
             case com.gs.legend.plan.sql.SqlRelation.TableRef r      -> renderTableRef(r);
             case com.gs.legend.plan.sql.SqlRelation.Values r        -> renderValues(r);
             case com.gs.legend.plan.sql.SqlRelation.Filter r        -> renderFilter(r);
@@ -728,6 +729,38 @@ public interface SQLDialect {
     default String renderSourceExpr(com.gs.legend.plan.sql.SqlRelation.SourceExprRel r) {
         String colAlias = r.outputs().isEmpty() ? "result" : r.outputs().get(0).name();
         return "SELECT " + render(r.expr()) + " AS " + quoteIdentifier(colAlias);
+    }
+
+    /**
+     * Render a {@link com.gs.legend.plan.sql.SqlRelation.LateralUnnest} as a
+     * standalone SELECT projecting each element field flat:
+     * <pre>
+     *   SELECT _u."elem"."f1" AS "f1", _u."elem"."f2" AS "f2", ...
+     *   FROM UNNEST(&lt;arrayExpr&gt;) AS _u("elem")
+     * </pre>
+     * The inner alias {@code _u} and element column {@code "elem"} are
+     * dialect-private and never leak — only {@code <alias>."<f>"} is
+     * visible to the outer scope (architecture: row-shape uniformity).
+     *
+     * <p>From-item form is handled by the default fallback in
+     * {@link #renderAsFromItem}, which wraps {@code render(...)} in
+     * parentheses with the alias.
+     */
+    default String renderLateralUnnest(com.gs.legend.plan.sql.SqlRelation.LateralUnnest r) {
+        StringBuilder sb = new StringBuilder("SELECT ");
+        if (r.elementFields().isEmpty()) {
+            sb.append("_u.\"elem\" AS \"elem\"");      // degenerate: untyped element
+        } else {
+            for (int i = 0; i < r.elementFields().size(); i++) {
+                if (i > 0) sb.append(", ");
+                String f = r.elementFields().get(i);
+                sb.append("_u.\"elem\".").append(quoteIdentifier(f))
+                  .append(" AS ").append(quoteIdentifier(f));
+            }
+        }
+        sb.append(" FROM UNNEST(").append(render(r.arrayExpr()))
+          .append(") AS _u(\"elem\")");
+        return sb.toString();
     }
 
     /**

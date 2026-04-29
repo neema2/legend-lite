@@ -87,37 +87,68 @@ public record StoreResolution(
     }
 
     /**
-     * Resolved association navigation (property → JOIN).
+     * How an association property navigates to its target. Sealed by physical
+     * shape so consumers switch on a typed variant rather than null-checking
+     * fields (architecture doc §6.2 — one sealed-type dispatch per axis).
      *
-     * @param targetTable      Physical table to join to.
-     * @param sourceParam      Variable name for source side in the join condition.
-     * @param targetParam      Variable name for target side in the join condition.
-     * @param isToMany         True if association has [*] multiplicity.
-     * @param joinCondition    Typed join predicate (2-param TypedLambda body).
-     *                         {@code null} for embedded mappings (no physical JOIN).
-     * @param sourceColumns    Source-side column names referenced by the join condition
-     *                         (used by graphFetch for projection).
-     * @param targetResolution {@link StoreResolution} for the target table.
-     * @param embedded         True if this is an embedded mapping (sub-properties on parent table, no JOIN).
+     * <p>Three variants:
+     * <ul>
+     *   <li>{@link FkJoin} — physical FK join: {@code LEFT JOIN target ON cond}.</li>
+     *   <li>{@link Embedded} — sub-mapping on parent table; no JOIN, no alias.</li>
+     *   <li>{@link StructArrayUnnest} — inline struct-array: lateral UNNEST hop
+     *       (architecture doc §1: dialect projects element fields up so the
+     *       row-shape invariant {@code alias."<f>"} holds).</li>
+     * </ul>
      */
-    public record JoinResolution(
-            String targetTable,
-            String sourceParam,
-            String targetParam,
-            boolean isToMany,
-            TypedSpec joinCondition,
-            java.util.Set<String> sourceColumns,
-            StoreResolution targetResolution,
-            boolean embedded) {
+    public sealed interface JoinResolution {
+        boolean isToMany();
+        StoreResolution targetResolution();
 
-        /** Convenience constructor for non-embedded joins. */
-        public JoinResolution(
-                String targetTable, String sourceParam, String targetParam,
-                boolean isToMany, TypedSpec joinCondition,
-                java.util.Set<String> sourceColumns, StoreResolution targetResolution) {
-            this(targetTable, sourceParam, targetParam, isToMany,
-                    joinCondition, sourceColumns, targetResolution, false);
-        }
+        /**
+         * Physical FK join: rendered as {@code LEFT JOIN <targetTable> ON <joinCondition>}.
+         *
+         * @param targetTable      Physical table to join to.
+         * @param sourceParam      Variable name for source side in the join condition.
+         * @param targetParam      Variable name for target side in the join condition.
+         * @param isToMany         True if association has [*] multiplicity.
+         * @param joinCondition    Typed join predicate (2-param TypedLambda body).
+         * @param sourceColumns    Source-side column names referenced by the join condition
+         *                         (used by graphFetch for projection).
+         * @param targetResolution {@link StoreResolution} for the target table.
+         */
+        record FkJoin(
+                String targetTable,
+                String sourceParam,
+                String targetParam,
+                boolean isToMany,
+                TypedSpec joinCondition,
+                java.util.Set<String> sourceColumns,
+                StoreResolution targetResolution) implements JoinResolution {}
+
+        /**
+         * Embedded sub-mapping: sub-properties live on the parent table — no
+         * JOIN, no alias change. Callers advance the active store and continue
+         * resolving against the parent row.
+         */
+        record Embedded(
+                boolean isToMany,
+                StoreResolution targetResolution) implements JoinResolution {}
+
+        /**
+         * Inline struct-array property (e.g. {@code Class.<Class[*]>}). Lowered
+         * by {@link com.gs.legend.plan.lowering.Relations#install} as a
+         * {@code LEFT JOIN <LateralUnnest> ON TRUE}. The dialect projects
+         * {@code targetResolution.propertyToColumn().values()} up so downstream
+         * property access is uniform {@code alias."<col>"}.
+         *
+         * @param arrayProperty    Pure property name on the parent row that
+         *                         holds the struct array (also the column name
+         *                         for identity stores).
+         */
+        record StructArrayUnnest(
+                String arrayProperty,
+                boolean isToMany,
+                StoreResolution targetResolution) implements JoinResolution {}
     }
 
     // ===== Convenience =====
