@@ -14,15 +14,17 @@ import java.util.List;
 /**
  * Checker for {@code getAll()}.
  *
- * <p>Returns {@code ClassType[*]} and ensures the class's synthetic mapping
- * function is compiled and available in the shared function symbol table.
- * Throws if the class has no mapping in the active scope — {@code .all()} on
- * an unmapped class is a compile error, not a silently-empty result.
+ * <p>Returns {@code ClassType[*]}. The class's synthetic mapping function is
+ * compiled speculatively (when present in scope) and attached to the returned
+ * {@link TypedGetAll} as a downstream-convenience artifact.
  *
- * <p>The compiled function is not embedded on the returned {@link TypedGetAll};
- * downstream consumers (MappingResolver, PlanGenerator) resolve it via the
- * shared function table on {@link com.gs.legend.compiled.CompiledExpression}
- * combined with the runtime-specific binding on {@code NormalizedMapping}.
+ * <p>Missing mapping is <strong>not</strong> a type error — type-check is a
+ * front-end concern; mapping resolution is a back-end / link-time concern.
+ * If the class has no mapping in the active scope, {@link TypedGetAll#mappingFn()}
+ * is {@code null} and the precise "no mapping for class X" error fires later
+ * at the back-end use site (e.g. {@code SourceLowering}). This matches how a
+ * real compiler treats missing symbol definitions: compile-only succeeds,
+ * link surfaces the error.
  */
 public class GetAllChecker extends AbstractChecker {
 
@@ -45,7 +47,10 @@ public class GetAllChecker extends AbstractChecker {
         // associationNavigations, storeClassNames) use consistent FQN keys.
         String fqn = findClass(fullPath).map(c -> c.qualifiedName()).orElse(fullPath);
 
-        CompiledFunction mappingFn = env.compileMappingFunctionFor(fqn);
+        // Probe variant — missing mapping is a back-end / link-time concern,
+        // not a type-check failure. SourceLowering surfaces the precise error
+        // at the use site if the query is actually lowered.
+        CompiledFunction mappingFn = env.tryCompileMappingFunctionFor(fqn).orElse(null);
 
         return new TypedGetAll(fqn, mappingFn,
                 ExpressionType.many(new Type.ClassType(fqn)));

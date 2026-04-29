@@ -135,38 +135,40 @@ public class TypeChecker implements TypeCheckEnv {
     }
 
     /**
-     * Compile a class's synthetic mapping function to a {@link CompiledFunction}.
+     * Strict variant — compile a class's synthetic mapping function or throw.
      *
-     * <p>Single primitive behind every place that needs the compiled mapping-function
-     * body for a class:
-     * <ul>
-     *   <li>Query path — {@code GetAllChecker} on a class reference, to attach
-     *       the compiled function to {@link com.gs.legend.compiler.typed.TypedGetAll}.</li>
-     *   <li>Query path, pass-2 — association-target fan-out in
-     *       {@link #compileNeededAssociationTargets()}.</li>
-     *   <li>Build path — {@link #compileMapping(MappingDefinition)} fan-out.</li>
-     * </ul>
+     * <p>Used by the build path ({@link #compileMapping(MappingDefinition)}),
+     * where the input is a declared {@link MappingDefinition} and a missing
+     * function FQN means {@code MappingNormalizer} produced inconsistent state.
      *
-     * <p>Resolves the function FQN via the {@link ModelContext#findMappingFunctionFqn}
-     * overlay (provided by {@code MappingNormalizer}), then compiles via
-     * {@link #check(com.gs.legend.model.m3.PureFunction)} — content-addressed
-     * memoization on {@link PureFunction} identity lives inside {@code check(pf)}
-     * (via {@link #compiledFunctions}), so repeat calls for the same class
-     * short-circuit there without needing a second FQN-keyed cache.
+     * <p>Query paths ({@code GetAllChecker}, pass-2 association fan-out) call
+     * {@link #tryCompileMappingFunctionFor(String)} instead — for those callers
+     * a missing mapping is a back-end / link-time error, not a type error.
      *
-     * <p>Throws if the class has no mapping in the active scope — the anchor is
-     * a hard contract, not a probe.
+     * <p>Resolves the function FQN via {@link ModelContext#findMappingFunctionFqn}
+     * (overlay from {@code MappingNormalizer}), then compiles via
+     * {@link #check(com.gs.legend.model.m3.PureFunction)} — identity-keyed
+     * memoization in {@code check(pf)} short-circuits repeat calls.
      */
     @Override
     public CompiledFunction compileMappingFunctionFor(String classFqn) {
-        CompiledFunction cached = mappingFunctions.get(classFqn);
-        if (cached != null) return cached;
-        String fnFqn = modelContext.findMappingFunctionFqn(classFqn)
+        return tryCompileMappingFunctionFor(classFqn)
                 .orElseThrow(() -> new PureCompileException(
                         "No mapping in active scope for class '" + classFqn
                                 + "' — cannot compile mapping function"));
+    }
+
+    @Override
+    public java.util.Optional<CompiledFunction> tryCompileMappingFunctionFor(String classFqn) {
+        CompiledFunction cached = mappingFunctions.get(classFqn);
+        if (cached != null) return java.util.Optional.of(cached);
+        java.util.Optional<String> fnFqnOpt = modelContext.findMappingFunctionFqn(classFqn);
+        if (fnFqnOpt.isEmpty()) return java.util.Optional.empty();
+        String fnFqn = fnFqnOpt.get();
         List<com.gs.legend.model.m3.PureFunction> candidates = modelContext.findFunction(fnFqn);
         if (candidates.isEmpty()) {
+            // FQN registered but body missing — that's a real model-context
+            // inconsistency, not a "no mapping" probe miss. Fail loudly.
             throw new PureCompileException(
                     "Mapping function '" + fnFqn + "' not found in model context");
         }
@@ -174,7 +176,7 @@ public class TypeChecker implements TypeCheckEnv {
         // Expose on CompiledDependencies so MappingResolver can look the
         // function up by class FQN without holding a TypeChecker reference.
         mappingFunctions.put(classFqn, compiled);
-        return compiled;
+        return java.util.Optional.of(compiled);
     }
 
     /**
@@ -481,6 +483,10 @@ public class TypeChecker implements TypeCheckEnv {
      * short-circuits on the cached result.
      */
     private void compileNeededAssociationTargets() {
+        // Targets we've probed for a mapping but found none. Tracked separately
+        // from {@link #mappingFunctions} so the worklist terminates: probe-misses
+        // don't grow the keyset, so without this set we'd re-probe forever.
+        Set<String> attempted = new HashSet<>();
         while (true) {
             Set<String> needed = new HashSet<>();
             for (var entry : associationNavigations.entrySet()) {
@@ -491,8 +497,14 @@ public class TypeChecker implements TypeCheckEnv {
                 }
             }
             needed.removeAll(mappingFunctions.keySet());
+            needed.removeAll(attempted);
             if (needed.isEmpty()) return;
-            for (String target : needed) compileMappingFunctionFor(target);
+            for (String target : needed) {
+                attempted.add(target);
+                // Probe variant — missing mapping is a link-time concern surfaced
+                // by the back-end at the use site, not a type-check failure here.
+                tryCompileMappingFunctionFor(target);
+            }
         }
     }
 

@@ -5,6 +5,8 @@ import com.gs.legend.ast.ValueSpecification;
 import com.gs.legend.compiled.CompiledFunction;
 import com.gs.legend.compiler.typed.TypedSpec;
 
+import java.util.Optional;
+
 /**
  * Callback interface for individual type-checkers.
  *
@@ -27,16 +29,34 @@ public interface TypeCheckEnv {
      * Compile the synthetic mapping function for a class to a
      * {@link CompiledFunction}, once per FQN (idempotent / memoized).
      *
-     * <p>Single primitive shared by the query path ({@code GetAllChecker},
-     * pass-2 association-target fan-out) and the build path
-     * ({@code compileMapping}). Returns the compiled function so callers
-     * can attach it to typed HIR nodes (e.g. {@code TypedGetAll.mappingFn})
-     * without re-resolving downstream.
+     * <p>Strict variant — used by the build path ({@code compileMapping}),
+     * where we are compiling a declared {@link com.gs.legend.model.m3.MappingDefinition}
+     * and a missing function FQN means the {@code MappingNormalizer} produced
+     * inconsistent state.
      *
      * @throws PureCompileException if the class has no mapping in the
-     *         active scope — the anchor is a hard contract, not a probe.
+     *         active scope.
      */
     CompiledFunction compileMappingFunctionFor(String classFqn);
+
+    /**
+     * Probe variant of {@link #compileMappingFunctionFor(String)} — returns
+     * empty when the class has no mapping in the active scope, instead of
+     * throwing.
+     *
+     * <p>Used by the query path ({@code GetAllChecker}, pass-2
+     * association-target fan-out) where missing mapping is a back-end /
+     * link-time error, not a type error: a query may reference a class
+     * for typing purposes whose mapping isn't realized in the current
+     * runtime. The eventual error fires precisely at the back-end use
+     * site (e.g. {@code SourceLowering}) rather than masking the typing
+     * result.
+     *
+     * <p>This mirrors how a real toolchain separates type-check (front-end)
+     * from link/codegen (back-end): the type of {@code Class.all()} is
+     * {@code Class[*]} regardless of whether the mapping is present.
+     */
+    Optional<CompiledFunction> tryCompileMappingFunctionFor(String classFqn);
 
     /**
      * Compile a lambda body as a statement list with let-chaining:

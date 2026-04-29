@@ -1,9 +1,6 @@
-BASELINE: tests=2670 failures=95 errors=167 skipped=19 broken=262
+BASELINE: tests=2670 failures=94 errors=155 skipped=19 broken=249
 ======================================================================
-ERROR	com.gs.legend.architecture.NoEagerUserClassLoadsTest.typeCheckingDoesNotLoadColdUserElements
 ERROR	com.gs.legend.test.AssociationIntegrationTest$WildStress.testSelfJoinTwoHops
-ERROR	com.gs.legend.test.ComputedProjectIntegrationTest.testFilterPostProject
-ERROR	com.gs.legend.test.ComputedProjectIntegrationTest.testSimpleProjectList_pctExpression
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testComparisonOperationAfterSize
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testMinNumbers_preservesOriginalType
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testPureSyntaxIsAfterBeforeDay
@@ -51,13 +48,6 @@ ERROR	com.gs.legend.test.M2MIntegrationTest.testDeepFetchNullAddress
 ERROR	com.gs.legend.test.M2MIntegrationTest.testDeepFetchOneToMany
 ERROR	com.gs.legend.test.M2MIntegrationTest.testDeepFetchOneToOne
 ERROR	com.gs.legend.test.M2MIntegrationTest.testNewPipelineDeepFetch1to1Valid
-ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$EmbeddedMappings.testEmbeddedFilter
-ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$EmbeddedMappings.testEmbeddedMultiProperty
-ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$EmbeddedMappings.testEmbeddedNoJoinSql
-ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$EmbeddedMappings.testEmbeddedSingleProperty
-ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$EmbeddedMappings.testEmbeddedWithFlatColumn
-ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$EmbeddedWithAssociation.testEmbeddedAndAssociationSql
-ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$EmbeddedWithAssociation.testEmbeddedAndAssociationTogether
 ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$GapComposition.testAssocJoinChainFilter
 ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$GapComposition.testAssocJoinChainSort
 ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$GapComposition.testAssocMappingWithJoins
@@ -66,8 +56,6 @@ ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$OtherwiseMappings.test
 ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$OtherwiseMappings.testOtherwiseFilterOnEmbedded
 ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$OtherwiseMappings.testOtherwiseMixed
 ERROR	com.gs.legend.test.RelationApiIntegrationTest$JoinTests.testExplicitJoinWithMatches
-ERROR	com.gs.legend.test.RelationApiIntegrationTest$SelectProjectTests.testProjectStructArrayCrossProduct
-ERROR	com.gs.legend.test.RelationApiIntegrationTest$SelectProjectTests.testProjectStructArrayWithEmptyArray
 ERROR	com.gs.legend.test.ScalarFunctionIntegrationTest.testPctHasSubsecondWithAtLeastPrecision
 ERROR	com.gs.legend.test.ScalarFunctionIntegrationTest.testPctRelationSelectWrite
 ERROR	com.gs.legend.test.ScalarFunctionIntegrationTest.testPctRemoveDuplicatesBy
@@ -209,6 +197,7 @@ FAILURE	com.gs.legend.test.RelationalMappingIntegrationTest$TraverseSqlStructure
 FAILURE	com.gs.legend.test.RelationalMappingIntegrationTest$TraverseSqlStructure.testTraverseSortTraverseSql
 FAILURE	com.gs.legend.test.RelationalMappingIntegrationTest$TraverseSqlStructure.testTraverseThenScalarExtendFlatSql
 FAILURE	com.gs.legend.test.RelationalMappingIntegrationTest$TraverseSqlStructure.testTwoIndependentTraversalsFlatSql
+FAILURE	com.gs.legend.test.RelationApiIntegrationTest$SelectProjectTests.testProjectStructArrayWithEmptyArray
 FAILURE	com.gs.legend.test.RelationApiIntegrationTest$TdsLiteralTests.testTdsLiteralSqlGeneration
 FAILURE	com.gs.legend.test.RenameCheckerTest$RenameChains.testRenameFilter
 FAILURE	com.gs.legend.test.RenameCheckerTest$SingleRename.testRenameAfterProject
@@ -260,5 +249,3 @@ FAILURE	com.gs.legend.test.TypeInferenceIntegrationTest.testSliceInList
 FAILURE	com.gs.legend.test.TypeInferenceIntegrationTest.testSplitPartEmptyDelimiter
 FAILURE	com.gs.legend.test.TypeInferenceIntegrationTest.testStrictDateFromAdjust
 FAILURE	com.gs.legend.test.TypeInferenceIntegrationTest.testTimeBucketStrictDate2Days
-FAILURE	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testClassReturnWrongClassRejected
-FAILURE	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testUnrelatedClassRejected
