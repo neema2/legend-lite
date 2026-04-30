@@ -1,4 +1,4 @@
-BASELINE: tests=2675 failures=69 errors=104 skipped=19 broken=173
+BASELINE: tests=2675 failures=69 errors=89 skipped=19 broken=158
 ======================================================================
 ERROR	com.gs.legend.test.AssociationIntegrationTest$WildStress.testSelfJoinTwoHops
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testComparisonOperationAfterSize
@@ -89,21 +89,6 @@ ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testSumMixedNumbers
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testTakeNegative
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testVariancePopulation
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testXorFunctionCall
-ERROR	com.gs.legend.test.UserFunctionIntegrationTest$HigherOrder.testHigherOrderLambdaParam
-ERROR	com.gs.legend.test.UserFunctionIntegrationTest$HigherOrder.testHigherOrderMixedParams
-ERROR	com.gs.legend.test.UserFunctionIntegrationTest$HigherOrder.testHigherOrderWithLetChain
-ERROR	com.gs.legend.test.UserFunctionIntegrationTest$HigherOrder.testNestedHigherOrder
-ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testBareRelationParamStillWorks
-ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testClassParamTypeChecked
-ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testClassQueryAsParameter
-ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testCovariantReturnSubsetDeclared
-ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testParameterizedRelationReturning
-ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testRelationReturningTableRef
-ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testSubtypeAccepted
-ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testTypedRelationParamColumnTypeHierarchy
-ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testTypedRelationParamMultiColumn
-ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testTypedRelationParamSuperset
-ERROR	com.gs.legend.test.UserFunctionIntegrationTest$RealisticUseCase.testBoundedScore
 FAILURE	com.gs.legend.test.AsOfJoinCheckerTest$PrefixDeduplication.testAsOfJoinOverlappingWithPrefix
 FAILURE	com.gs.legend.test.DuckDBIntegrationTest.testAdjustComprehensive
 FAILURE	com.gs.legend.test.DuckDBIntegrationTest.testGreatest_MixedDateTypes_preservesStrictDate

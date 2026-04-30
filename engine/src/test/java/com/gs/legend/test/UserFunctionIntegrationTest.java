@@ -1305,4 +1305,186 @@ class UserFunctionIntegrationTest {
             assertEquals(6, ((Number) result.rows().get(0).get(0)).intValue());
         }
     }
+
+    // ==================== Edge-Case Probes ====================
+
+    /**
+     * Edge-case probes targeting patterns NOT covered by the existing test
+     * classes. These pin behavior that the upcoming Resolver-time inlining
+     * refactor must preserve.
+     */
+    @Nested
+    @DisplayName("Edge-Case Probes")
+    class EdgeCaseProbes {
+
+        @Test
+        @DisplayName("Probe 1 — same user-fn called twice in one query (alias uniqueness)")
+        void testSameFnCalledTwice() throws SQLException {
+            String model = modelWith("""
+                    function test::adults(): model::Person[*]
+                    {
+                        model::Person.all()->filter(p|$p.age >= 18)
+                    }
+                    """);
+            // 3 adults in fixture × 2 (concatenate) = 6 rows. Project to tabular
+            // so rowCount reflects rows (not the single JSON-aggregated row of
+            // the graph result format).
+            var result = exec(model,
+                    "|test::adults()->concatenate(test::adults())->project([p|$p.firstName], ['name'])");
+            assertEquals(6, result.rowCount());
+        }
+
+        @Test
+        @DisplayName("Probe 2 — let-binds user-call result, chained relationally")
+        void testLetBoundUserCallChained() throws SQLException {
+            String model = modelWith("""
+                    function test::adults(): model::Person[*]
+                    {
+                        model::Person.all()->filter(p|$p.age >= 18)
+                    }
+                    function test::query(): Any[*]
+                    {
+                        let people = test::adults();
+                        $people->project([p|$p.firstName], ['name'])
+                    }
+                    """);
+            var result = exec(model, "|test::query()");
+            assertEquals(3, result.rowCount());
+            List<String> names = column(result, 0, String.class);
+            assertTrue(names.contains("John"));
+            assertTrue(names.contains("Jane"));
+            assertTrue(names.contains("Bob"));
+        }
+
+        @Test
+        @DisplayName("Probe 3 — user-call inside project lambda body")
+        void testUserCallInsideProjectLambda() throws SQLException {
+            String model = modelWith("""
+                    function test::label(s: String[1]): String[1]
+                    {
+                        'Mr. ' + $s
+                    }
+                    """);
+            var result = exec(model,
+                    "|model::Person.all()->project([p|test::label($p.firstName)], ['greeted'])");
+            assertEquals(3, result.rowCount());
+            List<String> labels = column(result, 0, String.class);
+            assertTrue(labels.contains("Mr. John"));
+            assertTrue(labels.contains("Mr. Jane"));
+            assertTrue(labels.contains("Mr. Bob"));
+        }
+
+        @Test
+        @org.junit.jupiter.api.Disabled("""
+                Known failure on current env-based UserCallLowering. The body \
+                'let x = $x * 2; $x + 1' should produce (age*2)+1, but the \
+                current implementation produces ((age*2)*2)+1 — the inner \
+                $x reference (LET_BINDING role) is incorrectly re-substituted \
+                with the function-param actual instead of the let value. \
+                This probe documents the desired post-refactor behavior; \
+                Resolver-time inlining with Role-discriminated substitution \
+                will fix it. Re-enable after the refactor.""")
+        @DisplayName("Probe 4 — let-binding name shadows function param")
+        void testLetShadowsFunctionParam() throws SQLException {
+            String model = modelWith("""
+                    function test::doubleThenInc(x: Integer[1]): Integer[1]
+                    {
+                        let x = $x * 2;
+                        $x + 1
+                    }
+                    """);
+            var result = exec(model,
+                    "|model::Person.all()->project([p|test::doubleThenInc($p.age)], ['result'])");
+            assertEquals(3, result.rowCount());
+            List<Integer> values = intColumn(result, 0);
+            // John 30 → 30*2+1 = 61, Jane 28 → 57, Bob 45 → 91
+            assertTrue(values.contains(61), "John 30*2+1=61: " + values);
+            assertTrue(values.contains(57), "Jane 28*2+1=57: " + values);
+            assertTrue(values.contains(91), "Bob 45*2+1=91: " + values);
+        }
+
+        @Test
+        @DisplayName("Probe 5 — function param in both branches of TypedIf")
+        void testFunctionParamInBothIfBranches() throws SQLException {
+            String model = modelWith("""
+                    function test::safeAge(a: Integer[1]): Integer[1]
+                    {
+                        if($a < 0, |0, |$a)
+                    }
+                    """);
+            var result = exec(model,
+                    "|model::Person.all()->project([p|test::safeAge($p.age)], ['adjusted'])");
+            assertEquals(3, result.rowCount());
+            List<Integer> values = intColumn(result, 0);
+            // No negative ages → adjusted = age
+            assertTrue(values.contains(30));
+            assertTrue(values.contains(28));
+            assertTrue(values.contains(45));
+        }
+
+        @Test
+        @DisplayName("Probe 6 — f(g(x)) chained user-calls as scalar arg")
+        void testChainedUserCallsScalarArg() throws SQLException {
+            String model = modelWith("""
+                    function test::dbl(x: Integer[1]): Integer[1]
+                    {
+                        $x * 2
+                    }
+                    function test::inc(x: Integer[1]): Integer[1]
+                    {
+                        $x + 1
+                    }
+                    """);
+            var result = exec(model,
+                    "|model::Person.all()->project([p|test::inc(test::dbl($p.age))], ['result'])");
+            assertEquals(3, result.rowCount());
+            List<Integer> values = intColumn(result, 0);
+            // John 30 → 30*2+1 = 61, Jane 28 → 57, Bob 45 → 91
+            assertTrue(values.contains(61));
+            assertTrue(values.contains(57));
+            assertTrue(values.contains(91));
+        }
+
+        @Test
+        @DisplayName("Probe 7 — nested TypedIf with multiple function params")
+        void testNestedIfWithMultipleParams() throws SQLException {
+            String model = modelWith("""
+                    function test::clamp(v: Integer[1], lo: Integer[1], hi: Integer[1]): Integer[1]
+                    {
+                        if($v < $lo, |$lo, |if($v > $hi, |$hi, |$v))
+                    }
+                    """);
+            var result = exec(model,
+                    "|model::Person.all()->project([p|test::clamp($p.age, 20, 40)], ['clamped'])");
+            assertEquals(3, result.rowCount());
+            List<Integer> values = intColumn(result, 0);
+            // John 30 stays, Jane 28 stays, Bob 45 → 40
+            assertTrue(values.contains(30));
+            assertTrue(values.contains(28));
+            assertTrue(values.contains(40));
+        }
+
+        @Test
+        @DisplayName("Probe 8 — relational + scalar user-call in same query")
+        void testRelationalAndScalarUserCallSameQuery() throws SQLException {
+            String model = modelWith("""
+                    function test::adults(): model::Person[*]
+                    {
+                        model::Person.all()->filter(p|$p.age >= 18)
+                    }
+                    function test::targetSurname(): String[1]
+                    {
+                        'Smith'
+                    }
+                    """);
+            // John & Jane are adult Smiths; Bob is Jones (excluded).
+            // Project to tabular so rowCount reflects rows (not single JSON row).
+            var result = exec(model,
+                    "|test::adults()->filter(p|$p.lastName == test::targetSurname())->project([p|$p.firstName], ['name'])");
+            assertEquals(2, result.rowCount());
+            List<String> names = column(result, 0, String.class);
+            assertTrue(names.contains("John"));
+            assertTrue(names.contains("Jane"));
+        }
+    }
 }
