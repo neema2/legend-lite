@@ -88,8 +88,12 @@ public final class DuckDBDialect implements SQLDialect {
     }
 
     @Override
-    public String renderVariantArrayCast(String expr, String sqlType) {
-        return "CAST(" + expr + " AS " + sqlType + "[])";
+    public String renderVariantArrayCast(String expr, String pureTypeName) {
+        // Resolve the Pure type name to its DuckDB SQL spelling. Existing
+        // callers pass either a Pure type name ({@code "Integer"}, {@code
+        // "String"}) for Variant-to-typed-array casts, or {@code "JSON"} for
+        // generic JSON-array iteration; sqlTypeName handles both.
+        return "CAST(" + expr + " AS " + sqlTypeName(pureTypeName) + "[])";
     }
 
     @Override

@@ -75,13 +75,30 @@ public final class ControlFlowLowering {
 
     public static SqlExpr lower(TypedCast n, LoweringContext ctx) {
         SqlExpr inner = Lowerer.lowerScalar(n.expr(), ctx);
-        // Multiplicity-only coercions (toOne / toMany) have no Pure type change —
-        // pass the inner expression through unchanged so downstream printers don't
-        // emit a spurious CAST.
+        // Multiplicity-only coercions (toOne / toMany without a type change) have
+        // no Pure type change — pass the inner expression through unchanged so
+        // downstream printers don't emit a spurious CAST.
         if (n.targetType() == null) return inner;
+        // Cast to {@code Any} (the top type) is a Pure-side identity. Emitting
+        // {@code CAST(... AS Any)} would fail at the dialect because there's
+        // no SQL type for {@code Any}; passthrough is the right semantic.
+        if (n.targetType() == com.gs.legend.model.m3.Primitive.ANY) return inner;
         String pureTypeName = n.targetType().typeName();
         if (pureTypeName == null) {
             throw PlanGenNotPortedException.stage3(n, "cast:unnamed-target-type");
+        }
+        // Type-changing cast with a multi target: emit a list-element cast
+        // ({@code CAST(expr AS T[])}) so the result stays a SQL list.
+        // Two cases land here:
+        //   • {@code Variant[1] -> T[*]} (toMany from a JSON array).
+        //   • {@code S[*] -> T[*]} (cast on a list source, e.g.
+        //     {@code []->cast(@Integer)} widens an empty {@code Any[*]} to
+        //     {@code Integer[*]}).
+        // Without this, generic {@code CAST(list AS T)} collapses the list
+        // to a single value and downstream list operations (list_concat,
+        // list_reduce) reject the result.
+        if (n.info() != null && n.info().isMany()) {
+            return new SqlExpr.VariantArrayCast(inner, pureTypeName);
         }
         // Variant-to-primitive cast: rewrite {@code VariantAccess} ({@code ->})
         // to {@code VariantTextAccess} ({@code ->>}) so JSON string quotes are

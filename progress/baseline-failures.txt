@@ -1,4 +1,4 @@
-BASELINE: tests=2670 failures=94 errors=148 skipped=19 broken=242
+BASELINE: tests=2670 failures=93 errors=135 skipped=19 broken=228
 ======================================================================
 ERROR	com.gs.legend.test.AssociationIntegrationTest$WildStress.testSelfJoinTwoHops
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testComparisonOperationAfterSize
@@ -14,13 +14,6 @@ ERROR	com.gs.legend.test.DuckDBIntegrationTest.testStdDevSample_negativeNumbers
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVariance_Sample_doesNotMatchInputArgs
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVarianceSample_doesNotMatchInputArgs
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVariantArrayColumn_reverse
-ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVariantArrayColumn_sort
-ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVariantColumn_filter
-ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVariantColumn_functionComposition
-ERROR	com.gs.legend.test.FoldCheckerTest$CollectionBuild.testSlidingWindow
-ERROR	com.gs.legend.test.FoldCheckerTest$Concatenation.testEmptyListAndEmptyIdentity
-ERROR	com.gs.legend.test.FoldCheckerTest$MapReduce.testFoldFromVariant
-ERROR	com.gs.legend.test.FoldCheckerTest$MapReduce.testFoldFromVariantAsPrimitive
 ERROR	com.gs.legend.test.GetCheckerTest$FlattenComposition.testFlattenThenGet
 ERROR	com.gs.legend.test.JoinCheckerTest$ComplexConditions.testJoinWithAndCondition
 ERROR	com.gs.legend.test.JoinCheckerTest$EdgeCases.testJoinManyToMany
@@ -66,7 +59,6 @@ ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testAddToListWithOffset
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testAverageMixedNumbers
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testBetweenInteger
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testBitShiftLeft46Bits
-ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testCastEmptyArrayToInteger
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testClassToString
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testCoalesceNotEmptyDefaultEmpty
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testContainsPrimitiveString
@@ -78,10 +70,6 @@ ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testDropNegative
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testExistsOnStructArray
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testFindLiteral
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testFindOnStructArrayReturnsMap
-ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testFold_FromVariant
-ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testFoldCollectionAccumulator_WithIfSizeTail
-ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testFoldEmptyListAndEmptyIdentity
-ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testFoldFromVariantAsPrimitive
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testForAllFalse
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testForAllOnEmptySet
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testForAllTrue
@@ -128,7 +116,6 @@ ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testSplitPartEmptyString
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testSumMixedNumbers
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testTakeNegative
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testVariancePopulation
-ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testVariantMapsToJson
 ERROR	com.gs.legend.test.TypeInferenceIntegrationTest.testXorFunctionCall
 ERROR	com.gs.legend.test.UserFunctionIntegrationTest$HigherOrder.testHigherOrderLambdaParam
 ERROR	com.gs.legend.test.UserFunctionIntegrationTest$HigherOrder.testHigherOrderMixedParams
@@ -223,7 +210,6 @@ FAILURE	com.gs.legend.test.TypeInferenceIntegrationTest.testListMode
 FAILURE	com.gs.legend.test.TypeInferenceIntegrationTest.testLog
 FAILURE	com.gs.legend.test.TypeInferenceIntegrationTest.testLogMethodCall
 FAILURE	com.gs.legend.test.TypeInferenceIntegrationTest.testMapOnStructListWithAtOnScalarProperties
-FAILURE	com.gs.legend.test.TypeInferenceIntegrationTest.testMatchManyWithMany
 FAILURE	com.gs.legend.test.TypeInferenceIntegrationTest.testMaxBy_TopK
 FAILURE	com.gs.legend.test.TypeInferenceIntegrationTest.testMinBy_TopK
 FAILURE	com.gs.legend.test.TypeInferenceIntegrationTest.testModWithNegativeNumbers

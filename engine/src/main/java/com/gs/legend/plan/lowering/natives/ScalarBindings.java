@@ -76,6 +76,17 @@ public final class ScalarBindings {
         bind(Pure.LAST__T_MANY, (call, args, ctx) ->
                 new SqlExpr.ListExtract(args.get(0), new SqlExpr.ListLength(args.get(0))));
 
+        // size(set) / count(set) -> LEN(set) when used in a SCALAR context
+        // (e.g. inside a fold lambda body). The aggregate-context overload
+        // is owned by AggregateBindings (-> SqlAggregate.Count); routing to
+        // TypedNativeCall vs TypedAggCall is the frontend's call. Without
+        // this binding the dispatch falls through to FunctionCall("size", ..)
+        // and DuckDBDialect remaps the name to COUNT — wrong for scalar list
+        // length on a lambda parameter.
+        Binding scalarListLength = (call, args, ctx) ->
+                new SqlExpr.ListLength(args.get(0));
+        bindAll(scalarListLength, Pure.SIZE__T_MANY, Pure.COUNT__T_MANY);
+
         // tail(set) -> LIST_SLICE(set, 2, LEN(set))
         // init(set) -> LIST_SLICE(set, 1, LEN(set) - 1)
         // Both legacy paths called liftToList() to wrap a scalar value into
