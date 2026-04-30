@@ -1,6 +1,7 @@
 package com.gs.legend.plan.lowering;
 
-import com.gs.legend.compiler.ResolvedMappings;
+import com.gs.legend.compiled.CompiledFunction;
+import com.gs.legend.compiled.ResolvedExpression;
 import com.gs.legend.compiler.StoreResolution;
 import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.plan.PlanGenerator;
@@ -10,6 +11,7 @@ import com.gs.legend.sqlgen.SqlExpr;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Immutable-ish context threaded through every lowering rule.
@@ -72,7 +74,14 @@ public final class LoweringContext {
     /** Relational binding: typed HIR re-lowered in place at each reference. */
     public record Rel(TypedSpec node) implements VarBinding {}
 
-    private final ResolvedMappings mappings;
+    /**
+     * MappingResolver's output: typed HIR + per-node store resolutions +
+     * compiled mapping-function bodies (the latter via
+     * {@code resolved.dependencies().mappingFunctions()}, keyed by class FQN).
+     * Held as a single bundle so accessors thread through one source of
+     * truth instead of duplicating fields.
+     */
+    private final ResolvedExpression resolved;
     private final PlanGenerator.Mode mode;
     private final Map<String, VarBinding> env;
     private final AliasSupplier aliases;
@@ -84,12 +93,12 @@ public final class LoweringContext {
      */
     private final NavScope navScope;
 
-    private LoweringContext(ResolvedMappings mappings,
+    private LoweringContext(ResolvedExpression resolved,
                             PlanGenerator.Mode mode,
                             Map<String, VarBinding> env,
                             AliasSupplier aliases,
                             NavScope navScope) {
-        this.mappings = mappings;
+        this.resolved = resolved;
         this.mode = mode;
         this.env = env;
         this.aliases = aliases;
@@ -97,12 +106,21 @@ public final class LoweringContext {
     }
 
     /** Fresh root context for a plan generation run. */
-    public static LoweringContext root(ResolvedMappings mappings, PlanGenerator.Mode mode) {
-        return new LoweringContext(mappings, mode, Map.of(), new AliasSupplier(), null);
+    public static LoweringContext root(ResolvedExpression resolved, PlanGenerator.Mode mode) {
+        return new LoweringContext(resolved, mode, Map.of(), new AliasSupplier(), null);
     }
 
-    /** @return the full committed mapping sidecar produced by MappingResolver. */
-    public ResolvedMappings mappings() { return mappings; }
+    /**
+     * @return the compiled mapping function for the given class FQN, or
+     *         empty if the class has no mapping in the active scope.
+     *         Empty is the back-end / link-time signal of a missing mapping —
+     *         {@code SourceLowering} converts it to a precise compile error
+     *         at the {@code TypedGetAll} use site.
+     */
+    public Optional<CompiledFunction> compiledMappingFunction(String classFqn) {
+        return Optional.ofNullable(resolved.dependencies().mappingFunctions().get(classFqn));
+    }
+
     public PlanGenerator.Mode mode() { return mode; }
 
     /** @return next alias (t0, t1, …). Shared with child contexts. */
@@ -112,7 +130,7 @@ public final class LoweringContext {
     public AliasSupplier aliases() { return aliases; }
 
     /** @return resolved store for this typed node, or null if this node is not relational. */
-    public StoreResolution storeFor(TypedSpec node) { return mappings.storeResolutions().get(node); }
+    public StoreResolution storeFor(TypedSpec node) { return resolved.mappings().storeResolutions().get(node); }
 
     /**
      * Scalar lookup. Returns the bound {@link SqlExpr} for a {@link Scalar}
@@ -142,7 +160,7 @@ public final class LoweringContext {
     public LoweringContext bindVar(String name, SqlExpr value, StoreResolution store) {
         Map<String, VarBinding> next = new HashMap<>(env);
         next.put(name, new Scalar(value, store));
-        return new LoweringContext(mappings, mode, Map.copyOf(next), aliases, navScope);
+        return new LoweringContext(resolved, mode, Map.copyOf(next), aliases, navScope);
     }
 
     /**
@@ -155,7 +173,7 @@ public final class LoweringContext {
     public LoweringContext bindRel(String name, TypedSpec node) {
         Map<String, VarBinding> next = new HashMap<>(env);
         next.put(name, new Rel(node));
-        return new LoweringContext(mappings, mode, Map.copyOf(next), aliases, navScope);
+        return new LoweringContext(resolved, mode, Map.copyOf(next), aliases, navScope);
     }
 
     /**
@@ -165,7 +183,7 @@ public final class LoweringContext {
      * rule exit when the rule installs its collected navigations.
      */
     public LoweringContext withNavScope(NavScope scope) {
-        return new LoweringContext(mappings, mode, env, aliases, scope);
+        return new LoweringContext(resolved, mode, env, aliases, scope);
     }
 
     /**

@@ -72,7 +72,8 @@ public final class SourceLowering {
         // tolerates absence so a query can be well-typed even when a class
         // it references has no mapping in the active scope; we draw the line
         // at the moment lowering actually needs the materialization.
-        if (n.mappingFn() == null) {
+        var mappingFn = ctx.compiledMappingFunction(n.className()).orElse(null);
+        if (mappingFn == null) {
             throw new PureCompileException(
                     "No mapping in scope for class '" + n.className() + "' — "
                             + "required to lower getAll. Add a mapping for this class to the active runtime.");
@@ -92,8 +93,8 @@ public final class SourceLowering {
         // optional filter/distinct/joins/extends layered on top. Recurse to
         // lower it; MappingResolver has already stamped StoreResolutions on
         // the inner relational nodes.
-        if (n.mappingFn().body() != null) {
-            var body = n.mappingFn().body().hir();
+        if (mappingFn.body() != null) {
+            var body = mappingFn.body().hir();
             return Lowerer.lowerRelation(body, ctx);
         }
 

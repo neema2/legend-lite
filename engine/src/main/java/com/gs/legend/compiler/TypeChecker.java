@@ -150,16 +150,14 @@ public class TypeChecker implements TypeCheckEnv {
      * {@link #check(com.gs.legend.model.m3.PureFunction)} — identity-keyed
      * memoization in {@code check(pf)} short-circuits repeat calls.
      */
-    @Override
-    public CompiledFunction compileMappingFunctionFor(String classFqn) {
+    private CompiledFunction compileMappingFunctionFor(String classFqn) {
         return tryCompileMappingFunctionFor(classFqn)
                 .orElseThrow(() -> new PureCompileException(
                         "No mapping in active scope for class '" + classFqn
                                 + "' — cannot compile mapping function"));
     }
 
-    @Override
-    public java.util.Optional<CompiledFunction> tryCompileMappingFunctionFor(String classFqn) {
+    private java.util.Optional<CompiledFunction> tryCompileMappingFunctionFor(String classFqn) {
         CompiledFunction cached = mappingFunctions.get(classFqn);
         if (cached != null) return java.util.Optional.of(cached);
         java.util.Optional<String> fnFqnOpt = modelContext.findMappingFunctionFqn(classFqn);
@@ -195,7 +193,7 @@ public class TypeChecker implements TypeCheckEnv {
                     "TypeChecker: ExpressionType not set on root " + vs.getClass().getSimpleName());
         }
 
-        compileNeededAssociationTargets();
+        compileTouchedMappings();
         return new CompiledExpression(
                 root,
                 new CompiledDependencies(classPropertyAccesses, associationNavigations, mappingFunctions));
@@ -459,50 +457,47 @@ public class TypeChecker implements TypeCheckEnv {
     }
 
     /**
-     * Pass 2: compiles the mapping function for every class reached through an
-     * association property observed during root-body typechecking.
+     * Pass 2: compiles the mapping function for every class statically
+     * referenced by the body — the touched-class closure.
      *
-     * <p>Demand-driven worklist over the association closure. Each iteration:
-     * <ol>
-     *   <li>Scan {@link #associationNavigations} — populated by pass-1
-     *       typechecking whenever {@code $x.assocProp} is resolved — and
-     *       project each {@code (owner, prop)} pair onto its target class
-     *       via {@link ModelContext#findAssociationByProperty}.</li>
-     *   <li>Subtract classes already in {@link #mappingFunctions} (the
-     *       frontier — what's needed but not yet compiled).</li>
-     *   <li>If the frontier is empty, we've reached fixed point.</li>
-     *   <li>Otherwise, compile each frontier class. This may append more
-     *       entries to {@code associationNavigations} (deeper graphs,
-     *       bidirectional associations) — picked up by the next iteration.</li>
-     * </ol>
+     * <p>The touched-class set is just {@link #classPropertyAccesses}'s
+     * keyset. Pass-1 populates it from three identical write-sites, all
+     * inside TypeChecker:
+     * <ul>
+     *   <li>Direct property access ({@code $x.prop}) — registers the
+     *       owning class.</li>
+     *   <li>Association navigation ({@code $x.assocProp}) — registers
+     *       both the owning class (with the assoc prop) and the target
+     *       class (with no prop). Same call site as direct access; assoc
+     *       targets are not "special".</li>
+     *   <li>{@code getAll(Class)} dispatch — registers the root class.
+     *       This one is at the dispatch site (not inside a property
+     *       resolver) because there is no property being accessed; bare
+     *       {@code Class.all()} otherwise leaves the maps empty.</li>
+     * </ul>
      *
-     * <p>Termination: {@code mappingFunctions.keySet()} grows monotonically
-     * and the class universe is finite, so the frontier eventually empties.
-     * Cycles (e.g., Person ↔ Company) are handled by the memoization check in
-     * {@link #compileMappingFunctionFor}: a second call for the same class
-     * short-circuits on the cached result.
+     * <p>Demand-driven worklist. Each iteration drains the frontier
+     * (keyset minus already-attempted) and probe-compiles each class.
+     * Compiling a mapping body recursively type-checks it, which calls
+     * {@code compileProperty} for every property/assoc inside it, which
+     * grows {@link #classPropertyAccesses} — the next iteration picks up
+     * the new entries. Fixed point when no new entries arrive.
+     *
+     * <p>Termination: {@code attempted} grows monotonically; the class
+     * universe is finite. The probe variant
+     * ({@link #tryCompileMappingFunctionFor}) returns empty for classes
+     * without a mapping in scope — those become a back-end / link-time
+     * error at the use site ({@code SourceLowering}), not a type-check
+     * failure.
      */
-    private void compileNeededAssociationTargets() {
-        // Targets we've probed for a mapping but found none. Tracked separately
-        // from {@link #mappingFunctions} so the worklist terminates: probe-misses
-        // don't grow the keyset, so without this set we'd re-probe forever.
+    private void compileTouchedMappings() {
         Set<String> attempted = new HashSet<>();
         while (true) {
-            Set<String> needed = new HashSet<>();
-            for (var entry : associationNavigations.entrySet()) {
-                String owner = entry.getKey();
-                for (String prop : entry.getValue()) {
-                    modelContext.findAssociationByProperty(owner, prop)
-                            .ifPresent(nav -> needed.add(nav.targetClassName()));
-                }
-            }
-            needed.removeAll(mappingFunctions.keySet());
+            Set<String> needed = new HashSet<>(classPropertyAccesses.keySet());
             needed.removeAll(attempted);
             if (needed.isEmpty()) return;
             for (String target : needed) {
                 attempted.add(target);
-                // Probe variant — missing mapping is a link-time concern surfaced
-                // by the back-end at the use site, not a type-check failure here.
                 tryCompileMappingFunctionFor(target);
             }
         }
@@ -663,7 +658,16 @@ public class TypeChecker implements TypeCheckEnv {
 
         return switch (funcName) {
             // --- Relation Sources ---
-            case "getAll" -> new com.gs.legend.compiler.checkers.GetAllChecker(this).check(af, source, ctx);
+            case "getAll" -> {
+                var typedGetAll = new com.gs.legend.compiler.checkers.GetAllChecker(this).check(af, source, ctx);
+                // Record the root class in classPropertyAccesses so it appears in
+                // the touched-class set used by Pass-2 mapping-function compilation
+                // and CompiledDependencies.elementFqns(). Covers bare Class.all()
+                // with no subsequent property access — without this, the property-
+                // access-driven path in compileProperty() never sees the class.
+                classPropertyAccesses.computeIfAbsent(typedGetAll.className(), k -> new HashSet<>());
+                yield typedGetAll;
+            }
             case "tableReference" -> new com.gs.legend.compiler.checkers.TableReferenceChecker(this).check(af, source, ctx);
             case "sourceUrl" -> new com.gs.legend.compiler.checkers.SourceUrlChecker(this).check(af, source, ctx);
             case "tds" -> new com.gs.legend.compiler.checkers.TdsChecker(this).check(af, source, ctx);
@@ -1444,6 +1448,14 @@ public class TypeChecker implements TypeCheckEnv {
         if (assocNav.isPresent()) {
             var nav = assocNav.get();
             associationNavigations.computeIfAbsent(classFqn, k -> new HashSet<>()).add(property);
+            // Register the target class as referenced — same shape as direct
+            // property access above. Empty entry is innocuous to consumers
+            // (MappingResolver uses getOrDefault(., Set.of())) and means Pass-2
+            // sees the touched-class closure complete in classPropertyAccesses.
+            // Without this, an assoc nav whose target's scalar properties are
+            // never accessed (e.g. $p.children->isEmpty()) would miss the
+            // target's mapping body.
+            classPropertyAccesses.computeIfAbsent(nav.targetClassName(), k -> new HashSet<>());
             Type targetType = new Type.ClassType(nav.targetClassName());
             ExpressionType et = nav.isToMany()
                     ? ExpressionType.many(targetType)

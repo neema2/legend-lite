@@ -115,7 +115,7 @@ public final class PlanGenerator {
 
     /** Three-pass pipeline: lower -> classify -> print. */
     public SingleExecutionPlan generate() {
-        var ctx = LoweringContext.root(resolved.mappings(), mode);
+        var ctx = LoweringContext.root(resolved, mode);
         var hir = resolved.hir();
         var rel = Lowerer.lowerRelation(hir, ctx);
         var format = ResultFormatClassifier.classify(hir);

@@ -3,7 +3,6 @@ package com.gs.legend.compiler.checkers;
 import com.gs.legend.ast.AppliedFunction;
 import com.gs.legend.ast.PackageableElementPtr;
 import com.gs.legend.ast.ValueSpecification;
-import com.gs.legend.compiled.CompiledFunction;
 import com.gs.legend.compiler.*;
 import com.gs.legend.compiler.typed.TypedGetAll;
 import com.gs.legend.compiler.typed.TypedSpec;
@@ -47,12 +46,12 @@ public class GetAllChecker extends AbstractChecker {
         // associationNavigations, storeClassNames) use consistent FQN keys.
         String fqn = findClass(fullPath).map(c -> c.qualifiedName()).orElse(fullPath);
 
-        // Probe variant — missing mapping is a back-end / link-time concern,
-        // not a type-check failure. SourceLowering surfaces the precise error
-        // at the use site if the query is actually lowered.
-        CompiledFunction mappingFn = env.tryCompileMappingFunctionFor(fqn).orElse(null);
-
-        return new TypedGetAll(fqn, mappingFn,
+        // No mapping-function compile call here. TypeChecker's dispatch site
+        // for "getAll" registers the class in classPropertyAccesses; Pass-2
+        // (compileTouchedMappings) compiles every touched class's mapping
+        // body. Lowering looks up bodies by class FQN via
+        // LoweringContext.compiledMappingFunction(...).
+        return new TypedGetAll(fqn,
                 ExpressionType.many(new Type.ClassType(fqn)));
     }
 }

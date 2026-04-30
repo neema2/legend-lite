@@ -110,14 +110,17 @@ class CompileMappingTest {
         var built = buildAndNormalize();
         var tc = new TypeChecker(built.modelCtx);
 
-        // 1. Query path — GetAllChecker compiles the mapping function and
-        //    attaches it to the TypedGetAll node.
+        // 1. Query path — TypeChecker's dispatch site for getAll records the
+        //    class in classPropertyAccesses; Pass-2 (compileTouchedMappings)
+        //    compiles its mapping function body and exposes it via
+        //    CompiledDependencies.mappingFunctions, keyed by class FQN.
         var getAllPerson = new AppliedFunction(
                 "getAll", List.of(new PackageableElementPtr("model::Person")), false);
         var queryCompiled = tc.check(getAllPerson);
-        var queryMappingFn = ((com.gs.legend.compiler.typed.TypedGetAll) queryCompiled.hir()).mappingFn();
+        var queryMappingFn = queryCompiled.dependencies().mappingFunctions().get("model::Person");
         assertNotNull(queryMappingFn,
-                "GetAllChecker must attach the compiled mapping function to TypedGetAll");
+                "Pass-2 must compile the root class's mapping function and expose it "
+                        + "via CompiledDependencies.mappingFunctions");
 
         // 2. Build path — compileMapping fans out to the same primitive.
         //    Identity-keyed memoization on PureFunction ensures both paths
@@ -127,7 +130,7 @@ class CompileMappingTest {
 
         assertSame(queryMappingFn, buildMappingFn,
                 "Query and build must share one CompiledFunction instance — "
-                        + "proves compileMappingFunctionFor is memoized across triggers");
+                        + "proves the underlying mapping-function compile is memoized across triggers");
     }
 
     @Test
