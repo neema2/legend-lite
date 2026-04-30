@@ -51,7 +51,11 @@ public sealed interface TypedSpec permits
         TypedIf, TypedLet, TypedBlock, TypedMatch, TypedCast,
         TypedUserCall,
         // Element reference (function, class, enum, runtime, store) by FQN
-        TypedPackageableRef {
+        TypedPackageableRef,
+        // Legend-lite implicit-serialize marker: bare Class[*] query root
+        // that needs an automatic JSON-envelope wrap at lowering. Synthesized
+        // at the tail of MappingResolver; consumed by the relation lowerer.
+        TypedSerializeImplicit {
 
     /** Type + multiplicity. Every typed node has this. */
     ExpressionType info();

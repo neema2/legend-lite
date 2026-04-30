@@ -10,7 +10,6 @@ import com.gs.legend.compiler.typed.TypedSpec;
 import com.gs.legend.model.m3.Type;
 import com.gs.legend.plan.lowering.Lowerer;
 import com.gs.legend.plan.lowering.LoweringContext;
-import com.gs.legend.plan.resultformat.ResultFormatClassifier;
 import com.gs.legend.plan.sql.SqlRelation;
 import com.gs.legend.sqlgen.SQLDialect;
 
@@ -23,7 +22,7 @@ import java.util.IdentityHashMap;
  * <p><strong>Three-IR pipeline</strong>:
  * <pre>
  *   TypedSpec (HIR)  --Lowerer-->  SqlRelation (MIR)  --SQLDialect.render-->  SQL text
- *                 \--ResultFormatClassifier--> ResultFormat
+ *                 \--ResultFormat.from()--> ResultFormat
  * </pre>
  *
  * <p>This class owns pipeline orchestration only. All structural decisions live
@@ -118,7 +117,7 @@ public final class PlanGenerator {
         var ctx = LoweringContext.root(resolved, mode);
         var hir = resolved.hir();
         var rel = Lowerer.lowerRelation(hir, ctx);
-        var format = ResultFormatClassifier.classify(hir);
+        var format = ResultFormat.from(hir);
         String sql = dialect.render(rel);
 
         Type.Schema schema = hir.schema();

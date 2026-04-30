@@ -59,6 +59,10 @@ public final class Lowerer {
             // on the stage-5 backlog — its INSERT lowering lands with the
             // dedicated write pass.
             case TypedSerialize n -> SerializeRelLowering.lower(n, ctx);
+            // Implicit-serialize marker: synthesized by MappingResolver for
+            // bare {@code Class[*]} roots. Routes through the same JSON-envelope
+            // mechanism as explicit {@link TypedSerialize}.
+            case TypedSerializeImplicit n -> SerializeRelLowering.lower(n, ctx);
 
             // Operator-specific routing — each rule module owns its own
             // dispatch decision; Lowerer is pure delegation.
@@ -88,7 +92,7 @@ public final class Lowerer {
             case TypedFold           n -> ctx.toRelation(n);
             case TypedNativeCall     n -> ctx.toRelation(n);
             case TypedStructExtract  n -> ctx.toRelation(n);
-            case TypedIf             n -> ctx.toRelation(n);
+            case TypedIf             n -> RelationalIfLowering.lower(n, ctx);
             case TypedMatch          n -> ctx.toRelation(n);
             case TypedZip            n -> ctx.toRelation(n);
             case TypedEval           n -> ctx.toRelation(n);
@@ -148,6 +152,9 @@ public final class Lowerer {
 
             case TypedSerialize n -> SerializeLowering.lower(n, ctx);
             case TypedWrite     n -> SerializeLowering.lower(n, ctx);
+            // Implicit-serialize marker is a relation-position-only construct
+            // (a query root wrap). Encountering it as a scalar is a dispatch bug.
+            case TypedSerializeImplicit n -> throw notScalar(n);
 
             case TypedUserCall n -> UserCallLowering.lower(n, ctx);
 

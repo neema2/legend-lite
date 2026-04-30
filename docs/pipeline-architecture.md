@@ -37,7 +37,7 @@ calls into a `SingleExecutionPlan`. It is not its own layer. It stays —
 no rename, no relocation. Its Javadoc documents it as an orchestration
 shell with no logic.
 
-**`ResultFormatClassifier`** is a parallel HIR walker that produces a
+**`ResultFormat.from(TypedSpec)`** is a parallel HIR walker that produces a
 `ResultFormat` for the executor. It does not participate in lowering and
 emits no MIR. It is not bound by the layer rules below.
 

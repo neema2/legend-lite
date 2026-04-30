@@ -1,4 +1,4 @@
-BASELINE: tests=2670 failures=76 errors=109 skipped=19 broken=185
+BASELINE: tests=2675 failures=69 errors=104 skipped=19 broken=173
 ======================================================================
 ERROR	com.gs.legend.test.AssociationIntegrationTest$WildStress.testSelfJoinTwoHops
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testComparisonOperationAfterSize
@@ -14,11 +14,6 @@ ERROR	com.gs.legend.test.DuckDBIntegrationTest.testStdDevSample_negativeNumbers
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVariance_Sample_doesNotMatchInputArgs
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVarianceSample_doesNotMatchInputArgs
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVariantArrayColumn_reverse
-ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$GapComposition.testAssocJoinChainFilter
-ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$GapFeatures.testSchemaTable
-ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$OtherwiseMappings.testOtherwiseEmbeddedProperty
-ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$OtherwiseMappings.testOtherwiseFilterOnEmbedded
-ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$OtherwiseMappings.testOtherwiseMixed
 ERROR	com.gs.legend.test.ScalarFunctionIntegrationTest.testPctHasSubsecondWithAtLeastPrecision
 ERROR	com.gs.legend.test.ScalarFunctionIntegrationTest.testPctRelationSelectWrite
 ERROR	com.gs.legend.test.ScalarFunctionIntegrationTest.testPctRemoveDuplicatesBy
@@ -111,7 +106,6 @@ ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testTypedRel
 ERROR	com.gs.legend.test.UserFunctionIntegrationTest$RealisticUseCase.testBoundedScore
 FAILURE	com.gs.legend.test.AsOfJoinCheckerTest$PrefixDeduplication.testAsOfJoinOverlappingWithPrefix
 FAILURE	com.gs.legend.test.DuckDBIntegrationTest.testAdjustComprehensive
-FAILURE	com.gs.legend.test.DuckDBIntegrationTest.testFunctionWithClassQuery_DuckDB
 FAILURE	com.gs.legend.test.DuckDBIntegrationTest.testGreatest_MixedDateTypes_preservesStrictDate
 FAILURE	com.gs.legend.test.DuckDBIntegrationTest.testGreatestNumber_preservesIntegerType
 FAILURE	com.gs.legend.test.DuckDBIntegrationTest.testLeast_MixedDateTypes_preservesStrictDate
@@ -122,14 +116,9 @@ FAILURE	com.gs.legend.test.DuckDBIntegrationTest.testModeNumber_preservesInteger
 FAILURE	com.gs.legend.test.DuckDBIntegrationTest.testPureAssociationExistsSqlStructure
 FAILURE	com.gs.legend.test.DuckDBIntegrationTest.testPureAssociationNavigationInFilter
 FAILURE	com.gs.legend.test.DuckDBIntegrationTest.testPureCombineFilterAndProjectThroughAssociation
-FAILURE	com.gs.legend.test.DuckDBIntegrationTest.testPureSyntaxSortByAndLimit
 FAILURE	com.gs.legend.test.FoldCheckerTest$MapReduce.testFoldStructToString
-FAILURE	com.gs.legend.test.RelationalMappingIntegrationTest$BareClassQueries.testBareFilter
-FAILURE	com.gs.legend.test.RelationalMappingIntegrationTest$BareClassQueries.testBareLimit
-FAILURE	com.gs.legend.test.RelationalMappingIntegrationTest$BareClassQueries.testBareSort
 FAILURE	com.gs.legend.test.RelationalMappingIntegrationTest$EnumJoinComposition.testEnumJoinGroupBy
 FAILURE	com.gs.legend.test.RelationalMappingIntegrationTest$GapFeatures.testMappingDistinct
-FAILURE	com.gs.legend.test.RelationalMappingIntegrationTest$OtherwiseMappings.testOtherwisePruningEmbeddedOnly
 FAILURE	com.gs.legend.test.RelationalMappingIntegrationTest$TraverseSqlStructure.testTraverseFilterTraverseSql
 FAILURE	com.gs.legend.test.RelationalMappingIntegrationTest$TraverseSqlStructure.testTraverseSortTraverseSql
 FAILURE	com.gs.legend.test.RelationalMappingIntegrationTest$TraverseSqlStructure.testTraverseThenScalarExtendFlatSql
@@ -138,7 +127,6 @@ FAILURE	com.gs.legend.test.RelationApiIntegrationTest$SelectProjectTests.testPro
 FAILURE	com.gs.legend.test.RelationApiIntegrationTest$TdsLiteralTests.testTdsLiteralSqlGeneration
 FAILURE	com.gs.legend.test.RenameCheckerTest$RenameChains.testRenameFilter
 FAILURE	com.gs.legend.test.RenameCheckerTest$SingleRename.testRenameAfterProject
-FAILURE	com.gs.legend.test.SQLiteIntegrationTest.testFunctionWithClassQuery_SQLite
 FAILURE	com.gs.legend.test.TypeInferenceIntegrationTest.testAdjustByMonthsPreservesYearMonthPrecision
 FAILURE	com.gs.legend.test.TypeInferenceIntegrationTest.testAdjustByYearsPreservesYearPrecision
 FAILURE	com.gs.legend.test.TypeInferenceIntegrationTest.testAndFunctionCallWithList

@@ -94,7 +94,25 @@ public final class MappingResolver {
      */
     public ResolvedExpression resolve() {
         walk(typeResult.hir(), null);
-        return new ResolvedExpression(typeResult, ResolvedMappings.ofStoreResolutions(resolutions));
+        return new ResolvedExpression(
+                elaborateImplicitSerialize(typeResult),
+                ResolvedMappings.ofStoreResolutions(resolutions));
+    }
+
+    /**
+     * Wraps a bare {@code Class[*]} root in {@link TypedSerializeImplicit}
+     * so legend-lite's "DB assembles JSON" semantics route through the same
+     * envelope mechanism as explicit {@code ->serialize()}. {@link TypedGraphFetch}
+     * is excluded — it self-envelopes via {@code GraphFetchLowering}.
+     */
+    private CompiledExpression elaborateImplicitSerialize(CompiledExpression unit) {
+        TypedSpec root = unit.hir();
+        if (root instanceof TypedGraphFetch) return unit;
+        if (!(root.type() instanceof com.gs.legend.model.m3.Type.ClassType)) return unit;
+        StoreResolution store = resolutions.get(root);
+        List<TypedGraphTree> tree = store == null ? List.of()
+                : store.propertyToColumn().keySet().stream().map(TypedGraphTree::leaf).toList();
+        return new CompiledExpression(new TypedSerializeImplicit(root, tree), unit.dependencies());
     }
 
     // ==================== Typed HIR walk ====================
@@ -305,10 +323,31 @@ public final class MappingResolver {
                 walk(i.condition(), active);
                 walk(i.thenBranch(), active);
                 walk(i.elseBranch(), active);
+                // Inherit one branch's resolution onto the if-node so a
+                // class-typed if expression presents as relational. Both
+                // branches must produce the same class for the wrap to be
+                // well-defined; we pick the then-branch arbitrarily and
+                // assume type-checker uniformity. Without this stamp,
+                // implicit-serialize elaboration would synthesize an empty
+                // tree for {@code if(c, |P.all(), |Q.all())} roots.
+                StoreResolution branchRes = resolutions.get(i.thenBranch());
+                if (branchRes == null) branchRes = resolutions.get(i.elseBranch());
+                if (branchRes != null) resolutions.put(node, branchRes);
             }
             case TypedLet let -> walk(let.value(), active);
             case TypedBlock b -> {
                 for (var s : b.stmts()) walk(s, active);
+                // The block's result is its last statement's value, so its
+                // store resolution is the last statement's. Mirrors the
+                // {@link TypedUserCall} pattern: compound nodes whose result
+                // is produced by an inner sub-expression inherit that
+                // sub-expression's resolution. Without this, an implicit-
+                // serialize root over a {@code let; expr} block would resolve
+                // to no store and skip the JSON envelope.
+                if (!b.stmts().isEmpty()) {
+                    StoreResolution lastRes = resolutions.get(b.stmts().get(b.stmts().size() - 1));
+                    if (lastRes != null) resolutions.put(node, lastRes);
+                }
             }
             case TypedMatch m -> {
                 walk(m.subject(), active);
@@ -320,10 +359,29 @@ public final class MappingResolver {
             }
             case TypedWrite w -> walk(w.source(), active);
             case TypedSerialize s -> walk(s.source(), active);
+            case TypedSerializeImplicit s -> {
+                // Synthesized at this pass's tail — never present during the
+                // initial walk. Defensive arm in case the marker is ever
+                // produced upstream: just descend into the source.
+                walk(s.source(), active);
+                inherit(node, s.source(), active);
+            }
 
             // ----- Bindings / collections -----
             case TypedLambda lam -> {
                 for (var stmt : lam.body()) walk(stmt, active);
+                // A 0-parameter lambda is the standard query-root shape for
+                // multi-statement queries ({@code resolveQuery} only unwraps
+                // single-stmt lambdas). Inherit the last body stmt's store
+                // so the implicit-serialize elaboration can find a resolved
+                // store on the root and synthesize a non-empty fetch tree —
+                // mirrors the {@link TypedUserCall} / {@link TypedBlock}
+                // pattern (compound nodes inherit their result-producing
+                // sub-expression's resolution).
+                if (!lam.body().isEmpty()) {
+                    StoreResolution lastRes = resolutions.get(lam.body().get(lam.body().size() - 1));
+                    if (lastRes != null) resolutions.put(node, lastRes);
+                }
             }
             case TypedCollection coll -> {
                 // Class-typed collection (`[^Class(...), ^Class(...)]`) →

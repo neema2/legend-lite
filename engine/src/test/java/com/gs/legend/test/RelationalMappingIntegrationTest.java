@@ -5252,6 +5252,84 @@ class RelationalMappingIntegrationTest {
         }
 
         @Test
+        @DisplayName("let-block returning bare class — TypedBlock root JSON-wraps")
+        void testBareLetBlock() throws SQLException {
+            // Compound root: a {@link com.gs.legend.compiler.typed.TypedBlock}
+            // whose last stmt is a class-typed relation. Implicit-serialize
+            // elaboration must propagate the last stmt's store onto the block
+            // so the JSON envelope is built correctly.
+            String m = personModel();
+            var result = exec(m, "|let unused = 1; P.all()->filter(x|$x.age > 20);");
+            assertInstanceOf(ExecutionResult.GraphResult.class, result);
+            String json = result.asGraph().json();
+            assertNotNull(json);
+            assertTrue(json.contains("Alice"), "JSON should contain Alice");
+            assertTrue(json.contains("Bob"), "JSON should contain Bob");
+            assertTrue(json.contains("name"), "JSON should contain 'name' property");
+            assertTrue(json.contains("age"), "JSON should contain 'age' property");
+        }
+
+        @Test
+        @DisplayName("let-block returning bare class via getAll — TypedBlock root JSON-wraps")
+        void testBareLetBlockGetAll() throws SQLException {
+            // Last stmt is a bare {@code TypedGetAll}, simpler shape than the
+            // operator-chain case above. Both should JSON-wrap identically.
+            String m = personModel();
+            var result = exec(m, "|let unused = 'x'; P.all();");
+            assertInstanceOf(ExecutionResult.GraphResult.class, result);
+            String json = result.asGraph().json();
+            assertNotNull(json);
+            assertTrue(json.contains("Alice"), "JSON should contain Alice");
+            assertTrue(json.contains("Bob"), "JSON should contain Bob");
+        }
+
+        @Test
+        @DisplayName("if(true, ...) constant-fold to then-branch — TypedIf root JSON-wraps")
+        void testBareIfConstantTrue() throws SQLException {
+            // {@link RelationalIfLowering} constant-folds the literal-true
+            // condition and lowers only the then-branch. Then-branch filters
+            // age > 20 — both Alice (25) and Bob (30) pass, so JSON contains
+            // both.
+            String m = personModel();
+            var result = exec(m, "|if(true, |P.all()->filter(x|$x.age > 20), |P.all());");
+            assertInstanceOf(ExecutionResult.GraphResult.class, result);
+            String json = result.asGraph().json();
+            assertNotNull(json);
+            assertTrue(json.contains("Alice"), "JSON should contain Alice");
+            assertTrue(json.contains("Bob"), "JSON should contain Bob");
+            assertTrue(json.contains("name"), "JSON should contain 'name' property");
+        }
+
+        @Test
+        @DisplayName("if(false, ...) constant-fold to else-branch — TypedIf root JSON-wraps")
+        void testBareIfConstantFalse() throws SQLException {
+            // Else-branch is bare {@code P.all()} — both Alice and Bob.
+            String m = personModel();
+            var result = exec(m, "|if(false, |P.all()->filter(x|$x.age > 99), |P.all());");
+            assertInstanceOf(ExecutionResult.GraphResult.class, result);
+            String json = result.asGraph().json();
+            assertNotNull(json);
+            assertTrue(json.contains("Alice"), "JSON should contain Alice");
+            assertTrue(json.contains("Bob"), "JSON should contain Bob");
+        }
+
+        @Test
+        @DisplayName("if(runtime-cond, ...) UNION ALL — TypedIf root JSON-wraps")
+        void testBareIfRuntimeCondition() throws SQLException {
+            // Runtime condition (not a literal Boolean) → {@link RelationalIfLowering}
+            // emits {@code thenBr WHERE c UNION ALL elseBr WHERE NOT c}. The
+            // condition {@code 1 == 1} evaluates true in SQL, so the then-branch
+            // contributes both rows and the else-branch contributes none.
+            String m = personModel();
+            var result = exec(m, "|if(1 == 1, |P.all()->filter(x|$x.age > 20), |P.all()->filter(x|$x.age > 99));");
+            assertInstanceOf(ExecutionResult.GraphResult.class, result);
+            String json = result.asGraph().json();
+            assertNotNull(json);
+            assertTrue(json.contains("Alice"), "JSON should contain Alice");
+            assertTrue(json.contains("Bob"), "JSON should contain Bob");
+        }
+
+        @Test
         @DisplayName("P.all()->groupBy() returns GraphResult with aggregated JSON")
         void testBareGroupBy() throws SQLException {
             sql("CREATE TABLE T2 (ID INT, NAME VARCHAR(100), AGE INT)",
