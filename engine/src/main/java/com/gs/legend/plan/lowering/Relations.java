@@ -72,6 +72,52 @@ public final class Relations {
     }
 
     /**
+     * Build the right-hand relation of an association {@link Navigation.JoinNav}.
+     *
+     * <p>Two shapes:
+     * <ul>
+     *   <li><strong>Identity / table-only mapping</strong> — the target class's
+     *       compiled mapping body is just a {@link com.gs.legend.compiler.typed.TypedTableReference}.
+     *       Emit a bare {@link SqlRelation.TableRef} with the join's expected
+     *       alias.</li>
+     *   <li><strong>Mapped class with derived columns</strong> (e.g. JSON
+     *       extraction via {@code DATA->get('productName', @String)}) — the
+     *       compiled body is a relational tree with extends / filters / etc.
+     *       Lower the body and wrap in {@link SqlRelation.SubqueryRel} so the
+     *       join's outer scope sees the mapping's projected output columns
+     *       under {@code j.abstractAlias()}.</li>
+     * </ul>
+     *
+     * <p>Without this branching, JSON-mapped target classes would be joined
+     * as their bare physical table — the outer projection then references
+     * derived columns ({@code t2.productName}) that don't exist on the raw
+     * table, surfacing as a DuckDB Binder Error.
+     */
+    private static SqlRelation joinTargetRelation(Navigation.JoinNav j, String alias,
+                                                  LoweringContext ctx) {
+        StoreResolution targetRes = j.targetResolution();
+        if (targetRes != null) {
+            var fnOpt = ctx.compiledMappingFunction(targetRes.className());
+            if (fnOpt.isPresent() && fnOpt.get().body() != null) {
+                TypedSpec bodyHir = fnOpt.get().body().hir();
+                // Identity case: body is a single TypedTableReference. Emit a
+                // bare TableRef with the join's expected alias — avoids an
+                // unnecessary subquery wrapper for the common case.
+                if (bodyHir instanceof com.gs.legend.compiler.typed.TypedTableReference tr) {
+                    return new SqlRelation.TableRef(null, tr.tableName(), alias, List.of());
+                }
+                // Non-trivial body: lower it and pin the alias via SubqueryRel
+                // so downstream property access (e.g. t2.productName, where
+                // productName is a mapping-derived column) sees the projected
+                // output rather than the raw table.
+                SqlRelation body = Lowerer.lowerRelation(bodyHir, ctx);
+                return new SqlRelation.SubqueryRel(body, alias);
+            }
+        }
+        return new SqlRelation.TableRef(null, j.targetTable(), alias, List.of());
+    }
+
+    /**
      * Install a {@link Navigation.JoinNav} as {@code LEFT JOIN target ON condition}.
      * Body extracted verbatim from the previous monolithic loop.
      */
@@ -80,7 +126,7 @@ public final class Relations {
                                            StoreResolution srcStore, NavScope scope,
                                            LoweringContext ctx) {
         String alias = j.abstractAlias();
-        SqlRelation target = new SqlRelation.TableRef(null, j.targetTable(), alias, List.of());
+        SqlRelation target = joinTargetRelation(j, alias, ctx);
         TypedSpec cond = j.condition();
         if (cond == null) {
             throw new IllegalStateException(

@@ -1,4 +1,4 @@
-BASELINE: tests=2670 failures=93 errors=129 skipped=19 broken=222
+BASELINE: tests=2670 failures=93 errors=124 skipped=19 broken=217
 ======================================================================
 ERROR	com.gs.legend.test.AssociationIntegrationTest$WildStress.testSelfJoinTwoHops
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testComparisonOperationAfterSize
@@ -14,9 +14,6 @@ ERROR	com.gs.legend.test.DuckDBIntegrationTest.testStdDevSample_negativeNumbers
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVariance_Sample_doesNotMatchInputArgs
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVarianceSample_doesNotMatchInputArgs
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVariantArrayColumn_reverse
-ERROR	com.gs.legend.test.JsonMappingIntegrationTest$AssociationWithJsonTests.testFilterOnAssociationScalarProjectJson
-ERROR	com.gs.legend.test.JsonMappingIntegrationTest$AssociationWithJsonTests.testMixedScalarFilterAssociationJsonProjection
-ERROR	com.gs.legend.test.JsonMappingIntegrationTest$AssociationWithJsonTests.testProjectThroughAssociation
 ERROR	com.gs.legend.test.M2MChainIntegrationTest$DeepFetch.testDeepFetchAllEmployeesDepts
 ERROR	com.gs.legend.test.M2MChainIntegrationTest$DeepFetch.testDeepFetchPartialNestedSelection
 ERROR	com.gs.legend.test.M2MChainIntegrationTest$DeepFetch.testDeepFetchViaAssociation
@@ -31,8 +28,6 @@ ERROR	com.gs.legend.test.M2MIntegrationTest.testDeepFetchOneToMany
 ERROR	com.gs.legend.test.M2MIntegrationTest.testDeepFetchOneToOne
 ERROR	com.gs.legend.test.M2MIntegrationTest.testNewPipelineDeepFetch1to1Valid
 ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$GapComposition.testAssocJoinChainFilter
-ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$GapComposition.testAssocJoinChainSort
-ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$GapComposition.testAssocMappingWithJoins
 ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$GapFeatures.testSchemaTable
 ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$OtherwiseMappings.testOtherwiseEmbeddedProperty
 ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$OtherwiseMappings.testOtherwiseFilterOnEmbedded
