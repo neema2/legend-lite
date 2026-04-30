@@ -32,10 +32,22 @@ public final class UserCallLowering {
     }
 
     /**
-     * Per-arg dispatch: relational args bind via {@link LoweringContext#bindRel}
-     * (re-lowered on each {@code $r} reference); scalar args eagerly lower
-     * via {@link Lowerer#lowerScalar} and bind via
-     * {@link LoweringContext#bindVar}.
+     * Per-arg dispatch:
+     * <ul>
+     *   <li>Relational actuals bind as deferred HIR via
+     *       {@link LoweringContext#bindRel} — re-lowered on each
+     *       {@code $r} reference.</li>
+     *   <li>Function-typed actuals ({@link com.gs.legend.compiler.typed.TypedLambda})
+     *       also bind as deferred HIR via {@link LoweringContext#bindRel}.
+     *       Eagerly lowering them as scalars would lower the lambda body
+     *       with its parameters unbound (producing literal {@code y}
+     *       references in SQL); deferring lets the eval site bind the
+     *       lambda's params to the actual eval-time arguments before
+     *       re-lowering the body. {@link Rel} is a misnomer here — its
+     *       contract is "deferred typed HIR" — but lambdas fit cleanly.</li>
+     *   <li>Everything else lowers eagerly via {@link Lowerer#lowerScalar}
+     *       and binds via {@link LoweringContext#bindVar}.</li>
+     * </ul>
      */
     private static LoweringContext bindArgs(TypedUserCall n, LoweringContext ctx) {
         var formals = n.callee().parameters();
@@ -49,7 +61,8 @@ public final class UserCallLowering {
         for (int i = 0; i < formals.size(); i++) {
             String name = formals.get(i).name();
             TypedSpec actual = actuals.get(i);
-            if (cur.isRelationalSource(actual)) {
+            if (cur.isRelationalSource(actual)
+                    || actual instanceof com.gs.legend.compiler.typed.TypedLambda) {
                 cur = cur.bindRel(name, actual);
             } else {
                 SqlExpr value = Lowerer.lowerScalar(actual, cur);

@@ -7,7 +7,6 @@ import com.gs.legend.compiler.MappingResolver;
 import com.gs.legend.compiler.ResolvedMappings;
 import com.gs.legend.compiler.TypeChecker;
 import com.gs.legend.compiler.typed.TypedSpec;
-import com.gs.legend.model.m3.Type;
 import com.gs.legend.plan.lowering.Lowerer;
 import com.gs.legend.plan.lowering.LoweringContext;
 import com.gs.legend.plan.sql.SqlRelation;
@@ -120,11 +119,28 @@ public final class PlanGenerator {
         var format = ResultFormat.from(hir);
         String sql = dialect.render(rel);
 
-        Type.Schema schema = hir.schema();
+        // Effective execution-time type: at the call boundary the static type
+        // is the user-function's declared return (e.g. {@code Any[*]}); the
+        // executor needs the actual runtime shape to read the result. Mirror
+        // {@code ResultFormat.from}'s root-recursion to look through any
+        // outer {@link com.gs.legend.compiler.typed.TypedUserCall} wrapper(s).
+        var effective = effectiveRoot(hir);
         return new SingleExecutionPlan(
-                new SQLExecutionNode(sql, schema, null),
-                hir.info(),
+                new SQLExecutionNode(sql, effective.schema(), null),
+                effective.info(),
                 format);
+    }
+
+    /**
+     * Recurse through {@link com.gs.legend.compiler.typed.TypedUserCall}
+     * roots to the underlying body root that produced the SQL. The body's
+     * inferred type is the runtime-effective type; the user-call's static
+     * type is the declared contract (potentially wider).
+     */
+    private static TypedSpec effectiveRoot(TypedSpec node) {
+        return node instanceof com.gs.legend.compiler.typed.TypedUserCall uc
+                ? effectiveRoot(uc.callee().body().hir())
+                : node;
     }
 
     // ===== Accessors =====

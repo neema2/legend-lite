@@ -121,20 +121,36 @@ public final class ControlFlowLowering {
     }
 
     /**
-     * {@code $f->eval(args...)} — where {@code $f} is a function-typed variable.
+     * {@code $f->eval($x)} pattern.
      *
-     * <p>Mirrors legacy pass-through behavior (see legacy line 4063-4075, case
-     * {@code "eval"} in scalar-function dispatch): if the applicable is a
-     * lambda-parameter binding, the parameter is already bound upstream (via
-     * {@code withVars} during user-function inlining) to the lambda's lowered
-     * body. Lowering the {@code TypedVariable} resolves to that binding, which
-     * is what the call's result should be.
+     * <p>The applicable is a {@link com.gs.legend.compiler.typed.TypedVariable}
+     * bound (by {@link UserCallLowering}) as deferred typed HIR — typically
+     * a {@link com.gs.legend.compiler.typed.TypedLambda} actual passed to a
+     * higher-order user function. To produce correct SQL we must bind the
+     * lambda's parameters to the eval-time argument expressions before
+     * lowering the lambda body, otherwise the parameter names leak into the
+     * SQL as raw identifiers (a common dialect-binder error).
      *
-     * <p>Args are evaluated for side-effects (to match legacy's recursive
-     * compilation) and then discarded — the function body has already been
-     * inlined by {@code TypeChecker}/{@code UserCallLowering}.
+     * <p>Falls back to scalar-lowering the applicable when it is not a
+     * deferred lambda binding (e.g., a function reference left for native
+     * dispatch), preserving the legacy pass-through behavior for those cases.
      */
     public static SqlExpr lower(TypedEval n, LoweringContext ctx) {
+        LoweringContext.VarBinding binding = ctx.lookupBinding(n.applicable().name());
+        if (binding instanceof LoweringContext.Rel rel
+                && rel.node() instanceof com.gs.legend.compiler.typed.TypedLambda lam) {
+            LoweringContext bodyCtx = ctx;
+            int arity = Math.min(lam.parameters().size(), n.args().size());
+            for (int i = 0; i < arity; i++) {
+                String paramName = lam.parameters().get(i).name();
+                SqlExpr argExpr = Lowerer.lowerScalar(n.args().get(i), ctx);
+                bodyCtx = bodyCtx.bindVar(paramName, argExpr, null);
+            }
+            // Lambda body is a list of statements; the last is the result.
+            return Lowerer.lowerScalar(lam.body().get(lam.body().size() - 1), bodyCtx);
+        }
+        // Non-lambda applicable: evaluate args for side effects and lower
+        // the applicable as the call's result (legacy pass-through).
         for (TypedSpec arg : n.args()) {
             Lowerer.lowerScalar(arg, ctx);
         }

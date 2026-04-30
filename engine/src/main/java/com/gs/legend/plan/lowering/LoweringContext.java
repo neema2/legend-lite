@@ -129,8 +129,23 @@ public final class LoweringContext {
     /** @return the underlying alias supplier (for helpers that need raw access). */
     public AliasSupplier aliases() { return aliases; }
 
-    /** @return resolved store for this typed node, or null if this node is not relational. */
-    public StoreResolution storeFor(TypedSpec node) { return resolved.mappings().storeResolutions().get(node); }
+    /**
+     * @return resolved store for this typed node, or null if this node is not
+     *         relational. {@link com.gs.legend.compiler.typed.TypedVariable}s
+     *         carry no static store (their bound expression isn't known until
+     *         call site); when one is queried we follow its {@link Rel}
+     *         binding (installed by {@link UserCallLowering} or a let-block)
+     *         and recurse into the bound node, so a class-typed argument
+     *         passed through a user-function parameter still surfaces its
+     *         class store at downstream property-access sites.
+     */
+    public StoreResolution storeFor(TypedSpec node) {
+        if (node instanceof com.gs.legend.compiler.typed.TypedVariable v
+                && env.get(v.name()) instanceof Rel rel) {
+            return storeFor(rel.node());
+        }
+        return resolved.mappings().storeResolutions().get(node);
+    }
 
     /**
      * Scalar lookup. Returns the bound {@link SqlExpr} for a {@link Scalar}

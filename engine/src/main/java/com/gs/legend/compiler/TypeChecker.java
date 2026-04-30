@@ -787,13 +787,26 @@ public class TypeChecker implements TypeCheckEnv {
         validateCallSiteArgTypes(af, compiled, argSpecs);
         validateCallSiteArgMultiplicity(af, compiled, argSpecs);
 
-        // 6. Return ExpressionType comes from the compiled body's declared return.
-        //    We honor the compiled signature's multiplicity, same as declared.
+        // 6. Return ExpressionType: the user function's declared return type
+        //    (classified). At compile time, a function declared {@code :Any[*]}
+        //    returns {@code Any[*]} — the contract is the contract; we do not
+        //    eagerly narrow to the body's inferred type. Classification
+        //    converts any structural {@code GenericType(RELATION,
+        //    [RelationTypeVar])} signature into a {@link Type.Relation}
+        //    with a resolved {@link Type.Schema} (the form downstream
+        //    {@code instanceof Type.Relation} sites expect).
+        //
+        //    When the runtime/execution layer needs the *effective* shape
+        //    (e.g., Tabular schema for an {@code :Any[*]}-declared function
+        //    whose body returns a Relation), it recurses into
+        //    {@code callee().body()} at plan-generation time — see
+        //    {@link com.gs.legend.plan.ResultFormat#from} and
+        //    {@link com.gs.legend.plan.PlanGenerator} effective-type lookup.
         return new com.gs.legend.compiler.typed.TypedUserCall(
                 pureFn.qualifiedName(),
                 List.copyOf(argSpecs),
                 compiled,
-                new ExpressionType(pureFn.returnType(), pureFn.returnMultiplicity()));
+                new ExpressionType(classifyUserType(pureFn.returnType()), pureFn.returnMultiplicity()));
     }
 
     /** Call-site arg-type validation against the canonical compiled signature. */
