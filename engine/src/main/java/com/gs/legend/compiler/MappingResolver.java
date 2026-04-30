@@ -541,7 +541,7 @@ public final class MappingResolver {
      * resolutions, embedded columns, and traverse columns.
      */
     private StoreResolution resolveRelational(RelationalMapping rm, String classFqn) {
-        String tableName = rm.table().name();
+        String tableName = rm.table().dbName();
         Map<String, String> propToCol = new LinkedHashMap<>();
         Map<String, StoreResolution.PropertyResolution> properties = new LinkedHashMap<>();
         Map<String, StoreResolution.JoinResolution> joins = new LinkedHashMap<>();
@@ -658,7 +658,7 @@ public final class MappingResolver {
         RelationalMapping identity = RelationalMapping.identity(pc, modelContext);
         // Seed from the identity PMs directly (don't recurse through the
         // synthetic-function channel — identity mappings are query-local).
-        String tableName = identity.table().name();
+        String tableName = identity.table().dbName();
         Map<String, String> propToCol = new LinkedHashMap<>();
         Map<String, StoreResolution.PropertyResolution> properties = new LinkedHashMap<>();
         for (PropertyMapping pm : identity.propertyMappings()) {
@@ -973,7 +973,7 @@ public final class MappingResolver {
                 : resolveClassFetch(targetClassFqn);
         if (targetResolution == null) return null;
 
-        String targetTable = targetMapping instanceof RelationalMapping trm ? trm.table().name() : null;
+        String targetTable = targetMapping instanceof RelationalMapping trm ? trm.table().dbName() : null;
         if (col.hops().isEmpty()) return null;
 
         // Use the first hop's typed condition — for chained hops this is the
@@ -1113,7 +1113,7 @@ public final class MappingResolver {
                     "Self-join / back-reference target must be relational, got: "
                             + mapping.getClass().getSimpleName());
         }
-        String tableName = rm.table().name();
+        String tableName = rm.table().dbName();
         Map<String, String> propToCol = new LinkedHashMap<>();
         Map<String, StoreResolution.PropertyResolution> properties = new LinkedHashMap<>();
         for (PropertyMapping pm : rm.propertyMappings()) {

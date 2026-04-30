@@ -37,7 +37,7 @@ public class TableReferenceChecker extends AbstractChecker {
         Type.Schema schema = tableToSchema(table);
         return new TypedTableReference(
                 table.dbName(),
-                table.name(),
+                table.dbName(),
                 ExpressionType.one(new Type.Relation(schema)));
     }
 
