@@ -159,8 +159,14 @@ public final class FilterLowering {
             StoreResolution parentStore = isFirst
                     ? outerStore
                     : local.lookup(entry.parentPrefix()).targetResolution();
-            SqlRelation target = new SqlRelation.TableRef(
-                    null, j.targetTable(), j.abstractAlias(), List.of());
+            // Materialize the target's full mapping body (including any
+            // synth-body extends / inner joins for join-chain-mapped leaf
+            // properties) so a downstream {@code $p.firm.country} where
+            // {@code country} is mapped via {@code @FirmCountry|T_COUNTRY.NAME}
+            // sees the inner join's projected column. Mirrors the same
+            // materialization used by Sort/Project paths via {@link Relations#install}.
+            SqlRelation target = Relations.joinTargetRelation(
+                    j.targetResolution(), j.targetTable(), j.abstractAlias(), baseCtx);
 
             // Lower the join condition with sourceParam → parentAlias and
             // targetParam → this hop's alias.
