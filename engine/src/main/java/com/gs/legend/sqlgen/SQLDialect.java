@@ -477,6 +477,7 @@ public interface SQLDialect {
             case SqlExpr.Between b         -> render(b.expr()) + " BETWEEN " + render(b.low())
                                                   + " AND " + render(b.high());
             case SqlExpr.Exists ex         -> "EXISTS (" + renderAsStatement(ex.relation()) + ")";
+            case SqlExpr.ScalarSubquery sq -> "(" + renderAsStatement(sq.relation()) + ")";
 
             // ---- CASE ----
             case SqlExpr.CaseWhen cw       -> "CASE WHEN " + render(cw.condition())
@@ -819,6 +820,18 @@ public interface SQLDialect {
             if (i > 0) sb.append(", ");
             var p = r.projections().get(i);
             sb.append(render(p.expr())).append(" AS ").append(quoteIdentifier(p.alias()));
+        }
+        // Source composition. {@link com.gs.legend.plan.sql.SqlRelation.Filter}
+        // is a SQL clause (WHERE), not a from-item — wrapping it as
+        // {@code (SELECT * FROM ... WHERE ...) AS _s} would shadow inner
+        // aliases that the projections may reference. So Project-over-Filter
+        // fuses to the natural flat shape {@code SELECT proj FROM <src> WHERE
+        // <pred>}, mirroring how {@link #renderFilter}/{@link #renderSort}/
+        // {@link #renderLimit} already fuse their own clause onto the source's
+        // statement via {@link #renderAsStatement}.
+        if (r.source() instanceof com.gs.legend.plan.sql.SqlRelation.Filter f) {
+            return sb.append(" FROM ").append(renderAsFromItem(f.source()))
+                    .append(" WHERE ").append(render(f.predicate())).toString();
         }
         return sb.append(" FROM ").append(renderAsFromItem(r.source())).toString();
     }

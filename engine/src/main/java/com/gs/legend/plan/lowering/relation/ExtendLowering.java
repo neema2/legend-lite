@@ -123,6 +123,20 @@ public final class ExtendLowering {
             // Per-col filter for partial overrides — matches legacy plangen
             // generateExtend lines 2005/2049 (`!extendOverride.isActive(cs.name()) continue`).
             if (override != null && !override.isActive(extendColAlias(col))) continue;
+            // M2M passthrough of a class-typed property: when an upstream
+            // association property is forwarded by a bare {@code $src.prop}
+            // body, MappingResolver.forwardPassthrough lifts the upstream
+            // FK join into {@code selfStore.joins()} keyed by this alias.
+            // The corresponding {@link TypedScalarExtendCol} has no scalar
+            // SQL projection — graphFetch consumes the join directly. This
+            // mirrors how {@link com.gs.legend.compiler.typed.TypedAssociationExtendCol}
+            // is treated below in {@link #lowerExtendCol} (returns null).
+            if (selfStore != null
+                    && col instanceof TypedScalarExtendCol sec
+                    && selfStore.joins() != null
+                    && selfStore.joins().containsKey(sec.alias())) {
+                continue;
+            }
             SqlRelation.ExtendCol lowered = lowerExtendCol(col, aliasChain, store, ctx, n, scope);
             if (lowered != null) cols.add(lowered);
         }

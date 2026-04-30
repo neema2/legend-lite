@@ -93,9 +93,8 @@ public final class Relations {
      * derived columns ({@code t2.productName}) that don't exist on the raw
      * table, surfacing as a DuckDB Binder Error.
      */
-    private static SqlRelation joinTargetRelation(Navigation.JoinNav j, String alias,
-                                                  LoweringContext ctx) {
-        StoreResolution targetRes = j.targetResolution();
+    public static SqlRelation joinTargetRelation(StoreResolution targetRes, String targetTable,
+                                                 String alias, LoweringContext ctx) {
         if (targetRes != null) {
             var fnOpt = ctx.compiledMappingFunction(targetRes.className());
             if (fnOpt.isPresent() && fnOpt.get().body() != null) {
@@ -114,7 +113,7 @@ public final class Relations {
                 return new SqlRelation.SubqueryRel(body, alias);
             }
         }
-        return new SqlRelation.TableRef(null, j.targetTable(), alias, List.of());
+        return new SqlRelation.TableRef(null, targetTable, alias, List.of());
     }
 
     /**
@@ -126,7 +125,7 @@ public final class Relations {
                                            StoreResolution srcStore, NavScope scope,
                                            LoweringContext ctx) {
         String alias = j.abstractAlias();
-        SqlRelation target = joinTargetRelation(j, alias, ctx);
+        SqlRelation target = joinTargetRelation(j.targetResolution(), j.targetTable(), alias, ctx);
         TypedSpec cond = j.condition();
         if (cond == null) {
             throw new IllegalStateException(

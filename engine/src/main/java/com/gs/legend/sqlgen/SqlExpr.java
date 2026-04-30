@@ -63,6 +63,7 @@ public sealed interface SqlExpr permits
         SqlExpr.Or,
         SqlExpr.OrderByTerm,
         SqlExpr.QualifiedStar,
+        SqlExpr.ScalarSubquery,
         SqlExpr.SearchedCase,
         SqlExpr.Star,
         SqlExpr.StartsWith,
@@ -288,6 +289,15 @@ public sealed interface SqlExpr permits
      * clause are correlated subquery references at SQL level.
      */
     record Exists(com.gs.legend.plan.sql.SqlRelation relation) implements SqlExpr {}
+
+    /**
+     * Scalar-typed correlated subquery: {@code (<SELECT ...>)} returning a
+     * single value. Used by graph-fetch nested-tree lowering to emit a
+     * per-row JSON-shaped child fetch as a column expression. The wrapped
+     * relation must project exactly one column; outer-alias references in
+     * its WHERE / SELECT are correlated subquery references at SQL level.
+     */
+    record ScalarSubquery(com.gs.legend.plan.sql.SqlRelation relation) implements SqlExpr {}
 
     // ==================== CASE ====================
 

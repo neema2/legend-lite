@@ -29,6 +29,11 @@ public final class SerializeRelLowering {
         List<TypedGraphTree> tree = !n.children().isEmpty()
                 ? n.children()
                 : (n.source() instanceof TypedGraphFetch g ? g.children() : List.of());
-        return JsonEnvelope.wrap(source, tree, ctx.mode(), ctx);
+        // {@code MappingResolver} stamps the source's class store on every
+        // relational op via the inherit/propagate walk — including
+        // {@link TypedGraphFetch}, which transparently inherits its inner
+        // class fetch's store. So the source's store is the right place to
+        // look up association joins for nested-tree subquery building.
+        return JsonEnvelope.wrap(source, tree, ctx.storeFor(n.source()), ctx.mode(), ctx);
     }
 }

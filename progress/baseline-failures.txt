@@ -1,4 +1,4 @@
-BASELINE: tests=2670 failures=93 errors=124 skipped=19 broken=217
+BASELINE: tests=2670 failures=76 errors=109 skipped=19 broken=185
 ======================================================================
 ERROR	com.gs.legend.test.AssociationIntegrationTest$WildStress.testSelfJoinTwoHops
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testComparisonOperationAfterSize
@@ -14,19 +14,6 @@ ERROR	com.gs.legend.test.DuckDBIntegrationTest.testStdDevSample_negativeNumbers
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVariance_Sample_doesNotMatchInputArgs
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVarianceSample_doesNotMatchInputArgs
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVariantArrayColumn_reverse
-ERROR	com.gs.legend.test.M2MChainIntegrationTest$DeepFetch.testDeepFetchAllEmployeesDepts
-ERROR	com.gs.legend.test.M2MChainIntegrationTest$DeepFetch.testDeepFetchPartialNestedSelection
-ERROR	com.gs.legend.test.M2MChainIntegrationTest$DeepFetch.testDeepFetchViaAssociation
-ERROR	com.gs.legend.test.M2MChainIntegrationTest$DeepFetch.testDisjointMultipleProjects
-ERROR	com.gs.legend.test.M2MChainIntegrationTest$DeepFetch.testDisjointOneToMany
-ERROR	com.gs.legend.test.M2MChainIntegrationTest$DeepFetch.testDisjointOnlyDept
-ERROR	com.gs.legend.test.M2MChainIntegrationTest$DeepFetch.testDisjointOnlyProjects
-ERROR	com.gs.legend.test.M2MChainIntegrationTest$DeepFetch.testDisjointZeroProjects
-ERROR	com.gs.legend.test.M2MChainIntegrationTest$JoinChainTests.testGraphFetchMixedTraverseAndAssociation
-ERROR	com.gs.legend.test.M2MIntegrationTest.testDeepFetchNullAddress
-ERROR	com.gs.legend.test.M2MIntegrationTest.testDeepFetchOneToMany
-ERROR	com.gs.legend.test.M2MIntegrationTest.testDeepFetchOneToOne
-ERROR	com.gs.legend.test.M2MIntegrationTest.testNewPipelineDeepFetch1to1Valid
 ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$GapComposition.testAssocJoinChainFilter
 ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$GapFeatures.testSchemaTable
 ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$OtherwiseMappings.testOtherwiseEmbeddedProperty
@@ -114,9 +101,7 @@ ERROR	com.gs.legend.test.UserFunctionIntegrationTest$HigherOrder.testNestedHighe
 ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testBareRelationParamStillWorks
 ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testClassParamTypeChecked
 ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testClassQueryAsParameter
-ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testClassReturnGraphFetch
 ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testCovariantReturnSubsetDeclared
-ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testGraphFetchBaseline
 ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testParameterizedRelationReturning
 ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testRelationReturningTableRef
 ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testSubtypeAccepted
@@ -125,23 +110,6 @@ ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testTypedRel
 ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testTypedRelationParamSuperset
 ERROR	com.gs.legend.test.UserFunctionIntegrationTest$RealisticUseCase.testBoundedScore
 FAILURE	com.gs.legend.test.AsOfJoinCheckerTest$PrefixDeduplication.testAsOfJoinOverlappingWithPrefix
-FAILURE	com.gs.legend.test.AssociationIntegrationTest$GraphFetchDeepNesting.testDeepNestingNullFkAtDepth2
-FAILURE	com.gs.legend.test.AssociationIntegrationTest$GraphFetchDeepNesting.testDeepNestingNullFkToManyAtDepth2
-FAILURE	com.gs.legend.test.AssociationIntegrationTest$GraphFetchDeepNesting.testDeepNestingToManyThenToOne
-FAILURE	com.gs.legend.test.AssociationIntegrationTest$GraphFetchDeepNesting.testDeepNestingToOneToOne
-FAILURE	com.gs.legend.test.AssociationIntegrationTest$GraphFetchDeepNesting.testDisjointToMany
-FAILURE	com.gs.legend.test.AssociationIntegrationTest$GraphFetchDeepNesting.testDisjointToManyBothEmpty
-FAILURE	com.gs.legend.test.AssociationIntegrationTest$GraphFetchDeepNesting.testDisjointToManyPlusToOne
-FAILURE	com.gs.legend.test.AssociationIntegrationTest$GraphFetchDeepNesting.testMultipleDisjointNesting
-FAILURE	com.gs.legend.test.AssociationIntegrationTest$GraphFetchDeepNesting.testNestedToManyEmpty
-FAILURE	com.gs.legend.test.AssociationIntegrationTest$GraphFetchDeepNesting.testNestedToManyInToMany
-FAILURE	com.gs.legend.test.AssociationIntegrationTest$GraphFetchToMany.testGraphFetchFilterThenToMany
-FAILURE	com.gs.legend.test.AssociationIntegrationTest$GraphFetchToMany.testGraphFetchMixedToOneAndToMany
-FAILURE	com.gs.legend.test.AssociationIntegrationTest$GraphFetchToMany.testGraphFetchNullFkToOne
-FAILURE	com.gs.legend.test.AssociationIntegrationTest$GraphFetchToMany.testGraphFetchToManyAddresses
-FAILURE	com.gs.legend.test.AssociationIntegrationTest$GraphFetchToMany.testGraphFetchToManyEmpty
-FAILURE	com.gs.legend.test.AssociationIntegrationTest$GraphFetchToMany.testGraphFetchToManyMultipleChildProps
-FAILURE	com.gs.legend.test.AssociationIntegrationTest$GraphFetchToMany.testGraphFetchToOneFirm
 FAILURE	com.gs.legend.test.DuckDBIntegrationTest.testAdjustComprehensive
 FAILURE	com.gs.legend.test.DuckDBIntegrationTest.testFunctionWithClassQuery_DuckDB
 FAILURE	com.gs.legend.test.DuckDBIntegrationTest.testGreatest_MixedDateTypes_preservesStrictDate

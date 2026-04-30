@@ -1222,7 +1222,29 @@ public final class MappingResolver {
         for (String a : propAliases)  if (usedProps.contains(a))    active.add(a);
         if (active.size() == total) return; // all used — no override needed
 
-        resolutions.put(ext, StoreResolution.forExtend(
-                new StoreResolution.ExtendOverride(active)));
+        // Preserve the underlying class-store fields and layer the override
+        // marker on top. forExtend(...) returns an empty marker resolution
+        // which previously discarded the M2M-passthrough joins map for the
+        // extend node — causing ExtendLowering to mis-identify class-typed
+        // passthrough properties (e.g., StaffComplete.department where the
+        // upstream Employee.department is a JoinResolution forwarded by
+        // forwardPassthrough into the M2M's joins) as scalar columns and
+        // emit {@code t0.department AS department} against a table that
+        // has no such physical column. Carrying the original maps through
+        // keeps ExtendLowering's join-aware skip path working while still
+        // signalling pruning via {@code extendOverride}.
+        StoreResolution underlying = resolutions.get(ext);
+        StoreResolution withOverride;
+        if (underlying != null) {
+            withOverride = new StoreResolution(
+                    underlying.tableName(), underlying.className(),
+                    underlying.propertyToColumn(), underlying.properties(),
+                    underlying.joins(), underlying.nested(),
+                    new StoreResolution.ExtendOverride(active));
+        } else {
+            withOverride = StoreResolution.forExtend(
+                    new StoreResolution.ExtendOverride(active));
+        }
+        resolutions.put(ext, withOverride);
     }
 }
