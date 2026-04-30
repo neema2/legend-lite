@@ -1,4 +1,4 @@
-BASELINE: tests=2670 failures=94 errors=155 skipped=19 broken=249
+BASELINE: tests=2670 failures=94 errors=148 skipped=19 broken=242
 ======================================================================
 ERROR	com.gs.legend.test.AssociationIntegrationTest$WildStress.testSelfJoinTwoHops
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testComparisonOperationAfterSize
@@ -17,13 +17,6 @@ ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVariantArrayColumn_reverse
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVariantArrayColumn_sort
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVariantColumn_filter
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVariantColumn_functionComposition
-ERROR	com.gs.legend.test.DynaFunctionIntegrationTest$ArithmeticFunctions.testDivideRound
-ERROR	com.gs.legend.test.DynaFunctionIntegrationTest$BooleanFunctions.testSqlFalse
-ERROR	com.gs.legend.test.DynaFunctionIntegrationTest$BooleanFunctions.testSqlTrue
-ERROR	com.gs.legend.test.DynaFunctionIntegrationTest$ComparisonFunctions.testIsDistinct
-ERROR	com.gs.legend.test.DynaFunctionIntegrationTest$ComparisonFunctions.testNotEqualAnsi
-ERROR	com.gs.legend.test.DynaFunctionIntegrationTest$MiscFunctions.testGroup
-ERROR	com.gs.legend.test.DynaFunctionIntegrationTest$StringFunctions.testRepeatString
 ERROR	com.gs.legend.test.FoldCheckerTest$CollectionBuild.testSlidingWindow
 ERROR	com.gs.legend.test.FoldCheckerTest$Concatenation.testEmptyListAndEmptyIdentity
 ERROR	com.gs.legend.test.FoldCheckerTest$MapReduce.testFoldFromVariant

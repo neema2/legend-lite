@@ -593,6 +593,41 @@ public final class DuckDBDialect implements SQLDialect {
                     default       -> "HASH("   + args.get(0) + ")";
                 };
             }
+
+            // --- DynaFunction-style scalar emissions: structural SQL forms,
+            //     not name-remapped function calls. ---
+
+            // {@code divideRound(a, b, scale)} → round(a/b, scale). Cast both
+            // operands to DOUBLE so DuckDB performs float division (its
+            // integer {@code /} would otherwise truncate). DuckDB ROUND
+            // honours scale on doubles.
+            case "divideRound":
+                return "ROUND(CAST(" + args.get(0) + " AS DOUBLE) / CAST("
+                        + args.get(1) + " AS DOUBLE), " + args.get(2) + ")";
+
+            // {@code notEqualAnsi(a, b)} → ANSI inequality. Same shape as
+            // {@code <>}; DuckDB treats {@code <>} per ANSI (NULL-propagating).
+            case "notEqualAnsi":
+                return "(" + args.get(0) + " <> " + args.get(1) + ")";
+
+            // {@code isDistinct(a, b)} → ANSI {@code IS DISTINCT FROM}.
+            // Treats NULLs as equal (so NULL IS DISTINCT FROM NULL is FALSE).
+            case "isDistinct":
+                return "(" + args.get(0) + " IS DISTINCT FROM " + args.get(1) + ")";
+
+            // {@code sqlTrue()} / {@code sqlFalse()} → boolean literals.
+            // Zero-arg DSL helpers used in mapping definitions to project a
+            // constant boolean column.
+            case "sqlTrue":
+                return "TRUE";
+            case "sqlFalse":
+                return "FALSE";
+
+            // {@code group(x)} → parenthesised passthrough. Pure DSL helper
+            // that makes operator precedence explicit in mapping expressions;
+            // semantically the identity at the SQL level.
+            case "group":
+                return "(" + args.get(0) + ")";
         }
 
         String sqlName = switch (pureName) {
@@ -745,6 +780,10 @@ public final class DuckDBDialect implements SQLDialect {
             case "regexpReplace" -> "REGEXP_REPLACE";
             case "strftime" -> "STRFTIME";
             case "makeTimestamp" -> "MAKE_TIMESTAMP";
+
+            // --- DynaFunction-style name remaps ---
+            // {@code repeatString(s, n)} → DuckDB native {@code REPEAT(s, n)}.
+            case "repeatString" -> "REPEAT";
 
             // Standard SQL: pass through unchanged
             default -> pureName;
