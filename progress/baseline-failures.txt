@@ -1,4 +1,4 @@
-BASELINE: tests=2670 failures=93 errors=133 skipped=19 broken=226
+BASELINE: tests=2670 failures=93 errors=129 skipped=19 broken=222
 ======================================================================
 ERROR	com.gs.legend.test.AssociationIntegrationTest$WildStress.testSelfJoinTwoHops
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testComparisonOperationAfterSize
@@ -14,9 +14,6 @@ ERROR	com.gs.legend.test.DuckDBIntegrationTest.testStdDevSample_negativeNumbers
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVariance_Sample_doesNotMatchInputArgs
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVarianceSample_doesNotMatchInputArgs
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVariantArrayColumn_reverse
-ERROR	com.gs.legend.test.JoinCheckerTest$ComplexConditions.testJoinWithAndCondition
-ERROR	com.gs.legend.test.JoinCheckerTest$EdgeCases.testJoinManyToMany
-ERROR	com.gs.legend.test.JoinCheckerTest$PrefixDeduplication.testPartialOverlapPrefix
 ERROR	com.gs.legend.test.JsonMappingIntegrationTest$AssociationWithJsonTests.testFilterOnAssociationScalarProjectJson
 ERROR	com.gs.legend.test.JsonMappingIntegrationTest$AssociationWithJsonTests.testMixedScalarFilterAssociationJsonProjection
 ERROR	com.gs.legend.test.JsonMappingIntegrationTest$AssociationWithJsonTests.testProjectThroughAssociation
@@ -40,7 +37,6 @@ ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$GapFeatures.testSchema
 ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$OtherwiseMappings.testOtherwiseEmbeddedProperty
 ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$OtherwiseMappings.testOtherwiseFilterOnEmbedded
 ERROR	com.gs.legend.test.RelationalMappingIntegrationTest$OtherwiseMappings.testOtherwiseMixed
-ERROR	com.gs.legend.test.RelationApiIntegrationTest$JoinTests.testExplicitJoinWithMatches
 ERROR	com.gs.legend.test.ScalarFunctionIntegrationTest.testPctHasSubsecondWithAtLeastPrecision
 ERROR	com.gs.legend.test.ScalarFunctionIntegrationTest.testPctRelationSelectWrite
 ERROR	com.gs.legend.test.ScalarFunctionIntegrationTest.testPctRemoveDuplicatesBy

@@ -11,7 +11,9 @@ import com.gs.legend.plan.lowering.Relations;
 import com.gs.legend.plan.sql.SqlRelation;
 import com.gs.legend.sqlgen.SqlExpr;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -68,7 +70,26 @@ public final class JoinLowering {
 
         SqlRelation join = new SqlRelation.Join(left, right, type, on);
         if (n.renames().isEmpty()) return join;
-        return new SqlRelation.Rename(join, new LinkedHashMap<>(n.renames()));
+        // Renames on a Join are right-side-only by construction (JoinChecker
+        // applies them to the V binding when a right-prefix is supplied;
+        // left columns are never in the map). Expanding via Rename(Join, ...)
+        // would qualify every column with a single alias from
+        // {@code ensureFromAlias(Join)} — which walks the left spine and
+        // produces the LEFT alias, mis-qualifying right-side columns and,
+        // worse, accidentally renaming a left column whose name matches a
+        // right rename key.
+        // Mirrors legacy generateJoin (pre-port reference line 2289-2316).
+        List<SqlRelation.Projection> projections = new ArrayList<>();
+        for (var c : left.outputs()) {
+            projections.add(new SqlRelation.Projection(
+                    c.name(), new SqlExpr.Column(left.alias(), c.name())));
+        }
+        for (var c : right.outputs()) {
+            String alias = n.renames().getOrDefault(c.name(), c.name());
+            projections.add(new SqlRelation.Projection(
+                    alias, new SqlExpr.Column(right.alias(), c.name())));
+        }
+        return new SqlRelation.Project(join, projections);
     }
 
     /**
