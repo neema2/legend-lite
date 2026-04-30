@@ -807,7 +807,11 @@ public interface SQLDialect {
      * single statement; otherwise we wrap as a subquery.
      */
     default String renderFilter(com.gs.legend.plan.sql.SqlRelation.Filter r) {
-        return renderAsStatement(r.source()) + " WHERE " + render(r.predicate());
+        // Route through renderFromClauseBody so a Filter chain
+        // {@code Filter(Filter(src, p2), p1)} collapses to a single
+        // {@code SELECT * FROM <src> WHERE p2 AND p1} instead of stacked
+        // {@code WHERE … WHERE …} (invalid SQL).
+        return "SELECT * " + renderFromClauseBody(r);
     }
 
     /**
@@ -821,25 +825,78 @@ public interface SQLDialect {
             var p = r.projections().get(i);
             sb.append(render(p.expr())).append(" AS ").append(quoteIdentifier(p.alias()));
         }
-        // Source composition. {@link com.gs.legend.plan.sql.SqlRelation.Filter}
-        // is a SQL clause (WHERE), not a from-item — wrapping it as
-        // {@code (SELECT * FROM ... WHERE ...) AS _s} would shadow inner
-        // aliases that the projections may reference. So Project-over-Filter
-        // fuses to the natural flat shape {@code SELECT proj FROM <src> WHERE
-        // <pred>}, mirroring how {@link #renderFilter}/{@link #renderSort}/
-        // {@link #renderLimit} already fuse their own clause onto the source's
-        // statement via {@link #renderAsStatement}.
-        if (r.source() instanceof com.gs.legend.plan.sql.SqlRelation.Filter f) {
-            return sb.append(" FROM ").append(renderAsFromItem(f.source()))
-                    .append(" WHERE ").append(render(f.predicate())).toString();
-        }
-        return sb.append(" FROM ").append(renderAsFromItem(r.source())).toString();
+        return sb.append(" ").append(renderFromClauseBody(r.source())).toString();
     }
 
-    /** {@code <source> ORDER BY k1 DIR, k2 DIR, ...}. */
-    default String renderSort(com.gs.legend.plan.sql.SqlRelation.Sort r) {
-        StringBuilder sb = new StringBuilder(renderAsStatement(r.source()));
-        sb.append(" ORDER BY ");
+    /**
+     * Render the {@code FROM &hellip;} body of a SELECT statement —
+     * everything from the {@code FROM} keyword to the end of the trailing
+     * clauses (optionally including {@code WHERE} / {@code ORDER BY} /
+     * {@code LIMIT}).
+     *
+     * <p>Used by every render method that emits a custom SELECT list —
+     * {@link #renderProject}, {@link #renderDistinct}, {@link #renderRename},
+     * {@link #renderExtend}, {@link #renderSelectExcept},
+     * {@link #renderGroupBy}, {@link #renderAggregateRel},
+     * {@link #renderSelect} — so they all compose with their source the same
+     * way. Per AGENTS.md invariant 3, the dialect owns ALL SQL composition;
+     * lowering only emits MIR shape.
+     *
+     * <p>Recognises clause-shaped sources whose SQL projection is a single
+     * clause (not a from-item) and inlines them — fusing
+     * {@code Project(Filter(Sort(src, k), p), proj)} into a flat
+     * {@code SELECT proj FROM src WHERE p ORDER BY k} instead of stacking
+     * subquery wrappers that would shadow inner aliases. Pure from-item
+     * sources ({@link com.gs.legend.plan.sql.SqlRelation.TableRef},
+     * {@link com.gs.legend.plan.sql.SqlRelation.SubqueryRel},
+     * {@link com.gs.legend.plan.sql.SqlRelation.Join},
+     * {@link com.gs.legend.plan.sql.SqlRelation.LateralUnnest}) emit a
+     * direct {@code FROM <item>}; SELECT-list-shaped sources fall back to
+     * {@link #renderAsFromItem} so SQL clause-order constraints stay
+     * honoured (e.g. you cannot WHERE-after-SELECT-projection).
+     */
+    default String renderFromClauseBody(com.gs.legend.plan.sql.SqlRelation source) {
+        return switch (source) {
+            // {@link Filter} is a {@code WHERE} clause — never a from-item.
+            // Walk the Filter chain to its terminal source, collect every
+            // predicate, and emit a single
+            // {@code FROM &lt;leaf&gt; WHERE p1 AND p2 AND …}. Recursion that
+            // appended {@code " WHERE pn"} per Filter would produce stacked
+            // {@code WHERE … WHERE …}, which is invalid SQL. Always safe to
+            // fuse: WHERE sits between FROM and SELECT in evaluation order,
+            // so the outer SELECT-list can reference any from-item alias
+            // visible to the WHEREs.
+            case com.gs.legend.plan.sql.SqlRelation.Filter f -> {
+                java.util.List<com.gs.legend.sqlgen.SqlExpr> preds = new java.util.ArrayList<>();
+                com.gs.legend.plan.sql.SqlRelation cur = f;
+                while (cur instanceof com.gs.legend.plan.sql.SqlRelation.Filter ff) {
+                    preds.add(ff.predicate());
+                    cur = ff.source();
+                }
+                java.util.Collections.reverse(preds);
+                StringBuilder sb = new StringBuilder(renderFromClauseBody(cur)).append(" WHERE ");
+                for (int i = 0; i < preds.size(); i++) {
+                    if (i > 0) sb.append(" AND ");
+                    sb.append(render(preds.get(i)));
+                }
+                yield sb.toString();
+            }
+            // {@link Sort} / {@link Limit} are deliberately NOT fused here:
+            // SQL clause-order constraints differ across consumers (e.g.
+            // {@code Distinct(Limit(x, n))} ≢ {@code SELECT DISTINCT * FROM x
+            // LIMIT n} — the former limits-then-dedupes, the latter
+            // dedupes-then-limits). Falling through to {@link #renderAsFromItem}
+            // wraps Sort/Limit as a subquery {@code (...) AS _s}, preserving
+            // the MIR-defined evaluation order. If a future caller needs
+            // Project-over-Sort fusion, lift the recursion here AFTER auditing
+            // each consumer's clause-order safety.
+            default -> "FROM " + renderAsFromItem(source);
+        };
+    }
+
+    /** Just the {@code ORDER BY ...} portion (no FROM, no source). */
+    default String renderSortClause(com.gs.legend.plan.sql.SqlRelation.Sort r) {
+        StringBuilder sb = new StringBuilder(" ORDER BY ");
         for (int i = 0; i < r.keys().size(); i++) {
             if (i > 0) sb.append(", ");
             var k = r.keys().get(i);
@@ -848,17 +905,27 @@ public interface SQLDialect {
         return sb.toString();
     }
 
-    /** {@code <source> LIMIT n OFFSET off}. Non-positive fields omitted. */
-    default String renderLimit(com.gs.legend.plan.sql.SqlRelation.Limit r) {
-        StringBuilder sb = new StringBuilder(renderAsStatement(r.source()));
+    /** Just the {@code LIMIT n [OFFSET o]} portion (no FROM, no source). */
+    default String renderLimitClause(com.gs.legend.plan.sql.SqlRelation.Limit r) {
+        StringBuilder sb = new StringBuilder();
         if (r.n() >= 0) sb.append(" LIMIT ").append(r.n());
         if (r.offset() > 0) sb.append(" OFFSET ").append(r.offset());
         return sb.toString();
     }
 
-    /** {@code SELECT DISTINCT * FROM <source>}. */
+    /** {@code <source> ORDER BY k1 DIR, k2 DIR, ...}. */
+    default String renderSort(com.gs.legend.plan.sql.SqlRelation.Sort r) {
+        return renderAsStatement(r.source()) + renderSortClause(r);
+    }
+
+    /** {@code <source> LIMIT n OFFSET off}. Non-positive fields omitted. */
+    default String renderLimit(com.gs.legend.plan.sql.SqlRelation.Limit r) {
+        return renderAsStatement(r.source()) + renderLimitClause(r);
+    }
+
+    /** {@code SELECT DISTINCT * <fromBody>}. */
     default String renderDistinct(com.gs.legend.plan.sql.SqlRelation.Distinct r) {
-        return "SELECT DISTINCT * FROM " + renderAsFromItem(r.source());
+        return "SELECT DISTINCT * " + renderFromClauseBody(r.source());
     }
 
     /**
@@ -879,17 +946,17 @@ public interface SQLDialect {
                 sb.append(" AS ").append(quoteIdentifier(newName));
             }
         }
-        return sb.append(" FROM ").append(renderAsFromItem(r.source())).toString();
+        return sb.append(" ").append(renderFromClauseBody(r.source())).toString();
     }
 
-    /** {@code SELECT c1, c2, ... FROM <source>}. */
+    /** {@code SELECT c1, c2, ... <fromBody>}. */
     default String renderSelect(com.gs.legend.plan.sql.SqlRelation.Select r) {
         StringBuilder sb = new StringBuilder("SELECT ");
         for (int i = 0; i < r.columns().size(); i++) {
             if (i > 0) sb.append(", ");
             sb.append(quoteIdentifier(r.columns().get(i)));
         }
-        return sb.append(" FROM ").append(renderAsFromItem(r.source())).toString();
+        return sb.append(" ").append(renderFromClauseBody(r.source())).toString();
     }
 
     /**
@@ -910,7 +977,7 @@ public interface SQLDialect {
             sb.append(", ").append(render(c.expr()))
                     .append(" AS ").append(quoteIdentifier(c.name()));
         }
-        return sb.append(" FROM ").append(renderAsFromItem(r.source())).toString();
+        return sb.append(" ").append(renderFromClauseBody(r.source())).toString();
     }
 
     /**
@@ -924,7 +991,7 @@ public interface SQLDialect {
         for (var c : r.cols()) {
             sb.append(", ").append(render(c.expr())).append(" AS ").append(quoteIdentifier(c.name()));
         }
-        return sb.append(" FROM ").append(renderAsFromItem(r.source())).toString();
+        return sb.append(" ").append(renderFromClauseBody(r.source())).toString();
     }
 
     /** {@code (<inner>) AS alias} — explicit subquery wrapping. */
@@ -949,7 +1016,7 @@ public interface SQLDialect {
             if (!first) sb.append(", "); first = false;
             sb.append(renderAgg(a)).append(" AS ").append(quoteIdentifier(a.alias()));
         }
-        sb.append(" FROM ").append(renderAsFromItem(r.source()));
+        sb.append(" ").append(renderFromClauseBody(r.source()));
         if (!r.keys().isEmpty()) {
             sb.append(" GROUP BY ");
             for (int i = 0; i < r.keys().size(); i++) {
@@ -968,7 +1035,7 @@ public interface SQLDialect {
             var a = r.aggs().get(i);
             sb.append(renderAgg(a)).append(" AS ").append(quoteIdentifier(a.alias()));
         }
-        return sb.append(" FROM ").append(renderAsFromItem(r.source())).toString();
+        return sb.append(" ").append(renderFromClauseBody(r.source())).toString();
     }
 
     /** Render one aggregate emission. Dispatches on the typed
