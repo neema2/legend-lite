@@ -1,4 +1,4 @@
-BASELINE: tests=2670 failures=93 errors=135 skipped=19 broken=228
+BASELINE: tests=2670 failures=93 errors=133 skipped=19 broken=226
 ======================================================================
 ERROR	com.gs.legend.test.AssociationIntegrationTest$WildStress.testSelfJoinTwoHops
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testComparisonOperationAfterSize
@@ -14,7 +14,6 @@ ERROR	com.gs.legend.test.DuckDBIntegrationTest.testStdDevSample_negativeNumbers
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVariance_Sample_doesNotMatchInputArgs
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVarianceSample_doesNotMatchInputArgs
 ERROR	com.gs.legend.test.DuckDBIntegrationTest.testVariantArrayColumn_reverse
-ERROR	com.gs.legend.test.GetCheckerTest$FlattenComposition.testFlattenThenGet
 ERROR	com.gs.legend.test.JoinCheckerTest$ComplexConditions.testJoinWithAndCondition
 ERROR	com.gs.legend.test.JoinCheckerTest$EdgeCases.testJoinManyToMany
 ERROR	com.gs.legend.test.JoinCheckerTest$PrefixDeduplication.testPartialOverlapPrefix
@@ -134,7 +133,6 @@ ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testTypedRel
 ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testTypedRelationParamMultiColumn
 ERROR	com.gs.legend.test.UserFunctionIntegrationTest$QueryReturning.testTypedRelationParamSuperset
 ERROR	com.gs.legend.test.UserFunctionIntegrationTest$RealisticUseCase.testBoundedScore
-ERROR	com.gs.legend.test.VariantIntegrationTest.testCastWithFlatten
 FAILURE	com.gs.legend.test.AsOfJoinCheckerTest$PrefixDeduplication.testAsOfJoinOverlappingWithPrefix
 FAILURE	com.gs.legend.test.AssociationIntegrationTest$GraphFetchDeepNesting.testDeepNestingNullFkAtDepth2
 FAILURE	com.gs.legend.test.AssociationIntegrationTest$GraphFetchDeepNesting.testDeepNestingNullFkToManyAtDepth2
