@@ -76,6 +76,10 @@ public final class NavScope {
                     prefix, alias,
                     u.arrayProperty(),
                     u.targetResolution());
+            case JoinResolution.Otherwise ignored -> throw new IllegalStateException(
+                    "NavScope.navigate: Otherwise must be unwrapped by caller "
+                            + "(dispatch on leaf property: embedded sub-col → parent alias, "
+                            + "non-embedded → register fallback FkJoin instead). prefix=" + prefix);
             case JoinResolution.Embedded ignored -> throw new IllegalStateException(
                     "NavScope.navigate: Embedded must be advanced past by caller, "
                             + "not registered as a nav hop (prefix=" + prefix + ")");

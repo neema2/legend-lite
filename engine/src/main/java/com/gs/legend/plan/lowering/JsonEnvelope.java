@@ -161,13 +161,22 @@ public final class JsonEnvelope {
                     "graphFetch nested property '" + node.propertyName()
                             + "' has no resolved join in the parent class store");
         }
-        JoinResolution jr = parentStore.joins().get(node.propertyName());
-        if (!(jr instanceof JoinResolution.FkJoin fk)) {
-            throw new PureCompileException(
+        JoinResolution rawJr = parentStore.joins().get(node.propertyName());
+        // Otherwise mappings: graphFetch always traverses the FK fallback
+        // (the embedded sub-cols are reachable on the parent row but
+        // graphFetch nested-tree shape requires a child row source).
+        // Exhaustive sealed dispatch so adding a new JoinResolution variant
+        // forces graphFetch to declare its handling.
+        JoinResolution.FkJoin fk = switch (rawJr) {
+            case JoinResolution.FkJoin direct -> direct;
+            case JoinResolution.Otherwise ow -> ow.fallback();
+            case JoinResolution.Embedded ignored -> throw new PureCompileException(
                     "graphFetch nested property '" + node.propertyName()
-                            + "' resolves to " + jr.getClass().getSimpleName()
-                            + " — only FkJoin is supported in nested position");
-        }
+                            + "' resolves to Embedded — only FkJoin is supported in nested position");
+            case JoinResolution.StructArrayUnnest ignored -> throw new PureCompileException(
+                    "graphFetch nested property '" + node.propertyName()
+                            + "' resolves to StructArrayUnnest — only FkJoin is supported in nested position");
+        };
 
         String childAlias = ctx.nextAlias();
         SqlRelation child = Relations.joinTargetRelation(

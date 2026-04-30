@@ -69,21 +69,55 @@ public final class PropertyAccessLowering {
             if (jr == null) {
                 throw PlanGenNotPortedException.stage3(n, "associationPath:unresolved:" + assoc);
             }
+            // Otherwise mapping: dispatch at the hop site based on the leaf
+            // property. If the next segment of the path is in the embedded
+            // sub-cols, emit a column on the PARENT alias directly — no JOIN
+            // installed. Otherwise unwrap to the FK fallback and continue
+            // the regular navigation.
+            if (jr instanceof JoinResolution.Otherwise ow) {
+                String leafProp = (i + 1 < path.size()) ? path.get(i + 1) : n.property();
+                String embeddedCol = ow.embeddedSubCols().get(leafProp);
+                if (embeddedCol != null) {
+                    // Embedded path: parent column on parent alias. Skip
+                    // navigation entirely; NavScope stays empty for this hop.
+                    return new SqlExpr.Column(rowAlias, embeddedCol);
+                }
+                jr = ow.fallback();
+            }
             List<String> prefix = List.copyOf(path.subList(0, i + 1));
-            if (jr instanceof JoinResolution.Embedded) {
-                store = jr.targetResolution();
-                // parentPrefix advances so that any following non-embedded hop
-                // records its parent correctly even across embedded segments.
-                parentPrefix = prefix;
-                continue;
+            // Exhaustive sealed dispatch on the remaining variants. Otherwise
+            // is unreachable here (unwrapped above) but the arm exists for
+            // javac exhaustiveness — adding a new JoinResolution variant
+            // forces every site to handle it.
+            switch (jr) {
+                case JoinResolution.Embedded ignored -> {
+                    store = jr.targetResolution();
+                    // parentPrefix advances so that any following non-embedded
+                    // hop records its parent correctly even across embedded
+                    // segments.
+                    parentPrefix = prefix;
+                }
+                case JoinResolution.FkJoin fk -> {
+                    if (ctx.navScope() == null) {
+                        throw PlanGenNotPortedException.stage3(n,
+                                "associationPath:non-embedded-without-navscope:" + assoc);
+                    }
+                    rowAlias = ctx.navScope().navigate(prefix, parentPrefix, fk, ctx.aliases());
+                    store = fk.targetResolution();
+                    parentPrefix = prefix;
+                }
+                case JoinResolution.StructArrayUnnest u -> {
+                    if (ctx.navScope() == null) {
+                        throw PlanGenNotPortedException.stage3(n,
+                                "associationPath:non-embedded-without-navscope:" + assoc);
+                    }
+                    rowAlias = ctx.navScope().navigate(prefix, parentPrefix, u, ctx.aliases());
+                    store = u.targetResolution();
+                    parentPrefix = prefix;
+                }
+                case JoinResolution.Otherwise ignored -> throw new IllegalStateException(
+                        "PropertyAccessLowering: Otherwise unwrapped above; reaching this arm is impossible");
             }
-            if (ctx.navScope() == null) {
-                throw PlanGenNotPortedException.stage3(n,
-                        "associationPath:non-embedded-without-navscope:" + assoc);
-            }
-            rowAlias = ctx.navScope().navigate(prefix, parentPrefix, jr, ctx.aliases());
-            store = jr.targetResolution();
-            parentPrefix = prefix;
         }
         return new SqlExpr.Column(rowAlias, physicalColumnFor(n.property(), store));
     }

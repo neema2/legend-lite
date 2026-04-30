@@ -105,6 +105,35 @@ public record StoreResolution(
         StoreResolution targetResolution();
 
         /**
+         * Otherwise mapping: the property has BOTH an embedded sub-mapping
+         * (sub-properties live as columns on the PARENT table — no JOIN) AND
+         * an FK fallback (used for any sub-property not covered by the embedded
+         * sub-cols). Pure syntax:
+         * <pre>
+         *   firm (
+         *       legalName: T_PERSON.FIRM_NAME    // embedded
+         *   ) Otherwise([firm_set1]: @Person_Firm)  // FK fallback
+         * </pre>
+         *
+         * <p>Property access dispatches at the hop site: if the leaf property
+         * name is in {@link #embeddedSubCols}, emit a column on the parent
+         * alias directly (no navigation, no JOIN). Otherwise unwrap to
+         * {@link #fallback} and continue the FK navigation. This makes JOIN
+         * emission lazy: when only embedded sub-properties are accessed, no
+         * physical JOIN is ever installed (NavScope stays empty).
+         *
+         * @param embeddedSubCols Sub-property name → physical column on the
+         *                        parent table.
+         * @param fallback        FK join used for non-embedded sub-properties.
+         */
+        record Otherwise(
+                java.util.Map<String, String> embeddedSubCols,
+                FkJoin fallback) implements JoinResolution {
+            @Override public boolean isToMany() { return fallback.isToMany(); }
+            @Override public StoreResolution targetResolution() { return fallback.targetResolution(); }
+        }
+
+        /**
          * Physical FK join: rendered as {@code LEFT JOIN <targetTable> ON <joinCondition>}.
          *
          * @param targetTable      Physical table to join to.

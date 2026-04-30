@@ -644,6 +644,15 @@ public final class MappingResolver {
                     isToMany, e.targetResolution());
             case StoreResolution.JoinResolution.StructArrayUnnest u -> new StoreResolution.JoinResolution.StructArrayUnnest(
                     u.arrayProperty(), isToMany, u.targetResolution());
+            case StoreResolution.JoinResolution.Otherwise ow -> {
+                StoreResolution.JoinResolution.FkJoin fk = ow.fallback();
+                yield new StoreResolution.JoinResolution.Otherwise(
+                        ow.embeddedSubCols(),
+                        new StoreResolution.JoinResolution.FkJoin(
+                                fk.targetTable(), fk.sourceParam(), fk.targetParam(),
+                                isToMany, fk.joinCondition(), fk.sourceColumns(),
+                                fk.targetResolution()));
+            }
         };
     }
 
@@ -880,7 +889,19 @@ public final class MappingResolver {
             case TypedAssociationExtendCol a -> {
                 if (!neededAssocs.contains(a.alias())) return;
                 var joinRes = buildAssociationJoin(a, className);
-                if (joinRes != null) joins.put(a.alias(), joinRes);
+                if (joinRes == null) return;
+                // Otherwise mapping: an embedded extend already populated
+                // an Embedded JoinResolution under the same alias. Wrap the
+                // FK fallback with the embedded sub-cols so PropertyAccessLowering
+                // can dispatch at access time.
+                StoreResolution.JoinResolution existing = joins.get(a.alias());
+                if (existing instanceof StoreResolution.JoinResolution.Embedded emb
+                        && joinRes instanceof StoreResolution.JoinResolution.FkJoin fk) {
+                    joins.put(a.alias(), new StoreResolution.JoinResolution.Otherwise(
+                            embeddedSubColMap(emb), fk));
+                } else {
+                    joins.put(a.alias(), joinRes);
+                }
             }
             case TypedEmbeddedExtendCol e -> {
                 joins.put(e.alias(), mergeOrBuildEmbeddedJoin(e, tableName, joins.get(e.alias())));
@@ -1077,30 +1098,28 @@ public final class MappingResolver {
                     new StoreResolution.PropertyResolution.EmbeddedColumn(sub.columnName()));
         }
 
-        // Association + embedded collision: fold sub-cols into the existing
-        // FK join's target resolution, keeping the physical JOIN. (Embedded
-        // and StructArrayUnnest don't collide here — they don't carry an
-        // FK target to merge into.)
+        // Otherwise mapping: an FK join already exists for this alias. The
+        // property has both an embedded sub-mapping (sub-cols on parent table)
+        // AND an FK fallback. Wrap in an {@link Otherwise} so
+        // {@link com.gs.legend.plan.lowering.scalar.PropertyAccessLowering}
+        // dispatches at access time: embedded sub-cols → parent column directly
+        // (no JOIN); other sub-properties → fall through to the FK join.
         if (existing instanceof StoreResolution.JoinResolution.FkJoin fk) {
-            var assocTarget = fk.targetResolution();
-            var mergedPropToCol = new LinkedHashMap<>(assocTarget.propertyToColumn());
-            mergedPropToCol.putAll(subPropToCol);
-            var mergedProperties = new LinkedHashMap<>(assocTarget.properties());
-            mergedProperties.putAll(subProperties);
-            var mergedTarget = new StoreResolution(
-                    assocTarget.tableName(), assocTarget.className(),
-                    mergedPropToCol, mergedProperties,
-                    assocTarget.joins(), assocTarget.nested());
-            return new StoreResolution.JoinResolution.FkJoin(
-                    fk.targetTable(), fk.sourceParam(),
-                    fk.targetParam(), fk.isToMany(),
-                    fk.joinCondition(), fk.sourceColumns(),
-                    mergedTarget);
+            return new StoreResolution.JoinResolution.Otherwise(subPropToCol, fk);
         }
 
         StoreResolution embeddedTarget = new StoreResolution(
                 parentTable, null, subPropToCol, subProperties, Map.of(), false);
         return new StoreResolution.JoinResolution.Embedded(false, embeddedTarget);
+    }
+
+    /**
+     * Extract the parent-table column map from an Embedded JoinResolution
+     * built by {@link #mergeOrBuildEmbeddedJoin}. Used when an Otherwise
+     * mapping arrives in the order embedded-then-association.
+     */
+    private static Map<String, String> embeddedSubColMap(StoreResolution.JoinResolution.Embedded emb) {
+        return emb.targetResolution().propertyToColumn();
     }
 
     /**

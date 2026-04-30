@@ -232,15 +232,38 @@ public final class GroupByAggregateLowering {
                 throw PlanGenNotPortedException.stage3(null,
                         "groupby:assoc-key:unresolved:" + assoc);
             }
-            List<String> prefix = List.copyOf(path.subList(0, i + 1));
-            if (jr instanceof com.gs.legend.compiler.StoreResolution.JoinResolution.Embedded) {
-                curStore = jr.targetResolution();
-                parentPrefix = prefix;
-                continue;
+            // Otherwise mapping: dispatch at hop site (mirrors PropertyAccessLowering).
+            // Embedded leaf → column on parent alias, no JOIN. Else fall through to FK.
+            if (jr instanceof com.gs.legend.compiler.StoreResolution.JoinResolution.Otherwise ow) {
+                String leafProp = (i + 1 < path.size()) ? path.get(i + 1) : null;
+                String embeddedCol = leafProp == null ? null : ow.embeddedSubCols().get(leafProp);
+                if (embeddedCol != null) {
+                    return new SqlExpr.Column(rowAlias, embeddedCol);
+                }
+                jr = ow.fallback();
             }
-            rowAlias = ctx.navScope().navigate(prefix, parentPrefix, jr, ctx.aliases());
-            curStore = jr.targetResolution();
-            parentPrefix = prefix;
+            List<String> prefix = List.copyOf(path.subList(0, i + 1));
+            // Exhaustive sealed dispatch — Otherwise unwrapped above, but
+            // arm exists so adding a new variant forces this site to handle it.
+            switch (jr) {
+                case com.gs.legend.compiler.StoreResolution.JoinResolution.Embedded ignored -> {
+                    curStore = jr.targetResolution();
+                    parentPrefix = prefix;
+                }
+                case com.gs.legend.compiler.StoreResolution.JoinResolution.FkJoin fk -> {
+                    rowAlias = ctx.navScope().navigate(prefix, parentPrefix, fk, ctx.aliases());
+                    curStore = fk.targetResolution();
+                    parentPrefix = prefix;
+                }
+                case com.gs.legend.compiler.StoreResolution.JoinResolution.StructArrayUnnest u -> {
+                    rowAlias = ctx.navScope().navigate(prefix, parentPrefix, u, ctx.aliases());
+                    curStore = u.targetResolution();
+                    parentPrefix = prefix;
+                }
+                case com.gs.legend.compiler.StoreResolution.JoinResolution.Otherwise ignored ->
+                        throw new IllegalStateException(
+                                "GroupByAggregateLowering: Otherwise unwrapped above; reaching this arm is impossible");
+            }
         }
         String terminal = path.get(path.size() - 1);
         return new SqlExpr.Column(rowAlias, resolveColumn(terminal, curStore));
