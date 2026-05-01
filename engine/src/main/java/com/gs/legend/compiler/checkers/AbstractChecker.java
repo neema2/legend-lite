@@ -1048,8 +1048,9 @@ public abstract class AbstractChecker implements FunctionChecker {
      */
     protected com.gs.legend.compiler.typed.TypedLambda compileLambdaArg(
             ValueSpecification arg, Type.Parameter sigParam,
-            Bindings bindings, TypedSpec source,
-            TypeChecker.CompilationContext ctx, String funcName) {
+            Bindings bindings,
+            TypeChecker.CompilationContext ctx, String funcName,
+            TypedSpec... sources) {
         if (!(arg instanceof LambdaFunction lambda)) {
             throw new PureCompileException(
                     funcName + "(): lambda argument expected, got "
@@ -1058,9 +1059,27 @@ public abstract class AbstractChecker implements FunctionChecker {
         Type.FunctionType ft = extractFunctionType(sigParam);
 
         // Bind lambda params into a fresh ctx AND capture resolved (type, mult)
-        // for the typed parameter list on the returned TypedLambda.
+        // for the typed parameter list on the returned TypedLambda. Strict
+        // arity: silent truncation would mask real call-site bugs (extra
+        // lambda params unbound, extra FT params unaccounted for).
+        if (lambda.parameters().size() != ft.params().size()) {
+            throw new PureCompileException(
+                    funcName + "(): lambda has " + lambda.parameters().size()
+                            + " parameter(s) but signature requires "
+                            + ft.params().size());
+        }
+        // Sources arity: 1 = broadcast to all params (filter / map / sort /
+        // fold / etc.); N = one source per param (join / asOfJoin). Anything
+        // else is a caller bug.
+        if (sources.length != 1 && sources.length != ft.params().size()) {
+            throw new PureCompileException(
+                    funcName + "(): " + sources.length
+                            + " source(s) supplied for " + ft.params().size()
+                            + " lambda param(s) — must be 1 (broadcast) or "
+                            + ft.params().size() + " (per-param)");
+        }
         TypeChecker.CompilationContext lambdaCtx = ctx;
-        int paramCount = Math.min(lambda.parameters().size(), ft.params().size());
+        int paramCount = ft.params().size();
         var typedParams = new java.util.ArrayList<com.gs.legend.compiler.typed.TypedParam>(paramCount);
         for (int pi = 0; pi < paramCount; pi++) {
             String paramName = lambda.parameters().get(pi).name();
@@ -1071,7 +1090,8 @@ public abstract class AbstractChecker implements FunctionChecker {
                     funcName + "() lambda param " + pi + " mult");
             typedParams.add(new com.gs.legend.compiler.typed.TypedParam(
                     paramName, resolvedType, resolvedMult));
-            lambdaCtx = bindLambdaParam(lambdaCtx, paramName, resolvedType, source);
+            TypedSpec sourceForParam = sources.length == 1 ? sources[0] : sources[pi];
+            lambdaCtx = bindLambdaParam(lambdaCtx, paramName, resolvedType, sourceForParam);
         }
 
         if (lambda.body().isEmpty()) {
@@ -1101,6 +1121,61 @@ public abstract class AbstractChecker implements FunctionChecker {
                 typedParams,
                 java.util.List.of(bodyResult),
                 bodyResult.info());
+    }
+
+    /**
+     * β-reduce a literal lambda against already-typed value arguments — the
+     * sibling of {@link #compileLambdaArg}. Where {@code compileLambdaArg}
+     * constructs a {@link com.gs.legend.compiler.typed.TypedLambda} that
+     * survives in the HIR for runtime evaluation, this consumes the lambda
+     * at type-check time and produces a {@link com.gs.legend.compiler.typed.TypedBlock}
+     * of {@link com.gs.legend.compiler.typed.TypedLet} wrappers followed by
+     * the compiled body — equivalent to the textbook desugaring
+     * {@code lambda({a,b| body}, x, y) ↝ let a = x; let b = y; body}.
+     *
+     * <p>Used by {@code eval(lambda, args)} and {@code match} chosen-branch
+     * compilation. Each {@code $param} reference inside the body resolves
+     * to a {@link com.gs.legend.compiler.typed.TypedVariable} of role
+     * {@link com.gs.legend.compiler.typed.Role#LET_BINDING}; the lowerer's
+     * {@code bindVar}/{@code bindRel} on the emitted {@code TypedLet}
+     * installs the value at each reference site, uniformly with how a real
+     * source-level let-statement would.
+     *
+     * <p><b>Caller responsibility — caller-scope evaluation:</b> all
+     * {@code typedArgs} must be pre-compiled in the caller's enclosing
+     * {@code ctx}, NOT progressively in a context extended with prior
+     * bindings. Function-call arguments evaluate in caller scope per Pure
+     * semantics, so this helper deliberately does no per-arg compilation.
+     *
+     * <p>Strict arity: {@code typedArgs.size()} must equal
+     * {@code lambda.parameters().size()} or a {@link PureCompileException}
+     * is thrown.
+     */
+    protected com.gs.legend.compiler.typed.TypedBlock desugarLambdaApplication(
+            LambdaFunction lambda, java.util.List<TypedSpec> typedArgs,
+            TypeChecker.CompilationContext ctx, String errCtx) {
+        if (lambda.parameters().size() != typedArgs.size()) {
+            throw new PureCompileException(
+                    errCtx + ": lambda expects " + lambda.parameters().size()
+                            + " argument(s) but " + typedArgs.size()
+                            + " were supplied");
+        }
+        if (lambda.body().isEmpty()) {
+            throw new PureCompileException(
+                    errCtx + ": lambda body is empty");
+        }
+        TypeChecker.CompilationContext bodyCtx = ctx;
+        java.util.List<TypedSpec> stmts = new java.util.ArrayList<>(typedArgs.size() + 1);
+        for (int i = 0; i < typedArgs.size(); i++) {
+            String paramName = lambda.parameters().get(i).name();
+            TypedSpec typedArg = typedArgs.get(i);
+            bodyCtx = bodyCtx.withLetBinding(paramName, typedArg);
+            stmts.add(new com.gs.legend.compiler.typed.TypedLet(
+                    paramName, typedArg, typedArg.info()));
+        }
+        TypedSpec body = compileLambdaBody(lambda, bodyCtx);
+        stmts.add(body);
+        return new com.gs.legend.compiler.typed.TypedBlock(stmts, body.info());
     }
 
     // ========== Shared utilities ==========

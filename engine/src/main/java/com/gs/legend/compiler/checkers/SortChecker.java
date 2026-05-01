@@ -234,7 +234,7 @@ public class SortChecker extends AbstractChecker {
             }
             Type.Parameter sigParam = def.params().get(i);
             TypedLambda compiled = compileLambdaArg(
-                    lambda, sigParam, bindings, source, ctx, "sort");
+                    lambda, sigParam, bindings, ctx, "sort", source);
             if (keyLambda == null) keyLambda = compiled;
         }
 
@@ -261,7 +261,7 @@ public class SortChecker extends AbstractChecker {
         var bindings = unify(def, source.expressionType());
         LambdaFunction lambda = (LambdaFunction) af.parameters().get(1);
         TypedLambda keyLambda = compileLambdaArg(
-                lambda, def.params().get(1), bindings, source, ctx, "sortBy");
+                lambda, def.params().get(1), bindings, ctx, "sortBy", source);
 
         ExpressionType outputType = resolveOutput(def, bindings, "sortBy()");
         return new TypedSort(source,

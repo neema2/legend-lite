@@ -1375,15 +1375,6 @@ class UserFunctionIntegrationTest {
         }
 
         @Test
-        @org.junit.jupiter.api.Disabled("""
-                Known failure on current env-based UserCallLowering. The body \
-                'let x = $x * 2; $x + 1' should produce (age*2)+1, but the \
-                current implementation produces ((age*2)*2)+1 — the inner \
-                $x reference (LET_BINDING role) is incorrectly re-substituted \
-                with the function-param actual instead of the let value. \
-                This probe documents the desired post-refactor behavior; \
-                Resolver-time inlining with Role-discriminated substitution \
-                will fix it. Re-enable after the refactor.""")
         @DisplayName("Probe 4 — let-binding name shadows function param")
         void testLetShadowsFunctionParam() throws SQLException {
             String model = modelWith("""

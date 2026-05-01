@@ -56,7 +56,7 @@ public class MapChecker extends AbstractChecker {
             throw new PureCompileException("map() argument 2 must be a lambda");
         }
         TypedLambda mapper = compileLambdaArg(
-                lambdaAst, def.params().get(1), bindings, source, ctx, "map");
+                lambdaAst, def.params().get(1), bindings, ctx, "map", source);
 
         // Output type is V[*] or V[0..1] — V was bound by compileLambdaArg from
         // the body's return type.

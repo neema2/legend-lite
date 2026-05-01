@@ -38,7 +38,7 @@ public class FilterChecker extends AbstractChecker {
         // Compile predicate lambda — helper narrows VS → LambdaFunction and throws
         // on mismatch, so no defensive instanceof check is needed here.
         TypedLambda predicate = compileLambdaArg(
-                params.get(1), def.params().get(1), bindings, source, ctx, "filter");
+                params.get(1), def.params().get(1), bindings, ctx, "filter", source);
 
         // Output type from signature's return type + bindings.
         ExpressionType outputType = resolveOutput(def, bindings, "filter()");

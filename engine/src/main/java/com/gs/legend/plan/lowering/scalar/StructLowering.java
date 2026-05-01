@@ -96,6 +96,16 @@ public final class StructLowering {
                     n.info());
             return Lowerer.lowerScalar(lifted, ctx);
         }
+        // Variable source bound as deferred HIR (e.g. {@code let p = ^Class(...)}
+        // installed via {@link LoweringContext#bindRel} by the TypedBlock
+        // lowering): unwrap to the bound node and recurse so the
+        // TypedNewInstance branch above resolves the field. The let-binding
+        // mechanism replaces the previous TypeChecker-time splice of the let
+        // value's HIR into use sites.
+        if (n.source() instanceof com.gs.legend.compiler.typed.TypedVariable v
+                && ctx.lookupBinding(v.name()) instanceof LoweringContext.Rel rel) {
+            return lower(new TypedStructExtract(rel.node(), n.field(), n.info()), ctx);
+        }
         throw PlanGenNotPortedException.stage4(n);
     }
 }

@@ -121,40 +121,24 @@ public final class ControlFlowLowering {
     }
 
     /**
-     * {@code $f->eval($x)} pattern.
+     * {@code $f->eval(args)} where {@code $f} is a function-typed parameter.
      *
-     * <p>The applicable is a {@link com.gs.legend.compiler.typed.TypedVariable}
-     * bound (by {@link UserCallLowering}) as deferred typed HIR — typically
-     * a {@link com.gs.legend.compiler.typed.TypedLambda} actual passed to a
-     * higher-order user function. To produce correct SQL we must bind the
-     * lambda's parameters to the eval-time argument expressions before
-     * lowering the lambda body, otherwise the parameter names leak into the
-     * SQL as raw identifiers (a common dialect-binder error).
+     * <p><b>This arm should never fire.</b>
+     * {@link com.gs.legend.compiler.UserCallInliner#expandLambdaApplication}
+     * β-reduces every {@link TypedEval} during inlining, with the lambda's
+     * formal parameters substituted by the eval args. By the time the HIR
+     * reaches the lowerer, no {@code TypedEval} survives.
      *
-     * <p>Falls back to scalar-lowering the applicable when it is not a
-     * deferred lambda binding (e.g., a function reference left for native
-     * dispatch), preserving the legacy pass-through behavior for those cases.
+     * <p>If this throws, the inliner failed to see the lambda binding for
+     * {@code $f}: fix the inliner so it does, rather than re-implementing
+     * β-reduction at lowering time (which previously lived here as a
+     * duplicate, with a {@code Math.min} arity bug the inliner version
+     * doesn't have).
      */
     public static SqlExpr lower(TypedEval n, LoweringContext ctx) {
-        LoweringContext.VarBinding binding = ctx.lookupBinding(n.applicable().name());
-        if (binding instanceof LoweringContext.Rel rel
-                && rel.node() instanceof com.gs.legend.compiler.typed.TypedLambda lam) {
-            LoweringContext bodyCtx = ctx;
-            int arity = Math.min(lam.parameters().size(), n.args().size());
-            for (int i = 0; i < arity; i++) {
-                String paramName = lam.parameters().get(i).name();
-                SqlExpr argExpr = Lowerer.lowerScalar(n.args().get(i), ctx);
-                bodyCtx = bodyCtx.bindVar(paramName, argExpr, null);
-            }
-            // Lambda body is a list of statements; the last is the result.
-            return Lowerer.lowerScalar(lam.body().get(lam.body().size() - 1), bodyCtx);
-        }
-        // Non-lambda applicable: evaluate args for side effects and lower
-        // the applicable as the call's result (legacy pass-through).
-        for (TypedSpec arg : n.args()) {
-            Lowerer.lowerScalar(arg, ctx);
-        }
-        return Lowerer.lowerScalar(n.applicable(), ctx);
+        throw new IllegalStateException(
+                "TypedEval reached lowering — UserCallInliner.expandLambdaApplication "
+                        + "should have β-reduced it. applicable=" + n.applicable().name());
     }
 
     /**

@@ -1118,21 +1118,23 @@ public class TypeChecker implements TypeCheckEnv {
      */
     private com.gs.legend.compiler.typed.TypedLambda compileLambdaWithExpectedType(
             LambdaFunction lambda, Type.FunctionType expectedFT, CompilationContext ctx) {
-        // 1. Bind lambda params from expected FunctionType
+        // 1. Bind lambda params from expected FunctionType. Strict arity:
+        //    silent Math.min truncation would mask real call-site bugs.
+        if (lambda.parameters().size() != expectedFT.params().size()) {
+            throw new PureCompileException(
+                    "Lambda has " + lambda.parameters().size()
+                            + " parameter(s) but expected function type requires "
+                            + expectedFT.params().size());
+        }
         CompilationContext lambdaCtx = ctx;
-        int paramCount = Math.min(lambda.parameters().size(), expectedFT.params().size());
-        List<com.gs.legend.compiler.typed.TypedParam> typedParams = new ArrayList<>(lambda.parameters().size());
+        int paramCount = expectedFT.params().size();
+        List<com.gs.legend.compiler.typed.TypedParam> typedParams = new ArrayList<>(paramCount);
         for (int i = 0; i < paramCount; i++) {
             String paramName = lambda.parameters().get(i).name();
             Type paramType = classifyUserType(expectedFT.params().get(i).type());
             lambdaCtx = lambdaCtx.withLambdaParam(paramName, paramType);
             typedParams.add(new com.gs.legend.compiler.typed.TypedParam(
                     paramName, paramType, expectedFT.params().get(i).multiplicity()));
-        }
-        // Any extra unbound lambda params (rare): pass through with null type.
-        for (int i = paramCount; i < lambda.parameters().size(); i++) {
-            typedParams.add(new com.gs.legend.compiler.typed.TypedParam(
-                    lambda.parameters().get(i).name(), null, null));
         }
 
         // 2. Compile body + validate return via the shared body-compile primitive.
@@ -1265,12 +1267,24 @@ public class TypeChecker implements TypeCheckEnv {
                     com.gs.legend.compiler.typed.Role.LAMBDA_PARAM,
                     ExpressionType.one(new Type.Relation(varType)));
         }
-        // Let binding → return the already-compiled bound value directly. This is
-        // the typed HIR's "inlining": the variable reference resolves structurally
-        // to the bound expression's TypedSpec tree.
+        // Let binding → emit a TypedVariable with role LET_BINDING carrying
+        // the bound value's type. The reference resolves at LOWERING time via
+        // the binder's installed bindVar/bindRel (see ControlFlowLowering for
+        // TypedBlock/TypedLet). We deliberately do NOT splice the bound HIR
+        // into the use site — splicing at type-check time captures any
+        // same-named outer bindings inside the RHS and conflates type-checking
+        // with optimisation.
+        //
+        // letBindings is still the right ctx field to consult here (it tracks
+        // names introduced by {@link #compileBodyStatements} and the binder
+        // checkers below); we just use it to look up the type rather than to
+        // inline the value.
         com.gs.legend.compiler.typed.TypedSpec letValue = ctx.getLetBinding(v.name());
         if (letValue != null) {
-            return letValue;
+            return new com.gs.legend.compiler.typed.TypedVariable(
+                    v.name(),
+                    com.gs.legend.compiler.typed.Role.LET_BINDING,
+                    letValue.info());
         }
         // Lambda parameter with a known declared type.
         Type lambdaType = ctx.getLambdaParamType(v.name());

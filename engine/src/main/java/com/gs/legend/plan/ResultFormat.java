@@ -4,7 +4,6 @@ import com.gs.legend.compiler.typed.TypedGraphFetch;
 import com.gs.legend.compiler.typed.TypedSerialize;
 import com.gs.legend.compiler.typed.TypedSerializeImplicit;
 import com.gs.legend.compiler.typed.TypedSpec;
-import com.gs.legend.compiler.typed.TypedUserCall;
 import com.gs.legend.compiler.typed.TypedWrite;
 import com.gs.legend.model.m3.Type;
 
@@ -52,9 +51,6 @@ public sealed interface ResultFormat {
         }
         if (node instanceof TypedWrite) {
             return new Scalar();
-        }
-        if (node instanceof TypedUserCall uc) {
-            return from(uc.callee().body().hir());
         }
         return node.type() instanceof Type.Relation ? new Tabular() : new Scalar();
     }

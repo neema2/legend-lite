@@ -61,21 +61,16 @@ public class MatchChecker extends AbstractChecker {
                 }
             }
 
-            // Bind the branch's params as let bindings so references to them
-            // resolve to the input (and optional extra arg) when compiling the body.
-            // Let-bindings carry typed specs post-HIR migration, so pass the already-
-            // compiled input and the typed-compilation of the optional extra arg.
-            TypeChecker.CompilationContext matchCtx = ctx
-                    .withLetBinding(branchParam.name(), inputTyped);
+            // β-reduce the chosen branch via the shared helper. Args
+            // pre-compiled in the OUTER ctx (caller-scope evaluation).
+            // Bindings flow through emitted TypedLets so $param references
+            // in the body resolve uniformly with source-level let-statements.
+            java.util.List<TypedSpec> typedArgs = new java.util.ArrayList<>(2);
+            typedArgs.add(inputTyped);
             if (branch.parameters().size() > 1 && params.size() > 2) {
-                matchCtx = matchCtx.withLetBinding(
-                        branch.parameters().get(1).name(),
-                        env.compileExpr(params.get(2), ctx));
+                typedArgs.add(env.compileExpr(params.get(2), ctx));
             }
-
-            if (!branch.body().isEmpty()) {
-                return env.compileExpr(branch.body().get(0), matchCtx);
-            }
+            return desugarLambdaApplication(branch, typedArgs, ctx, "match");
         }
 
         throw new PureCompileException(

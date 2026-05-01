@@ -50,12 +50,19 @@ public class EvalChecker extends AbstractChecker {
                 List<ValueSpecification> args = params.subList(1, params.size());
                 yield env.compileExpr(new AppliedFunction(funcName, args), ctx);
             }
-            // {@code eval(lambda, args...)} or {@code eval(lambda)}.
+            // {@code eval(lambda, args...)} or {@code eval(lambda)} —
+            // β-reduce the literal lambda. Args pre-compiled in the OUTER
+            // ctx (caller-scope evaluation, Pure semantics).
             case LambdaFunction lambda -> {
-                TypeChecker.CompilationContext evalCtx = params.size() > 1
-                        ? bindLambdaArgs(lambda, params.subList(1, params.size()), ctx)
-                        : ctx;
-                yield compileLambdaBody(lambda, evalCtx);
+                if (params.size() <= 1) {
+                    yield compileLambdaBody(lambda, ctx);
+                }
+                List<ValueSpecification> args = params.subList(1, params.size());
+                java.util.List<TypedSpec> typedArgs = new java.util.ArrayList<>(args.size());
+                for (ValueSpecification a : args) {
+                    typedArgs.add(env.compileExpr(a, ctx));
+                }
+                yield desugarLambdaApplication(lambda, typedArgs, ctx, "eval");
             }
             // {@code $f->eval(args...)} where {@code $f} is a Variable of
             // FunctionType. Occurs during declaration-time body compile of a
@@ -97,22 +104,6 @@ public class EvalChecker extends AbstractChecker {
                     "eval(): first argument must be a function reference, column spec, or lambda, got "
                             + params.get(0).getClass().getSimpleName());
         };
-    }
-
-    /**
-     * Binds each lambda parameter to its corresponding eval argument as a
-     * let binding, compiling each arg along the way.
-     */
-    private TypeChecker.CompilationContext bindLambdaArgs(
-            LambdaFunction lambda, List<ValueSpecification> args,
-            TypeChecker.CompilationContext ctx) {
-        TypeChecker.CompilationContext result = ctx;
-        int bound = Math.min(lambda.parameters().size(), args.size());
-        for (int i = 0; i < bound; i++) {
-            TypedSpec typedArg = env.compileExpr(args.get(i), result);
-            result = result.withLetBinding(lambda.parameters().get(i).name(), typedArg);
-        }
-        return result;
     }
 
     /**

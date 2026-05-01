@@ -93,9 +93,21 @@ public final class MappingResolver {
      * {@code CompiledExpression}.
      */
     public ResolvedExpression resolve() {
-        walk(typeResult.hir(), null);
+        // 1. Inline user-function calls. After this pass no TypedUserCall
+        //    remains in the HIR — formals are substituted with actuals
+        //    inside the callee body, and all downstream layers see one
+        //    unified shape (no need to "look through" call wrappers).
+        TypedSpec inlined = UserCallInliner.inline(typeResult.hir());
+        CompiledExpression inlinedUnit = inlined == typeResult.hir()
+                ? typeResult
+                : new CompiledExpression(inlined, typeResult.dependencies());
+
+        // 2. Walk the inlined HIR for store resolution.
+        walk(inlinedUnit.hir(), null);
+
+        // 3. Elaborate implicit serialize over the inlined+resolved HIR.
         return new ResolvedExpression(
-                elaborateImplicitSerialize(typeResult),
+                elaborateImplicitSerialize(inlinedUnit),
                 ResolvedMappings.ofStoreResolutions(resolutions));
     }
 
@@ -143,14 +155,10 @@ public final class MappingResolver {
                 for (var v : ni.values().values()) walk(v, null);
             }
 
-            // ----- Recursion: user call inlines through the callee's compiled body -----
-            case TypedUserCall uc -> {
-                TypedSpec body = uc.callee().body().hir();
-                walk(body, active);
-                StoreResolution bodyRes = resolutions.get(body);
-                if (bodyRes != null) resolutions.put(node, bodyRes);
-                for (var arg : uc.args()) walk(arg, null);
-            }
+            // ----- TypedUserCall must not survive UserCallInliner -----
+            case TypedUserCall uc -> throw new IllegalStateException(
+                    "[mapping-resolver] TypedUserCall reached resolution walk — "
+                            + "UserCallInliner should have inlined it; fqn=" + uc.functionFqn());
 
             // ----- Relation source terminals -----
             case TypedTableReference ref -> {

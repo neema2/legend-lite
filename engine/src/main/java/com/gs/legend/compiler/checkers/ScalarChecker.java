@@ -77,13 +77,13 @@ public class ScalarChecker extends AbstractChecker {
             if (sigParam != null && isLambdaParam(sigParam)
                     && param instanceof LambdaFunction lambda) {
                 typedArgs[i] = compileLambdaArg(
-                        lambda, sigParam, bindings, source, ctx, funcName);
+                        lambda, sigParam, bindings, ctx, funcName, source);
             } else if (param instanceof LambdaFunction lambda && sigParam != null) {
                 // Lambda passed to a non-Function param — "lazy evaluator" {->T}
                 // sugar (e.g. {@code pair(|expr, |expr)}). Compile the body and
                 // bind the sig's TypeVar from the body's result type.
                 TypedLambda lambdaTyped = compileLambdaArg(
-                        lambda, sigParam, bindings, source, ctx, funcName);
+                        lambda, sigParam, bindings, ctx, funcName, source);
                 typedArgs[i] = lambdaTyped;
             } else if (isColSpec(param)) {
                 // ColSpec stays AST-shaped — no TypedSpec representation yet.

@@ -66,7 +66,8 @@ public final class Lowerer {
 
             // Operator-specific routing — each rule module owns its own
             // dispatch decision; Lowerer is pure delegation.
-            case TypedUserCall    n -> UserCallLowering.lowerCall(n, ctx);
+            case TypedUserCall    n -> throw new PlanGenNotPortedException(n, "user-call:not-inlined",
+                    "TypedUserCall reached Lowerer (relation) — UserCallInliner should have inlined it; fqn=" + n.functionFqn());
             case TypedBlock       n -> ControlFlowLowering.lowerBlock(n, ctx);
             case TypedCast        n -> ControlFlowLowering.lowerCast(n, ctx);
             case TypedVariable    n -> VariableLowering.lowerVariable(n, ctx);
@@ -156,7 +157,8 @@ public final class Lowerer {
             // (a query root wrap). Encountering it as a scalar is a dispatch bug.
             case TypedSerializeImplicit n -> throw notScalar(n);
 
-            case TypedUserCall n -> UserCallLowering.lower(n, ctx);
+            case TypedUserCall n -> throw new PlanGenNotPortedException(n, "user-call:not-inlined",
+                    "TypedUserCall reached Lowerer (scalar) — UserCallInliner should have inlined it; fqn=" + n.functionFqn());
 
             // Relational nodes cannot appear in a scalar position directly. A caller
             // asking for a scalar value from one is a bug upstream.

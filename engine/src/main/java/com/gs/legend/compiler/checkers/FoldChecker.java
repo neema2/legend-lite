@@ -76,14 +76,14 @@ public class FoldChecker extends AbstractChecker {
         // params only (body stays as the AST add() node interpreted by PlanGen).
         if (isFoldAddPattern(lambdaAst)) {
             TypedLambda reducer = compileLambdaArg(
-                    lambdaAst, def.params().get(1), bindings, source, ctx, "fold");
+                    lambdaAst, def.params().get(1), bindings, ctx, "fold", source);
             ExpressionType outputType = resolveOutput(def, bindings, "fold()");
             return new TypedFold(source, reducer, init, new Concatenation(), def, outputType);
         }
 
         // Signature-driven param binding for the reducer lambda, then classify.
         TypedLambda reducer = compileLambdaArg(
-                lambdaAst, def.params().get(1), bindings, source, ctx, "fold");
+                lambdaAst, def.params().get(1), bindings, ctx, "fold", source);
 
         Type resolvedT = bindings.getOrDefault("T", Primitive.ANY);
         Type resolvedV = bindings.getOrDefault("V", Primitive.ANY);

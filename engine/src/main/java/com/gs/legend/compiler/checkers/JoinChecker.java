@@ -68,9 +68,12 @@ public class JoinChecker extends AbstractChecker {
         TypedLambda condition = null;
         int conditionIdx = 3;
         if (conditionIdx < params.size()
-                && params.get(conditionIdx) instanceof LambdaFunction lambda) {
-            condition = compileConditionLambda(
-                    lambda, def, conditionIdx, bindings, left, right, ctx);
+                && params.get(conditionIdx) instanceof LambdaFunction lambda
+                && !lambda.parameters().isEmpty()
+                && !lambda.body().isEmpty()) {
+            condition = compileLambdaArg(
+                    lambda, def.params().get(conditionIdx), bindings,
+                    ctx, "join", left, right);
         }
 
         String rightPrefix = extractRightPrefix(params);
@@ -129,44 +132,6 @@ public class JoinChecker extends AbstractChecker {
         return renames;
     }
 
-    /**
-     * Compiles a join condition lambda — fully signature-driven.
-     *
-     * <p>Extracts the FunctionType from the signature param at {@code paramIdx},
-     * resolves each lambda param type from bindings, binds them, and compiles the body.
-     */
-    private TypedLambda compileConditionLambda(LambdaFunction lambda,
-                                         NativeFunctionDef def, int paramIdx,
-                                         Bindings bindings,
-                                         TypedSpec left, TypedSpec right,
-                                         TypeChecker.CompilationContext ctx) {
-        if (lambda.parameters().isEmpty() || lambda.body().isEmpty()) return null;
-
-        Type.FunctionType ft = extractFunctionType(def.params().get(paramIdx));
-        if (lambda.parameters().size() != ft.params().size()) {
-            throw new PureCompileException(
-                    "join() condition lambda has " + lambda.parameters().size()
-                            + " params, signature requires " + ft.params().size());
-        }
-
-        TypeChecker.CompilationContext lambdaCtx = ctx;
-        TypedSpec[] sources = { left, right };
-        List<com.gs.legend.compiler.typed.TypedParam> typedParams =
-                new ArrayList<>(ft.params().size());
-        for (int i = 0; i < ft.params().size(); i++) {
-            String paramName = lambda.parameters().get(i).name();
-            Type resolvedType = resolve(ft.params().get(i).type(), bindings,
-                    "join() condition param " + i);
-            lambdaCtx = bindLambdaParam(lambdaCtx, paramName, resolvedType, sources[i]);
-            typedParams.add(new com.gs.legend.compiler.typed.TypedParam(
-                    paramName, resolvedType,
-                    com.gs.legend.model.m3.Multiplicity.ONE));
-        }
-
-        TypedSpec body = compileLambdaBody(lambda, lambdaCtx);
-        validateLambdaReturn(body, ft, bindings, "join");
-        return new TypedLambda(typedParams, List.of(body), body.expressionType());
-    }
 
     /**
      * Extracts join type from params[2].
