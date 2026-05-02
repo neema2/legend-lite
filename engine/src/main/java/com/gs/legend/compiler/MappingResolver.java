@@ -567,7 +567,7 @@ public final class MappingResolver {
         }
 
         // 2. Inline struct-array properties (UNNEST candidates) from the model.
-        addStructArrayJoins(classFqn, joins);
+        buildStructArrayJoins(classFqn, joins);
 
         // 3. Build the store now; 'propToCol' and 'joins' are the live
         //    mutable maps inside it — the single synth-body walk below
@@ -581,7 +581,7 @@ public final class MappingResolver {
         //    it walks while rendering this class fetch.
         TypedSpec body = compiledMappingBody(classFqn);
         if (body != null) {
-            walkSourceSpec(body, store, /* upstream */ null);
+            resolveMappingFunction(body, store, /* upstream */ null);
         }
 
         return store;
@@ -630,7 +630,7 @@ public final class MappingResolver {
         // the generic walker instead of an ad-hoc chain pass.
         TypedSpec body = compiledMappingBody(targetClassFqn);
         if (body != null) {
-            walkSourceSpec(body, store, upstream);
+            resolveMappingFunction(body, store, upstream);
         }
 
         return store;
@@ -683,7 +683,7 @@ public final class MappingResolver {
             propToCol.put(prop, col);
         }
         Map<String, StoreResolution.JoinResolution> joins = new LinkedHashMap<>();
-        addStructArrayJoins(classFqn, joins);
+        buildStructArrayJoins(classFqn, joins);
         return new StoreResolution(tableName, classFqn, propToCol, joins);
     }
 
@@ -721,7 +721,7 @@ public final class MappingResolver {
      *       populated resolution.</li>
      *   <li><b>Applies</b> column-level override pruning on each
      *       {@link TypedExtend} via
-     *       {@link #stampExtendOverrideIfNeeded}.</li>
+     *       {@link #pruneUnusedExtendCols}.</li>
      *   <li><b>Recurses</b> into inner {@link TypedGetAll}s (M2M chain)
      *       by calling {@link #resolveClassFetch} on the upstream class —
      *       memoized, so cycles / repeated references are cheap.</li>
@@ -742,7 +742,7 @@ public final class MappingResolver {
      * {@code Person.all()->extend(...)}, which is a query-time projection
      * and must not fold into the class store).
      */
-    private void walkSourceSpec(TypedSpec node, StoreResolution store,
+    private void resolveMappingFunction(TypedSpec node, StoreResolution store,
                                 StoreResolution upstream) {
         if (node == null) return;
         // Stamp upfront — relation operators, TypedTableReference, and
@@ -759,19 +759,18 @@ public final class MappingResolver {
                         .associationNavigations()
                         .getOrDefault(className, Set.of());
                 for (var col : ext.extensions()) {
-                    lowerExtensionCol(col, className, tableName,
+                    resolveExtensionCol(col, className, tableName,
                             store.propertyToColumn(), store.joins(),
                             neededAssocs, upstream);
                 }
-                walkSourceSpec(ext.source(), store, upstream);
-                // Override pruning lives in the same pass: its inputs
-                // (extend aliases, query's used-prop set for this class)
-                // are all at hand, and stamping here happens-after the
-                // class-store stamp above — so it replaces that stamp
-                // with the override-marker resolution when there's any
-                // unused column. PlanGenerator detects the override via
+                resolveMappingFunction(ext.source(), store, upstream);
+                // Pruning runs in the same pass: inputs (declared aliases +
+                // query's used-prop set for this class) are at hand, and
+                // running here happens-after the class-store stamp above —
+                // so the re-stamp fires only when the active set is a strict
+                // subset of declared. PlanGenerator detects the result via
                 // StoreResolution.hasExtendOverride().
-                stampExtendOverrideIfNeeded(ext, className);
+                pruneUnusedExtendCols(ext, className);
             }
             case TypedGetAll innerGa -> {
                 // M2M chain: inner fetch resolves to the upstream class's
@@ -784,7 +783,7 @@ public final class MappingResolver {
             case TypedSourceUrl ignored -> { /* terminal — external URL source */ }
             default -> {
                 TypedSpec src = relationSource(node);
-                if (src != null) walkSourceSpec(src, store, upstream);
+                if (src != null) resolveMappingFunction(src, store, upstream);
             }
         }
     }
@@ -825,7 +824,7 @@ public final class MappingResolver {
      *       (sub-properties on the parent row, no physical JOIN).</li>
      * </ul>
      */
-    private void lowerExtensionCol(
+    private void resolveExtensionCol(
             TypedExtendCol col, String className, String tableName,
             Map<String, String> propToCol,
             Map<String, StoreResolution.JoinResolution> joins,
@@ -883,7 +882,7 @@ public final class MappingResolver {
                 }
             }
             case TypedEmbeddedExtendCol e -> {
-                joins.put(e.alias(), mergeOrBuildEmbeddedJoin(e, tableName, joins.get(e.alias())));
+                joins.put(e.alias(), buildEmbeddedJoin(e, tableName, joins.get(e.alias())));
             }
         }
     }
@@ -1005,7 +1004,7 @@ public final class MappingResolver {
      *       {@code resolveEmbeddedExtend} merge behavior.</li>
      * </ul>
      */
-    private StoreResolution.JoinResolution mergeOrBuildEmbeddedJoin(
+    private StoreResolution.JoinResolution buildEmbeddedJoin(
             TypedEmbeddedExtendCol col, String parentTable,
             StoreResolution.JoinResolution existing) {
         Map<String, String> subPropToCol = new LinkedHashMap<>();
@@ -1030,7 +1029,7 @@ public final class MappingResolver {
 
     /**
      * Extract the parent-table column map from an Embedded JoinResolution
-     * built by {@link #mergeOrBuildEmbeddedJoin}. Used when an Otherwise
+     * built by {@link #buildEmbeddedJoin}. Used when an Otherwise
      * mapping arrives in the order embedded-then-association.
      */
     private static Map<String, String> embeddedSubColMap(StoreResolution.JoinResolution.Embedded emb) {
@@ -1063,7 +1062,7 @@ public final class MappingResolver {
      * [*], add an identity-mapped JoinResolution so graphFetch can project
      * sub-rows without requiring a mapping entry.
      */
-    private void addStructArrayJoins(String className,
+    private void buildStructArrayJoins(String className,
                                      Map<String, StoreResolution.JoinResolution> joins) {
         var pureClass = modelContext.findClass(className).orElse(null);
         if (pureClass == null) return;
@@ -1080,100 +1079,80 @@ public final class MappingResolver {
         }
     }
 
-    // ==================== Extend Override ====================
+    // ==================== Extend Pruning ====================
 
     /**
-     * Stamps a {@link StoreResolution.ExtendOverride} on {@code ext} when its
-     * projected column aliases are not all consumed by the query. Used-props
-     * come from {@code typeResult.dependencies().classPropertyAccesses()} —
-     * populated by TypeChecker while compiling the user query.
+     * Computes which scalar extend columns this {@code ext} node is actually
+     * read by the query, and stamps the result as a
+     * {@link StoreResolution.ExtendOverride} so {@code ExtendLowering} can
+     * skip rendering the unused ones.
      *
-     * <p>Called inline from {@link #walkSynthNode} so override computation
-     * happens in the same pass as class-store stamping and extension
-     * layering. When an override applies, the forExtend resolution
-     * overwrites the class-store stamp previously placed on {@code ext};
-     * PlanGenerator sees the override via {@code hasExtendOverride()} and
-     * skips rendering un-touched computed columns.
-     *
-     * <p>Association and embedded extend cols contribute no aliases here —
-     * they are lowered to {@link StoreResolution.JoinResolution}s and are
-     * gated independently by graphFetch / association navigation.
-     */
-    /**
-     * Stamp an {@link StoreResolution.ExtendOverride} on this extend node
-     * when any of its extension columns is unused by the query — so
-     * {@code ExtendLowering} can skip the cancelled cols (and, for
-     * {@link TypedAssociationExtendCol} / {@link TypedEmbeddedExtendCol},
-     * their corresponding traversal joins).
-     *
-     * <p>Two pools of "used" aliases:
+     * <p>Inputs:
      * <ul>
-     *   <li><b>Property accesses</b>: scalar/window/traverse extends whose
-     *       alias is read as {@code $row.alias} downstream.</li>
-     *   <li><b>Association navigations</b>: association/embedded extends
-     *       whose alias is navigated as {@code $row.alias.something}
-     *       downstream.</li>
+     *   <li><b>Declared aliases</b>: every column on {@code ext.extensions()}.</li>
+     *   <li><b>Used aliases</b>: {@code classPropertyAccesses[className]},
+     *       populated by TypeChecker from each {@code $row.alias} read in
+     *       the query body.</li>
      * </ul>
      *
-     * <p>Critical for synthetic-body extends from
-     * {@code MappingNormalizer.addAssociationExtends}: each such extend
-     * carries exactly one association col plus its traversal hops, and
-     * unconditionally emitting all of them produces spurious LEFT JOINs
-     * in the SQL even when the query never navigates the association.
-     * Marking unused association extends as fully cancelled prunes the
-     * JOIN at lowering time.
+     * <p>The active set = declared ∩ used. If {@code active == declared}
+     * the node is left unmarked (default behaviour: render everything).
+     * Otherwise the override stamp re-stamps the node carrying the
+     * underlying class-store fields untouched plus the active-set marker.
+     *
+     * <p>Association and embedded extend cols (synth-body output of
+     * {@link com.gs.legend.compiler.MappingNormalizer}) are never counted
+     * toward the active set: their physical traversal is installed
+     * on-demand at access time (NavScope JOIN, scalar EXISTS), so the
+     * synth-body's eager LEFT JOIN is always redundant. Marking them as
+     * inactive here lets {@code ExtendLowering} drop the join entirely
+     * when the query never navigates the association — critical for
+     * to-many associations where the eager join would inflate rows
+     * before {@code EXISTS} can de-duplicate.
      */
-    private void stampExtendOverrideIfNeeded(TypedExtend ext, String className) {
-        Set<String> propAliases = new HashSet<>();
-        Set<String> assocAliases = new HashSet<>();
+    private void pruneUnusedExtendCols(TypedExtend ext, String className) {
+        Set<String> declared = new HashSet<>();
+        Set<String> scalarAliases = new HashSet<>();
         for (var col : ext.extensions()) {
-            switch (col) {
-                case TypedScalarExtendCol s -> propAliases.add(s.alias());
-                case TypedWindowExtendCol w -> propAliases.add(w.alias());
-                case TypedTraverseExtendCol t -> propAliases.add(t.alias());
-                case TypedAssociationExtendCol a -> assocAliases.add(a.alias());
-                case TypedEmbeddedExtendCol e -> assocAliases.add(e.alias());
+            String alias = switch (col) {
+                case TypedScalarExtendCol s     -> s.alias();
+                case TypedWindowExtendCol w     -> w.alias();
+                case TypedTraverseExtendCol t   -> t.alias();
+                case TypedAssociationExtendCol a -> a.alias();
+                case TypedEmbeddedExtendCol e   -> e.alias();
+            };
+            declared.add(alias);
+            if (col instanceof TypedScalarExtendCol
+                    || col instanceof TypedWindowExtendCol
+                    || col instanceof TypedTraverseExtendCol) {
+                scalarAliases.add(alias);
             }
         }
-        int total = propAliases.size() + assocAliases.size();
-        if (total == 0) return;
+        if (declared.isEmpty()) return;
 
         Set<String> usedProps = typeResult.dependencies().classPropertyAccesses()
                 .getOrDefault(className, Set.of());
-
-        // Synth-body association/embedded extends are always cancellable: every
-        // downstream consumer that genuinely needs an association traversal
-        // installs its own LEFT JOIN on demand via NavScope (project) or its
-        // own scalar EXISTS (filter, via SqlExpr.Exists). The eager extend's
-        // LEFT JOIN is purely redundant — and worse, for to-many associations
-        // it inflates rows before the EXISTS subquery can de-duplicate. So we don't pair assocAliases
-        // with associationNavigations here; only propAliases count toward the
-        // active set. (Empty active = isFullyCancelled() in ExtendLowering.)
         Set<String> active = new HashSet<>();
-        for (String a : propAliases)  if (usedProps.contains(a))    active.add(a);
-        if (active.size() == total) return; // all used — no override needed
+        for (String a : scalarAliases) if (usedProps.contains(a)) active.add(a);
+        if (active.size() == declared.size()) return;     // every col used → no marker needed
 
-        // Preserve the underlying class-store fields and layer the override
-        // marker on top. forExtend(...) returns an empty marker resolution
-        // which previously discarded the M2M-passthrough joins map for the
-        // extend node — causing ExtendLowering to mis-identify class-typed
-        // passthrough properties (e.g., StaffComplete.department where the
-        // upstream Employee.department is a JoinResolution forwarded by
-        // forwardPassthrough into the M2M's joins) as scalar columns and
+        // Re-stamp the extend node, preserving the underlying class-store
+        // fields and layering the active-set marker on top. The fields
+        // must survive (rather than being replaced by an empty marker)
+        // because ExtendLowering's join-aware skip path reads them — e.g.
+        // an M2M-passthrough class-typed property like
+        // {@code StaffComplete.department} keeps its FK JoinResolution
+        // forwarded by {@link #forwardPassthrough}; without it
+        // ExtendLowering would mis-identify it as a scalar column and
         // emit {@code t0.department AS department} against a table that
-        // has no such physical column. Carrying the original maps through
-        // keeps ExtendLowering's join-aware skip path working while still
-        // signalling pruning via {@code extendOverride}.
+        // has no such physical column.
         StoreResolution underlying = resolutions.get(ext);
-        StoreResolution withOverride;
-        StoreResolution.ExtendOverride ovr = new StoreResolution.ExtendOverride(active);
-        if (underlying != null) {
-            withOverride = new StoreResolution(
-                    underlying.tableName(), underlying.className(),
-                    underlying.propertyToColumn(), underlying.joins(), ovr);
-        } else {
-            withOverride = new StoreResolution(null, null, Map.of(), Map.of(), ovr);
-        }
-        resolutions.put(ext, withOverride);
+        StoreResolution.ExtendOverride marker = new StoreResolution.ExtendOverride(active);
+        StoreResolution restamped = underlying != null
+                ? new StoreResolution(
+                        underlying.tableName(), underlying.className(),
+                        underlying.propertyToColumn(), underlying.joins(), marker)
+                : new StoreResolution(null, null, Map.of(), Map.of(), marker);
+        resolutions.put(ext, restamped);
     }
 }
