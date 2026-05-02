@@ -184,8 +184,7 @@ public final class JsonEnvelope {
 
         // Bind source/target params and lower the join condition to a SQL
         // boolean expression. Same shape as Relations.installJoin so
-        // correlated reads against {@code parentAlias} (sourceColumns) are
-        // wired the same way.
+        // correlated reads against {@code parentAlias} are wired the same way.
         LoweringContext condCtx = ctx
                 .bindVar(fk.sourceParam(), new SqlExpr.Identifier(parentAlias), parentStore)
                 .bindVar(fk.targetParam(), new SqlExpr.Identifier(childAlias), fk.targetResolution());

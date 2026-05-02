@@ -103,7 +103,6 @@ public final class ExtendLowering {
                         cond.parameters().get(1).name(),
                         false,                                                // isToMany
                         cond.body().get(cond.body().size() - 1),               // joinCondition
-                        java.util.Set.of(),                                    // sourceColumns (unused here)
                         null);                                                 // targetResolution
                 // Per-spec scoped prefix keeps spec s's hop i distinct from
                 // spec s'-1's hop i (otherwise NavScope dedups them).

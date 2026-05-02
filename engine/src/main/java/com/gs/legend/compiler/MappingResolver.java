@@ -667,7 +667,7 @@ public final class MappingResolver {
         return switch (srcJoin) {
             case StoreResolution.JoinResolution.FkJoin fk -> new StoreResolution.JoinResolution.FkJoin(
                     fk.targetTable(), fk.sourceParam(), fk.targetParam(),
-                    isToMany, fk.joinCondition(), fk.sourceColumns(), fk.targetResolution());
+                    isToMany, fk.joinCondition(), fk.targetResolution());
             case StoreResolution.JoinResolution.Embedded e -> new StoreResolution.JoinResolution.Embedded(
                     isToMany, e.targetResolution());
             case StoreResolution.JoinResolution.StructArrayUnnest u -> new StoreResolution.JoinResolution.StructArrayUnnest(
@@ -678,7 +678,7 @@ public final class MappingResolver {
                         ow.embeddedSubCols(),
                         new StoreResolution.JoinResolution.FkJoin(
                                 fk.targetTable(), fk.sourceParam(), fk.targetParam(),
-                                isToMany, fk.joinCondition(), fk.sourceColumns(),
+                                isToMany, fk.joinCondition(),
                                 fk.targetResolution()));
             }
         };
@@ -1034,66 +1034,13 @@ public final class MappingResolver {
         String targetParam = cond.parameters().size() < 2 ? null : cond.parameters().get(1).name();
 
         TypedSpec condBody = extractLambdaBody(cond);
-        Set<String> sourceCols = sourceParam == null
-                ? Set.of() : extractSourceColumns(condBody, sourceParam);
 
         return new StoreResolution.JoinResolution.FkJoin(
                 targetTable != null ? targetTable : lastHop.tableName(),
                 sourceParam, targetParam,
                 nav.isToMany(),
                 condBody,
-                sourceCols,
                 targetResolution);
-    }
-
-    /**
-     * Walks a typed join condition collecting column names referenced on the
-     * source side — i.e., {@code $sourceParam.COLUMN} accesses. Used by
-     * graphFetch to project only the source columns the correlated subquery
-     * actually needs. Mirrors the old {@code extractSourceColumns} VS walk,
-     * but dispatches on TypedSpec variants.
-     */
-    private Set<String> extractSourceColumns(TypedSpec expr, String sourceParam) {
-        Set<String> out = new java.util.LinkedHashSet<>();
-        collectSourceColumns(expr, sourceParam, out);
-        return out;
-    }
-
-    private void collectSourceColumns(TypedSpec node, String sourceParam, Set<String> out) {
-        if (node == null) return;
-        if (node instanceof TypedPropertyAccess pa
-                && pa.source() instanceof TypedVariable v
-                && sourceParam.equals(v.name())) {
-            out.add(pa.property());
-            return;
-        }
-        // Descend into children of expressions that can nest property accesses.
-        switch (node) {
-            case TypedNativeCall nc -> {
-                for (var a : nc.args()) collectSourceColumns(a, sourceParam, out);
-            }
-            case TypedPropertyAccess pa -> collectSourceColumns(pa.source(), sourceParam, out);
-            case TypedIf i -> {
-                collectSourceColumns(i.condition(), sourceParam, out);
-                collectSourceColumns(i.thenBranch(), sourceParam, out);
-                collectSourceColumns(i.elseBranch(), sourceParam, out);
-            }
-            case TypedCast c -> collectSourceColumns(c.expr(), sourceParam, out);
-            case TypedCollection coll -> {
-                for (var v : coll.values()) collectSourceColumns(v, sourceParam, out);
-            }
-            case TypedLambda lam -> {
-                for (var s : lam.body()) collectSourceColumns(s, sourceParam, out);
-            }
-            case TypedEval ev -> {
-                collectSourceColumns(ev.applicable(), sourceParam, out);
-                for (var a : ev.args()) collectSourceColumns(a, sourceParam, out);
-            }
-            case TypedUserCall uc -> {
-                for (var a : uc.args()) collectSourceColumns(a, sourceParam, out);
-            }
-            default -> { /* leaf / irrelevant */ }
-        }
     }
 
     /**

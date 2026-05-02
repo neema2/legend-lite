@@ -141,8 +141,6 @@ public record StoreResolution(
          * @param targetParam      Variable name for target side in the join condition.
          * @param isToMany         True if association has [*] multiplicity.
          * @param joinCondition    Typed join predicate (2-param TypedLambda body).
-         * @param sourceColumns    Source-side column names referenced by the join condition
-         *                         (used by graphFetch for projection).
          * @param targetResolution {@link StoreResolution} for the target table.
          */
         record FkJoin(
@@ -151,7 +149,6 @@ public record StoreResolution(
                 String targetParam,
                 boolean isToMany,
                 TypedSpec joinCondition,
-                java.util.Set<String> sourceColumns,
                 StoreResolution targetResolution) implements JoinResolution {}
 
         /**
