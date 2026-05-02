@@ -19,16 +19,21 @@ import java.util.Map;
  *                         identity mappings and extend-override markers).
  * @param propertyToColumn Pure property name → physical column name (simple mappings).
  * @param joins            Association property → join resolution.
- * @param extendOverride   Cancellation info for extend nodes (null = not an extend node / all active).
+ * @param extendNodeCols    For {@link com.gs.legend.compiler.typed.TypedExtend}
+ *                          nodes, records which declared extend-column
+ *                          aliases are still active after the query-usage
+ *                          analysis. {@code null} means “not an extend
+ *                          node, or no pruning was performed” — lower as-is.
+ *                          See {@link ExtendNodeCols}.
  */
 public record StoreResolution(
         String tableName,
         String className,
         Map<String, String> propertyToColumn,
         Map<String, JoinResolution> joins,
-        ExtendOverride extendOverride) {
+        ExtendNodeCols extendNodeCols) {
 
-    /** Physical store resolution without extendOverride. */
+    /** Physical store resolution without an extend-node pruning marker. */
     public StoreResolution(
             String tableName,
             String className,
@@ -38,15 +43,28 @@ public record StoreResolution(
     }
 
     /**
-     * Column-level cancellation info for extend nodes.
-     * Stamped by MappingResolver on sourceSpec extend nodes;
-     * read by PlanGenerator in generateExtend.
+     * Pruning marker stamped on a {@link com.gs.legend.compiler.typed.TypedExtend}
+     * node — the set of column aliases the query actually reads, after
+     * intersecting declared aliases with {@code classPropertyAccesses}.
      *
-     * @param activeColumns Columns to keep (null = all active, empty = skip entire node)
+     * <p>Produced by {@code MappingResolver.pruneUnusedExtendCols} for
+     * synth-body extends whose declared columns are a strict superset of
+     * what the query reads. Read by {@code ExtendLowering} to skip unused
+     * columns (and their traversal joins, for synth-body
+     * association/embedded extends).
+     *
+     * <p>Semantics:
+     * <ul>
+     *   <li>marker absent ({@code null}) — no pruning; render every column.</li>
+     *   <li>{@link #activeAliases} empty — whole extend node is skippable
+     *       ({@link #isFullyCancelled}).</li>
+     *   <li>non-empty — only the listed aliases are active; skip the rest
+     *       ({@link #isActiveCol}).</li>
+     * </ul>
      */
-    public record ExtendOverride(java.util.Set<String> activeColumns) {
-        public boolean isFullyCancelled() { return activeColumns != null && activeColumns.isEmpty(); }
-        public boolean isActive(String col) { return activeColumns == null || activeColumns.contains(col); }
+    public record ExtendNodeCols(java.util.Set<String> activeAliases) {
+        public boolean isFullyCancelled() { return activeAliases.isEmpty(); }
+        public boolean isActiveCol(String alias) { return activeAliases.contains(alias); }
     }
 
     /**
@@ -152,9 +170,5 @@ public record StoreResolution(
         return joins != null && !joins.isEmpty();
     }
 
-    /** True if this is an extend node with cancellation info. */
-    public boolean hasExtendOverride() {
-        return extendOverride != null;
-    }
 
 }

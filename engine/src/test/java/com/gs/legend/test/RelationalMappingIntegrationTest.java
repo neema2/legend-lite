@@ -4685,7 +4685,7 @@ class RelationalMappingIntegrationTest {
         }
 
         // --- Pruning: otherwise creates 2 extends (embedded + association) sharing
-        // the same ColSpec name "firm". stampExtendOverrides prunes both together,
+        // the same ColSpec name "firm". pruneUnusedExtendCols prunes both together,
         // and PlanGenerator's lazy-JOIN logic only emits the JOIN when a fallback
         // property is actually accessed.
 

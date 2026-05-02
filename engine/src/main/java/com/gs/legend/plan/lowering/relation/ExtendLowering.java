@@ -39,7 +39,7 @@ public final class ExtendLowering {
     private ExtendLowering() {}
 
     public static SqlRelation lower(TypedExtend n, LoweringContext ctx) {
-        // ExtendOverride: MappingResolver may stamp a cancellation marker on
+        // ExtendNodeCols: MappingResolver may stamp a pruning marker on
         // this extend node (synth-body extends whose extension cols / hops
         // aren't used by the query). Two pruning levels:
         //   1. Fully-cancelled — skip the entire extend node. This also
@@ -51,10 +51,9 @@ public final class ExtendLowering {
         //      synth-body produces one association per extend, so partial
         //      never applies to association cols today.)
         StoreResolution selfStore = ctx.storeFor(n);
-        StoreResolution.ExtendOverride override =
-                selfStore != null && selfStore.hasExtendOverride()
-                        ? selfStore.extendOverride() : null;
-        if (override != null && override.isFullyCancelled()) {
+        StoreResolution.ExtendNodeCols pruning =
+                selfStore != null ? selfStore.extendNodeCols() : null;
+        if (pruning != null && pruning.isFullyCancelled()) {
             return Lowerer.lowerRelation(n.source(), ctx);
         }
         SqlRelation src = Lowerer.lowerRelation(n.source(), ctx);
@@ -119,9 +118,9 @@ public final class ExtendLowering {
 
         List<SqlRelation.ExtendCol> cols = new ArrayList<>(n.extensions().size());
         for (TypedExtendCol col : n.extensions()) {
-            // Per-col filter for partial overrides — matches legacy plangen
-            // generateExtend lines 2005/2049 (`!extendOverride.isActive(cs.name()) continue`).
-            if (override != null && !override.isActive(extendColAlias(col))) continue;
+            // Per-col filter for partial pruning — matches legacy plangen
+            // generateExtend lines 2005/2049 (`!pruning.isActiveCol(cs.name()) continue`).
+            if (pruning != null && !pruning.isActiveCol(extendColAlias(col))) continue;
             // M2M passthrough of a class-typed property: when an upstream
             // association property is forwarded by a bare {@code $src.prop}
             // body, MappingResolver.forwardPassthrough lifts the upstream

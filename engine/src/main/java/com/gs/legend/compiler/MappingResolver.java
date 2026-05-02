@@ -472,7 +472,7 @@ public final class MappingResolver {
                 upstream.tableName(), upstream.className(),
                 java.util.Collections.unmodifiableMap(propToCol),
                 java.util.Collections.unmodifiableMap(joins),
-                upstream.extendOverride());
+                upstream.extendNodeCols());
     }
 
     /**
@@ -494,7 +494,7 @@ public final class MappingResolver {
                 upstream.tableName(), upstream.className(),
                 java.util.Collections.unmodifiableMap(propToCol),
                 java.util.Collections.unmodifiableMap(joins),
-                upstream.extendOverride());
+                upstream.extendNodeCols());
     }
 
     /** Extract the output alias for a typed group-by key. */
@@ -556,7 +556,6 @@ public final class MappingResolver {
     private StoreResolution resolveRelational(RelationalMapping rm, String classFqn) {
         String tableName = rm.table().dbName();
         Map<String, String> propToCol = new LinkedHashMap<>();
-        Map<String, StoreResolution.JoinResolution> joins = new LinkedHashMap<>();
 
         // 1. Seed: simple column PMs → physical column;
         //    join-chain PMs → propName (traverse extend names them directly).
@@ -567,7 +566,7 @@ public final class MappingResolver {
         }
 
         // 2. Inline struct-array properties (UNNEST candidates) from the model.
-        buildStructArrayJoins(classFqn, joins);
+        Map<String, StoreResolution.JoinResolution> joins = buildStructArrayJoins(classFqn);
 
         // 3. Build the store now; 'propToCol' and 'joins' are the live
         //    mutable maps inside it — the single synth-body walk below
@@ -682,8 +681,7 @@ public final class MappingResolver {
             String col = pm.columnName();
             propToCol.put(prop, col);
         }
-        Map<String, StoreResolution.JoinResolution> joins = new LinkedHashMap<>();
-        buildStructArrayJoins(classFqn, joins);
+        Map<String, StoreResolution.JoinResolution> joins = buildStructArrayJoins(classFqn);
         return new StoreResolution(tableName, classFqn, propToCol, joins);
     }
 
@@ -759,18 +757,24 @@ public final class MappingResolver {
                         .associationNavigations()
                         .getOrDefault(className, Set.of());
                 for (var col : ext.extensions()) {
-                    resolveExtensionCol(col, className, tableName,
-                            store.propertyToColumn(), store.joins(),
-                            neededAssocs, upstream);
+                    var existing = store.joins().get(aliasOf(col));
+                    var contrib = resolveExtensionCol(col, className, tableName,
+                            neededAssocs, upstream, existing);
+                    applyContribution(contrib, store.propertyToColumn(), store.joins());
                 }
                 resolveMappingFunction(ext.source(), store, upstream);
                 // Pruning runs in the same pass: inputs (declared aliases +
                 // query's used-prop set for this class) are at hand, and
-                // running here happens-after the class-store stamp above —
-                // so the re-stamp fires only when the active set is a strict
-                // subset of declared. PlanGenerator detects the result via
-                // StoreResolution.hasExtendOverride().
-                pruneUnusedExtendCols(ext, className);
+                // running here happens-after the class-store stamp above.
+                // Re-stamp only when the active set is a strict subset of
+                // declared. PlanGenerator detects the result via
+                // StoreResolution.extendNodeCols() != null.
+                StoreResolution.ExtendNodeCols marker = pruneUnusedExtendCols(ext, className);
+                if (marker != null) {
+                    resolutions.put(ext, new StoreResolution(
+                            store.tableName(), store.className(),
+                            store.propertyToColumn(), store.joins(), marker));
+                }
             }
             case TypedGetAll innerGa -> {
                 // M2M chain: inner fetch resolves to the upstream class's
@@ -813,24 +817,83 @@ public final class MappingResolver {
     }
 
     /**
-     * Lowers one {@link TypedExtendCol} to its {@link StoreResolution}
-     * contribution:
-     * <ul>
-     *   <li>{@link TypedScalarExtendCol} / window / traverse-scalar → add
-     *       column alias to {@code propToCol}.</li>
-     *   <li>{@link TypedAssociationExtendCol} → build {@link StoreResolution.JoinResolution}
-     *       for the associated class.</li>
-     *   <li>{@link TypedEmbeddedExtendCol} → build embedded JoinResolution
-     *       (sub-properties on the parent row, no physical JOIN).</li>
-     * </ul>
+     * What a single typed extend column contributes to the running
+     * {@link StoreResolution} maps. Caller folds the contribution into
+     * {@code propToCol} and {@code joins} via {@link #applyContribution}.
      */
-    private void resolveExtensionCol(
-            TypedExtendCol col, String className, String tableName,
+    private sealed interface ExtensionContribution {
+        /** No-op (e.g., association filtered out by needed-assoc set). */
+        record Skip() implements ExtensionContribution {}
+        /** Adds {@code alias → columnName} to {@code propertyToColumn}. */
+        record Column(String alias, String columnName) implements ExtensionContribution {}
+        /** Adds {@code alias → join} to {@code joins}. */
+        record Join(String alias, StoreResolution.JoinResolution join) implements ExtensionContribution {}
+        /** Adds both a column entry and a join entry under {@code alias} (M2M passthrough of a class-typed property). */
+        record Both(String alias, String columnName, StoreResolution.JoinResolution join) implements ExtensionContribution {}
+    }
+
+    private static final ExtensionContribution SKIP = new ExtensionContribution.Skip();
+
+    /**
+     * Folds an {@link ExtensionContribution} into the running maps.
+     */
+    private static void applyContribution(
+            ExtensionContribution c,
             Map<String, String> propToCol,
-            Map<String, StoreResolution.JoinResolution> joins,
+            Map<String, StoreResolution.JoinResolution> joins) {
+        switch (c) {
+            case ExtensionContribution.Skip ignored -> { /* no-op */ }
+            case ExtensionContribution.Column col -> propToCol.put(col.alias(), col.columnName());
+            case ExtensionContribution.Join j -> joins.put(j.alias(), j.join());
+            case ExtensionContribution.Both both -> {
+                propToCol.put(both.alias(), both.columnName());
+                joins.put(both.alias(), both.join());
+            }
+        }
+    }
+
+    /** Output alias of a typed extend column. */
+    private static String aliasOf(TypedExtendCol col) {
+        return switch (col) {
+            case TypedScalarExtendCol s     -> s.alias();
+            case TypedWindowExtendCol w     -> w.alias();
+            case TypedTraverseExtendCol t   -> t.alias();
+            case TypedAssociationExtendCol a -> a.alias();
+            case TypedEmbeddedExtendCol e   -> e.alias();
+        };
+    }
+
+    /**
+     * Resolves one {@link TypedExtendCol} into an {@link ExtensionContribution}.
+     * Pure: no mutation. Caller folds the result into the running maps via
+     * {@link #applyContribution}.
+     *
+     * <p>Cases:
+     * <ul>
+     *   <li>{@link TypedScalarExtendCol} / window / traverse-scalar →
+     *       {@link ExtensionContribution.Column} (alias → physical column).
+     *       Scalar extends in M2M passthrough position may instead return
+     *       {@link ExtensionContribution.Both} (forwarded upstream join).</li>
+     *   <li>{@link TypedAssociationExtendCol} →
+     *       {@link ExtensionContribution.Join} for the associated class,
+     *       or {@link ExtensionContribution.Skip} if not needed.</li>
+     *   <li>{@link TypedEmbeddedExtendCol} →
+     *       {@link ExtensionContribution.Join} (embedded — no physical JOIN).</li>
+     * </ul>
+     *
+     * @param existingJoin the join currently registered for this alias, if
+     *        any — used by association/embedded cols to detect the
+     *        {@link StoreResolution.JoinResolution.Otherwise} pattern (an
+     *        embedded extend already populated an Embedded under this alias,
+     *        and now an association extend wants to layer an FK fallback,
+     *        or vice versa).
+     */
+    private ExtensionContribution resolveExtensionCol(
+            TypedExtendCol col, String className, String tableName,
             Set<String> neededAssocs,
-            StoreResolution upstream) {
-        switch (col) {
+            StoreResolution upstream,
+            StoreResolution.JoinResolution existingJoin) {
+        return switch (col) {
             case TypedScalarExtendCol s -> {
                 TypedSpec bodyExpr = extractLambdaBody(s.expression());
                 // M2M passthrough optimization: when the extend body is a bare
@@ -839,52 +902,50 @@ public final class MappingResolver {
                 // columns, association JoinResolutions stay JoinResolutions.
                 // Falling through to a plain alias entry for a trivial passthrough
                 // would lose association multiplicity / target-resolution wiring.
-                if (upstream != null && forwardPassthrough(s, bodyExpr, className,
-                        propToCol, joins, upstream)) {
-                    return;
+                if (upstream != null) {
+                    ExtensionContribution pass = forwardPassthrough(s, bodyExpr, className, upstream);
+                    if (pass != null) yield pass;
                 }
                 // Per-row computed column — alias entry; PlanGenerator
                 // re-derives the expression from the typed extend node.
-                propToCol.put(s.alias(), s.alias());
+                yield new ExtensionContribution.Column(s.alias(), s.alias());
             }
-            case TypedWindowExtendCol w -> {
+            case TypedWindowExtendCol w ->
                 // Window-computed column — alias entry. Downstream
                 // PlanGenerator interprets window-ness from the original
-                // {@link TypedWindowExtendCol} node.
-                propToCol.put(w.alias(), w.alias());
-            }
+                // TypedWindowExtendCol node.
+                new ExtensionContribution.Column(w.alias(), w.alias());
             case TypedTraverseExtendCol t -> {
                 // Per-column traverse (join-chain PM). The physical column
                 // is recoverable from the lambda body when it's a simple
                 // property access; otherwise the alias names itself.
                 TypedSpec bodyExpr = extractLambdaBody(t.expression());
                 if (bodyExpr instanceof TypedPropertyAccess tpa) {
-                    propToCol.put(t.alias(), tpa.property());
+                    yield new ExtensionContribution.Column(t.alias(), tpa.property());
                 } else if (bodyExpr != null) {
-                    propToCol.put(t.alias(), t.alias());
+                    yield new ExtensionContribution.Column(t.alias(), t.alias());
+                } else {
+                    yield SKIP;
                 }
             }
             case TypedAssociationExtendCol a -> {
-                if (!neededAssocs.contains(a.alias())) return;
+                if (!neededAssocs.contains(a.alias())) yield SKIP;
                 var joinRes = buildAssociationJoin(a, className);
-                if (joinRes == null) return;
+                if (joinRes == null) yield SKIP;
                 // Otherwise mapping: an embedded extend already populated
                 // an Embedded JoinResolution under the same alias. Wrap the
                 // FK fallback with the embedded sub-cols so PropertyAccessLowering
                 // can dispatch at access time.
-                StoreResolution.JoinResolution existing = joins.get(a.alias());
-                if (existing instanceof StoreResolution.JoinResolution.Embedded emb
+                if (existingJoin instanceof StoreResolution.JoinResolution.Embedded emb
                         && joinRes instanceof StoreResolution.JoinResolution.FkJoin fk) {
-                    joins.put(a.alias(), new StoreResolution.JoinResolution.Otherwise(
-                            embeddedSubColMap(emb), fk));
-                } else {
-                    joins.put(a.alias(), joinRes);
+                    yield new ExtensionContribution.Join(a.alias(),
+                            new StoreResolution.JoinResolution.Otherwise(embeddedSubColMap(emb), fk));
                 }
+                yield new ExtensionContribution.Join(a.alias(), joinRes);
             }
-            case TypedEmbeddedExtendCol e -> {
-                joins.put(e.alias(), buildEmbeddedJoin(e, tableName, joins.get(e.alias())));
-            }
-        }
+            case TypedEmbeddedExtendCol e ->
+                new ExtensionContribution.Join(e.alias(), buildEmbeddedJoin(e, tableName, existingJoin));
+        };
     }
 
     /**
@@ -910,35 +971,34 @@ public final class MappingResolver {
      *       propertyToColumn under the new alias.</li>
      * </ul>
      *
-     * @return {@code true} if passthrough was applied; {@code false} to fall
-     *         back to a plain alias entry.
+     * @return the contribution to apply (Both for forwarded join, Column
+     *         for forwarded simple column), or {@code null} if the body
+     *         is not a passthrough pattern (caller falls back to a plain
+     *         alias Column entry).
      */
-    private boolean forwardPassthrough(
+    private ExtensionContribution forwardPassthrough(
             TypedScalarExtendCol col, TypedSpec bodyExpr, String targetClassFqn,
-            Map<String, String> propToCol,
-            Map<String, StoreResolution.JoinResolution> joins,
             StoreResolution upstream) {
-        if (!(bodyExpr instanceof TypedPropertyAccess tpa)) return false;
-        if (!(tpa.source() instanceof TypedVariable rowVar)) return false;
+        if (!(bodyExpr instanceof TypedPropertyAccess tpa)) return null;
+        if (!(tpa.source() instanceof TypedVariable rowVar)) return null;
         // The lambda's row parameter name — passthrough requires the property
         // access to target that exact row variable.
-        if (col.expression().parameters().isEmpty()) return false;
+        if (col.expression().parameters().isEmpty()) return null;
         String rowParam = col.expression().parameters().get(0).name();
-        if (!rowParam.equals(rowVar.name())) return false;
+        if (!rowParam.equals(rowVar.name())) return null;
 
         String srcProp = tpa.property();
         String alias = col.alias();
 
         var upstreamJoin = upstream.joins().get(srcProp);
         if (upstreamJoin != null) {
-            joins.put(alias, adjustJoinMultiplicity(upstreamJoin, targetClassFqn, alias));
-            propToCol.put(alias, alias);
-            return true;
+            return new ExtensionContribution.Both(alias, alias,
+                    adjustJoinMultiplicity(upstreamJoin, targetClassFqn, alias));
         }
 
         String upstreamCol = upstream.propertyToColumn().get(srcProp);
-        propToCol.put(alias, upstreamCol != null ? upstreamCol : srcProp);
-        return true;
+        return new ExtensionContribution.Column(alias,
+                upstreamCol != null ? upstreamCol : srcProp);
     }
 
     /**
@@ -1057,17 +1117,19 @@ public final class MappingResolver {
     }
 
     /**
-     * Adds inline struct-array properties (UNNEST candidates) from the model.
-     * For every class property whose type is a user class and multiplicity is
-     * [*], add an identity-mapped JoinResolution so graphFetch can project
-     * sub-rows without requiring a mapping entry.
+     * Builds inline struct-array {@link StoreResolution.JoinResolution}s for
+     * a class. For every class property whose type is a user class and
+     * multiplicity is [*], emits an identity-mapped UNNEST join so
+     * graphFetch can project sub-rows without requiring a mapping entry.
+     *
+     * @return alias → join entries to merge into the running joins map.
+     *         Always a fresh, mutable map (caller may further fold into it).
      */
-    private void buildStructArrayJoins(String className,
-                                     Map<String, StoreResolution.JoinResolution> joins) {
+    private Map<String, StoreResolution.JoinResolution> buildStructArrayJoins(String className) {
+        Map<String, StoreResolution.JoinResolution> joins = new LinkedHashMap<>();
         var pureClass = modelContext.findClass(className).orElse(null);
-        if (pureClass == null) return;
+        if (pureClass == null) return joins;
         for (var prop : pureClass.properties()) {
-            if (joins.containsKey(prop.name())) continue;
             if (prop.multiplicity().isSingular()) continue;
             if (!(prop.type() instanceof Type.ClassType targetRef)) continue;
             String targetFqn = targetRef.qualifiedName();
@@ -1077,15 +1139,16 @@ public final class MappingResolver {
             joins.put(prop.name(), new StoreResolution.JoinResolution.StructArrayUnnest(
                     prop.name(), true, targetResolution));
         }
+        return joins;
     }
 
     // ==================== Extend Pruning ====================
 
     /**
-     * Computes which scalar extend columns this {@code ext} node is actually
-     * read by the query, and stamps the result as a
-     * {@link StoreResolution.ExtendOverride} so {@code ExtendLowering} can
-     * skip rendering the unused ones.
+     * Pure: computes which scalar extend columns this {@code ext} node is
+     * actually read by the query, and returns an
+     * {@link StoreResolution.ExtendNodeCols} marker if pruning is needed,
+     * or {@code null} if every declared column is used (no marker required).
      *
      * <p>Inputs:
      * <ul>
@@ -1095,10 +1158,12 @@ public final class MappingResolver {
      *       the query body.</li>
      * </ul>
      *
-     * <p>The active set = declared ∩ used. If {@code active == declared}
-     * the node is left unmarked (default behaviour: render everything).
-     * Otherwise the override stamp re-stamps the node carrying the
-     * underlying class-store fields untouched plus the active-set marker.
+     * <p>The active set = declared ∩ used. Caller re-stamps {@code ext}
+     * with the marker layered onto the existing class-store resolution
+     * (the underlying {@code propertyToColumn} / {@code joins} fields
+     * must survive — {@code ExtendLowering}'s join-aware skip path reads
+     * them, and an M2M passthrough class-typed property would mis-render
+     * if its FK JoinResolution were dropped).
      *
      * <p>Association and embedded extend cols (synth-body output of
      * {@link com.gs.legend.compiler.MappingNormalizer}) are never counted
@@ -1110,17 +1175,11 @@ public final class MappingResolver {
      * to-many associations where the eager join would inflate rows
      * before {@code EXISTS} can de-duplicate.
      */
-    private void pruneUnusedExtendCols(TypedExtend ext, String className) {
+    private StoreResolution.ExtendNodeCols pruneUnusedExtendCols(TypedExtend ext, String className) {
         Set<String> declared = new HashSet<>();
         Set<String> scalarAliases = new HashSet<>();
         for (var col : ext.extensions()) {
-            String alias = switch (col) {
-                case TypedScalarExtendCol s     -> s.alias();
-                case TypedWindowExtendCol w     -> w.alias();
-                case TypedTraverseExtendCol t   -> t.alias();
-                case TypedAssociationExtendCol a -> a.alias();
-                case TypedEmbeddedExtendCol e   -> e.alias();
-            };
+            String alias = aliasOf(col);
             declared.add(alias);
             if (col instanceof TypedScalarExtendCol
                     || col instanceof TypedWindowExtendCol
@@ -1128,31 +1187,14 @@ public final class MappingResolver {
                 scalarAliases.add(alias);
             }
         }
-        if (declared.isEmpty()) return;
+        if (declared.isEmpty()) return null;
 
         Set<String> usedProps = typeResult.dependencies().classPropertyAccesses()
                 .getOrDefault(className, Set.of());
         Set<String> active = new HashSet<>();
         for (String a : scalarAliases) if (usedProps.contains(a)) active.add(a);
-        if (active.size() == declared.size()) return;     // every col used → no marker needed
+        if (active.size() == declared.size()) return null;     // every col used → no marker needed
 
-        // Re-stamp the extend node, preserving the underlying class-store
-        // fields and layering the active-set marker on top. The fields
-        // must survive (rather than being replaced by an empty marker)
-        // because ExtendLowering's join-aware skip path reads them — e.g.
-        // an M2M-passthrough class-typed property like
-        // {@code StaffComplete.department} keeps its FK JoinResolution
-        // forwarded by {@link #forwardPassthrough}; without it
-        // ExtendLowering would mis-identify it as a scalar column and
-        // emit {@code t0.department AS department} against a table that
-        // has no such physical column.
-        StoreResolution underlying = resolutions.get(ext);
-        StoreResolution.ExtendOverride marker = new StoreResolution.ExtendOverride(active);
-        StoreResolution restamped = underlying != null
-                ? new StoreResolution(
-                        underlying.tableName(), underlying.className(),
-                        underlying.propertyToColumn(), underlying.joins(), marker)
-                : new StoreResolution(null, null, Map.of(), Map.of(), marker);
-        resolutions.put(ext, restamped);
+        return new StoreResolution.ExtendNodeCols(active);
     }
 }
