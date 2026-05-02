@@ -104,8 +104,14 @@ public final class PlanGenerator {
         var vs = model.resolveQuery(query);
         var unit = new TypeChecker(normalizer.modelContext()).check(vs);
 
+        // Pass 3: inline TypedUserCalls. Mandatory whole-program β-reduction
+        // — the SQL backend has no notion of a function-call frame, so every
+        // user call must be spliced into its caller before lowering. Same
+        // family as Rust monomorphization or MLton defunctionalization.
+        var inlinedUnit = com.gs.legend.compiler.UserCallInliner.inline(unit);
+
         var resolved = new MappingResolver(
-                unit, normalizer.normalizedMapping(), model).resolve();
+                inlinedUnit, normalizer.normalizedMapping(), model).resolve();
         return new PlanGenerator(resolved, dialect, mode).generate();
     }
 

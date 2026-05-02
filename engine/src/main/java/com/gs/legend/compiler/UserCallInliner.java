@@ -51,9 +51,23 @@ import java.util.Optional;
  * descendant substitutes, ancestors rebuild their compound nodes with the
  * new children.
  */
-final class UserCallInliner {
+public final class UserCallInliner {
 
     private UserCallInliner() {}
+
+    /**
+     * Pipeline entry point: inline all {@link TypedUserCall}s in the given
+     * compiled expression. Returns the same {@link com.gs.legend.compiled.CompiledExpression}
+     * instance if no calls were present (identity-preservation), or a fresh
+     * one wrapping the rewritten HIR with the original dependencies otherwise.
+     */
+    public static com.gs.legend.compiled.CompiledExpression inline(
+            com.gs.legend.compiled.CompiledExpression unit) {
+        TypedSpec rewritten = inline(unit.hir());
+        return rewritten == unit.hir()
+                ? unit
+                : new com.gs.legend.compiled.CompiledExpression(rewritten, unit.dependencies());
+    }
 
     /** Substitution scope: function-param-name → bound actual. */
     private record Ctx(

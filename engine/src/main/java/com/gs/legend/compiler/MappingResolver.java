@@ -20,14 +20,20 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Pass 3: Resolves mappings to physical store concepts over the typed HIR.
+ * Pass 4: Resolves mappings to physical store concepts over the typed HIR.
  *
- * <p>Runs AFTER {@link TypeChecker} (Pass 2), BEFORE PlanGenerator (Pass 4).
+ * <p>Runs AFTER {@link UserCallInliner} (Pass 3), BEFORE PlanGenerator (Pass 5).
  * Consumes {@link CompiledExpression} (typed HIR + compiled mapping functions
  * exposed via {@link com.gs.legend.compiled.CompiledDependencies#mappingFunctions})
  * and {@link NormalizedMapping} (mapping-layer metadata). Holds no
  * {@link TypeChecker} reference — everything needed has already been compiled
- * and stashed in {@code CompiledDependencies} by the time Pass 3 runs.
+ * and stashed in {@code CompiledDependencies} by the time Pass 4 runs.
+ *
+ * <p><b>Precondition: input HIR must contain no {@link TypedUserCall}.</b>
+ * Inlining is the responsibility of {@link UserCallInliner}, which runs as
+ * its own pipeline stage immediately before this one. We assert this with a
+ * defensive {@code IllegalStateException} on any {@code TypedUserCall} the
+ * walker encounters.
  *
  * <h3>Mapping-function lookup</h3>
  *
@@ -57,8 +63,8 @@ import java.util.Set;
  *
  * <h3>Pipeline</h3>
  * <pre>
- * PureParser → MappingNormalizer → TypeChecker → MappingResolver → PlanGenerator
- *  (Pass 1)      (Pass 1.5)         (Pass 2)       (Pass 3)          (Pass 4)
+ * PureParser → MappingNormalizer → TypeChecker → UserCallInliner → MappingResolver → PlanGenerator
+ *  (Pass 1)      (Pass 1.5)         (Pass 2)       (Pass 3)           (Pass 4)          (Pass 5)
  * </pre>
  */
 public final class MappingResolver {
@@ -93,21 +99,15 @@ public final class MappingResolver {
      * {@code CompiledExpression}.
      */
     public ResolvedExpression resolve() {
-        // 1. Inline user-function calls. After this pass no TypedUserCall
-        //    remains in the HIR — formals are substituted with actuals
-        //    inside the callee body, and all downstream layers see one
-        //    unified shape (no need to "look through" call wrappers).
-        TypedSpec inlined = UserCallInliner.inline(typeResult.hir());
-        CompiledExpression inlinedUnit = inlined == typeResult.hir()
-                ? typeResult
-                : new CompiledExpression(inlined, typeResult.dependencies());
+        // 1. Walk the (already-inlined) HIR for store resolution. Caller
+        //    is responsible for running UserCallInliner upstream — we
+        //    throw IllegalStateException on any TypedUserCall encountered
+        //    during the walk to surface pipeline ordering bugs loudly.
+        StoreResolution rootStore = resolveQuery(typeResult.hir());
 
-        // 2. Walk the inlined HIR for store resolution.
-        walk(inlinedUnit.hir(), null);
-
-        // 3. Elaborate implicit serialize over the inlined+resolved HIR.
+        // 2. Elaborate implicit serialize over the resolved HIR.
         return new ResolvedExpression(
-                elaborateImplicitSerialize(inlinedUnit),
+                elaborateImplicitSerialize(typeResult, rootStore),
                 ResolvedMappings.ofStoreResolutions(resolutions));
     }
 
@@ -117,42 +117,37 @@ public final class MappingResolver {
      * envelope mechanism as explicit {@code ->serialize()}. {@link TypedGraphFetch}
      * is excluded — it self-envelopes via {@code GraphFetchLowering}.
      */
-    private CompiledExpression elaborateImplicitSerialize(CompiledExpression unit) {
+    private CompiledExpression elaborateImplicitSerialize(CompiledExpression unit, StoreResolution rootStore) {
         TypedSpec root = unit.hir();
         if (root instanceof TypedGraphFetch) return unit;
         if (!(root.type() instanceof com.gs.legend.model.m3.Type.ClassType)) return unit;
-        StoreResolution store = resolutions.get(root);
-        List<TypedGraphTree> tree = store == null ? List.of()
-                : store.propertyToColumn().keySet().stream().map(TypedGraphTree::leaf).toList();
+        List<TypedGraphTree> tree = rootStore == null ? List.of()
+                : rootStore.propertyToColumn().keySet().stream().map(TypedGraphTree::leaf).toList();
         return new CompiledExpression(new TypedSerializeImplicit(root, tree), unit.dependencies());
     }
 
-    // ==================== Typed HIR walk ====================
+    // ==================== Query side: typed HIR walk ====================
 
     /**
-     * Walks the typed HIR, propagating the active {@link StoreResolution} from
-     * source operand to downstream operators. {@link TypedGetAll} and
-     * {@link TypedNewInstance} create new resolutions; relation operators
-     * inherit from their first operand; {@link TypedUserCall} recurses into
-     * the callee's compiled body (shared primitive with synthesized sourceSpec
-     * functions — user and synthesized are indistinguishable).
+     * Walks the typed HIR returning each node's {@link StoreResolution}.
+     * {@link TypedGetAll} and {@link TypedNewInstance} create new resolutions;
+     * relation operators inherit from their first operand; {@link TypedUserCall}
+     * is forbidden — it must be inlined upstream by {@code UserCallInliner}.
+     *
+     * <p>The wrapper unconditionally stamps {@code resolutions[node]} when the
+     * computed resolution is non-null. Each switch case yields the node's
+     * resolution; children are walked recursively and their resolutions
+     * propagate via the recursive return value.
      */
-    private void walk(TypedSpec node, StoreResolution active) {
-        if (node == null) return;
-
-        switch (node) {
+    private StoreResolution resolveQuery(TypedSpec node) {
+        if (node == null) return null;
+        StoreResolution res = switch (node) {
             // ----- Anchors: create a new resolution -----
-            case TypedGetAll ga -> {
-                StoreResolution res = resolveClassFetch(ga.className());
-                if (res != null) resolutions.put(node, res);
-            }
+            case TypedGetAll ga -> resolveClassFetch(ga.className());
             case TypedNewInstance ni -> {
-                StoreResolution res = resolveIdentity(ni.className());
-                if (res != null) {
-                    resolutions.put(node, res);
-                    active = res;
-                }
-                for (var v : ni.values().values()) walk(v, null);
+                StoreResolution r = resolveIdentity(ni.className());
+                for (var v : ni.values().values()) resolveQuery(v);
+                yield r;
             }
 
             // ----- TypedUserCall must not survive UserCallInliner -----
@@ -173,7 +168,7 @@ public final class MappingResolver {
                             "[mapping-resolver] TypedTableReference info is not a Relation type: "
                                     + ref.info().type());
                 }
-                resolutions.put(node, buildSchemaStore(rel.schema().columns().keySet()));
+                yield buildSchemaStore(rel.schema().columns().keySet());
             }
             case TypedTdsLiteral lit -> {
                 // Inline TDS literal: identity store keyed by declared column
@@ -181,7 +176,7 @@ public final class MappingResolver {
                 // exposes columns by their declared names.
                 List<String> cols = lit.data().columns().stream()
                         .map(com.gs.legend.ast.TdsLiteral.TdsColumn::name).toList();
-                resolutions.put(node, buildSchemaStore(cols));
+                yield buildSchemaStore(cols);
             }
             case TypedSourceUrl src -> {
                 // External URL source: identity store keyed by the relation's
@@ -194,52 +189,57 @@ public final class MappingResolver {
                             "[mapping-resolver] TypedSourceUrl info is not a Relation type: "
                                     + src.info().type());
                 }
-                resolutions.put(node, buildSchemaStore(rel.schema().columns().keySet()));
+                yield buildSchemaStore(rel.schema().columns().keySet());
             }
 
-            // ----- Pass-through relation operators (no SQL rename) -----
-            case TypedFilter op -> propagate(node, op.source(), List.of(op.predicate()), active);
-            case TypedSort op -> propagate(node, op.source(), List.of(), active);
+            // ----- Pass-through relation operators (inherit source's resolution) -----
+            case TypedFilter op -> {
+                StoreResolution src = resolveQuery(op.source());
+                resolveQuery(op.predicate());
+                yield src;
+            }
+            case TypedSort op -> resolveQuery(op.source());
+            case TypedSlice op -> resolveQuery(op.source());
+            case TypedDistinct op -> resolveQuery(op.source());
+            case TypedFlatten op -> resolveQuery(op.source());
+            case TypedFrom op -> resolveQuery(op.source());
+            case TypedGraphFetch op -> resolveQuery(op.source());
 
             // ----- Schema-changing relation operators -----
             // Each builds a NEW StoreResolution reflecting the output schema:
             // post-schema rows are TDSes whose columns are the operator's
-            // declared output aliases. Inner expressions (project bodies,
-            // group keys, agg lambdas, etc.) walk against the UPSTREAM store
-            // because they reference the source's columns/properties.
+            // declared output aliases. Inner expressions are walked against
+            // the upstream's stamp via the recursive return value.
             case TypedProject op -> {
-                walk(op.source(), active);
-                StoreResolution upstream = requireResolution(op.source(), active);
-                for (var c : op.projections()) walk(c.expression(), upstream);
+                resolveQuery(op.source());
+                for (var c : op.projections()) resolveQuery(c.expression());
                 List<String> aliases = op.projections().stream()
                         .map(TypedProjectionCol::alias).toList();
-                resolutions.put(node, buildSchemaStore(aliases));
+                yield buildSchemaStore(aliases);
             }
             case TypedGroupBy op -> {
-                walk(op.source(), active);
-                StoreResolution upstream = requireResolution(op.source(), active);
+                resolveQuery(op.source());
                 for (var agg : op.aggs()) {
-                    walk(agg.fn1(), upstream);
-                    walk(agg.fn2(), upstream);
+                    resolveQuery(agg.fn1());
+                    resolveQuery(agg.fn2());
                 }
                 List<String> aliases = new java.util.ArrayList<>();
                 for (TypedGroupKey k : op.keys()) aliases.add(groupKeyAlias(k));
                 for (TypedAggCall a : op.aggs()) aliases.add(a.alias());
-                resolutions.put(node, buildSchemaStore(aliases));
+                yield buildSchemaStore(aliases);
             }
             case TypedAggregate op -> {
-                walk(op.source(), active);
-                StoreResolution upstream = requireResolution(op.source(), active);
+                resolveQuery(op.source());
                 for (var agg : op.aggs()) {
-                    walk(agg.fn1(), upstream);
-                    walk(agg.fn2(), upstream);
+                    resolveQuery(agg.fn1());
+                    resolveQuery(agg.fn2());
                 }
                 List<String> aliases = op.aggs().stream()
                         .map(TypedAggCall::alias).toList();
-                resolutions.put(node, buildSchemaStore(aliases));
+                yield buildSchemaStore(aliases);
             }
             case TypedPivot op -> {
-                walk(op.source(), active);
+                resolveQuery(op.source());
                 // Static schema = pivot grouping columns + agg aliases. The
                 // pivot-spread columns (one per distinct pivot value × agg)
                 // are dynamic and not represented statically; static Pure
@@ -247,90 +247,99 @@ public final class MappingResolver {
                 List<String> aliases = new java.util.ArrayList<>();
                 aliases.addAll(op.pivotColumns());
                 for (TypedAggCall a : op.aggs()) aliases.add(a.alias());
-                resolutions.put(node, buildSchemaStore(aliases));
+                yield buildSchemaStore(aliases);
             }
-            case TypedJoin op -> propagate(node, op.left(), List.of(op.right(), op.condition()), active);
+            case TypedJoin op -> {
+                StoreResolution leftRes = resolveQuery(op.left());
+                resolveQuery(op.right());
+                resolveQuery(op.condition());
+                yield leftRes;
+            }
             case TypedAsOfJoin op -> {
-                walk(op.left(), active);
-                walk(op.right(), active);
-                walk(op.matchCondition(), active);
-                StoreResolution activeFinal = active;
-                op.keyCondition().ifPresent(k -> walk(k, activeFinal));
-                inherit(node, op.left(), active);
+                // Inherits left side's resolution (matches TypedJoin's
+                // documented semantic). Previously walked siblings with the
+                // incoming {@code active} regardless — accidental hand-roll.
+                StoreResolution leftRes = resolveQuery(op.left());
+                resolveQuery(op.right());
+                resolveQuery(op.matchCondition());
+                op.keyCondition().ifPresent(MappingResolver.this::resolveQuery);
+                yield leftRes;
             }
             case TypedExtend op -> {
-                walk(op.source(), active);
-                inherit(node, op.source(), active);
+                StoreResolution src = resolveQuery(op.source());
                 // Extend columns are structural — typed variants (scalar,
                 // window, traverse, association, embedded) are lowered to
                 // StoreResolution fields by the caller of resolveClassFetch,
                 // not by walking here. We still descend into scalar/window
-                // expressions so downstream nodes inside them (user calls,
-                // property accesses) get visited.
-                StoreResolution ctx = resolutions.get(node);
+                // expressions so downstream nodes inside them (property
+                // accesses) get visited.
                 for (var col : op.extensions()) {
                     switch (col) {
-                        case TypedScalarExtendCol s -> walk(s.expression(), ctx);
+                        case TypedScalarExtendCol s -> resolveQuery(s.expression());
                         case TypedWindowExtendCol w -> {
-                            for (var a : w.funcArgs()) walk(a, ctx);
-                            w.reducer().ifPresent(l -> walk(l, ctx));
-                            w.outerWrapper().ifPresent(ow -> walk(ow.expr(), ctx));
+                            for (var a : w.funcArgs()) resolveQuery(a);
+                            w.reducer().ifPresent(MappingResolver.this::resolveQuery);
+                            w.outerWrapper().ifPresent(ow -> resolveQuery(ow.expr()));
                         }
-                        case TypedTraverseExtendCol t -> walk(t.expression(), ctx);
+                        case TypedTraverseExtendCol t -> resolveQuery(t.expression());
                         case TypedAssociationExtendCol ignored -> { /* no expression to walk */ }
                         case TypedEmbeddedExtendCol ignored -> { /* no expression to walk */ }
                     }
                 }
+                yield src;
             }
             case TypedSelect op -> {
-                walk(op.source(), active);
-                StoreResolution upstream = requireResolution(op.source(), active);
-                resolutions.put(node, restrictStore(upstream, op.cols()));
+                StoreResolution upstream = resolveQuery(op.source());
+                yield upstream != null ? restrictStore(upstream, op.cols()) : null;
             }
             case TypedRename op -> {
-                walk(op.source(), active);
-                StoreResolution upstream = requireResolution(op.source(), active);
-                resolutions.put(node, renameStore(upstream, op.renames()));
+                StoreResolution upstream = resolveQuery(op.source());
+                yield upstream != null ? renameStore(upstream, op.renames()) : null;
             }
-            case TypedSlice op -> propagate(node, op.source(), List.of(), active);
-            case TypedDistinct op -> propagate(node, op.source(), List.of(), active);
-            case TypedFlatten op -> propagate(node, op.source(), List.of(), active);
             case TypedConcatenate op -> {
-                walk(op.left(), active);
-                walk(op.right(), active);
-                inherit(node, op.left(), active);
+                // Inherits left's resolution (matches TypedJoin's documented
+                // semantic). Previously walked right with the incoming
+                // {@code active} — accidental hand-roll.
+                StoreResolution leftRes = resolveQuery(op.left());
+                resolveQuery(op.right());
+                yield leftRes;
             }
-            case TypedFrom op -> propagate(node, op.source(), List.of(), active);
-            case TypedGraphFetch op -> propagate(node, op.source(), List.of(), active);
 
             // ----- Scalar operators + structural extract -----
             case TypedPropertyAccess pa -> {
-                walk(pa.source(), active);
-                // property access on a typed row is scalar; no resolution to produce
+                resolveQuery(pa.source());
+                yield null;     // property access on a typed row is scalar
             }
             case TypedMap op -> {
-                walk(op.source(), active);
-                walk(op.mapper(), active);
+                resolveQuery(op.source());
+                resolveQuery(op.mapper());
+                yield null;
             }
             case TypedFold op -> {
-                walk(op.source(), active);
-                walk(op.init(), active);
-                walk(op.reducer(), active);
+                resolveQuery(op.source());
+                resolveQuery(op.init());
+                resolveQuery(op.reducer());
+                yield null;
             }
             case TypedNativeCall nc -> {
-                for (var a : nc.args()) walk(a, active);
+                for (var a : nc.args()) resolveQuery(a);
+                yield null;
             }
-            case TypedStructExtract se -> walk(se.source(), active);
+            case TypedStructExtract se -> {
+                resolveQuery(se.source());
+                yield null;
+            }
             case TypedEval ev -> {
-                walk(ev.applicable(), active);
-                for (var a : ev.args()) walk(a, active);
+                resolveQuery(ev.applicable());
+                for (var a : ev.args()) resolveQuery(a);
+                yield null;
             }
 
             // ----- Control flow / IO / misc -----
             case TypedIf i -> {
-                walk(i.condition(), active);
-                walk(i.thenBranch(), active);
-                walk(i.elseBranch(), active);
+                resolveQuery(i.condition());
+                StoreResolution thenRes = resolveQuery(i.thenBranch());
+                StoreResolution elseRes = resolveQuery(i.elseBranch());
                 // Inherit one branch's resolution onto the if-node so a
                 // class-typed if expression presents as relational. Both
                 // branches must produce the same class for the wrap to be
@@ -338,58 +347,53 @@ public final class MappingResolver {
                 // assume type-checker uniformity. Without this stamp,
                 // implicit-serialize elaboration would synthesize an empty
                 // tree for {@code if(c, |P.all(), |Q.all())} roots.
-                StoreResolution branchRes = resolutions.get(i.thenBranch());
-                if (branchRes == null) branchRes = resolutions.get(i.elseBranch());
-                if (branchRes != null) resolutions.put(node, branchRes);
+                yield thenRes != null ? thenRes : elseRes;
             }
-            case TypedLet let -> walk(let.value(), active);
+            case TypedLet let -> {
+                resolveQuery(let.value());
+                yield null;
+            }
             case TypedBlock b -> {
-                for (var s : b.stmts()) walk(s, active);
+                StoreResolution last = null;
+                for (var s : b.stmts()) last = resolveQuery(s);
                 // The block's result is its last statement's value, so its
-                // store resolution is the last statement's. Mirrors the
-                // {@link TypedUserCall} pattern: compound nodes whose result
-                // is produced by an inner sub-expression inherit that
-                // sub-expression's resolution. Without this, an implicit-
-                // serialize root over a {@code let; expr} block would resolve
-                // to no store and skip the JSON envelope.
-                if (!b.stmts().isEmpty()) {
-                    StoreResolution lastRes = resolutions.get(b.stmts().get(b.stmts().size() - 1));
-                    if (lastRes != null) resolutions.put(node, lastRes);
-                }
+                // store resolution is the last statement's. Without this,
+                // an implicit-serialize root over a {@code let; expr} block
+                // would resolve to no store and skip the JSON envelope.
+                yield last;
             }
             case TypedMatch m -> {
-                walk(m.subject(), active);
-                for (var arm : m.cases()) walk(arm, active);
+                resolveQuery(m.subject());
+                for (var arm : m.cases()) resolveQuery(arm);
+                yield null;
             }
-            case TypedCast c -> walk(c.expr(), active);
+            case TypedCast c -> {
+                resolveQuery(c.expr());
+                yield null;
+            }
             case TypedZip z -> {
-                for (var s : z.sources()) walk(s, active);
+                for (var s : z.sources()) resolveQuery(s);
+                yield null;
             }
-            case TypedWrite w -> walk(w.source(), active);
-            case TypedSerialize s -> walk(s.source(), active);
-            case TypedSerializeImplicit s -> {
-                // Synthesized at this pass's tail — never present during the
-                // initial walk. Defensive arm in case the marker is ever
-                // produced upstream: just descend into the source.
-                walk(s.source(), active);
-                inherit(node, s.source(), active);
+            case TypedWrite w -> {
+                resolveQuery(w.source());
+                yield null;
             }
+            case TypedSerialize s -> {
+                resolveQuery(s.source());
+                yield null;
+            }
+            case TypedSerializeImplicit s -> resolveQuery(s.source());
 
             // ----- Bindings / collections -----
             case TypedLambda lam -> {
-                for (var stmt : lam.body()) walk(stmt, active);
+                StoreResolution last = null;
+                for (var stmt : lam.body()) last = resolveQuery(stmt);
                 // A 0-parameter lambda is the standard query-root shape for
-                // multi-statement queries ({@code resolveQuery} only unwraps
-                // single-stmt lambdas). Inherit the last body stmt's store
+                // multi-statement queries. Inherit the last body stmt's store
                 // so the implicit-serialize elaboration can find a resolved
-                // store on the root and synthesize a non-empty fetch tree —
-                // mirrors the {@link TypedUserCall} / {@link TypedBlock}
-                // pattern (compound nodes inherit their result-producing
-                // sub-expression's resolution).
-                if (!lam.body().isEmpty()) {
-                    StoreResolution lastRes = resolutions.get(lam.body().get(lam.body().size() - 1));
-                    if (lastRes != null) resolutions.put(node, lastRes);
-                }
+                // store on the root and synthesize a non-empty fetch tree.
+                yield last;
             }
             case TypedCollection coll -> {
                 // Class-typed collection (`[^Class(...), ^Class(...)]`) →
@@ -398,71 +402,29 @@ public final class MappingResolver {
                 // enum collections (`[1,2,3]`, `[E.A, E.B]`) keep no store
                 // and lower as scalar arrays; the instanceof is the
                 // legitimate class-vs-non-class dispatch.
-                if (coll.info().type() instanceof Type.ClassType ct) {
-                    StoreResolution res = resolveIdentity(ct.qualifiedName());
-                    resolutions.put(node, res);
-                    active = res;
-                }
-                for (var v : coll.values()) walk(v, active);
+                StoreResolution r = (coll.info().type() instanceof Type.ClassType ct)
+                        ? resolveIdentity(ct.qualifiedName()) : null;
+                for (var v : coll.values()) resolveQuery(v);
+                yield r;
             }
 
             // ----- Terminals: literals, variables, element refs -----
-            case TypedVariable ignored -> { }
-            case TypedPackageableRef ignored -> { }
-            case TypedCInteger ignored -> { }
-            case TypedCFloat ignored -> { }
-            case TypedCDecimal ignored -> { }
-            case TypedCString ignored -> { }
-            case TypedCBoolean ignored -> { }
-            case TypedCDateTime ignored -> { }
-            case TypedCStrictDate ignored -> { }
-            case TypedCStrictTime ignored -> { }
-            case TypedCLatestDate ignored -> { }
-            case TypedCByteArray ignored -> { }
-            case TypedEnumValue ignored -> { }
-        }
-    }
-
-    /**
-     * Walks {@code source}, propagates its resolution to {@code node}, then
-     * walks {@code rest}. Used by relation operators that have one primary
-     * source operand and N secondary operands (predicates, keys, etc.) that
-     * inherit the same active resolution context.
-     */
-    private void propagate(TypedSpec node, TypedSpec source, List<TypedSpec> rest,
-                           StoreResolution active) {
-        walk(source, active);
-        inherit(node, source, active);
-        StoreResolution ctx = resolutions.get(node);
-        for (var r : rest) walk(r, ctx);
-    }
-
-    /**
-     * Inherits the active resolution from {@code source} (or the incoming
-     * {@code active}) onto {@code node}. No-op if neither is present.
-     */
-    private void inherit(TypedSpec node, TypedSpec source, StoreResolution active) {
-        StoreResolution fromSource = resolutions.get(source);
-        StoreResolution chosen = fromSource != null ? fromSource : active;
-        if (chosen != null) {
-            resolutions.put(node, chosen);
-        }
-    }
-
-    /**
-     * Returns the upstream relation's stamped resolution, falling back to the
-     * incoming {@code active} context when the source has no stamp. Used by
-     * schema-changing operators that need to walk inner expressions against
-     * the upstream schema. The {@code active} fallback handles cases where the
-     * source is a node kind not yet stamping its resolution (e.g., a literal
-     * or expression source not in the relation hierarchy).
-     *
-     * <p>TODO: Phase C.2 — once every relation node stamps a faithful
-     * resolution, drop the {@code active} fallback and throw on null.
-     */
-    private StoreResolution requireResolution(TypedSpec source, StoreResolution active) {
-        StoreResolution res = resolutions.get(source);
-        return res != null ? res : active;
+            case TypedVariable ignored -> null;
+            case TypedPackageableRef ignored -> null;
+            case TypedCInteger ignored -> null;
+            case TypedCFloat ignored -> null;
+            case TypedCDecimal ignored -> null;
+            case TypedCString ignored -> null;
+            case TypedCBoolean ignored -> null;
+            case TypedCDateTime ignored -> null;
+            case TypedCStrictDate ignored -> null;
+            case TypedCStrictTime ignored -> null;
+            case TypedCLatestDate ignored -> null;
+            case TypedCByteArray ignored -> null;
+            case TypedEnumValue ignored -> null;
+        };
+        if (res != null) resolutions.put(node, res);
+        return res;
     }
 
     /**
