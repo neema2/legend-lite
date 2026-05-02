@@ -442,15 +442,12 @@ public final class MappingResolver {
      */
     private static StoreResolution buildSchemaStore(java.util.Collection<String> aliases) {
         Map<String, String> propToCol = new LinkedHashMap<>();
-        Map<String, StoreResolution.PropertyResolution> properties = new LinkedHashMap<>();
         for (String alias : aliases) {
             propToCol.put(alias, alias);
-            properties.put(alias, new StoreResolution.PropertyResolution.Column(alias));
         }
         return new StoreResolution(null, null,
                 java.util.Collections.unmodifiableMap(propToCol),
-                java.util.Collections.unmodifiableMap(properties),
-                Map.of(), false);
+                Map.of());
     }
 
     /**
@@ -464,23 +461,17 @@ public final class MappingResolver {
     private static StoreResolution renameStore(StoreResolution upstream,
                                                List<com.gs.legend.compiler.typed.ColRename> renames) {
         Map<String, String> propToCol = new LinkedHashMap<>(upstream.propertyToColumn());
-        Map<String, StoreResolution.PropertyResolution> properties =
-                new LinkedHashMap<>(upstream.properties());
         Map<String, StoreResolution.JoinResolution> joins =
                 new LinkedHashMap<>(upstream.joins());
         for (var r : renames) {
             propToCol.remove(r.from());
-            properties.remove(r.from());
             joins.remove(r.from());
             propToCol.put(r.to(), r.to());
-            properties.put(r.to(), new StoreResolution.PropertyResolution.Column(r.to()));
         }
         return new StoreResolution(
                 upstream.tableName(), upstream.className(),
                 java.util.Collections.unmodifiableMap(propToCol),
-                java.util.Collections.unmodifiableMap(properties),
                 java.util.Collections.unmodifiableMap(joins),
-                upstream.nested(),
                 upstream.extendOverride());
     }
 
@@ -492,13 +483,9 @@ public final class MappingResolver {
                                                  List<String> keptColumns) {
         Set<String> kept = Set.copyOf(keptColumns);
         Map<String, String> propToCol = new LinkedHashMap<>();
-        Map<String, StoreResolution.PropertyResolution> properties = new LinkedHashMap<>();
         Map<String, StoreResolution.JoinResolution> joins = new LinkedHashMap<>();
         for (var e : upstream.propertyToColumn().entrySet()) {
             if (kept.contains(e.getKey())) propToCol.put(e.getKey(), e.getValue());
-        }
-        for (var e : upstream.properties().entrySet()) {
-            if (kept.contains(e.getKey())) properties.put(e.getKey(), e.getValue());
         }
         for (var e : upstream.joins().entrySet()) {
             if (kept.contains(e.getKey())) joins.put(e.getKey(), e.getValue());
@@ -506,9 +493,7 @@ public final class MappingResolver {
         return new StoreResolution(
                 upstream.tableName(), upstream.className(),
                 java.util.Collections.unmodifiableMap(propToCol),
-                java.util.Collections.unmodifiableMap(properties),
                 java.util.Collections.unmodifiableMap(joins),
-                upstream.nested(),
                 upstream.extendOverride());
     }
 
@@ -571,26 +556,23 @@ public final class MappingResolver {
     private StoreResolution resolveRelational(RelationalMapping rm, String classFqn) {
         String tableName = rm.table().dbName();
         Map<String, String> propToCol = new LinkedHashMap<>();
-        Map<String, StoreResolution.PropertyResolution> properties = new LinkedHashMap<>();
         Map<String, StoreResolution.JoinResolution> joins = new LinkedHashMap<>();
 
-        // 1. Seed: simple column PMs → Column(physicalCol);
-        //    join-chain PMs → Column(propName) (traverse extend names them directly).
+        // 1. Seed: simple column PMs → physical column;
+        //    join-chain PMs → propName (traverse extend names them directly).
         for (PropertyMapping pm : rm.propertyMappings()) {
             String prop = pm.propertyName();
             String col = pm.hasJoinChain() ? pm.propertyName() : pm.columnName();
             propToCol.put(prop, col);
-            properties.put(prop, new StoreResolution.PropertyResolution.Column(col));
         }
 
         // 2. Inline struct-array properties (UNNEST candidates) from the model.
         addStructArrayJoins(classFqn, joins);
 
-        // 3. Build the store now; 'propToCol', 'properties' and 'joins' are
-        //    the live mutable maps inside it — the single synth-body walk
-        //    below layers extensions directly into them.
-        var store = new StoreResolution(tableName, classFqn, propToCol, properties, joins,
-                rm.nested());
+        // 3. Build the store now; 'propToCol' and 'joins' are the live
+        //    mutable maps inside it — the single synth-body walk below
+        //    layers extensions directly into them.
+        var store = new StoreResolution(tableName, classFqn, propToCol, joins);
 
         // 4. One walk over the synth sourceSpec body: layers extend-derived
         //    overrides (scalar → DynaFunction, traverse → column, association
@@ -630,15 +612,13 @@ public final class MappingResolver {
                             + "' which has no mapping in the active scope");
         }
 
-        // Inherit upstream's propToCol / properties; typed-extend lowering
-        // below replaces entries where the M2M declares a transform.
+        // Inherit upstream's propToCol; typed-extend lowering below replaces
+        // entries where the M2M declares a transform.
         Map<String, String> propToCol = new LinkedHashMap<>(upstream.propertyToColumn());
-        Map<String, StoreResolution.PropertyResolution> properties =
-                new LinkedHashMap<>(upstream.properties());
         Map<String, StoreResolution.JoinResolution> joins = new LinkedHashMap<>();
 
         var store = new StoreResolution(upstream.tableName(), targetClassFqn,
-                propToCol, properties, joins, false);
+                propToCol, joins);
 
         // One walk over the synth sourceSpec body: layers PCM-derived
         // property overrides (with passthrough-forwarding from upstream for
@@ -697,17 +677,14 @@ public final class MappingResolver {
         // synthetic-function channel — identity mappings are query-local).
         String tableName = identity.table().dbName();
         Map<String, String> propToCol = new LinkedHashMap<>();
-        Map<String, StoreResolution.PropertyResolution> properties = new LinkedHashMap<>();
         for (PropertyMapping pm : identity.propertyMappings()) {
             String prop = pm.propertyName();
             String col = pm.columnName();
             propToCol.put(prop, col);
-            properties.put(prop, new StoreResolution.PropertyResolution.Column(col));
         }
         Map<String, StoreResolution.JoinResolution> joins = new LinkedHashMap<>();
         addStructArrayJoins(classFqn, joins);
-        return new StoreResolution(tableName, classFqn, propToCol, properties, joins,
-                identity.nested());
+        return new StoreResolution(tableName, classFqn, propToCol, joins);
     }
 
     // ==================== Synthetic sourceSpec body walking ====================
@@ -783,8 +760,8 @@ public final class MappingResolver {
                         .getOrDefault(className, Set.of());
                 for (var col : ext.extensions()) {
                     lowerExtensionCol(col, className, tableName,
-                            store.propertyToColumn(), store.properties(),
-                            store.joins(), neededAssocs, upstream);
+                            store.propertyToColumn(), store.joins(),
+                            neededAssocs, upstream);
                 }
                 walkSourceSpec(ext.source(), store, upstream);
                 // Override pruning lives in the same pass: its inputs
@@ -840,8 +817,8 @@ public final class MappingResolver {
      * Lowers one {@link TypedExtendCol} to its {@link StoreResolution}
      * contribution:
      * <ul>
-     *   <li>{@link TypedScalarExtendCol} / window / traverse-scalar → override
-     *       {@code propToCol} + {@code properties} with DynaFunction or Column.</li>
+     *   <li>{@link TypedScalarExtendCol} / window / traverse-scalar → add
+     *       column alias to {@code propToCol}.</li>
      *   <li>{@link TypedAssociationExtendCol} → build {@link StoreResolution.JoinResolution}
      *       for the associated class.</li>
      *   <li>{@link TypedEmbeddedExtendCol} → build embedded JoinResolution
@@ -851,7 +828,6 @@ public final class MappingResolver {
     private void lowerExtensionCol(
             TypedExtendCol col, String className, String tableName,
             Map<String, String> propToCol,
-            Map<String, StoreResolution.PropertyResolution> properties,
             Map<String, StoreResolution.JoinResolution> joins,
             Set<String> neededAssocs,
             StoreResolution upstream) {
@@ -862,56 +838,31 @@ public final class MappingResolver {
                 // property access on the lambda's row parameter, forward the
                 // upstream resolution verbatim — simple columns stay simple
                 // columns, association JoinResolutions stay JoinResolutions.
-                // Falling through to DynaFunction for a trivial passthrough
-                // would force PlanGenerator to re-resolve the referenced
-                // property via a computed-column path and would lose
-                // association multiplicity / target-resolution wiring.
+                // Falling through to a plain alias entry for a trivial passthrough
+                // would lose association multiplicity / target-resolution wiring.
                 if (upstream != null && forwardPassthrough(s, bodyExpr, className,
-                        propToCol, properties, joins, upstream)) {
+                        propToCol, joins, upstream)) {
                     return;
                 }
-                // Per-row computed column. Override the seeded Column with a
-                // DynaFunction carrying the typed lambda body.
+                // Per-row computed column — alias entry; PlanGenerator
+                // re-derives the expression from the typed extend node.
                 propToCol.put(s.alias(), s.alias());
-                if (bodyExpr != null) {
-                    properties.put(s.alias(),
-                            new StoreResolution.PropertyResolution.DynaFunction(bodyExpr));
-                }
             }
             case TypedWindowExtendCol w -> {
-                // Window-computed column — treated as a DynaFunction over a
-                // representative sub-expression. Downstream PlanGenerator
-                // interprets window-ness from the original
-                // {@link TypedWindowExtendCol} node, not here; this dyna-body
-                // only exists so downstream property access can recurse into
-                // the expression. Priority:
-                //   1. outerWrapper (the whole scalar expression surrounding the window), if present;
-                //   2. first funcArg (for aggregate / value windows it's the value expression);
-                //   3. none — emit a bare column-alias property (ranking
-                //      windows have no inner expression to introspect).
+                // Window-computed column — alias entry. Downstream
+                // PlanGenerator interprets window-ness from the original
+                // {@link TypedWindowExtendCol} node.
                 propToCol.put(w.alias(), w.alias());
-                TypedSpec bodyExpr = w.outerWrapper()
-                        .map(ow -> ow.expr())
-                        .orElse(w.funcArgs().isEmpty() ? null : w.funcArgs().get(0));
-                if (bodyExpr != null) {
-                    properties.put(w.alias(),
-                            new StoreResolution.PropertyResolution.DynaFunction(bodyExpr));
-                }
             }
             case TypedTraverseExtendCol t -> {
-                // Per-column traverse (join-chain PM). The extend itself
-                // produces a column alias on the terminal row; the physical
-                // column is recoverable from the lambda body when it's a
-                // simple property access, else treat as DynaFunction.
+                // Per-column traverse (join-chain PM). The physical column
+                // is recoverable from the lambda body when it's a simple
+                // property access; otherwise the alias names itself.
                 TypedSpec bodyExpr = extractLambdaBody(t.expression());
                 if (bodyExpr instanceof TypedPropertyAccess tpa) {
                     propToCol.put(t.alias(), tpa.property());
-                    properties.put(t.alias(),
-                            new StoreResolution.PropertyResolution.Column(tpa.property()));
                 } else if (bodyExpr != null) {
                     propToCol.put(t.alias(), t.alias());
-                    properties.put(t.alias(),
-                            new StoreResolution.PropertyResolution.DynaFunction(bodyExpr));
                 }
             }
             case TypedAssociationExtendCol a -> {
@@ -956,18 +907,16 @@ public final class MappingResolver {
      * <ul>
      *   <li>Upstream {@code joins.get(propName)} → target joins (with
      *       multiplicity re-derived from the target property's declaration).</li>
-     *   <li>Upstream {@code properties.get(propName)} → target properties.</li>
      *   <li>Upstream {@code propertyToColumn.get(propName)} → target
      *       propertyToColumn under the new alias.</li>
      * </ul>
      *
      * @return {@code true} if passthrough was applied; {@code false} to fall
-     *         back to DynaFunction.
+     *         back to a plain alias entry.
      */
     private boolean forwardPassthrough(
             TypedScalarExtendCol col, TypedSpec bodyExpr, String targetClassFqn,
             Map<String, String> propToCol,
-            Map<String, StoreResolution.PropertyResolution> properties,
             Map<String, StoreResolution.JoinResolution> joins,
             StoreResolution upstream) {
         if (!(bodyExpr instanceof TypedPropertyAccess tpa)) return false;
@@ -985,15 +934,9 @@ public final class MappingResolver {
         if (upstreamJoin != null) {
             joins.put(alias, adjustJoinMultiplicity(upstreamJoin, targetClassFqn, alias));
             propToCol.put(alias, alias);
-            // Remove any stale inherited simple-column entry for this alias.
-            properties.remove(alias);
             return true;
         }
 
-        var upstreamProp = upstream.properties().get(srcProp);
-        if (upstreamProp != null) {
-            properties.put(alias, upstreamProp);
-        }
         String upstreamCol = upstream.propertyToColumn().get(srcProp);
         propToCol.put(alias, upstreamCol != null ? upstreamCol : srcProp);
         return true;
@@ -1066,11 +1009,8 @@ public final class MappingResolver {
             TypedEmbeddedExtendCol col, String parentTable,
             StoreResolution.JoinResolution existing) {
         Map<String, String> subPropToCol = new LinkedHashMap<>();
-        Map<String, StoreResolution.PropertyResolution> subProperties = new LinkedHashMap<>();
         for (var sub : col.subColumns()) {
             subPropToCol.put(sub.propertyName(), sub.columnName());
-            subProperties.put(sub.propertyName(),
-                    new StoreResolution.PropertyResolution.EmbeddedColumn(sub.columnName()));
         }
 
         // Otherwise mapping: an FK join already exists for this alias. The
@@ -1084,7 +1024,7 @@ public final class MappingResolver {
         }
 
         StoreResolution embeddedTarget = new StoreResolution(
-                parentTable, null, subPropToCol, subProperties, Map.of(), false);
+                parentTable, null, subPropToCol, Map.of());
         return new StoreResolution.JoinResolution.Embedded(false, embeddedTarget);
     }
 
@@ -1109,15 +1049,12 @@ public final class MappingResolver {
         }
         String tableName = rm.table().dbName();
         Map<String, String> propToCol = new LinkedHashMap<>();
-        Map<String, StoreResolution.PropertyResolution> properties = new LinkedHashMap<>();
         for (PropertyMapping pm : rm.propertyMappings()) {
             String prop = pm.propertyName();
             String col = pm.hasJoinChain() ? pm.propertyName() : pm.columnName();
             propToCol.put(prop, col);
-            properties.put(prop, new StoreResolution.PropertyResolution.Column(col));
         }
-        return new StoreResolution(tableName, classFqn, propToCol, properties,
-                Map.of(), rm.nested());
+        return new StoreResolution(tableName, classFqn, propToCol, Map.of());
     }
 
     /**
@@ -1229,15 +1166,13 @@ public final class MappingResolver {
         // signalling pruning via {@code extendOverride}.
         StoreResolution underlying = resolutions.get(ext);
         StoreResolution withOverride;
+        StoreResolution.ExtendOverride ovr = new StoreResolution.ExtendOverride(active);
         if (underlying != null) {
             withOverride = new StoreResolution(
                     underlying.tableName(), underlying.className(),
-                    underlying.propertyToColumn(), underlying.properties(),
-                    underlying.joins(), underlying.nested(),
-                    new StoreResolution.ExtendOverride(active));
+                    underlying.propertyToColumn(), underlying.joins(), ovr);
         } else {
-            withOverride = StoreResolution.forExtend(
-                    new StoreResolution.ExtendOverride(active));
+            withOverride = new StoreResolution(null, null, Map.of(), Map.of(), ovr);
         }
         resolutions.put(ext, withOverride);
     }

@@ -18,18 +18,14 @@ import java.util.Map;
  * @param className        FQN of the mapped class this resolution belongs to (null for
  *                         identity mappings and extend-override markers).
  * @param propertyToColumn Pure property name → physical column name (simple mappings).
- * @param properties       Per-property resolution descriptors (handles expression, enum, M2M).
  * @param joins            Association property → join resolution.
- * @param nested           True for struct-literal identity mappings (nested field access).
  * @param extendOverride   Cancellation info for extend nodes (null = not an extend node / all active).
  */
 public record StoreResolution(
         String tableName,
         String className,
         Map<String, String> propertyToColumn,
-        Map<String, PropertyResolution> properties,
         Map<String, JoinResolution> joins,
-        boolean nested,
         ExtendOverride extendOverride) {
 
     /** Physical store resolution without extendOverride. */
@@ -37,15 +33,8 @@ public record StoreResolution(
             String tableName,
             String className,
             Map<String, String> propertyToColumn,
-            Map<String, PropertyResolution> properties,
-            Map<String, JoinResolution> joins,
-            boolean nested) {
-        this(tableName, className, propertyToColumn, properties, joins, nested, null);
-    }
-
-    /** Factory for extend-only StoreResolutions (carries only cancellation info). */
-    public static StoreResolution forExtend(ExtendOverride override) {
-        return new StoreResolution(null, null, Map.of(), Map.of(), Map.of(), false, override);
+            Map<String, JoinResolution> joins) {
+        this(tableName, className, propertyToColumn, joins, null);
     }
 
     /**
@@ -58,32 +47,6 @@ public record StoreResolution(
     public record ExtendOverride(java.util.Set<String> activeColumns) {
         public boolean isFullyCancelled() { return activeColumns != null && activeColumns.isEmpty(); }
         public boolean isActive(String col) { return activeColumns == null || activeColumns.contains(col); }
-    }
-
-    /**
-     * How a single property resolves to a physical store element.
-     * PlanGenerator switches on this to emit the right SqlExpr —
-     * no ClassMapping dispatch needed.
-     */
-    public sealed interface PropertyResolution {
-        /** Simple column: property maps directly to a column name. */
-        record Column(String columnName) implements PropertyResolution {}
-
-        /**
-         * DynaFunction expression: property computed from a typed relational
-         * expression (e.g., {@code concat($row.FIRST, ' ', $row.LAST)}).
-         *
-         * @param expression Typed HIR for the computed expression.
-         */
-        record DynaFunction(TypedSpec expression) implements PropertyResolution {}
-
-        /**
-         * Embedded column: sub-property resolves to a column on the PARENT table (no JOIN).
-         * PlanGenerator uses the parent alias to reference the column directly.
-         *
-         * @param columnName Physical column on the parent table
-         */
-        record EmbeddedColumn(String columnName) implements PropertyResolution {}
     }
 
     /**
@@ -182,11 +145,6 @@ public record StoreResolution(
     /** Resolves a property to its column name. Returns null if not a simple column mapping. */
     public String columnFor(String propertyName) {
         return propertyToColumn.get(propertyName);
-    }
-
-    /** Gets the full PropertyResolution for a property. */
-    public PropertyResolution resolveProperty(String propertyName) {
-        return properties.get(propertyName);
     }
 
     /** True if this resolution has any association joins. */
