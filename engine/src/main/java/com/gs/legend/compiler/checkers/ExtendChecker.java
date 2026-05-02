@@ -206,10 +206,66 @@ public class ExtendChecker extends AbstractChecker {
             TypedSpec body = compileLambdaBody(lambda, lambdaCtx);
             TypedLambda expr = buildLambda(lambda, resolvedParamType, body);
             extensions.add(new TypedScalarExtendCol(alias, expr, body.type()));
+            validateMappingPropertyBinding(ctx, alias, body);
         }
 
         // Class-source extend stays in object space — ClassType[*] unchanged.
         return new TypedExtend(source, List.of(), extensions, def, source.expressionType());
+    }
+
+    /**
+     * Validates a class-source extend ColSpec against the materialized class's
+     * declared property — when (and only when) we are inside the body of a
+     * synthetic mapping function. Catches the M2M / Pure-class mapping case
+     * where a property bound to a {@code [*]}-multiplicity source expression
+     * narrows to a {@code [0..1]} or {@code [1]} target property: produces a
+     * compile-time error instead of a runtime SQL fan-out.
+     *
+     * <p>Layering: this is a no-op outside synth mapping function compilation
+     * (the {@code ctx.mappingTarget()} hint is only stamped by
+     * {@code TypeChecker.compileFunction} when entering a synth body). Generic
+     * {@code extend} on a ClassType in user code is unaffected.
+     *
+     * <p>Validates <strong>multiplicity only</strong>. Type compatibility is
+     * intentionally NOT checked here: M2M mappings cross class types by design
+     * (e.g. {@code address: $src.rawAddresses} where source is {@code RawAddress}
+     * and the property is {@code Address}). The cross-type bridge is the
+     * downstream mapping function for the value class — which would itself
+     * be invoked with a {@code RawAddress} and produce an {@code Address}.
+     * Reasoning about that bridge here would re-implement M2M chain
+     * resolution, wrong layer. Multiplicity is dimension-free and always
+     * comparable.
+     *
+     * <p>Properties not declared on the target class are tolerated — synthetic
+     * mappings sometimes carry helper extends that don't correspond to a Pure
+     * property. If you want to enforce "every ColSpec must bind a property",
+     * tighten this here.
+     */
+    private void validateMappingPropertyBinding(
+            TypeChecker.CompilationContext ctx,
+            String alias,
+            TypedSpec body) {
+        var targetOpt = ctx.mappingTarget();
+        if (targetOpt.isEmpty()) return;
+        String classFqn = targetOpt.get().classFqn();
+        var classOpt = findClass(classFqn);
+        if (classOpt.isEmpty()) return;
+        var propOpt = classOpt.get().findProperty(alias, env.modelContext());
+        if (propOpt.isEmpty()) return; // ColSpec doesn't bind a declared property
+        var prop = propOpt.get();
+        Multiplicity declaredMult = prop.multiplicity();
+        Multiplicity bodyMult = body.multiplicity();
+        // Multiplicity narrowing — the M2M [*] → [1] regression this validation
+        // is here to catch.
+        if (bodyMult != null && declaredMult != null
+                && !Multiplicity.fits(bodyMult, declaredMult)) {
+            throw new PureCompileException(
+                    "Mapping for class '" + classFqn + "' property '" + alias
+                            + "': source expression has multiplicity " + bodyMult
+                            + " but property is declared " + declaredMult
+                            + ". Narrow the source (e.g. ->first(), ->take(1)) or"
+                            + " widen the property's multiplicity.");
+        }
     }
 
     // ========== Association / Embedded extend detection ==========

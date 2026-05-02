@@ -73,6 +73,9 @@ public final class MappingNormalizer {
             @Override public java.util.Optional<String> findMappingFunctionFqn(String className) {
                 return normalized.findMappingFunctionFqn(className);
             }
+            @Override public java.util.Optional<String> findClassForMappingFunction(String fnFqn) {
+                return normalized.findClassForMappingFunction(fnFqn);
+            }
         };
     }
 
@@ -91,8 +94,18 @@ public final class MappingNormalizer {
 
         var registry = model.getMappingRegistry();
         Map<Integer, ClassMapping> allMappings = new HashMap<>();
+        // classId → originating mapping FQN. Used by Phase 3 to compose the
+        // synthetic function FQN in the *mapping's* package, so synth funcs
+        // sit alongside the user-authored Mapping element rather than under
+        // the mapped class. When a class appears in multiple active mappings
+        // (rare), last-write-wins matches `allMappings` semantics.
+        Map<Integer, String> classIdToMappingFqn = new HashMap<>();
         for (String name : mappingNames) {
-            allMappings.putAll(registry.getAllClassMappings(name));
+            var perMapping = registry.getAllClassMappings(name);
+            allMappings.putAll(perMapping);
+            for (Integer cid : perMapping.keySet()) {
+                classIdToMappingFqn.put(cid, name);
+            }
         }
 
         Map<Integer, ClassMapping> resolvedMappings = new HashMap<>();
@@ -152,20 +165,26 @@ public final class MappingNormalizer {
             rawSourceSpecs.put(classId, synthesizeM2MSourceSpec(pcm));
         }
 
-        // Phase 3: Wrap each raw sourceSpec AST as a synthetic PureFunction,
-        // deterministically named "<classFqn>::mappingFunction". These functions
-        // are compiled by TypeChecker exactly like user functions and walked
-        // by MappingResolver via the same primitive as TypedUserCall.
+        // Phase 3: Wrap each raw sourceSpec AST as a synthetic PureFunction
+        // sitting in the SAME PACKAGE as the user-authored Mapping element it
+        // came from, with element name {@code <MappingSimpleName>_<SimpleClassName>}.
+        // E.g. mapping {@code model::EmployeeMapping} for class {@code model::Employee}
+        // → synth function {@code model::EmployeeMapping_Employee}.
         //
-        // "::mappingFunction" is a reserved canonical suffix: a future
-        // user-authored function with this name for a given class is
-        // treated as an intentional override of the synthesized default
-        // (same mechanism Python uses for __eq__, Rust for Default::default,
-        // Go for init/main, etc.). The overlay's findFunction path resolves
-        // both uniformly, so no special-casing is needed downstream.
+        // <p>Why mapping-package: the synth function is the runtime form of
+        // the mapping the user wrote, so it lives where they wrote it. The
+        // old form ({@code <classFqn>::mappingFunction}) made the class look
+        // like a package — a violation of Pure naming where packages are
+        // lowercase and class elements capitalized. It also tied identity to
+        // the class rather than the mapping, which broke when one class had
+        // multiple mappings in scope.
         //
-        // NormalizedMapping is FQN-keyed (no integer handles leak across the
-        // module boundary), so we convert from the internal classId-keyed
+        // <p>Lookup is class-keyed via {@link NormalizedMapping#mappingFunctionFqns}
+        // — nothing parses the FQN format to recover meaning, so format
+        // changes are safe.
+        //
+        // <p>NormalizedMapping is FQN-keyed (no integer handles leak across
+        // the module boundary), so we convert from the internal classId-keyed
         // representation here in one place.
         Map<String, ClassMapping> classMappingsByFqn = new LinkedHashMap<>();
         for (var entry : resolvedMappings.entrySet()) {
@@ -174,14 +193,25 @@ public final class MappingNormalizer {
         Map<String, String> mappingFunctionFqns = new LinkedHashMap<>();
         Map<String, com.gs.legend.model.m3.PureFunction> mappingFunctions = new LinkedHashMap<>();
         for (var entry : rawSourceSpecs.entrySet()) {
-            String className = symbols.nameOf(entry.getKey());
-            String fnFqn = className + "::mappingFunction";
+            int classId = entry.getKey();
+            String className = symbols.nameOf(classId);
+            String mappingFqn = classIdToMappingFqn.get(classId);
+            String fnFqn = synthFunctionFqn(mappingFqn, className);
+            ClassMapping cm = resolvedMappings.get(classId);
+            // Honest signature: synth function declares the type its body
+            // actually computes. M2M body terminal = SrcClass[*] (class-source
+            // extend overload returns C[*] in T). Relational body terminal =
+            // Relation<schema> derived from the target class's properties +
+            // model. Neither is the materialized class — that relationship is
+            // a separate concern carried via {@link NormalizedMapping#mappingFunctionFqns}
+            // (read by ExtendChecker via ModelContext.findClassForMappingFunction).
+            var ret = synthReturnType(cm, className);
             var pureFn = new com.gs.legend.model.m3.PureFunction(
                     fnFqn,
                     /* typeParams */ java.util.List.of(),
                     /* parameters */ java.util.List.of(),
-                    /* returnType */ com.gs.legend.model.m3.Primitive.ANY,
-                    /* returnMult */ com.gs.legend.model.m3.Multiplicity.MANY,
+                    /* returnType */ ret.type,
+                    /* returnMult */ ret.multiplicity,
                     /* body       */ java.util.List.of(entry.getValue()),
                     /* stereotypes */ java.util.List.of(),
                     /* taggedValues */ java.util.List.of());
@@ -190,6 +220,90 @@ public final class MappingNormalizer {
         }
 
         return new NormalizedMapping(classMappingsByFqn, mappingFunctionFqns, mappingFunctions);
+    }
+
+    /**
+     * Composes a synthetic mapping function FQN: {@code <mappingPackage>::<MappingSimpleName>_<SimpleClassName>}.
+     *
+     * <p>Lives in the mapping's package so synth functions sit alongside the
+     * Mapping element the user wrote (Pure naming: packages lowercase, only
+     * elements capitalized — putting {@code mappingFunction} under a class
+     * FQN would treat the class element as a package).
+     *
+     * <p>Element name combines the mapping's simple name with the class's
+     * simple name to disambiguate when one mapping covers multiple classes
+     * and to keep the FQN readable.
+     *
+     * @param mappingFqn The user-authored Mapping element's FQN
+     *                   (e.g. {@code model::EmployeeMapping}). Must be
+     *                   non-null — every classId reaching Phase 3 came
+     *                   from a {@code mappingNames} entry that populated
+     *                   {@code classIdToMappingFqn}. Null here means the
+     *                   tracking map fell out of sync with {@code allMappings};
+     *                   that's a Phase 2 bug, not a Phase 3 fallback case.
+     * @param classFqn   The mapped class's FQN (e.g. {@code model::Employee}).
+     * @return Synthetic function FQN, e.g. {@code model::EmployeeMapping_Employee}.
+     */
+    private static String synthFunctionFqn(String mappingFqn, String classFqn) {
+        if (mappingFqn == null) {
+            throw new IllegalStateException(
+                    "MappingNormalizer: no originating mapping recorded for class '"
+                            + classFqn + "'. classIdToMappingFqn is out of sync with"
+                            + " allMappings — fix the Phase 1/2 population, not here.");
+        }
+        int mIdx = mappingFqn.lastIndexOf("::");
+        String mappingPackage = mIdx >= 0 ? mappingFqn.substring(0, mIdx) : "";
+        String mappingSimple = mIdx >= 0 ? mappingFqn.substring(mIdx + 2) : mappingFqn;
+        int cIdx = classFqn.lastIndexOf("::");
+        String classSimple = cIdx >= 0 ? classFqn.substring(cIdx + 2) : classFqn;
+        String element = mappingSimple + "_" + classSimple;
+        return mappingPackage.isEmpty() ? element : mappingPackage + "::" + element;
+    }
+
+    /** Pair of return type + multiplicity for a synthetic mapping function. */
+    private record SynthReturn(
+            com.gs.legend.model.m3.Type type,
+            com.gs.legend.model.m3.Multiplicity multiplicity) {}
+
+    /**
+     * Computes the honest return type of a synthetic mapping function from
+     * its {@link ClassMapping} variant.
+     *
+     * <ul>
+     *   <li>{@link PureClassMapping} (M2M): {@code SrcClass[*]} — the body
+     *       chains {@code getAll(SrcClass)→filter→extend(...)} and the
+     *       class-source extend overload preserves the source class type
+     *       through the extends.</li>
+     *   <li>{@link RelationalMapping}: {@code Relation<()>[1]} — empty
+     *       schema. The body's actual schema is a hybrid of physical
+     *       column names (for simple-column PMs that emit no extend; the
+     *       {@code propToCol} bridge is applied at resolution time, not
+     *       in the body's schema) and logical names added by traverse /
+     *       dyna / embedded / association extends. Declaring the precise
+     *       hybrid would require recapitulating
+     *       {@link #synthesizeSourceSpec} — wrong layer for ingestion.
+     *       Empty schema + multiplicity {@code 1} states "I am a relation"
+     *       for composability (downstream sees Relation, not Any) without
+     *       claiming a specific column set the body doesn't have.</li>
+     * </ul>
+     *
+     * <p>Falls back to {@code Any[*]} if the variant is unrecognised.
+     */
+    private SynthReturn synthReturnType(ClassMapping cm, String classFqn) {
+        if (cm instanceof PureClassMapping pcm) {
+            return new SynthReturn(
+                    new com.gs.legend.model.m3.Type.ClassType(pcm.sourceClassName()),
+                    com.gs.legend.model.m3.Multiplicity.MANY);
+        }
+        if (cm instanceof RelationalMapping) {
+            return new SynthReturn(
+                    new com.gs.legend.model.m3.Type.Relation(
+                            com.gs.legend.model.m3.Type.Schema.empty()),
+                    com.gs.legend.model.m3.Multiplicity.ONE);
+        }
+        return new SynthReturn(
+                com.gs.legend.model.m3.Primitive.ANY,
+                com.gs.legend.model.m3.Multiplicity.MANY);
     }
 
     // ==================== Chain Walking ====================

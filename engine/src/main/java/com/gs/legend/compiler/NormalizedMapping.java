@@ -17,6 +17,14 @@ import java.util.Optional;
  * MappingResolver. All M2M chains are pre-resolved at construction time —
  * no mutation methods exist.
  *
+ * <p><strong>Architectural role.</strong> Despite the name, {@link MappingNormalizer}
+ * is not a desugar pass — it is the mapping-subsystem ingestor, and this snapshot
+ * is the canonical mapping state. {@link #mappingFunctionFqns} is the canonical
+ * class↔function binding (not a side-table or naming convention); both directions
+ * of that binding are exposed as O(1) lookups ({@link #findMappingFunctionFqn},
+ * {@link #findClassForMappingFunction}). Future user-authored mapping function
+ * support will augment the same map.
+ *
  * <h3>Mapping-function synthesis</h3>
  *
  * <p>Each class mapping contributes one <em>synthetic</em> {@link PureFunction}
@@ -101,6 +109,24 @@ public record NormalizedMapping(
      */
     public Optional<PureFunction> findMappingFunction(String fnFqn) {
         return Optional.ofNullable(mappingFunctions.get(fnFqn));
+    }
+
+    /**
+     * Inverse of {@link #findMappingFunctionFqn}: function FQN → class FQN.
+     * Used by {@link TypeChecker} so per-class binding-multiplicity validation
+     * (in {@code ExtendChecker}) can recover the materialized class from the
+     * synthetic function being compiled, without parsing FQN suffixes.
+     *
+     * <p>O(n) scan over {@link #mappingFunctionFqns}. Acceptable: this is
+     * called once per mapping-function compile, not on hot paths.
+     */
+    public Optional<String> findClassForMappingFunction(String fnFqn) {
+        for (var entry : mappingFunctionFqns.entrySet()) {
+            if (entry.getValue().equals(fnFqn)) {
+                return Optional.of(entry.getKey());
+            }
+        }
+        return Optional.empty();
     }
 
     /** @return true if this snapshot contains any class mappings. */

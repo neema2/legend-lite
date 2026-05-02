@@ -381,7 +381,17 @@ public class TypeChecker implements TypeCheckEnv {
         // binding so $rel.COL resolves via {@link CompilationContext#getRelationType};
         // everything else (Primitive, ClassType/NameRef, FunctionType, etc.) goes
         // through the generic lambda-param channel.
+        //
+        // Synthetic mapping function detection: when this PureFunction is a
+        // <class>::mappingFunction (per the canonical class↔fn binding maintained
+        // by NormalizedMapping), stamp the materialized class FQN on the context
+        // so binding-aware checkers (ExtendChecker) can validate per-ColSpec
+        // property bindings against the model. Inverse-map lookup, no FQN parsing.
         CompilationContext ctx = new CompilationContext();
+        var mappingTargetClass = modelContext.findClassForMappingFunction(pureFn.qualifiedName());
+        if (mappingTargetClass.isPresent()) {
+            ctx = ctx.withMappingTarget(mappingTargetClass.get());
+        }
         for (var p : pureFn.parameters()) {
             Type.Schema relationSchema = asRelationSchema(p.type());
             if (relationSchema != null) {
@@ -1022,6 +1032,12 @@ public class TypeChecker implements TypeCheckEnv {
                 Type resolvedDeclared = classifyUserType(expectedReturnType);
                 checkRelationSchemaCompatibility(
                         errorContext, "<return>", bodyResult.type(), resolvedDeclared);
+            } else if (expectedReturnType instanceof Type.Relation) {
+                // Pre-built Type.Relation (e.g. synthetic mapping function
+                // declares Relation<{...}>[1]) — schema-compatibility uses
+                // the same superset-OK rule as the GenericType form.
+                checkRelationSchemaCompatibility(
+                        errorContext, "<return>", bodyResult.type(), expectedReturnType);
             } else if (!isSubtype(bodyResult.type(), expectedReturnType)) {
                 throw new PureCompileException(
                         errorContext + " declares return type " + expectedReturnType.typeName()
@@ -1032,12 +1048,7 @@ public class TypeChecker implements TypeCheckEnv {
         // Multiplicity validation.
         if (expectedReturnMult != null) {
             var actualMult = bodyResult.multiplicity();
-            int declLower = expectedReturnMult.lowerBound();
-            Integer declUpper = expectedReturnMult.upperBound();
-            boolean lowerOk = actualMult.lowerBound() >= declLower;
-            boolean upperOk = declUpper == null
-                    || (actualMult.upperBound() != null && actualMult.upperBound() <= declUpper);
-            if (!lowerOk || !upperOk) {
+            if (!com.gs.legend.model.m3.Multiplicity.fits(actualMult, expectedReturnMult)) {
                 throw new PureCompileException(
                         errorContext + ": body multiplicity " + actualMult
                                 + " does not fit declared " + expectedReturnMult);
@@ -1560,32 +1571,49 @@ public class TypeChecker implements TypeCheckEnv {
      * Context for compilation — tracks variable → Type.Schema and
      * variable →
      * Mapping bindings.
+     *
+     * <p>{@link #mappingTarget} is populated only when compiling the body
+     * of a synthetic mapping function — names the class the function
+     * materializes, so binding-aware checkers (today: {@code ExtendChecker})
+     * can validate per-ColSpec property bindings against the model. Hint,
+     * not contract — see {@link MappingTarget}.
      */
     public record CompilationContext(
             Map<String, Type.Schema> relationTypes,
             Map<String, Type> lambdaParams,
-            Map<String, com.gs.legend.compiler.typed.TypedSpec> letBindings) {
+            Map<String, com.gs.legend.compiler.typed.TypedSpec> letBindings,
+            java.util.Optional<MappingTarget> mappingTarget) {
 
         public CompilationContext() {
-            this(Map.of(), Map.of(), Map.of());
+            this(Map.of(), Map.of(), Map.of(), java.util.Optional.empty());
         }
 
         public CompilationContext withRelationType(String paramName, Type.Schema type) {
             var newTypes = new HashMap<>(relationTypes);
             newTypes.put(paramName, type);
-            return new CompilationContext(Map.copyOf(newTypes), lambdaParams, letBindings);
+            return new CompilationContext(Map.copyOf(newTypes), lambdaParams, letBindings, mappingTarget);
         }
 
         public CompilationContext withLambdaParam(String name, Type type) {
             var m = new HashMap<>(lambdaParams);
             m.put(name, type); // type may be null for untyped params (e.g., forAll(e|...))
-            return new CompilationContext(relationTypes, Collections.unmodifiableMap(m), letBindings);
+            return new CompilationContext(relationTypes, Collections.unmodifiableMap(m), letBindings, mappingTarget);
         }
 
         public CompilationContext withLetBinding(String name, com.gs.legend.compiler.typed.TypedSpec value) {
             var m = new HashMap<>(letBindings);
             m.put(name, value);
-            return new CompilationContext(relationTypes, lambdaParams, Map.copyOf(m));
+            return new CompilationContext(relationTypes, lambdaParams, Map.copyOf(m), mappingTarget);
+        }
+
+        /**
+         * Returns a context bound to the given materialized class FQN, used
+         * by {@link TypeChecker#compileFunction} when entering a synthetic
+         * mapping function body. See {@link MappingTarget}.
+         */
+        public CompilationContext withMappingTarget(String classFqn) {
+            return new CompilationContext(relationTypes, lambdaParams, letBindings,
+                    java.util.Optional.of(new MappingTarget(classFqn)));
         }
 
         public boolean isLambdaParam(String name) {

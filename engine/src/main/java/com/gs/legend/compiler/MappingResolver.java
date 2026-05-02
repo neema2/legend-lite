@@ -635,34 +635,6 @@ public final class MappingResolver {
         return store;
     }
 
-    private StoreResolution.JoinResolution adjustJoinMultiplicity(
-            StoreResolution.JoinResolution srcJoin, String targetClassFqn, String propName) {
-        var targetClassOpt = modelContext.findClass(targetClassFqn);
-        if (targetClassOpt.isEmpty()) return srcJoin;
-        var propOpt = targetClassOpt.get().findProperty(propName, modelContext);
-        if (propOpt.isEmpty()) return srcJoin;
-        boolean isToMany = !propOpt.get().multiplicity().isSingular();
-        if (isToMany == srcJoin.isToMany()) return srcJoin;
-        return switch (srcJoin) {
-            case StoreResolution.JoinResolution.FkJoin fk -> new StoreResolution.JoinResolution.FkJoin(
-                    fk.targetTable(), fk.sourceParam(), fk.targetParam(),
-                    isToMany, fk.joinCondition(), fk.targetResolution());
-            case StoreResolution.JoinResolution.Embedded e -> new StoreResolution.JoinResolution.Embedded(
-                    isToMany, e.targetResolution());
-            case StoreResolution.JoinResolution.StructArrayUnnest u -> new StoreResolution.JoinResolution.StructArrayUnnest(
-                    u.arrayProperty(), isToMany, u.targetResolution());
-            case StoreResolution.JoinResolution.Otherwise ow -> {
-                StoreResolution.JoinResolution.FkJoin fk = ow.fallback();
-                yield new StoreResolution.JoinResolution.Otherwise(
-                        ow.embeddedSubCols(),
-                        new StoreResolution.JoinResolution.FkJoin(
-                                fk.targetTable(), fk.sourceParam(), fk.targetParam(),
-                                isToMany, fk.joinCondition(),
-                                fk.targetResolution()));
-            }
-        };
-    }
-
     /**
      * Identity mapping for {@code ^Class(...)} struct literals and inline
      * struct arrays. Query-local — these are NOT registered in the scope's
@@ -992,8 +964,11 @@ public final class MappingResolver {
 
         var upstreamJoin = upstream.joins().get(srcProp);
         if (upstreamJoin != null) {
-            return new ExtensionContribution.Both(alias, alias,
-                    adjustJoinMultiplicity(upstreamJoin, targetClassFqn, alias));
+            // Forward the upstream JoinResolution structurally. Pure typecheck
+            // requires the target property's multiplicity to match upstream's
+            // (bare $row.<prop> can only bind to a property of equal
+            // multiplicity), so the upstream's isToMany is correct here.
+            return new ExtensionContribution.Both(alias, alias, upstreamJoin);
         }
 
         String upstreamCol = upstream.propertyToColumn().get(srcProp);

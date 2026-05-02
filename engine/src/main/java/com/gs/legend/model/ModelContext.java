@@ -141,6 +141,23 @@ public interface ModelContext {
     }
 
     /**
+     * Inverse of {@link #findMappingFunctionFqn}: function FQN → class FQN.
+     *
+     * <p>Used by {@link com.gs.legend.compiler.TypeChecker} when compiling
+     * a synthetic mapping function, to recover the materialized class FQN
+     * for binding-multiplicity validation in {@code ExtendChecker}. Base
+     * implementation returns empty — only the per-query overlay supplied
+     * by {@code MappingNormalizer.modelContext()} knows the binding.
+     *
+     * @param fnFqn Function FQN
+     * @return Materialized class FQN, if {@code fnFqn} is a synthetic
+     *         mapping function in the active scope
+     */
+    default Optional<String> findClassForMappingFunction(String fnFqn) {
+        return Optional.empty();
+    }
+
+    /**
      * Compiler-visible association navigation info.
      * TypeChecker uses this to resolve association-contributed property types.
      *

@@ -72,6 +72,38 @@ public sealed interface Multiplicity permits Multiplicity.Bounded, Multiplicity.
         return this instanceof Bounded b && (b.upperBound == null || b.upperBound > 1);
     }
 
+    /**
+     * {@code true} if {@code actual} satisfies {@code declared} — i.e. every
+     * cardinality {@code actual} can produce is acceptable as a value of
+     * {@code declared}. Subtyping in the multiplicity lattice:
+     *
+     * <ul>
+     *   <li>{@code actual.lowerBound >= declared.lowerBound} — actual is at
+     *       least as required as declared.</li>
+     *   <li>{@code declared.upperBound} unbounded, OR {@code actual.upperBound}
+     *       is bounded and {@code <= declared.upperBound} — actual is at most
+     *       as wide as declared.</li>
+     * </ul>
+     *
+     * <p>Both arguments must be {@link Bounded}; passing a {@link Var} (only
+     * appears in native signatures pre-substitution) throws.
+     *
+     * @param actual   The body / expression's actual multiplicity
+     * @param declared The expected (declared / target) multiplicity
+     * @return {@code true} if {@code actual} fits within {@code declared}
+     */
+    static boolean fits(Multiplicity actual, Multiplicity declared) {
+        int actualLower = actual.lowerBound();
+        Integer actualUpper = actual.upperBound();
+        int declaredLower = declared.lowerBound();
+        Integer declaredUpper = declared.upperBound();
+
+        boolean lowerOk = actualLower >= declaredLower;
+        boolean upperOk = declaredUpper == null
+                || (actualUpper != null && actualUpper <= declaredUpper);
+        return lowerOk && upperOk;
+    }
+
     // -------- Variants --------
 
     /**

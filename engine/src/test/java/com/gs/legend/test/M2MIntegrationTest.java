@@ -673,18 +673,30 @@ class M2MIntegrationTest {
     // ==================== Deep Fetch (Nested Object) Tests ====================
 
     @Test
-    @DisplayName("NEW PIPELINE: Deep fetch 1-to-1 throws on multiplicity violation")
+    @DisplayName("NEW PIPELINE: Deep fetch 1-to-1 fails at compile time on multiplicity violation")
     void testNewPipelineDeepFetch1to1Violation() {
-        // PersonWithSingleAddress.address is [0..1] but Bob has 2 addresses in the data.
-        // The scalar subquery correctly rejects this — no silent data loss.
+        // The mapping body says `address: $src.rawAddresses` where the source's
+        // rawAddresses is [*] but PersonWithSingleAddress.address is [0..1].
+        // ExtendChecker.validateMappingPropertyBinding catches the narrowing
+        // at synth-mapping-function compile time — no runtime SQL fan-out
+        // surprise. Previously this only failed at SQL execution as a
+        // scalar-subquery cardinality error; now the contract is enforced
+        // upstream where the user wrote the offending mapping.
         String pureQuery = """
                 PersonWithSingleAddress.all()
                     ->graphFetch(#{ PersonWithSingleAddress { fullName, address { city, street } } }#)
                     ->serialize(#{ PersonWithSingleAddress { fullName, address { city, street } } }#)
                 """;
 
-        assertThrows(SQLException.class, () -> executeNew(pureQuery),
-                "Should throw when [0..1] property has multiple matches");
+        var ex = assertThrows(com.gs.legend.compiler.PureCompileException.class,
+                () -> executeNew(pureQuery),
+                "Should fail at compile time when [*] source narrows to [0..1] property");
+        // Diagnostics name the property and explain the bounds — verify they're useful.
+        String msg = ex.getMessage();
+        assertTrue(msg.contains("address"),
+                "Error message should name the violating property, got: " + msg);
+        assertTrue(msg.contains("multiplicity") || msg.contains("[*]"),
+                "Error message should reference multiplicity, got: " + msg);
     }
 
     @Test
