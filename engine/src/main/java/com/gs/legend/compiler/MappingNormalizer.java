@@ -274,20 +274,20 @@ public final class MappingNormalizer {
      *       chains {@code getAll(SrcClass)→filter→extend(...)} and the
      *       class-source extend overload preserves the source class type
      *       through the extends.</li>
-     *   <li>{@link RelationalMapping}: {@code Relation<()>[1]} — empty
-     *       schema. The body's actual schema is a hybrid of physical
-     *       column names (for simple-column PMs that emit no extend; the
-     *       {@code propToCol} bridge is applied at resolution time, not
-     *       in the body's schema) and logical names added by traverse /
-     *       dyna / embedded / association extends. Declaring the precise
-     *       hybrid would require recapitulating
-     *       {@link #synthesizeSourceSpec} — wrong layer for ingestion.
-     *       Empty schema + multiplicity {@code 1} states "I am a relation"
-     *       for composability (downstream sees Relation, not Any) without
-     *       claiming a specific column set the body doesn't have.</li>
+     *   <li>{@link RelationalMapping}: {@code Relation<{prop:type, ...}>[1]}
+     *       — schema derived from the user's property mappings. Each PM
+     *       contributes one column (logical property name → property's
+     *       declared type from the class). Associations and embedded
+     *       extends are NOT declared — they synthesize ClassType columns
+     *       in the body but aren't part of the user-typed PM contract.
+     *       The body is allowed to be a superset (physical-column
+     *       passthroughs, association cols), enforced by the
+     *       {@code superset-OK} schema check in
+     *       {@link com.gs.legend.compiler.TypeChecker#compileBodyInContext}.</li>
      * </ul>
      *
-     * <p>Falls back to {@code Any[*]} if the variant is unrecognised.
+     * <p>Unrecognised variants fail loud — mapping ingestion can't proceed
+     * with a guessed return type.
      */
     private SynthReturn synthReturnType(ClassMapping cm, String classFqn) {
         if (cm instanceof PureClassMapping pcm) {
@@ -295,15 +295,44 @@ public final class MappingNormalizer {
                     new com.gs.legend.model.m3.Type.ClassType(pcm.sourceClassName()),
                     com.gs.legend.model.m3.Multiplicity.MANY);
         }
-        if (cm instanceof RelationalMapping) {
+        if (cm instanceof RelationalMapping rm) {
             return new SynthReturn(
                     new com.gs.legend.model.m3.Type.Relation(
-                            com.gs.legend.model.m3.Type.Schema.empty()),
+                            relationalSchemaFromPMs(rm, classFqn)),
                     com.gs.legend.model.m3.Multiplicity.ONE);
         }
-        return new SynthReturn(
-                com.gs.legend.model.m3.Primitive.ANY,
-                com.gs.legend.model.m3.Multiplicity.MANY);
+        throw new IllegalStateException(
+                "MappingNormalizer.synthReturnType: unhandled ClassMapping variant '"
+                        + cm.getClass().getSimpleName() + "' for class '" + classFqn
+                        + "'. Add a case here when introducing a new mapping kind.");
+    }
+
+    /**
+     * Builds the declared {@link com.gs.legend.model.m3.Type.Schema} for a
+     * relational synth function from its property mappings — one column per
+     * PM (in declaration order), keyed by logical property name and typed by
+     * the class's property declaration.
+     *
+     * <p>Resolution: the class is looked up via {@link #model} (the base
+     * model). PMs whose property isn't declared on the class fail loud —
+     * a relational mapping for an undeclared property is malformed
+     * regardless of downstream tolerance, and silently dropping it would
+     * weaken the schema contract this declaration is meant to make.
+     */
+    private com.gs.legend.model.m3.Type.Schema relationalSchemaFromPMs(
+            RelationalMapping rm, String classFqn) {
+        var pureClass = model.findClass(classFqn).orElseThrow(
+                () -> new IllegalStateException(
+                        "Relational mapping references undefined class '" + classFqn + "'"));
+        var cols = new java.util.LinkedHashMap<String, com.gs.legend.model.m3.Type>();
+        for (var pm : rm.propertyMappings()) {
+            var prop = pureClass.findProperty(pm.propertyName(), model).orElseThrow(
+                    () -> new com.gs.legend.compiler.PureCompileException(
+                            "Mapping for class '" + classFqn + "' references property '"
+                                    + pm.propertyName() + "' which is not declared on the class"));
+            cols.put(pm.propertyName(), prop.type());
+        }
+        return com.gs.legend.model.m3.Type.Schema.withoutPivot(cols);
     }
 
     // ==================== Chain Walking ====================
@@ -554,11 +583,19 @@ public final class MappingNormalizer {
         // 3b. Multi-join DynaFunction mappings → ->extend(PureCollection[traverse1, traverse2], ~[prop:{src,t1,t2|expr}])
         source = addMultiTraverseExtends(rm, source);
 
-        // 4. DynaFunction property mappings → ->extend(~[prop:row|<dynaExpr>])
-        //    When ~groupBy is active, DynaFunction mappings become aggregate columns
-        //    in the groupBy call (step 6), so skip extends for them here.
+        // 4. Per-row PM extends. Always emits rename / enum / expression
+        //    extends so the body's terminal schema is fully PM-keyed. The
+        //    DynaFunction case has two interpretations depending on whether
+        //    {@code ~groupBy} is active:
+        //    • no ~groupBy → per-row scalar extend (e.g. {@code plus(A, B)}
+        //      becomes {@code ~total: row | plus($row.A, $row.B)});
+        //    • ~groupBy active → aggregate column inside the groupBy call
+        //      (handled in step 6 below by {@link #addMappingGroupBy}).
+        //    The two emit functions are split by what they produce so each
+        //    has one honest responsibility.
+        source = addRenameEnumExpressionExtends(effectivePMs, source);
         if (rm.groupByColumns().isEmpty()) {
-            source = addDynaFunctionExtends(effectivePMs, source);
+            source = addDynaScalarExtends(effectivePMs, source);
         }
 
         // 5. Embedded property mappings → ->extend(~prop:{->~[sub1:r|$r.COL1, ...]})
@@ -731,35 +768,45 @@ public final class MappingNormalizer {
     }
 
     /**
-     * Adds {@code ->extend(~[prop:row|<dynaExpr>, ...])} for DynaFunction property mappings.
-     * Each DynaFunction property carries a pre-compiled ValueSpecification expression tree
-     * (e.g., {@code concat($row.FIRST, ' ', $row.LAST)}). These are wrapped in ColSpec lambdas
-     * and added as extend columns so TypeChecker can stamp them with TypeInfo.
+     * Emits per-row {@code ->extend(~[prop:row|<body>])} for rename, enum,
+     * and expression-access PMs. Always called regardless of {@code ~groupBy}
+     * — these PM kinds are per-row even in aggregate mappings, and the
+     * groupBy that may follow references them by their logical (property)
+     * names.
+     *
+     * <p>Skipped PM kinds (handled elsewhere):
+     * <ul>
+     *   <li>Join-chain / multi-join — {@link #addTraverseExtends} /
+     *       {@link #addMultiTraverseExtends}.</li>
+     *   <li>DynaFunction — {@link #addDynaScalarExtends} (per-row) or
+     *       {@link #addMappingGroupBy} (aggregate).</li>
+     *   <li>Identity rename ({@code propName == columnName}) — physical
+     *       column already serves under the same name.</li>
+     * </ul>
      */
-    private com.gs.legend.ast.ValueSpecification addDynaFunctionExtends(
+    private com.gs.legend.ast.ValueSpecification addRenameEnumExpressionExtends(
             java.util.List<com.gs.legend.model.store.PropertyMapping> propertyMappings,
             com.gs.legend.ast.ValueSpecification source) {
 
         var colSpecs = new java.util.ArrayList<com.gs.legend.ast.ColSpec>();
 
         for (var pm : propertyMappings) {
-            if (pm.hasJoinChain()) continue; // handled by addTraverseExtends
-            if (pm.hasMultiJoinChains()) continue; // handled by addMultiTraverseExtends
+            if (pm.hasJoinChain()) continue;
+            if (pm.hasMultiJoinChains()) continue;
+            if (pm.hasDynaExpression()) continue;
 
             var rowVar = new com.gs.legend.ast.Variable("row");
             com.gs.legend.ast.ValueSpecification body;
 
-            if (pm.hasDynaExpression()) {
-                // DynaFunction: already a ValueSpec tree (from RelationalMappingConverter)
-                body = pm.dynaExpression();
-            } else if (pm.hasEnumMapping()) {
-                // Enum mapping: if(equal($row.COL, dbVal1), 'ENUM1', if(..., null))
+            if (pm.hasEnumMapping()) {
                 body = synthesizeEnumIf(rowVar, pm);
             } else if (pm.hasExpression()) {
-                // Expression access: get($row.COLUMN, 'key') with optional cast
                 body = synthesizeExpressionAccess(rowVar, pm);
+            } else if (pm.propertyName().equals(pm.columnName())) {
+                continue;
             } else {
-                continue; // simple column rename — handled by select at the end
+                body = new com.gs.legend.ast.AppliedProperty(
+                        pm.columnName(), java.util.List.of(rowVar));
             }
 
             var lambda = new com.gs.legend.ast.LambdaFunction(
@@ -767,12 +814,43 @@ public final class MappingNormalizer {
             colSpecs.add(new com.gs.legend.ast.ColSpec(pm.propertyName(), lambda));
         }
 
-        if (colSpecs.isEmpty()) return source;
+        return wrapAsExtend(source, colSpecs);
+    }
 
+    /**
+     * Emits per-row {@code ->extend(~[prop:row|<dynaExpr>])} for DynaFunction
+     * PMs. Called only when {@code ~groupBy} is absent — under
+     * {@code ~groupBy} the dyna expressions are aggregate columns surfaced
+     * inside the groupBy call by {@link #addMappingGroupBy}, not per-row
+     * extends.
+     */
+    private com.gs.legend.ast.ValueSpecification addDynaScalarExtends(
+            java.util.List<com.gs.legend.model.store.PropertyMapping> propertyMappings,
+            com.gs.legend.ast.ValueSpecification source) {
+
+        var colSpecs = new java.util.ArrayList<com.gs.legend.ast.ColSpec>();
+
+        for (var pm : propertyMappings) {
+            if (!pm.hasDynaExpression()) continue;
+            if (pm.hasJoinChain()) continue;
+            if (pm.hasMultiJoinChains()) continue;
+
+            var rowVar = new com.gs.legend.ast.Variable("row");
+            var lambda = new com.gs.legend.ast.LambdaFunction(
+                    java.util.List.of(rowVar), pm.dynaExpression());
+            colSpecs.add(new com.gs.legend.ast.ColSpec(pm.propertyName(), lambda));
+        }
+
+        return wrapAsExtend(source, colSpecs);
+    }
+
+    private com.gs.legend.ast.ValueSpecification wrapAsExtend(
+            com.gs.legend.ast.ValueSpecification source,
+            java.util.List<com.gs.legend.ast.ColSpec> colSpecs) {
+        if (colSpecs.isEmpty()) return source;
         com.gs.legend.ast.ColumnInstance colSpecCI = (colSpecs.size() == 1)
                 ? colSpecs.get(0)
                 : new com.gs.legend.ast.ColSpecArray(colSpecs);
-
         return new com.gs.legend.ast.AppliedFunction(
                 "extend",
                 java.util.List.of(source, colSpecCI),
@@ -887,10 +965,38 @@ public final class MappingNormalizer {
             RelationalMapping rm,
             com.gs.legend.ast.ValueSpecification source) {
 
-        // 1. Key columns from ~groupBy directive
-        var keyCols = rm.groupByColumns().stream()
-                .map(com.gs.legend.ast.ColSpec::new)
-                .toList();
+        // 1. Key columns from ~groupBy directive — bare {@code ColSpec(name)}
+        //    referencing existing source cols (Z⊆T constraint of the
+        //    Relation API groupBy overloads). When a simple-rename PM
+        //    aliases the physical groupBy col to a class property name,
+        //    use the property name: the rename extend emitted in step 4
+        //    above has already added it to the source schema, so the
+        //    subset check passes and the body's terminal schema is
+        //    PM-keyed (matching the declared {@code Relation<{prop:type}>}
+        //    return type). Physical cols not bound to any simple PM
+        //    (e.g. a ~groupBy key that exists only for grouping semantics,
+        //    not exposed as a property) stay as bare physical names —
+        //    they leak into the body schema as extras, but the declared
+        //    {@code Relation<{props}>} subset check tolerates extras.
+        //
+        //    PMs with dyna / join / enum / expression bodies are NOT
+        //    aliasing PMs for a groupBy key — dyna PMs become aggregate
+        //    cols (step 6 below), the others can't simultaneously serve
+        //    as a bare-column rename.
+        var keyCols = new java.util.ArrayList<com.gs.legend.ast.ColSpec>();
+        for (var physCol : rm.groupByColumns()) {
+            String keyName = physCol;
+            for (var pm : rm.propertyMappings()) {
+                if (pm.hasDynaExpression() || pm.hasJoinChain()
+                        || pm.hasMultiJoinChains() || pm.hasEnumMapping()
+                        || pm.hasExpression()) continue;
+                if (physCol.equals(pm.columnName())) {
+                    keyName = pm.propertyName();
+                    break;
+                }
+            }
+            keyCols.add(new com.gs.legend.ast.ColSpec(keyName));
+        }
 
         // 2. Aggregate columns from DynaFunction property mappings
         var aggCols = new java.util.ArrayList<com.gs.legend.ast.ColSpec>();
@@ -935,7 +1041,27 @@ public final class MappingNormalizer {
 
     /**
      * Synthesizes an if/else chain for enum mapping:
-     * {@code if(equal($row.COL, dbVal1), 'ENUM1', if(equal($row.COL, dbVal2), 'ENUM2', null))}
+     * {@code if(equal($row.COL, dbVal1), |EnumType.ENUM1, if(equal($row.COL, dbVal2), |EnumType.ENUM2, |EnumType.<first>))}
+     *
+     * <p>Branches return <strong>typed enum value references</strong>
+     * ({@link com.gs.legend.ast.EnumValue}) — the canonical Pure shape the
+     * user would write by hand:
+     * <pre>
+     * ~status: row | if($row.STATUS == 'A', |OrderStatus.ACTIVE,
+     *                if($row.STATUS == 'I', |OrderStatus.INACTIVE,
+     *                  |OrderStatus.ACTIVE))
+     * </pre>
+     * The body types as {@code OrderStatus[1]}, matching the class
+     * property's declared enum type. SQL emission is unchanged — enum
+     * value references lower to their mapped DB representation via the
+     * EnumerationMapping.
+     *
+     * <p>Fallback branch: a Pure {@code if/else} requires a uniformly
+     * typed result, so the terminal branch must also be an
+     * {@code EnumValue}. We pick the first declared enum value (arbitrary
+     * but well-typed). At runtime this is a should-never-happen case —
+     * a DB value matching no enum mapping — and choosing one over an
+     * untyped null preserves end-to-end type uniformity.
      */
     private com.gs.legend.ast.ValueSpecification synthesizeEnumIf(
             com.gs.legend.ast.Variable rowVar,
@@ -952,8 +1078,12 @@ public final class MappingNormalizer {
             }
         }
 
+        // Fallback: first declared enum value (typed; preserves uniform if/else result type).
+        String fallbackEnumVal = pm.enumMapping().keySet().iterator().next();
+        com.gs.legend.ast.ValueSpecification result = new com.gs.legend.ast.EnumValue(
+                pm.enumType(), fallbackEnumVal);
+
         // Build if/else chain from end to start
-        com.gs.legend.ast.ValueSpecification result = new com.gs.legend.ast.CString(""); // fallback
         for (int i = entries.size() - 1; i >= 0; i--) {
             var entry = entries.get(i);
             String enumVal = entry.getKey();
@@ -970,7 +1100,7 @@ public final class MappingNormalizer {
 
             var condition = new com.gs.legend.ast.AppliedFunction(
                     "equal", java.util.List.of(colAccess, dbLiteral));
-            var thenVal = new com.gs.legend.ast.CString(enumVal);
+            var thenVal = new com.gs.legend.ast.EnumValue(pm.enumType(), enumVal);
 
             // if(condition, {|thenVal}, {|result})
             var thenLambda = new com.gs.legend.ast.LambdaFunction(java.util.List.of(), thenVal);

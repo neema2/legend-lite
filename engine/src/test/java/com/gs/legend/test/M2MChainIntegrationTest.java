@@ -61,7 +61,7 @@ class M2MChainIntegrationTest {
                 lastName: String[1];
                 age: Integer[1];
                 dept: String[1];
-                salary: Float[1];
+                salary: Decimal[1];
                 isActive: Boolean[1];
                 deptName: String[1];
                 deptLocation: String[1];

@@ -113,9 +113,12 @@ class MultiFileRebuildTest {
                     ~mainTable [store::TradeDB] T_TRADE
                     tradeId: [store::TradeDB] T_TRADE.TRADE_ID,
                     notional: [store::TradeDB] T_TRADE.NOTIONAL,
-                    status: [store::TradeDB] T_TRADE.STATUS,
-                    side: [store::TradeDB] T_TRADE.SIDE
+                    status: EnumerationMapping StatusMap: [store::TradeDB] T_TRADE.STATUS,
+                    side: EnumerationMapping SideMap: [store::TradeDB] T_TRADE.SIDE
                 }
+
+                trade::Status: EnumerationMapping StatusMap { OPEN: 'OPEN', CLOSED: 'CLOSED', PENDING: 'PENDING', CANCELLED: 'CANCELLED' }
+                trade::Side: EnumerationMapping SideMap { BUY: 'BUY', SELL: 'SELL' }
 
                 trade::Instrument: Relational
                 {
@@ -217,10 +220,13 @@ class MultiFileRebuildTest {
                     ~mainTable [store::TradeDB] T_TRADE
                     tradeId: [store::TradeDB] T_TRADE.TRADE_ID,
                     notional: [store::TradeDB] T_TRADE.NOTIONAL,
-                    status: [store::TradeDB] T_TRADE.STATUS,
-                    side: [store::TradeDB] T_TRADE.SIDE,
+                    status: EnumerationMapping StatusMap: [store::TradeDB] T_TRADE.STATUS,
+                    side: EnumerationMapping SideMap: [store::TradeDB] T_TRADE.SIDE,
                     rating: [store::TradeDB] T_TRADE.RATING
                 }
+
+                trade::Status: EnumerationMapping StatusMap { OPEN: 'OPEN', CLOSED: 'CLOSED', PENDING: 'PENDING', CANCELLED: 'CANCELLED' }
+                trade::Side: EnumerationMapping SideMap { BUY: 'BUY', SELL: 'SELL' }
 
                 trade::Counterparty: Relational
                 {

@@ -872,7 +872,10 @@ class RelationalMappingIntegrationTest {
                     Enum model::TaskStatus { PENDING, IN_PROGRESS, DONE }
                     Class model::Task { name: String[1]; status: TaskStatus[1]; }
                     Database store::DB ( Table TASKS (ID INTEGER, NAME VARCHAR(100), STATUS VARCHAR(20)) )
-                    Mapping model::M ( Task: Relational { ~mainTable [store::DB] TASKS name: [store::DB] TASKS.NAME, status: [store::DB] TASKS.STATUS } )
+                    Mapping model::M (
+                        Task: Relational { ~mainTable [store::DB] TASKS name: [store::DB] TASKS.NAME, status: EnumerationMapping TaskStatusMap: [store::DB] TASKS.STATUS }
+                        TaskStatus: EnumerationMapping TaskStatusMap { PENDING: 'PENDING', IN_PROGRESS: 'IN_PROGRESS', DONE: 'DONE' }
+                    )
                     """, "store::DB", "model::M");
             var r = exec(m, "Task.all()->filter({t|$t.status == 'PENDING'})->project(~[name:t|$t.name])");
             assertEquals(2, r.rowCount());

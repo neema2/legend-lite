@@ -215,7 +215,13 @@ class EnumIntegrationTest {
                             ~mainTable [store::TaskDB] TASKS
                             id: [store::TaskDB]TASKS.ID,
                             title: [store::TaskDB]TASKS.TITLE,
-                            status: [store::TaskDB]TASKS.STATUS
+                            status: EnumerationMapping TaskStatusMap: [store::TaskDB]TASKS.STATUS
+                        }
+                        TaskStatus: EnumerationMapping TaskStatusMap {
+                            TODO: 'TODO',
+                            IN_PROGRESS: 'IN_PROGRESS',
+                            DONE: 'DONE',
+                            BLOCKED: 'BLOCKED'
                         }
                     )
                     """;
@@ -419,7 +425,13 @@ class EnumIntegrationTest {
                             ~mainTable [store::TaskDB] TASKS
                             id: [store::TaskDB]TASKS.ID,
                             name: [store::TaskDB]TASKS.NAME,
-                            status: [store::TaskDB]TASKS.STATUS
+                            status: EnumerationMapping TaskStatusMap: [store::TaskDB]TASKS.STATUS
+                        }
+                        TaskStatus: EnumerationMapping TaskStatusMap {
+                            PENDING: 'PENDING',
+                            IN_PROGRESS: 'IN_PROGRESS',
+                            COMPLETED: 'COMPLETED',
+                            CANCELLED: 'CANCELLED'
                         }
                     )
 
@@ -494,7 +506,13 @@ class EnumIntegrationTest {
                             ~mainTable [store::IssueDB] ISSUES
                             id: [store::IssueDB]ISSUES.ID,
                             title: [store::IssueDB]ISSUES.TITLE,
-                            priority: [store::IssueDB]ISSUES.PRIORITY
+                            priority: EnumerationMapping PriorityMap: [store::IssueDB]ISSUES.PRIORITY
+                        }
+                        Priority: EnumerationMapping PriorityMap {
+                            LOW: 'LOW',
+                            MEDIUM: 'MEDIUM',
+                            HIGH: 'HIGH',
+                            CRITICAL: 'CRITICAL'
                         }
                     )
 
@@ -568,7 +586,13 @@ class EnumIntegrationTest {
                             ~mainTable [store::OrderDB] ORDERS
                             id: [store::OrderDB]ORDERS.ID,
                             customer: [store::OrderDB]ORDERS.CUSTOMER,
-                            status: [store::OrderDB]ORDERS.STATUS
+                            status: EnumerationMapping OrderStatusMap: [store::OrderDB]ORDERS.STATUS
+                        }
+                        OrderStatus: EnumerationMapping OrderStatusMap {
+                            PENDING: 'PENDING',
+                            SHIPPED: 'SHIPPED',
+                            DELIVERED: 'DELIVERED',
+                            CANCELLED: 'CANCELLED'
                         }
                     )
 

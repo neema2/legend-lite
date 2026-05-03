@@ -971,12 +971,36 @@ public class TypeChecker implements TypeCheckEnv {
                                 + "'. Available columns: " + actualRel.schema().columns().keySet());
             }
             if (!isSubtype(actualColType, declaredColType)) {
+                String hint = primitiveMismatchHint(declaredColType, actualColType);
                 throw new PureCompileException(
                         "Function '" + funcName + "' parameter '" + paramName
                                 + "': schema mismatch — column '" + colName + "' expects "
-                                + declaredColType.typeName() + " but got " + actualColType.typeName());
+                                + declaredColType.typeName() + " but got " + actualColType.typeName()
+                                + hint);
             }
         }
+    }
+
+    /**
+     * Suggests a fix for primitive-type schema mismatches commonly seen when
+     * a property's declared Pure type doesn't match its mapped column's
+     * inferred Pure type. Returns {@code ""} when no specific guidance applies.
+     *
+     * <p>Most frequent case: a class declares {@code Float} for a column
+     * stored as {@code DECIMAL} (or vice versa). Pure's {@code Float} and
+     * {@code Decimal} are sibling subtypes of {@code Number}, not subtypes
+     * of each other — this is a real type bug, not a system limitation.
+     * The hint enumerates the three honest fixes.
+     */
+    private String primitiveMismatchHint(Type declared, Type actual) {
+        boolean declaredPrim = declared instanceof com.gs.legend.model.m3.Primitive
+                || declared instanceof Type.PrecisionDecimal;
+        boolean actualPrim = actual instanceof com.gs.legend.model.m3.Primitive
+                || actual instanceof Type.PrecisionDecimal;
+        if (declaredPrim && actualPrim) {
+            return ". The class property and the mapped column declare different Pure types — change the property type to match the column, change the column type to match the property, or apply an explicit conversion (e.g. ->toFloat() / ->cast(@Decimal)) in the property mapping body.";
+        }
+        return "";
     }
 
     // ========== Body Compilation ==========

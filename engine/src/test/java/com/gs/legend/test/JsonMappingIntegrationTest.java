@@ -180,7 +180,7 @@ class JsonMappingIntegrationTest {
                     Class model::Order {
                         id: Integer[1];
                         customerName: String[1];
-                        total: Float[1];
+                        total: Decimal[1];
                     }
                     """ + DATABASE_SCALAR + """
                     import model::*;
@@ -216,7 +216,7 @@ class JsonMappingIntegrationTest {
                         orderId: Integer[1];
                         productName: String[1];
                         quantity: Integer[1];
-                        price: Float[1];
+                        price: Decimal[1];
                     }
                     """ + DATABASE_SCALAR + """
                     import model::*;

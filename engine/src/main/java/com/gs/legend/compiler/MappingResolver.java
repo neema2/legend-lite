@@ -878,6 +878,19 @@ public final class MappingResolver {
                     ExtensionContribution pass = forwardPassthrough(s, bodyExpr, className, upstream);
                     if (pass != null) yield pass;
                 }
+                // Relational rename extend: body is $row.<COL> on the lambda's
+                // row var, no upstream — emitted by MappingNormalizer's
+                // {@code addDynaFunctionExtends} for simple-column PMs so the
+                // synth body's terminal Relation schema is fully PM-keyed
+                // (logical-named). The contribution preserves the {@code
+                // logicalProp → physicalCol} mapping seeded from the PM:
+                // {@code Column(firstName, FIRST_NAME)}, NOT the alias-to-alias
+                // form which would shadow the seed and break PlanGenerator
+                // paths that don't apply the extend (e.g. usage analysis
+                // pruning the entire extend node when the query reads only
+                // a subset of properties).
+                ExtensionContribution rename = forwardRelationalRename(s, bodyExpr);
+                if (rename != null) yield rename;
                 // Per-row computed column — alias entry; PlanGenerator
                 // re-derives the expression from the typed extend node.
                 yield new ExtensionContribution.Column(s.alias(), s.alias());
@@ -974,6 +987,33 @@ public final class MappingResolver {
         String upstreamCol = upstream.propertyToColumn().get(srcProp);
         return new ExtensionContribution.Column(alias,
                 upstreamCol != null ? upstreamCol : srcProp);
+    }
+
+    /**
+     * Detects a relational rename extend — body is {@code $row.<COL>} on the
+     * lambda's row var — and emits {@code Column(alias, COL)} so the seeded
+     * {@code logicalProp → physicalCol} mapping is preserved at the
+     * logical-prop key.
+     *
+     * <p>Distinct from {@link #forwardPassthrough}: that one runs only when
+     * an upstream {@link StoreResolution} exists (M2M chain) and forwards
+     * upstream join / propertyToColumn entries by their source property name.
+     * This one runs for relational ({@code upstream == null}) and uses the
+     * accessed property name directly as the physical column — there's no
+     * upstream propertyToColumn to consult.
+     *
+     * @return {@code Column(alias, accessedCol)} if the body is a bare row-var
+     *         property access, {@code null} otherwise (caller falls back to
+     *         alias-to-alias).
+     */
+    private ExtensionContribution forwardRelationalRename(
+            TypedScalarExtendCol col, TypedSpec bodyExpr) {
+        if (!(bodyExpr instanceof TypedPropertyAccess tpa)) return null;
+        if (!(tpa.source() instanceof TypedVariable rowVar)) return null;
+        if (col.expression().parameters().isEmpty()) return null;
+        String rowParam = col.expression().parameters().get(0).name();
+        if (!rowParam.equals(rowVar.name())) return null;
+        return new ExtensionContribution.Column(col.alias(), tpa.property());
     }
 
     /**

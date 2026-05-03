@@ -52,7 +52,7 @@ class M2MIntegrationTest {
                 firstName: String[1];
                 lastName: String[1];
                 age: Integer[1];
-                salary: Float[1];
+                salary: Decimal[1];
                 isActive: Boolean[1];
             }
 

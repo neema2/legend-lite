@@ -125,10 +125,16 @@ public final class Pure {
     public static final NativeFunctionDef SQL_FALSE = signature("native function sqlFalse():meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDef IS_NULL__T_1 = signature("native function isNull<T>(val:T[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDef IS_NOT_NULL__T_1 = signature("native function isNotNull<T>(val:T[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDef SUB__INTEGER_1__INTEGER_1 = signature("native function sub(left:meta::pure::metamodel::type::Integer[1], right:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[1];");
+    public static final NativeFunctionDef SUB__FLOAT_1__FLOAT_1 = signature("native function sub(left:meta::pure::metamodel::type::Float[1], right:meta::pure::metamodel::type::Float[1]):meta::pure::metamodel::type::Float[1];");
+    public static final NativeFunctionDef SUB__DECIMAL_1__DECIMAL_1 = signature("native function sub(left:meta::pure::metamodel::type::Decimal[1], right:meta::pure::metamodel::type::Decimal[1]):meta::pure::metamodel::type::Decimal[1];");
     public static final NativeFunctionDef SUB__NUMBER_1__NUMBER_1 = signature("native function sub(left:meta::pure::metamodel::type::Number[1], right:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Number[1];");
     public static final NativeFunctionDef NOT_EQUAL_ANSI__ANY_1__ANY_1 = signature("native function notEqualAnsi(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDef GROUP__T_1 = signature("native function group<T>(val:T[1]):T[1];");
-    public static final NativeFunctionDef DIVIDE_ROUND__NUMBER_1__NUMBER_1__INTEGER_1 = signature("native function divideRound(left:meta::pure::metamodel::type::Number[1], right:meta::pure::metamodel::type::Number[1], scale:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Number[1];");
+    // Returns Float because the SQL emits `round(((1.0 * a) / b), scale)` —
+    // the leading `1.0 *` forces float arithmetic regardless of arg types,
+    // matching legend-engine's `dynaFnToSql('divideRound', 'round(((1.0 * %s) / %s),%s)')`.
+    public static final NativeFunctionDef DIVIDE_ROUND__NUMBER_1__NUMBER_1__INTEGER_1 = signature("native function divideRound(left:meta::pure::metamodel::type::Number[1], right:meta::pure::metamodel::type::Number[1], scale:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDef IS_DISTINCT__ANY_1__ANY_1 = signature("native function isDistinct(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDef CURRENT_USER_ID = signature("native function currentUserId():meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDef MD5__STRING_1 = signature("native function md5(str:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
