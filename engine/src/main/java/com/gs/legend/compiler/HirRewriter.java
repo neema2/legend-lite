@@ -128,7 +128,32 @@ public final class HirRewriter {
         default Scope enterBinder(List<String> boundNames, Scope scope) {
             return scope.trim(boundNames);
         }
+
+        /**
+         * Optional renaming of a binder's bound names. Returning a non-null
+         * {@link RenamedBinder} causes the kernel to rebuild the binder's
+         * declared names ({@link TypedLambda} parameters today) with the
+         * supplied fresh names, and to descend into the binder's body
+         * under the supplied inner scope. The hook is responsible for
+         * threading any name→fresh-var substitution into that scope.
+         *
+         * <p>Default: {@code null} — no renaming, kernel uses
+         * {@link #enterBinder} alone for capture-avoidance trimming.
+         *
+         * <p>Used by α-rename (see {@link HirRewriter#alphaRename}).
+         */
+        default RenamedBinder renameBinder(List<String> boundNames, Scope scope) {
+            return null;
+        }
     }
+
+    /**
+     * Result of {@link Hooks#renameBinder}: the fresh names to use in place
+     * of the binder's declared names, and the scope to descend into the
+     * body with. Order of {@code newNames} matches the order of the
+     * binder's original names.
+     */
+    public record RenamedBinder(List<String> newNames, Scope innerScope) {}
 
     // ==================== Core rewrite ====================
 
@@ -349,12 +374,37 @@ public final class HirRewriter {
     /**
      * Rewrite a lambda. The lambda's parameters are bound names that shadow
      * any outer scope entries; the kernel calls {@link Hooks#enterBinder}
-     * to let the strategy adjust scope, then walks the body.
+     * (or {@link Hooks#renameBinder} when α-renaming) to let the strategy
+     * adjust scope, then walks the body.
      */
     public TypedLambda rewriteLambda(TypedLambda lam, Scope scope) {
         if (lam == null) return null;
-        Scope inner = hooks.enterBinder(
-                lam.parameters().stream().map(TypedParam::name).toList(), scope);
+        List<String> oldNames = lam.parameters().stream()
+                .map(TypedParam::name).toList();
+
+        // Optional α-rename: hook may return fresh names + a pre-built
+        // inner scope that maps oldName → freshVarRef so body recursion
+        // rewrites references via rewriteVariable.
+        RenamedBinder renamed = hooks.renameBinder(oldNames, scope);
+        Scope inner = renamed != null ? renamed.innerScope()
+                : hooks.enterBinder(oldNames, scope);
+
+        List<TypedParam> newParams = lam.parameters();
+        if (renamed != null) {
+            List<String> newNames = renamed.newNames();
+            if (newNames.size() != oldNames.size()) {
+                throw new IllegalStateException(
+                        "[hir-rewriter] renameBinder returned " + newNames.size()
+                                + " names for " + oldNames.size() + " params");
+            }
+            List<TypedParam> rebuilt = new ArrayList<>(oldNames.size());
+            for (int i = 0; i < oldNames.size(); i++) {
+                TypedParam p = lam.parameters().get(i);
+                rebuilt.add(new TypedParam(newNames.get(i), p.type(), p.multiplicity()));
+            }
+            newParams = rebuilt;
+        }
+
         var body = lam.body();
         List<TypedSpec> rewritten = null;
         for (int i = 0; i < body.size(); i++) {
@@ -364,8 +414,9 @@ public final class HirRewriter {
             }
             if (rewritten != null) rewritten.set(i, s);
         }
-        return rewritten == null ? lam
-                : new TypedLambda(lam.parameters(), rewritten, lam.info());
+        if (rewritten == null && newParams == lam.parameters()) return lam;
+        return new TypedLambda(newParams,
+                rewritten != null ? rewritten : body, lam.info());
     }
 
     /**
@@ -531,5 +582,95 @@ public final class HirRewriter {
             }
         }
         return out == null ? in : out;
+    }
+
+    // ==================== α-rename utility ====================
+
+    /**
+     * Capture-avoiding deep clone with bound-variable renaming. Walks
+     * {@code body} and:
+     * <ul>
+     *   <li>For every {@link TypedLambda}, rebuilds its parameters with
+     *       fresh names obtained from {@code freshNamer}, and rewrites
+     *       all references to those parameters inside the body to the
+     *       fresh names. The rename is local to each lambda's scope.</li>
+     *   <li>Free variables (not bound by any enclosing lambda within
+     *       {@code body}) pass through unchanged.</li>
+     * </ul>
+     *
+     * <p>The result is a fresh subtree where every bound variable name is
+     * unique and disjoint from any name in the surrounding context. This
+     * is the standard α-conversion operation and is the safety net for
+     * splicing memoized templates (e.g., class-fetch synth bodies) into
+     * different parts of a tree without risk of variable capture.
+     *
+     * <p>Tree identity: subtrees containing no lambdas are returned
+     * unchanged by reference. Lambdas with no parameters are also returned
+     * unchanged. Renaming only allocates when a lambda actually has
+     * parameters and at least one reference to one of them.
+     *
+     * <p><strong>Scope</strong>: this implementation renames
+     * {@link TypedLambda} parameters only. {@link TypedLet} introduces a
+     * name as well, but synthetic class-fetch bodies (the primary client
+     * today) do not use {@code let} bindings; lets pass through unchanged
+     * with their original names.
+     *
+     * @param body       the subtree to rename
+     * @param freshNamer maps an old bound name to a fresh, globally-unique
+     *                   name. Typical impl: {@code old -> old + "$" + ctr.getAndIncrement()}
+     *                   with an {@code AtomicLong} counter shared across
+     *                   all alpha-rename calls in the same compilation.
+     */
+    public static TypedSpec alphaRename(
+            TypedSpec body,
+            java.util.function.UnaryOperator<String> freshNamer) {
+        return new HirRewriter(new AlphaRenameHooks(freshNamer))
+                .rewrite(body, Scope.EMPTY);
+    }
+
+    /**
+     * Hooks impl for {@link #alphaRename}. Variable references look up
+     * the rename map (carried in {@link Scope#scalarBindings} as
+     * {@code TypedVariable} stubs whose name carries the fresh name);
+     * if found, the variable is rewritten to a fresh {@link TypedVariable}
+     * preserving the original's role and info. Lambda binders generate
+     * fresh names and seed the rename map for body recursion.
+     */
+    private static final class AlphaRenameHooks implements Hooks {
+        private final java.util.function.UnaryOperator<String> freshNamer;
+
+        AlphaRenameHooks(java.util.function.UnaryOperator<String> freshNamer) {
+            this.freshNamer = freshNamer;
+        }
+
+        @Override
+        public TypedSpec rewriteVariable(
+                TypedVariable v, Scope scope, HirRewriter rec) {
+            TypedSpec mapped = scope.scalarBindings().get(v.name());
+            if (mapped instanceof TypedVariable stub) {
+                // Preserve original v's role + info; only the name changes.
+                return new TypedVariable(stub.name(), v.role(), v.info());
+            }
+            return v;
+        }
+
+        @Override
+        public RenamedBinder renameBinder(List<String> boundNames, Scope scope) {
+            if (boundNames.isEmpty()) return null;
+            List<String> newNames = new ArrayList<>(boundNames.size());
+            Map<String, TypedSpec> bindings =
+                    new LinkedHashMap<>(scope.scalarBindings());
+            for (String oldName : boundNames) {
+                String newName = freshNamer.apply(oldName);
+                newNames.add(newName);
+                // The stub's role/info are unread at variable-rewrite time;
+                // rewriteVariable above takes role + info from the actual
+                // variable reference being rewritten, not from this stub.
+                bindings.put(oldName, new TypedVariable(
+                        newName, com.gs.legend.compiler.typed.Role.LAMBDA_PARAM, null));
+            }
+            return new RenamedBinder(newNames,
+                    new Scope(Map.copyOf(bindings), scope.lambdaBindings()));
+        }
     }
 }
