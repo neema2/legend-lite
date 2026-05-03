@@ -1,0 +1,1 @@
+SELECT "t2".*, UPPER("t2"."name") AS "upper" FROM (SELECT "t1"."NAME" AS "name" FROM (SELECT "t0".*, "t0"."NAME" AS "name" FROM "T_PERSON" AS "t0") AS "t1") AS "t2"

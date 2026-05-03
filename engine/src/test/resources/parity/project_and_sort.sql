@@ -1,0 +1,1 @@
+SELECT * FROM (SELECT "t1"."NAME" AS "name" FROM (SELECT "t0".*, "t0"."NAME" AS "name" FROM "T_PERSON" AS "t0") AS "t1") AS "t2" ORDER BY "t2"."name" ASC

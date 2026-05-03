@@ -1,0 +1,1 @@
+SELECT "t2"."fullName" AS "fullName" FROM (SELECT "t1".*, (("t1"."FIRST" || ' ') || "t1"."LAST") AS "fullName" FROM (SELECT "t0".*, "t0"."FIRST" AS "first", "t0"."LAST" AS "last" FROM "T_RAW" AS "t0") AS "t1") AS "t2"

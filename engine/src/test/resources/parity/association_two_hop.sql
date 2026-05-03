@@ -1,0 +1,1 @@
+SELECT "t4"."NAME" AS "name", "t4"."orgName" AS "orgName" FROM (SELECT "t3".*, "t3"."NAME" AS "name" FROM (SELECT "t0".*, "t2"."NAME" AS "orgName" FROM "T_PERSON" AS "t0" LEFT OUTER JOIN "T_DEPT" AS "t1" ON "t0"."DEPT_ID" = "t1"."ID" LEFT OUTER JOIN "T_ORG" AS "t2" ON "t1"."ORG_ID" = "t2"."ID") AS "t3") AS "t4"

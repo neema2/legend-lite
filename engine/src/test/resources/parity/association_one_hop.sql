@@ -1,0 +1,1 @@
+SELECT "t3"."NAME" AS "name", "t3"."deptName" AS "deptName" FROM (SELECT "t2".*, "t2"."NAME" AS "name" FROM (SELECT "t0".*, "t1"."NAME" AS "deptName" FROM "T_PERSON" AS "t0" LEFT OUTER JOIN "T_DEPT" AS "t1" ON "t0"."DEPT_ID" = "t1"."ID") AS "t2") AS "t3"
