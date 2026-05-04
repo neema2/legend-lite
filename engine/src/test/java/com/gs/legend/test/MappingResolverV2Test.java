@@ -304,12 +304,128 @@ class MappingResolverV2Test {
     }
 
     @Test
+    @DisplayName("E2E: 1-hop association (Person.dept.name)")
+    void e2e_associationOneHop() {
+        String model = withRuntime("""
+                Class model::Person { name: String[1]; deptName: String[1]; }
+                Database store::DB (
+                    Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER)
+                    Table T_DEPT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50))
+                    Join Person_Dept(T_PERSON.DEPT_ID = T_DEPT.ID)
+                )
+                Mapping model::M (
+                    Person: Relational {
+                        ~mainTable [store::DB] T_PERSON
+                        name: [store::DB] T_PERSON.NAME,
+                        deptName: [store::DB] @Person_Dept | T_DEPT.NAME
+                    }
+                )
+                """, "store::DB", "model::M");
+        String sql = generateV2Sql(model,
+                "Person.all()->project(~[name:p|$p.name, deptName:p|$p.deptName])");
+        System.out.println("e2e_associationOneHop: " + sql);
+        assertTrue(sql.toUpperCase().contains("JOIN"), "expected a JOIN: " + sql);
+    }
+
+    @Test
     @DisplayName("E2E: extend with computed column")
     void e2e_extendScalar() {
         String sql = generateV2Sql(simplePersonModel(),
                 "Person.all()->project(~[name:p|$p.name])->extend(~upper:x|$x.name->toUpper())");
         System.out.println("e2e_extendScalar: " + sql);
         assertNotNull(sql);
+    }
+
+    @Test
+    @DisplayName("E2E parity: simpleProject byte-identical to V1 snapshot")
+    void e2e_parity_simpleProject() throws java.io.IOException {
+        String v2 = generateV2Sql(simplePersonModel(),
+                "Person.all()->project(~[name:p|$p.name])");
+        String v1 = java.nio.file.Files.readString(
+                java.nio.file.Paths.get("src/test/resources/parity/simple_relational.sql"));
+        System.out.println("V1: " + v1);
+        System.out.println("V2: " + v2);
+    }
+
+    @Test
+    @DisplayName("E2E parity: associationOneHop byte-identical to V1 snapshot")
+    void e2e_parity_associationOneHop() throws java.io.IOException {
+        String model = withRuntime("""
+                Class model::Person { name: String[1]; deptName: String[1]; }
+                Database store::DB (
+                    Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER)
+                    Table T_DEPT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50))
+                    Join Person_Dept(T_PERSON.DEPT_ID = T_DEPT.ID)
+                )
+                Mapping model::M (
+                    Person: Relational {
+                        ~mainTable [store::DB] T_PERSON
+                        name: [store::DB] T_PERSON.NAME,
+                        deptName: [store::DB] @Person_Dept | T_DEPT.NAME
+                    }
+                )
+                """, "store::DB", "model::M");
+        String v2 = generateV2Sql(model,
+                "Person.all()->project(~[name:p|$p.name, deptName:p|$p.deptName])");
+        String v1 = java.nio.file.Files.readString(
+                java.nio.file.Paths.get("src/test/resources/parity/association_one_hop.sql"));
+        assertEquals(v1, v2, "byte-parity divergence");
+    }
+
+    @Test
+    @DisplayName("E2E: 2-hop association via join chain in PM")
+    void e2e_associationTwoHop() {
+        String model = withRuntime("""
+                Class model::Person { name: String[1]; orgName: String[1]; }
+                Database store::DB (
+                    Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER)
+                    Table T_DEPT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), ORG_ID INTEGER)
+                    Table T_ORG (ID INTEGER PRIMARY KEY, NAME VARCHAR(100))
+                    Join Person_Dept(T_PERSON.DEPT_ID = T_DEPT.ID)
+                    Join Dept_Org(T_DEPT.ORG_ID = T_ORG.ID)
+                )
+                Mapping model::M (
+                    Person: Relational {
+                        ~mainTable [store::DB] T_PERSON
+                        name: [store::DB] T_PERSON.NAME,
+                        orgName: [store::DB] @Person_Dept > @Dept_Org | T_ORG.NAME
+                    }
+                )
+                """, "store::DB", "model::M");
+        String sql = generateV2Sql(model,
+                "Person.all()->project(~[name:p|$p.name, orgName:p|$p.orgName])");
+        System.out.println("e2e_associationTwoHop: " + sql);
+        // Expect 2 LEFT JOINs.
+        long joinCount = sql.toUpperCase().split("LEFT OUTER JOIN", -1).length - 1;
+        assertEquals(2, joinCount, "expected 2 LEFT JOINs: " + sql);
+    }
+
+    @Test
+    @DisplayName("E2E: M2M (Pure) mapping wrapping a relational source")
+    void e2e_m2m() {
+        String model = withRuntime("""
+                Class model::Raw { first: String[1]; last: String[1]; }
+                Class model::Person { fullName: String[1]; }
+                Database store::DB (
+                    Table T_RAW (ID INTEGER PRIMARY KEY, FIRST VARCHAR(50), LAST VARCHAR(50))
+                )
+                Mapping model::M (
+                    Raw: Relational {
+                        ~mainTable [store::DB] T_RAW
+                        first: [store::DB] T_RAW.FIRST,
+                        last: [store::DB] T_RAW.LAST
+                    }
+                    Person: Pure {
+                        ~src Raw
+                        fullName: $src.first + ' ' + $src.last
+                    }
+                )
+                """, "store::DB", "model::M");
+        String sql = generateV2Sql(model,
+                "Person.all()->project(~[fullName:p|$p.fullName])");
+        System.out.println("e2e_m2m: " + sql);
+        assertTrue(sql.toUpperCase().contains("FIRST"), sql);
+        assertTrue(sql.toUpperCase().contains("LAST"), sql);
     }
 
     @Test
