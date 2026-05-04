@@ -7,6 +7,7 @@ import com.gs.legend.compiler.TypeChecker;
 import com.gs.legend.compiler.UserCallInliner;
 import com.gs.legend.compiler.typed.*;
 import com.gs.legend.model.PureModelBuilder;
+import com.gs.legend.plan.PlanGenerator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -241,6 +242,74 @@ class MappingResolverV2Test {
         assertEquals(1, ageAccesses.size());
         assertEquals(Optional.of("AGE"),
                 ((TypedPropertyAccess) ageAccesses.get(0)).physicalColumn());
+    }
+
+    /** Standard 2-column Person model used by E2E tests. */
+    private static String simplePersonModel() {
+        return withRuntime("""
+                Class model::Person { name: String[1]; age: Integer[1]; }
+                Database store::DB (
+                    Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), AGE INTEGER)
+                )
+                Mapping model::M (
+                    Person: Relational {
+                        ~mainTable [store::DB] T_PERSON
+                        name: [store::DB] T_PERSON.NAME,
+                        age: [store::DB] T_PERSON.AGE
+                    }
+                )
+                """, "store::DB", "model::M");
+    }
+
+    private static String generateV2Sql(String model, String query) {
+        return PlanGenerator.generateV2(model, query, "test::RT").sql();
+    }
+
+    @Test
+    @DisplayName("E2E: project a single mapped column")
+    void e2e_simpleProject() {
+        String sql = generateV2Sql(simplePersonModel(),
+                "Person.all()->project(~[name:p|$p.name])");
+        System.out.println("e2e_simpleProject: " + sql);
+        assertTrue(sql.toUpperCase().contains("NAME"), sql);
+        assertTrue(sql.toUpperCase().contains("T_PERSON"), sql);
+    }
+
+    @Test
+    @DisplayName("E2E: filter on local column then project")
+    void e2e_filterLocal() {
+        String sql = generateV2Sql(simplePersonModel(),
+                "Person.all()->filter({p|$p.age > 18})->project(~[name:p|$p.name, age:p|$p.age])");
+        System.out.println("e2e_filterLocal: " + sql);
+        assertTrue(sql.toUpperCase().contains("WHERE"), sql);
+    }
+
+    @Test
+    @DisplayName("E2E: project + sort + limit")
+    void e2e_sortLimit() {
+        String sql = generateV2Sql(simplePersonModel(),
+                "Person.all()->project(~[name:p|$p.name])->sort(~name->ascending())->limit(5)");
+        System.out.println("e2e_sortLimit: " + sql);
+        assertTrue(sql.toUpperCase().contains("ORDER BY"), sql);
+        assertTrue(sql.toUpperCase().contains("LIMIT"), sql);
+    }
+
+    @Test
+    @DisplayName("E2E: distinct")
+    void e2e_distinct() {
+        String sql = generateV2Sql(simplePersonModel(),
+                "Person.all()->project(~[name:p|$p.name])->distinct()");
+        System.out.println("e2e_distinct: " + sql);
+        assertTrue(sql.toUpperCase().contains("DISTINCT"), sql);
+    }
+
+    @Test
+    @DisplayName("E2E: extend with computed column")
+    void e2e_extendScalar() {
+        String sql = generateV2Sql(simplePersonModel(),
+                "Person.all()->project(~[name:p|$p.name])->extend(~upper:x|$x.name->toUpper())");
+        System.out.println("e2e_extendScalar: " + sql);
+        assertNotNull(sql);
     }
 
     @Test
