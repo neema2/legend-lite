@@ -116,10 +116,19 @@ public final class MappingResolver {
         //    head makes Walk A idempotent over already-stamped Walk B nodes.
         StoreResolution rootStore = resolveQuery(rewrittenHir);
 
-        // 3. Elaborate implicit serialize over the rewritten HIR.
-        CompiledExpression rewrittenUnit = rewrittenHir == typeResult.hir()
+        // 3. Phase 2 — populate TypedPropertyAccess.physicalColumn for direct
+        //    accesses ($var.prop with no associationPath). After this,
+        //    PropertyAccessLowering reads the field from the AST instead
+        //    of recomputing via storeFor + columnFor for the common case.
+        //    Path-bearing accesses are left untouched and still resolved
+        //    via the lowering-side fallback until Phase 3 rewrites them
+        //    into TypedJoin chains.
+        TypedSpec hirWithPhysCols = new PropertyAccessPopulator(resolutions).populate(rewrittenHir);
+
+        // 4. Elaborate implicit serialize over the rewritten HIR.
+        CompiledExpression rewrittenUnit = hirWithPhysCols == typeResult.hir()
                 ? typeResult
-                : new CompiledExpression(rewrittenHir, typeResult.dependencies());
+                : new CompiledExpression(hirWithPhysCols, typeResult.dependencies());
         return new ResolvedExpression(
                 elaborateImplicitSerialize(rewrittenUnit, rootStore),
                 ResolvedMappings.ofStoreResolutions(resolutions));
