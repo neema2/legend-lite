@@ -183,11 +183,6 @@ public final class MappingResolverV2 {
      */
     record RowSchema(LinkedHashMap<String, String> propToCol,
                      Map<String, JoinChain> joins) {
-        static RowSchema identity(List<String> cols) {
-            LinkedHashMap<String, String> m = new LinkedHashMap<>();
-            for (String c : cols) m.put(c, c);
-            return new RowSchema(m, Map.of());
-        }
     }
 
     /**
@@ -361,6 +356,30 @@ public final class MappingResolverV2 {
         return model.findClass(name).map(PureClass::qualifiedName).orElse(name);
     }
 
+    /**
+     * Builds the row schema for a {@link TypedTableReference} from the
+     * {@link com.gs.legend.model.m3.Type.Relation} schema attached to
+     * the node by {@code TableReferenceChecker}. The Element Compiler
+     * already resolved the table against the catalog at type-check
+     * time and embedded its column list in the typed AST — this is
+     * the catalog-driven row type, just one node lookup away.
+     *
+     * <p>This mirrors Calcite's {@code RelNode.getRowType()} and Spark
+     * Catalyst's {@code LogicalPlan.output}: the row type lives on
+     * the relational node, computed by the analyzer pass that ran
+     * before the rewriter.
+     */
+    private RowSchema schemaForTableRef(TypedTableReference t) {
+        if (!(t.info().type() instanceof com.gs.legend.model.m3.Type.Relation rel)) {
+            throw new IllegalStateException(
+                    "TypedTableReference type is not Relation: " + t.info().type()
+                            + " (table: " + t.storeName() + "." + t.tableName() + ")");
+        }
+        LinkedHashMap<String, String> ptc = new LinkedHashMap<>();
+        for (String col : rel.schema().columnNames()) ptc.put(col, col);
+        return new RowSchema(ptc, Map.of());
+    }
+
     // ==================== Single-switch rewriter ====================
 
     /**
@@ -389,11 +408,15 @@ public final class MappingResolverV2 {
             }
 
             // ---------- Relation source terminals ----------
-            // Without a back-pointer to the originating class, these
-            // carry a null schema post-rewrite. They appear at the
-            // bottom of an inlined synth body; their schema is the
-            // class's seed schema, pinned by the TypedGetAll arm above.
-            case TypedTableReference n -> new Resolved(n, null);
+            // TypedTableReference: catalog lookup. Get the table from
+            // the model and build an identity schema {col → col}
+            // enumerating the table's actual columns. The synth body's
+            // traverse-extend cols (e.g. {@code $row.NAME}) bind {@code
+            // row} to this schema; Rule 2 resolves their accesses by
+            // exact-match against the column list, rejecting unknown
+            // names at the rewriter rather than deferring to SQL.
+            case TypedTableReference n -> new Resolved(n, schemaForTableRef(n));
+            // TODO: TDS-shape and parsed-row shape.
             case TypedTdsLiteral n -> new Resolved(n, null);
             case TypedSourceUrl n -> new Resolved(n, null);
 
@@ -807,12 +830,19 @@ public final class MappingResolverV2 {
     private Resolved rewritePropertyAccess(TypedPropertyAccess n, Scope scope) {
         Resolved srcR = rewrite(n.source(), scope);
 
-        // Rule 2: empty associationPath, source is a variable bound in
-        // scope.env. β-substitute the property name to the physical
-        // column from the variable's row schema.
-        boolean emptyPath = n.associationPath().isEmpty()
-                || n.associationPath().get().isEmpty();
-        if (emptyPath
+        // Rule 2: leaf-only property access (no association hops),
+        // source is a variable bound in scope.env. β-substitute the
+        // property name to the physical column from the variable's row
+        // schema.
+        //
+        // Note on associationPath shape: TypeChecker stores the full
+        // access chain in path. For `$p.age`, path = ["age"]. For
+        // `$p.firm.legalName`, path = ["firm", "legalName"]. Hops =
+        // path[0..n-1], leaf = path[n-1]. So "no hops" means
+        // path.size() <= 1 (or empty Optional).
+        boolean leafOnly = n.associationPath().isEmpty()
+                || n.associationPath().get().size() <= 1;
+        if (leafOnly
                 && n.physicalColumn().isEmpty()
                 && srcR.node() instanceof TypedVariable v
                 && scope.env().get(v.name()) != null) {
