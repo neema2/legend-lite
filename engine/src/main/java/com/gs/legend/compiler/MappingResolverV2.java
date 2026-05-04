@@ -486,118 +486,205 @@ public final class MappingResolverV2 {
 
     /** Mirrors FilterLowering.java:89. */
     private TypedSpec rewriteFilter(TypedFilter n, Scope scope) {
-        throw new UnsupportedOperationException(
-                "TODO: rewriteFilter — mirror FilterLowering.lower:89 bindVar semantics. "
-                        + "Recurse on source, then walk lambda body in scope extended with "
-                        + "(paramName → src's RowSchema). Drain pending joins above the source.");
+        TypedSpec src = rewrite(n.source(), scope);
+        // TODO: bind n.predicate().parameters().get(0) → src's RowSchema in scope
+        // before recursing on the lambda body. Required for Rule 2 to resolve
+        // {@code $p.firstName} against the source row.
+        TypedLambda pred = rewriteLambda(n.predicate(), scope);
+        return (src == n.source() && pred == n.predicate())
+                ? n
+                : new TypedFilter(src, pred, n.def(), n.info());
     }
 
     /** Mirrors SortLimitLowering.java:64. */
     private TypedSpec rewriteSort(TypedSort n, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewriteSort");
+        TypedSpec src = rewrite(n.source(), scope);
+        // TODO: bind each TypedExpressionSortKey lambda's param → src's schema.
+        List<TypedSortKey> keys = n.keys().stream().map(k -> rewriteSortKey(k, scope)).toList();
+        return new TypedSort(src, keys, n.def(), n.info());
+    }
+
+    private TypedSortKey rewriteSortKey(TypedSortKey k, Scope scope) {
+        return switch (k) {
+            case TypedColumnSortKey c -> c;
+            case TypedExpressionSortKey e ->
+                    new TypedExpressionSortKey(rewriteLambda(e.keyFn(), scope), e.direction());
+        };
     }
 
     private TypedSpec rewriteSlice(TypedSlice n, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewriteSlice");
+        TypedSpec src = rewrite(n.source(), scope);
+        return src == n.source() ? n : new TypedSlice(src, n.offset(), n.limit(), n.def(), n.info());
     }
 
     private TypedSpec rewriteDistinct(TypedDistinct n, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewriteDistinct");
+        TypedSpec src = rewrite(n.source(), scope);
+        return src == n.source() ? n : new TypedDistinct(src, n.columns(), n.def(), n.info());
     }
 
     private TypedSpec rewriteFlatten(TypedFlatten n, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewriteFlatten");
+        TypedSpec src = rewrite(n.source(), scope);
+        return src == n.source() ? n : new TypedFlatten(src, n.column(), n.def(), n.info());
     }
 
     private TypedSpec rewriteRename(TypedRename n, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewriteRename");
+        TypedSpec src = rewrite(n.source(), scope);
+        return src == n.source() ? n : new TypedRename(src, n.renames(), n.def(), n.info());
     }
 
     private TypedSpec rewriteConcatenate(TypedConcatenate n, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewriteConcatenate");
+        TypedSpec l = rewrite(n.left(), scope);
+        TypedSpec r = rewrite(n.right(), scope);
+        return (l == n.left() && r == n.right()) ? n
+                : new TypedConcatenate(l, r, n.def(), n.info());
     }
 
     private TypedSpec rewriteFold(TypedFold n, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewriteFold");
+        TypedSpec src = rewrite(n.source(), scope);
+        TypedLambda red = rewriteLambda(n.reducer(), scope);
+        TypedSpec init = rewrite(n.init(), scope);
+        return (src == n.source() && red == n.reducer() && init == n.init()) ? n
+                : new TypedFold(src, red, init, n.strategy(), n.def(), n.info());
     }
 
     private TypedSpec rewriteMap(TypedMap n, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewriteMap");
+        TypedSpec src = rewrite(n.source(), scope);
+        TypedLambda m = rewriteLambda(n.mapper(), scope);
+        return (src == n.source() && m == n.mapper()) ? n
+                : new TypedMap(src, m, n.def(), n.info());
     }
 
     /** Mirrors ProjectLowering.java:59. */
     private TypedSpec rewriteProject(TypedProject n, Scope scope) {
-        throw new UnsupportedOperationException(
-                "TODO: rewriteProject — mirror ProjectLowering.lower:59. "
-                        + "Each projection's lambda walks under scope.bind(paramName, src.schema). "
-                        + "Output schema is identity over projection aliases (TDS-shaped).");
+        TypedSpec src = rewrite(n.source(), scope);
+        // TODO: bind each projection's lambda param → src's schema (Rule 2).
+        List<TypedProjectionCol> cols = n.projections().stream()
+                .map(p -> new TypedProjectionCol(
+                        p.alias(), rewriteLambda(p.expression(), scope), p.associationPath()))
+                .toList();
+        return new TypedProject(src, cols, n.def(), n.info());
     }
 
     /** Mirrors ExtendLowering.java:228, :295. */
     private TypedSpec rewriteExtend(TypedExtend n, Scope scope) {
-        throw new UnsupportedOperationException(
-                "TODO: rewriteExtend — mirror ExtendLowering.lower (scalar/window/traverse). "
-                        + "Output schema = src.schema + (extendCol.alias → extendCol.alias) for each "
-                        + "scalar/window/traverse col. Association/embedded cols only appear in synth "
-                        + "bodies (handled by inlineClassFetch); user-query extends never have those.");
+        TypedSpec src = rewrite(n.source(), scope);
+        // TODO: bind each scalar/window/traverse extend col's lambda param →
+        // src's schema (Rule 2). Association/embedded cols on user-query
+        // extends shouldn't occur (only synth bodies have those, and Rule 1
+        // strips them); they pass through unchanged here.
+        List<TypedExtendCol> exts = n.extensions().stream()
+                .map(c -> rewriteExtendCol(c, scope))
+                .toList();
+        return new TypedExtend(src, n.traversalSpecs(), exts, n.def(), n.info());
+    }
+
+    private TypedExtendCol rewriteExtendCol(TypedExtendCol c, Scope scope) {
+        return switch (c) {
+            case TypedScalarExtendCol s ->
+                    new TypedScalarExtendCol(s.alias(), rewriteLambda(s.expression(), scope), s.returnType());
+            case TypedWindowExtendCol w -> w; // TODO: recurse on funcArgs / reducer / outerWrapper
+            case TypedTraverseExtendCol t ->
+                    new TypedTraverseExtendCol(t.alias(), t.hops(), rewriteLambda(t.expression(), scope));
+            case TypedAssociationExtendCol a -> a;
+            case TypedEmbeddedExtendCol e -> e;
+        };
     }
 
     /** Mirrors GroupByAggregateLowering.java:297, :324. */
     private TypedSpec rewriteGroupBy(TypedGroupBy n, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewriteGroupBy");
+        TypedSpec src = rewrite(n.source(), scope);
+        // TODO: bind keys' / aggs' lambdas → src's schema (Rule 2).
+        List<TypedGroupKey> keys = n.keys().stream().map(k -> rewriteGroupKey(k, scope)).toList();
+        List<TypedAggCall> aggs = n.aggs().stream().map(a -> rewriteAggCall(a, scope)).toList();
+        return new TypedGroupBy(src, keys, aggs, n.def(), n.info());
+    }
+
+    private TypedGroupKey rewriteGroupKey(TypedGroupKey k, Scope scope) {
+        return switch (k) {
+            case TypedColumnGroupKey c -> c;
+            case TypedExpressionGroupKey e ->
+                    new TypedExpressionGroupKey(rewriteLambda(e.keyFn(), scope), e.alias());
+            case TypedAssociationGroupKey a -> a;
+        };
+    }
+
+    private TypedAggCall rewriteAggCall(TypedAggCall a, Scope scope) {
+        TypedLambda fn1 = a.fn1() == null ? null : rewriteLambda(a.fn1(), scope);
+        TypedLambda fn2 = a.fn2() == null ? null : rewriteLambda(a.fn2(), scope);
+        List<TypedSpec> extra = a.extraArgs().stream().map(x -> rewrite(x, scope)).toList();
+        return new TypedAggCall(a.alias(), a.func(), fn1, fn2, extra, a.returnType(), a.castType());
     }
 
     private TypedSpec rewriteAggregate(TypedAggregate n, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewriteAggregate");
+        TypedSpec src = rewrite(n.source(), scope);
+        List<TypedAggCall> aggs = n.aggs().stream().map(a -> rewriteAggCall(a, scope)).toList();
+        return new TypedAggregate(src, aggs, n.def(), n.info());
     }
 
     private TypedSpec rewritePivot(TypedPivot n, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewritePivot");
+        TypedSpec src = rewrite(n.source(), scope);
+        List<TypedAggCall> aggs = n.aggs().stream().map(a -> rewriteAggCall(a, scope)).toList();
+        return new TypedPivot(src, n.pivotColumns(), aggs, n.def(), n.info());
     }
 
     /** Mirrors JoinLowering.java:59-60 (multi-param lambda). */
     private TypedSpec rewriteJoin(TypedJoin n, Scope scope) {
-        throw new UnsupportedOperationException(
-                "TODO: rewriteJoin — mirror JoinLowering.lower:59-60. "
-                        + "Recurse on left + right; condition lambda binds (lp → left.schema, rp → right.schema). "
-                        + "Output schema is the multi-alias merge.");
+        TypedSpec l = rewrite(n.left(), scope);
+        TypedSpec r = rewrite(n.right(), scope);
+        // TODO: bind condition's params (lp, rp) → (left.schema, right.schema).
+        TypedLambda cond = rewriteLambda(n.condition(), scope);
+        return new TypedJoin(l, r, cond, n.joinType(), n.renames(), n.def(), n.info());
     }
 
     /** Mirrors JoinLowering.java:131-132. */
     private TypedSpec rewriteAsOfJoin(TypedAsOfJoin n, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewriteAsOfJoin");
+        TypedSpec l = rewrite(n.left(), scope);
+        TypedSpec r = rewrite(n.right(), scope);
+        TypedLambda match = rewriteLambda(n.matchCondition(), scope);
+        Optional<TypedLambda> key = n.keyCondition().map(lam -> rewriteLambda(lam, scope));
+        return new TypedAsOfJoin(l, r, match, key, n.renames(), n.def(), n.info());
     }
 
     private TypedSpec rewriteSelect(TypedSelect n, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewriteSelect");
+        TypedSpec src = rewrite(n.source(), scope);
+        return src == n.source() ? n : new TypedSelect(src, n.cols(), n.def(), n.info());
     }
 
     private TypedSpec rewriteZip(TypedZip n, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewriteZip");
+        List<TypedSpec> srcs = n.sources().stream().map(s -> rewrite(s, scope)).toList();
+        return new TypedZip(srcs, n.byKeys(), n.def(), n.info());
     }
 
     private TypedSpec rewriteFrom(TypedFrom n, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewriteFrom");
+        TypedSpec src = rewrite(n.source(), scope);
+        return src == n.source() ? n : new TypedFrom(src, n.mapping(), n.runtime(), n.def(), n.info());
     }
 
     /** Rule 4 partial: graph fetch tree resolution. */
     private TypedSpec rewriteGraphFetch(TypedGraphFetch n, Scope scope) {
-        throw new UnsupportedOperationException(
-                "TODO: rewriteGraphFetch — recurse on source; rewrite ParsedGraphTree leaves "
-                        + "to ResolvedGraphTree using the source's row schema. Non-leaf children "
-                        + "follow the FK / embedded / structArrayUnnest dispatch from JoinChain.");
+        TypedSpec src = rewrite(n.source(), scope);
+        // TODO: rewrite Parsed→Resolved graph tree leaves using src's row schema.
+        // For now, pass children through unchanged.
+        return src == n.source() ? n
+                : new TypedGraphFetch(src, n.children(), n.def(), n.info());
     }
 
     private TypedSpec rewriteSerialize(TypedSerialize n, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewriteSerialize");
+        TypedSpec src = rewrite(n.source(), scope);
+        return src == n.source() ? n
+                : new TypedSerialize(src, n.format(), n.children(), n.def(), n.info());
     }
 
     private TypedSpec rewriteSerializeImplicit(TypedSerializeImplicit n, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewriteSerializeImplicit");
+        TypedSpec src = rewrite(n.source(), scope);
+        return src == n.source() ? n : new TypedSerializeImplicit(src, n.children());
     }
 
     private TypedSpec rewriteWrite(TypedWrite n, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewriteWrite");
+        TypedSpec src = rewrite(n.source(), scope);
+        TypedSpec dest = rewrite(n.destination(), scope);
+        return (src == n.source() && dest == n.destination()) ? n
+                : new TypedWrite(src, dest, n.def(), n.info());
     }
 
     // ----- Rule 2 + Rule 3: property access -----
@@ -621,64 +708,86 @@ public final class MappingResolverV2 {
      * fallback.
      */
     private TypedSpec rewritePropertyAccess(TypedPropertyAccess n, Scope scope) {
-        throw new UnsupportedOperationException(
-                "TODO: rewritePropertyAccess — Rule 2 + Rule 3. See PropertyAccessLowering for ref.");
+        TypedSpec src = rewrite(n.source(), scope);
+        // TODO: Rule 2 — empty associationPath: β-substitute property name to
+        // physical column via scope.env[var].propToCol.
+        // TODO: Rule 3 — non-empty associationPath: walk hops, append PendingJoin
+        // entries to scope, rewrite to column ref on joined alias.
+        return src == n.source() ? n
+                : new TypedPropertyAccess(src, n.property(), n.associationPath(), n.physicalColumn(), n.info());
     }
 
     // ----- Lambda binding -----
 
     /**
-     * Lambda walks recurse into the body. Param binding happens at the
-     * call site (the relational op rewriting this lambda — Filter, Sort,
-     * etc.). This bare rewriter just handles free lambdas (e.g., callback
-     * args to native functions).
+     * Rewrites a lambda by recursing on each statement in its body. Param
+     * binding is the responsibility of the relational op rewriting this
+     * lambda — Filter, Project, etc., which should extend {@code scope.env}
+     * with (paramName → source's RowSchema) BEFORE calling here.
+     *
+     * <p>For free lambdas (e.g., callback args to native functions where
+     * the param doesn't bind to a relational source), the param binding is a
+     * no-op and recursion proceeds.
      */
-    private TypedSpec rewriteLambda(TypedLambda lam, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewriteLambda");
+    private TypedLambda rewriteLambda(TypedLambda lam, Scope scope) {
+        List<TypedSpec> body = lam.body().stream().map(s -> rewrite(s, scope)).toList();
+        return new TypedLambda(lam.parameters(), body, lam.info());
     }
 
     // ----- Control flow -----
 
     private TypedSpec rewriteIf(TypedIf n, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewriteIf");
+        TypedSpec c = rewrite(n.condition(), scope);
+        TypedSpec t = rewrite(n.thenBranch(), scope);
+        TypedSpec e = rewrite(n.elseBranch(), scope);
+        return (c == n.condition() && t == n.thenBranch() && e == n.elseBranch()) ? n
+                : new TypedIf(c, t, e, n.info());
     }
 
     private TypedSpec rewriteLet(TypedLet n, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewriteLet");
+        TypedSpec v = rewrite(n.value(), scope);
+        return v == n.value() ? n : new TypedLet(n.name(), v, n.info());
     }
 
     private TypedSpec rewriteBlock(TypedBlock n, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewriteBlock");
+        List<TypedSpec> stmts = n.stmts().stream().map(s -> rewrite(s, scope)).toList();
+        return new TypedBlock(stmts, n.info());
     }
 
     private TypedSpec rewriteMatch(TypedMatch n, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewriteMatch");
+        TypedSpec subject = rewrite(n.subject(), scope);
+        List<TypedLambda> cases = n.cases().stream().map(c -> rewriteLambda(c, scope)).toList();
+        return new TypedMatch(subject, cases, n.info());
     }
 
     private TypedSpec rewriteCast(TypedCast n, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewriteCast");
+        TypedSpec e = rewrite(n.expr(), scope);
+        return e == n.expr() ? n : new TypedCast(e, n.targetType(), n.info());
     }
 
     private TypedSpec rewriteCollection(TypedCollection n, Scope scope) {
-        throw new UnsupportedOperationException(
-                "TODO: rewriteCollection — at relation root, class-typed collections rewrite to "
-                        + "TypedClassValues per Open Question 3. In scalar position, recurse on values.");
+        // TODO: at relation root with class-typed values, rewrite to TypedClassValues
+        // (Open Question 3). For now, recurse structurally on values.
+        List<TypedSpec> vals = n.values().stream().map(v -> rewrite(v, scope)).toList();
+        return new TypedCollection(vals, n.info());
     }
 
     private TypedSpec rewriteNewInstance(TypedNewInstance n, Scope scope) {
-        throw new UnsupportedOperationException(
-                "TODO: rewriteNewInstance — at relation root, rewrite to TypedClassValues "
-                        + "(Open Question 3). In scalar position, leave unchanged.");
+        // TODO: at relation root, rewrite to TypedClassValues (Open Question 3).
+        // In scalar position (struct literal), recurse on values.
+        java.util.LinkedHashMap<String, TypedSpec> vals = new java.util.LinkedHashMap<>();
+        for (var e : n.values().entrySet()) vals.put(e.getKey(), rewrite(e.getValue(), scope));
+        return new TypedNewInstance(n.className(), vals, n.info());
     }
 
     private TypedSpec rewriteStructExtract(TypedStructExtract n, Scope scope) {
-        throw new UnsupportedOperationException("TODO: rewriteStructExtract");
+        TypedSpec src = rewrite(n.source(), scope);
+        return src == n.source() ? n : new TypedStructExtract(src, n.field(), n.info());
     }
 
     private TypedSpec rewriteNativeCall(TypedNativeCall n, Scope scope) {
-        throw new UnsupportedOperationException(
-                "TODO: rewriteNativeCall — recurse on each arg under current scope. "
-                        + "Lambda args are rewritten via rewriteLambda; scalar args via rewrite directly.");
+        List<TypedSpec> args = n.args().stream().map(a -> rewrite(a, scope)).toList();
+        return new TypedNativeCall(n.func(), args, n.info());
     }
 
     // ==================== Rule 4: implicit-serialize wrap ====================
