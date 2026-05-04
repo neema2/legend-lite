@@ -203,7 +203,7 @@ final class PropertyAccessPopulator {
             case TypedZip n -> {
                 List<TypedSpec> srcs = walkList(n.sources(), env);
                 yield srcs == n.sources() ? n
-                        : new TypedZip(srcs, n.byKeys(), n.def(), n.info());
+                        : forwardStamp(n, new TypedZip(srcs, n.byKeys(), n.def(), n.info()));
             }
             case TypedFrom n -> {
                 TypedSpec src = walk(n.source(), env);
@@ -213,69 +213,69 @@ final class PropertyAccessPopulator {
             case TypedSerialize n -> {
                 TypedSpec src = walk(n.source(), env);
                 yield src == n.source() ? n
-                        : new TypedSerialize(src, n.format(), n.children(), n.def(), n.info());
+                        : forwardStamp(n, new TypedSerialize(src, n.format(), n.children(), n.def(), n.info()));
             }
             case TypedSerializeImplicit n -> {
                 TypedSpec src = walk(n.source(), env);
                 yield src == n.source() ? n
-                        : new TypedSerializeImplicit(src, n.children());
+                        : forwardStamp(n, new TypedSerializeImplicit(src, n.children()));
             }
             case TypedWrite n -> {
                 TypedSpec src = walk(n.source(), env);
                 TypedSpec dst = walk(n.destination(), env);
                 yield (src == n.source() && dst == n.destination()) ? n
-                        : new TypedWrite(src, dst, n.def(), n.info());
+                        : forwardStamp(n, new TypedWrite(src, dst, n.def(), n.info()));
             }
             case TypedGraphFetch n -> {
                 TypedSpec src = walk(n.source(), env);
                 yield src == n.source() ? n
-                        : new TypedGraphFetch(src, n.children(), n.def(), n.info());
+                        : forwardStamp(n, new TypedGraphFetch(src, n.children(), n.def(), n.info()));
             }
 
             // ---------- Generic compound nodes — recurse on children ----------
             case TypedNativeCall n -> {
                 List<TypedSpec> args = walkList(n.args(), env);
                 yield args == n.args() ? n
-                        : new TypedNativeCall(n.func(), args, n.info());
+                        : forwardStamp(n, new TypedNativeCall(n.func(), args, n.info()));
             }
             case TypedStructExtract n -> {
                 TypedSpec src = walk(n.source(), env);
                 yield src == n.source() ? n
-                        : new TypedStructExtract(src, n.field(), n.info());
+                        : forwardStamp(n, new TypedStructExtract(src, n.field(), n.info()));
             }
             case TypedNewInstance n -> {
                 Map<String, TypedSpec> values = walkMap(n.values(), env);
                 yield values == n.values() ? n
-                        : new TypedNewInstance(n.className(), values, n.info());
+                        : forwardStamp(n, new TypedNewInstance(n.className(), values, n.info()));
             }
             case TypedIf n -> {
                 TypedSpec c = walk(n.condition(), env);
                 TypedSpec t = walk(n.thenBranch(), env);
                 TypedSpec e = walk(n.elseBranch(), env);
                 yield (c == n.condition() && t == n.thenBranch() && e == n.elseBranch()) ? n
-                        : new TypedIf(c, t, e, n.info());
+                        : forwardStamp(n, new TypedIf(c, t, e, n.info()));
             }
             case TypedLet n -> {
                 TypedSpec v = walk(n.value(), env);
-                yield v == n.value() ? n : new TypedLet(n.name(), v, n.info());
+                yield v == n.value() ? n : forwardStamp(n, new TypedLet(n.name(), v, n.info()));
             }
             case TypedBlock n -> {
                 List<TypedSpec> stmts = walkList(n.stmts(), env);
-                yield stmts == n.stmts() ? n : new TypedBlock(stmts, n.info());
+                yield stmts == n.stmts() ? n : forwardStamp(n, new TypedBlock(stmts, n.info()));
             }
             case TypedMatch n -> {
                 TypedSpec subj = walk(n.subject(), env);
                 List<TypedLambda> cases = walkLambdaList(n.cases(), null, env);
                 yield (subj == n.subject() && cases == n.cases()) ? n
-                        : new TypedMatch(subj, cases, n.info());
+                        : forwardStamp(n, new TypedMatch(subj, cases, n.info()));
             }
             case TypedCast n -> {
                 TypedSpec e = walk(n.expr(), env);
-                yield e == n.expr() ? n : new TypedCast(e, n.targetType(), n.info());
+                yield e == n.expr() ? n : forwardStamp(n, new TypedCast(e, n.targetType(), n.info()));
             }
             case TypedCollection n -> {
                 List<TypedSpec> vs = walkList(n.values(), env);
-                yield vs == n.values() ? n : new TypedCollection(vs, n.info());
+                yield vs == n.values() ? n : forwardStamp(n, new TypedCollection(vs, n.info()));
             }
             case TypedLambda n -> walkLambda(n, null, env);
 
@@ -315,29 +315,62 @@ final class PropertyAccessPopulator {
         TypedSpec newSrc = pa.source() instanceof TypedVariable
                 ? pa.source()
                 : walk(pa.source(), env);
-        boolean alreadyResolved = pa.physicalColumn().isPresent();
-        boolean pathBearing = pa.associationPath().isPresent()
-                && !pa.associationPath().get().isEmpty();
-        if (alreadyResolved || pathBearing) {
-            // Phase-3 territory or already done — preserve as-is, modulo
-            // child rewrite.
+        if (pa.physicalColumn().isPresent()) {
             return rebuild(pa, newSrc, pa.physicalColumn());
         }
-        StoreResolution store = pa.source() instanceof TypedVariable v
+        StoreResolution sourceStore = pa.source() instanceof TypedVariable v
                 ? env.get(v.name())
                 : storeOf(newSrc, env);
-        if (store == null) {
+        if (sourceStore == null) {
             return rebuild(pa, newSrc, pa.physicalColumn());
         }
-        String physical = store.columnFor(pa.property());
-        if (physical == null) {
-            // The store doesn't map this property — leave physicalColumn
-            // empty so lowering's fallback still kicks in. Common for derived
-            // properties that get materialized via M2M extends and reference
-            // the alias directly.
-            return rebuild(pa, newSrc, pa.physicalColumn());
+        List<String> path = pa.associationPath().orElse(List.of());
+        if (path.isEmpty()) {
+            // Direct access — resolve the column on the source store.
+            String physical = sourceStore.columnFor(pa.property());
+            return physical == null
+                    ? rebuild(pa, newSrc, pa.physicalColumn())
+                    : rebuild(pa, newSrc, Optional.of(physical));
         }
-        return rebuild(pa, newSrc, Optional.of(physical));
+        // Path-bearing: walk through the source's join graph hop by hop to
+        // find the leaf store, then resolve the property on it. The path
+        // itself stays on the AST — lowering's path loop still drives
+        // NavScope JOIN installation; we only short-circuit the leaf
+        // columnFor lookup.
+        //
+        // One structural rewrite happens here: an Otherwise+embedded match
+        // at the FIRST hop collapses the access to a path-free direct read
+        // on the source alias. Lowering's loop never enters, no joins are
+        // installed, the populated physicalColumn carries the embedded
+        // sub-column name. Embedded shortcuts at later hops keep the path
+        // intact (the alias for the embedded read is created at lowering
+        // time and isn't representable on the AST today).
+        StoreResolution leafStore = sourceStore;
+        int hopCount = path.size() - 1;
+        for (int i = 0; i < hopCount; i++) {
+            String hop = path.get(i);
+            StoreResolution.JoinResolution jr = leafStore.joins() == null
+                    ? null : leafStore.joins().get(hop);
+            if (jr == null) {
+                return rebuild(pa, newSrc, pa.physicalColumn());
+            }
+            if (jr instanceof StoreResolution.JoinResolution.Otherwise ow) {
+                // Lowering's path loop handles the embedded-sub-col shortcut
+                // by returning early with a column on the parent alias. We
+                // could short-circuit here too (set physicalColumn = embedded
+                // col name), but that requires care when the shortcut is at
+                // hop 0 vs. later hops — leave it to lowering for now.
+                jr = ow.fallback();
+            }
+            leafStore = jr.targetResolution();
+            if (leafStore == null) {
+                return rebuild(pa, newSrc, pa.physicalColumn());
+            }
+        }
+        String physical = leafStore.columnFor(pa.property());
+        return physical == null
+                ? rebuild(pa, newSrc, pa.physicalColumn())
+                : rebuild(pa, newSrc, Optional.of(physical));
     }
 
     private static TypedSpec rebuild(TypedPropertyAccess pa, TypedSpec newSrc,
