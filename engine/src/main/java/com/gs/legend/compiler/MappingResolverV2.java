@@ -5,6 +5,7 @@ import com.gs.legend.compiled.CompiledFunction;
 import com.gs.legend.compiler.typed.*;
 import com.gs.legend.model.ModelContext;
 import com.gs.legend.model.m3.PureClass;
+import com.gs.legend.model.m3.Type;
 import com.gs.legend.model.mapping.ClassMapping;
 import com.gs.legend.model.mapping.PureClassMapping;
 import com.gs.legend.model.mapping.RelationalMapping;
@@ -155,15 +156,27 @@ public final class MappingResolverV2 {
      * <p>Rule 3 will reintroduce a pending-joins channel; for now Scope
      * is the minimum needed for Rules 1 + 2.
      */
-    record Scope(Map<String, TypedSpec> env) {
+    record Scope(Map<String, TypedSpec> env, Optional<String> mappingClass) {
         static Scope empty() {
-            return new Scope(Map.of());
+            return new Scope(Map.of(), Optional.empty());
         }
 
         Scope bind(String name, TypedSpec node) {
             Map<String, TypedSpec> next = new HashMap<>(env);
             next.put(name, node);
-            return new Scope(next);
+            return new Scope(next, mappingClass);
+        }
+
+        /**
+         * Mark that the subtree being rewritten is the inlined body of
+         * {@code classFqn}'s mapping function. {@link #rewriteExtend}
+         * reads this to know that the extend cols here are
+         * compiler-generated PM materializations — candidates for
+         * pruning by {@code classPropertyAccesses[classFqn]}. When this
+         * is empty, the extend is user-authored and pruning is skipped.
+         */
+        Scope enterMapping(String classFqn) {
+            return new Scope(env, Optional.of(classFqn));
         }
     }
 
@@ -232,6 +245,11 @@ public final class MappingResolverV2 {
                         "no compiled mapping function for class fetch: " + classFqn);
             }
             TypedSpec body = cf.body().hir();
+            // Pruning is NOT done here — it's emergent from rewrite()'s
+            // walk into the synth body. The TypedGetAll arm enters the
+            // body with scope.synthBodyClass = classFqn, and rewriteExtend
+            // filters extensions when that flag is set. See Rule 1 in the
+            // class javadoc.
             classMemo.put(classFqn, body);
             return body;
         } finally {
@@ -258,10 +276,13 @@ public final class MappingResolverV2 {
         return switch (node) {
 
             // ---------- Rule 1: class fetch ----------
-            // Mirrors: SourceLowering.lower(TypedGetAll). Inline the
-            // synth body and recurse. The body is self-describing for
-            // buildIndex; no schema seed is propagated.
-            case TypedGetAll ga -> rewrite(inlineClassFetch(ga.className()), scope);
+            // Mirrors SourceLowering.lower(TypedGetAll). Inline the
+            // mapping function body and recurse with mappingClass set so
+            // rewriteExtend can prune unused scalar/window/traverse cols.
+            // The body is self-describing for buildIndex; no schema seed
+            // is propagated.
+            case TypedGetAll ga -> rewrite(inlineClassFetch(ga.className()),
+                    scope.enterMapping(canonicalize(ga.className())));
 
             // ---------- Relation source terminals ----------
             // Pure data — no rewrite needed. Schema (when queried via
@@ -438,13 +459,50 @@ public final class MappingResolverV2 {
         return new TypedProject(src, cols, n.def(), n.info());
     }
 
-    /** Mirrors ExtendLowering.java:228, :295. */
+    /**
+     * Mirrors ExtendLowering.java:228, :295. Rule 1's structural pruning
+     * is folded in here: when {@code scope.mappingClass()} is set, this
+     * extend is inside an inlined mapping function body, and any
+     * scalar/window/traverse col whose alias is not in
+     * {@code classPropertyAccesses[mappingClass]} is dropped (no marker,
+     * no flag — the col simply does not appear). Association/embedded
+     * cols are always kept (Rule 3 territory). If every col is pruned
+     * and there are no traversal specs, the entire {@link TypedExtend}
+     * collapses to its source. When {@code mappingClass} is empty the
+     * extend is user-authored and all cols are preserved.
+     */
     private TypedSpec rewriteExtend(TypedExtend n, Scope scope) {
         TypedSpec src = rewrite(n.source(), scope);
-        List<TypedExtendCol> exts = n.extensions().stream()
+        List<TypedExtendCol> kept = scope.mappingClass()
+                .map(c -> classPropertyAccesses.getOrDefault(c, Set.<String>of()))
+                .map(used -> n.extensions().stream()
+                        .filter(col -> isAccessedOrJoinDeclaring(col, used))
+                        .toList())
+                .orElse(n.extensions());
+        if (kept.isEmpty() && n.traversalSpecs().isEmpty()) {
+            return src;
+        }
+        List<TypedExtendCol> rewritten = kept.stream()
                 .map(c -> rewriteExtendCol(c, scope, src))
                 .toList();
-        return new TypedExtend(src, n.traversalSpecs(), exts, n.def(), n.info());
+        return new TypedExtend(src, n.traversalSpecs(), rewritten, n.def(), n.info());
+    }
+
+    /**
+     * True if the extend col should survive mapping-body pruning.
+     * Scalar/window/traverse cols survive iff their alias is in
+     * {@code used} (the user query reads it). Association/embedded
+     * cols always survive — they declare joins, which Rule 3 will
+     * materialize into explicit {@link TypedJoin}s.
+     */
+    private static boolean isAccessedOrJoinDeclaring(TypedExtendCol col, Set<String> used) {
+        return switch (col) {
+            case TypedScalarExtendCol s    -> used.contains(s.alias());
+            case TypedWindowExtendCol w    -> used.contains(w.alias());
+            case TypedTraverseExtendCol t  -> used.contains(t.alias());
+            case TypedAssociationExtendCol a -> true;
+            case TypedEmbeddedExtendCol em   -> true;
+        };
     }
 
     private TypedExtendCol rewriteExtendCol(TypedExtendCol c, Scope scope, TypedSpec src) {
@@ -724,7 +782,7 @@ public final class MappingResolverV2 {
             case TypedSelect s         -> filterCols(buildIndex(s.source()), s.cols());
             case TypedGroupBy g        -> groupByOutput(g.keys(), g.aggs());
             case TypedAggregate a      -> aliasIdentity(a.aggs().stream().map(TypedAggCall::alias).toList());
-            case TypedPivot p          -> aliasIdentity(p.aggs().stream().map(TypedAggCall::alias).toList());
+            case TypedPivot p          -> pivotOutput(p.pivotColumns(), p.aggs());
             case TypedFrom f           -> buildIndex(f.source());
             case TypedConcatenate c    -> buildIndex(c.left());
             case TypedJoin j           -> buildIndex(j.left());      // TODO: merge L+R schemas with renames
@@ -732,8 +790,17 @@ public final class MappingResolverV2 {
             case TypedZip z            -> z.sources().isEmpty()
                                           ? new RowIndex(Map.of())
                                           : buildIndex(z.sources().get(0));
-            case TypedTdsLiteral t     -> new RowIndex(Map.of()); // TODO: row-data inferred shape
-            case TypedSourceUrl u      -> new RowIndex(Map.of());
+            case TypedTdsLiteral t     -> indexFromRelationSchema(t.info(),
+                    "TypedTdsLiteral has no Relation schema");
+            case TypedSourceUrl u      -> indexFromRelationSchema(u.info(),
+                    "TypedSourceUrl has no Relation schema");
+            // ^Class(...) literal at relation root — identity-mapped from
+            // the model class's properties. V1's resolveIdentity equivalent.
+            case TypedNewInstance ni   -> identityIndexFromClass(ni.className());
+            // [^Class(...)] literal collection at relation root.
+            case TypedCollection coll  -> coll.info().type() instanceof Type.ClassType ct
+                    ? identityIndexFromClass(ct.qualifiedName())
+                    : new RowIndex(Map.of());
             case TypedGetAll g -> throw new IllegalStateException(
                     "buildIndex: unrewritten TypedGetAll for " + g.className()
                             + " — Rule 1 must inline class fetches before binding.");
@@ -815,11 +882,17 @@ public final class MappingResolverV2 {
         return new RowIndex(ptc);
     }
 
+    /**
+     * Apply column renames. The lowering emits {@code SELECT old AS new}
+     * so downstream consumers see a column literally named {@code new} —
+     * the renamed alias is its own physical column at the rename's output
+     * level. Mirrors V1's {@code MappingResolver.renameStore}.
+     */
     private RowIndex applyRenameIndex(RowIndex src, List<ColRename> renames) {
         Map<String, String> ptc = new LinkedHashMap<>(src.byAlias());
         for (ColRename r : renames) {
-            String phys = ptc.remove(r.from());
-            if (phys != null) ptc.put(r.to(), phys);
+            ptc.remove(r.from());
+            ptc.put(r.to(), r.to());
         }
         return new RowIndex(ptc);
     }
@@ -837,6 +910,48 @@ public final class MappingResolverV2 {
         return new RowIndex(ptc);
     }
 
+    /**
+     * Static schema for a pivot: declared pivot columns + agg aliases. The
+     * dynamic spread columns (one per distinct pivot value × agg) aren't
+     * statically representable; static Pure code can't reference them by
+     * name. Mirrors V1 MappingResolver.resolveQuery TypedPivot arm.
+     */
+    private RowIndex pivotOutput(List<String> pivotColumns, List<TypedAggCall> aggs) {
+        Map<String, String> ptc = new LinkedHashMap<>();
+        for (String c : pivotColumns) ptc.put(c, c);
+        for (TypedAggCall a : aggs) ptc.put(a.alias(), a.alias());
+        return new RowIndex(ptc);
+    }
+
+    /**
+     * Build an identity index from a node's {@link Type.Relation} schema.
+     * Used by relation-source terminals whose row shape is the catalog /
+     * literal-declared column list rather than something derived from a
+     * mapping.
+     */
+    private RowIndex indexFromRelationSchema(ExpressionType info, String errorContext) {
+        if (!(info.type() instanceof Type.Relation rel)) {
+            throw new IllegalStateException(errorContext + ": got " + info.type());
+        }
+        Map<String, String> ptc = new LinkedHashMap<>();
+        for (String col : rel.schema().columnNames()) ptc.put(col, col);
+        return new RowIndex(ptc);
+    }
+
+    /**
+     * Identity index for a class-typed literal ({@code ^Class(...)} or a
+     * class-typed collection). Each property is its own physical column
+     * — the literal IS its own physical schema. Mirrors V1's
+     * {@code resolveIdentity}.
+     */
+    private RowIndex identityIndexFromClass(String classFqn) {
+        PureClass pc = model.findClass(classFqn).orElse(null);
+        if (pc == null) return new RowIndex(Map.of());
+        Map<String, String> ptc = new LinkedHashMap<>();
+        for (var prop : pc.properties()) ptc.put(prop.name(), prop.name());
+        return new RowIndex(ptc);
+    }
+
     // ==================== Rule 4: implicit-serialize wrap ====================
 
     /**
@@ -847,8 +962,25 @@ public final class MappingResolverV2 {
      * columns come from {@link #buildIndex} on the rewritten root.
      */
     private TypedSpec wrapImplicitSerializeIfNeeded(TypedSpec rewritten) {
-        // TODO: detect class-typed root, look up properties, build
-        // ResolvedGraphTree leaves, wrap.
-        return rewritten;
+        // Already wrapped, or already an explicit serialize/graph fetch:
+        // those self-envelope via their own lowering rules.
+        if (rewritten instanceof TypedGraphFetch
+                || rewritten instanceof TypedSerialize
+                || rewritten instanceof TypedSerializeImplicit) {
+            return rewritten;
+        }
+        // Only class-typed roots get the implicit JSON envelope; relational
+        // / TDS roots (Type.Relation) are emitted bare.
+        if (!(rewritten.info().type() instanceof Type.ClassType)) {
+            return rewritten;
+        }
+        // Leaf list: every alias the rewritten root exposes, in declaration
+        // order. buildIndex's byAlias is a LinkedHashMap so iteration is
+        // stable; the SQL emits columns in the same order.
+        RowIndex idx = buildIndex(rewritten);
+        List<TypedGraphTree> leaves = idx.byAlias().keySet().stream()
+                .map(TypedGraphTree::leaf)
+                .toList();
+        return new TypedSerializeImplicit(rewritten, leaves);
     }
 }

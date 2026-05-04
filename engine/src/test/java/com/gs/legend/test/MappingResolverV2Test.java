@@ -265,6 +265,26 @@ class MappingResolverV2Test {
         return PlanGenerator.generateV2(model, query, "test::RT").sql();
     }
 
+    /** V1 SQL for the same pure source + query — runs through the existing MappingResolver. */
+    private static String generateV1Sql(String model, String query) {
+        return PlanGenerator.generate(model, query, "test::RT").sql();
+    }
+
+    /**
+     * Asserts byte-identical SQL output between V1 and V2 pipelines. This is
+     * the parity contract: V2 must produce the same SQL as V1 for every
+     * supported query. Used to verify Phase A bug fixes and Phase B Rule 4
+     * mirror V1's MappingResolver behavior exactly.
+     */
+    private static void assertV1V2Parity(String model, String query, String label) {
+        String v1 = generateV1Sql(model, query);
+        String v2 = generateV2Sql(model, query);
+        System.out.println(label + " V1: " + v1);
+        System.out.println(label + " V2: " + v2);
+        System.out.println(label + " match: " + v1.equals(v2));
+        assertEquals(v1, v2, label + ": byte-parity divergence");
+    }
+
     @Test
     @DisplayName("E2E: project a single mapped column")
     void e2e_simpleProject() {
@@ -470,5 +490,111 @@ class MappingResolverV2Test {
                 "expected all TypedPropertyAccess nodes to have physicalColumn populated; "
                         + "unresolved: " + unresolved.stream()
                         .map(n -> ((TypedPropertyAccess) n).property()).toList());
+    }
+
+    // ==================== Phase A / B parity tests ====================
+    //
+    // Each test exercises a specific code path that was changed in Phase A
+    // (buildIndex bug fixes) or Phase B (Rule 4 wrap) and asserts the V2
+    // pipeline produces byte-identical SQL to V1's MappingResolver.
+
+    /**
+     * Phase B (Rule 4): a class-typed root (Person.all() with no project)
+     * is wrapped in TypedSerializeImplicit by both V1
+     * (MappingResolver.elaborateImplicitSerialize) and V2
+     * (wrapImplicitSerializeIfNeeded). The wrap is what triggers the JSON
+     * envelope at lowering time. Without Rule 4 in V2, the SQL would be
+     * the bare relation source — different from V1.
+     */
+    @Test
+    @DisplayName("Parity: class-typed root gets implicit-serialize wrap (Rule 4)")
+    void parity_classTypedRoot_implicitSerialize() {
+        assertV1V2Parity(simplePersonModel(), "Person.all()", "classTypedRoot");
+    }
+
+    /**
+     * Phase A: rename's output schema. V2's applyRenameIndex was previously
+     * mapping {@code to → from's physical} (wrong: SQL emits OLD AS NEW so
+     * the output relation has a column literally named NEW). After the fix,
+     * {@code to → to}, matching V1.renameStore.
+     *
+     * <p>The query exercises rename on a class-mapped column where the seed
+     * physical name (NAME) differs from the logical alias (name) — without
+     * the fix, sort-on-renamed would project the wrong column.
+     */
+    @Test
+    @DisplayName("Parity: rename's output column accessible by new name")
+    void parity_renameAfterProject() {
+        assertV1V2Parity(simplePersonModel(),
+                "Person.all()->project(~[name:p|$p.name])"
+                        + "->rename(~name, ~personName)"
+                        + "->sort(~personName->ascending())",
+                "renameAfterProject");
+    }
+
+    /**
+     * Phase A: TDS literal source. V2's buildIndex previously returned an
+     * empty index for TypedTdsLiteral; now reads from Type.Relation schema.
+     * Query accesses a column on the literal — without the index, the
+     * physical-column resolution would fall through.
+     */
+    @Test
+    @DisplayName("Parity: TDS literal as relation source")
+    void parity_tdsLiteralSource() {
+        assertV1V2Parity(simplePersonModel(),
+                "#TDS\n"
+                        + "  id, name\n"
+                        + "  1, Alice\n"
+                        + "  2, Bob\n"
+                        + "#->filter(r|$r.id > 1)->sort(~id->ascending())",
+                "tdsLiteralSource");
+    }
+
+    /**
+     * Phase A: pivot output schema. V2's pivotOutput now includes pivot
+     * columns + agg aliases (was: agg aliases only). A pivot followed by
+     * an extend on the pivot column verifies the index includes them.
+     */
+    @Test
+    @DisplayName("Parity: pivot output includes pivot columns + agg aliases")
+    void parity_pivotOutput() {
+        assertV1V2Parity(simplePersonModel(),
+                "#TDS\n"
+                        + "  city, year, value\n"
+                        + "  NYC, 2011, 100\n"
+                        + "  SAN, 2011, 50\n"
+                        + "#->pivot(~[year], ~[total:x|$x.value:y|$y->plus()])"
+                        + "->extend(~combined:x|$x.city->toOne() + '_t')",
+                "pivotOutput");
+    }
+
+    /**
+     * Phase A: rename via two-arg form (rename multiple columns at once).
+     * Verifies applyRenameIndex handles multiple ColRenames in sequence
+     * the same way as V1.renameStore.
+     */
+    @Test
+    @DisplayName("Parity: multi-column rename")
+    void parity_renameMultiple() {
+        assertV1V2Parity(simplePersonModel(),
+                "Person.all()->project(~[name:p|$p.name, age:p|$p.age])"
+                        + "->rename(~[name, age], ~[fullName, years])"
+                        + "->sort(~fullName->ascending())",
+                "renameMultiple");
+    }
+
+    /**
+     * Phase A: select restricts the index to the named columns. Mirrors
+     * V1.restrictStore. Query selects then references the surviving
+     * column in a downstream filter.
+     */
+    @Test
+    @DisplayName("Parity: select restricts column visibility")
+    void parity_selectRestrict() {
+        assertV1V2Parity(simplePersonModel(),
+                "Person.all()->project(~[name:p|$p.name, age:p|$p.age])"
+                        + "->select(~[name])"
+                        + "->sort(~name->ascending())",
+                "selectRestrict");
     }
 }
