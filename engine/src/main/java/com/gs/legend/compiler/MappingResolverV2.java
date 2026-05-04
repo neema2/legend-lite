@@ -806,11 +806,38 @@ public final class MappingResolverV2 {
      */
     private Resolved rewritePropertyAccess(TypedPropertyAccess n, Scope scope) {
         Resolved srcR = rewrite(n.source(), scope);
-        // TODO: Rule 2 — empty associationPath: β-substitute property name to
-        // physical column via scope.env[var].propToCol when src is a
-        // TypedVariable bound in scope.env.
-        // TODO: Rule 3 — non-empty associationPath: walk hops, append PendingJoin
-        // entries to scope, rewrite to column ref on joined alias.
+
+        // Rule 2: empty associationPath, source is a variable bound in
+        // scope.env. β-substitute the property name to the physical
+        // column from the variable's row schema.
+        boolean emptyPath = n.associationPath().isEmpty()
+                || n.associationPath().get().isEmpty();
+        if (emptyPath
+                && n.physicalColumn().isEmpty()
+                && srcR.node() instanceof TypedVariable v
+                && scope.env().get(v.name()) != null) {
+            RowSchema rs = scope.env().get(v.name());
+            String physical = rs.propToCol().get(n.property());
+            if (physical != null) {
+                return new Resolved(
+                        new TypedPropertyAccess(
+                                srcR.node(),
+                                n.property(),
+                                n.associationPath(),
+                                Optional.of(physical),
+                                n.info()),
+                        null);
+            }
+            // Property not in propToCol: leave unresolved. Could mean the
+            // schema is incomplete (Phase B will populate extends) or the
+            // property is genuinely undefined. Don't throw — let it pass
+            // through; downstream will fail loudly if the column doesn't
+            // exist.
+        }
+
+        // TODO: Rule 3 — non-empty associationPath: walk hops, append
+        // PendingJoin entries to scope, rewrite to column ref on joined
+        // alias.
         return new Resolved(
                 new TypedPropertyAccess(srcR.node(), n.property(), n.associationPath(), n.physicalColumn(), n.info()),
                 null);
