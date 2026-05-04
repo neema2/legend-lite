@@ -67,45 +67,10 @@ public final class SourceLowering {
      * </ol>
      */
     public static SqlRelation lower(TypedGetAll n, LoweringContext ctx) {
-        // Missing mapping is a back-end / link-time error — surfaced here at
-        // the use site rather than at type-check (front-end). TypeChecker
-        // tolerates absence so a query can be well-typed even when a class
-        // it references has no mapping in the active scope; we draw the line
-        // at the moment lowering actually needs the materialization.
-        var mappingFn = ctx.compiledMappingFunction(n.className()).orElse(null);
-        if (mappingFn == null) {
-            throw new PureCompileException(
-                    "No mapping in scope for class '" + n.className() + "' — "
-                            + "required to lower getAll. Add a mapping for this class to the active runtime.");
-        }
-
-        StoreResolution store = ctx.storeFor(n);
-        if (store == null) {
-            throw new PureCompileException(
-                    "getAll: no StoreResolution for class " + n.className()
-                            + ". MappingResolver must stamp every TypedGetAll.");
-        }
-
-        // Mapping-function body carries the compiled source-relation HIR — the
-        // synth source terminal is either a {@link TypedTableReference} (physical
-        // tables) or a {@link com.gs.legend.compiler.typed.TypedSourceUrl}
-        // (external URL-backed classes, e.g. {@code JsonModelConnection}), with
-        // optional filter/distinct/joins/extends layered on top. Recurse to
-        // lower it; MappingResolver has already stamped StoreResolutions on
-        // the inner relational nodes.
-        if (mappingFn.body() != null) {
-            var body = mappingFn.body().hir();
-            return Lowerer.lowerRelation(body, ctx);
-        }
-
-        // Identity fallback: bare SELECT * FROM <table>.
-        if (store.tableName() == null) {
-            throw new PureCompileException(
-                    "getAll: StoreResolution for " + n.className() + " has no tableName and no mappingFn body.");
-        }
-        String alias = ctx.nextAlias();
-        return new SqlRelation.TableRef(null, store.tableName(), alias,
-                outputsFromSchema(n.info().schema()));
+        throw new IllegalStateException(
+                "[source-lowering] TypedGetAll reached lowering — "
+                        + "MappingResolver.inlineClassFetches should have spliced it; fqn="
+                        + n.className());
     }
 
     // ---------------- TypedTdsLiteral ----------------

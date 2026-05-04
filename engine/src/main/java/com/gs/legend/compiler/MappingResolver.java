@@ -99,16 +99,110 @@ public final class MappingResolver {
      * {@code CompiledExpression}.
      */
     public ResolvedExpression resolve() {
-        // 1. Walk the (already-inlined) HIR for store resolution. Caller
-        //    is responsible for running UserCallInliner upstream — we
-        //    throw IllegalStateException on any TypedUserCall encountered
-        //    during the walk to surface pipeline ordering bugs loudly.
-        StoreResolution rootStore = resolveQuery(typeResult.hir());
+        // 1. Inline class-fetch synth bodies. Each TypedGetAll in the user
+        //    HIR is replaced by its compiled mapping function body. Side
+        //    effect: each splice triggers resolveClassFetch(fqn), which
+        //    builds the class StoreResolution via Walk B and stamps the
+        //    ORIGINAL synth-body nodes in the sidecar. After this pass no
+        //    TypedGetAll survives. The kernel rebuilds compound parents
+        //    whose children got rewritten (M2M chain); rebuilt parents
+        //    lose their identity-keyed sidecar entry. LoweringContext.storeFor
+        //    falls back to source recursion to recover stamps from the
+        //    nearest still-stamped descendant.
+        TypedSpec rewrittenHir = inlineClassFetches(typeResult.hir());
 
-        // 2. Elaborate implicit serialize over the resolved HIR.
+        // 2. Walk A — stamp user-query operators above (and around) the
+        //    spliced subtrees. Pre-stamp short-circuit at resolveQuery's
+        //    head makes Walk A idempotent over already-stamped Walk B nodes.
+        StoreResolution rootStore = resolveQuery(rewrittenHir);
+
+        // 3. Elaborate implicit serialize over the rewritten HIR.
+        CompiledExpression rewrittenUnit = rewrittenHir == typeResult.hir()
+                ? typeResult
+                : new CompiledExpression(rewrittenHir, typeResult.dependencies());
         return new ResolvedExpression(
-                elaborateImplicitSerialize(typeResult, rootStore),
+                elaborateImplicitSerialize(rewrittenUnit, rootStore),
                 ResolvedMappings.ofStoreResolutions(resolutions));
+    }
+
+    /**
+     * Pass 4a — class-fetch inliner. Rewrites the user HIR to splice each
+     * {@link TypedGetAll}'s class with its compiled mapping function body.
+     * After this pass no {@link TypedGetAll} survives in the rewritten tree.
+     *
+     * <p>Inner TypedGetAlls (M2M chain) are recursively expanded by threading
+     * the kernel's recursion: the rewriter walks the spliced body, and any
+     * inner TypedGetAll re-fires this hook.
+     *
+     * <p><strong>Sidecar transitional behavior</strong>: triggering
+     * {@link #resolveClassFetch} for each FQN runs Walk B over the original
+     * synth body, populating the sidecar with stamps on the ORIGINAL nodes.
+     * After splicing, leaf nodes (TypedTableReference, TypedSourceUrl) keep
+     * those stamps because the kernel doesn't rebuild leaves. Compound
+     * parent nodes whose children changed are rebuilt; their stamps are
+     * lost. LoweringContext.storeFor's source-recursion fallback recovers
+     * the right store by walking down to the still-stamped descendant.
+     */
+    private TypedSpec inlineClassFetches(TypedSpec root) {
+        var rewriter = new com.gs.legend.compiler.HirRewriter(
+                new com.gs.legend.compiler.HirRewriter.Hooks() {
+                    @Override
+                    public TypedSpec rewriteGetAll(
+                            TypedGetAll ga,
+                            com.gs.legend.compiler.HirRewriter.Scope scope,
+                            com.gs.legend.compiler.HirRewriter rec) {
+                        // Trigger Walk B for this class to populate the
+                        // sidecar with original-node stamps.
+                        StoreResolution outerStore = resolveClassFetch(ga.className());
+
+                        TypedSpec body = compiledMappingBody(ga.className());
+                        if (body == null) return ga;
+
+                        // Recurse so any inner TypedGetAll (M2M chain) is
+                        // also expanded. The kernel rebuilds compound
+                        // parents whose children got rewritten — those
+                        // rebuilds lose their identity-keyed sidecar entry.
+                        TypedSpec spliced = rec.rewrite(body, scope);
+
+                        // Re-stamp rebuilt parents in the spliced subtree.
+                        // Walk top-down, stamping each unstamped relational
+                        // node with this class's store. Stops at nodes that
+                        // are already stamped — those are either still-
+                        // identity-preserved originals or boundaries to an
+                        // inner splice (which has its own class store).
+                        if (outerStore != null) restampSubtree(spliced, outerStore);
+
+                        return spliced;
+                    }
+                });
+        return rewriter.rewrite(root, com.gs.legend.compiler.HirRewriter.Scope.EMPTY);
+    }
+
+    /**
+     * Top-down stamping pass over a spliced synth-body subtree. Stamps each
+     * unstamped relational node with {@code store}; halts recursion at any
+     * node that already has a stamp (either an original leaf preserved by
+     * the kernel's identity-preserving rewrite, or the root of an inner
+     * splice that owns a different class store).
+     *
+     * <p>Only relational children are followed — scalar lambdas don't need
+     * stamps for storeFor to work; the lambda's relational source carries
+     * the store via {@code env}'s Rel binding.
+     */
+    private void restampSubtree(TypedSpec node, StoreResolution store) {
+        if (node == null) return;
+        if (resolutions.containsKey(node)) return;
+        resolutions.put(node, store);
+        switch (node) {
+            case com.gs.legend.compiler.typed.TypedFilter n -> restampSubtree(n.source(), store);
+            case TypedExtend n -> restampSubtree(n.source(), store);
+            case com.gs.legend.compiler.typed.TypedProject n -> restampSubtree(n.source(), store);
+            case com.gs.legend.compiler.typed.TypedSort n -> restampSubtree(n.source(), store);
+            case com.gs.legend.compiler.typed.TypedSlice n -> restampSubtree(n.source(), store);
+            case com.gs.legend.compiler.typed.TypedDistinct n -> restampSubtree(n.source(), store);
+            case com.gs.legend.compiler.typed.TypedFlatten n -> restampSubtree(n.source(), store);
+            default -> { /* leaf or non-relational; nothing to recurse into */ }
+        }
     }
 
     /**
@@ -141,9 +235,18 @@ public final class MappingResolver {
      */
     private StoreResolution resolveQuery(TypedSpec node) {
         if (node == null) return null;
+        // Short-circuit: synth-body nodes are pre-stamped by Walk B during
+        // class-fetch inlining. Re-walking them here would compute different
+        // (schema-store) stamps for nodes that should keep their class-store
+        // stamps. The pre-stamp wins.
+        StoreResolution preStamped = resolutions.get(node);
+        if (preStamped != null) return preStamped;
         StoreResolution res = switch (node) {
             // ----- Anchors: create a new resolution -----
-            case TypedGetAll ga -> resolveClassFetch(ga.className());
+            case TypedGetAll ga -> throw new IllegalStateException(
+                    "[mapping-resolver] TypedGetAll reached resolveQuery — "
+                            + "inlineClassFetches should have spliced it; fqn="
+                            + ga.className());
             case TypedNewInstance ni -> {
                 StoreResolution r = resolveIdentity(ni.className());
                 for (var v : ni.values().values()) resolveQuery(v);

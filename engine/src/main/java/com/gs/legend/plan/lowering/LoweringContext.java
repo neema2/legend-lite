@@ -144,7 +144,26 @@ public final class LoweringContext {
                 && env.get(v.name()) instanceof Rel rel) {
             return storeFor(rel.node());
         }
-        return resolved.mappings().storeResolutions().get(node);
+        StoreResolution direct = resolved.mappings().storeResolutions().get(node);
+        if (direct != null) return direct;
+        // Fallback: when MappingResolver inlines class-fetch synth bodies
+        // (Phase 1 of the rewrite plan), the kernel rebuilds compound
+        // parents whose children got rewritten. Rebuilt parents lose their
+        // identity-keyed sidecar entry, but their structural source still
+        // does (leaves like TypedTableReference are not rebuilt). Walk
+        // through known source-bearing relational ops to find the nearest
+        // stamped node. This is a transitional fallback; once Phase 5
+        // deletes the sidecar entirely, storeFor disappears with it.
+        return switch (node) {
+            case com.gs.legend.compiler.typed.TypedFilter n -> storeFor(n.source());
+            case com.gs.legend.compiler.typed.TypedExtend n -> storeFor(n.source());
+            case com.gs.legend.compiler.typed.TypedProject n -> storeFor(n.source());
+            case com.gs.legend.compiler.typed.TypedSort n -> storeFor(n.source());
+            case com.gs.legend.compiler.typed.TypedSlice n -> storeFor(n.source());
+            case com.gs.legend.compiler.typed.TypedDistinct n -> storeFor(n.source());
+            case com.gs.legend.compiler.typed.TypedFlatten n -> storeFor(n.source());
+            default -> null;
+        };
     }
 
     /**
