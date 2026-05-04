@@ -429,6 +429,18 @@ class MappingResolverV2Test {
     }
 
     @Test
+    @DisplayName("E2E: class-typed root (Person.all() without project) lowers without error")
+    void e2e_classTypedRoot() {
+        // Person.all() at the root, no project — produces the synth body's
+        // raw SQL. Today there is no implicit-serialize wrap (Rule 4 TODO);
+        // the lowerer currently accepts the bare class-typed AST and emits
+        // a SELECT *, which is a valid TDS-shaped result.
+        String sql = generateV2Sql(simplePersonModel(), "Person.all()");
+        System.out.println("e2e_classTypedRoot: " + sql);
+        assertTrue(sql.toUpperCase().contains("T_PERSON"), sql);
+    }
+
+    @Test
     @DisplayName("Rule 2: synth body's $row.NAME accesses resolve to themselves (table identity)")
     void rule2_synthBodyTableIdentity() {
         String model = withRuntime("""
