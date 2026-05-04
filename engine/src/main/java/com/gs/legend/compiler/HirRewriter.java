@@ -305,7 +305,8 @@ public final class HirRewriter {
             case TypedPropertyAccess n -> {
                 TypedSpec src = rewrite(n.source(), scope);
                 yield src == n.source() ? n
-                        : new TypedPropertyAccess(src, n.property(), n.associationPath(), n.info());
+                        : new TypedPropertyAccess(src, n.property(), n.associationPath(),
+                                n.physicalColumn(), n.info());
             }
             case TypedStructExtract n -> {
                 TypedSpec src = rewrite(n.source(), scope);

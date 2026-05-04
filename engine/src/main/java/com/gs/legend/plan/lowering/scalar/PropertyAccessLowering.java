@@ -119,6 +119,13 @@ public final class PropertyAccessLowering {
                         "PropertyAccessLowering: Otherwise unwrapped above; reaching this arm is impossible");
             }
         }
+        // Phase 2 of the rewrite plan: TypedPropertyAccess carries physicalColumn
+        // populated by MappingResolver. When present, prefer it over the sidecar
+        // lookup. The fallback below is transitional and disappears with the
+        // sidecar in Phase 5.
+        if (n.physicalColumn().isPresent()) {
+            return new SqlExpr.Column(rowAlias, n.physicalColumn().get());
+        }
         return new SqlExpr.Column(rowAlias, physicalColumnFor(n.property(), store));
     }
 
