@@ -44,6 +44,29 @@ final class PropertyAccessPopulator {
         return walk(root, Map.of());
     }
 
+    /**
+     * Forward the sidecar stamp from {@code original} to {@code rebuilt}
+     * when rebuilding a node whose children changed. The kernel's
+     * identity-preserving rewrite naturally drops sidecar entries on
+     * rebuild (since the new instance is identity-distinct), but
+     * downstream lowering uses the stamp to resolve the node's output
+     * store. Without forwarding, schema-changing ops (Project, GroupBy,
+     * Aggregate, Pivot, Select, Rename) lose their TDS-shaped output
+     * store and the source-recursion fallback in
+     * {@link com.gs.legend.plan.lowering.LoweringContext#storeFor}
+     * returns the upstream class store instead — which mis-renders
+     * sort-key / extend column references against that operator's
+     * output. Pass-through ops (Filter, Sort, Slice, etc.) are equally
+     * happy with explicit forwarding or the recursion fallback; we
+     * forward unconditionally for simplicity.
+     */
+    private TypedSpec forwardStamp(TypedSpec original, TypedSpec rebuilt) {
+        if (rebuilt == original) return rebuilt;
+        StoreResolution stamp = resolutions.get(original);
+        if (stamp != null) resolutions.put(rebuilt, stamp);
+        return rebuilt;
+    }
+
     /* =================================================================
      * Walk: dispatch over every TypedSpec variant. Mirrors HirRewriter.
      * Threads {@code env} (variable→store bindings) through binders.
@@ -61,28 +84,29 @@ final class PropertyAccessPopulator {
                 StoreResolution s = storeOf(src, env);
                 TypedLambda pred = walkLambda(n.predicate(), s, env);
                 yield (src == n.source() && pred == n.predicate()) ? n
-                        : new TypedFilter(src, pred, n.def(), n.info());
+                        : forwardStamp(n, new TypedFilter(src, pred, n.def(), n.info()));
             }
             case TypedSort n -> {
                 TypedSpec src = walk(n.source(), env);
                 StoreResolution s = storeOf(src, env);
                 List<TypedSortKey> keys = walkSortKeys(n.keys(), s, env);
                 yield (src == n.source() && keys == n.keys()) ? n
-                        : new TypedSort(src, keys, n.def(), n.info());
+                        : forwardStamp(n, new TypedSort(src, keys, n.def(), n.info()));
             }
             case TypedExtend n -> {
                 TypedSpec src = walk(n.source(), env);
                 StoreResolution s = storeOf(src, env);
                 List<TypedExtendCol> exts = walkExtendCols(n.extensions(), s, env);
                 yield (src == n.source() && exts == n.extensions()) ? n
-                        : new TypedExtend(src, n.traversalSpecs(), exts, n.def(), n.info());
+                        : forwardStamp(n, new TypedExtend(src, n.traversalSpecs(),
+                                exts, n.def(), n.info()));
             }
             case TypedProject n -> {
                 TypedSpec src = walk(n.source(), env);
                 StoreResolution s = storeOf(src, env);
                 List<TypedProjectionCol> cols = walkProjectionCols(n.projections(), s, env);
                 yield (src == n.source() && cols == n.projections()) ? n
-                        : new TypedProject(src, cols, n.def(), n.info());
+                        : forwardStamp(n, new TypedProject(src, cols, n.def(), n.info()));
             }
             case TypedFold n -> {
                 TypedSpec src = walk(n.source(), env);
@@ -90,14 +114,14 @@ final class PropertyAccessPopulator {
                 TypedLambda red = walkLambda(n.reducer(), s, env);
                 TypedSpec init = walk(n.init(), env);
                 yield (src == n.source() && red == n.reducer() && init == n.init()) ? n
-                        : new TypedFold(src, red, init, n.strategy(), n.def(), n.info());
+                        : forwardStamp(n, new TypedFold(src, red, init, n.strategy(), n.def(), n.info()));
             }
             case TypedMap n -> {
                 TypedSpec src = walk(n.source(), env);
                 StoreResolution s = storeOf(src, env);
                 TypedLambda m = walkLambda(n.mapper(), s, env);
                 yield (src == n.source() && m == n.mapper()) ? n
-                        : new TypedMap(src, m, n.def(), n.info());
+                        : forwardStamp(n, new TypedMap(src, m, n.def(), n.info()));
             }
             case TypedJoin n -> {
                 TypedSpec l = walk(n.left(), env);
@@ -107,7 +131,7 @@ final class PropertyAccessPopulator {
                 StoreResolution rs = storeOf(r, env);
                 TypedLambda cond = walkBiLambda(n.condition(), ls, rs, env);
                 yield (l == n.left() && r == n.right() && cond == n.condition()) ? n
-                        : new TypedJoin(l, r, cond, n.joinType(), n.renames(), n.def(), n.info());
+                        : forwardStamp(n, new TypedJoin(l, r, cond, n.joinType(), n.renames(), n.def(), n.info()));
             }
             case TypedAsOfJoin n -> {
                 TypedSpec l = walk(n.left(), env);
@@ -119,7 +143,7 @@ final class PropertyAccessPopulator {
                         .map(k -> walkBiLambda(k, ls, rs, env));
                 yield (l == n.left() && r == n.right() && match == n.matchCondition()
                         && key.equals(n.keyCondition())) ? n
-                        : new TypedAsOfJoin(l, r, match, key, n.renames(), n.def(), n.info());
+                        : forwardStamp(n, new TypedAsOfJoin(l, r, match, key, n.renames(), n.def(), n.info()));
             }
             case TypedGroupBy n -> {
                 TypedSpec src = walk(n.source(), env);
@@ -127,54 +151,54 @@ final class PropertyAccessPopulator {
                 List<TypedGroupKey> keys = walkGroupKeys(n.keys(), s, env);
                 List<TypedAggCall> aggs = walkAggCalls(n.aggs(), s, env);
                 yield (src == n.source() && keys == n.keys() && aggs == n.aggs()) ? n
-                        : new TypedGroupBy(src, keys, aggs, n.def(), n.info());
+                        : forwardStamp(n, new TypedGroupBy(src, keys, aggs, n.def(), n.info()));
             }
             case TypedAggregate n -> {
                 TypedSpec src = walk(n.source(), env);
                 StoreResolution s = storeOf(src, env);
                 List<TypedAggCall> aggs = walkAggCalls(n.aggs(), s, env);
                 yield (src == n.source() && aggs == n.aggs()) ? n
-                        : new TypedAggregate(src, aggs, n.def(), n.info());
+                        : forwardStamp(n, new TypedAggregate(src, aggs, n.def(), n.info()));
             }
             case TypedPivot n -> {
                 TypedSpec src = walk(n.source(), env);
                 StoreResolution s = storeOf(src, env);
                 List<TypedAggCall> aggs = walkAggCalls(n.aggs(), s, env);
                 yield (src == n.source() && aggs == n.aggs()) ? n
-                        : new TypedPivot(src, n.pivotColumns(), aggs, n.def(), n.info());
+                        : forwardStamp(n, new TypedPivot(src, n.pivotColumns(), aggs, n.def(), n.info()));
             }
 
             // ---------- Relational ops without lambdas — pass-through ----------
             case TypedSlice n -> {
                 TypedSpec src = walk(n.source(), env);
                 yield src == n.source() ? n
-                        : new TypedSlice(src, n.offset(), n.limit(), n.def(), n.info());
+                        : forwardStamp(n, new TypedSlice(src, n.offset(), n.limit(), n.def(), n.info()));
             }
             case TypedDistinct n -> {
                 TypedSpec src = walk(n.source(), env);
                 yield src == n.source() ? n
-                        : new TypedDistinct(src, n.columns(), n.def(), n.info());
+                        : forwardStamp(n, new TypedDistinct(src, n.columns(), n.def(), n.info()));
             }
             case TypedFlatten n -> {
                 TypedSpec src = walk(n.source(), env);
                 yield src == n.source() ? n
-                        : new TypedFlatten(src, n.column(), n.def(), n.info());
+                        : forwardStamp(n, new TypedFlatten(src, n.column(), n.def(), n.info()));
             }
             case TypedRename n -> {
                 TypedSpec src = walk(n.source(), env);
                 yield src == n.source() ? n
-                        : new TypedRename(src, n.renames(), n.def(), n.info());
+                        : forwardStamp(n, new TypedRename(src, n.renames(), n.def(), n.info()));
             }
             case TypedSelect n -> {
                 TypedSpec src = walk(n.source(), env);
                 yield src == n.source() ? n
-                        : new TypedSelect(src, n.cols(), n.def(), n.info());
+                        : forwardStamp(n, new TypedSelect(src, n.cols(), n.def(), n.info()));
             }
             case TypedConcatenate n -> {
                 TypedSpec l = walk(n.left(), env);
                 TypedSpec r = walk(n.right(), env);
                 yield (l == n.left() && r == n.right()) ? n
-                        : new TypedConcatenate(l, r, n.def(), n.info());
+                        : forwardStamp(n, new TypedConcatenate(l, r, n.def(), n.info()));
             }
             case TypedZip n -> {
                 List<TypedSpec> srcs = walkList(n.sources(), env);
@@ -184,7 +208,7 @@ final class PropertyAccessPopulator {
             case TypedFrom n -> {
                 TypedSpec src = walk(n.source(), env);
                 yield src == n.source() ? n
-                        : new TypedFrom(src, n.mapping(), n.runtime(), n.def(), n.info());
+                        : forwardStamp(n, new TypedFrom(src, n.mapping(), n.runtime(), n.def(), n.info()));
             }
             case TypedSerialize n -> {
                 TypedSpec src = walk(n.source(), env);
