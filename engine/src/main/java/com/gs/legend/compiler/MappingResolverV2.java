@@ -804,6 +804,41 @@ public final class MappingResolverV2 {
             case TypedGetAll g -> throw new IllegalStateException(
                     "buildIndex: unrewritten TypedGetAll for " + g.className()
                             + " — Rule 1 must inline class fetches before binding.");
+
+            // Cast preserves row shape (the cast operator narrows the
+            // Pure type but doesn't restructure the relation's columns).
+            case TypedCast c -> buildIndex(c.expr());
+
+            // Both branches of an if-expression typecheck to the same
+            // type, so they share row shape. Read either side.
+            case TypedIf i -> buildIndex(i.thenBranch());
+
+            // A relation-valued lambda's row shape is its body's last
+            // expression's row shape (the result of the lambda).
+            case TypedLambda l -> l.body().isEmpty()
+                    ? new RowIndex(Map.of())
+                    : buildIndex(l.body().get(l.body().size() - 1));
+
+            // A block's value is its terminal statement (let-bindings
+            // for side effects/locals; result is the last spec).
+            case TypedBlock b -> b.stmts().isEmpty()
+                    ? new RowIndex(Map.of())
+                    : buildIndex(b.stmts().get(b.stmts().size() - 1));
+
+            // Variables and native calls don't expose a sub-AST to
+            // recurse into; their static {@link ExpressionType#type()}
+            // is the schema source. If the type isn't a Relation,
+            // there's nothing to index — return empty rather than
+            // throwing, so a non-relation $var or scalar native call
+            // sitting where buildIndex was speculatively called
+            // (e.g. during a deeper resolution) doesn't crash.
+            case TypedVariable v -> v.info().type() instanceof Type.Relation
+                    ? indexFromRelationSchema(v.info(), "TypedVariable")
+                    : new RowIndex(Map.of());
+            case TypedNativeCall nc -> nc.info().type() instanceof Type.Relation
+                    ? indexFromRelationSchema(nc.info(), "TypedNativeCall " + nc.func().name())
+                    : new RowIndex(Map.of());
+
             default -> throw new UnsupportedOperationException(
                     "buildIndex: no row shape for " + node.getClass().getSimpleName()
                             + ". Add a case here to teach the resolver this node's logical→physical column mapping.");
