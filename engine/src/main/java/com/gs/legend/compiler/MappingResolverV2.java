@@ -4,6 +4,11 @@ import com.gs.legend.compiled.CompiledExpression;
 import com.gs.legend.compiled.CompiledFunction;
 import com.gs.legend.compiler.typed.*;
 import com.gs.legend.model.ModelContext;
+import com.gs.legend.model.m3.PureClass;
+import com.gs.legend.model.mapping.ClassMapping;
+import com.gs.legend.model.mapping.PureClassMapping;
+import com.gs.legend.model.mapping.RelationalMapping;
+import com.gs.legend.model.store.PropertyMapping;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -273,31 +278,172 @@ public final class MappingResolverV2 {
             }
             TypedSpec body = cf.body().hir();
 
-            // TODO: build seed RowSchema by walking the synth body's PMs.
-            //   1. Look up the active mapping for {@code classFqn} via
-            //      {@code mappings.findMapping(classFqn)}.
-            //   2. For RelationalMapping: seed propToCol from
-            //      {@code rm.propertyMappings()} (logical → physical).
-            //   3. For PureClassMapping (M2M): seed by recursively inlining
-            //      upstream and inheriting upstream.seedSchema.propToCol;
-            //      apply M2M extend overrides on top.
-            //   4. Walk the synth body's TypedExtend cols to populate
-            //      seedSchema.joins entries for association/embedded cols
-            //      (FkJoin / Embedded / StructArrayUnnest / Otherwise).
-            //   5. Prune extend cols whose alias is not in
-            //      {@code classPropertyAccesses[classFqn]}.
+            // Phase A seed RowSchema: from the active mapping's PMs.
+            // Mirrors today's MappingResolver.resolveRelational lines 668-678
+            // / resolveM2M lines 716-732 — same data, packaged as RowSchema.
             //
-            // Until that's wired, the stub schema is empty — Rule 2 won't
-            // resolve property accesses against it. Per-op rewriters
-            // remain TODO too, so this just locks in the shape.
-            RowSchema stubSeed = new RowSchema(new LinkedHashMap<>(), Map.of());
+            // TODO Phase B: walk the synth body's TypedExtend cols to layer
+            // per-extend overrides:
+            //   - scalar/window/traverse → alias \u2192 column extracted from $r.COL
+            //   - association → JoinChain.FkJoin in seedSchema.joins
+            //   - embedded → JoinChain.Embedded in seedSchema.joins
+            //   - struct-array → JoinChain.StructArrayUnnest in seedSchema.joins
+            // Plus prune scalar/window/traverse cols whose alias \u2209
+            // classPropertyAccesses[classFqn]. Today's MR does this in
+            // resolveMappingFunction; we'll port that walk in Phase B.
+            ClassMapping mapping = mappings.findClassMapping(classFqn).orElse(null);
+            RowSchema seed = switch (mapping) {
+                case RelationalMapping rm -> seedFromRelational(rm);
+                case PureClassMapping pcm -> seedFromM2M(pcm);
+                case null -> new RowSchema(new LinkedHashMap<>(), Map.of());
+            };
 
-            InlinedClass result = new InlinedClass(body, stubSeed);
+            InlinedClass result = new InlinedClass(body, seed);
             classMemo.put(classFqn, result);
             return result;
         } finally {
             resolving.remove(classFqn);
         }
+    }
+
+    /**
+     * Phase A seed for a relational class: simple PMs → propToCol.
+     *
+     * <p>Mirrors today's MappingResolver.resolveRelational lines 668-678.
+     * Join-chain PMs name themselves (the traverse extend in the synth
+     * body provides the actual physical column for those during Phase B).
+     */
+    private RowSchema seedFromRelational(RelationalMapping rm) {
+        LinkedHashMap<String, String> propToCol = new LinkedHashMap<>();
+        for (PropertyMapping pm : rm.propertyMappings()) {
+            String prop = pm.propertyName();
+            String col = pm.hasJoinChain() ? pm.propertyName() : pm.columnName();
+            propToCol.put(prop, col);
+        }
+        return new RowSchema(propToCol, Map.of());
+    }
+
+    /**
+     * Phase A seed for an M2M class: inherit upstream's propToCol.
+     *
+     * <p>Mirrors today's MappingResolver.resolveM2M lines 716-732. The
+     * synth body's TypedExtend cols (Phase B) layer per-property
+     * overrides on top — bare {@code $src.prop} bodies passthrough
+     * upstream entries, transforms replace them.
+     */
+    private RowSchema seedFromM2M(PureClassMapping pcm) {
+        String upstreamFqn = canonicalize(pcm.sourceClassName());
+        InlinedClass upstream = inlineClassFetch(upstreamFqn);
+        LinkedHashMap<String, String> propToCol =
+                new LinkedHashMap<>(upstream.seedSchema().propToCol());
+        return new RowSchema(propToCol, Map.of());
+    }
+
+    private String canonicalize(String name) {
+        return model.findClass(name).map(PureClass::qualifiedName).orElse(name);
+    }
+
+    // ==================== Schema computation (per-op output schemas) ====================
+
+    /**
+     * Returns the row schema of a rewritten relational expression.
+     *
+     * <p>Per-op output-schema rules. Mirrors the lowering's row-shape
+     * semantics. Returns {@code null} for scalar nodes.
+     *
+     * <p>This is the read-side counterpart to per-op rewrite logic. Each
+     * relop rewriter calls this on its rewritten source(s) to find the
+     * schema to bind lambda params to. The implementation walks
+     * structurally — schemas are not memoized; computation is cheap
+     * because most arms read from the inlined seed at the leaf and
+     * propagate upward.
+     */
+    private RowSchema schemaOf(TypedSpec node) {
+        return switch (node) {
+            // Class-fetch (PRE-rewrite). The relop calling schemaOf
+            // passes the pre-rewrite source so this arm fires before
+            // Rule 1 splices it away. Returns the inlined class's seed
+            // RowSchema directly — this is the key plumbing that lets
+            // Rule 2 resolve property accesses against the class's PMs.
+            case TypedGetAll ga -> inlineClassFetch(ga.className()).seedSchema();
+
+            // Inlined leaves (POST-rewrite). After Rule 1 splices a
+            // class fetch, the body's leaf is one of these. We don't
+            // currently have a back-pointer to the class FQN; relops
+            // that need to chain schema queries across already-rewritten
+            // sources will return null until we tag inlined roots.
+            // TODO: tag the splice root, or thread schema via
+            // Result(node, schema) refactor.
+            case TypedTableReference t -> null;
+            case TypedTdsLiteral t -> null; // TODO: TDS-shape
+            case TypedSourceUrl s -> null;  // TODO: parsed-row shape
+
+            // Pass-through: schema unchanged from source.
+            case TypedFilter n -> schemaOf(n.source());
+            case TypedSlice n -> schemaOf(n.source());
+            case TypedDistinct n -> schemaOf(n.source());
+            case TypedSort n -> schemaOf(n.source());
+            case TypedRename n -> renameSchema(schemaOf(n.source()), n.renames());
+
+            // Project: identity over projection aliases (TDS-shaped).
+            case TypedProject n -> {
+                LinkedHashMap<String, String> ptc = new LinkedHashMap<>();
+                for (TypedProjectionCol p : n.projections()) ptc.put(p.alias(), p.alias());
+                yield new RowSchema(ptc, Map.of());
+            }
+
+            // Extend: source's + each extend's alias → alias.
+            case TypedExtend n -> {
+                RowSchema s = schemaOf(n.source());
+                LinkedHashMap<String, String> ptc = new LinkedHashMap<>(
+                        s == null ? new LinkedHashMap<>() : s.propToCol());
+                for (TypedExtendCol c : n.extensions()) ptc.put(c.alias(), c.alias());
+                yield new RowSchema(ptc, s == null ? Map.of() : s.joins());
+            }
+
+            // GroupBy / Aggregate / Pivot: identity over output aliases.
+            case TypedGroupBy n -> aggOutputSchema(n.keys(), n.aggs());
+            case TypedAggregate n -> aggOutputSchema(List.of(), n.aggs());
+            case TypedPivot n -> aggOutputSchema(List.of(), n.aggs());
+
+            // TODO: Join / AsOfJoin produce multi-alias schemas that
+            // multi-param lambdas read separately; punt for now.
+            case TypedJoin n -> null;
+            case TypedAsOfJoin n -> null;
+
+            case TypedSelect n -> {
+                RowSchema s = schemaOf(n.source());
+                if (s == null) yield null;
+                LinkedHashMap<String, String> ptc = new LinkedHashMap<>();
+                for (String c : n.cols()) {
+                    String phys = s.propToCol().getOrDefault(c, c);
+                    ptc.put(c, phys);
+                }
+                yield new RowSchema(ptc, Map.of());
+            }
+
+            // Operators that don't produce a relational row in the
+            // schema-propagation sense (or where it's not needed for
+            // lambda binding): return null.
+            default -> null;
+        };
+    }
+
+    private RowSchema renameSchema(RowSchema src, List<ColRename> renames) {
+        if (src == null) return null;
+        LinkedHashMap<String, String> ptc = new LinkedHashMap<>(src.propToCol());
+        for (ColRename r : renames) {
+            String phys = ptc.remove(r.from());
+            if (phys != null) ptc.put(r.to(), phys);
+        }
+        return new RowSchema(ptc, src.joins());
+    }
+
+    private RowSchema aggOutputSchema(List<TypedGroupKey> keys, List<TypedAggCall> aggs) {
+        LinkedHashMap<String, String> ptc = new LinkedHashMap<>();
+        for (TypedGroupKey k : keys) ptc.put(k.alias(), k.alias());
+        for (TypedAggCall a : aggs) ptc.put(a.alias(), a.alias());
+        return new RowSchema(ptc, Map.of());
     }
 
     // ==================== Single-switch rewriter ====================
@@ -486,29 +632,38 @@ public final class MappingResolverV2 {
 
     /** Mirrors FilterLowering.java:89. */
     private TypedSpec rewriteFilter(TypedFilter n, Scope scope) {
+        RowSchema srcSchema = schemaOf(n.source());
         TypedSpec src = rewrite(n.source(), scope);
-        // TODO: bind n.predicate().parameters().get(0) → src's RowSchema in scope
-        // before recursing on the lambda body. Required for Rule 2 to resolve
-        // {@code $p.firstName} against the source row.
-        TypedLambda pred = rewriteLambda(n.predicate(), scope);
+        TypedLambda pred = rewriteLambda(n.predicate(), bindFirst(scope, n.predicate(), srcSchema));
         return (src == n.source() && pred == n.predicate())
                 ? n
                 : new TypedFilter(src, pred, n.def(), n.info());
     }
 
+    /**
+     * Binds the first parameter of a single-param lambda to a row schema.
+     * No-op if the lambda has zero params or schema is null.
+     */
+    private Scope bindFirst(Scope scope, TypedLambda lam, RowSchema schema) {
+        if (schema == null || lam.parameters().isEmpty()) return scope;
+        return scope.bind(lam.parameters().get(0).name(), schema);
+    }
+
     /** Mirrors SortLimitLowering.java:64. */
     private TypedSpec rewriteSort(TypedSort n, Scope scope) {
+        RowSchema srcSchema = schemaOf(n.source());
         TypedSpec src = rewrite(n.source(), scope);
-        // TODO: bind each TypedExpressionSortKey lambda's param → src's schema.
-        List<TypedSortKey> keys = n.keys().stream().map(k -> rewriteSortKey(k, scope)).toList();
+        List<TypedSortKey> keys = n.keys().stream().map(k -> rewriteSortKey(k, scope, srcSchema)).toList();
         return new TypedSort(src, keys, n.def(), n.info());
     }
 
-    private TypedSortKey rewriteSortKey(TypedSortKey k, Scope scope) {
+    private TypedSortKey rewriteSortKey(TypedSortKey k, Scope scope, RowSchema srcSchema) {
         return switch (k) {
             case TypedColumnSortKey c -> c;
             case TypedExpressionSortKey e ->
-                    new TypedExpressionSortKey(rewriteLambda(e.keyFn(), scope), e.direction());
+                    new TypedExpressionSortKey(
+                            rewriteLambda(e.keyFn(), bindFirst(scope, e.keyFn(), srcSchema)),
+                            e.direction());
         };
     }
 
@@ -540,51 +695,55 @@ public final class MappingResolverV2 {
     }
 
     private TypedSpec rewriteFold(TypedFold n, Scope scope) {
+        RowSchema srcSchema = schemaOf(n.source());
         TypedSpec src = rewrite(n.source(), scope);
-        TypedLambda red = rewriteLambda(n.reducer(), scope);
+        TypedLambda red = rewriteLambda(n.reducer(), bindFirst(scope, n.reducer(), srcSchema));
         TypedSpec init = rewrite(n.init(), scope);
         return (src == n.source() && red == n.reducer() && init == n.init()) ? n
                 : new TypedFold(src, red, init, n.strategy(), n.def(), n.info());
     }
 
     private TypedSpec rewriteMap(TypedMap n, Scope scope) {
+        RowSchema srcSchema = schemaOf(n.source());
         TypedSpec src = rewrite(n.source(), scope);
-        TypedLambda m = rewriteLambda(n.mapper(), scope);
+        TypedLambda m = rewriteLambda(n.mapper(), bindFirst(scope, n.mapper(), srcSchema));
         return (src == n.source() && m == n.mapper()) ? n
                 : new TypedMap(src, m, n.def(), n.info());
     }
 
     /** Mirrors ProjectLowering.java:59. */
     private TypedSpec rewriteProject(TypedProject n, Scope scope) {
+        RowSchema srcSchema = schemaOf(n.source());
         TypedSpec src = rewrite(n.source(), scope);
-        // TODO: bind each projection's lambda param → src's schema (Rule 2).
         List<TypedProjectionCol> cols = n.projections().stream()
                 .map(p -> new TypedProjectionCol(
-                        p.alias(), rewriteLambda(p.expression(), scope), p.associationPath()))
+                        p.alias(),
+                        rewriteLambda(p.expression(), bindFirst(scope, p.expression(), srcSchema)),
+                        p.associationPath()))
                 .toList();
         return new TypedProject(src, cols, n.def(), n.info());
     }
 
     /** Mirrors ExtendLowering.java:228, :295. */
     private TypedSpec rewriteExtend(TypedExtend n, Scope scope) {
+        RowSchema srcSchema = schemaOf(n.source());
         TypedSpec src = rewrite(n.source(), scope);
-        // TODO: bind each scalar/window/traverse extend col's lambda param →
-        // src's schema (Rule 2). Association/embedded cols on user-query
-        // extends shouldn't occur (only synth bodies have those, and Rule 1
-        // strips them); they pass through unchanged here.
         List<TypedExtendCol> exts = n.extensions().stream()
-                .map(c -> rewriteExtendCol(c, scope))
+                .map(c -> rewriteExtendCol(c, scope, srcSchema))
                 .toList();
         return new TypedExtend(src, n.traversalSpecs(), exts, n.def(), n.info());
     }
 
-    private TypedExtendCol rewriteExtendCol(TypedExtendCol c, Scope scope) {
+    private TypedExtendCol rewriteExtendCol(TypedExtendCol c, Scope scope, RowSchema srcSchema) {
         return switch (c) {
             case TypedScalarExtendCol s ->
-                    new TypedScalarExtendCol(s.alias(), rewriteLambda(s.expression(), scope), s.returnType());
+                    new TypedScalarExtendCol(s.alias(),
+                            rewriteLambda(s.expression(), bindFirst(scope, s.expression(), srcSchema)),
+                            s.returnType());
             case TypedWindowExtendCol w -> w; // TODO: recurse on funcArgs / reducer / outerWrapper
             case TypedTraverseExtendCol t ->
-                    new TypedTraverseExtendCol(t.alias(), t.hops(), rewriteLambda(t.expression(), scope));
+                    new TypedTraverseExtendCol(t.alias(), t.hops(),
+                            rewriteLambda(t.expression(), bindFirst(scope, t.expression(), srcSchema)));
             case TypedAssociationExtendCol a -> a;
             case TypedEmbeddedExtendCol e -> e;
         };
@@ -592,57 +751,79 @@ public final class MappingResolverV2 {
 
     /** Mirrors GroupByAggregateLowering.java:297, :324. */
     private TypedSpec rewriteGroupBy(TypedGroupBy n, Scope scope) {
+        RowSchema srcSchema = schemaOf(n.source());
         TypedSpec src = rewrite(n.source(), scope);
-        // TODO: bind keys' / aggs' lambdas → src's schema (Rule 2).
-        List<TypedGroupKey> keys = n.keys().stream().map(k -> rewriteGroupKey(k, scope)).toList();
-        List<TypedAggCall> aggs = n.aggs().stream().map(a -> rewriteAggCall(a, scope)).toList();
+        List<TypedGroupKey> keys = n.keys().stream().map(k -> rewriteGroupKey(k, scope, srcSchema)).toList();
+        List<TypedAggCall> aggs = n.aggs().stream().map(a -> rewriteAggCall(a, scope, srcSchema)).toList();
         return new TypedGroupBy(src, keys, aggs, n.def(), n.info());
     }
 
-    private TypedGroupKey rewriteGroupKey(TypedGroupKey k, Scope scope) {
+    private TypedGroupKey rewriteGroupKey(TypedGroupKey k, Scope scope, RowSchema srcSchema) {
         return switch (k) {
             case TypedColumnGroupKey c -> c;
             case TypedExpressionGroupKey e ->
-                    new TypedExpressionGroupKey(rewriteLambda(e.keyFn(), scope), e.alias());
+                    new TypedExpressionGroupKey(
+                            rewriteLambda(e.keyFn(), bindFirst(scope, e.keyFn(), srcSchema)),
+                            e.alias());
             case TypedAssociationGroupKey a -> a;
         };
     }
 
-    private TypedAggCall rewriteAggCall(TypedAggCall a, Scope scope) {
-        TypedLambda fn1 = a.fn1() == null ? null : rewriteLambda(a.fn1(), scope);
-        TypedLambda fn2 = a.fn2() == null ? null : rewriteLambda(a.fn2(), scope);
+    private TypedAggCall rewriteAggCall(TypedAggCall a, Scope scope, RowSchema srcSchema) {
+        TypedLambda fn1 = a.fn1() == null ? null
+                : rewriteLambda(a.fn1(), bindFirst(scope, a.fn1(), srcSchema));
+        TypedLambda fn2 = a.fn2() == null ? null
+                : rewriteLambda(a.fn2(), bindFirst(scope, a.fn2(), srcSchema));
         List<TypedSpec> extra = a.extraArgs().stream().map(x -> rewrite(x, scope)).toList();
         return new TypedAggCall(a.alias(), a.func(), fn1, fn2, extra, a.returnType(), a.castType());
     }
 
     private TypedSpec rewriteAggregate(TypedAggregate n, Scope scope) {
+        RowSchema srcSchema = schemaOf(n.source());
         TypedSpec src = rewrite(n.source(), scope);
-        List<TypedAggCall> aggs = n.aggs().stream().map(a -> rewriteAggCall(a, scope)).toList();
+        List<TypedAggCall> aggs = n.aggs().stream().map(a -> rewriteAggCall(a, scope, srcSchema)).toList();
         return new TypedAggregate(src, aggs, n.def(), n.info());
     }
 
     private TypedSpec rewritePivot(TypedPivot n, Scope scope) {
+        RowSchema srcSchema = schemaOf(n.source());
         TypedSpec src = rewrite(n.source(), scope);
-        List<TypedAggCall> aggs = n.aggs().stream().map(a -> rewriteAggCall(a, scope)).toList();
+        List<TypedAggCall> aggs = n.aggs().stream().map(a -> rewriteAggCall(a, scope, srcSchema)).toList();
         return new TypedPivot(src, n.pivotColumns(), aggs, n.def(), n.info());
     }
 
     /** Mirrors JoinLowering.java:59-60 (multi-param lambda). */
     private TypedSpec rewriteJoin(TypedJoin n, Scope scope) {
+        RowSchema leftSchema = schemaOf(n.left());
+        RowSchema rightSchema = schemaOf(n.right());
         TypedSpec l = rewrite(n.left(), scope);
         TypedSpec r = rewrite(n.right(), scope);
-        // TODO: bind condition's params (lp, rp) → (left.schema, right.schema).
-        TypedLambda cond = rewriteLambda(n.condition(), scope);
+        Scope inner = bindJoinCondParams(scope, n.condition(), leftSchema, rightSchema);
+        TypedLambda cond = rewriteLambda(n.condition(), inner);
         return new TypedJoin(l, r, cond, n.joinType(), n.renames(), n.def(), n.info());
     }
 
     /** Mirrors JoinLowering.java:131-132. */
     private TypedSpec rewriteAsOfJoin(TypedAsOfJoin n, Scope scope) {
+        RowSchema leftSchema = schemaOf(n.left());
+        RowSchema rightSchema = schemaOf(n.right());
         TypedSpec l = rewrite(n.left(), scope);
         TypedSpec r = rewrite(n.right(), scope);
-        TypedLambda match = rewriteLambda(n.matchCondition(), scope);
-        Optional<TypedLambda> key = n.keyCondition().map(lam -> rewriteLambda(lam, scope));
+        final Scope inner = bindJoinCondParams(scope, n.matchCondition(), leftSchema, rightSchema);
+        TypedLambda match = rewriteLambda(n.matchCondition(), inner);
+        Optional<TypedLambda> key = n.keyCondition().map(lam -> rewriteLambda(lam, inner));
         return new TypedAsOfJoin(l, r, match, key, n.renames(), n.def(), n.info());
+    }
+
+    private Scope bindJoinCondParams(Scope scope, TypedLambda cond, RowSchema leftSchema, RowSchema rightSchema) {
+        Scope s = scope;
+        if (leftSchema != null && cond.parameters().size() >= 1) {
+            s = s.bind(cond.parameters().get(0).name(), leftSchema);
+        }
+        if (rightSchema != null && cond.parameters().size() >= 2) {
+            s = s.bind(cond.parameters().get(1).name(), rightSchema);
+        }
+        return s;
     }
 
     private TypedSpec rewriteSelect(TypedSelect n, Scope scope) {
