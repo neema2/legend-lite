@@ -5,6 +5,8 @@ import com.legend.lexer.TokenStream;
 import com.legend.lexer.TokenType;
 import com.legend.parser.element.AssociationDefinition;
 import com.legend.parser.element.AssociationDefinition.AssociationEndDefinition;
+import com.legend.parser.element.AssociationMapping;
+import com.legend.parser.element.AssociationPropertyMapping;
 import com.legend.parser.element.AuthenticationSpec;
 import com.legend.parser.element.ClassDefinition;
 import com.legend.parser.element.ClassDefinition.ConstraintDefinition;
@@ -14,6 +16,7 @@ import com.legend.parser.element.ConnectionDefinition;
 import com.legend.parser.element.ConnectionSpecification;
 import com.legend.parser.element.DatabaseDefinition;
 import com.legend.parser.element.EnumDefinition;
+import com.legend.parser.element.EnumerationMapping;
 import com.legend.parser.element.ClassMapping;
 import com.legend.parser.element.FilterMapping;
 import com.legend.parser.element.FilterPointer;
@@ -1315,6 +1318,9 @@ public final class ElementParser {
 
         List<MappingDefinition.MappingInclude> includes = new ArrayList<>();
         List<ClassMapping> classMappings = new ArrayList<>();
+        List<AssociationMapping> associationMappings = new ArrayList<>();
+        List<EnumerationMapping> enumerationMappings = new ArrayList<>();
+        String testSuitesSource = null;
 
         while (peek() != TokenType.PAREN_CLOSE) {
             if (peek() == TokenType.INCLUDE) {
@@ -1322,16 +1328,38 @@ public final class ElementParser {
                 includes.add(parseMappingInclude());
                 continue;
             }
-            // testSuites is the only other body-start token we recognize
-            // (deferred to B.4f); everything else must be a class mapping.
             if (IDENTIFIER_TOKENS.contains(peek()) && textEquals("testSuites")) {
-                error("Mapping test suites are not supported in B.4b "
-                        + "(deferred to sub-slice B.4f)");
+                // B.4f / D-3: capture the testSuites block verbatim and
+                // hand it to Phase C for lazy parsing. Engine grammar
+                // wraps suites in '[ ... ]'.
+                if (testSuitesSource != null) {
+                    error("duplicate 'testSuites' block in Mapping '"
+                            + qualifiedName + "'");
+                }
+                advance(); // consume 'testSuites' identifier
+                expect(TokenType.COLON);
+                TokenType opener = peek();
+                if (opener != TokenType.BRACKET_OPEN && opener != TokenType.BRACE_OPEN) {
+                    error("expected '[' or '{' after testSuites:, got " + opener);
+                }
+                int bs = pos;
+                skipBalancedContent(opener,
+                        opener == TokenType.BRACKET_OPEN
+                                ? TokenType.BRACKET_CLOSE
+                                : TokenType.BRACE_CLOSE);
+                testSuitesSource = reconstructText(bs, pos);
+                continue;
             }
-            classMappings.add(parseMappingClassMapping());
+            // Class/association/enumeration mappings share an outer shape
+            // (`path: MappingType { body }`). parseMappingElement
+            // dispatches by the MappingType keyword and (for Relational)
+            // by the first body token.
+            parseMappingElement(classMappings, associationMappings, enumerationMappings);
         }
         expect(TokenType.PAREN_CLOSE);
-        return new MappingDefinition(qualifiedName, includes, classMappings);
+        return new MappingDefinition(qualifiedName, includes,
+                classMappings, associationMappings, enumerationMappings,
+                testSuitesSource);
     }
 
     /**
@@ -1364,15 +1392,25 @@ public final class ElementParser {
     }
 
     /**
-     * Parse one class-mapping declaration:
+     * Parse one element of a Mapping body. Both class and association
+     * mappings share the outer header shape:
      * <pre>
-     *   [*]? className ([setId])? (extends [parentId])? : MappingType { body }
+     *   [*]? path ([setId])? (extends [parentId])? : MappingType { body }
      * </pre>
-     * Only {@code Relational} is supported in B.4b; other mapping types throw.
+     * After consuming the header and opening brace, we peek inside the
+     * body to decide which kind this is &mdash; an association mapping
+     * begins with the {@code AssociationMapping} keyword; everything
+     * else is a class mapping. Engine parity: this is exactly how
+     * {@code RelationalParseTreeWalker} disambiguates.
+     *
+     * <p>The result is added to whichever output list corresponds to
+     * its kind.
      */
-    private ClassMapping parseMappingClassMapping() {
+    private void parseMappingElement(List<ClassMapping> classMappings,
+                                     List<AssociationMapping> associationMappings,
+                                     List<EnumerationMapping> enumerationMappings) {
         boolean root = match(TokenType.STAR);
-        String className = parseQualifiedName();
+        String elementPath = parseQualifiedName();
 
         String setId = null;
         if (peek() == TokenType.BRACKET_OPEN) {
@@ -1390,16 +1428,49 @@ public final class ElementParser {
         expect(TokenType.COLON);
 
         TokenType mappingTypeToken = peek();
+        if (mappingTypeToken == TokenType.ENUMERATION_MAPPING) {
+            if (root) {
+                error("Enumeration mappings cannot be marked root (the leading '*' "
+                        + "is only valid for class mappings)");
+            }
+            if (setId != null || extendsSetId != null) {
+                error("Enumeration mappings do not accept [setId] or extends [parentId]");
+            }
+            advance(); // consume EnumerationMapping keyword
+            enumerationMappings.add(parseEnumerationMappingBody(elementPath));
+            return;
+        }
         if (mappingTypeToken == TokenType.RELATIONAL) {
             advance();
             expect(TokenType.BRACE_OPEN);
-            ClassMapping cm = parseRelationalClassMappingBody(className, setId, extendsSetId, root);
+            // Dispatch class vs association by peeking the first body token.
+            if (peek() == TokenType.ASSOCIATION_MAPPING) {
+                if (root) {
+                    error("Association mappings cannot be marked root (the leading '*' "
+                            + "is only valid for class mappings)");
+                }
+                if (setId != null || extendsSetId != null) {
+                    error("Association mappings do not accept [setId] or extends [parentId] "
+                            + "on the header");
+                }
+                advance(); // consume AssociationMapping keyword
+                AssociationMapping am = parseAssociationMappingBody(elementPath);
+                expect(TokenType.BRACE_CLOSE);
+                associationMappings.add(am);
+                return;
+            }
+            ClassMapping cm = parseRelationalClassMappingBody(elementPath, setId, extendsSetId, root);
             expect(TokenType.BRACE_CLOSE);
-            return cm;
+            classMappings.add(cm);
+            return;
         }
         if (mappingTypeToken == TokenType.PURE_MAPPING) {
-            error("Pure (model-to-model) class mappings are not supported in B.4b "
-                    + "(deferred to sub-slice B.4e)");
+            advance();
+            expect(TokenType.BRACE_OPEN);
+            ClassMapping cm = parsePureClassMappingBody(elementPath, setId, extendsSetId, root);
+            expect(TokenType.BRACE_CLOSE);
+            classMappings.add(cm);
+            return;
         }
         // Reject anything else (Operation, AggregationAware, Relation, etc.)
         error("unsupported class mapping type: '" + safeText() + "'");
@@ -1479,7 +1550,7 @@ public final class ElementParser {
             error("Relational class mapping for '" + className
                     + "' is missing required ~mainTable clause");
         }
-        return new ClassMapping.RootRelational(
+        return new ClassMapping.Relational(
                 className, setId, extendsSetId, root,
                 mainTable, filter, distinct, groupBy, primaryKey, propertyMappings);
     }
@@ -1509,7 +1580,7 @@ public final class ElementParser {
 
     /**
      * Parse one property-to-source binding inside a relational class mapping.
-     * Five grammar forms collapse onto the {@link PropertyMapping} sealed
+     * Nine grammar forms collapse onto the {@link PropertyMapping} sealed
      * type:
      * <pre>
      *   prop: TABLE.COL                                    → Column
@@ -1518,12 +1589,112 @@ public final class ElementParser {
      *   prop: [db::DB] @J1 > @J2                           → Join
      *   prop: [db::DB] @J1 > @J2 | T.COL                   → JoinTerminalColumn
      *   prop: someFunc(T.A, T.B)                           → Expression
+     *   prop ( subProp: ..., subProp: ... )                → Embedded            (B.4g)
+     *   prop() Inline[setId]                               → InlineEmbedded      (B.4g)
+     *   prop ( subs ) Otherwise ([setId]: body)            → OtherwiseEmbedded   (B.4g)
+     *   +localProp: Type[mult]: body                       → LocalProperty       (B.4g)
      * </pre>
+     *
+     * <p>Dispatch order: the leading {@code +} marks a {@link
+     * PropertyMapping.LocalProperty}. Otherwise a property name is
+     * parsed; if the next token is {@code (}, this is an embedded family
+     * (empty parens → Inline, body + {@code Otherwise} → Otherwise,
+     * body alone → Embedded). The colon-introduced forms fall through
+     * to {@link #parsePropertyMappingBody}.
      */
     private PropertyMapping parsePropertyMapping(MappingDefinition.TableReference mainTable) {
+        if (peek() == TokenType.PLUS) {
+            return parseLocalPropertyMapping(mainTable);
+        }
+        String propName = parseIdentifier();
+        if (peek() == TokenType.PAREN_OPEN) {
+            return parseEmbeddedPropertyMapping(propName, mainTable);
+        }
+        expect(TokenType.COLON);
+        return parsePropertyMappingBody(propName, mainTable);
+    }
+
+    /**
+     * Parse a local mapping property: {@code +name: Type[mult]: body}.
+     * The leading {@code +} has not yet been consumed.
+     */
+    private PropertyMapping parseLocalPropertyMapping(
+            MappingDefinition.TableReference mainTable) {
+        expect(TokenType.PLUS);
         String propName = parseIdentifier();
         expect(TokenType.COLON);
+        String type = parseType();
+        int[] mult = parseMultiplicity();
+        expect(TokenType.COLON);
+        PropertyMapping body = parsePropertyMappingBody(propName, mainTable);
+        return new PropertyMapping.LocalProperty(
+                propName, type, mult[0],
+                mult[1] == Integer.MIN_VALUE ? null : Integer.valueOf(mult[1]),
+                body);
+    }
 
+    /**
+     * Parse the embedded family. The property name has been consumed; the
+     * next token is the opening {@code (}.
+     *
+     * <ul>
+     *   <li>{@code propName() Inline[setId]} &mdash; empty parens → inline ref</li>
+     *   <li>{@code propName ( subs ) Otherwise ([setId]: body)} → otherwise</li>
+     *   <li>{@code propName ( subs )} → embedded</li>
+     * </ul>
+     *
+     * <p>Sub-mappings inherit the parent's scope (same main table), so
+     * {@code mainTable} threads through unchanged.
+     */
+    private PropertyMapping parseEmbeddedPropertyMapping(
+            String propName, MappingDefinition.TableReference mainTable) {
+        expect(TokenType.PAREN_OPEN);
+        if (peek() == TokenType.PAREN_CLOSE) {
+            // Inline embedded: propName() Inline[setId]
+            advance();
+            expect(TokenType.INLINE);
+            expect(TokenType.BRACKET_OPEN);
+            String setId = parseIdentifier();
+            expect(TokenType.BRACKET_CLOSE);
+            return new PropertyMapping.InlineEmbedded(propName, setId);
+        }
+        // Non-empty body — parse sub-property mappings.
+        List<PropertyMapping> subs = new ArrayList<>();
+        subs.add(parsePropertyMapping(mainTable));
+        while (match(TokenType.COMMA)) {
+            if (peek() == TokenType.PAREN_CLOSE) break; // trailing comma tolerated
+            subs.add(parsePropertyMapping(mainTable));
+        }
+        expect(TokenType.PAREN_CLOSE);
+
+        if (peek() == TokenType.OTHERWISE) {
+            advance();
+            expect(TokenType.PAREN_OPEN);
+            expect(TokenType.BRACKET_OPEN);
+            String fallbackSetId = parseIdentifier();
+            expect(TokenType.BRACKET_CLOSE);
+            expect(TokenType.COLON);
+            PropertyMapping fallback = parsePropertyMappingBody(propName, mainTable);
+            expect(TokenType.PAREN_CLOSE);
+            return new PropertyMapping.OtherwiseEmbedded(
+                    propName, subs, fallbackSetId, fallback);
+        }
+        return new PropertyMapping.Embedded(propName, subs);
+    }
+
+    /**
+     * Parse a property mapping body (everything after {@code propName:}).
+     * Accepts a nullable {@code mainTable} so it can be shared between
+     * class mappings (mainTable non-null, bare-id resolved to it) and
+     * association mappings (mainTable null, bare-id forbidden, db must
+     * come from explicit {@code [DB]} or a join's per-hop {@code [DB]}).
+     *
+     * <p>Engine parity: this is the same code path the FINOS engine
+     * runs for both contexts &mdash; the only difference is the
+     * presence/absence of ScopeInfo.
+     */
+    private PropertyMapping parsePropertyMappingBody(
+            String propName, MappingDefinition.TableReference mainTable) {
         // Optional EnumerationMapping prefix:
         //   prop: EnumerationMapping enumId : ...
         String enumMappingId = null;
@@ -1540,7 +1711,9 @@ public final class ElementParser {
             explicitDb = parseQualifiedName();
             expect(TokenType.BRACKET_CLOSE);
         }
-        String db = explicitDb != null ? explicitDb : mainTable.database();
+        String db = explicitDb != null
+                ? explicitDb
+                : (mainTable != null ? mainTable.database() : null);
 
         // Branch by what follows the optional [DB].
         if (peek() == TokenType.AT) {
@@ -1548,6 +1721,7 @@ public final class ElementParser {
             if (enumMappingId != null) {
                 error("EnumerationMapping cannot be applied to a join property mapping");
             }
+            requirePropertyMappingDb(propName, db, "join navigation");
             List<JoinChainElement> joins = parseMappingJoinChain(db);
             if (match(TokenType.PIPE)) {
                 RelationalOperation terminal = parseDbAtomicOperation(db);
@@ -1560,6 +1734,7 @@ public final class ElementParser {
         // We peek a couple of tokens ahead to distinguish a simple
         // TABLE.COL column read from a function call / expression.
         if (looksLikeBareColumnRef()) {
+            requirePropertyMappingDb(propName, db, "column reference");
             String tablePart = parseRelationalIdentifier();
             // Support SCHEMA.TABLE.COL — collapse first two into the table
             // string, matching engine's TablePtr handling.
@@ -1638,6 +1813,261 @@ public final class ElementParser {
             chain.add(new JoinChainElement(parseIdentifier(), joinType, hopDb, false));
         }
         return chain;
+    }
+
+    /**
+     * Enforce that a property mapping that needs an explicit database (join
+     * navigations and column references) has one. In class-mapping context
+     * the main table supplies it implicitly; in association-mapping context
+     * the user must write {@code [db::DB]}.
+     */
+    private void requirePropertyMappingDb(String propName, String db, String kind) {
+        if (db == null) {
+            error("property mapping '" + propName + "': " + kind
+                    + " requires a database. Write `[db::DB] ...` "
+                    + "or place the mapping inside a class mapping with ~mainTable.");
+        }
+    }
+
+    /**
+     * Parse the body of an {@code AssociationMapping ( ... )} block. The
+     * {@code AssociationMapping} keyword has already been consumed by the
+     * caller; this method handles the parenthesized comma-separated list
+     * of property mappings and stops at the closing paren.
+     *
+     * <p>Engine grammar (per FINOS RelationalParseTreeWalker):
+     * <pre>
+     *   AssociationMapping ( propMapping (, propMapping)* )
+     * </pre>
+     * Each {@code propMapping} is either:
+     * <pre>
+     *   propName: body                            // unbracketed (most common)
+     *   propName[srcSetId, dstSetId]: body        // disambiguating brackets
+     * </pre>
+     * where {@code body} is the same property-mapping body grammar used
+     * for class mappings (joins, column refs, expressions). Association
+     * mappings have no main table, so bare identifiers and unqualified
+     * {@code T.COL} (without explicit {@code [DB]}) error out via the
+     * existing {@code currentMappingScope == null} path.
+     */
+    private AssociationMapping parseAssociationMappingBody(String associationName) {
+        expect(TokenType.PAREN_OPEN);
+        List<AssociationPropertyMapping> propertyMappings = new ArrayList<>();
+        if (peek() != TokenType.PAREN_CLOSE) {
+            propertyMappings.add(parseAssociationPropertyMapping());
+            while (match(TokenType.COMMA)) {
+                propertyMappings.add(parseAssociationPropertyMapping());
+            }
+        }
+        expect(TokenType.PAREN_CLOSE);
+        return new AssociationMapping.Relational(associationName, propertyMappings);
+    }
+
+    /**
+     * Parse one association property mapping entry. Handles the optional
+     * {@code [srcSetId, dstSetId]} disambiguating brackets and delegates
+     * the rest to {@link #parsePropertyMappingBody} with a null
+     * {@code mainTable} (no scope &mdash; bare identifiers must error).
+     */
+    private AssociationPropertyMapping parseAssociationPropertyMapping() {
+        String propName = parseIdentifier();
+        String sourceSetId = null;
+        String targetSetId = null;
+        if (peek() == TokenType.BRACKET_OPEN) {
+            advance();
+            sourceSetId = parseIdentifier();
+            expect(TokenType.COMMA);
+            targetSetId = parseIdentifier();
+            expect(TokenType.BRACKET_CLOSE);
+        }
+        expect(TokenType.COLON);
+        PropertyMapping body = parsePropertyMappingBody(propName, null);
+        return new AssociationPropertyMapping(sourceSetId, targetSetId, body);
+    }
+
+    /**
+     * Parse an {@code EnumerationMapping} body. The {@code EnumerationMapping}
+     * keyword has been consumed; this method handles the optional mapping
+     * ID, the brace-delimited list of {@code enumValue: source} entries,
+     * and stops at the closing brace.
+     *
+     * <p>Grammar:
+     * <pre>
+     *   EnumerationMapping mappingId? { enumValueEntry (, enumValueEntry)* }
+     *   enumValueEntry  := enumValueName : sourceValueList
+     *   sourceValueList := sourceValue                       // single value
+     *                    | [ sourceValue (, sourceValue)* ]  // bracketed list
+     *   sourceValue     := QUOTED_STRING                     // 'PENDING'
+     *                    | INTEGER                           // 1
+     *                    | qualifiedName . identifier        // other::Enum.VALUE
+     * </pre>
+     */
+    private EnumerationMapping parseEnumerationMappingBody(String enumName) {
+        // Optional mapping ID: present when the next token is an
+        // identifier (or identifier-like keyword) AND not the body open.
+        String mappingId = null;
+        if (peek() != TokenType.BRACE_OPEN && IDENTIFIER_TOKENS.contains(peek())) {
+            mappingId = parseIdentifier();
+        }
+        expect(TokenType.BRACE_OPEN);
+        List<EnumerationMapping.EnumValueMapping> valueMappings = new ArrayList<>();
+        if (peek() != TokenType.BRACE_CLOSE) {
+            valueMappings.add(parseEnumValueMapping());
+            while (match(TokenType.COMMA)) {
+                // Trailing comma tolerated (engine accepts it).
+                if (peek() == TokenType.BRACE_CLOSE) break;
+                valueMappings.add(parseEnumValueMapping());
+            }
+        }
+        expect(TokenType.BRACE_CLOSE);
+        return new EnumerationMapping(enumName, mappingId, valueMappings);
+    }
+
+    private EnumerationMapping.EnumValueMapping parseEnumValueMapping() {
+        String enumValue = parseIdentifier();
+        expect(TokenType.COLON);
+        List<EnumerationMapping.SourceValue> sources = new ArrayList<>();
+        if (match(TokenType.BRACKET_OPEN)) {
+            if (peek() == TokenType.BRACKET_CLOSE) {
+                error("EnumerationMapping value '" + enumValue
+                        + "' must list at least one source value");
+            }
+            sources.add(parseEnumSourceValue());
+            while (match(TokenType.COMMA)) sources.add(parseEnumSourceValue());
+            expect(TokenType.BRACKET_CLOSE);
+        } else {
+            sources.add(parseEnumSourceValue());
+        }
+        return new EnumerationMapping.EnumValueMapping(enumValue, sources);
+    }
+
+    private EnumerationMapping.SourceValue parseEnumSourceValue() {
+        if (peek() == TokenType.STRING) {
+            String raw = text();
+            advance();
+            // Strip surrounding single quotes (engine grammar uses ' ').
+            String value = raw.length() >= 2
+                    && raw.charAt(0) == '\''
+                    && raw.charAt(raw.length() - 1) == '\''
+                    ? raw.substring(1, raw.length() - 1)
+                    : raw;
+            return new EnumerationMapping.SourceValue.StringValue(value);
+        }
+        if (peek() == TokenType.INTEGER) {
+            long value = Long.parseLong(text());
+            advance();
+            return new EnumerationMapping.SourceValue.IntegerValue(value);
+        }
+        // Otherwise: cross-enum reference  pkg::Enum.VALUE
+        String path = parseQualifiedName();
+        expect(TokenType.DOT);
+        String valueName = parseIdentifier();
+        return new EnumerationMapping.SourceValue.EnumRef(path, valueName);
+    }
+
+    /**
+     * Parse the body of a {@code Pure} (model-to-model) class mapping. The
+     * opening brace has been consumed; we stop at the matching close brace.
+     *
+     * <p>Grammar:
+     * <pre>
+     *   pureClassMappingBody := ~src qualifiedName
+     *                           (~filter pureExpression)?
+     *                           propBinding (, propBinding)*
+     *   propBinding         := identifier : pureExpression
+     * </pre>
+     *
+     * <h2>D-1: deferred Pure expression parsing</h2>
+     * The filter expression and each property RHS are full Pure value
+     * expressions. The element parser captures them as raw text using
+     * {@link #scanPureExpression} + {@link #reconstructText} and stores
+     * them as {@code filterSource} / {@code expressionSource}. Phase C
+     * parses them lazily.
+     */
+    private ClassMapping parsePureClassMappingBody(
+            String className, String setId, String extendsSetId, boolean root) {
+        expect(TokenType.SRC_CMD);
+        String sourceClass = parseQualifiedName();
+
+        // Optional ~filter <pure expression> — runs until the first
+        // property binding starts.
+        String filterSource = null;
+        if (peek() == TokenType.FILTER_CMD) {
+            advance();
+            int start = pos;
+            scanPureExpression(/*stopOnPropertyBindingStart=*/ true);
+            filterSource = reconstructText(start, pos).trim();
+            if (filterSource.isEmpty()) {
+                error("~filter clause in Pure class mapping for '"
+                        + className + "' is empty");
+            }
+        }
+
+        List<ClassMapping.Pure.PropertyBinding> bindings = new ArrayList<>();
+        while (peek() != TokenType.BRACE_CLOSE && !atEnd()) {
+            String propName = parseIdentifier();
+            expect(TokenType.COLON);
+            int start = pos;
+            scanPureExpression(/*stopOnPropertyBindingStart=*/ false);
+            String exprText = reconstructText(start, pos).trim();
+            if (exprText.isEmpty()) {
+                error("Pure class mapping property '" + propName
+                        + "' has an empty body");
+            }
+            bindings.add(new ClassMapping.Pure.PropertyBinding(propName, exprText));
+            // Properties are comma-separated; trailing comma tolerated.
+            match(TokenType.COMMA);
+        }
+
+        return new ClassMapping.Pure(
+                className, setId, extendsSetId, root,
+                sourceClass, filterSource, bindings);
+    }
+
+    /**
+     * Advance past a Pure value expression, stopping at the first
+     * top-level (depth-0) terminator. Used to capture raw expression
+     * text for deferred parsing (D-1). The matched tokens are NOT
+     * consumed beyond the expression itself; on return, {@code pos}
+     * points at the terminator.
+     *
+     * <p>Terminators:
+     * <ul>
+     *   <li>{@code COMMA} or {@code BRACE_CLOSE} at depth 0
+     *       &mdash; always end an expression.</li>
+     *   <li>When {@code stopOnPropertyBindingStart} is true, also
+     *       an identifier-followed-by-colon at depth 0 &mdash; used by
+     *       {@code ~filter} where no separator precedes the next
+     *       property binding.</li>
+     * </ul>
+     *
+     * <p>Nesting is tracked through paren/brace/bracket pairs so embedded
+     * commas (e.g. inside function calls or lambdas) do not terminate.
+     */
+    private void scanPureExpression(boolean stopOnPropertyBindingStart) {
+        int depth = 0;
+        while (!atEnd()) {
+            TokenType t = peek();
+            if (depth == 0) {
+                if (t == TokenType.BRACE_CLOSE || t == TokenType.COMMA) break;
+                if (stopOnPropertyBindingStart
+                        && IDENTIFIER_TOKENS.contains(t)
+                        && peek(1) == TokenType.COLON) {
+                    break;
+                }
+            }
+            if (t == TokenType.PAREN_OPEN
+                    || t == TokenType.BRACE_OPEN
+                    || t == TokenType.BRACKET_OPEN) {
+                depth++;
+            } else if (t == TokenType.PAREN_CLOSE
+                    || t == TokenType.BRACE_CLOSE
+                    || t == TokenType.BRACKET_CLOSE) {
+                if (depth == 0) break;
+                depth--;
+            }
+            advance();
+        }
     }
 
     // ============================================================

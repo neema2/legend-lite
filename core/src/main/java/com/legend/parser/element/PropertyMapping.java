@@ -26,16 +26,17 @@ import java.util.Objects;
  * and downstream (lowering, SQL gen) dispatch on the variant via pattern
  * match.
  *
- * <h2>Deferred to later slices</h2>
+ * <h2>B.4g additions</h2>
  * <ul>
- *   <li><strong>Embedded sub-mappings</strong> ({@code prop ( subProp: ... )}) &mdash;
- *       requires recursive {@code PropertyMapping} composition; deferred.</li>
- *   <li><strong>Inline references</strong> ({@code prop: ClassName[setId]}) &mdash;
- *       reference to another class mapping; deferred.</li>
- *   <li><strong>Otherwise</strong> ({@code prop ( ... ) Otherwise([fallback] join)}) &mdash;
- *       deferred.</li>
- *   <li><strong>Local mapping properties</strong> ({@code +prop: Type[mult]: ...}) &mdash;
- *       deferred.</li>
+ *   <li>{@link Embedded} &mdash; nested complex property mapped via inline
+ *       sub-properties (no JOIN, columns read from the parent's main table).</li>
+ *   <li>{@link InlineEmbedded} &mdash; nested complex property whose body is
+ *       a reference to another class mapping by set id.</li>
+ *   <li>{@link OtherwiseEmbedded} &mdash; embedded body with a fallback set id
+ *       reachable via a join when the embedded data is absent.</li>
+ *   <li>{@link LocalProperty} &mdash; a property declared only in the mapping
+ *       (not the class), prefixed with {@code +}, carrying its own type and
+ *       multiplicity. The binding body is any of the other variants.</li>
  * </ul>
  */
 public sealed interface PropertyMapping
@@ -43,7 +44,11 @@ public sealed interface PropertyMapping
                 PropertyMapping.EnumeratedColumn,
                 PropertyMapping.Join,
                 PropertyMapping.JoinTerminalColumn,
-                PropertyMapping.Expression {
+                PropertyMapping.Expression,
+                PropertyMapping.Embedded,
+                PropertyMapping.InlineEmbedded,
+                PropertyMapping.OtherwiseEmbedded,
+                PropertyMapping.LocalProperty {
 
     /** The Pure property name being bound. */
     String propertyName();
@@ -169,6 +174,112 @@ public sealed interface PropertyMapping
         public Expression {
             Objects.requireNonNull(propertyName, "Property name cannot be null");
             Objects.requireNonNull(expression, "Expression cannot be null");
+        }
+    }
+
+    /**
+     * Embedded sub-mapping: {@code propName ( subProp1: ..., subProp2: ... )}.
+     *
+     * <p>The property is a complex type whose fields are mapped inline
+     * from columns of the parent's main table &mdash; no join is needed.
+     * Sub-mappings are themselves any of the {@link PropertyMapping}
+     * variants, evaluated against the same scope.
+     *
+     * @param propertyName       Pure property name (the complex-typed field)
+     * @param propertyMappings   per-sub-property bindings
+     */
+    record Embedded(String propertyName, List<PropertyMapping> propertyMappings)
+            implements PropertyMapping {
+        public Embedded {
+            Objects.requireNonNull(propertyName, "Property name cannot be null");
+            Objects.requireNonNull(propertyMappings, "Embedded property mappings cannot be null");
+            propertyMappings = List.copyOf(propertyMappings);
+        }
+    }
+
+    /**
+     * Inline embedded reference: {@code propName() Inline[setId]}.
+     *
+     * <p>The property is mapped by reference to another class mapping
+     * declared elsewhere in the same {@link MappingDefinition} (or an
+     * included one), identified by its set id. No body is parsed; the
+     * empty parens are required by the grammar.
+     *
+     * @param propertyName  Pure property name
+     * @param setId         id of the referenced class mapping
+     */
+    record InlineEmbedded(String propertyName, String setId)
+            implements PropertyMapping {
+        public InlineEmbedded {
+            Objects.requireNonNull(propertyName, "Property name cannot be null");
+            Objects.requireNonNull(setId, "Inline set id cannot be null");
+        }
+    }
+
+    /**
+     * Otherwise-embedded: {@code propName ( subs ) Otherwise ([fallbackSetId]: body)}.
+     *
+     * <p>Try the embedded sub-mappings first; if the embedded data is
+     * absent (e.g. denormalized columns are NULL), fall back to another
+     * class mapping reached via the fallback body (typically a join).
+     *
+     * @param propertyName     Pure property name
+     * @param embedded         the primary embedded sub-mappings
+     * @param fallbackSetId    id of the fallback class mapping
+     * @param fallback         the fallback binding body (typically a
+     *                         {@link Join}); evaluated to reach the
+     *                         fallback set when the embedded path yields
+     *                         no data
+     */
+    record OtherwiseEmbedded(String propertyName,
+                             List<PropertyMapping> embedded,
+                             String fallbackSetId,
+                             PropertyMapping fallback) implements PropertyMapping {
+        public OtherwiseEmbedded {
+            Objects.requireNonNull(propertyName, "Property name cannot be null");
+            Objects.requireNonNull(embedded, "Embedded sub-mappings cannot be null");
+            Objects.requireNonNull(fallbackSetId, "Fallback set id cannot be null");
+            Objects.requireNonNull(fallback, "Fallback body cannot be null");
+            embedded = List.copyOf(embedded);
+        }
+    }
+
+    /**
+     * Local mapping property: {@code +propName: Type[mult]: body}.
+     *
+     * <p>A property defined only in the mapping (not the class), used to
+     * project additional values that aren't part of the class model.
+     * The leading {@code +} is the syntactic marker. The binding body is
+     * any of the other {@link PropertyMapping} variants.
+     *
+     * <p>Multiplicity is stored flat as {@code (lowerBound, upperBound)},
+     * with {@code upperBound == null} meaning unbounded ({@code *}) &mdash;
+     * same shape as {@code ClassDefinition.PropertyDefinition}.
+     *
+     * @param propertyName  local property name (without the leading {@code +})
+     * @param type          declared property type
+     * @param lowerBound    lower multiplicity bound
+     * @param upperBound    upper multiplicity bound; {@code null} = unbounded
+     * @param body          binding body (Column / Expression / Join / ...)
+     */
+    record LocalProperty(String propertyName,
+                         String type,
+                         int lowerBound,
+                         Integer upperBound,
+                         PropertyMapping body) implements PropertyMapping {
+        public LocalProperty {
+            Objects.requireNonNull(propertyName, "Property name cannot be null");
+            Objects.requireNonNull(type, "Local property type cannot be null");
+            Objects.requireNonNull(body, "Local property body cannot be null");
+            if (lowerBound < 0) {
+                throw new IllegalArgumentException(
+                        "Local property lowerBound must be >= 0: " + lowerBound);
+            }
+            if (upperBound != null && upperBound < lowerBound) {
+                throw new IllegalArgumentException(
+                        "Local property upperBound (" + upperBound
+                                + ") must be >= lowerBound (" + lowerBound + ")");
+            }
         }
     }
 }

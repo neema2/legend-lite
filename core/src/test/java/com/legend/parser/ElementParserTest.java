@@ -18,6 +18,9 @@ import com.legend.parser.element.DatabaseDefinition.SchemaDefinition;
 import com.legend.parser.element.DatabaseDefinition.TableDefinition;
 import com.legend.parser.element.DatabaseDefinition.ViewDefinition;
 import com.legend.parser.element.EnumDefinition;
+import com.legend.parser.element.EnumerationMapping;
+import com.legend.parser.element.AssociationMapping;
+import com.legend.parser.element.AssociationPropertyMapping;
 import com.legend.parser.element.ClassMapping;
 import com.legend.parser.element.FilterMapping;
 import com.legend.parser.element.FilterPointer;
@@ -46,6 +49,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -860,6 +864,8 @@ final class ElementParserTest {
     @Test
     void serviceCapturesTestSuitesAsRawText() {
         // D-3: testSuites block preserved as raw text for B.4 to parse.
+        // Pin both ends + every salient inner fragment so a capture bug that
+        // trims, extends, or otherwise distorts the slice fails loudly.
         ParsedModel m = ElementParser.parse("""
                 Service my::S
                 {
@@ -869,8 +875,20 @@ final class ElementParserTest {
                 }
                 """);
         ServiceDefinition s = (ServiceDefinition) m.elements().get(0);
-        assertTrue(s.testSuitesSource() != null && s.testSuitesSource().contains("suite_1"),
-                () -> "testSuites raw text should be captured, got: " + s.testSuitesSource());
+        String captured = s.testSuitesSource();
+        assertNotNull(captured, "testSuites raw text should be captured");
+        assertTrue(captured.startsWith("["),
+                () -> "outer '[' must be in capture, got: " + captured);
+        assertTrue(captured.endsWith("]"),
+                () -> "outer ']' must be in capture, got: " + captured);
+        // Every nested token must round-trip — guards against partial slices.
+        for (String fragment : List.of("suite_1", "setup", "'x'")) {
+            assertTrue(captured.contains(fragment),
+                    () -> "missing fragment '" + fragment + "' in captured testSuites: " + captured);
+        }
+        // The capture must not bleed into following content (no execution-block tokens).
+        assertFalse(captured.contains("execution"),
+                () -> "capture must not bleed into preceding/following keys, got: " + captured);
     }
 
     @Test
@@ -1248,9 +1266,9 @@ final class ElementParserTest {
     // B.4b — Mapping (relational class mappings)
     // ===============================================================
 
-    private static ClassMapping.RootRelational firstRelationalClassMapping(String src) {
+    private static ClassMapping.Relational firstRelationalClassMapping(String src) {
         MappingDefinition md = (MappingDefinition) ElementParser.parse(src).elements().get(0);
-        return (ClassMapping.RootRelational) md.classMappings().get(0);
+        return (ClassMapping.Relational) md.classMappings().get(0);
     }
 
     @Test
@@ -1345,7 +1363,11 @@ final class ElementParserTest {
                 + "~mainTable [db::DB] PERSON "
                 + "~filter ActivePersonFilter "
                 + "} )");
+        assertInstanceOf(FilterMapping.Direct.class, cm.filter(),
+                "~filter <Name> must produce Direct, not JoinMediated");
         var direct = (FilterMapping.Direct) cm.filter();
+        assertInstanceOf(FilterPointer.Local.class, direct.filter(),
+                "bare filter name must be Local (no cross-db prefix)");
         var local = (FilterPointer.Local) direct.filter();
         assertEquals("ActivePersonFilter", local.name());
     }
@@ -1501,6 +1523,678 @@ final class ElementParserTest {
                 () -> "expected 'unsupported' message, got: " + e.getMessage());
     }
 
+    // ===============================================================
+    // B.4c — Association mappings
+    // ===============================================================
+
+    private static AssociationMapping.Relational firstAssociationMapping(String src) {
+        MappingDefinition md = (MappingDefinition) ElementParser.parse(src).elements().get(0);
+        return (AssociationMapping.Relational) md.associationMappings().get(0);
+    }
+
+    @Test
+    void associationMappingSingleProperty() {
+        var am = firstAssociationMapping(
+                "Mapping my::M ( "
+                + "my::Person_Firm: Relational { AssociationMapping ( "
+                + "firm: [db::DB] @Person_Firm "
+                + ") } )");
+        assertEquals("my::Person_Firm", am.associationName());
+        assertEquals(1, am.propertyMappings().size());
+        var apm = am.propertyMappings().get(0);
+        assertNull(apm.sourceSetId());
+        assertNull(apm.targetSetId());
+        assertEquals("firm", apm.propertyName());
+        var join = (PropertyMapping.Join) apm.body();
+        assertEquals("db::DB", join.database());
+        assertEquals("Person_Firm", join.joins().get(0).joinName());
+    }
+
+    @Test
+    void associationMappingTwoEndsCommaSeparated() {
+        var am = firstAssociationMapping(
+                "Mapping my::M ( "
+                + "my::Person_Firm: Relational { AssociationMapping ( "
+                + "firm: [db::DB] @Person_Firm, "
+                + "person: [db::DB] @Person_Firm "
+                + ") } )");
+        assertEquals(2, am.propertyMappings().size());
+        assertEquals("firm", am.propertyMappings().get(0).propertyName());
+        assertEquals("person", am.propertyMappings().get(1).propertyName());
+    }
+
+    @Test
+    void associationMappingWithSetIdBrackets() {
+        var am = firstAssociationMapping(
+                "Mapping my::M ( "
+                + "my::Person_Firm: Relational { AssociationMapping ( "
+                + "firm[employees, mainFirms]: [db::DB] @Person_Firm "
+                + ") } )");
+        var apm = am.propertyMappings().get(0);
+        assertEquals("employees", apm.sourceSetId());
+        assertEquals("mainFirms", apm.targetSetId());
+    }
+
+    @Test
+    void associationMappingMultiHopJoinChain() {
+        var am = firstAssociationMapping(
+                "Mapping my::M ( "
+                + "my::Person_City: Relational { AssociationMapping ( "
+                + "city: [db::DB] @Person_Address > @Address_City "
+                + ") } )");
+        var join = (PropertyMapping.Join) am.propertyMappings().get(0).body();
+        assertEquals(
+                List.of("Person_Address", "Address_City"),
+                join.joins().stream().map(JoinChainElement::joinName).toList(),
+                "join chain must preserve hop names and order");
+        assertEquals("db::DB", join.database());
+    }
+
+    @Test
+    void associationMappingRejectsBareIdentifier() {
+        // No mainTable in association context → bare-id must error
+        // (engine: "Missing table or alias for column 'X'").
+        ParseException e = assertThrows(ParseException.class, () ->
+                ElementParser.parse(
+                        "Mapping my::M ( my::A: Relational { AssociationMapping ( "
+                        + "firm: BARE_NAME ) } )"));
+        assertTrue(e.getMessage().toLowerCase().contains("missing table or alias"),
+                () -> "expected bare-id rejection, got: " + e.getMessage());
+    }
+
+    @Test
+    void associationMappingRejectsLeadingStar() {
+        ParseException e = assertThrows(ParseException.class, () ->
+                ElementParser.parse(
+                        "Mapping my::M ( *my::A: Relational { AssociationMapping ( "
+                        + "firm: [db::DB] @J ) } )"));
+        assertTrue(e.getMessage().toLowerCase().contains("association"),
+                () -> "expected association-related error, got: " + e.getMessage());
+    }
+
+    @Test
+    void associationMappingPropertyJoinRequiresDb() {
+        // Plain @J without [db::DB] and no main table → must error.
+        ParseException e = assertThrows(ParseException.class, () ->
+                ElementParser.parse(
+                        "Mapping my::M ( my::A: Relational { AssociationMapping ( "
+                        + "firm: @SomeJoin ) } )"));
+        assertTrue(e.getMessage().toLowerCase().contains("requires a database"),
+                () -> "expected db-required error, got: " + e.getMessage());
+    }
+
+    @Test
+    void mappingMixesClassAndAssociationMappings() {
+        MappingDefinition md = (MappingDefinition) ElementParser.parse(
+                "Mapping my::M ( "
+                + "*model::Person: Relational { ~mainTable [db::DB] PERSON  name: PERSON.NAME } "
+                + "my::Person_Firm: Relational { AssociationMapping ( firm: [db::DB] @P_F ) } "
+                + ")").elements().get(0);
+        assertEquals(1, md.classMappings().size());
+        assertEquals(1, md.associationMappings().size());
+        assertEquals("model::Person",
+                ((ClassMapping.Relational) md.classMappings().get(0)).className());
+        assertEquals("my::Person_Firm",
+                ((AssociationMapping.Relational) md.associationMappings().get(0)).associationName());
+    }
+
+    @Test
+    void associationPropertyMappingRejectsHalfSetId() {
+        // sourceSetId without targetSetId — the data-model invariant
+        // catches this at construction. Parser can't produce it directly
+        // (grammar requires both), but the invariant is documented and
+        // pinned here.
+        assertThrows(IllegalArgumentException.class, () ->
+                new AssociationPropertyMapping("src", null,
+                        new PropertyMapping.Join("p", "db", List.of(
+                                new JoinChainElement("J", null, "db", false)))));
+    }
+
+    // ===============================================================
+    // B.4d — Enumeration mapping declarations
+    // ===============================================================
+
+    private static EnumerationMapping firstEnumerationMapping(String src) {
+        MappingDefinition md = (MappingDefinition) ElementParser.parse(src).elements().get(0);
+        return md.enumerationMappings().get(0);
+    }
+
+    @Test
+    void enumerationMappingWithIdAndSingleStringSources() {
+        var em = firstEnumerationMapping(
+                "Mapping my::M ( "
+                + "model::OrderStatus: EnumerationMapping StatusMap { "
+                + "PENDING: 'P', "
+                + "SHIPPED: 'S' "
+                + "} )");
+        assertEquals("model::OrderStatus", em.enumName());
+        assertEquals("StatusMap", em.mappingId());
+        assertEquals(2, em.valueMappings().size());
+        var pending = em.valueMappings().get(0);
+        assertEquals("PENDING", pending.enumValue());
+        var src = (EnumerationMapping.SourceValue.StringValue) pending.sourceValues().get(0);
+        assertEquals("P", src.value());
+    }
+
+    @Test
+    void enumerationMappingWithoutId() {
+        var em = firstEnumerationMapping(
+                "Mapping my::M ( "
+                + "model::TaskStatus: EnumerationMapping { "
+                + "TODO: 'TODO' "
+                + "} )");
+        assertNull(em.mappingId(),
+                "engine allows omitting the mapping ID; generated synthetically later");
+    }
+
+    @Test
+    void enumerationMappingBracketedMultipleStringSources() {
+        var em = firstEnumerationMapping(
+                "Mapping my::M ( "
+                + "model::S: EnumerationMapping Mid { "
+                + "PENDING: ['P', 'PEND', 'WAITING'] "
+                + "} )");
+        var sources = em.valueMappings().get(0).sourceValues();
+        assertEquals(3, sources.size());
+        assertEquals("P", ((EnumerationMapping.SourceValue.StringValue) sources.get(0)).value());
+        assertEquals("PEND", ((EnumerationMapping.SourceValue.StringValue) sources.get(1)).value());
+        assertEquals("WAITING", ((EnumerationMapping.SourceValue.StringValue) sources.get(2)).value());
+    }
+
+    @Test
+    void enumerationMappingIntegerSources() {
+        var em = firstEnumerationMapping(
+                "Mapping my::M ( "
+                + "model::S: EnumerationMapping Mid { "
+                + "BUY: 1, "
+                + "SELL: [2, 3] "
+                + "} )");
+        var buyVal = (EnumerationMapping.SourceValue.IntegerValue)
+                em.valueMappings().get(0).sourceValues().get(0);
+        assertEquals(1L, buyVal.value());
+        var sellSources = em.valueMappings().get(1).sourceValues();
+        assertEquals(2, sellSources.size());
+        assertEquals(2L, ((EnumerationMapping.SourceValue.IntegerValue) sellSources.get(0)).value());
+        assertEquals(3L, ((EnumerationMapping.SourceValue.IntegerValue) sellSources.get(1)).value());
+    }
+
+    @Test
+    void enumerationMappingCrossEnumSource() {
+        // Map our enum values to values of another (already-defined) enum.
+        var em = firstEnumerationMapping(
+                "Mapping my::M ( "
+                + "model::Local: EnumerationMapping Mid { "
+                + "FAST: other::Speed.HIGH, "
+                + "SLOW: other::Speed.LOW "
+                + "} )");
+        var fastSrc = (EnumerationMapping.SourceValue.EnumRef)
+                em.valueMappings().get(0).sourceValues().get(0);
+        assertEquals("other::Speed", fastSrc.enumPath());
+        assertEquals("HIGH", fastSrc.enumValueName());
+    }
+
+    @Test
+    void enumerationMappingMixedSourceKinds() {
+        var em = firstEnumerationMapping(
+                "Mapping my::M ( "
+                + "model::S: EnumerationMapping Mid { "
+                + "X: ['STR', 42, other::E.V] "
+                + "} )");
+        var sources = em.valueMappings().get(0).sourceValues();
+        assertInstanceOf(EnumerationMapping.SourceValue.StringValue.class, sources.get(0));
+        assertInstanceOf(EnumerationMapping.SourceValue.IntegerValue.class, sources.get(1));
+        assertInstanceOf(EnumerationMapping.SourceValue.EnumRef.class, sources.get(2));
+    }
+
+    @Test
+    void enumerationMappingTrailingCommaTolerated() {
+        // Regression: trailing comma must yield N entries, not N+1 with a
+        // phantom empty entry silently appended.
+        var em = firstEnumerationMapping(
+                "Mapping my::M ( "
+                + "model::S: EnumerationMapping Mid { "
+                + "A: 'a', "
+                + "B: 'b', "
+                + "} )");
+        assertEquals(2, em.valueMappings().size(),
+                "trailing comma must not produce a phantom value mapping");
+        assertEquals("A", em.valueMappings().get(0).enumValue());
+        assertEquals("B", em.valueMappings().get(1).enumValue());
+        // Last entry's source value must be the real 'b', not empty/null.
+        var lastSource = em.valueMappings().get(1).sourceValues().get(0);
+        assertEquals("b",
+                ((EnumerationMapping.SourceValue.StringValue) lastSource).value());
+    }
+
+    @Test
+    void enumerationMappingEmptyBracketsRejected() {
+        ParseException e = assertThrows(ParseException.class, () ->
+                ElementParser.parse(
+                        "Mapping my::M ( "
+                        + "model::S: EnumerationMapping Mid { X: [] } )"));
+        assertTrue(e.getMessage().toLowerCase().contains("at least one source value"),
+                () -> "expected empty-brackets error, got: " + e.getMessage());
+    }
+
+    @Test
+    void enumerationMappingRejectsLeadingStar() {
+        ParseException e = assertThrows(ParseException.class, () ->
+                ElementParser.parse(
+                        "Mapping my::M ( *model::S: EnumerationMapping Mid { X: 'x' } )"));
+        assertTrue(e.getMessage().toLowerCase().contains("enumeration"),
+                () -> "expected enumeration-related error, got: " + e.getMessage());
+    }
+
+    @Test
+    void mappingWithClassAndEnumerationMappingTogether() {
+        MappingDefinition md = (MappingDefinition) ElementParser.parse(
+                "Mapping my::M ( "
+                + "*model::Order: Relational { ~mainTable [db::DB] ORDERS "
+                + "  status: EnumerationMapping StatusMap : ORDERS.STATUS } "
+                + "model::OrderStatus: EnumerationMapping StatusMap { "
+                + "  PENDING: 'P', SHIPPED: 'S' } "
+                + ")").elements().get(0);
+        assertEquals(1, md.classMappings().size());
+        assertEquals(1, md.enumerationMappings().size());
+        // The class mapping's status property references the enum mapping by id.
+        var cm = (ClassMapping.Relational) md.classMappings().get(0);
+        var enumCol = (PropertyMapping.EnumeratedColumn) cm.propertyMappings().get(0);
+        assertEquals("StatusMap", enumCol.enumMappingId());
+        assertEquals("StatusMap", md.enumerationMappings().get(0).mappingId());
+    }
+
+    // ===============================================================
+    // B.4e — Pure (model-to-model) class mappings
+    // ===============================================================
+
+    private static ClassMapping.Pure firstPureClassMapping(String src) {
+        MappingDefinition md = (MappingDefinition) ElementParser.parse(src).elements().get(0);
+        return (ClassMapping.Pure) md.classMappings().get(0);
+    }
+
+    @Test
+    void pureClassMappingMinimal() {
+        var cm = firstPureClassMapping(
+                "Mapping my::M ( "
+                + "*model::Person: Pure { "
+                + "~src model::RawPerson "
+                + "fullName: $src.firstName + ' ' + $src.lastName "
+                + "} )");
+        assertEquals("model::Person", cm.className());
+        assertTrue(cm.root());
+        assertEquals("model::RawPerson", cm.sourceClass());
+        assertNull(cm.filterSource());
+        assertEquals(1, cm.propertyBindings().size());
+        var b = cm.propertyBindings().get(0);
+        assertEquals("fullName", b.propertyName());
+        assertTrue(b.expressionSource().contains("$src.firstName"),
+                () -> "captured expr: " + b.expressionSource());
+        assertTrue(b.expressionSource().contains("$src.lastName"));
+    }
+
+    @Test
+    void pureClassMappingMultipleProperties() {
+        var cm = firstPureClassMapping(
+                "Mapping my::M ( "
+                + "*model::Person: Pure { "
+                + "~src model::RawPerson "
+                + "firstName: $src.firstName, "
+                + "lastName:  $src.lastName, "
+                + "fullName:  $src.firstName + ' ' + $src.lastName "
+                + "} )");
+        assertEquals(3, cm.propertyBindings().size());
+        assertEquals("firstName", cm.propertyBindings().get(0).propertyName());
+        assertEquals("lastName",  cm.propertyBindings().get(1).propertyName());
+        assertEquals("fullName",  cm.propertyBindings().get(2).propertyName());
+    }
+
+    @Test
+    void pureClassMappingWithFilter() {
+        var cm = firstPureClassMapping(
+                "Mapping my::M ( "
+                + "*model::ActivePerson: Pure { "
+                + "~src model::RawPerson "
+                + "~filter $src.isActive == true "
+                + "firstName: $src.firstName "
+                + "} )");
+        assertNotNull(cm.filterSource());
+        assertTrue(cm.filterSource().contains("$src.isActive"),
+                () -> "captured filter: " + cm.filterSource());
+        assertEquals(1, cm.propertyBindings().size());
+    }
+
+    @Test
+    void pureClassMappingBodyCanContainCommasInsideCalls() {
+        // Commas inside if(...) must NOT split the property binding.
+        var cm = firstPureClassMapping(
+                "Mapping my::M ( "
+                + "*model::Person: Pure { "
+                + "~src model::RawPerson "
+                + "ageGroup: if($src.age < 18, |'Minor', |if($src.age < 65, |'Adult', |'Senior')), "
+                + "firstName: $src.firstName "
+                + "} )");
+        assertEquals(2, cm.propertyBindings().size());
+        var ageGroup = cm.propertyBindings().get(0);
+        assertEquals("ageGroup", ageGroup.propertyName());
+        assertTrue(ageGroup.expressionSource().contains("Senior"),
+                () -> "captured ageGroup: " + ageGroup.expressionSource());
+    }
+
+    @Test
+    void pureClassMappingArrowCallCaptured() {
+        // The whole RHS expression must round-trip — not just a keyword fragment.
+        // Whitespace normalised so the test isn't brittle to tokenizer spacing.
+        var cm = firstPureClassMapping(
+                "Mapping my::M ( "
+                + "*model::Person: Pure { "
+                + "~src model::RawPerson "
+                + "upperLastName: $src.lastName->toUpper() "
+                + "} )");
+        var b = cm.propertyBindings().get(0);
+        assertEquals("upperLastName", b.propertyName());
+        String normalised = b.expressionSource().replaceAll("\\s+", "");
+        assertEquals("$src.lastName->toUpper()", normalised,
+                () -> "full RHS must round-trip; raw capture: " + b.expressionSource());
+    }
+
+    @Test
+    void pureClassMappingWithSetIdAndExtends() {
+        var cm = firstPureClassMapping(
+                "Mapping my::M ( "
+                + "model::Person[childSet] extends [baseSet]: Pure { "
+                + "~src model::RawPerson "
+                + "name: $src.name "
+                + "} )");
+        assertFalse(cm.root());
+        assertEquals("childSet", cm.setId());
+        assertEquals("baseSet", cm.extendsSetId());
+    }
+
+    @Test
+    void pureClassMappingRequiresSrc() {
+        ParseException e = assertThrows(ParseException.class, () ->
+                ElementParser.parse(
+                        "Mapping my::M ( *model::P: Pure { "
+                        + "name: $src.name } )"));
+        assertTrue(e.getMessage().contains("SRC"),
+                () -> "expected ~src required error, got: " + e.getMessage());
+    }
+
+    @Test
+    void pureClassMappingEmptyPropertyBodyRejected() {
+        ParseException e = assertThrows(ParseException.class, () ->
+                ElementParser.parse(
+                        "Mapping my::M ( *model::P: Pure { "
+                        + "~src model::Raw "
+                        + "name: , other: $src.x "
+                        + "} )"));
+        assertTrue(e.getMessage().toLowerCase().contains("empty body"),
+                () -> "expected empty-body error, got: " + e.getMessage());
+    }
+
+    @Test
+    void pureClassMappingTrailingCommaTolerated() {
+        var cm = firstPureClassMapping(
+                "Mapping my::M ( "
+                + "*model::Person: Pure { "
+                + "~src model::Raw "
+                + "name: $src.name, "
+                + "} )");
+        assertEquals(1, cm.propertyBindings().size(),
+                "trailing comma must not produce a phantom property binding");
+        var only = cm.propertyBindings().get(0);
+        assertEquals("name", only.propertyName());
+        assertEquals("$src.name",
+                only.expressionSource().replaceAll("\\s+", ""));
+    }
+
+    @Test
+    void mappingMixesPureAndRelationalClassMappings() {
+        MappingDefinition md = (MappingDefinition) ElementParser.parse(
+                "Mapping my::M ( "
+                + "*model::Person: Pure { ~src model::RawPerson  name: $src.name } "
+                + "*model::Firm: Relational { ~mainTable [db::DB] FIRMS  legalName: FIRMS.NAME } "
+                + ")").elements().get(0);
+        assertEquals(2, md.classMappings().size());
+        assertInstanceOf(ClassMapping.Pure.class, md.classMappings().get(0));
+        assertInstanceOf(ClassMapping.Relational.class, md.classMappings().get(1));
+    }
+
+    // ===============================================================
+    // B.4g — Property mapping parity fillers
+    //        (Embedded / InlineEmbedded / OtherwiseEmbedded / LocalProperty)
+    // ===============================================================
+
+    private static ClassMapping.Relational firstRelational(String src) {
+        MappingDefinition md = (MappingDefinition) ElementParser.parse(src).elements().get(0);
+        return (ClassMapping.Relational) md.classMappings().get(0);
+    }
+
+    @Test
+    void embeddedPropertyMapping() {
+        var cm = firstRelational(
+                "Mapping my::M ( "
+                + "*model::Person: Relational { "
+                + "~mainTable [db::DB] T_PERSON "
+                + "name: T_PERSON.NAME, "
+                + "firm ( "
+                + "  legalName: T_PERSON.FIRM_NAME, "
+                + "  employeeCount: T_PERSON.FIRM_COUNT "
+                + ") "
+                + "} )");
+        assertEquals(2, cm.propertyMappings().size());
+        var firm = (PropertyMapping.Embedded) cm.propertyMappings().get(1);
+        assertEquals("firm", firm.propertyName());
+        assertEquals(2, firm.propertyMappings().size());
+        assertEquals("legalName", firm.propertyMappings().get(0).propertyName());
+        assertEquals("employeeCount", firm.propertyMappings().get(1).propertyName());
+        assertInstanceOf(PropertyMapping.Column.class, firm.propertyMappings().get(0));
+    }
+
+    @Test
+    void embeddedPropertyMappingNested() {
+        // Embedded inside embedded — confirms recursive composition.
+        var cm = firstRelational(
+                "Mapping my::M ( "
+                + "*model::Person: Relational { "
+                + "~mainTable [db::DB] T_PERSON "
+                + "address ( "
+                + "  street: T_PERSON.STREET, "
+                + "  city ( "
+                + "    name: T_PERSON.CITY_NAME, "
+                + "    zip: T_PERSON.CITY_ZIP "
+                + "  ) "
+                + ") "
+                + "} )");
+        var addr = (PropertyMapping.Embedded) cm.propertyMappings().get(0);
+        var city = (PropertyMapping.Embedded) addr.propertyMappings().get(1);
+        assertEquals("city", city.propertyName());
+        assertEquals(2, city.propertyMappings().size());
+        assertEquals("name", city.propertyMappings().get(0).propertyName());
+    }
+
+    @Test
+    void inlineEmbeddedPropertyMapping() {
+        var cm = firstRelational(
+                "Mapping my::M ( "
+                + "*model::Person: Relational { "
+                + "~mainTable [db::DB] T_PERSON "
+                + "name: T_PERSON.NAME, "
+                + "firm() Inline[firm_set1] "
+                + "} )");
+        var firm = (PropertyMapping.InlineEmbedded) cm.propertyMappings().get(1);
+        assertEquals("firm", firm.propertyName());
+        assertEquals("firm_set1", firm.setId());
+    }
+
+    @Test
+    void otherwiseEmbeddedPropertyMapping() {
+        var cm = firstRelational(
+                "Mapping my::M ( "
+                + "*model::Person: Relational { "
+                + "~mainTable [db::DB] T_PERSON "
+                + "name: T_PERSON.NAME, "
+                + "firm ( "
+                + "  legalName: T_PERSON.FIRM_NAME "
+                + ") Otherwise ([firm_set1]: [db::DB] @Person_Firm) "
+                + "} )");
+        var firm = (PropertyMapping.OtherwiseEmbedded) cm.propertyMappings().get(1);
+        assertEquals("firm", firm.propertyName());
+        assertEquals(1, firm.embedded().size());
+        assertEquals("legalName", firm.embedded().get(0).propertyName());
+        assertEquals("firm_set1", firm.fallbackSetId());
+        var fallback = (PropertyMapping.Join) firm.fallback();
+        assertEquals("db::DB", fallback.database());
+        assertEquals(1, fallback.joins().size());
+        assertEquals("Person_Firm", fallback.joins().get(0).joinName());
+    }
+
+    @Test
+    void localMappingProperty() {
+        var cm = firstRelational(
+                "Mapping my::M ( "
+                + "*model::Person: Relational { "
+                + "~mainTable [db::DB] T_PERSON "
+                + "name: T_PERSON.NAME, "
+                + "+localProp: String[1]: [db::DB] T_PERSON.EXTRA "
+                + "} )");
+        assertEquals(2, cm.propertyMappings().size());
+        var local = (PropertyMapping.LocalProperty) cm.propertyMappings().get(1);
+        assertEquals("localProp", local.propertyName());
+        assertEquals("String", local.type());
+        assertEquals(1, local.lowerBound());
+        assertEquals(Integer.valueOf(1), local.upperBound());
+        // Body is the regular Column binding.
+        var col = (PropertyMapping.Column) local.body();
+        assertEquals("db::DB", col.database());
+        assertEquals("T_PERSON", col.table());
+        assertEquals("EXTRA", col.column());
+    }
+
+    @Test
+    void localMappingPropertyWithUnboundedMultiplicity() {
+        var cm = firstRelational(
+                "Mapping my::M ( "
+                + "*model::Person: Relational { "
+                + "~mainTable [db::DB] T_PERSON "
+                + "+tags: String[*]: T_PERSON.TAGS "
+                + "} )");
+        var local = (PropertyMapping.LocalProperty) cm.propertyMappings().get(0);
+        assertEquals(0, local.lowerBound());
+        assertNull(local.upperBound(),
+                "upperBound == null is the '*' sentinel matching PropertyDefinition");
+    }
+
+    @Test
+    void localMappingPropertyWithExpressionBody() {
+        var cm = firstRelational(
+                "Mapping my::M ( "
+                + "*model::Person: Relational { "
+                + "~mainTable [db::DB] T_PERSON "
+                + "+computed: String[1]: concat(T_PERSON.A, ' ', T_PERSON.B) "
+                + "} )");
+        var local = (PropertyMapping.LocalProperty) cm.propertyMappings().get(0);
+        assertInstanceOf(PropertyMapping.Expression.class, local.body());
+    }
+
+    @Test
+    void embeddedAllowsTrailingComma() {
+        var cm = firstRelational(
+                "Mapping my::M ( "
+                + "*model::P: Relational { "
+                + "~mainTable [db::DB] T "
+                + "firm ( legalName: T.NAME, ) "
+                + "} )");
+        var firm = (PropertyMapping.Embedded) cm.propertyMappings().get(0);
+        assertEquals(1, firm.propertyMappings().size(),
+                "trailing comma in embedded body must not produce a phantom sub-mapping");
+        var only = (PropertyMapping.Column) firm.propertyMappings().get(0);
+        assertEquals("legalName", only.propertyName());
+        assertEquals("T", only.table());
+        assertEquals("NAME", only.column());
+    }
+
+    @Test
+    void embeddedAndLocalAndRegularMixedInOneClassMapping() {
+        var cm = firstRelational(
+                "Mapping my::M ( "
+                + "*model::Person: Relational { "
+                + "~mainTable [db::DB] T_PERSON "
+                + "name: T_PERSON.NAME, "
+                + "firm ( legalName: T_PERSON.FIRM_NAME ), "
+                + "broker() Inline[broker_set], "
+                + "+localTag: String[1]: T_PERSON.TAG "
+                + "} )");
+        assertEquals(4, cm.propertyMappings().size());
+        assertInstanceOf(PropertyMapping.Column.class,         cm.propertyMappings().get(0));
+        assertInstanceOf(PropertyMapping.Embedded.class,       cm.propertyMappings().get(1));
+        assertInstanceOf(PropertyMapping.InlineEmbedded.class, cm.propertyMappings().get(2));
+        assertInstanceOf(PropertyMapping.LocalProperty.class,  cm.propertyMappings().get(3));
+    }
+
+    // ===============================================================
+    // B.4f — Mapping test suites (raw-text capture, D-3 deferred)
+    // ===============================================================
+
+    @Test
+    void mappingWithoutTestSuitesHasNullSource() {
+        MappingDefinition md = (MappingDefinition) ElementParser.parse(
+                "Mapping my::M ( "
+                + "*model::P: Relational { ~mainTable [db::DB] T  x: T.X } "
+                + ")").elements().get(0);
+        assertNull(md.testSuitesSource());
+    }
+
+    @Test
+    void mappingTestSuitesBlockCapturedVerbatim() {
+        MappingDefinition md = (MappingDefinition) ElementParser.parse(
+                "Mapping my::M ( "
+                + "*model::P: Relational { ~mainTable [db::DB] T  x: T.X } "
+                + "testSuites: [ "
+                + "  PersonSuite: { "
+                + "    tests: [ "
+                + "      Test1: { query: |model::P.all()->graphFetch(#{ x }#) } "
+                + "    ] "
+                + "  } "
+                + "] "
+                + ")").elements().get(0);
+        assertNotNull(md.testSuitesSource());
+        assertTrue(md.testSuitesSource().contains("PersonSuite"));
+        assertTrue(md.testSuitesSource().contains("graphFetch"));
+        // Outer brackets included in capture.
+        assertTrue(md.testSuitesSource().startsWith("["));
+        assertTrue(md.testSuitesSource().endsWith("]"));
+    }
+
+    @Test
+    void mappingTestSuitesInteriorBracesBalanced() {
+        // Nested braces and brackets must balance correctly inside capture.
+        MappingDefinition md = (MappingDefinition) ElementParser.parse(
+                "Mapping my::M ( "
+                + "testSuites: [ "
+                + "  S1: { tests: [ T1: { q: |[1, 2, 3]->size() } ] } "
+                + "] "
+                + "*model::P: Relational { ~mainTable [db::DB] T  x: T.X } "
+                + ")").elements().get(0);
+        assertNotNull(md.testSuitesSource());
+        assertTrue(md.testSuitesSource().contains("[1, 2, 3]"),
+                () -> "captured: " + md.testSuitesSource());
+        // Class mapping after testSuites still parsed.
+        assertEquals(1, md.classMappings().size());
+    }
+
+    @Test
+    void mappingDuplicateTestSuitesRejected() {
+        ParseException e = assertThrows(ParseException.class, () ->
+                ElementParser.parse(
+                        "Mapping my::M ( "
+                        + "testSuites: [ A: {} ] "
+                        + "testSuites: [ B: {} ] "
+                        + ")"));
+        assertTrue(e.getMessage().toLowerCase().contains("duplicate"),
+                () -> "expected duplicate-testSuites error, got: " + e.getMessage());
+    }
+
     @Test
     void mappingTwoClassMappingsWithCommonMainTable() {
         MappingDefinition md = (MappingDefinition) ElementParser.parse(
@@ -1509,8 +2203,8 @@ final class ElementParserTest {
                 + "*model::Firm: Relational { ~mainTable [db::DB] FIRM  legalName: FIRM.LEGAL_NAME } "
                 + ")").elements().get(0);
         assertEquals(2, md.classMappings().size());
-        var first = (ClassMapping.RootRelational) md.classMappings().get(0);
-        var second = (ClassMapping.RootRelational) md.classMappings().get(1);
+        var first = (ClassMapping.Relational) md.classMappings().get(0);
+        var second = (ClassMapping.Relational) md.classMappings().get(1);
         assertEquals("model::Person", first.className());
         assertEquals("model::Firm", second.className());
     }

@@ -13,25 +13,29 @@ import java.util.Objects;
  * Consumers (NameResolver, Phase F element compilers) dispatch via pattern
  * match.
  *
- * <h2>Current scope (B.4b)</h2>
- * Only {@link RootRelational} is permitted. Later slices add:
+ * <h2>Variants</h2>
  * <ul>
- *   <li>B.4c &mdash; association mappings (live in
- *       {@link MappingDefinition#classMappings} too in engine, but our
- *       parser routes them through a different code path; revisit at B.4c).</li>
- *   <li>B.4e &mdash; {@code PureInstance} (model-to-model) and the non-root
- *       {@code Relational} variant used for embedded sub-mappings.</li>
+ *   <li>{@link Relational} (B.4b) &mdash; relational class mappings
+ *       anchored to a main table. The syntactic {@code *} prefix is
+ *       captured in the {@link Relational#root() root} flag rather than
+ *       being lifted to a separate variant &mdash; both root and non-root
+ *       relational mappings share the same field layout in lite/engine
+ *       (no distinct {@code mainTable}-less form is exposed).</li>
+ *   <li>{@link Pure} (B.4e) &mdash; model-to-model (M2M) class mappings
+ *       sourced from another Pure class. Property bodies are Pure value
+ *       expressions captured as raw text at parse time (D-1) and parsed
+ *       lazily by Phase C / Phase F.</li>
  * </ul>
  *
  * <p>Mirrors FINOS {@code legend-engine}'s {@code ClassMapping} hierarchy
  * (abstract base + {@code RelationalClassMapping} +
- * {@code RootRelationalClassMapping} + {@code PureInstanceClassMapping} + ...).
- * Where engine uses inheritance + a {@code root} boolean, we use a sealed
- * type because the root vs non-root distinction maps cleanly onto separate
- * variants (different fields are valid; e.g. non-root relational has no
- * {@code mainTable}).
+ * {@code RootRelationalClassMapping} + {@code PureInstanceClassMapping} + ...)
+ * but collapses the relational sub-hierarchy onto one variant + a {@code root}
+ * boolean to match lite/engine's surface, which never instantiates non-root
+ * relational class mappings as standalone records (they appear only as
+ * {@link PropertyMapping.Embedded} sub-mappings).
  */
-public sealed interface ClassMapping permits ClassMapping.RootRelational {
+public sealed interface ClassMapping permits ClassMapping.Relational, ClassMapping.Pure {
 
     /** Fully-qualified class name being mapped. */
     String className();
@@ -53,7 +57,7 @@ public sealed interface ClassMapping permits ClassMapping.RootRelational {
     boolean root();
 
     /**
-     * A top-level relational class mapping. Holds everything an engine
+     * A relational class mapping. Holds everything an engine
      * {@code RootRelationalClassMapping} carries:
      * <pre>
      *   *Person[setId] extends [parentId]: Relational
@@ -79,7 +83,7 @@ public sealed interface ClassMapping permits ClassMapping.RootRelational {
      * @param primaryKey        optional {@code ~primaryKey(...)} expressions
      * @param propertyMappings  per-property bindings in declaration order
      */
-    record RootRelational(
+    record Relational(
             String className,
             String setId,
             String extendsSetId,
@@ -91,7 +95,7 @@ public sealed interface ClassMapping permits ClassMapping.RootRelational {
             List<RelationalOperation> primaryKey,
             List<PropertyMapping> propertyMappings) implements ClassMapping {
 
-        public RootRelational {
+        public Relational {
             Objects.requireNonNull(className, "Class name cannot be null");
             Objects.requireNonNull(mainTable, "Main table cannot be null");
             // setId, extendsSetId, filter intentionally nullable: each is a
@@ -101,6 +105,72 @@ public sealed interface ClassMapping permits ClassMapping.RootRelational {
             groupBy = groupBy == null ? List.of() : List.copyOf(groupBy);
             primaryKey = primaryKey == null ? List.of() : List.copyOf(primaryKey);
             propertyMappings = propertyMappings == null ? List.of() : List.copyOf(propertyMappings);
+        }
+    }
+
+    /**
+     * A model-to-model (M2M) class mapping. Sources values from another Pure
+     * class via {@code $src.*} expressions rather than from a database.
+     *
+     * <p>Surface:
+     * <pre>
+     *   *target::Class[setId]: Pure
+     *   {
+     *     ~src source::Class
+     *     ~filter $src.isActive == true
+     *     propA: $src.fieldA,
+     *     propB: $src.fieldB-&gt;toUpper()
+     *   }
+     * </pre>
+     *
+     * <h2>D-1: deferred Pure-expression parsing</h2>
+     * Property bodies and the optional {@code ~filter} are full Pure value
+     * expressions. The element parser captures them as raw text
+     * ({@code filterSource}, {@code PropertyBinding.expressionSource}) and
+     * does NOT parse them. Phase C (SpecParser) parses these on demand;
+     * Phase F (ElementCompiler) type-checks them. Same pattern used for
+     * {@code FunctionDefinition.bodyText} in B.3 and constraint expressions
+     * in B.2.
+     *
+     * @param className         fully-qualified target class
+     * @param setId             optional set identifier; {@code null} for default
+     * @param extendsSetId      optional extends; {@code null} for none
+     * @param root              {@code *} prefix present
+     * @param sourceClass       fully-qualified path of the {@code ~src} class
+     * @param filterSource      raw text of the {@code ~filter} expression
+     *                          (without the {@code ~filter} keyword);
+     *                          {@code null} when no filter was written
+     * @param propertyBindings  per-property bindings in declaration order
+     */
+    record Pure(
+            String className,
+            String setId,
+            String extendsSetId,
+            boolean root,
+            String sourceClass,
+            String filterSource,
+            List<PropertyBinding> propertyBindings) implements ClassMapping {
+
+        public Pure {
+            Objects.requireNonNull(className, "Class name cannot be null");
+            Objects.requireNonNull(sourceClass, "Source class (~src) cannot be null");
+            propertyBindings = propertyBindings == null
+                    ? List.of()
+                    : List.copyOf(propertyBindings);
+        }
+
+        /**
+         * One property binding inside a {@link Pure} class mapping.
+         *
+         * @param propertyName       target property name
+         * @param expressionSource   raw text of the RHS Pure expression
+         *                           (parsed lazily by Phase C / Phase F)
+         */
+        public record PropertyBinding(String propertyName, String expressionSource) {
+            public PropertyBinding {
+                Objects.requireNonNull(propertyName, "Property name cannot be null");
+                Objects.requireNonNull(expressionSource, "Expression source cannot be null");
+            }
         }
     }
 }

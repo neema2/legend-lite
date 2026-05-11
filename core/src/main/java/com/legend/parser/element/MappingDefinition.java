@@ -29,27 +29,48 @@ import java.util.Objects;
  *   )
  * </pre>
  *
- * <h2>Sub-slice scope (B.4b)</h2>
- * This slice supports relational class mappings only. Association mappings
- * (B.4c), enumeration mappings (B.4d), M2M / Pure-instance class mappings
- * (B.4e), and mapping test suites (B.4f) parse to placeholder lists for
- * now or trigger {@code ParseException}. The {@link ClassMapping} sealed
- * interface is intentionally open so future slices add variants without
- * reshaping {@code MappingDefinition} itself.
+ * <h2>Sub-slice scope</h2>
+ * <ul>
+ *   <li>B.4b: relational class mappings ({@link ClassMapping.Relational})</li>
+ *   <li>B.4c: relational association mappings ({@link AssociationMapping.Relational})</li>
+ *   <li>B.4d: enumeration mappings ({@link EnumerationMapping})</li>
+ *   <li>B.4e &mdash; M2M / Pure-instance class mappings &mdash; deferred (will add
+ *       new {@link ClassMapping} variants)</li>
+ *   <li>B.4f: mapping test suites &mdash; captured as raw {@code testSuitesSource}
+ *       text (D-3 deferred parsing)</li>
+ * </ul>
+ * The {@link ClassMapping} and {@link AssociationMapping} sealed types are
+ * intentionally open so future slices add variants without reshaping
+ * {@code MappingDefinition} itself.
  *
- * @param qualifiedName       fully-qualified mapping name
- * @param includes            other mappings included, with optional store substitutions
- * @param classMappings       per-class mappings (currently {@link ClassMapping.RootRelational} only)
+ * @param qualifiedName        fully-qualified mapping name
+ * @param includes             other mappings included, with optional store substitutions
+ * @param classMappings        per-class mappings ({@link ClassMapping.Relational}
+ *                             in B.4b; {@link ClassMapping.Pure} added in B.4e)
+ * @param associationMappings  per-association mappings ({@link AssociationMapping.Relational}
+ *                             in B.4c)
+ * @param enumerationMappings  per-enumeration mappings (B.4d); each
+ *                             translates source values to enum members
+ * @param testSuitesSource     raw text of the {@code testSuites: [...]} block
+ *                             when present (B.4f, D-3 deferred); {@code null}
+ *                             when no test suites were declared
  */
 public record MappingDefinition(
         String qualifiedName,
         List<MappingInclude> includes,
-        List<ClassMapping> classMappings) implements PackageableElement {
+        List<ClassMapping> classMappings,
+        List<AssociationMapping> associationMappings,
+        List<EnumerationMapping> enumerationMappings,
+        String testSuitesSource) implements PackageableElement {
 
     public MappingDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
         includes = includes == null ? List.of() : List.copyOf(includes);
         classMappings = classMappings == null ? List.of() : List.copyOf(classMappings);
+        associationMappings = associationMappings == null ? List.of() : List.copyOf(associationMappings);
+        enumerationMappings = enumerationMappings == null ? List.of() : List.copyOf(enumerationMappings);
+        // testSuitesSource intentionally nullable: presence/absence with
+        // no structural variant (Phase C parses the captured text lazily).
     }
 
     /**

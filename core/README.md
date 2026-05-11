@@ -333,17 +333,30 @@ Things we deferred deliberately. Each entry: **what's deferred**, **why now**, *
 - [x] Architecture wall test (`com.legend.* ⇏ com.gs.legend.*`)
 - [ ] Phase 0: builtins
 - [x] Phase A: lexer (`Lexer` + `TokenStream` + `Token` + `TokenType`; 25 unit tests)
-- [~] Phase B: parser/element + ElementParser
+- [x] Phase B: parser/element + ElementParser **— full feature parity with `legend-lite/engine`**
   - [x] B.1: scaffolding + `Class` (imports, properties, type params, extends, native, stereotypes, tagged values; 29 unit tests)
   - [x] B.2: derived properties + constraints + `Association` + `Enum` + `Profile` (42 unit tests; lazy body text capture)
   - [x] B.3: `function` + `Service` + `Runtime` + `RelationalDatabaseConnection` (60 unit tests, 87 total; strict unknown-key handling — D-2; testSuites raw-text capture — D-3; FunctionDefinition deliberately omits engine's compiler-cache fields)
-  - [~] B.4: `Database` + `Mapping`
+  - [x] B.4: `Database` + `Mapping` (170 unit tests total in `ElementParserTest`)
     - [x] B.4a: `Database` (21 tests, 108 total) — full relational expression sub-AST: ColumnRef, TargetColumnRef, Literal, FunctionCall, Comparison, BooleanOp, IsNull, IsNotNull, Group, ArrayLiteral, JoinNavigation; full view-filter sub-AST: sealed `FilterMapping` (Direct/JoinMediated) and `FilterPointer` (Local/Cross); sliced eagerly because the relational sub-grammar is small and bounded (≠ Pure value expressions, which still defer per D-1); audit-driven cleanups closed all engine-parity gaps: D-2, D-6, D-7.
-    - [x] B.4b: `Mapping` shell + Relational class mappings (19 tests, 127 total) — `MappingDefinition` + sealed `ClassMapping` (currently permits only `RootRelational`) + sealed `PropertyMapping` (Column / EnumeratedColumn / Join / JoinTerminalColumn / Expression); mapping `~filter` reuses the sealed `FilterMapping` from B.4a; mapping-context bare identifiers resolve eagerly to the class mapping's main table at parse time (engine `ScopeInfo` parity); `extends`, `setId`, `~mainTable`, `~filter`, `~distinct`, `~groupBy`, `~primaryKey`, store substitutions in `include` brackets, multi-class mappings all supported. Deferred to later sub-slices: embedded sub-mappings, inline references, Otherwise, local mapping properties (`+prop`)
-    - [ ] B.4c: Association mappings
-    - [ ] B.4d: Enumeration mappings
-    - [ ] B.4e: M2M class mappings
-    - [ ] B.4f: Mapping test suites (parse the `testSuitesSource` captured in B.3 — closes D-3)
+    - [x] B.4b: `Mapping` shell + Relational class mappings (19 tests, 127 total) — `MappingDefinition` + sealed `ClassMapping` (permits `Relational`, `Pure`) + sealed `PropertyMapping` (Column / EnumeratedColumn / Join / JoinTerminalColumn / Expression); mapping `~filter` reuses the sealed `FilterMapping` from B.4a; mapping-context bare identifiers resolve eagerly to the class mapping's main table at parse time (engine `ScopeInfo` parity); `extends`, `setId`, `~mainTable`, `~filter`, `~distinct`, `~groupBy`, `~primaryKey`, store substitutions in `include` brackets, multi-class mappings all supported. The syntactic `*` (root marker) is captured as a `root: boolean` field on a single `Relational` variant rather than a separate `RootRelational` subtype, matching lite/engine's surface (no non-root standalone form exists).
+    - [x] B.4c: Association mappings (8 tests) — sealed `AssociationMapping` + `AssociationPropertyMapping` with per-property `[srcSetId, dstSetId]` brackets; reuses existing `PropertyMapping` variants for the body; DB-required guard surfaces missing `[db::DB]` cleanly.
+    - [x] B.4d: Enumeration mappings (10 tests) — `EnumerationMapping` + sealed `SourceValue` (StringValue / IntegerValue / EnumRef); supports optional mapping id, bracketed and unbracketed source lists, mixed string/int/cross-enum sources, trailing comma.
+    - [x] B.4e: Pure (M2M) class mappings (10 tests) — `ClassMapping.Pure` variant with raw-text capture for `~filter` and per-property RHS expressions (D-1 deferred parsing matches B.3 function bodies); nested commas in `if(...)` calls don't split bindings; mixes cleanly with Relational class mappings.
+    - [x] B.4f: Mapping test suites (4 tests) — `MappingDefinition.testSuitesSource` captures the `testSuites: [...]` block verbatim via `skipBalancedContent` + `reconstructText`; closes D-3 for `MappingDefinition` (Service still uses the same shape from B.3).
+    - [x] B.4g: Property mapping parity fillers (9 tests) — four new `PropertyMapping` variants: `Embedded` (`prop ( subs )`, recursive), `InlineEmbedded` (`prop() Inline[setId]`), `OtherwiseEmbedded` (`prop ( subs ) Otherwise ([setId]: body)`), `LocalProperty` (`+name: Type[mult]: body` with full multiplicity parsing reusing `parseMultiplicity()`); dispatched in `parsePropertyMapping` by `+` prefix or `(` after the property name. **Ahead of lite/engine** here — lite/engine lists these as `GAP` tests and parses-and-discards the data.
+
+### Phase B parity statement
+
+For every element kind that `legend-lite/engine` parses, `legend-lite/core` parses it equivalently or more strictly, and structurally captures the same data (often more — embedded / inline / otherwise / local property mappings yield first-class records in `core/`, where `engine/` discards their detail). The two intentional divergences are:
+
+1. **D-1 / D-3 deferred parsing.** Pure value expressions (function bodies, M2M property RHS, M2M `~filter`) and test suites are captured as raw text in B and parsed lazily in Phase C. `engine/` parses these eagerly via the FINOS engine grammar.
+2. **D-2 strict unknown-key handling.** `Runtime` / `Connection` / `Service` / `Mapping` bodies reject unknown keys with `ParseException` instead of silently skipping. `engine/` silently drops unknown content (including unknown mapping types like `Operation` and `AggregationAware`).
+
+Constructs that exist in upstream FINOS `legend-engine` but are **not implemented in `legend-lite/engine` either** — `Operation` (union/merge) class mappings, `AggregationAware` class mappings, Relation function class mappings, true non-root embedded `Relational` class mappings (with their own scope, distinct from `PropertyMapping.Embedded`) — are out of scope for parity. They are not regressions and not blockers for Phase C.
+
+### Remaining phases
+
 - [ ] Phase C: parser/spec + SpecParser
 - [ ] Phase D: NameResolver
 - [ ] Phase E: MappingNormalizer
