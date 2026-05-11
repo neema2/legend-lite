@@ -6,6 +6,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -218,5 +219,47 @@ final class LexerTest {
         // Negative case
         assertEquals(false, s.textEquals(0, "Classy"));
         assertEquals(false, s.textEquals(0, "Clas"));
+    }
+
+    // ----- slice ----------------------------------------------------------
+
+    @Test
+    void sliceProducesEquivalentSubStream() {
+        String src = "Class my::Foo { x: String[1]; } Class my::Bar { y: Integer[1]; }";
+        TokenStream full = Lexer.tokenize(src);
+
+        // Find the boundary: token after the first BRACE_CLOSE.
+        int boundary = -1;
+        for (int i = 0; i < full.count(); i++) {
+            if (full.type(i) == TokenType.BRACE_CLOSE) { boundary = i + 1; break; }
+        }
+        assertTrue(boundary > 0 && boundary < full.count(), "boundary token must exist");
+
+        TokenStream barSlice = full.slice(boundary, full.count());
+
+        // Slice's first token is what was at the boundary in the original.
+        assertEquals(full.type(boundary), barSlice.type(0));
+        assertEquals(full.start(boundary), barSlice.start(0),
+                "start offsets are preserved (point into the SAME source)");
+        assertEquals(full.end(boundary), barSlice.end(0));
+        assertEquals(full.count() - boundary, barSlice.count());
+        // Source string identity preserved \u2014 text(i) still works.
+        assertEquals(full.source(), barSlice.source());
+        assertTrue(barSlice.textEquals(0, "Class"));
+    }
+
+    @Test
+    void sliceEmptyRangeProducesEmptyStream() {
+        TokenStream full = Lexer.tokenize("Class my::Foo {}");
+        TokenStream empty = full.slice(2, 2);
+        assertEquals(0, empty.count());
+    }
+
+    @Test
+    void sliceOutOfBoundsThrows() {
+        TokenStream full = Lexer.tokenize("Class my::Foo {}");
+        assertThrows(IndexOutOfBoundsException.class, () -> full.slice(-1, 1));
+        assertThrows(IndexOutOfBoundsException.class, () -> full.slice(0, full.count() + 1));
+        assertThrows(IndexOutOfBoundsException.class, () -> full.slice(3, 2));
     }
 }

@@ -118,4 +118,36 @@ public final class TokenStream {
         }
         return list;
     }
+
+    /**
+     * Return a new {@code TokenStream} containing the tokens at indices
+     * {@code [fromInclusive, toExclusive)} of this stream.
+     *
+     * <p>The slice shares the original {@link #source()} string &mdash; only
+     * the small parallel arrays are copied. Token {@code start}/{@code end}
+     * offsets are preserved verbatim so they continue to index correctly into
+     * the original source (vital for error reporting that wants to print
+     * line/column from the original file).
+     *
+     * <p>Indices in the returned slice are zero-based: token formerly at
+     * index {@code fromInclusive} is now at index {@code 0}.
+     *
+     * <p>Bounds: {@code 0 <= fromInclusive <= toExclusive <= count()}.
+     * Empty slices ({@code fromInclusive == toExclusive}) are permitted and
+     * produce a {@code TokenStream} with {@code count() == 0}.
+     */
+    public TokenStream slice(int fromInclusive, int toExclusive) {
+        if (fromInclusive < 0 || toExclusive > count || fromInclusive > toExclusive) {
+            throw new IndexOutOfBoundsException(
+                    "slice(" + fromInclusive + ", " + toExclusive + ") out of bounds for count=" + count);
+        }
+        int len = toExclusive - fromInclusive;
+        int[] tSlice = new int[len];
+        int[] sSlice = new int[len];
+        int[] eSlice = new int[len];
+        System.arraycopy(types,  fromInclusive, tSlice, 0, len);
+        System.arraycopy(starts, fromInclusive, sSlice, 0, len);
+        System.arraycopy(ends,   fromInclusive, eSlice, 0, len);
+        return new TokenStream(source, len, tSlice, sSlice, eSlice);
+    }
 }

@@ -119,7 +119,14 @@ public final class ElementParser {
     // Keywords that may appear as identifiers (engine-parity set)
     // ============================================================
 
-    private static final Set<TokenType> IDENTIFIER_TOKENS;
+    /**
+     * Tokens that may stand in for an identifier in element / property
+     * contexts &mdash; includes many keywords that are nonetheless permitted
+     * as names by Pure's grammar. Exposed package-private so the shallow
+     * scanner ({@link ModelIndexer}) can recognise FQN tokens without
+     * duplicating this set.
+     */
+    static final Set<TokenType> IDENTIFIER_TOKENS;
 
     static {
         IDENTIFIER_TOKENS = EnumSet.of(
@@ -200,15 +207,53 @@ public final class ElementParser {
     // Public API
     // ============================================================
 
-    /** Tokenize and parse a Pure source string into a {@link ParsedModel}. */
+    /**
+     * Tokenize and parse a Pure source string into a {@link ParsedModel}.
+     *
+     * <p>Delegates to {@link ModelOrchestrator} so this path exercises the
+     * same demand-driven machinery as {@code resolve(fqn)} call sites,
+     * just with every FQN forced. Equivalent in result to the historical
+     * one-shot parse but goes through the index + slice + parse-single
+     * pipeline.
+     */
     public static ParsedModel parse(String source) {
-        return parse(Lexer.tokenize(source));
+        return new ModelOrchestrator(source).resolveAll();
     }
 
     /** Parse a pre-lexed token stream into a {@link ParsedModel}. */
     public static ParsedModel parse(TokenStream tokens) {
-        ElementParser parser = new ElementParser(tokens);
-        return parser.parseModel();
+        return new ModelOrchestrator(tokens).resolveAll();
+    }
+
+    /**
+     * Parse exactly one packageable element from a token-stream slice.
+     *
+     * <p>The slice is expected to contain the element's full token range
+     * (header + body) as produced by {@link ModelIndexer}; the first token
+     * must be the element's leading keyword (or {@code native} for native
+     * classes). After parsing the element the slice should be fully
+     * consumed &mdash; trailing tokens are an indexer or grammar bug and
+     * cause a {@link ParseException}.
+     *
+     * <p>Used by {@link ModelOrchestrator} for demand-driven parsing.
+     */
+    public static PackageableElement parseSingle(TokenStream slice) {
+        ElementParser parser = new ElementParser(slice);
+        PackageableElement element = parser.parseSingleElement();
+        if (!parser.atEnd()) {
+            parser.error("trailing tokens after element body: expected slice to be fully consumed");
+        }
+        return element;
+    }
+
+    /** Parse one {@code import path::* ;} statement from a token-stream slice. */
+    public static String parseSingleImport(TokenStream slice) {
+        ElementParser parser = new ElementParser(slice);
+        String imp = parser.parseImportStatement();
+        if (!parser.atEnd()) {
+            parser.error("trailing tokens after import statement");
+        }
+        return imp;
     }
 
     // ============================================================
@@ -220,33 +265,49 @@ public final class ElementParser {
         ImportScope.Builder imports = new ImportScope.Builder();
 
         while (!atEnd()) {
-            TokenType t = peek();
-            switch (t) {
-                case IMPORT -> imports.add(parseImportStatement());
-                case CLASS -> elements.add(parseClassDefinition(false));
-                case NATIVE -> {
-                    advance(); // consume 'native'
-                    if (peek() != TokenType.CLASS) {
-                        error("expected 'Class' after 'native', got " + peek() + " ('" + safeText() + "')");
-                    }
-                    elements.add(parseClassDefinition(true));
-                }
-                case ASSOCIATION -> elements.add(parseAssociation());
-                case ENUM -> elements.add(parseEnumDefinition());
-                case PROFILE -> elements.add(parseProfile());
-                case FUNCTION -> elements.add(parseFunctionDefinition());
-                case SERVICE -> elements.add(parseServiceDefinition());
-                case RUNTIME -> elements.add(parseRuntime());
-                case SINGLE_CONNECTION_RUNTIME -> elements.add(parseSingleConnectionRuntime());
-                case RELATIONAL_DATABASE_CONNECTION -> elements.add(parseConnection());
-                case DATABASE -> elements.add(parseDatabase());
-                case MAPPING -> elements.add(parseMapping());
-                default -> error("unsupported top-level keyword in Phase B.4b: "
-                        + t + " ('" + safeText() + "')");
+            if (peek() == TokenType.IMPORT) {
+                imports.add(parseImportStatement());
+            } else {
+                elements.add(parseSingleElement());
             }
         }
 
         return new ParsedModel(elements, imports.build());
+    }
+
+    /**
+     * Dispatch on the current token (an element-starting keyword) and
+     * parse exactly one packageable element. Used both by
+     * {@link #parseModel} when iterating a full file and by
+     * {@link #parseSingle} when the caller has sliced one element out via
+     * {@link ModelIndexer}.
+     */
+    private PackageableElement parseSingleElement() {
+        TokenType t = peek();
+        return switch (t) {
+            case CLASS -> parseClassDefinition(false);
+            case NATIVE -> {
+                advance(); // consume 'native'
+                if (peek() != TokenType.CLASS) {
+                    error("expected 'Class' after 'native', got " + peek() + " ('" + safeText() + "')");
+                }
+                yield parseClassDefinition(true);
+            }
+            case ASSOCIATION -> parseAssociation();
+            case ENUM -> parseEnumDefinition();
+            case PROFILE -> parseProfile();
+            case FUNCTION -> parseFunctionDefinition();
+            case SERVICE -> parseServiceDefinition();
+            case RUNTIME -> parseRuntime();
+            case SINGLE_CONNECTION_RUNTIME -> parseSingleConnectionRuntime();
+            case RELATIONAL_DATABASE_CONNECTION -> parseConnection();
+            case DATABASE -> parseDatabase();
+            case MAPPING -> parseMapping();
+            default -> {
+                error("unsupported top-level keyword: " + t + " ('" + safeText() + "')");
+                yield null; // unreachable
+            }
+        };
     }
 
     // ============================================================
@@ -2423,23 +2484,73 @@ public final class ElementParser {
 
     /** Lookahead for {@code { QN . id = STRING ...}} pattern; restores cursor on miss. */
     private boolean isTaggedValueStart() {
-        int saved = pos;
-        if (peek() != TokenType.BRACE_OPEN) return false;
-        pos++;
-        if (!IDENTIFIER_TOKENS.contains(peek())) { pos = saved; return false; }
-        while (IDENTIFIER_TOKENS.contains(peek())) {
-            pos++;
-            if (pos >= count) { pos = saved; return false; }
-            if (peek() == TokenType.PATH_SEPARATOR) pos++;
+        return looksLikeTaggedValueBlock(tokens, pos);
+    }
+
+    /**
+     * Heuristic: does the {@code {} block starting at {@code bracePos} look
+     * like a tagged-value block (e.g.
+     * {@code {meta::pure::profiles::doc.doc = 'desc'}}) rather than the
+     * element body?
+     *
+     * <p>Pattern matched: {@code '{' IDENT ('::' IDENT)* '.' IDENT '='}.
+     * Shared by the parser (which dispatches on this when consuming tagged
+     * values inline) and the shallow scanner ({@link ModelIndexer}), which
+     * needs to skip a tagged-value block to reach the FQN. <strong>Both
+     * must agree on the heuristic</strong>: if the scanner says yes but
+     * the parser says no (or vice versa), token offsets drift and
+     * downstream parses fail confusingly. Keeping the predicate in one
+     * place prevents that drift.
+     */
+    static boolean looksLikeTaggedValueBlock(TokenStream tokens, int bracePos) {
+        int n = tokens.count();
+        if (bracePos >= n || tokens.type(bracePos) != TokenType.BRACE_OPEN) return false;
+        int p = bracePos + 1;
+        if (p >= n || !IDENTIFIER_TOKENS.contains(tokens.type(p))) return false;
+        while (p < n && IDENTIFIER_TOKENS.contains(tokens.type(p))) {
+            p++;
+            if (p >= n) return false;
+            if (tokens.type(p) == TokenType.PATH_SEPARATOR) p++;
             else break;
         }
-        if (pos >= count || peek() != TokenType.DOT) { pos = saved; return false; }
-        pos++;
-        if (pos >= count || !IDENTIFIER_TOKENS.contains(peek())) { pos = saved; return false; }
-        pos++;
-        if (pos >= count || peek() != TokenType.EQUAL) { pos = saved; return false; }
-        pos = saved;
-        return true;
+        if (p >= n || tokens.type(p) != TokenType.DOT) return false;
+        p++;
+        if (p >= n || !IDENTIFIER_TOKENS.contains(tokens.type(p))) return false;
+        p++;
+        return p < n && tokens.type(p) == TokenType.EQUAL;
+    }
+
+    /**
+     * Throw a {@link ParseException} reporting the offending token's
+     * 1-indexed line and column derived from the source string. Shared so
+     * tools that produce parse errors outside an {@link ElementParser}
+     * instance &mdash; notably {@link ModelIndexer} &mdash; can attach the
+     * same location information instead of falling back to byte offsets.
+     *
+     * @param tokens   the token stream the position refers to
+     * @param tokenPos token index whose start offset becomes the error point;
+     *                 if at or past the end of the stream the error is reported
+     *                 at end-of-input
+     * @param message  human-readable message; no location suffix needed (the
+     *                 exception carries line/column separately)
+     */
+    static void throwAt(TokenStream tokens, int tokenPos, String message) {
+        int n = tokens.count();
+        int charPos;
+        if (tokenPos < n) {
+            charPos = tokens.start(tokenPos);
+        } else if (n > 0) {
+            charPos = tokens.end(n - 1);
+        } else {
+            throw new ParseException(message);
+        }
+        int line = 1, col = 0;
+        String src = tokens.source();
+        for (int i = 0; i < charPos && i < src.length(); i++) {
+            if (src.charAt(i) == '\n') { line++; col = 0; }
+            else col++;
+        }
+        throw new ParseException(message, line, col);
     }
 
     private TaggedValue parseTaggedValue() {
@@ -2511,20 +2622,6 @@ public final class ElementParser {
     }
 
     private void error(String message) {
-        int charPos;
-        if (pos < count) {
-            charPos = tokens.start(pos);
-        } else if (count > 0) {
-            charPos = tokens.end(count - 1);
-        } else {
-            throw new ParseException(message);
-        }
-        int line = 1, col = 0;
-        String src = tokens.source();
-        for (int i = 0; i < charPos && i < src.length(); i++) {
-            if (src.charAt(i) == '\n') { line++; col = 0; }
-            else col++;
-        }
-        throw new ParseException(message, line, col);
+        throwAt(tokens, pos, message);
     }
 }

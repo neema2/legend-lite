@@ -357,7 +357,17 @@ Constructs that exist in upstream FINOS `legend-engine` but are **not implemente
 
 ### Remaining phases
 
-- [ ] Phase C: parser/spec + SpecParser
+- [~] Phase C: demand-driven parsing + SpecParser
+  - [x] C.0: `ModelOrchestrator` (199 tests total; 199/199 green) &mdash; demand-driven element parsing built on top of Phase B with zero changes to the existing element parser logic.
+    - **`TokenStream.slice(from, to)`** &mdash; cheap sub-stream that preserves source-offset indices so error reporting still points into the original file (3 tests).
+    - **`ModelIndex` + `ModelIndexer`** &mdash; single-pass shallow scan over the token stream that records every declared FQN's `(kind, [startToken, endToken))` range without parsing element bodies. Handles `native Class`, function `<<stereo>>` and `{tag=...}` decorations before the FQN, `(...)`-bodied Database/Mapping, interleaved imports, and rejects duplicate FQNs (16 tests, including a property-based parity assertion that the shallow FQN set matches the eager parser's element set).
+    - **`ElementParser.parseSingle(TokenStream slice)`** &mdash; refactor that exposes single-element parsing as a public entry point. Used by the orchestrator to deep-parse one element from a sliced token range; the existing `parseModel()` is reformulated as "loop over imports + `parseSingleElement()` calls" for code reuse.
+    - **`ModelOrchestrator`** &mdash; the demand-driven entry point. Constructor lexes + shallow-scans eagerly; `resolve(fqn)` deep-parses a single element from its slice and memoises the result; `resolveAll()` forces every FQN and returns a `ParsedModel` equivalent to the historical eager parse. **Cache is pure memoization on an immutable input** &mdash; the source cannot mutate during the orchestrator's lifetime, so cache entries never need invalidation (10 tests covering cache identity, demand isolation against broken neighbours, unknown-FQN errors, `resolveAll()` ↔ per-FQN equivalence, and import handling).
+    - **`ElementParser.parse(source)` now delegates** to `new ModelOrchestrator(source).resolveAll()`, so every existing element parser test (143) exercises the demand-driven pipeline. No element parser logic changed.
+    - **Architectural payoff.** The 100K stress case in `docs/STRESS_TEST_BENCHMARKS.md` shows parse + build at 71% of cold-start (1,496 ms of 2,115 ms) with a 4 GB heap requirement. With this foundation, a query that reaches 50 of those 100K elements pays for the shallow scan (linear in source) plus deep-parse of 50 elements &mdash; not all 100K. Heap footprint shrinks proportionally because only resolved elements are held as full record graphs.
+  - [ ] C.1 &ndash; C.5: `SpecParser` &mdash; sealed `ValueSpec` AST + Pure expression grammar (literals, variables, property paths, function calls, operators, lambdas, `let`, code blocks, collections, milestoning). Standalone module taking a `String` (or `TokenStream` slice) and returning a `ValueSpec`. No coupling to the orchestrator yet.
+  - [ ] C.6: Wire `SpecParser` into `ModelOrchestrator.resolve()` so captured raw bodies (`FunctionDefinition.body`, M2M property RHS, M2M `~filter`, `MappingDefinition.testSuitesSource`) parse just-in-time into typed `ValueSpec`s. This closes D-1 and D-3.
+
 - [ ] Phase D: NameResolver
 - [ ] Phase E: MappingNormalizer
 - [ ] Phase F: ElementCompiler + compiler/element (TypedElement family)
