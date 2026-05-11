@@ -18,10 +18,13 @@ import com.legend.parser.element.DatabaseDefinition.SchemaDefinition;
 import com.legend.parser.element.DatabaseDefinition.TableDefinition;
 import com.legend.parser.element.DatabaseDefinition.ViewDefinition;
 import com.legend.parser.element.EnumDefinition;
+import com.legend.parser.element.ClassMapping;
 import com.legend.parser.element.FilterMapping;
 import com.legend.parser.element.FilterPointer;
 import com.legend.parser.element.FunctionDefinition;
 import com.legend.parser.element.JoinChainElement;
+import com.legend.parser.element.MappingDefinition;
+import com.legend.parser.element.PropertyMapping;
 import com.legend.parser.element.JsonModelConnection;
 import com.legend.parser.element.PackageableElement;
 import com.legend.parser.element.RelationalOperation;
@@ -366,12 +369,13 @@ final class ElementParserTest {
 
     @Test
     void unsupportedTopLevelKeywordFailsLoudly() {
-        // 'Mapping' is still unsupported as of B.2; B.4 will add it.
+        // 'Measure' is still unsupported as of B.4b. The dispatcher must
+        // name the offending token rather than silently skipping it.
         ParseException e = assertThrows(ParseException.class,
-                () -> ElementParser.parse("Mapping my::M ( )"));
+                () -> ElementParser.parse("Measure my::M ( )"));
         assertTrue(e.getMessage().toLowerCase().contains("unsupported"),
                 () -> "expected 'unsupported' in message, got: " + e.getMessage());
-        assertTrue(e.getMessage().contains("MAPPING"),
+        assertTrue(e.getMessage().contains("MEASURE"),
                 () -> "error should name the offending token type, got: " + e.getMessage());
     }
 
@@ -1238,5 +1242,276 @@ final class ElementParserTest {
         assertInstanceOf(ConnectionDefinition.class,  m.elements().get(5));
         assertInstanceOf(RuntimeDefinition.class,     m.elements().get(6));
         assertInstanceOf(ServiceDefinition.class,     m.elements().get(7));
+    }
+
+    // ===============================================================
+    // B.4b — Mapping (relational class mappings)
+    // ===============================================================
+
+    private static ClassMapping.RootRelational firstRelationalClassMapping(String src) {
+        MappingDefinition md = (MappingDefinition) ElementParser.parse(src).elements().get(0);
+        return (ClassMapping.RootRelational) md.classMappings().get(0);
+    }
+
+    @Test
+    void mappingEmpty() {
+        MappingDefinition md = (MappingDefinition)
+                ElementParser.parse("Mapping my::M ( )").elements().get(0);
+        assertEquals("my::M", md.qualifiedName());
+        assertTrue(md.includes().isEmpty());
+        assertTrue(md.classMappings().isEmpty());
+    }
+
+    @Test
+    void mappingIncludeWithoutSubstitutions() {
+        MappingDefinition md = (MappingDefinition)
+                ElementParser.parse("Mapping my::M ( include other::Base )").elements().get(0);
+        assertEquals(1, md.includes().size());
+        assertEquals("other::Base", md.includes().get(0).mappingPath());
+        assertTrue(md.includes().get(0).substitutions().isEmpty());
+    }
+
+    @Test
+    void mappingIncludeWithStoreSubstitutions() {
+        MappingDefinition md = (MappingDefinition)
+                ElementParser.parse(
+                        "Mapping my::M ( include other::Base "
+                        + "[ store::OldDb -> store::NewDb, store::Old2 -> store::New2 ] )")
+                .elements().get(0);
+        var subs = md.includes().get(0).substitutions();
+        assertEquals(2, subs.size());
+        assertEquals("store::OldDb", subs.get(0).originalStore());
+        assertEquals("store::NewDb", subs.get(0).replacementStore());
+        assertEquals("store::Old2", subs.get(1).originalStore());
+        assertEquals("store::New2", subs.get(1).replacementStore());
+    }
+
+    @Test
+    void relationalClassMappingMinimal() {
+        var cm = firstRelationalClassMapping(
+                "Mapping my::M ( *model::Person: Relational { ~mainTable [db::DB] PERSON } )");
+        assertEquals("model::Person", cm.className());
+        assertNull(cm.setId());
+        assertNull(cm.extendsSetId());
+        assertTrue(cm.root());
+        assertEquals(new MappingDefinition.TableReference("db::DB", "PERSON"), cm.mainTable());
+        assertNull(cm.filter());
+        assertFalse(cm.distinct());
+        assertTrue(cm.groupBy().isEmpty());
+        assertTrue(cm.primaryKey().isEmpty());
+        assertTrue(cm.propertyMappings().isEmpty());
+    }
+
+    @Test
+    void relationalClassMappingSetIdAndExtends() {
+        var cm = firstRelationalClassMapping(
+                "Mapping my::M ( model::Person[employees] extends [parentSet]: Relational "
+                + "{ ~mainTable [db::DB] PERSON } )");
+        assertEquals("employees", cm.setId());
+        assertEquals("parentSet", cm.extendsSetId());
+        assertFalse(cm.root(), "no leading * was written");
+    }
+
+    @Test
+    void relationalClassMappingMainTableWithSchema() {
+        // ~mainTable [db::DB] SCHEMA.TABLE  — schema-qualified main table
+        var cm = firstRelationalClassMapping(
+                "Mapping my::M ( *model::Person: Relational { ~mainTable [db::DB] HR.PERSON } )");
+        assertEquals("HR.PERSON", cm.mainTable().table());
+    }
+
+    @Test
+    void relationalClassMappingTildeModifiers() {
+        var cm = firstRelationalClassMapping(
+                "Mapping my::M ( *model::Person: Relational { "
+                + "~mainTable [db::DB] PERSON "
+                + "~distinct "
+                + "~groupBy(DEPT_ID) "
+                + "~primaryKey(ID) "
+                + "} )");
+        assertTrue(cm.distinct());
+        assertEquals("db::DB", ((ColumnRef) cm.groupBy().get(0)).databaseName());
+        assertEquals("PERSON", ((ColumnRef) cm.groupBy().get(0)).table());
+        assertEquals("DEPT_ID", ((ColumnRef) cm.groupBy().get(0)).column());
+        assertEquals("db::DB", ((ColumnRef) cm.primaryKey().get(0)).databaseName());
+        assertEquals("PERSON", ((ColumnRef) cm.primaryKey().get(0)).table());
+        assertEquals("ID", ((ColumnRef) cm.primaryKey().get(0)).column());
+    }
+
+    @Test
+    void relationalClassMappingFilterDirectLocal() {
+        var cm = firstRelationalClassMapping(
+                "Mapping my::M ( *model::Person: Relational { "
+                + "~mainTable [db::DB] PERSON "
+                + "~filter ActivePersonFilter "
+                + "} )");
+        var direct = (FilterMapping.Direct) cm.filter();
+        var local = (FilterPointer.Local) direct.filter();
+        assertEquals("ActivePersonFilter", local.name());
+    }
+
+    @Test
+    void relationalClassMappingFilterJoinMediated() {
+        var cm = firstRelationalClassMapping(
+                "Mapping my::M ( *model::Person: Relational { "
+                + "~mainTable [db::DB] PERSON "
+                + "~filter [db::DB] @PersonFirm | ActiveFirm "
+                + "} )");
+        var jm = (FilterMapping.JoinMediated) cm.filter();
+        assertEquals("db::DB", jm.sourceDb());
+        assertEquals(1, jm.joins().size());
+        assertEquals("PersonFirm", jm.joins().get(0).joinName());
+    }
+
+    @Test
+    void propertyMappingPlainColumn() {
+        var cm = firstRelationalClassMapping(
+                "Mapping my::M ( *model::Person: Relational { "
+                + "~mainTable [db::DB] PERSON "
+                + "firstName: PERSON.FIRST_NAME "
+                + "} )");
+        var col = (PropertyMapping.Column) cm.propertyMappings().get(0);
+        assertEquals("firstName", col.propertyName());
+        assertEquals("db::DB", col.database());
+        assertEquals("PERSON", col.table());
+        assertEquals("FIRST_NAME", col.column());
+    }
+
+    @Test
+    void propertyMappingBareIdentifierResolvesToMainTable() {
+        // FIRST_NAME (no T.) — engine ScopeInfo parity: parse-time resolves
+        // to mainTable.FIRST_NAME, not a sentinel/null table.
+        var cm = firstRelationalClassMapping(
+                "Mapping my::M ( *model::Person: Relational { "
+                + "~mainTable [db::DB] PERSON "
+                + "firstName: FIRST_NAME "
+                + "} )");
+        var expr = (PropertyMapping.Expression) cm.propertyMappings().get(0);
+        var ref = (ColumnRef) expr.expression();
+        assertEquals("db::DB", ref.databaseName());
+        assertEquals("PERSON", ref.table());
+        assertEquals("FIRST_NAME", ref.column());
+    }
+
+    @Test
+    void propertyMappingColumnWithExplicitDbOverride() {
+        var cm = firstRelationalClassMapping(
+                "Mapping my::M ( *model::Person: Relational { "
+                + "~mainTable [db::DB] PERSON "
+                + "remoteField: [other::Db] EXTRA.NAME "
+                + "} )");
+        var col = (PropertyMapping.Column) cm.propertyMappings().get(0);
+        assertEquals("other::Db", col.database(),
+                "explicit [DB] overrides the main table's database");
+        assertEquals("EXTRA", col.table());
+        assertEquals("NAME", col.column());
+    }
+
+    @Test
+    void propertyMappingEnumeratedColumn() {
+        var cm = firstRelationalClassMapping(
+                "Mapping my::M ( *model::Person: Relational { "
+                + "~mainTable [db::DB] PERSON "
+                + "status: EnumerationMapping StatusMapping : PERSON.STATUS "
+                + "} )");
+        var enumCol = (PropertyMapping.EnumeratedColumn) cm.propertyMappings().get(0);
+        assertEquals("StatusMapping", enumCol.enumMappingId());
+        assertEquals("PERSON", enumCol.table());
+        assertEquals("STATUS", enumCol.column());
+    }
+
+    @Test
+    void propertyMappingSingleHopJoin() {
+        var cm = firstRelationalClassMapping(
+                "Mapping my::M ( *model::Person: Relational { "
+                + "~mainTable [db::DB] PERSON "
+                + "firm: @Person_Firm "
+                + "} )");
+        var j = (PropertyMapping.Join) cm.propertyMappings().get(0);
+        assertEquals("db::DB", j.database());
+        assertEquals(1, j.joins().size());
+        assertEquals("Person_Firm", j.joins().get(0).joinName());
+    }
+
+    @Test
+    void propertyMappingMultiHopJoinWithTerminalColumn() {
+        var cm = firstRelationalClassMapping(
+                "Mapping my::M ( *model::Person: Relational { "
+                + "~mainTable [db::DB] PERSON "
+                + "cityName: @Person_Address > @Address_City | CITY.NAME "
+                + "} )");
+        var jt = (PropertyMapping.JoinTerminalColumn) cm.propertyMappings().get(0);
+        assertEquals(2, jt.joins().size());
+        assertEquals("Person_Address", jt.joins().get(0).joinName());
+        assertEquals("Address_City", jt.joins().get(1).joinName());
+        var ref = (ColumnRef) jt.terminalColumn();
+        assertEquals("CITY", ref.table());
+        assertEquals("NAME", ref.column());
+    }
+
+    @Test
+    void qualifiedColumnRefInsideExpressionHasNullDatabase() {
+        // Engine parity: at parse time, a qualified T.COL without an
+        // explicit [DB] qualifier leaves database null even inside a
+        // mapping body. T may live in mainTable's db OR in any included
+        // db; Phase D resolves. (The bare-id case is different: it's
+        // unambiguously the main table and IS resolved eagerly.)
+        var cm = firstRelationalClassMapping(
+                "Mapping my::M ( *model::Person: Relational { "
+                + "~mainTable [db::DB] PERSON "
+                + "fullName: concat(PERSON.FIRST_NAME, PERSON.LAST_NAME) "
+                + "} )");
+        var expr = (PropertyMapping.Expression) cm.propertyMappings().get(0);
+        var fn = (FunctionCall) expr.expression();
+        var firstArg = (ColumnRef) fn.args().get(0);
+        assertNull(firstArg.databaseName(),
+                "qualified T.COL must leave db null at parse time");
+        assertEquals("PERSON", firstArg.table());
+    }
+
+    @Test
+    void propertyMappingStructuredExpression() {
+        var cm = firstRelationalClassMapping(
+                "Mapping my::M ( *model::Person: Relational { "
+                + "~mainTable [db::DB] PERSON "
+                + "fullName: concat(PERSON.FIRST_NAME, ' ', PERSON.LAST_NAME) "
+                + "} )");
+        var expr = (PropertyMapping.Expression) cm.propertyMappings().get(0);
+        var fn = (FunctionCall) expr.expression();
+        assertEquals("concat", fn.name());
+        assertEquals(3, fn.args().size());
+    }
+
+    @Test
+    void mappingMissingMainTableThrows() {
+        ParseException e = assertThrows(ParseException.class, () ->
+                ElementParser.parse(
+                        "Mapping my::M ( *model::Person: Relational { firstName: PERSON.FIRST_NAME } )"));
+        assertTrue(e.getMessage().toLowerCase().contains("~maintable"),
+                () -> "expected error about missing ~mainTable, got: " + e.getMessage());
+    }
+
+    @Test
+    void mappingUnsupportedClassMappingTypeThrows() {
+        // 'Operation' class mappings aren't part of B.4b's scope.
+        ParseException e = assertThrows(ParseException.class, () ->
+                ElementParser.parse(
+                        "Mapping my::M ( *model::P: SomethingElse { x: 1 } )"));
+        assertTrue(e.getMessage().toLowerCase().contains("unsupported"),
+                () -> "expected 'unsupported' message, got: " + e.getMessage());
+    }
+
+    @Test
+    void mappingTwoClassMappingsWithCommonMainTable() {
+        MappingDefinition md = (MappingDefinition) ElementParser.parse(
+                "Mapping my::M ( "
+                + "*model::Person: Relational { ~mainTable [db::DB] PERSON  name: PERSON.NAME } "
+                + "*model::Firm: Relational { ~mainTable [db::DB] FIRM  legalName: FIRM.LEGAL_NAME } "
+                + ")").elements().get(0);
+        assertEquals(2, md.classMappings().size());
+        var first = (ClassMapping.RootRelational) md.classMappings().get(0);
+        var second = (ClassMapping.RootRelational) md.classMappings().get(1);
+        assertEquals("model::Person", first.className());
+        assertEquals("model::Firm", second.className());
     }
 }

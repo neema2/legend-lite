@@ -14,9 +14,12 @@ import com.legend.parser.element.ConnectionDefinition;
 import com.legend.parser.element.ConnectionSpecification;
 import com.legend.parser.element.DatabaseDefinition;
 import com.legend.parser.element.EnumDefinition;
+import com.legend.parser.element.ClassMapping;
 import com.legend.parser.element.FilterMapping;
 import com.legend.parser.element.FilterPointer;
 import com.legend.parser.element.FunctionDefinition;
+import com.legend.parser.element.MappingDefinition;
+import com.legend.parser.element.PropertyMapping;
 import com.legend.parser.element.JsonModelConnection;
 import com.legend.parser.element.PackageableElement;
 import com.legend.parser.element.JoinChainElement;
@@ -175,6 +178,15 @@ public final class ElementParser {
     private final int count;
     private int pos;
 
+    /**
+     * When non-null, parsing is inside a class mapping body and bare
+     * identifiers in relational expressions resolve eagerly to columns of
+     * this main table (matching FINOS engine's ScopeInfo behavior). When
+     * null (Database context), bare identifiers throw per D-7. Set/cleared
+     * around mapping-body parsing in {@link #parseRelationalClassMappingBody}.
+     */
+    private MappingDefinition.TableReference currentMappingScope;
+
     private ElementParser(TokenStream tokens) {
         this.tokens = tokens;
         this.count = tokens.count();
@@ -225,7 +237,8 @@ public final class ElementParser {
                 case SINGLE_CONNECTION_RUNTIME -> elements.add(parseSingleConnectionRuntime());
                 case RELATIONAL_DATABASE_CONNECTION -> elements.add(parseConnection());
                 case DATABASE -> elements.add(parseDatabase());
-                default -> error("unsupported top-level keyword in Phase B.4a: "
+                case MAPPING -> elements.add(parseMapping());
+                default -> error("unsupported top-level keyword in Phase B.4b: "
                         + t + " ('" + safeText() + "')");
             }
         }
@@ -1282,6 +1295,352 @@ public final class ElementParser {
     }
 
     // ============================================================
+    // Mapping declaration (B.4b — Relational class mappings)
+    // ============================================================
+
+    /**
+     * {@code Mapping qualifiedName ( includes? (classMapping | associationMapping
+     * | enumerationMapping | testSuites)* )}.
+     *
+     * <p>Current slice supports relational class mappings only. Encountering
+     * an association mapping, enumeration mapping, M2M (Pure-instance) class
+     * mapping, or a {@code testSuites:} block raises a {@code ParseException}
+     * naming the unsupported construct &mdash; better than silently
+     * dropping data (D-2 strictness).
+     */
+    private MappingDefinition parseMapping() {
+        expect(TokenType.MAPPING);
+        String qualifiedName = parseQualifiedName();
+        expect(TokenType.PAREN_OPEN);
+
+        List<MappingDefinition.MappingInclude> includes = new ArrayList<>();
+        List<ClassMapping> classMappings = new ArrayList<>();
+
+        while (peek() != TokenType.PAREN_CLOSE) {
+            if (peek() == TokenType.INCLUDE) {
+                advance();
+                includes.add(parseMappingInclude());
+                continue;
+            }
+            // testSuites is the only other body-start token we recognize
+            // (deferred to B.4f); everything else must be a class mapping.
+            if (IDENTIFIER_TOKENS.contains(peek()) && textEquals("testSuites")) {
+                error("Mapping test suites are not supported in B.4b "
+                        + "(deferred to sub-slice B.4f)");
+            }
+            classMappings.add(parseMappingClassMapping());
+        }
+        expect(TokenType.PAREN_CLOSE);
+        return new MappingDefinition(qualifiedName, includes, classMappings);
+    }
+
+    /**
+     * {@code includedPath ([oldStore -> newStore (, oldStore -> newStore)*])?}.
+     * The {@code include} keyword has already been consumed by the caller.
+     */
+    private MappingDefinition.MappingInclude parseMappingInclude() {
+        String includedPath = parseQualifiedName();
+        List<MappingDefinition.MappingInclude.StoreSubstitution> subs = new ArrayList<>();
+        if (peek() == TokenType.BRACKET_OPEN) {
+            advance();
+            if (peek() != TokenType.BRACKET_CLOSE) {
+                subs.add(parseStoreSubstitution());
+                while (match(TokenType.COMMA)) subs.add(parseStoreSubstitution());
+            }
+            expect(TokenType.BRACKET_CLOSE);
+        }
+        return new MappingDefinition.MappingInclude(includedPath, subs);
+    }
+
+    private MappingDefinition.MappingInclude.StoreSubstitution parseStoreSubstitution() {
+        String original = parseQualifiedName();
+        // engine grammar uses `->` between the two store names
+        if (peek() != TokenType.ARROW) {
+            error("expected '->' in store substitution but found " + peek());
+        }
+        advance();
+        String replacement = parseQualifiedName();
+        return new MappingDefinition.MappingInclude.StoreSubstitution(original, replacement);
+    }
+
+    /**
+     * Parse one class-mapping declaration:
+     * <pre>
+     *   [*]? className ([setId])? (extends [parentId])? : MappingType { body }
+     * </pre>
+     * Only {@code Relational} is supported in B.4b; other mapping types throw.
+     */
+    private ClassMapping parseMappingClassMapping() {
+        boolean root = match(TokenType.STAR);
+        String className = parseQualifiedName();
+
+        String setId = null;
+        if (peek() == TokenType.BRACKET_OPEN) {
+            advance();
+            setId = parseIdentifier();
+            expect(TokenType.BRACKET_CLOSE);
+        }
+        String extendsSetId = null;
+        if (peek() == TokenType.EXTENDS) {
+            advance();
+            expect(TokenType.BRACKET_OPEN);
+            extendsSetId = parseIdentifier();
+            expect(TokenType.BRACKET_CLOSE);
+        }
+        expect(TokenType.COLON);
+
+        TokenType mappingTypeToken = peek();
+        if (mappingTypeToken == TokenType.RELATIONAL) {
+            advance();
+            expect(TokenType.BRACE_OPEN);
+            ClassMapping cm = parseRelationalClassMappingBody(className, setId, extendsSetId, root);
+            expect(TokenType.BRACE_CLOSE);
+            return cm;
+        }
+        if (mappingTypeToken == TokenType.PURE_MAPPING) {
+            error("Pure (model-to-model) class mappings are not supported in B.4b "
+                    + "(deferred to sub-slice B.4e)");
+        }
+        // Reject anything else (Operation, AggregationAware, Relation, etc.)
+        error("unsupported class mapping type: '" + safeText() + "'");
+        throw new IllegalStateException("unreachable");
+    }
+
+    /**
+     * Parse the body of a {@code Relational} class mapping (the {@code { ... }}
+     * after the {@code : Relational} prefix). The opening brace has already
+     * been consumed by the caller; we stop at the matching close brace.
+     */
+    private ClassMapping parseRelationalClassMappingBody(
+            String className, String setId, String extendsSetId, boolean root) {
+
+        MappingDefinition.TableReference mainTable = null;
+        FilterMapping filter = null;
+        boolean distinct = false;
+        List<RelationalOperation> groupBy = new ArrayList<>();
+        List<RelationalOperation> primaryKey = new ArrayList<>();
+        List<PropertyMapping> propertyMappings = new ArrayList<>();
+
+        MappingDefinition.TableReference savedScope = currentMappingScope;
+        try {
+            while (peek() != TokenType.BRACE_CLOSE) {
+                TokenType t = peek();
+                if (t == TokenType.MAIN_TABLE_CMD) {
+                    advance();
+                    mainTable = parseMappingMainTable();
+                    currentMappingScope = mainTable;
+                    continue;
+                }
+                if (t == TokenType.FILTER_CMD) {
+                    advance();
+                    requireMainTableForScopeOp("~filter", mainTable);
+                    filter = parseViewFilterClause(mainTable.database());
+                    continue;
+                }
+                if (t == TokenType.DISTINCT_CMD) {
+                    advance();
+                    distinct = true;
+                    continue;
+                }
+                if (t == TokenType.GROUP_BY_CMD) {
+                    advance();
+                    requireMainTableForScopeOp("~groupBy", mainTable);
+                    expect(TokenType.PAREN_OPEN);
+                    if (peek() != TokenType.PAREN_CLOSE) {
+                        groupBy.add(parseDbOperation(mainTable.database()));
+                        while (match(TokenType.COMMA)) groupBy.add(parseDbOperation(mainTable.database()));
+                    }
+                    expect(TokenType.PAREN_CLOSE);
+                    continue;
+                }
+                if (t == TokenType.PRIMARY_KEY_CMD) {
+                    advance();
+                    requireMainTableForScopeOp("~primaryKey", mainTable);
+                    expect(TokenType.PAREN_OPEN);
+                    if (peek() != TokenType.PAREN_CLOSE) {
+                        primaryKey.add(parseDbOperation(mainTable.database()));
+                        while (match(TokenType.COMMA)) primaryKey.add(parseDbOperation(mainTable.database()));
+                    }
+                    expect(TokenType.PAREN_CLOSE);
+                    continue;
+                }
+                // Property mapping. Property mappings always require a main
+                // table (engine parity: ScopeInfo must be populated before
+                // property bodies parse).
+                requireMainTableForScopeOp("property mapping", mainTable);
+                propertyMappings.add(parsePropertyMapping(mainTable));
+                match(TokenType.COMMA);
+            }
+        } finally {
+            currentMappingScope = savedScope;
+        }
+
+        if (mainTable == null) {
+            error("Relational class mapping for '" + className
+                    + "' is missing required ~mainTable clause");
+        }
+        return new ClassMapping.RootRelational(
+                className, setId, extendsSetId, root,
+                mainTable, filter, distinct, groupBy, primaryKey, propertyMappings);
+    }
+
+    private void requireMainTableForScopeOp(String opName,
+                                            MappingDefinition.TableReference mainTable) {
+        if (mainTable == null) {
+            error(opName + " must follow a ~mainTable declaration");
+        }
+    }
+
+    /**
+     * Parse {@code [db::DB] TABLE_NAME} or {@code [db::DB] SCHEMA.TABLE}.
+     * The {@code ~mainTable} command has already been consumed.
+     */
+    private MappingDefinition.TableReference parseMappingMainTable() {
+        expect(TokenType.BRACKET_OPEN);
+        String db = parseQualifiedName();
+        expect(TokenType.BRACKET_CLOSE);
+        String table = parseRelationalIdentifier();
+        if (peek() == TokenType.DOT) {
+            advance();
+            table = table + "." + parseRelationalIdentifier();
+        }
+        return new MappingDefinition.TableReference(db, table);
+    }
+
+    /**
+     * Parse one property-to-source binding inside a relational class mapping.
+     * Five grammar forms collapse onto the {@link PropertyMapping} sealed
+     * type:
+     * <pre>
+     *   prop: TABLE.COL                                    → Column
+     *   prop: [db::DB] TABLE.COL                           → Column (db override)
+     *   prop: EnumerationMapping enumId : [db::DB] T.COL   → EnumeratedColumn
+     *   prop: [db::DB] @J1 > @J2                           → Join
+     *   prop: [db::DB] @J1 > @J2 | T.COL                   → JoinTerminalColumn
+     *   prop: someFunc(T.A, T.B)                           → Expression
+     * </pre>
+     */
+    private PropertyMapping parsePropertyMapping(MappingDefinition.TableReference mainTable) {
+        String propName = parseIdentifier();
+        expect(TokenType.COLON);
+
+        // Optional EnumerationMapping prefix:
+        //   prop: EnumerationMapping enumId : ...
+        String enumMappingId = null;
+        if (peek() == TokenType.ENUMERATION_MAPPING) {
+            advance();
+            enumMappingId = parseIdentifier();
+            expect(TokenType.COLON);
+        }
+
+        // Optional leading [DB] qualifier.
+        String explicitDb = null;
+        if (peek() == TokenType.BRACKET_OPEN) {
+            advance();
+            explicitDb = parseQualifiedName();
+            expect(TokenType.BRACKET_CLOSE);
+        }
+        String db = explicitDb != null ? explicitDb : mainTable.database();
+
+        // Branch by what follows the optional [DB].
+        if (peek() == TokenType.AT) {
+            // Join navigation: @J1 > @J2 ( | terminalColumn )?
+            if (enumMappingId != null) {
+                error("EnumerationMapping cannot be applied to a join property mapping");
+            }
+            List<JoinChainElement> joins = parseMappingJoinChain(db);
+            if (match(TokenType.PIPE)) {
+                RelationalOperation terminal = parseDbAtomicOperation(db);
+                return new PropertyMapping.JoinTerminalColumn(propName, db, joins, terminal);
+            }
+            return new PropertyMapping.Join(propName, db, joins);
+        }
+
+        // Column reference or structured expression.
+        // We peek a couple of tokens ahead to distinguish a simple
+        // TABLE.COL column read from a function call / expression.
+        if (looksLikeBareColumnRef()) {
+            String tablePart = parseRelationalIdentifier();
+            // Support SCHEMA.TABLE.COL — collapse first two into the table
+            // string, matching engine's TablePtr handling.
+            expect(TokenType.DOT);
+            String second = parseRelationalIdentifier();
+            String table;
+            String column;
+            if (peek() == TokenType.DOT) {
+                advance();
+                table = tablePart + "." + second;
+                column = parseRelationalIdentifier();
+            } else {
+                table = tablePart;
+                column = second;
+            }
+            if (enumMappingId != null) {
+                return new PropertyMapping.EnumeratedColumn(propName, enumMappingId, db, table, column);
+            }
+            return new PropertyMapping.Column(propName, db, table, column);
+        }
+
+        // Structured expression: parse via the existing relational
+        // expression grammar with mapping-scope bare-id resolution.
+        if (enumMappingId != null) {
+            error("EnumerationMapping with a computed expression is not supported in B.4b");
+        }
+        RelationalOperation expr = parseDbOperation(db);
+        return new PropertyMapping.Expression(propName, expr);
+    }
+
+    /**
+     * Lookahead: does the current position look like a bare {@code TABLE.COL}
+     * column reference (as opposed to a function call or a more complex
+     * expression)? A bare column ref is an identifier followed by a dot,
+     * with no parenthesis after the first identifier and no comparison
+     * operator before the dot.
+     */
+    private boolean looksLikeBareColumnRef() {
+        if (!IDENTIFIER_TOKENS.contains(peek()) && peek() != TokenType.QUOTED_STRING) {
+            return false;
+        }
+        return peek(1) == TokenType.DOT;
+    }
+
+    /**
+     * Parse a join chain in mapping property context:
+     * {@code (joinType)? @J1 ( > (joinType)? ([DB])? @Jn )*}.
+     * Per-hop optional {@code (joinType)} annotations are preserved on
+     * {@link JoinChainElement#joinType()}. Per-hop optional {@code [DB]}
+     * overrides the chain's default database.
+     */
+    private List<JoinChainElement> parseMappingJoinChain(String defaultDb) {
+        List<JoinChainElement> chain = new ArrayList<>();
+        String firstJoinType = null;
+        if (peek() == TokenType.PAREN_OPEN) {
+            advance();
+            firstJoinType = parseIdentifier();
+            expect(TokenType.PAREN_CLOSE);
+        }
+        expect(TokenType.AT);
+        chain.add(new JoinChainElement(parseIdentifier(), firstJoinType, defaultDb, false));
+        while (match(TokenType.GREATER_THAN)) {
+            String joinType = null;
+            if (peek() == TokenType.PAREN_OPEN) {
+                advance();
+                joinType = parseIdentifier();
+                expect(TokenType.PAREN_CLOSE);
+            }
+            String hopDb = defaultDb;
+            if (peek() == TokenType.BRACKET_OPEN) {
+                advance();
+                hopDb = parseQualifiedName();
+                expect(TokenType.BRACKET_CLOSE);
+            }
+            expect(TokenType.AT);
+            chain.add(new JoinChainElement(parseIdentifier(), joinType, hopDb, false));
+        }
+        return chain;
+    }
+
+    // ============================================================
     // Relational expression sub-grammar
     // ============================================================
 
@@ -1349,6 +1708,12 @@ public final class ElementParser {
             } else if (peek() == TokenType.DOT) {
                 advance();
                 String second = parseRelationalIdentifier();
+                // Qualified T.COL: database is ambiguous at parse time
+                // (T may live in the enclosing scope's database OR in any
+                // of its includes). Leave db null; Phase D resolves it
+                // using the enclosing element's scope. Matches engine,
+                // which fills in TableAlias.database during binding, not
+                // parsing.
                 if (peek() == TokenType.DOT) {
                     advance();
                     String third = parseRelationalIdentifier();
@@ -1356,16 +1721,23 @@ public final class ElementParser {
                 } else {
                     expr = new RelationalOperation.ColumnRef(null, firstId, second);
                 }
+            } else if (currentMappingScope != null) {
+                // Bare identifier in mapping context: unambiguously the
+                // class mapping's main table's column. Both table AND
+                // database are known at parse time (FINOS engine parity
+                // via ScopeInfo). Eager resolution applies only here
+                // because this is the ONLY case where parse-time info
+                // determines the database without further lookup.
+                expr = new RelationalOperation.ColumnRef(
+                        currentMappingScope.database(),
+                        currentMappingScope.table(),
+                        firstId);
             } else {
-                // Bare identifier in a Database-context expression
-                // (Filter / Join / MultiGrainFilter / view filter). FINOS
-                // engine rejects this at parse time with this exact message
+                // Database-context bare identifier (Filter / Join /
+                // MultiGrainFilter / view filter). FINOS engine rejects this
+                // at parse time with this exact message
                 // (RelationalParseTreeWalker.generateTableAlias). Match that
                 // behavior: no implicit-table column refs in the AST.
-                //
-                // Mapping-context bare identifiers (B.4b) are handled by
-                // resolving them eagerly to the class-mapping's main table at
-                // parse time, also matching engine.
                 error("Missing table or alias for column '" + firstId + "'");
                 throw new IllegalStateException("unreachable");
             }

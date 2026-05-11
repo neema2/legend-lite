@@ -64,9 +64,27 @@ public sealed interface RelationalOperation
      * <p>Result: every {@code ColumnRef} in the parser output has a
      * non-{@code null} {@code table}.
      *
-     * @param databaseName explicit {@code [DB]} qualifier; {@code null} when
-     *                     none was written (caller may inherit from the
-     *                     enclosing database or class-mapping scope)
+     * <p><strong>Parse-time database contract.</strong>
+     * {@code databaseName} is non-null <em>iff</em> the database is
+     * unambiguous from parse-time information &mdash; specifically:
+     * <ul>
+     *   <li>the user wrote an explicit {@code [DB]} qualifier, OR</li>
+     *   <li>this is a mapping-context bare identifier and resolves
+     *       unambiguously to the enclosing class mapping's main
+     *       table (which carries its own database).</li>
+     * </ul>
+     * In every other case (notably a qualified {@code T.COL} without
+     * an explicit {@code [DB]} in either Database or Mapping context),
+     * {@code databaseName} is {@code null} at parse time. The reason
+     * is that {@code T} may live in the enclosing scope's database or
+     * in any of its includes; the database is resolved by Phase D
+     * using the enclosing element's scope. This matches FINOS engine,
+     * which fills in {@code TableAlias.database} during binding, not
+     * parsing.
+     *
+     * @param databaseName the database fully resolved at parse time, or
+     *                     {@code null} when resolution requires
+     *                     scope-walk through includes (Phase D)
      * @param table        the table name (or folded {@code "SCHEMA.TABLE"});
      *                     never {@code null}
      * @param column       the column name; never {@code null}

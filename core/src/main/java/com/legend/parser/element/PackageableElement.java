@@ -32,7 +32,8 @@ public sealed interface PackageableElement
                 ServiceDefinition,
                 RuntimeDefinition,
                 ConnectionDefinition,
-                DatabaseDefinition {
+                DatabaseDefinition,
+                MappingDefinition {
 
     /** Fully qualified name, e.g. {@code "model::Person"}. The only identity. */
     String qualifiedName();
