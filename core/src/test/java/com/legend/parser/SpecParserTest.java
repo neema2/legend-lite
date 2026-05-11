@@ -2,6 +2,8 @@ package com.legend.parser;
 
 import com.legend.lexer.Lexer;
 import com.legend.lexer.TokenStream;
+import com.legend.parser.spec.AppliedFunction;
+import com.legend.parser.spec.AppliedProperty;
 import com.legend.parser.spec.CBoolean;
 import com.legend.parser.spec.CDateTime;
 import com.legend.parser.spec.CDecimal;
@@ -11,6 +13,7 @@ import com.legend.parser.spec.CLatestDate;
 import com.legend.parser.spec.CStrictDate;
 import com.legend.parser.spec.CStrictTime;
 import com.legend.parser.spec.CString;
+import com.legend.parser.spec.PackageableElementPtr;
 import com.legend.parser.spec.PureCollection;
 import com.legend.parser.spec.ValueSpecification;
 import com.legend.parser.spec.Variable;
@@ -290,6 +293,267 @@ final class SpecParserTest {
                 () -> "want trailing-tokens error, got: " + ex.getMessage());
     }
 
+    // ----- parenthesised grouping (C.2) -------------------------------
+
+    @Test
+    void parenthesisedExpressionUnwrapsToInner() {
+        // The AST carries no Grouping node \u2014 parens are pure source
+        // sugar at parse time. Pinning identity-equality with the
+        // unwrapped form would be over-specified (records don't share
+        // identity), so we pin RECORD equality to the same literal
+        // the bare form produces.
+        assertEquals(SpecParser.parse("42"), SpecParser.parse("(42)"));
+        assertEquals(SpecParser.parse("$x"), SpecParser.parse(("($x)")));
+    }
+
+    @Test
+    void parenthesisedExpressionNests() {
+        // Multiple layers of parens must all unwrap to the same AST,
+        // since none of them carry semantic info.
+        assertEquals(new CInteger(7L), SpecParser.parse("(((7)))"));
+    }
+
+    // ----- packageable element references (C.2) -----------------------
+
+    @Test
+    void bareIdentifierBecomesPackageableElementPtr() {
+        // A bare identifier at expression position is a class / element
+        // reference; PackageableElementPtr carries the source name
+        // verbatim (no FQN resolution until Phase D).
+        assertEquals(new PackageableElementPtr("Person"),
+                SpecParser.parse("Person"));
+    }
+
+    @Test
+    void qualifiedIdentifierBecomesPackageableElementPtr() {
+        assertEquals(new PackageableElementPtr("my::app::Person"),
+                SpecParser.parse("my::app::Person"));
+    }
+
+    // ----- prefix function application (C.2) --------------------------
+
+    @Test
+    void zeroArgPrefixCall() {
+        assertEquals(new AppliedFunction("now", List.of()),
+                SpecParser.parse("now()"));
+    }
+
+    @Test
+    void singleArgPrefixCall() {
+        assertEquals(new AppliedFunction("abs", List.of(new CInteger(5L))),
+                SpecParser.parse("abs(5)"));
+    }
+
+    @Test
+    void multiArgPrefixCallWithMixedKinds() {
+        assertEquals(
+                new AppliedFunction("plus", List.of(
+                        new CInteger(1L),
+                        new CFloat(2.5),
+                        new Variable("x"))),
+                SpecParser.parse("plus(1, 2.5, $x)"));
+    }
+
+    @Test
+    void qualifiedPrefixCall() {
+        // FQN preserved verbatim in AppliedFunction.function field;
+        // resolution is the next pipeline stage's job.
+        assertEquals(
+                new AppliedFunction("my::pkg::add",
+                        List.of(new CInteger(1L), new CInteger(2L))),
+                SpecParser.parse("my::pkg::add(1, 2)"));
+    }
+
+    @Test
+    void prefixCallWithNestedCall() {
+        // Args may themselves be any expression \u2014 nested calls included.
+        assertEquals(
+                new AppliedFunction("outer", List.of(
+                        new AppliedFunction("inner", List.of(new CInteger(1L))))),
+                SpecParser.parse("outer(inner(1))"));
+    }
+
+    // ----- property access (C.2) --------------------------------------
+
+    @Test
+    void singlePropertyAccess() {
+        // AppliedProperty(receiver, property) reads left-to-right like
+        // source: $x.name -> AppliedProperty($x, "name").
+        assertEquals(new AppliedProperty(new Variable("x"), "name"),
+                SpecParser.parse("$x.name"));
+    }
+
+    @Test
+    void chainedPropertyAccessIsLeftAssociative() {
+        // $x.foo.bar -> AppliedProperty(AppliedProperty($x, "foo"), "bar").
+        // Pin the nesting shape so a refactor cannot silently flip the
+        // associativity (which would be a SILENT semantic change).
+        assertEquals(
+                new AppliedProperty(
+                        new AppliedProperty(new Variable("x"), "foo"),
+                        "bar"),
+                SpecParser.parse("$x.foo.bar"));
+    }
+
+    @Test
+    void quotedPropertyNameStripsQuotesAndResolvesEscapes() {
+        // Property names with whitespace / special chars are written
+        // with single quotes; same lexical rules as a CString literal.
+        assertEquals(
+                new AppliedProperty(new Variable("x"), "My Name"),
+                SpecParser.parse("$x.'My Name'"));
+    }
+
+    // ----- method-on-receiver (C.2) -----------------------------------
+
+    @Test
+    void methodOnVariableReceiver() {
+        // $x.method(y) is sugar for method($x, y) per Pure's arrow
+        // convention; receiver lives at parameter index 0.
+        assertEquals(
+                new AppliedFunction("filter", List.of(
+                        new Variable("x"),
+                        new Variable("y"))),
+                SpecParser.parse("$x.filter($y)"));
+    }
+
+    @Test
+    void methodOnPackageableElementReceiver() {
+        // The canonical Pure entry point: Person.all() ->
+        // AppliedFunction("all", [PackageableElementPtr("Person")]).
+        assertEquals(
+                new AppliedFunction("all", List.of(
+                        new PackageableElementPtr("Person"))),
+                SpecParser.parse("Person.all()"));
+    }
+
+    // ----- arrow form (C.2) -------------------------------------------
+
+    @Test
+    void arrowFormDesugaringIsIdenticalToMethodForm() {
+        // The whole point of the AppliedFunction shape: after parsing,
+        // $x->foo(y) and $x.foo(y) MUST produce identical ASTs. This
+        // test pins the desugaring invariant so any future divergence
+        // (e.g. accidentally re-introducing a hasReceiver flag) fails
+        // here loud and clear.
+        ValueSpecification arrow = SpecParser.parse("$x->foo($y)");
+        ValueSpecification method = SpecParser.parse("$x.foo($y)");
+        assertEquals(method, arrow,
+                "$x->foo($y) and $x.foo($y) must produce equal AST");
+    }
+
+    @Test
+    void arrowChainIsLeftAssociative() {
+        // Person.all()->filter($p)->limit(10):
+        //   filter applies to all(Person), limit applies to filter(...).
+        // Chain associativity decides which call wraps which; pin it.
+        assertEquals(
+                new AppliedFunction("limit", List.of(
+                        new AppliedFunction("filter", List.of(
+                                new AppliedFunction("all", List.of(
+                                        new PackageableElementPtr("Person"))),
+                                new Variable("p"))),
+                        new CInteger(10L))),
+                SpecParser.parse("Person.all()->filter($p)->limit(10)"));
+    }
+
+    @Test
+    void arrowCallToQualifiedFunctionName() {
+        // Receiver-arrow with an FQN'd function: $x->my::pkg::fn().
+        // FQN preserved verbatim on AppliedFunction.function.
+        assertEquals(
+                new AppliedFunction("my::pkg::fn", List.of(new Variable("x"))),
+                SpecParser.parse("$x->my::pkg::fn()"));
+    }
+
+    // ----- C.2 error surfaces -----------------------------------------
+
+    @Test
+    void dotWithoutPropertyNameRejected() {
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("$x."));
+        assertTrue(ex.getMessage().contains("expected property name"),
+                () -> "want missing-property-name error, got: " + ex.getMessage());
+    }
+
+    @Test
+    void arrowWithoutFunctionNameRejected() {
+        // Disjunction would let weaker messages slip through; my parser
+        // emits BOTH substrings, so pin the exact (more specific) phrase.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("$x->"));
+        assertTrue(ex.getMessage().contains("qualified-name start"),
+                () -> "want missing-identifier error, got: " + ex.getMessage());
+    }
+
+    @Test
+    void arrowWithoutParensRejected() {
+        // '->' must be followed by 'fn(...)'. Bare '->foo' with no
+        // call-parens is malformed.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("$x->foo"));
+        assertTrue(ex.getMessage().contains("expected '(' after arrow-call"),
+                () -> "want missing-paren error, got: " + ex.getMessage());
+    }
+
+    @Test
+    void unclosedArgListRejected() {
+        // Pin the production-specific phrasing ("argument list") so this
+        // test cannot also pass for the parenthesised-expression error
+        // — the two productions emit different messages by design and
+        // we want refactor-time crosswire bugs to fail here.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("fn(1, 2"));
+        assertTrue(ex.getMessage().contains("close argument list"),
+                () -> "want missing-close error, got: " + ex.getMessage());
+    }
+
+    @Test
+    void trailingCommaInArgListRejected() {
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("fn(1, 2,)"));
+        assertTrue(ex.getMessage().contains("trailing comma"),
+                () -> "want trailing-comma error, got: " + ex.getMessage());
+    }
+
+    @Test
+    void unclosedParenthesisedExprRejected() {
+        // Sister to unclosedArgListRejected: pin the OTHER specific
+        // phrasing ("parenthesised expression") so these two negative
+        // tests cover disjoint code paths.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("(42"));
+        assertTrue(ex.getMessage().contains("close parenthesised expression"),
+                () -> "want missing-close error, got: " + ex.getMessage());
+    }
+
+    // ----- mixed postfix composition (C.2) ----------------------------
+
+    @Test
+    void dotThenArrowComposes() {
+        // $x.foo->fn() exercises the postfix loop's ability to bridge
+        // from a property access into an arrow call. Pin the resulting
+        // AST so a refactor that mishandled the receiver hand-off would
+        // fail loud (e.g. wrapping the AppliedProperty inside the
+        // function name instead of as parameter 0).
+        assertEquals(
+                new AppliedFunction("fn", List.of(
+                        new AppliedProperty(new Variable("x"), "foo"))),
+                SpecParser.parse("$x.foo->fn()"));
+    }
+
+    @Test
+    void arrowThenDotComposes() {
+        // $x->fn().bar exercises the other direction: a property access
+        // applied to the RESULT of an arrow call. The dot postfix must
+        // accept any expression as its receiver, not just primaries.
+        assertEquals(
+                new AppliedProperty(
+                        new AppliedFunction("fn", List.of(new Variable("x"))),
+                        "bar"),
+                SpecParser.parse("$x->fn().bar"));
+    }
+
     // ----- coverage gap markers (C.2+ features) -----------------------
 
     @Test
@@ -328,9 +592,12 @@ final class SpecParserTest {
         // not at offset 0 within the slice. This invariant comes from
         // TokenStream.slice (C.0); pinning it here documents the
         // cross-phase contract.
-        String src = "Class my::X { x: String[1]; }\n" + "INVALID";
+        // Use a token that's still unsupported in C.2 (operators land
+        // in C.3). '&&' lexes to TokenType.AND, which has no expression
+        // production yet, so the slice MUST error \u2014 and the error must
+        // report the ORIGINAL line 2 of the source, not slice offset 0.
+        String src = "Class my::X { x: String[1]; }\n" + "&&";
         TokenStream all = Lexer.tokenize(src);
-        // Slice covering only "INVALID" (last token).
         TokenStream slice = all.slice(all.count() - 1, all.count());
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse(slice));

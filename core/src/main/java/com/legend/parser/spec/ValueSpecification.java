@@ -43,6 +43,8 @@ package com.legend.parser.spec;
  * if/when introduced via lambda parameter annotations.
  */
 public sealed interface ValueSpecification permits
+        AppliedFunction,
+        AppliedProperty,
         CBoolean,
         CDateTime,
         CDecimal,
@@ -52,6 +54,7 @@ public sealed interface ValueSpecification permits
         CStrictDate,
         CStrictTime,
         CString,
+        PackageableElementPtr,
         PureCollection,
         Variable {
 }
