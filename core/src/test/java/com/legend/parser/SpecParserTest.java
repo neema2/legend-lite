@@ -13,6 +13,8 @@ import com.legend.parser.spec.CLatestDate;
 import com.legend.parser.spec.CStrictDate;
 import com.legend.parser.spec.CStrictTime;
 import com.legend.parser.spec.CString;
+import com.legend.parser.spec.KeyExpression;
+import com.legend.parser.spec.NewInstance;
 import com.legend.parser.spec.PackageableElementPtr;
 import com.legend.parser.spec.PureCollection;
 import com.legend.parser.spec.ValueSpecification;
@@ -554,20 +556,369 @@ final class SpecParserTest {
                 SpecParser.parse("$x->fn().bar"));
     }
 
-    // ----- coverage gap markers (C.2+ features) -----------------------
+    // ----- binary operators: arithmetic (C.3) -------------------------
 
     @Test
-    void negativeIntegerLiteralNotYetSupported() {
-        // Pure '-42' parses as unary minus applied to 42, not as a
-        // negative literal. Unary operators land in C.3, so this MUST
-        // throw in C.1. When C.3 ships, this test flips to a positive
-        // assertion on the AppliedFunction('-', [CInteger(42)]) shape
-        // — the failure is the signal that the gap closed.
+    void additionDesugarsToAppliedFunctionPlus() {
+        // Binary '+' desugars to AppliedFunction("plus", [lhs, rhs]).
+        // Pin both the function name and the parameter shape; engine
+        // uses the same name and order.
+        assertEquals(
+                new AppliedFunction("plus", List.of(
+                        new CInteger(1L), new CInteger(2L))),
+                SpecParser.parse("1 + 2"));
+    }
+
+    @Test
+    void subtractionMultiplicationDivisionUseCanonicalNames() {
+        // The operator-to-function mapping must match engine for
+        // corpus-byte-comparability: minus/times/divide (NOT
+        // sub/mul/div). One assertion per op so a typo on any single
+        // mapping fails its own test, not all of them.
+        assertEquals(
+                new AppliedFunction("minus", List.of(
+                        new CInteger(5L), new CInteger(3L))),
+                SpecParser.parse("5 - 3"));
+        assertEquals(
+                new AppliedFunction("times", List.of(
+                        new CInteger(4L), new CInteger(2L))),
+                SpecParser.parse("4 * 2"));
+        assertEquals(
+                new AppliedFunction("divide", List.of(
+                        new CInteger(10L), new CInteger(2L))),
+                SpecParser.parse("10 / 2"));
+    }
+
+    @Test
+    void sameOperatorChainsFlattenLeftAssociatively() {
+        // '1 + 2 + 3' parses as plus(plus(1, 2), 3) \u2014 left-associative
+        // same-op chaining inside a single parseArithmeticPart call.
+        // The shape would be plus(1, plus(2, 3)) if associativity were
+        // wrong; pin the nesting to catch that regression.
+        assertEquals(
+                new AppliedFunction("plus", List.of(
+                        new AppliedFunction("plus", List.of(
+                                new CInteger(1L), new CInteger(2L))),
+                        new CInteger(3L))),
+                SpecParser.parse("1 + 2 + 3"));
+    }
+
+    @Test
+    void mixedArithmeticOpsAreFlatLeftAssociative() {
+        // PURE'S GRAMMAR INVARIANT: '1 + 2 * 3' is (1+2)*3, not 1+(2*3).
+        // There is NO precedence between + and *; all arithmetic ops
+        // share one flat level. This is the most counter-intuitive
+        // grammar choice in C.3 \u2014 if a future refactor "fixed" it to
+        // standard precedence, this test fails immediately, forcing a
+        // conscious decision.
+        assertEquals(
+                new AppliedFunction("times", List.of(
+                        new AppliedFunction("plus", List.of(
+                                new CInteger(1L), new CInteger(2L))),
+                        new CInteger(3L))),
+                SpecParser.parse("1 + 2 * 3"));
+    }
+
+    @Test
+    void parensOverridePrecedence() {
+        // The user's only escape hatch from flat-left-to-right
+        // arithmetic is parentheses. Without parens, '1 + 2 * 3' is
+        // (1+2)*3; WITH '(2 * 3)' parens, it's 1 + (2*3) = plus(1,
+        // times(2,3)). Pin the override pathway.
+        assertEquals(
+                new AppliedFunction("plus", List.of(
+                        new CInteger(1L),
+                        new AppliedFunction("times", List.of(
+                                new CInteger(2L), new CInteger(3L))))),
+                SpecParser.parse("1 + (2 * 3)"));
+    }
+
+    // ----- binary operators: comparison & equality (C.3) --------------
+
+    @Test
+    void comparisonOpsUseCanonicalNames() {
+        // <, <=, >, >= \u2192 lessThan, lessThanEqual, greaterThan,
+        // greaterThanEqual. Engine names; pin one of each so the
+        // switch's arm wiring is verified.
+        assertEquals(
+                new AppliedFunction("lessThan", List.of(
+                        new CInteger(1L), new CInteger(2L))),
+                SpecParser.parse("1 < 2"));
+        assertEquals(
+                new AppliedFunction("lessThanEqual", List.of(
+                        new CInteger(1L), new CInteger(2L))),
+                SpecParser.parse("1 <= 2"));
+        assertEquals(
+                new AppliedFunction("greaterThan", List.of(
+                        new CInteger(3L), new CInteger(2L))),
+                SpecParser.parse("3 > 2"));
+        assertEquals(
+                new AppliedFunction("greaterThanEqual", List.of(
+                        new CInteger(3L), new CInteger(2L))),
+                SpecParser.parse("3 >= 2"));
+    }
+
+    @Test
+    void equalityOpsUseCanonicalNames() {
+        // == and != desugar to equal/notEqual. These are handled at the
+        // parseExpression level (between postfix and arithmetic) in
+        // Pure's grammar, so they're tested as their own case.
+        assertEquals(
+                new AppliedFunction("equal", List.of(
+                        new Variable("x"), new CInteger(1L))),
+                SpecParser.parse("$x == 1"));
+        assertEquals(
+                new AppliedFunction("notEqual", List.of(
+                        new Variable("x"), new CInteger(1L))),
+                SpecParser.parse("$x != 1"));
+    }
+
+    @Test
+    void alternateNotEqualSpellingDesugarsIdentically() {
+        // Pure spells inequality two ways: '!=' and '<>'. Both must
+        // produce the same AppliedFunction("notEqual", ...) so the
+        // model layer never has to care which form was written.
+        // A regression that handled only one form would fail here.
+        ValueSpecification bang = SpecParser.parse("$x != 1");
+        ValueSpecification angle = SpecParser.parse("$x <> 1");
+        assertEquals(bang, angle,
+                "'$x != 1' and '$x <> 1' must produce equal AST");
+        assertEquals(
+                new AppliedFunction("notEqual", List.of(
+                        new Variable("x"), new CInteger(1L))),
+                angle);
+    }
+
+    @Test
+    void equalityRightSideAcceptsArithmeticChain() {
+        // The right side of '==' is parseCombinedArithmeticOnly, so
+        // 'a == b + c' parses as equal(a, plus(b, c)), NOT as
+        // plus(equal(a, b), c). The asymmetry is intentional (Pure
+        // grammar) \u2014 left side is bare, right side allows arith.
+        assertEquals(
+                new AppliedFunction("equal", List.of(
+                        new Variable("a"),
+                        new AppliedFunction("plus", List.of(
+                                new Variable("b"), new Variable("c"))))),
+                SpecParser.parse("$a == $b + $c"));
+    }
+
+    @Test
+    void equalityBindsTighterThanArithmetic() {
+        // PURE-GRAMMAR SURPRISE: '$a + $b == $c' parses as
+        // plus($a, equal($b, $c)), NOT (plus($a, $b)) == $c.
+        // In Pure (and in engine), '==' lives at parseExpression
+        // level, which is BELOW the combined-expression arithmetic
+        // loop. When parseArithmeticPart calls parseExpression for
+        // the right operand of '+', that inner parseExpression
+        // greedily consumes the trailing '== $c'. Net effect: '=='
+        // binds TIGHTER than '+', opposite of C/Java/Python intuition.
+        //
+        // Users who want the C-like reading must write
+        // '($a + $b) == $c' explicitly. Pin the actual behaviour so
+        // a future reader cannot "fix" it without consciously breaking
+        // engine parity.
+        assertEquals(
+                new AppliedFunction("plus", List.of(
+                        new Variable("a"),
+                        new AppliedFunction("equal", List.of(
+                                new Variable("b"), new Variable("c"))))),
+                SpecParser.parse("$a + $b == $c"));
+    }
+
+    // ----- binary operators: boolean (C.3) ----------------------------
+
+    @Test
+    void booleanOpsUseCanonicalNames() {
+        // && and || desugar to 'and' and 'or' \u2014 engine names.
+        assertEquals(
+                new AppliedFunction("and", List.of(
+                        new CBoolean(true), new CBoolean(false))),
+                SpecParser.parse("true && false"));
+        assertEquals(
+                new AppliedFunction("or", List.of(
+                        new CBoolean(true), new CBoolean(false))),
+                SpecParser.parse("true || false"));
+    }
+
+    @Test
+    void booleanOpChainsLeftAssociatively() {
+        // 'a && b && c' chains via the OUTER parseCombinedExpression
+        // loop (boolean ops are at a different level than same-op
+        // arith chains, which loop inside parseArithmeticPart). Pin
+        // left-associative nesting so a regression that broke either
+        // loop's left-fold fails here.
+        assertEquals(
+                new AppliedFunction("and", List.of(
+                        new AppliedFunction("and", List.of(
+                                new Variable("a"), new Variable("b"))),
+                        new Variable("c"))),
+                SpecParser.parse("$a && $b && $c"));
+    }
+
+    @Test
+    void booleanOpsComposeWithComparisons() {
+        // Realistic Pure: '$x > 10 && $x < 20'. The arithmetic level
+        // resolves both comparisons first, then && joins them.
+        assertEquals(
+                new AppliedFunction("and", List.of(
+                        new AppliedFunction("greaterThan", List.of(
+                                new Variable("x"), new CInteger(10L))),
+                        new AppliedFunction("lessThan", List.of(
+                                new Variable("x"), new CInteger(20L))))),
+                SpecParser.parse("$x > 10 && $x < 20"));
+    }
+
+    // ----- unary operators (C.3) --------------------------------------
+
+    @Test
+    void unaryNotDesugarsToAppliedFunctionNot() {
+        assertEquals(
+                new AppliedFunction("not", List.of(new Variable("x"))),
+                SpecParser.parse("!$x"));
+    }
+
+    @Test
+    void unaryMinusBindsEntirePostfixChain() {
+        // CRITICAL: '-$x.foo' must be minus($x.foo), NOT minus($x).foo.
+        // Tests that unary's operand is parseExpression (postfix-aware)
+        // rather than parsePrimary alone. A buggy parser that bound
+        // unary too tightly would produce the wrong shape.
+        assertEquals(
+                new AppliedFunction("minus", List.of(
+                        new AppliedProperty(new Variable("x"), "foo"))),
+                SpecParser.parse("-$x.foo"));
+    }
+
+    @Test
+    void unaryPlusIsRetainedAsAppliedFunction() {
+        // Engine emits AppliedFunction("plus", [inner]) for unary '+';
+        // we match (it's a useless operator in source, but preserving
+        // it keeps round-trip parity with the engine corpus).
+        assertEquals(
+                new AppliedFunction("plus", List.of(new CInteger(42L))),
+                SpecParser.parse("+42"));
+    }
+
+    // ----- new-instance (C.3) -----------------------------------------
+
+    @Test
+    void newInstanceEmptyBindings() {
+        // ^Foo() is legal: zero property bindings, default-constructed
+        // class. Type-arguments list is empty.
+        assertEquals(
+                new NewInstance("Foo", List.of(), List.of()),
+                SpecParser.parse("^Foo()"));
+    }
+
+    @Test
+    void newInstanceWithBindings() {
+        // Source order preserved by List<KeyExpression> (this is the
+        // whole point of diverging from engine's Map-based shape).
+        assertEquals(
+                new NewInstance("Person", List.of(), List.of(
+                        new KeyExpression("name", new CString("Alice")),
+                        new KeyExpression("age", new CInteger(30L)))),
+                SpecParser.parse("^Person(name='Alice', age=30)"));
+    }
+
+    @Test
+    void newInstanceWithQualifiedClassName() {
+        assertEquals(
+                new NewInstance("my::app::Person", List.of(), List.of(
+                        new KeyExpression("name", new CString("Bob")))),
+                SpecParser.parse("^my::app::Person(name='Bob')"));
+    }
+
+    @Test
+    void newInstanceWithTypeArguments() {
+        // ^Pair<Integer, String>(...) \u2014 typeArguments captured as
+        // source-level FQN strings.
+        assertEquals(
+                new NewInstance("Pair",
+                        List.of("Integer", "String"),
+                        List.of(
+                                new KeyExpression("first", new CInteger(1L)),
+                                new KeyExpression("second", new CString("a")))),
+                SpecParser.parse("^Pair<Integer, String>(first=1, second='a')"));
+    }
+
+    @Test
+    void newInstanceBindingValueCanBeAnyExpression() {
+        // Bindings parse with parseCombinedExpression, so values can be
+        // anything: arithmetic, calls, nested new-instances, etc.
+        assertEquals(
+                new NewInstance("Box", List.of(), List.of(
+                        new KeyExpression("value",
+                                new AppliedFunction("plus", List.of(
+                                        new CInteger(1L), new CInteger(2L)))))),
+                SpecParser.parse("^Box(value=1+2)"));
+    }
+
+    @Test
+    void newInstanceMissingEqualsRejected() {
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("-42"));
-        assertTrue(ex.getMessage().contains("unsupported expression token")
-                        && ex.getMessage().contains("MINUS"),
-                () -> "want MINUS-unsupported error, got: " + ex.getMessage());
+                () -> SpecParser.parse("^Foo(x 5)"));
+        assertTrue(ex.getMessage().contains("expected '='"),
+                () -> "want missing-equals error, got: " + ex.getMessage());
+    }
+
+    @Test
+    void newInstanceTrailingCommaRejected() {
+        // Pin the production-specific phrase ("binding list") so this
+        // test cannot also pass against the collection or argument-list
+        // trailing-comma errors, all of which contain "trailing comma".
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("^Foo(x=1,)"));
+        assertTrue(ex.getMessage().contains("^NewInstance binding list"),
+                () -> "want NewInstance-specific trailing-comma error, got: "
+                        + ex.getMessage());
+    }
+
+    // ----- realistic combined forms (C.3) -----------------------------
+
+    @Test
+    void filterPredicateWithComparisonAsArrowArgument() {
+        // This is the canonical Pure query pattern from C.2 + C.3:
+        // Person.all()->filter($p.age > 21). The filter arg is a full
+        // comparison expression \u2014 verifies operators work inside
+        // function arguments via parseCombinedExpression.
+        assertEquals(
+                new AppliedFunction("filter", List.of(
+                        new AppliedFunction("all", List.of(
+                                new PackageableElementPtr("Person"))),
+                        new AppliedFunction("greaterThan", List.of(
+                                new AppliedProperty(new Variable("p"), "age"),
+                                new CInteger(21L))))),
+                SpecParser.parse("Person.all()->filter($p.age > 21)"));
+    }
+
+    @Test
+    void operatorsInsideCollectionLiteral() {
+        // [1+2, 3*4] \u2014 collection element parsing uses
+        // parseCombinedExpression so operators are admitted.
+        assertEquals(
+                new PureCollection(List.of(
+                        new AppliedFunction("plus", List.of(
+                                new CInteger(1L), new CInteger(2L))),
+                        new AppliedFunction("times", List.of(
+                                new CInteger(3L), new CInteger(4L))))),
+                SpecParser.parse("[1+2, 3*4]"));
+    }
+
+    // ----- coverage gap markers (C.3+ features) -----------------------
+
+    @Test
+    void negativeIntegerLiteralIsUnaryMinusOnLiteral() {
+        // Phase-flip from C.1/C.2: -42 was previously a parser error
+        // (unary ops deferred to C.3). With C.3 it parses as unary
+        // minus applied to the literal 42 \u2014 the standard Pure
+        // desugaring. Pinned here so a future regression that
+        // accidentally folded the sign into the literal (producing
+        // CInteger(-42L) directly) would fail loud.
+        assertEquals(
+                new AppliedFunction("minus", List.of(new CInteger(42L))),
+                SpecParser.parse("-42"));
     }
 
     @Test

@@ -14,6 +14,8 @@ import com.legend.parser.spec.CLatestDate;
 import com.legend.parser.spec.CStrictDate;
 import com.legend.parser.spec.CStrictTime;
 import com.legend.parser.spec.CString;
+import com.legend.parser.spec.KeyExpression;
+import com.legend.parser.spec.NewInstance;
 import com.legend.parser.spec.PackageableElementPtr;
 import com.legend.parser.spec.PureCollection;
 import com.legend.parser.spec.ValueSpecification;
@@ -29,7 +31,7 @@ import java.util.Objects;
  * Parser for Pure value specifications (expressions). Produces a sealed
  * {@link ValueSpecification} AST.
  *
- * <h2>Phase status &mdash; C.2 (postfix expressions)</h2>
+ * <h2>Phase status &mdash; C.3 (operators + new-instance)</h2>
  * The grammar covers:
  * <ul>
  *   <li><strong>Literals</strong> &mdash; {@link CInteger} (narrowing
@@ -72,15 +74,58 @@ import java.util.Objects;
  *       {@link AppliedFunction}'s divergence note.</li>
  * </ul>
  *
- * <p>Anything else &mdash; operators, lambdas, {@code let}, code
- * blocks, milestoning, {@code new} instances, type annotations,
- * column instances ({@code ~col}) &mdash; raises a
+ * <p>C.3 additionally recognises:
+ * <ul>
+ *   <li><strong>Binary operators</strong> desugared to
+ *       {@link AppliedFunction}: arithmetic {@code +} {@code -}
+ *       {@code *} {@code /} ({@code plus}, {@code minus},
+ *       {@code times}, {@code divide}); comparison {@code <}
+ *       {@code <=} {@code >} {@code >=} ({@code lessThan},
+ *       {@code lessThanEqual}, {@code greaterThan},
+ *       {@code greaterThanEqual}); equality {@code ==} {@code !=}
+ *       ({@code equal}, {@code notEqual}); boolean {@code &&}
+ *       {@code ||} ({@code and}, {@code or}).</li>
+ *   <li><strong>Unary operators</strong> &mdash; {@code !} ({@code not}),
+ *       unary {@code -} ({@code minus}), unary {@code +}
+ *       ({@code plus}).</li>
+ *   <li><strong>{@code ^NewInstance(...)}</strong>
+ *       ({@link NewInstance}) &mdash; struct literal with property
+ *       bindings; optional {@code <T1, T2>} type arguments before the
+ *       open paren.</li>
+ * </ul>
+ *
+ * <h3>Precedence (matching engine's {@code PureQueryParser})</h3>
+ * <p>Pure's grammar is intentionally <em>flat</em> within arithmetic:
+ * {@code 1 + 2 * 3} parses as {@code (1 + 2) * 3}, not
+ * {@code 1 + (2 * 3)}. There is no precedence distinction between
+ * {@code +} and {@code *}; same-operator chains stay together
+ * ({@code 1 + 2 + 3} chains in one node-builder call), different
+ * operators bubble up to the combined-expression loop and chain
+ * left-to-right. The structure has three nested levels:
+ * <ol>
+ *   <li>{@link #parseCombinedExpression()} &mdash; outermost.
+ *       Loops over {@code &&}/{@code ||}/arithmetic ops, building
+ *       left-associative call chains.</li>
+ *   <li>{@link #parseExpression()} &mdash; middle. Handles postfix
+ *       ({@code .}, {@code ->}) and a single trailing
+ *       {@code ==}/{@code !=} after them.</li>
+ *   <li>{@link #parseUnaryAndPrimary()} &mdash; inner. Eats unary
+ *       prefix operators ({@code !}, {@code -}, {@code +}) before
+ *       dispatching to {@link #parsePrimary()}.</li>
+ * </ol>
+ * <p>Parens, collections, and call-argument lists all parse their
+ * contents with {@link #parseCombinedExpression()} so the full
+ * operator grammar works inside.
+ *
+ * <p>Anything else &mdash; lambdas, {@code let}, code blocks,
+ * milestoning, type annotations, column instances ({@code ~col})
+ * &mdash; raises a
  * {@link ParseException} that names the unsupported construct by
  * token type. Per the AGENTS.md no-fallbacks rule, the parser never
  * silently accepts an unknown construct as something else; the error
  * lists the source line/column so callers can repair the input
- * directly. Subsequent phases (C.3 &ndash; C.5) progressively extend
- * the grammar to cover the full engine value-spec.
+ * directly. Subsequent phases (C.4, C.5) progressively extend the
+ * grammar to cover the full engine value-spec.
  *
  * <h2>Entry points</h2>
  * <ul>
@@ -123,7 +168,7 @@ public final class SpecParser {
      */
     public static ValueSpecification parse(TokenStream tokens) {
         SpecParser parser = new SpecParser(tokens);
-        ValueSpecification result = parser.parseExpression();
+        ValueSpecification result = parser.parseCombinedExpression();
         if (parser.pos < tokens.count()) {
             ElementParser.throwAt(tokens, parser.pos,
                     "trailing tokens after expression: " + tokens.type(parser.pos)
@@ -137,15 +182,37 @@ public final class SpecParser {
     // -------------------------------------------------------------------
 
     /**
-     * Parse a single expression starting at the current cursor. Splits
-     * into {@link #parsePrimary()} (literals, variables, parens,
-     * collections, qualified-name-or-prefix-call) and a postfix loop
+     * Outermost expression entry &mdash; handles {@code &&}/{@code ||}
+     * and arithmetic-style binary operators in a flat, left-associative
+     * sequence (matching Pure's grammar; see precedence note in the
+     * class Javadoc). Calls {@link #parseExpression()} for each operand.
+     */
+    private ValueSpecification parseCombinedExpression() {
+        ValueSpecification expr = parseExpression();
+        while (pos < tokens.count()) {
+            TokenType t = tokens.type(pos);
+            if (t == TokenType.AND || t == TokenType.OR) {
+                expr = parseBooleanPart(expr);
+            } else if (isArithmeticOp(t)) {
+                expr = parseArithmeticPart(expr);
+            } else {
+                break;
+            }
+        }
+        return expr;
+    }
+
+    /**
+     * Middle level: unary-then-primary, followed by a postfix loop
      * over {@code .} (property / method on receiver) and {@code ->}
-     * (arrow function call). Later phases will introduce Pratt-style
-     * precedence levels for binary operators on top of this skeleton.
+     * (arrow function call), with a single trailing {@code ==} /
+     * {@code !=} consumed at the end. The asymmetry &mdash; postfix
+     * binds tighter than {@code ==} which binds tighter than arithmetic
+     * &mdash; is Pure's grammar verbatim; see engine's
+     * {@code PureQueryParser.parseExpression} for the same shape.
      */
     private ValueSpecification parseExpression() {
-        ValueSpecification expr = parsePrimary();
+        ValueSpecification expr = parseUnaryAndPrimary();
         while (pos < tokens.count()) {
             TokenType t = tokens.type(pos);
             if (t == TokenType.DOT) {
@@ -156,7 +223,134 @@ public final class SpecParser {
                 break;
             }
         }
+        if (pos < tokens.count()) {
+            TokenType t = tokens.type(pos);
+            // Pure spells inequality two ways: '!=' (lexed as
+            // TEST_NOT_EQUAL) and '<>' (lexed as NOT_EQUAL). Both
+            // desugar to the same 'notEqual' AppliedFunction so the
+            // model layer doesn't have to know which form was written.
+            if (t == TokenType.TEST_EQUAL
+                    || t == TokenType.TEST_NOT_EQUAL
+                    || t == TokenType.NOT_EQUAL) {
+                String fn = (t == TokenType.TEST_EQUAL) ? "equal" : "notEqual";
+                pos++;
+                ValueSpecification right = parseCombinedArithmeticOnly();
+                expr = new AppliedFunction(fn, List.of(expr, right));
+            }
+        }
         return expr;
+    }
+
+    /**
+     * Inner level: zero-or-one unary prefix operator wrapping a
+     * primary. The unary call's <em>operand</em> is a full
+     * {@link #parseExpression()} (postfix-aware), so {@code -$x.foo}
+     * desugars to {@code minus($x.foo)} &mdash; the minus binds the
+     * entire property chain, not just the variable.
+     */
+    private ValueSpecification parseUnaryAndPrimary() {
+        if (pos < tokens.count()) {
+            TokenType t = tokens.type(pos);
+            if (t == TokenType.NOT) {
+                pos++;
+                return new AppliedFunction("not", List.of(parseExpression()));
+            }
+            if (t == TokenType.MINUS) {
+                pos++;
+                return new AppliedFunction("minus", List.of(parseExpression()));
+            }
+            if (t == TokenType.PLUS) {
+                pos++;
+                return new AppliedFunction("plus", List.of(parseExpression()));
+            }
+        }
+        return parsePrimary();
+    }
+
+    /**
+     * Helper used by the right-hand side of {@code ==}/{@code !=}: a
+     * single expression plus any trailing arithmetic chain (but no
+     * {@code &&}/{@code ||} &mdash; those would re-enter the
+     * combined-expression loop and never terminate the equality
+     * production).
+     */
+    private ValueSpecification parseCombinedArithmeticOnly() {
+        ValueSpecification expr = parseExpression();
+        while (pos < tokens.count() && isArithmeticOp(tokens.type(pos))) {
+            expr = parseArithmeticPart(expr);
+        }
+        return expr;
+    }
+
+    private static boolean isArithmeticOp(TokenType t) {
+        return t == TokenType.PLUS
+                || t == TokenType.MINUS
+                || t == TokenType.STAR
+                || t == TokenType.DIVIDE
+                || t == TokenType.LESS_THAN
+                || t == TokenType.LESS_OR_EQUAL
+                || t == TokenType.GREATER_THAN
+                || t == TokenType.GREATER_OR_EQUAL;
+    }
+
+    /**
+     * {@code &&} or {@code ||}, desugared to
+     * {@code and(left, right)} / {@code or(left, right)}. The right
+     * operand is parsed via {@link #parseCombinedArithmeticOnly()} so
+     * the boolean operator binds <em>looser</em> than arithmetic but
+     * <em>tighter</em> than no operator at all &mdash; matching
+     * engine's grammar.
+     */
+    private AppliedFunction parseBooleanPart(ValueSpecification left) {
+        TokenType t = tokens.type(pos);
+        String fn = (t == TokenType.AND) ? "and" : "or";
+        pos++;
+        ValueSpecification right = parseCombinedArithmeticOnly();
+        return new AppliedFunction(fn, List.of(left, right));
+    }
+
+    /**
+     * Arithmetic and comparison operators desugared to
+     * {@link AppliedFunction}s. Pure's grammar treats all of
+     * {@code +}, {@code -}, {@code *}, {@code /}, {@code <},
+     * {@code <=}, {@code >}, {@code >=} as a single flat precedence
+     * level &mdash; there is no {@code *} binding tighter than
+     * {@code +}. Same-operator runs ({@code 1 + 2 + 3}) are flattened
+     * into a chain of same-named {@link AppliedFunction}s; different
+     * operators ({@code 1 + 2 * 3}) leave this method and re-enter via
+     * the {@link #parseCombinedExpression()} loop, yielding
+     * {@code times(plus(1, 2), 3)} &mdash; left-associative across
+     * operator kinds.
+     */
+    private AppliedFunction parseArithmeticPart(ValueSpecification left) {
+        TokenType op = tokens.type(pos);
+        String fn = switch (op) {
+            case PLUS -> "plus";
+            case MINUS -> "minus";
+            case STAR -> "times";
+            case DIVIDE -> "divide";
+            case LESS_THAN -> "lessThan";
+            case LESS_OR_EQUAL -> "lessThanEqual";
+            case GREATER_THAN -> "greaterThan";
+            case GREATER_OR_EQUAL -> "greaterThanEqual";
+            default -> throw new IllegalStateException(
+                    "parseArithmeticPart invoked on non-arithmetic token: " + op);
+        };
+        pos++;
+        ValueSpecification right = parseExpression();
+        AppliedFunction result = new AppliedFunction(fn, List.of(left, right));
+        // Same-operator chaining is only meaningful for the binary
+        // arithmetic ops; comparison ops do not chain ('a < b < c' is
+        // not legal Pure).
+        if (op == TokenType.PLUS || op == TokenType.MINUS
+                || op == TokenType.STAR || op == TokenType.DIVIDE) {
+            while (pos < tokens.count() && tokens.type(pos) == op) {
+                pos++;
+                right = parseExpression();
+                result = new AppliedFunction(fn, List.of(result, right));
+            }
+        }
+        return result;
     }
 
     /**
@@ -186,6 +380,7 @@ public final class SpecParser {
             case DOLLAR -> parseVariable();
             case BRACKET_OPEN -> parseCollection();
             case PAREN_OPEN -> parseParenthesised();
+            case NEW_SYMBOL -> parseNewInstance();
             default -> {
                 if (ElementParser.IDENTIFIER_TOKENS.contains(t)) {
                     yield parseQualifiedNameStart();
@@ -374,14 +569,14 @@ public final class SpecParser {
             pos++;
             return new PureCollection(values);
         }
-        values.add(parseExpression());
+        values.add(parseCombinedExpression());
         while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
             pos++; // consume ','
             if (pos < tokens.count() && tokens.type(pos) == TokenType.BRACKET_CLOSE) {
                 ElementParser.throwAt(tokens, pos,
                         "trailing comma in collection literal");
             }
-            values.add(parseExpression());
+            values.add(parseCombinedExpression());
         }
         if (pos >= tokens.count() || tokens.type(pos) != TokenType.BRACKET_CLOSE) {
             ElementParser.throwAt(tokens, pos,
@@ -404,7 +599,11 @@ public final class SpecParser {
      */
     private ValueSpecification parseParenthesised() {
         pos++; // consume '('
-        ValueSpecification inner = parseExpression();
+        // parseCombinedExpression (not parseExpression) so the full
+        // operator grammar works inside parens — this is what gives
+        // users a way to override Pure's flat-arithmetic precedence,
+        // e.g. '1 + (2 * 3)' to force right-side grouping.
+        ValueSpecification inner = parseCombinedExpression();
         if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_CLOSE) {
             ElementParser.throwAt(tokens, pos,
                     "expected ')' to close parenthesised expression");
@@ -583,20 +782,117 @@ public final class SpecParser {
             pos++;
             return args;
         }
-        args.add(parseExpression());
+        args.add(parseCombinedExpression());
         while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
             pos++; // consume ','
             if (pos < tokens.count() && tokens.type(pos) == TokenType.PAREN_CLOSE) {
                 ElementParser.throwAt(tokens, pos,
                         "trailing comma in argument list");
             }
-            args.add(parseExpression());
+            args.add(parseCombinedExpression());
         }
         if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_CLOSE) {
             ElementParser.throwAt(tokens, pos,
                     "expected ')' to close argument list");
         }
         pos++; // consume ')'
+        return args;
+    }
+
+    // -------------------------------------------------------------------
+    // New-instance: ^my::pkg::Class<T1, T2>(prop1=val1, prop2=val2)
+    // -------------------------------------------------------------------
+
+    /**
+     * Parse a {@code ^}-prefixed struct literal. Pre-condition: cursor
+     * is on {@code NEW_SYMBOL}. Grammar:
+     * <pre>
+     *   newInstance = '^' qualifiedName typeArguments? '(' keyBindings? ')'
+     *   typeArguments = '&lt;' qualifiedName (',' qualifiedName)* '&gt;'
+     *   keyBindings   = keyExpression (',' keyExpression)*
+     *   keyExpression = identifier '=' combinedExpression
+     * </pre>
+     *
+     * <p>The empty form {@code ^Foo()} is legal (zero bindings) and
+     * compiles to a default-constructed instance. Trailing commas in
+     * the binding list are rejected, matching the {@link #parseArgList()}
+     * and {@link #parseCollection()} conventions.
+     *
+     * <p>Type arguments are stored as source-level FQN strings. Nested
+     * generics ({@code ^List&lt;Pair&lt;A, B&gt;&gt;(...)}) require lexing
+     * {@code >>} as two tokens (which the lexer does), but the current
+     * parser only consumes one level of {@code <...>}. Real corpora can
+     * extend this when needed; the {@link NewInstance#typeArguments()}
+     * field is already in place.
+     */
+    private NewInstance parseNewInstance() {
+        pos++; // consume '^'
+        String className = parseQualifiedName();
+        List<String> typeArgs = List.of();
+        if (pos < tokens.count() && tokens.type(pos) == TokenType.LESS_THAN) {
+            typeArgs = parseTypeArguments();
+        }
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_OPEN) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected '(' after class name in ^NewInstance");
+        }
+        pos++; // consume '('
+        List<KeyExpression> bindings = new ArrayList<>();
+        if (pos < tokens.count() && tokens.type(pos) == TokenType.PAREN_CLOSE) {
+            pos++;
+            return new NewInstance(className, typeArgs, bindings);
+        }
+        bindings.add(parseKeyExpression());
+        while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
+            pos++; // consume ','
+            if (pos < tokens.count() && tokens.type(pos) == TokenType.PAREN_CLOSE) {
+                ElementParser.throwAt(tokens, pos,
+                        "trailing comma in ^NewInstance binding list");
+            }
+            bindings.add(parseKeyExpression());
+        }
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_CLOSE) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected ')' to close ^NewInstance");
+        }
+        pos++; // consume ')'
+        return new NewInstance(className, typeArgs, bindings);
+    }
+
+    private KeyExpression parseKeyExpression() {
+        if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected property name in ^NewInstance binding");
+        }
+        String key = tokens.text(pos);
+        pos++;
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.EQUAL) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected '=' after property name '" + key
+                    + "' in ^NewInstance binding");
+        }
+        pos++; // consume '='
+        ValueSpecification value = parseCombinedExpression();
+        return new KeyExpression(key, value);
+    }
+
+    private List<String> parseTypeArguments() {
+        pos++; // consume '<'
+        List<String> args = new ArrayList<>();
+        if (pos < tokens.count() && tokens.type(pos) == TokenType.GREATER_THAN) {
+            pos++;
+            return args;
+        }
+        args.add(parseQualifiedName());
+        while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
+            pos++; // consume ','
+            args.add(parseQualifiedName());
+        }
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.GREATER_THAN) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected '>' to close type arguments");
+        }
+        pos++; // consume '>'
         return args;
     }
 
