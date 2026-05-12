@@ -25,7 +25,9 @@ import com.legend.parser.spec.Variable;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -1007,28 +1009,55 @@ public final class SpecParser {
     // -------------------------------------------------------------------
 
     /**
-     * Parse a {@code ^}-prefixed struct literal. Pre-condition: cursor
-     * is on {@code NEW_SYMBOL}. Grammar:
+     * Parse a {@code ^}-prefixed struct literal and desugar to a
+     * function call. Pre-condition: cursor is on {@code NEW_SYMBOL}.
+     * Grammar:
      * <pre>
      *   newInstance = '^' qualifiedName typeArguments? '(' keyBindings? ')'
      *   typeArguments = '&lt;' qualifiedName (',' qualifiedName)* '&gt;'
      *   keyBindings   = keyExpression (',' keyExpression)*
-     *   keyExpression = identifier '=' combinedExpression
+     *   keyExpression = identifier ('=' | '+=') combinedExpression
      * </pre>
+     *
+     * <h3>Desugar shape</h3>
+     *
+     * <p>The surface {@code ^Foo(x=1)} desugars at parse time to:
+     * <pre>
+     *   AppliedFunction("new", [
+     *     PackageableElementPtr("Foo"),
+     *     NewInstance("Foo", [], {x -&gt; KeyExpression(CInteger(1), false)})
+     *   ])
+     * </pre>
+     * Matches engine-lite's parse-time representation
+     * ({@code PureQueryParser.parseExpressionInstance}). The outer
+     * {@link AppliedFunction} wrapper makes new-expressions slot into
+     * the uniform function-dispatch pipeline (typechecker, scope
+     * registration, codegen all dispatch on function name); the inner
+     * {@link NewInstance} record carries the named-binding data that a
+     * positional-arg function call cannot express.
+     *
+     * <p>This mirrors how {@code let x = v} desugars to
+     * {@code AppliedFunction("letFunction", ...)} (see
+     * {@link #parseLetExpression()}): both are stdlib functions whose
+     * surface syntax is sugar. Pure's stdlib has
+     * {@code new_Class_1__String_1__KeyExpression_MANY__T_1_} as a
+     * real callable function; {@code ^Foo(...)} is sugar for invoking
+     * it.
      *
      * <p>The empty form {@code ^Foo()} is legal (zero bindings) and
      * compiles to a default-constructed instance. Trailing commas in
-     * the binding list are rejected, matching the {@link #parseArgList()}
-     * and {@link #parseCollection()} conventions.
+     * the binding list are rejected, matching the
+     * {@link #parseArgList()} and {@link #parseCollection()}
+     * conventions.
      *
      * <p>Type arguments are stored as source-level FQN strings. Nested
-     * generics ({@code ^List&lt;Pair&lt;A, B&gt;&gt;(...)}) require lexing
-     * {@code >>} as two tokens (which the lexer does), but the current
-     * parser only consumes one level of {@code <...>}. Real corpora can
-     * extend this when needed; the {@link NewInstance#typeArguments()}
-     * field is already in place.
+     * generics ({@code ^List&lt;Pair&lt;A, B&gt;&gt;(...)}) require
+     * lexing {@code >>} as two tokens (which the lexer does), but the
+     * current parser only consumes one level of {@code <...>}. Real
+     * corpora can extend this when needed; the
+     * {@link NewInstance#typeArguments()} field is already in place.
      */
-    private NewInstance parseNewInstance() {
+    private AppliedFunction parseNewInstance() {
         pos++; // consume '^'
         String className = parseQualifiedName();
         List<String> typeArgs = List.of();
@@ -1040,43 +1069,82 @@ public final class SpecParser {
                     "expected '(' after class name in ^NewInstance");
         }
         pos++; // consume '('
-        List<KeyExpression> bindings = new ArrayList<>();
+        // LinkedHashMap to preserve source order for the small
+        // observable cases (debug pretty-printers, AST dumps);
+        // duplicate keys silently last-win matching engine-lite.
+        Map<String, KeyExpression> properties = new LinkedHashMap<>();
         if (pos < tokens.count() && tokens.type(pos) == TokenType.PAREN_CLOSE) {
             pos++;
-            return new NewInstance(className, typeArgs, bindings);
+            return wrapNewInstance(className, typeArgs, properties);
         }
-        bindings.add(parseKeyExpression());
+        parseAndPutKeyExpression(properties);
         while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
             pos++; // consume ','
             if (pos < tokens.count() && tokens.type(pos) == TokenType.PAREN_CLOSE) {
                 ElementParser.throwAt(tokens, pos,
                         "trailing comma in ^NewInstance binding list");
             }
-            bindings.add(parseKeyExpression());
+            parseAndPutKeyExpression(properties);
         }
         if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_CLOSE) {
             ElementParser.throwAt(tokens, pos,
                     "expected ')' to close ^NewInstance");
         }
         pos++; // consume ')'
-        return new NewInstance(className, typeArgs, bindings);
+        return wrapNewInstance(className, typeArgs, properties);
     }
 
-    private KeyExpression parseKeyExpression() {
+    /**
+     * Build the {@code AppliedFunction("new", [PE, NewInstance])}
+     * wrapper around a parsed {@link NewInstance} payload. Factored
+     * out because both the empty-bindings and the populated-bindings
+     * paths in {@link #parseNewInstance()} produce the same shape.
+     */
+    private AppliedFunction wrapNewInstance(
+            String className,
+            List<String> typeArgs,
+            Map<String, KeyExpression> properties) {
+        return new AppliedFunction(
+                "new",
+                List.of(
+                        new PackageableElementPtr(className),
+                        new NewInstance(className, typeArgs, properties)));
+    }
+
+    /**
+     * Parse one {@code key (= | +=) value} binding and insert into
+     * the accumulating map. The {@code +=} variant sets
+     * {@link KeyExpression#isAdd()} to {@code true} so the typechecker
+     * can distinguish the append form from the assign form
+     * downstream.
+     *
+     * <p>Duplicate-key behaviour: {@link Map#put} silently overwrites,
+     * matching engine-lite. Engine-pure also accepts duplicates
+     * (verified in {@code NewValidator} which iterates bindings but
+     * never tracks seen keys), so the silent last-wins is
+     * cross-engine-consistent.
+     */
+    private void parseAndPutKeyExpression(Map<String, KeyExpression> properties) {
         if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
             ElementParser.throwAt(tokens, pos,
                     "expected property name in ^NewInstance binding");
         }
         String key = tokens.text(pos);
         pos++;
+        boolean isAdd = false;
+        if (pos < tokens.count() && tokens.type(pos) == TokenType.PLUS) {
+            isAdd = true;
+            pos++; // consume '+'
+        }
         if (pos >= tokens.count() || tokens.type(pos) != TokenType.EQUAL) {
             ElementParser.throwAt(tokens, pos,
-                    "expected '=' after property name '" + key
+                    "expected '" + (isAdd ? "+=" : "=")
+                    + "' after property name '" + key
                     + "' in ^NewInstance binding");
         }
         pos++; // consume '='
         ValueSpecification value = parseCombinedExpression();
-        return new KeyExpression(key, value);
+        properties.put(key, new KeyExpression(value, isAdd));
     }
 
     private List<String> parseTypeArguments() {

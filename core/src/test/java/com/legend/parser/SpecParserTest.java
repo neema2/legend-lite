@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -803,44 +804,67 @@ final class SpecParserTest {
 
     // ----- new-instance (C.3) -----------------------------------------
 
+    // The C.3 shape was bare NewInstance; the C.4-followup analysis
+    // (engine-lite parity + 'everything is a function' uniformity)
+    // moved this to AppliedFunction("new", [PE, NewInstance]) and
+    // switched bindings from List<KeyExpression> to
+    // Map<String, KeyExpression> with the isAdd flag preserved.
+
     @Test
-    void newInstanceEmptyBindings() {
+    void newInstanceDesugarsToNewFunctionCall() {
         // ^Foo() is legal: zero property bindings, default-constructed
-        // class. Type-arguments list is empty.
+        // class. The outer AppliedFunction("new", ...) is the desugar
+        // wrapper; the inner NewInstance carries the structured
+        // payload. Engine-lite's parseExpressionInstance produces the
+        // identical shape \u2014 verified by inspection.
         assertEquals(
-                new NewInstance("Foo", List.of(), List.of()),
+                new AppliedFunction("new", List.of(
+                        new PackageableElementPtr("Foo"),
+                        new NewInstance("Foo", List.of(), Map.of()))),
                 SpecParser.parse("^Foo()"));
     }
 
     @Test
     void newInstanceWithBindings() {
-        // Source order preserved by List<KeyExpression> (this is the
-        // whole point of diverging from engine's Map-based shape).
+        // Properties as Map<String, KeyExpression>. Each binding is
+        // wrapped in a KeyExpression carrying the value plus an
+        // isAdd=false flag (this is the '=' form, not '+=').
         assertEquals(
-                new NewInstance("Person", List.of(), List.of(
-                        new KeyExpression("name", new CString("Alice")),
-                        new KeyExpression("age", new CInteger(30L)))),
+                new AppliedFunction("new", List.of(
+                        new PackageableElementPtr("Person"),
+                        new NewInstance("Person", List.of(), Map.of(
+                                "name", new KeyExpression(new CString("Alice")),
+                                "age", new KeyExpression(new CInteger(30L)))))),
                 SpecParser.parse("^Person(name='Alice', age=30)"));
     }
 
     @Test
     void newInstanceWithQualifiedClassName() {
+        // Both occurrences of the className \u2014 in the PE wrapper and
+        // in NewInstance.className \u2014 carry the same source-level
+        // FQN. Engine-lite duplicates them likewise; the PE is the
+        // type-system entry point, the NewInstance.className is the
+        // class to instantiate.
         assertEquals(
-                new NewInstance("my::app::Person", List.of(), List.of(
-                        new KeyExpression("name", new CString("Bob")))),
+                new AppliedFunction("new", List.of(
+                        new PackageableElementPtr("my::app::Person"),
+                        new NewInstance("my::app::Person", List.of(), Map.of(
+                                "name", new KeyExpression(new CString("Bob")))))),
                 SpecParser.parse("^my::app::Person(name='Bob')"));
     }
 
     @Test
     void newInstanceWithTypeArguments() {
-        // ^Pair<Integer, String>(...) \u2014 typeArguments captured as
-        // source-level FQN strings.
+        // ^Pair<Integer, String>(...) \u2014 type arguments captured as
+        // source-level FQN strings, stored on the inner NewInstance.
         assertEquals(
-                new NewInstance("Pair",
-                        List.of("Integer", "String"),
-                        List.of(
-                                new KeyExpression("first", new CInteger(1L)),
-                                new KeyExpression("second", new CString("a")))),
+                new AppliedFunction("new", List.of(
+                        new PackageableElementPtr("Pair"),
+                        new NewInstance("Pair",
+                                List.of("Integer", "String"),
+                                Map.of(
+                                        "first", new KeyExpression(new CInteger(1L)),
+                                        "second", new KeyExpression(new CString("a")))))),
                 SpecParser.parse("^Pair<Integer, String>(first=1, second='a')"));
     }
 
@@ -849,11 +873,55 @@ final class SpecParserTest {
         // Bindings parse with parseCombinedExpression, so values can be
         // anything: arithmetic, calls, nested new-instances, etc.
         assertEquals(
-                new NewInstance("Box", List.of(), List.of(
-                        new KeyExpression("value",
-                                new AppliedFunction("plus", List.of(
-                                        new CInteger(1L), new CInteger(2L)))))),
+                new AppliedFunction("new", List.of(
+                        new PackageableElementPtr("Box"),
+                        new NewInstance("Box", List.of(), Map.of(
+                                "value", new KeyExpression(
+                                        new AppliedFunction("plus", List.of(
+                                                new CInteger(1L), new CInteger(2L))))))
+                )),
                 SpecParser.parse("^Box(value=1+2)"));
+    }
+
+    @Test
+    void newInstancePlusEqualsPreservesIsAddFlag() {
+        // 'prop += val' is the append-to-collection form, semantically
+        // distinct from 'prop = val' (assign). Engine-pure carries
+        // this distinction via KeyExpression._add(boolean); engine-lite
+        // silently discards the leading '+' (a latent bug in lite that
+        // we deliberately do NOT inherit). The parser preserves the
+        // distinction so the typechecker / downstream codegen can
+        // emit the correct semantics.
+        //
+        // Mixed-form binding pinned by record equality: 'name=' has
+        // isAdd=false, 'tags+=' has isAdd=true.
+        assertEquals(
+                new AppliedFunction("new", List.of(
+                        new PackageableElementPtr("Person"),
+                        new NewInstance("Person", List.of(), Map.of(
+                                "name", new KeyExpression(
+                                        new CString("Alice"), false),
+                                "tags", new KeyExpression(
+                                        new CString("admin"), true))))),
+                SpecParser.parse("^Person(name='Alice', tags+='admin')"));
+    }
+
+    @Test
+    void newInstanceDuplicateKeySilentlyLastWins() {
+        // Pin engine-cross-consistent behaviour: ^Foo(x=1, x=2)
+        // produces ONE binding {x -> KeyExpression(2, false)}; the
+        // first is silently dropped via Map.put. Engine-lite does the
+        // same (also Map-based); engine-pure keeps both in a list but
+        // its validator iterates without tracking duplicates, so the
+        // observable behaviour is also last-wins. Documented here so
+        // a future change to a stricter parse-time validator would
+        // flip this test loudly.
+        assertEquals(
+                new AppliedFunction("new", List.of(
+                        new PackageableElementPtr("Foo"),
+                        new NewInstance("Foo", List.of(), Map.of(
+                                "x", new KeyExpression(new CInteger(2L)))))),
+                SpecParser.parse("^Foo(x=1, x=2)"));
     }
 
     @Test
