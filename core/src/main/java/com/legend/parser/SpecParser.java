@@ -16,6 +16,7 @@ import com.legend.parser.spec.CStrictTime;
 import com.legend.parser.spec.CString;
 import com.legend.parser.spec.KeyExpression;
 import com.legend.parser.spec.LambdaFunction;
+import com.legend.parser.spec.Multiplicity;
 import com.legend.parser.spec.NewInstance;
 import com.legend.parser.spec.PackageableElementPtr;
 import com.legend.parser.spec.PureCollection;
@@ -34,7 +35,7 @@ import java.util.Objects;
  * Parser for Pure value specifications (expressions). Produces a sealed
  * {@link ValueSpecification} AST.
  *
- * <h2>Phase status &mdash; C.4 (lambdas, let, code blocks)</h2>
+ * <h2>Phase status &mdash; C.5 (typed lambda params + multiplicity)</h2>
  * The grammar covers:
  * <ul>
  *   <li><strong>Literals</strong> &mdash; {@link CInteger} (narrowing
@@ -152,8 +153,8 @@ import java.util.Objects;
  * contents with {@link #parseCombinedExpression()} so the full
  * operator grammar works inside.
  *
- * <p>Anything else &mdash; milestoning, type annotations, column
- * instances ({@code ~col}), typed lambda parameters &mdash; raises a
+ * <p>Anything else &mdash; milestoning, type annotations
+ * ({@code @Type}), column instances ({@code ~col}) &mdash; raises a
  * {@link ParseException} that names the unsupported construct by
  * token type. Per the AGENTS.md no-fallbacks rule, the parser never
  * silently accepts an unknown construct as something else; the error
@@ -586,6 +587,18 @@ public final class SpecParser {
                     // params are simple identifiers, not FQNs).
                     if (pos + 1 < tokens.count()
                             && tokens.type(pos + 1) == TokenType.PIPE) {
+                        yield parseSingleParamLambda();
+                    }
+                    // Typed single-param shorthand:
+                    // 'x: Type[mult] | body'. Speculative lookahead
+                    // commits only if the full pattern is present;
+                    // otherwise an identifier-followed-by-colon
+                    // could be a different construct (none today,
+                    // but the disciplined check keeps the dispatch
+                    // honest).
+                    if (pos + 1 < tokens.count()
+                            && tokens.type(pos + 1) == TokenType.COLON
+                            && looksLikeTypedLambdaParam()) {
                         yield parseSingleParamLambda();
                     }
                     yield parseQualifiedNameStart();
@@ -1216,9 +1229,18 @@ public final class SpecParser {
     }
 
     /**
-     * Parse one lambda parameter. Untyped only in C.4: a bare
-     * identifier. A trailing {@code :} fails fast with a Phase-C.5
-     * pointer rather than silently mis-parsing the type annotation.
+     * Parse one lambda parameter. Two forms:
+     *
+     * <ul>
+     *   <li>Untyped: just the identifier. Produces
+     *       {@code Variable(name)} with {@code typeName} and
+     *       {@code multiplicity} both {@code null}.</li>
+     *   <li>Typed: {@code identifier ':' type multiplicity}. Produces
+     *       a fully-populated {@link Variable}. The multiplicity is
+     *       <em>required</em> after the type &mdash; engine grammar
+     *       does not admit {@code {p: Integer | body}} (no
+     *       multiplicity), only {@code {p: Integer[1] | body}}.</li>
+     * </ul>
      */
     private Variable parseLambdaParam() {
         if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
@@ -1227,32 +1249,272 @@ public final class SpecParser {
         }
         String name = tokens.text(pos);
         pos++;
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.COLON) {
-            ElementParser.throwAt(tokens, pos,
-                    "typed lambda parameters are not yet supported "
-                    + "(deferred to C.5); write '{" + name + " | ...}' "
-                    + "without the ':Type[mult]' annotation for now");
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.COLON) {
+            return new Variable(name);
         }
-        return new Variable(name);
+        pos++; // consume ':'
+        String typeName = parseTypeText();
+        Multiplicity multiplicity = parseMultiplicity();
+        return new Variable(name, typeName, multiplicity);
     }
 
     /**
-     * Shorthand single-param lambda {@code x | body}. Body is one
-     * expression, not a code block &mdash; this form is meant for
-     * inline predicates (e.g. {@code $xs->filter(p | $p.age > 21)}).
+     * Shorthand single-param lambda. Two source forms:
      *
-     * <p>Pre-condition: cursor is on the identifier, and the next
-     * token is {@link TokenType#PIPE} (verified by the caller in
-     * {@link #parsePrimary()}).
+     * <ul>
+     *   <li>Untyped: {@code x | body} &mdash; common inline
+     *       predicate, e.g. {@code $xs->filter(p | $p.age > 21)}.</li>
+     *   <li>Typed: {@code x: Type[mult] | body} &mdash; less common
+     *       at this position but admitted for grammar parity with
+     *       the braced form.</li>
+     * </ul>
+     *
+     * <p>Body is one expression, not a code block. Pre-condition:
+     * cursor is on the identifier; the caller in {@link #parsePrimary()}
+     * has already verified via {@link #looksLikeTypedLambdaParam()}
+     * (typed) or a 1-token IDENT+PIPE lookahead (untyped) that this
+     * dispatch is correct.
      */
     private LambdaFunction parseSingleParamLambda() {
-        String name = tokens.text(pos);
-        pos++; // consume identifier
+        Variable param = parseLambdaParam();
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PIPE) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected '|' after shorthand lambda parameter");
+        }
         pos++; // consume '|'
         ValueSpecification body = parseCombinedExpression();
         return new LambdaFunction(
-                List.of(new Variable(name)),
+                List.of(param),
                 List.of(body));
+    }
+
+    // -------------------------------------------------------------------
+    // Type and multiplicity annotations (C.5)
+    // -------------------------------------------------------------------
+
+    /**
+     * Parse the type portion of a typed lambda parameter (or other
+     * annotated context). Returns a raw source string &mdash; the
+     * type-checker resolves the name to a concrete type by
+     * consulting the model.
+     *
+     * <p>Grammar (C.5 minimal subset):
+     * <pre>
+     *   type = qualifiedName ('&lt;' typeArgs '&gt;')?
+     * </pre>
+     *
+     * <p>Function types ({@code {T[m] -> U[m]}}) and relation types
+     * ({@code (col: T, ...)}) appear in stdlib signatures but not in
+     * the lambda-parameter position we currently support. They land
+     * with the rest of the type-grammar in C.6/C.7.
+     */
+    private String parseTypeText() {
+        if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected type name after ':'");
+        }
+        StringBuilder sb = new StringBuilder(parseQualifiedName());
+        if (pos < tokens.count() && tokens.type(pos) == TokenType.LESS_THAN) {
+            // Type arguments — nested generics, so depth-track and
+            // splice the source text verbatim. The type-checker
+            // re-parses this if it needs to inspect the args.
+            sb.append('<');
+            pos++;
+            int depth = 1;
+            while (pos < tokens.count() && depth > 0) {
+                TokenType t = tokens.type(pos);
+                if (t == TokenType.LESS_THAN) {
+                    depth++;
+                } else if (t == TokenType.GREATER_THAN) {
+                    depth--;
+                    if (depth == 0) {
+                        pos++;
+                        break;
+                    }
+                }
+                sb.append(tokens.text(pos));
+                pos++;
+            }
+            sb.append('>');
+            if (depth != 0) {
+                ElementParser.throwAt(tokens, pos,
+                        "unterminated type-argument list in type annotation");
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Parse a multiplicity annotation into a structured
+     * {@link Multiplicity}. Grammar:
+     * <pre>
+     *   multiplicity = '[' (concrete | parameter) ']'
+     *   concrete     = '*'
+     *                | INTEGER ('..' ('*' | INTEGER))?
+     *   parameter    = identifier         // e.g. 'm' in T[m]
+     * </pre>
+     *
+     * <p>Engine-lite produces a similar structured value (their
+     * {@code Multiplicity.Bounded} / {@code Var}); matching the
+     * shape (rather than carrying raw text) lets the type-checker
+     * consume the result directly with no re-parse step.
+     */
+    private Multiplicity parseMultiplicity() {
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.BRACKET_OPEN) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected '[' to open multiplicity annotation");
+        }
+        pos++; // consume '['
+        Multiplicity result = parseMultiplicityBody();
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.BRACKET_CLOSE) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected ']' to close multiplicity annotation");
+        }
+        pos++; // consume ']'
+        return result;
+    }
+
+    private Multiplicity parseMultiplicityBody() {
+        if (pos >= tokens.count()) {
+            ElementParser.throwAt(tokens, pos,
+                    "unexpected end-of-input inside multiplicity annotation");
+        }
+        TokenType t = tokens.type(pos);
+        if (t == TokenType.STAR) {
+            // '*' alone is shorthand for 0..* (ZERO_MANY).
+            pos++;
+            return Multiplicity.Concrete.ZERO_MANY;
+        }
+        if (t == TokenType.INTEGER) {
+            int lower = Integer.parseInt(tokens.text(pos));
+            pos++;
+            if (pos < tokens.count() && tokens.type(pos) == TokenType.DOT_DOT) {
+                pos++;
+                if (pos >= tokens.count()) {
+                    ElementParser.throwAt(tokens, pos,
+                            "expected upper bound after '..' in multiplicity");
+                }
+                if (tokens.type(pos) == TokenType.STAR) {
+                    pos++;
+                    return new Multiplicity.Concrete(lower, null);
+                }
+                if (tokens.type(pos) != TokenType.INTEGER) {
+                    ElementParser.throwAt(tokens, pos,
+                            "expected integer or '*' as upper bound, got "
+                            + tokens.type(pos));
+                }
+                int upperPos = pos;
+                int upper = Integer.parseInt(tokens.text(pos));
+                pos++;
+                // Pre-check the bounds at the parser layer so the
+                // error carries source line/col. Multiplicity.Concrete's
+                // constructor enforces the same invariant defensively
+                // (for programmatic constructors), but we want a
+                // ParseException here, not a raw IllegalArgumentException.
+                if (upper < lower) {
+                    ElementParser.throwAt(tokens, upperPos,
+                            "multiplicity upper bound (" + upper
+                            + ") must be >= lower bound (" + lower + ")");
+                }
+                return new Multiplicity.Concrete(lower, upper);
+            }
+            // Single integer: '[N]' means '[N..N]'.
+            return new Multiplicity.Concrete(lower, lower);
+        }
+        if (isFqnSegmentToken(t)) {
+            // Multiplicity variable, e.g. the 'm' in T[m]. Pervasive
+            // in stdlib native function signatures (letFunction, if,
+            // cast, match, reverse, sort, map). User code typically
+            // uses concrete multiplicities; legend-engine's user
+            // grammar walker (DomainParseTreeWalker) rejects them,
+            // but stdlib parsing must admit them.
+            String name = tokens.text(pos);
+            pos++;
+            return new Multiplicity.Parameter(name);
+        }
+        ElementParser.throwAt(tokens, pos,
+                "unexpected token in multiplicity annotation: " + t
+                + " ('" + safeText(tokens, pos) + "')");
+        return null; // unreachable
+    }
+
+    /**
+     * Speculative lookahead: does the cursor sit on a typed
+     * single-param lambda shorthand ({@code x: Type[mult] | body})?
+     * Used by {@link #parsePrimary()} to disambiguate IDENT+COLON
+     * from any other identifier-then-colon source &mdash; e.g. a
+     * future grammar extension where a colon could follow an
+     * identifier in some other position.
+     *
+     * <p>Engine-lite (which also has no committed parser state to
+     * roll back) does the same: save the position, try to skip
+     * IDENT, COLON, type, optional multiplicity, and check for the
+     * trailing PIPE. Restore the position regardless. Returning
+     * {@code true} means the caller should commit to the typed
+     * parse via {@link #parseSingleParamLambda()}.
+     */
+    private boolean looksLikeTypedLambdaParam() {
+        int saved = pos;
+        try {
+            if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
+                return false;
+            }
+            pos++; // identifier
+            if (pos >= tokens.count() || tokens.type(pos) != TokenType.COLON) {
+                return false;
+            }
+            pos++; // ':'
+            if (!skipTypeForLookahead()) {
+                return false;
+            }
+            if (pos < tokens.count() && tokens.type(pos) == TokenType.BRACKET_OPEN) {
+                if (!skipMultiplicityForLookahead()) {
+                    return false;
+                }
+            }
+            return pos < tokens.count() && tokens.type(pos) == TokenType.PIPE;
+        } finally {
+            pos = saved;
+        }
+    }
+
+    private boolean skipTypeForLookahead() {
+        if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
+            return false;
+        }
+        pos++;
+        while (pos < tokens.count() && tokens.type(pos) == TokenType.PATH_SEPARATOR) {
+            pos++;
+            if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
+                return false;
+            }
+            pos++;
+        }
+        if (pos < tokens.count() && tokens.type(pos) == TokenType.LESS_THAN) {
+            int depth = 1;
+            pos++;
+            while (pos < tokens.count() && depth > 0) {
+                TokenType t = tokens.type(pos);
+                if (t == TokenType.LESS_THAN) depth++;
+                if (t == TokenType.GREATER_THAN) depth--;
+                pos++;
+            }
+            if (depth != 0) return false;
+        }
+        return true;
+    }
+
+    private boolean skipMultiplicityForLookahead() {
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.BRACKET_OPEN) {
+            return false;
+        }
+        pos++;
+        while (pos < tokens.count() && tokens.type(pos) != TokenType.BRACKET_CLOSE) {
+            pos++;
+        }
+        if (pos >= tokens.count()) return false;
+        pos++; // ']'
+        return true;
     }
 
     /**

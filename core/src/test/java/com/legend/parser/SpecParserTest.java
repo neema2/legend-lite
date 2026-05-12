@@ -15,6 +15,7 @@ import com.legend.parser.spec.CStrictTime;
 import com.legend.parser.spec.CString;
 import com.legend.parser.spec.KeyExpression;
 import com.legend.parser.spec.LambdaFunction;
+import com.legend.parser.spec.Multiplicity;
 import com.legend.parser.spec.NewInstance;
 import com.legend.parser.spec.PackageableElementPtr;
 import com.legend.parser.spec.PureCollection;
@@ -1307,18 +1308,246 @@ final class SpecParserTest {
 
     // ----- lambda error cases (C.4) ------------------------------------
 
+    // ----- typed lambda parameters (C.5) ------------------------------
+
     @Test
-    void typedLambdaParameterPointsToC5() {
-        // C.5 will add typed lambda params. Until then, the parser
-        // emits an explicit error mentioning the deferred phase
-        // rather than silently mis-parsing. This is the standard
-        // "fail-loud at boundary" pattern from earlier phases.
+    void bracedTypedLambdaParam() {
+        // C.5 phase-flip: a test pinned in C.4 expected this input
+        // to fail with a 'typed-params-deferred-to-C.5' error. C.5
+        // delivers the feature, so the test now pins the produced
+        // AST shape: Variable carries declared typeName and a
+        // structured Multiplicity.Concrete.PURE_ONE.
+        assertEquals(
+                new LambdaFunction(
+                        List.of(new Variable(
+                                "p", "Integer", Multiplicity.Concrete.PURE_ONE)),
+                        List.of(new Variable("p"))),
+                SpecParser.parse("{p: Integer[1] | $p}"));
+    }
+
+    @Test
+    void bracedTypedMultiParamLambda() {
+        // Multi-param typed: each parameter independently carries
+        // its declared type and multiplicity. Mixing forms (PURE_ONE
+        // and ZERO_MANY) pins that each Variable is built
+        // independently rather than sharing a single template.
+        assertEquals(
+                new LambdaFunction(
+                        List.of(
+                                new Variable("p", "Integer",
+                                        Multiplicity.Concrete.PURE_ONE),
+                                new Variable("q", "String",
+                                        Multiplicity.Concrete.ZERO_MANY)),
+                        List.of(new AppliedFunction("plus", List.of(
+                                new Variable("p"), new Variable("q"))))),
+                SpecParser.parse("{p: Integer[1], q: String[*] | $p + $q}"));
+    }
+
+    @Test
+    void typedShorthandSingleParamLambda() {
+        // 'p: Integer[1] | body' \u2014 typed shorthand outside
+        // braces. The default-arm dispatch in parsePrimary uses
+        // looksLikeTypedLambdaParam() to commit to this form only
+        // when IDENT+COLON is followed by the full type+mult+PIPE
+        // sequence; otherwise it falls through to other parses.
+        assertEquals(
+                new LambdaFunction(
+                        List.of(new Variable(
+                                "p", "Integer", Multiplicity.Concrete.PURE_ONE)),
+                        List.of(new AppliedFunction("plus", List.of(
+                                new Variable("p"), new CInteger(1L))))),
+                SpecParser.parse("p: Integer[1] | $p + 1"));
+    }
+
+    @Test
+    void typedLambdaWithQualifiedTypeName() {
+        // Type can be a qualified name. Stored verbatim in
+        // Variable.typeName for downstream resolution.
+        assertEquals(
+                new LambdaFunction(
+                        List.of(new Variable(
+                                "p", "my::pkg::Person",
+                                Multiplicity.Concrete.PURE_ONE)),
+                        List.of(new AppliedProperty(
+                                new Variable("p"), "age"))),
+                SpecParser.parse("{p: my::pkg::Person[1] | $p.age}"));
+    }
+
+    @Test
+    void typedLambdaWithTypeArguments() {
+        // Generic type \u2014 the type-argument list is collected
+        // verbatim into the typeName string by token concatenation.
+        // Note: inter-token whitespace is NOT preserved (we splice
+        // tokens, not source ranges), so source 'Pair<Integer, String>'
+        // becomes 'Pair<Integer,String>' in the typeName. Downstream
+        // consumers re-parse if they need to inspect the args; the
+        // parser doesn't try to model nested generics structurally
+        // at this layer. The lossy whitespace is acceptable because
+        // type names are semantic identifiers, not source-faithful
+        // text.
+        assertEquals(
+                new LambdaFunction(
+                        List.of(new Variable(
+                                "p", "Pair<Integer,String>",
+                                Multiplicity.Concrete.PURE_ONE)),
+                        List.of(new AppliedProperty(
+                                new Variable("p"), "first"))),
+                SpecParser.parse("{p: Pair<Integer, String>[1] | $p.first}"));
+    }
+
+    @Test
+    void multiplicityFormsProduceCorrectConcreteValues() {
+        // Pin each surface form's mapping to a Concrete record. The
+        // four well-known constants (PURE_ONE, ZERO_ONE, PURE_MANY,
+        // ZERO_MANY) plus the explicit bounded form.
+        assertEquals(
+                Multiplicity.Concrete.PURE_ONE,
+                ((Variable) ((LambdaFunction) SpecParser.parse(
+                        "{p: T[1] | $p}")).parameters().get(0)).multiplicity());
+        assertEquals(
+                Multiplicity.Concrete.ZERO_ONE,
+                ((Variable) ((LambdaFunction) SpecParser.parse(
+                        "{p: T[0..1] | $p}")).parameters().get(0)).multiplicity());
+        assertEquals(
+                Multiplicity.Concrete.PURE_MANY,
+                ((Variable) ((LambdaFunction) SpecParser.parse(
+                        "{p: T[1..*] | $p}")).parameters().get(0)).multiplicity());
+        assertEquals(
+                Multiplicity.Concrete.ZERO_MANY,
+                ((Variable) ((LambdaFunction) SpecParser.parse(
+                        "{p: T[*] | $p}")).parameters().get(0)).multiplicity());
+        // Explicit bounded form not covered by a constant.
+        assertEquals(
+                new Multiplicity.Concrete(3, 7),
+                ((Variable) ((LambdaFunction) SpecParser.parse(
+                        "{p: T[3..7] | $p}")).parameters().get(0)).multiplicity());
+    }
+
+    @Test
+    void multiplicityParameterFormFromStdlib() {
+        // Multiplicity variables ('[m]') appear in stdlib native
+        // function signatures: letFunction<T|m>, if<T|m>,
+        // cast<T|m>, match<T|m,n>, reverse<T|m>, sort<T|m>, map<T|m>.
+        // Parsing them must produce Multiplicity.Parameter, not
+        // an error or a Concrete fallback.
+        //
+        // We don't typically encounter this form INSIDE a lambda
+        // body in user code, but the grammar is shared with the
+        // function-signature path, and the parser must admit the
+        // variable form everywhere multiplicity is parsed.
+        assertEquals(
+                new LambdaFunction(
+                        List.of(new Variable(
+                                "p", "T", new Multiplicity.Parameter("m"))),
+                        List.of(new Variable("p"))),
+                SpecParser.parse("{p: T[m] | $p}"));
+    }
+
+    @Test
+    void typedLambdaInArrowArgumentPosition() {
+        // The realistic case: typed predicate as a filter argument.
+        // Combines C.2 (arrow + filter call), C.5 (typed shorthand
+        // lambda inside the arg list).
+        assertEquals(
+                new AppliedFunction("filter", List.of(
+                        new AppliedFunction("all", List.of(
+                                new PackageableElementPtr("Person"))),
+                        new LambdaFunction(
+                                List.of(new Variable(
+                                        "p", "Person",
+                                        Multiplicity.Concrete.PURE_ONE)),
+                                List.of(new AppliedFunction("greaterThan", List.of(
+                                        new AppliedProperty(new Variable("p"), "age"),
+                                        new CInteger(21L))))))),
+                SpecParser.parse(
+                        "Person.all()->filter(p: Person[1] | $p.age > 21)"));
+    }
+
+    @Test
+    void typedLambdaParamMissingMultiplicityRejected() {
+        // 'p: Integer | body' \u2014 type without multiplicity is
+        // not legal Pure. Engine grammar requires '[mult]' after
+        // the type. Pin the error so a future grammar change can't
+        // silently accept missing multiplicity (which would lose
+        // type information that the type-checker needs).
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("{p: Integer[1] | $p}"));
-        assertTrue(ex.getMessage().contains("typed lambda parameters"),
-                () -> "want typed-param error, got: " + ex.getMessage());
-        assertTrue(ex.getMessage().contains("C.5"),
-                () -> "want C.5 pointer, got: " + ex.getMessage());
+                () -> SpecParser.parse("{p: Integer | $p}"));
+        assertTrue(ex.getMessage().contains("'['")
+                        && ex.getMessage().contains("multiplicity"),
+                () -> "want missing-multiplicity error, got: " + ex.getMessage());
+    }
+
+    @Test
+    void multiplicityWithBadSyntaxRejected() {
+        // 'p: T[1..]' \u2014 missing upper bound after '..'.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("{p: T[1..] | $p}"));
+        assertTrue(ex.getMessage().contains("upper bound"),
+                () -> "want missing-upper-bound error, got: " + ex.getMessage());
+    }
+
+    @Test
+    void mixedTypedAndUntypedLambdaParams() {
+        // Pure code occasionally annotates only the params whose type
+        // can't be inferred from context. The parser must accept this
+        // mixed form because parseLambdaParam is called independently
+        // per parameter \u2014 there's no shared state forcing all
+        // params into the same form. Pin the AST so a future
+        // refactor (e.g. batch-parsing of params) doesn't accidentally
+        // require a homogeneous typed-ness.
+        assertEquals(
+                new LambdaFunction(
+                        List.of(
+                                new Variable("p"),
+                                new Variable("q", "String",
+                                        Multiplicity.Concrete.PURE_ONE)),
+                        List.of(new AppliedFunction("plus", List.of(
+                                new Variable("p"), new Variable("q"))))),
+                SpecParser.parse("{p, q: String[1] | $p + $q}"));
+    }
+
+    @Test
+    void unterminatedTypeArgumentListRejected() {
+        // '{p: Pair<Integer | $p}' \u2014 missing closing '>' on the
+        // type-argument list. The depth-tracker in parseTypeText
+        // never reaches depth==0 and consumes to EOF, then throws.
+        // Without this test a future regression that returned
+        // 'Pair<Integer' as the typeName (a silent truncation) would
+        // pass; the explicit error path is the right behaviour.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("{p: Pair<Integer | $p}"));
+        assertTrue(ex.getMessage().contains("unterminated")
+                        && ex.getMessage().contains("type-argument"),
+                () -> "want unterminated-type-args error, got: " + ex.getMessage());
+    }
+
+    @Test
+    void emptyMultiplicityRejected() {
+        // '[]' is not a legal multiplicity \u2014 falls through all
+        // three branches of parseMultiplicityBody (STAR, INTEGER,
+        // identifier) and lands on the unexpected-token error. Pin
+        // so a future change that accidentally treats empty brackets
+        // as ZERO_MANY or PURE_ONE would fail this test.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("{p: T[] | $p}"));
+        assertTrue(ex.getMessage().contains("unexpected token in multiplicity"),
+                () -> "want empty-multiplicity error, got: " + ex.getMessage());
+    }
+
+    @Test
+    void multiplicityUpperLessThanLowerRejected() {
+        // '[5..3]' \u2014 inverted bounds. The Multiplicity.Concrete
+        // constructor enforces upper >= lower as a defensive invariant
+        // (for programmatic constructors), but the parser pre-checks
+        // and throws a ParseException with source line/col rather
+        // than letting an IllegalArgumentException leak out. Pin both
+        // the error class (ParseException, not Runtime/IAE) and the
+        // diagnostic content so the user gets a useful error.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("{p: T[5..3] | $p}"));
+        assertTrue(ex.getMessage().contains("upper bound")
+                        && ex.getMessage().contains(">= lower bound"),
+                () -> "want bound-order error, got: " + ex.getMessage());
     }
 
     @Test
