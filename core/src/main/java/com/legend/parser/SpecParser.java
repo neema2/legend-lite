@@ -327,12 +327,25 @@ public final class SpecParser {
      */
     private AppliedFunction parseLetExpression() {
         pos++; // consume LET
-        if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
+        // Variable name may be a bare identifier OR a quoted
+        // string (e.g. {@code let 'my var' = 42}). The quoted
+        // form lets users bind variables whose surface spelling
+        // isn't a legal Pure identifier (whitespace, punctuation,
+        // keyword collisions). Engine-lite's parseIdentifierText
+        // unquotes transparently; we match.
+        String varName;
+        if (pos < tokens.count() && tokens.type(pos) == TokenType.STRING) {
+            // CString's own parseString handles escape resolution; we
+            // reuse it so escape handling is one place.
+            varName = ((CString) parseString()).value();
+        } else if (pos < tokens.count() && isFqnSegmentToken(tokens.type(pos))) {
+            varName = tokens.text(pos);
+            pos++;
+        } else {
             ElementParser.throwAt(tokens, pos,
                     "expected variable name after 'let'");
+            return null; // unreachable
         }
-        String varName = tokens.text(pos);
-        pos++;
         if (pos >= tokens.count() || tokens.type(pos) != TokenType.EQUAL) {
             ElementParser.throwAt(tokens, pos,
                     "expected '=' after 'let " + varName + "'");
@@ -596,6 +609,7 @@ public final class SpecParser {
             case AT -> parseTypeAnnotation();
             case COMPARATOR -> parseComparatorExpression();
             case TDS_LITERAL -> parseTdsLiteral();
+            case ISLAND_OPEN -> parseDsl();
             default -> {
                 if (ElementParser.IDENTIFIER_TOKENS.contains(t)) {
                     // Single-param lambda shorthand: 'x | body'. The
@@ -1297,14 +1311,48 @@ public final class SpecParser {
      */
     private AppliedFunction parseNewInstance() {
         pos++; // consume '^'
-        String className = parseQualifiedName();
+        // Two grammars share the '^' prefix:
+        //  (1) '^ClassName<T>(f=v, ...)' — fresh instance by class
+        //      name. Receiver slot of the emitted 'new' call is a
+        //      {@link PackageableElementPtr} pointing at the class.
+        //  (2) '^$existing(f=v, ...)' — copy-with-update: produce a
+        //      new instance structurally equal to $existing except
+        //      for the listed field overrides. Receiver slot is a
+        //      {@link Variable} pointing at the source binding;
+        //      NewInstance's className is the empty string because
+        //      the class is recovered from the variable's static
+        //      type at type-check time.
+        //
+        // Engine-lite encodes case (2) by stuffing "$name" into a
+        // PackageableElementPtr. That's a hack — a $-prefixed FQN is
+        // structurally a lie about what the receiver is. We improve
+        // by emitting a real Variable node in the receiver slot,
+        // which keeps the rest of the pipeline free of the
+        // $-prefix-sniffing dispatch engine-lite has to do downstream.
+        // Function name stays "new" for binding-table parity.
+        ValueSpecification receiver;
+        String className;
         List<String> typeArgs = List.of();
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.LESS_THAN) {
-            typeArgs = parseTypeArguments();
+        if (pos < tokens.count() && tokens.type(pos) == TokenType.DOLLAR) {
+            pos++; // consume '$'
+            if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
+                ElementParser.throwAt(tokens, pos,
+                        "expected variable name after '^$' in copy-with-update");
+            }
+            String varName = tokens.text(pos);
+            pos++;
+            receiver = new Variable(varName);
+            className = ""; // class recovered from $var's static type at typecheck
+        } else {
+            className = parseQualifiedName();
+            if (pos < tokens.count() && tokens.type(pos) == TokenType.LESS_THAN) {
+                typeArgs = parseTypeArguments();
+            }
+            receiver = new PackageableElementPtr(className);
         }
         if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_OPEN) {
             ElementParser.throwAt(tokens, pos,
-                    "expected '(' after class name in ^NewInstance");
+                    "expected '(' after class name or $variable in ^NewInstance");
         }
         pos++; // consume '('
         // LinkedHashMap to preserve source order for the small
@@ -1313,7 +1361,7 @@ public final class SpecParser {
         Map<String, KeyExpression> properties = new LinkedHashMap<>();
         if (pos < tokens.count() && tokens.type(pos) == TokenType.PAREN_CLOSE) {
             pos++;
-            return wrapNewInstance(className, typeArgs, properties);
+            return wrapNewInstance(receiver, className, typeArgs, properties);
         }
         parseAndPutKeyExpression(properties);
         while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
@@ -1329,23 +1377,24 @@ public final class SpecParser {
                     "expected ')' to close ^NewInstance");
         }
         pos++; // consume ')'
-        return wrapNewInstance(className, typeArgs, properties);
+        return wrapNewInstance(receiver, className, typeArgs, properties);
     }
 
     /**
-     * Build the {@code AppliedFunction("new", [PE, NewInstance])}
-     * wrapper around a parsed {@link NewInstance} payload. Factored
-     * out because both the empty-bindings and the populated-bindings
-     * paths in {@link #parseNewInstance()} produce the same shape.
+     * Build the {@code AppliedFunction("new", [receiver, NewInstance])}
+     * wrapper. The {@code receiver} is a {@link PackageableElementPtr}
+     * for the class-literal form and a {@link Variable} for the
+     * {@code ^$var(...)} copy-with-update form.
      */
     private AppliedFunction wrapNewInstance(
+            ValueSpecification receiver,
             String className,
             List<String> typeArgs,
             Map<String, KeyExpression> properties) {
         return new AppliedFunction(
                 "new",
                 List.of(
-                        new PackageableElementPtr(className),
+                        receiver,
                         new NewInstance(className, typeArgs, properties)));
     }
 
@@ -1367,8 +1416,24 @@ public final class SpecParser {
             ElementParser.throwAt(tokens, pos,
                     "expected property name in ^NewInstance binding");
         }
-        String key = tokens.text(pos);
+        // Dotted property paths: '^Foo(addr.city = "NYC")' sets a
+        // nested field atomically. Engine-lite admits arbitrary
+        // {@code IDENT (DOT IDENT)*} paths here; we match by
+        // concatenating segments with '.' into the key. Downstream
+        // (TypeChecker) walks the property chain against the class's
+        // declared properties. Keeping the segments joined into a
+        // single string matches engine-lite's Map<String,
+        // ValueSpecification> representation; the dot-separation in
+        // the key is the only signal of nesting.
+        StringBuilder key = new StringBuilder(tokens.text(pos));
         pos++;
+        while (pos + 1 < tokens.count()
+                && tokens.type(pos) == TokenType.DOT
+                && isFqnSegmentToken(tokens.type(pos + 1))) {
+            pos++; // consume '.'
+            key.append('.').append(tokens.text(pos));
+            pos++;
+        }
         boolean isAdd = false;
         if (pos < tokens.count() && tokens.type(pos) == TokenType.PLUS) {
             isAdd = true;
@@ -1382,7 +1447,7 @@ public final class SpecParser {
         }
         pos++; // consume '='
         ValueSpecification value = parseCombinedExpression();
-        properties.put(key, new KeyExpression(value, isAdd));
+        properties.put(key.toString(), new KeyExpression(value, isAdd));
     }
 
     private List<String> parseTypeArguments() {
@@ -2246,6 +2311,265 @@ public final class SpecParser {
         pos++;
         return new AppliedFunction("tds",
                 List.of(new CString("TDS"), new CString(raw)));
+    }
+
+    // -------------------------------------------------------------------
+    // DSL islands (C.7b): #{...}# and #>{...}#
+    // -------------------------------------------------------------------
+
+    /**
+     * Parse a DSL-island expression. Grammar:
+     * <pre>
+     *   dsl = ISLAND_OPEN islandContent (ISLAND_END | ISLAND_ARROW_EXIT)
+     * </pre>
+     *
+     * <p>An island is a "hole" in the main Pure grammar where an
+     * embedded sub-language is spelled verbatim. The lexer flips
+     * into island mode between {@code #{} and {@code }#} (or
+     * {@code }-&gt;}) and emits {@code ISLAND_BRACE_OPEN} /
+     * {@code ISLAND_BRACE_CLOSE} / text tokens for everything in
+     * between so the main parser can track depth without committing
+     * to a specific sub-grammar at lex time.
+     *
+     * <p>The {@code ISLAND_OPEN} token text embeds the DSL
+     * discriminator between {@code #} and {@code }: {@code #{}
+     * &rarr; empty discriminator (graph-fetch tree), {@code #&gt;{}
+     * &rarr; {@code "&gt;"} (table reference). Engine-lite supports
+     * exactly these two, and we match.
+     *
+     * <p>Implementation: we collect the island content into a
+     * string, then re-tokenize it with a fresh
+     * {@link Lexer#tokenize} call and run a nested
+     * {@link SpecParser} over the result. The re-lex costs one
+     * pass over the content but keeps the sub-grammar parser
+     * unaware of island-mode tokens. Whitespace between content
+     * tokens is lost (we concatenate {@code text(pos)} values
+     * directly), which matches engine-lite and is fine because
+     * graph-fetch / table-reference syntax is whitespace-tolerant.
+     *
+     * <p>After the island is consumed, if the closer was
+     * {@code ISLAND_ARROW_EXIT} ({@code }-&gt;}), the next tokens
+     * are an arrow-chain continuation ({@code .func(args)->...}).
+     * We handle this by synthesising an arrow-postfix loop over
+     * the produced DSL value. Engine-lite uses a dedicated
+     * {@code parseFunctionChainAfterArrow} method; we reuse
+     * {@link #parseArrowPostfix} because the only structural
+     * difference (the {@code ->} is implicit from
+     * ISLAND_ARROW_EXIT) can be handled by treating the first
+     * chain call specially.
+     */
+    private ValueSpecification parseDsl() {
+        String islandOpen = tokens.text(pos);
+        pos++; // consume ISLAND_OPEN
+        // Extract DSL discriminator: strip leading '#' and trailing '{'.
+        // ISLAND_OPEN text always has that shape by lexer contract.
+        String dslType = islandOpen.substring(1, islandOpen.length() - 1);
+
+        StringBuilder content = new StringBuilder();
+        boolean arrowExit = false;
+        while (pos < tokens.count()) {
+            TokenType t = tokens.type(pos);
+            if (t == TokenType.ISLAND_END) {
+                pos++;
+                break;
+            }
+            if (t == TokenType.ISLAND_ARROW_EXIT) {
+                pos++;
+                arrowExit = true;
+                break;
+            }
+            if (t == TokenType.ISLAND_BRACE_OPEN) {
+                content.append('{');
+            } else if (t == TokenType.ISLAND_BRACE_CLOSE) {
+                content.append('}');
+            } else {
+                content.append(tokens.text(pos));
+            }
+            pos++;
+        }
+        String contentText = content.toString().trim();
+
+        ValueSpecification result = switch (dslType) {
+            case "" -> parseGraphFetchTree(contentText);
+            case ">" -> parseTableReference(contentText);
+            default -> {
+                ElementParser.throwAt(tokens, pos,
+                        "unknown DSL island type: '#" + dslType + "{'");
+                yield null; // unreachable
+            }
+        };
+
+        // Post-island arrow chain: if the closer was '}->' then the
+        // next tokens form a function-call chain whose first arrow
+        // has already been consumed as part of ISLAND_ARROW_EXIT.
+        // We inject a synthetic call by running the standard
+        // arrow-chain machinery once, then let the main postfix
+        // loop handle any subsequent arrows.
+        if (arrowExit) {
+            result = parseArrowChainAfterIslandExit(result);
+        }
+        return result;
+    }
+
+    /**
+     * After {@code ISLAND_ARROW_EXIT} the next tokens look like
+     * {@code funcName(args)} (no leading {@code ->} because the
+     * exit token consumed it). Engine-lite calls this
+     * {@code parseFunctionChainAfterArrow}; we mirror the shape.
+     * After the first synthesised call, the main postfix loop
+     * picks up any subsequent explicit {@code ->} arrows.
+     */
+    private ValueSpecification parseArrowChainAfterIslandExit(ValueSpecification source) {
+        String funcName = parseQualifiedName();
+        List<ValueSpecification> args = parseArgList();
+        List<ValueSpecification> params = new ArrayList<>(1 + args.size());
+        params.add(source);
+        params.addAll(args);
+        return new AppliedFunction(funcName, params);
+    }
+
+    /**
+     * Parse a table reference DSL: {@code #>{db::path.TABLE}#}
+     * &rarr; {@code AppliedFunction("tableReference", [CString(db),
+     * CString(tableName)])}. The content is a dotted path where
+     * everything before the LAST {@code .} is the database name and
+     * everything after is the table name. Matches engine-lite's
+     * split rule verbatim.
+     */
+    private AppliedFunction parseTableReference(String content) {
+        int lastDot = content.lastIndexOf('.');
+        if (lastDot < 0) {
+            ElementParser.throwAt(tokens, pos,
+                    "table reference must be db.TABLE, got: '" + content + "'");
+        }
+        String db = content.substring(0, lastDot);
+        String tableName = content.substring(lastDot + 1);
+        return new AppliedFunction("tableReference",
+                List.of(new CString(db), new CString(tableName)));
+    }
+
+    /**
+     * Parse a graph-fetch tree content string like
+     * {@code "ClassName {prop1, prop2 { subprop } }"}. Returns a
+     * {@link ColSpecArray} of nested {@link ColSpec}s describing
+     * the tree.
+     *
+     * <p>Engine-lite's desugaring: each property becomes a
+     * {@link ColSpec} whose {@code function1} is a single-param
+     * lambda {@code x | $x.prop} (producing the property value),
+     * and whose {@code function2} (when present) is a nested
+     * {@link ColSpecArray} wrapped in a lambda for the sub-tree.
+     * This lets graph-fetch reuse the same ColSpec machinery the
+     * tilde-column DSL uses (C.6).
+     *
+     * <p>The root class name is NOT retained in the AST &mdash;
+     * engine-lite gets it from arg[0] of the enclosing
+     * {@code graphFetch($classCollection, #{ ... }#)} call and
+     * discards the inline root name. We follow suit.
+     */
+    private ValueSpecification parseGraphFetchTree(String content) {
+        TokenStream innerTokens = Lexer.tokenize(content);
+        SpecParser inner = new SpecParser(innerTokens);
+        inner.parseQualifiedName();          // skip root class name
+        return inner.parseGraphDefinition(0);
+    }
+
+    /**
+     * Parse {@code { path (, path)* }} into a {@link ColSpecArray}.
+     * Trailing comma is tolerated (engine-lite: "if
+     * check(BRACE_CLOSE) after comma, stop"). We match so
+     * {@code { a, b, }} works the same as {@code { a, b }}.
+     */
+    private ColSpecArray parseGraphDefinition(int depth) {
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.BRACE_OPEN) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected '{' to open graph-fetch body");
+        }
+        pos++; // '{'
+        List<ColSpec> specs = new ArrayList<>();
+        if (pos < tokens.count() && tokens.type(pos) != TokenType.BRACE_CLOSE) {
+            specs.add(parseGraphPath(depth));
+            while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
+                pos++;
+                if (pos < tokens.count() && tokens.type(pos) == TokenType.BRACE_CLOSE) {
+                    break; // trailing comma tolerated
+                }
+                specs.add(parseGraphPath(depth));
+            }
+        }
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.BRACE_CLOSE) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected '}' to close graph-fetch body");
+        }
+        pos++; // '}'
+        return new ColSpecArray(specs);
+    }
+
+    /**
+     * Parse one path inside a graph-fetch definition. Grammar:
+     * <pre>
+     *   graphPath    = (STRING ':')? identifier propertyParams? graphDefinition?
+     *   propertyParams = '(' ... ')'   (milestoning args -- skipped)
+     * </pre>
+     *
+     * <p>The optional {@code STRING ':'} prefix is a graph alias
+     * used for deduplicating renamed paths in downstream tooling.
+     * Engine-lite skips it (consumes without storing); we match.
+     *
+     * <p>Property parameters inside {@code (...)} are also skipped
+     * \u2014 they're milestoning args that engine-lite parses but
+     * discards pending a schema update. Keeping the same behaviour
+     * preserves AST compatibility.
+     */
+    private ColSpec parseGraphPath(int depth) {
+        // Optional alias: 'aliasName': property
+        if (pos + 1 < tokens.count()
+                && tokens.type(pos) == TokenType.STRING
+                && tokens.type(pos + 1) == TokenType.COLON) {
+            pos += 2; // skip alias and colon
+        }
+        if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected property name in graph-fetch path");
+        }
+        String propName = tokens.text(pos);
+        pos++;
+
+        // function1: x | $x.prop  (produces the property value)
+        String paramName = "_gf" + depth;
+        Variable param = new Variable(paramName);
+        AppliedProperty propAccess = new AppliedProperty(param, propName);
+        LambdaFunction fn1 = new LambdaFunction(
+                List.of(param), List.of(propAccess));
+
+        // Optional propertyParameters (milestoning args): consume to close.
+        if (pos < tokens.count() && tokens.type(pos) == TokenType.PAREN_OPEN) {
+            int depthParens = 1;
+            pos++;
+            while (pos < tokens.count() && depthParens > 0) {
+                TokenType t = tokens.type(pos);
+                if (t == TokenType.PAREN_OPEN) depthParens++;
+                else if (t == TokenType.PAREN_CLOSE) depthParens--;
+                if (depthParens > 0) pos++;
+            }
+            if (pos >= tokens.count()) {
+                ElementParser.throwAt(tokens, pos,
+                        "unterminated graph-fetch property parameters");
+            }
+            pos++; // consume matching ')'
+        }
+
+        // Optional nested graph definition: { subpaths }
+        if (pos < tokens.count() && tokens.type(pos) == TokenType.BRACE_OPEN) {
+            ColSpecArray nested = parseGraphDefinition(depth + 1);
+            // function2 wraps the nested array in a zero-param lambda
+            // so the two ColSpec slots are uniformly typed (LambdaFunction).
+            LambdaFunction fn2 = new LambdaFunction(
+                    List.of(), List.of(nested));
+            return new ColSpec(propName, fn1, fn2);
+        }
+
+        return new ColSpec(propName, fn1, null);
     }
 
     // -------------------------------------------------------------------

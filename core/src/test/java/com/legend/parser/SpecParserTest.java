@@ -28,6 +28,7 @@ import com.legend.parser.spec.Variable;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
@@ -2462,6 +2463,254 @@ final class SpecParserTest {
                         && af.parameters().size() == 2
                         && af.parameters().get(0).equals(new CString("TDS")),
                 () -> "want tds() call, got: " + result);
+    }
+
+    // ----- C.7b: DSL islands (graph-fetch + table reference) -----------
+
+    @Test
+    void graphFetchTreeSimpleFlatProperties() {
+        // '#{Person {name, age}}#' \u2014 a flat graph-fetch tree.
+        // Desugars to ColSpecArray with one ColSpec per property,
+        // each carrying a lambda 'x | $x.prop' as function1.
+        // Root class name 'Person' is NOT retained (engine-lite
+        // gets it from arg[0] of the enclosing graphFetch() call).
+        ColSpecArray expected = new ColSpecArray(List.of(
+                new ColSpec("name",
+                        new LambdaFunction(
+                                List.of(new Variable("_gf0")),
+                                List.of(new AppliedProperty(
+                                        new Variable("_gf0"), "name"))),
+                        null),
+                new ColSpec("age",
+                        new LambdaFunction(
+                                List.of(new Variable("_gf0")),
+                                List.of(new AppliedProperty(
+                                        new Variable("_gf0"), "age"))),
+                        null)));
+        assertEquals(expected, SpecParser.parse("#{Person {name, age}}#"));
+    }
+
+    @Test
+    void graphFetchTreeNested() {
+        // '#{Person {name, firm {legalName}}}#' \u2014 nested tree.
+        // The 'firm' property gets both function1 ('_gf0 | $_gf0.firm')
+        // and function2 (zero-param lambda wrapping the nested
+        // ColSpecArray with depth-1 ('_gf1') parameter names).
+        LambdaFunction firmFn1 = new LambdaFunction(
+                List.of(new Variable("_gf0")),
+                List.of(new AppliedProperty(
+                        new Variable("_gf0"), "firm")));
+        ColSpecArray nested = new ColSpecArray(List.of(
+                new ColSpec("legalName",
+                        new LambdaFunction(
+                                List.of(new Variable("_gf1")),
+                                List.of(new AppliedProperty(
+                                        new Variable("_gf1"), "legalName"))),
+                        null)));
+        LambdaFunction firmFn2 = new LambdaFunction(
+                List.of(), List.of(nested));
+        ColSpecArray expected = new ColSpecArray(List.of(
+                new ColSpec("name",
+                        new LambdaFunction(
+                                List.of(new Variable("_gf0")),
+                                List.of(new AppliedProperty(
+                                        new Variable("_gf0"), "name"))),
+                        null),
+                new ColSpec("firm", firmFn1, firmFn2)));
+        assertEquals(expected,
+                SpecParser.parse("#{Person {name, firm {legalName}}}#"));
+    }
+
+    @Test
+    void graphFetchTreeWithAlias() {
+        // '#{Person {\\'alias\\': name}}#' \u2014 the leading
+        // quoted-string + colon is a graph alias that engine-lite
+        // parses-and-discards. We match; the ColSpec carries just
+        // the raw property name.
+        ColSpecArray expected = new ColSpecArray(List.of(
+                new ColSpec("name",
+                        new LambdaFunction(
+                                List.of(new Variable("_gf0")),
+                                List.of(new AppliedProperty(
+                                        new Variable("_gf0"), "name"))),
+                        null)));
+        assertEquals(expected,
+                SpecParser.parse("#{Person {'alias': name}}#"));
+    }
+
+    @Test
+    void graphFetchTreeWithPropertyParameters() {
+        // '#{Person {name(%2024-01-01)}}#' \u2014 property milestoning
+        // args. Engine-lite skips the '(...)' contents; we do the
+        // same. ColSpec is unchanged from the no-args form.
+        ColSpecArray expected = new ColSpecArray(List.of(
+                new ColSpec("name",
+                        new LambdaFunction(
+                                List.of(new Variable("_gf0")),
+                                List.of(new AppliedProperty(
+                                        new Variable("_gf0"), "name"))),
+                        null)));
+        assertEquals(expected,
+                SpecParser.parse("#{Person {name(%2024-01-01)}}#"));
+    }
+
+    @Test
+    void graphFetchTreeTrailingCommaTolerated() {
+        // '#{Person {name, age,}}#' \u2014 trailing comma in a
+        // graph-fetch definition is tolerated per engine-lite.
+        // Pins the lenient-termination behaviour so a future
+        // tightening doesn't silently break compatibility.
+        ColSpecArray result = (ColSpecArray)
+                SpecParser.parse("#{Person {name, age,}}#");
+        assertEquals(2, result.colSpecs().size());
+    }
+
+    @Test
+    void tableReferenceDsl() {
+        // '#>{my::db.CUSTOMER}#' \u2014 table reference DSL. The
+        // content is split on the LAST '.': db = 'my::db', table
+        // = 'CUSTOMER'. Emits
+        // AppliedFunction("tableReference", [CString, CString]).
+        assertEquals(
+                new AppliedFunction("tableReference", List.of(
+                        new CString("my::db"),
+                        new CString("CUSTOMER"))),
+                SpecParser.parse("#>{my::db.CUSTOMER}#"));
+    }
+
+    @Test
+    void tableReferenceWithoutDotRejected() {
+        // '#>{no_table}#' \u2014 no '.' means we can't split into
+        // db and table. Engine-lite throws; we match.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("#>{no_table}#"));
+        assertTrue(ex.getMessage().contains("db.TABLE"),
+                () -> "want table-reference error, got: " + ex.getMessage());
+    }
+
+    @Test
+    void graphFetchFollowedByArrowChain() {
+        // '#{Person {name}}->serialize()' \u2014 the '}->' closer
+        // (ISLAND_ARROW_EXIT) exits the island and consumes the
+        // leading '->', so the next tokens form a function call.
+        // Pin the arrow-chain continuation works: the DSL result
+        // becomes the first parameter of the outer 'serialize' call.
+        ValueSpecification result = SpecParser.parse(
+                "#{Person {name}}->serialize()");
+        assertTrue(result instanceof AppliedFunction af
+                        && af.function().equals("serialize")
+                        && af.parameters().size() == 1
+                        && af.parameters().get(0) instanceof ColSpecArray,
+                () -> "want serialize(graphFetchTree), got: " + result);
+    }
+
+    @Test
+    void graphFetchRejectsUnknownDslType() {
+        // '#x{content}#' \u2014 unknown DSL discriminator 'x'.
+        // Engine-lite throws; we match.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("#x{content}#"));
+        assertTrue(ex.getMessage().contains("DSL"),
+                () -> "want unknown-DSL error, got: " + ex.getMessage());
+    }
+
+    // ----- C.7b: engine-lite parity (copy-with-update + dotted keys) ---
+
+    @Test
+    void copyWithUpdateSingleField() {
+        // '^$existing(name=\\'new\\')' \u2014 copy-with-update form.
+        // Receiver is Variable(existing) (not PackageableElementPtr);
+        // NewInstance.className is empty because the class is
+        // recovered from the variable's static type at type-check
+        // time. Function name stays 'new' for engine-lite binding
+        // parity.
+        Map<String, KeyExpression> props = new LinkedHashMap<>();
+        props.put("name", new KeyExpression(new CString("new"), false));
+        assertEquals(
+                new AppliedFunction("new", List.of(
+                        new Variable("existing"),
+                        new NewInstance("", List.of(), props))),
+                SpecParser.parse("^$existing(name='new')"));
+    }
+
+    @Test
+    void copyWithUpdateWithPlusEquals() {
+        // '^$list(items+=$x)' \u2014 copy-with-update with '+='
+        // append-form binding. KeyExpression.isAdd must be preserved
+        // so the type-checker can distinguish the append form.
+        Map<String, KeyExpression> props = new LinkedHashMap<>();
+        props.put("items", new KeyExpression(new Variable("x"), true));
+        assertEquals(
+                new AppliedFunction("new", List.of(
+                        new Variable("list"),
+                        new NewInstance("", List.of(), props))),
+                SpecParser.parse("^$list(items+=$x)"));
+    }
+
+    @Test
+    void copyWithUpdateMissingVarNameRejected() {
+        // '^$(' \u2014 missing variable name after '^$'. Must error
+        // at parse time with a specific message pinning the
+        // copy-with-update context.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("^$(foo=1)"));
+        assertTrue(ex.getMessage().contains("copy-with-update"),
+                () -> "want copy-with-update error, got: " + ex.getMessage());
+    }
+
+    @Test
+    void newInstanceDottedPropertyKey() {
+        // '^Foo(addr.city = \\'NYC\\')' \u2014 dotted property path
+        // for atomic nested-field update. Key is joined with '.'
+        // into a single map key; TypeChecker walks the chain
+        // against the class's declared properties.
+        Map<String, KeyExpression> props = new LinkedHashMap<>();
+        props.put("addr.city", new KeyExpression(new CString("NYC"), false));
+        assertEquals(
+                new AppliedFunction("new", List.of(
+                        new PackageableElementPtr("Foo"),
+                        new NewInstance("Foo", List.of(), props))),
+                SpecParser.parse("^Foo(addr.city = 'NYC')"));
+    }
+
+    @Test
+    void newInstanceDeepDottedPropertyKey() {
+        // '^Foo(a.b.c.d = 1)' \u2014 arbitrary-depth dotted path.
+        Map<String, KeyExpression> props = new LinkedHashMap<>();
+        props.put("a.b.c.d", new KeyExpression(new CInteger(1L), false));
+        assertEquals(
+                new AppliedFunction("new", List.of(
+                        new PackageableElementPtr("Foo"),
+                        new NewInstance("Foo", List.of(), props))),
+                SpecParser.parse("^Foo(a.b.c.d = 1)"));
+    }
+
+    @Test
+    void letWithQuotedVariableName() {
+        // 'let \\'my var\\' = 42' \u2014 quoted let-var name lets
+        // users bind variables whose surface spelling isn't a
+        // legal Pure identifier (whitespace, punctuation). The
+        // AppliedFunction("letFunction", ...) carries the
+        // UNQUOTED name as a CString, matching engine-lite's
+        // parseIdentifierText behaviour.
+        assertEquals(
+                new AppliedFunction("letFunction", List.of(
+                        new CString("my var"),
+                        new CInteger(42L))),
+                SpecParser.parse("let 'my var' = 42"));
+    }
+
+    @Test
+    void copyWithUpdateDottedKey() {
+        // '^$x(addr.city = \\'NYC\\')' \u2014 the two features compose.
+        // Copy-with-update receiver + dotted property key.
+        Map<String, KeyExpression> props = new LinkedHashMap<>();
+        props.put("addr.city", new KeyExpression(new CString("NYC"), false));
+        assertEquals(
+                new AppliedFunction("new", List.of(
+                        new Variable("x"),
+                        new NewInstance("", List.of(), props))),
+                SpecParser.parse("^$x(addr.city = 'NYC')"));
     }
 
     // ----- slice entry point -------------------------------------------
