@@ -21,6 +21,7 @@ import com.legend.parser.spec.Multiplicity;
 import com.legend.parser.spec.NewInstance;
 import com.legend.parser.spec.PackageableElementPtr;
 import com.legend.parser.spec.PureCollection;
+import com.legend.parser.spec.TypeAnnotation;
 import com.legend.parser.spec.ValueSpecification;
 import com.legend.parser.spec.Variable;
 import org.junit.jupiter.api.Test;
@@ -1940,6 +1941,281 @@ final class SpecParserTest {
         assertTrue(ex.getMessage().contains("expected lambda")
                         && ex.getMessage().contains("column spec"),
                 () -> "want non-lambda-after-colon error, got: "
+                        + ex.getMessage());
+    }
+
+    // ----- type annotations (C.7): @Type / @Relation<(...)> ----------
+
+    @Test
+    void simpleNamedTypeAnnotation() {
+        // '@Integer' \u2014 the most common form, used as the target
+        // type in '$x->cast(@Integer)'. Pin the Named variant with
+        // record equality.
+        assertEquals(
+                new TypeAnnotation.Named("Integer"),
+                SpecParser.parse("@Integer"));
+    }
+
+    @Test
+    void qualifiedNamedTypeAnnotation() {
+        // '@my::pkg::Foo' \u2014 fully-qualified type. The
+        // PATH_SEPARATOR ('::') flows through parseQualifiedName,
+        // and the result is one Named with the full path preserved.
+        assertEquals(
+                new TypeAnnotation.Named("my::pkg::Foo"),
+                SpecParser.parse("@my::pkg::Foo"));
+    }
+
+    @Test
+    void typeAnnotationWithGenerics() {
+        // '@List<Integer>' \u2014 generic-type-args carried verbatim
+        // into the typeName by token concatenation. Inter-token
+        // whitespace is lost (the documented C.5 quirk). 'List' is
+        // not 'Relation' so the structural-shape branch does not
+        // fire; we fall through to the depth-tracked angle-bracket
+        // collection.
+        assertEquals(
+                new TypeAnnotation.Named("List<Integer>"),
+                SpecParser.parse("@List<Integer>"));
+    }
+
+    @Test
+    void typeAnnotationWithNestedGenerics() {
+        // '@Map<String, List<Integer>>' \u2014 the depth tracker
+        // handles nested '<...>' correctly. Pin to catch a regression
+        // where the inner '>' would close the outer angle pair
+        // prematurely.
+        assertEquals(
+                new TypeAnnotation.Named("Map<String,List<Integer>>"),
+                SpecParser.parse("@Map<String, List<Integer>>"));
+    }
+
+    @Test
+    void relationShapeAnnotationWithBareColumns() {
+        // '@Relation<(name:String, age:Integer)>' \u2014 the
+        // structural form: two columns, both bare names, both Named
+        // types, no multiplicity. Pin the RelationShape with full
+        // record equality.
+        assertEquals(
+                new TypeAnnotation.RelationShape(List.of(
+                        new TypeAnnotation.RelationShape.Column(
+                                "name",
+                                new TypeAnnotation.Named("String"),
+                                null),
+                        new TypeAnnotation.RelationShape.Column(
+                                "age",
+                                new TypeAnnotation.Named("Integer"),
+                                null))),
+                SpecParser.parse("@Relation<(name:String, age:Integer)>"));
+    }
+
+    @Test
+    void relationShapeAnnotationWithMultiplicities() {
+        // '@Relation<(id:Integer[1], optional:String[0..1])>' \u2014
+        // per-column multiplicity. Pin that we PRESERVE multiplicity
+        // (engine-lite parses-and-discards; we keep it because
+        // engine-pure's M3 metamodel preserves per-column
+        // multiplicities on the structural type, and a future
+        // relation-type-checker will need them).
+        assertEquals(
+                new TypeAnnotation.RelationShape(List.of(
+                        new TypeAnnotation.RelationShape.Column(
+                                "id",
+                                new TypeAnnotation.Named("Integer"),
+                                Multiplicity.Concrete.PURE_ONE),
+                        new TypeAnnotation.RelationShape.Column(
+                                "optional",
+                                new TypeAnnotation.Named("String"),
+                                Multiplicity.Concrete.ZERO_ONE))),
+                SpecParser.parse(
+                        "@Relation<(id:Integer[1], optional:String[0..1])>"));
+    }
+
+    @Test
+    void relationShapeAnnotationWithQuotedColumnNames() {
+        // Pulled directly from a real engine test fixture:
+        // '@Relation<(city:String, '2011__|__newCol':Integer)>'.
+        // Pivot-result column names embed punctuation that requires
+        // quoting. Pin the quoted-name path inside @Relation.
+        assertEquals(
+                new TypeAnnotation.RelationShape(List.of(
+                        new TypeAnnotation.RelationShape.Column(
+                                "city",
+                                new TypeAnnotation.Named("String"),
+                                null),
+                        new TypeAnnotation.RelationShape.Column(
+                                "2011__|__newCol",
+                                new TypeAnnotation.Named("Integer"),
+                                null))),
+                SpecParser.parse(
+                        "@Relation<(city:String, '2011__|__newCol':Integer)>"));
+    }
+
+    @Test
+    void relationShapeAnnotationWithWildcardColumn() {
+        // '@Relation<(?:?, name:String)>' \u2014 mixed wildcards. The
+        // first column has wildcard name AND wildcard type; the
+        // second is concrete. Pin both wildcard slots (name=null,
+        // type=Wildcard) so the wildcard support survives a future
+        // refactor.
+        assertEquals(
+                new TypeAnnotation.RelationShape(List.of(
+                        new TypeAnnotation.RelationShape.Column(
+                                null,
+                                new TypeAnnotation.Wildcard(),
+                                null),
+                        new TypeAnnotation.RelationShape.Column(
+                                "name",
+                                new TypeAnnotation.Named("String"),
+                                null))),
+                SpecParser.parse("@Relation<(?:?, name:String)>"));
+    }
+
+    @Test
+    void relationShapeWildcardNameAndTypeAreIndependent() {
+        // '@Relation<(?:String, name:?)>' \u2014 the two wildcard
+        // slots (name, type) must be independently settable. The
+        // existing wildcardColumn test happens to pair both
+        // wildcards in the same column ('?:?'), which would pass
+        // even if the parser accidentally coupled them. Split here
+        // so a future bug where 'name is wildcard \u21D2 type is also
+        // wildcard' (or vice versa) fails loudly.
+        assertEquals(
+                new TypeAnnotation.RelationShape(List.of(
+                        new TypeAnnotation.RelationShape.Column(
+                                null,
+                                new TypeAnnotation.Named("String"),
+                                null),
+                        new TypeAnnotation.RelationShape.Column(
+                                "name",
+                                new TypeAnnotation.Wildcard(),
+                                null))),
+                SpecParser.parse("@Relation<(?:String, name:?)>"));
+    }
+
+    @Test
+    void relationShapeColumnsAcceptQualifiedAndGenericTypes() {
+        // '@Relation<(owner:my::pkg::Firm, tags:List<String>)>'
+        // \u2014 column types use the full parseTypeText machinery
+        // from C.5. Pin that parseTypeText's qualified-name and
+        // generic-type-args paths are both reachable inside a
+        // RelationShape column. Catches a regression where
+        // parseRelationColumn accidentally used a simpler
+        // identifier read (which would reject '::' and '<').
+        assertEquals(
+                new TypeAnnotation.RelationShape(List.of(
+                        new TypeAnnotation.RelationShape.Column(
+                                "owner",
+                                new TypeAnnotation.Named("my::pkg::Firm"),
+                                null),
+                        new TypeAnnotation.RelationShape.Column(
+                                "tags",
+                                new TypeAnnotation.Named("List<String>"),
+                                null))),
+                SpecParser.parse(
+                        "@Relation<(owner:my::pkg::Firm, tags:List<String>)>"));
+    }
+
+    @Test
+    void emptyRelationShapeIsLegalStructurally() {
+        // '@Relation<()>' \u2014 admitted by the parser; rejection
+        // (if any) is the type-checker's job. Pin so a future guard
+        // (e.g. require >= 1 column) doesn't silently break this.
+        assertEquals(
+                new TypeAnnotation.RelationShape(List.of()),
+                SpecParser.parse("@Relation<()>"));
+    }
+
+    @Test
+    void typeAnnotationAsCastArgument() {
+        // The canonical use: '$x->cast(@Integer)'. Combines C.2
+        // (arrow + call), C.7 (type annotation as arg). Pin the
+        // full nested AST so a regression in either emission shape
+        // would fail loudly.
+        assertEquals(
+                new AppliedFunction("cast", List.of(
+                        new Variable("x"),
+                        new TypeAnnotation.Named("Integer"))),
+                SpecParser.parse("$x->cast(@Integer)"));
+    }
+
+    @Test
+    void relationShapeAsCastArgument() {
+        // Realistic relation-cast usage modelled on the pivot test
+        // fixture: cast the result of a pivot to a known relation
+        // shape so downstream stages have static column info.
+        assertEquals(
+                new AppliedFunction("cast", List.of(
+                        new Variable("rel"),
+                        new TypeAnnotation.RelationShape(List.of(
+                                new TypeAnnotation.RelationShape.Column(
+                                        "city",
+                                        new TypeAnnotation.Named("String"),
+                                        null),
+                                new TypeAnnotation.RelationShape.Column(
+                                        "country",
+                                        new TypeAnnotation.Named("String"),
+                                        null))))),
+                SpecParser.parse(
+                        "$rel->cast(@Relation<(city:String, country:String)>)"));
+    }
+
+    @Test
+    void typeAnnotationMissingNameRejected() {
+        // '@' followed by something that isn't a type name \u2014
+        // e.g. '@123' or '@*'. Pin the error phrase.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("@123"));
+        assertTrue(ex.getMessage().contains("type name after '@'"),
+                () -> "want missing-type-name error, got: " + ex.getMessage());
+    }
+
+    @Test
+    void relationShapeUnterminatedRejected() {
+        // '@Relation<(a:Integer' \u2014 missing ')>' close. Pin the
+        // explicit error path so a future regression couldn't
+        // silently consume to EOF.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("@Relation<(a:Integer"));
+        assertTrue(ex.getMessage().contains("')'")
+                        && ex.getMessage().contains("@Relation"),
+                () -> "want unterminated-relation error, got: "
+                        + ex.getMessage());
+    }
+
+    @Test
+    void relationShapeTrailingCommaRejected() {
+        // '@Relation<(a:Integer,)>' \u2014 trailing comma. Specific
+        // ColSpec-style error phrase so this cannot crosswire with
+        // ColSpec-array trailing-comma errors.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("@Relation<(a:Integer,)>"));
+        assertTrue(ex.getMessage().contains("trailing comma")
+                        && ex.getMessage().contains("@Relation"),
+                () -> "want trailing-comma error, got: " + ex.getMessage());
+    }
+
+    @Test
+    void relationShapeMissingColonRejected() {
+        // '@Relation<(a Integer)>' \u2014 missing ':' between column
+        // name and type. Pin the explicit error vs silent
+        // consumption.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("@Relation<(a Integer)>"));
+        assertTrue(ex.getMessage().contains("':'")
+                        && ex.getMessage().contains("@Relation"),
+                () -> "want missing-colon error, got: " + ex.getMessage());
+    }
+
+    @Test
+    void unterminatedTypeArgumentInAnnotationRejected() {
+        // '@List<Integer' \u2014 missing closing '>'. Pin that the
+        // depth-tracker reaches the EOF guard and throws.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("@List<Integer"));
+        assertTrue(ex.getMessage().contains("unterminated")
+                        && ex.getMessage().contains("type-argument"),
+                () -> "want unterminated-generics error, got: "
                         + ex.getMessage());
     }
 

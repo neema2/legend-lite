@@ -23,6 +23,7 @@ import com.legend.parser.spec.Multiplicity;
 import com.legend.parser.spec.NewInstance;
 import com.legend.parser.spec.PackageableElementPtr;
 import com.legend.parser.spec.PureCollection;
+import com.legend.parser.spec.TypeAnnotation;
 import com.legend.parser.spec.ValueSpecification;
 import com.legend.parser.spec.Variable;
 
@@ -583,6 +584,7 @@ public final class SpecParser {
             case BRACE_OPEN -> parseLambdaFunction();
             case PIPE -> parseLambdaPipe();
             case TILDE -> parseColumnBuilders();
+            case AT -> parseTypeAnnotation();
             default -> {
                 if (ElementParser.IDENTIFIER_TOKENS.contains(t)) {
                     // Single-param lambda shorthand: 'x | body'. The
@@ -1681,6 +1683,190 @@ public final class SpecParser {
                 "expected lambda after ':' in column spec, got " + t
                 + " ('" + safeText(tokens, pos) + "')");
         return null; // unreachable
+    }
+
+    // -------------------------------------------------------------------
+    // Type annotations (C.7): @Type, @Relation<(col:Type, ...)>
+    // -------------------------------------------------------------------
+
+    /**
+     * Parse a type annotation. Grammar:
+     * <pre>
+     *   typeAnnotation = '@' (relationShape | namedType)
+     *   relationShape  = 'Relation' '&lt;' '(' relationColumns? ')' '&gt;'
+     *   namedType      = qualifiedName ('&lt;' typeArgs '&gt;')?
+     * </pre>
+     *
+     * <p>Pre-condition: cursor is on {@link TokenType#AT}. The
+     * dispatch is governed by a 2-token lookahead after the
+     * qualified name: simple-name {@code "Relation"} + LESS_THAN +
+     * PAREN_OPEN commits to the structural-shape parse; anything
+     * else falls through to {@link TypeAnnotation.Named}.
+     *
+     * <p>For non-relation generic types ({@code @List<Integer>})
+     * the type-argument list is collected verbatim into the
+     * {@link TypeAnnotation.Named#typeName() typeName} via the same
+     * token-concatenation mechanism {@link #parseTypeText()} uses.
+     * Whitespace between tokens is lost (documented C.5 quirk); a
+     * downstream re-parse can recover structure if needed.
+     */
+    private TypeAnnotation parseTypeAnnotation() {
+        pos++; // consume '@'
+        if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected type name after '@'");
+        }
+        String name = parseQualifiedName();
+        String simple = name.contains("::")
+                ? name.substring(name.lastIndexOf("::") + 2)
+                : name;
+
+        // @Relation<(col:Type, ...)> — structural relation shape.
+        // The lookahead must check BOTH '<' and the following '(' to
+        // distinguish from @Relation<T> (a hypothetical generic
+        // application of a class named 'Relation'). Engine grammar
+        // reserves the structural form for the parenthesised inner.
+        if ("Relation".equals(simple)
+                && pos < tokens.count()
+                && tokens.type(pos) == TokenType.LESS_THAN
+                && pos + 1 < tokens.count()
+                && tokens.type(pos + 1) == TokenType.PAREN_OPEN) {
+            pos++; // consume '<'
+            TypeAnnotation.RelationShape shape = parseRelationShape();
+            if (pos >= tokens.count() || tokens.type(pos) != TokenType.GREATER_THAN) {
+                ElementParser.throwAt(tokens, pos,
+                        "expected '>' to close @Relation type annotation");
+            }
+            pos++; // consume '>'
+            return shape;
+        }
+
+        // Generic type arguments — collect verbatim into typeName.
+        // Same depth-tracking as parseTypeText so nested
+        // '<...>' (e.g. Map<K, List<V>>) round-trips correctly.
+        if (pos < tokens.count() && tokens.type(pos) == TokenType.LESS_THAN) {
+            StringBuilder sb = new StringBuilder(name);
+            sb.append('<');
+            pos++;
+            int depth = 1;
+            while (pos < tokens.count() && depth > 0) {
+                TokenType tt = tokens.type(pos);
+                if (tt == TokenType.LESS_THAN) {
+                    depth++;
+                } else if (tt == TokenType.GREATER_THAN) {
+                    depth--;
+                    if (depth == 0) {
+                        pos++;
+                        break;
+                    }
+                }
+                sb.append(tokens.text(pos));
+                pos++;
+            }
+            sb.append('>');
+            if (depth != 0) {
+                ElementParser.throwAt(tokens, pos,
+                        "unterminated type-argument list in @"
+                        + name + " annotation");
+            }
+            name = sb.toString();
+        }
+
+        return new TypeAnnotation.Named(name);
+    }
+
+    /**
+     * Parse the body of a {@code @Relation<(...)>} annotation.
+     * Pre-condition: cursor is on the opening {@code (}.
+     * Post-condition: cursor is on the closing {@code >} of the
+     * outer angle pair (the caller consumes the {@code >}).
+     */
+    private TypeAnnotation.RelationShape parseRelationShape() {
+        pos++; // consume '('
+        List<TypeAnnotation.RelationShape.Column> columns = new ArrayList<>();
+        if (pos < tokens.count() && tokens.type(pos) != TokenType.PAREN_CLOSE) {
+            columns.add(parseRelationColumn());
+            while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
+                pos++; // consume ','
+                if (pos < tokens.count() && tokens.type(pos) == TokenType.PAREN_CLOSE) {
+                    ElementParser.throwAt(tokens, pos,
+                            "trailing comma in @Relation columns");
+                }
+                columns.add(parseRelationColumn());
+            }
+        }
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_CLOSE) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected ')' to close @Relation columns");
+        }
+        pos++; // consume ')'
+        return new TypeAnnotation.RelationShape(columns);
+    }
+
+    /**
+     * Parse one column inside a {@code @Relation<(...)>}. Grammar:
+     * <pre>
+     *   relationColumn = (identifier | quotedString | '?') ':' columnType multiplicity?
+     *   columnType     = '?' | type
+     * </pre>
+     *
+     * <p>Both the name and the type can independently be a
+     * wildcard ({@code ?}), matching engine-pure's
+     * {@code mayColumnName} / {@code mayColumnType} grammar
+     * productions. Quoted names are unescaped through the shared
+     * {@link #unescapeString} pipeline.
+     */
+    private TypeAnnotation.RelationShape.Column parseRelationColumn() {
+        if (pos >= tokens.count()) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected column name or '?' inside @Relation");
+        }
+        TokenType nameTok = tokens.type(pos);
+        String name;
+        if (nameTok == TokenType.QUESTION) {
+            name = null;
+            pos++;
+        } else if (nameTok == TokenType.STRING) {
+            String raw = tokens.text(pos);
+            if (raw.length() < 2 || raw.charAt(0) != '\''
+                    || raw.charAt(raw.length() - 1) != '\'') {
+                ElementParser.throwAt(tokens, pos,
+                        "malformed quoted column name inside @Relation");
+            }
+            name = unescapeString(raw.substring(1, raw.length() - 1));
+            pos++;
+        } else if (isFqnSegmentToken(nameTok)) {
+            name = tokens.text(pos);
+            pos++;
+        } else {
+            ElementParser.throwAt(tokens, pos,
+                    "expected column name or '?' inside @Relation, got "
+                    + nameTok);
+            return null; // unreachable
+        }
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.COLON) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected ':' after column name inside @Relation");
+        }
+        pos++; // consume ':'
+
+        TypeAnnotation type;
+        if (pos < tokens.count() && tokens.type(pos) == TokenType.QUESTION) {
+            type = new TypeAnnotation.Wildcard();
+            pos++;
+        } else {
+            // Inline type: qualifiedName + optional <typeArgs>.
+            // Reuses parseTypeText (C.5) so the same generics
+            // handling applies. The result is wrapped in a Named
+            // TypeAnnotation for downstream uniformity.
+            type = new TypeAnnotation.Named(parseTypeText());
+        }
+
+        Multiplicity multiplicity = null;
+        if (pos < tokens.count() && tokens.type(pos) == TokenType.BRACKET_OPEN) {
+            multiplicity = parseMultiplicity();
+        }
+        return new TypeAnnotation.RelationShape.Column(name, type, multiplicity);
     }
 
     // -------------------------------------------------------------------

@@ -59,5 +59,6 @@ public sealed interface ValueSpecification permits
         NewInstance,
         PackageableElementPtr,
         PureCollection,
+        TypeAnnotation,
         Variable {
 }
