@@ -208,6 +208,84 @@ final class ElementParserTest {
         assertEquals(List.of(prop("firm", "my::model::Firm", 1, 1)), c.properties());
     }
 
+    @Test
+    void genericPropertyTypeCapturesAngleBrackets() {
+        // Engine-lite parity: generic type arguments (e.g. List<Person>)
+        // are captured as part of the type text. Depth-tracked parsing
+        // handles nested generics and embedded function types too.
+        ClassDefinition c = parseOneClass("Class P { items: List<Person>[*]; }");
+        assertEquals(List.of(prop("items", "List<Person>", 0, null)),
+                c.properties());
+    }
+
+    @Test
+    void nestedGenericPropertyType() {
+        // 'Pair<List<A>, B>' -- nested angle brackets must balance.
+        // A single-pass depth counter (vs. a regex) is what makes this
+        // work; the test pins that depth tracking stays correct when
+        // the inner generic closes first.
+        ClassDefinition c = parseOneClass(
+                "Class P { x: Pair<List<A>, B>[1]; }");
+        assertEquals(List.of(prop("x", "Pair<List<A>, B>", 1, 1)),
+                c.properties());
+    }
+
+    @Test
+    void functionPropertyTypeCapturesBraces() {
+        // 'Function<{T[1]->U[1]}>' combines generics with an embedded
+        // bare-function type. Engine-lite treats the inner '{...}' as
+        // an opaque brace-balanced span; we match. The '->' arrow
+        // inside is a lexer ARROW token that never breaks depth
+        // tracking because it's not a brace or angle.
+        ClassDefinition c = parseOneClass(
+                "Class P { f: Function<{T[1]->U[1]}>[1]; }");
+        assertEquals(List.of(prop("f", "Function<{T[1]->U[1]}>", 1, 1)),
+                c.properties());
+    }
+
+    @Test
+    void bareFunctionTypeAsPropertyType() {
+        // '{T[1]->U[1]}' standalone (no 'Function<>' wrapper). Engine-
+        // lite accepts; we match. The multiplicity follows the
+        // function-type span, not the inner return multiplicity.
+        ClassDefinition c = parseOneClass(
+                "Class P { g: {T[1]->U[1]}[1]; }");
+        assertEquals(List.of(prop("g", "{T[1]->U[1]}", 1, 1)),
+                c.properties());
+    }
+
+    @Test
+    void genericTypeInExtendsClause() {
+        // 'extends List<Bar>' -- generic superclass. The 'extends'
+        // arm also goes through parseType (see parseClassDefinition),
+        // so this pins the same depth-tracking behaviour applies to
+        // superclass parsing too, not just property types.
+        ClassDefinition c = parseOneClass(
+                "Class my::Foo extends List<Bar> { x: Integer[1]; }");
+        assertEquals(List.of("List<Bar>"), c.superClasses());
+    }
+
+    @Test
+    void genericTypeInAssociationEnd() {
+        // Association ends also parseType -- pin the generic-support
+        // carries through.
+        ParsedModel m = ElementParser.parse(
+                "Association my::A { left: List<B>[*]; right: A[1]; }");
+        AssociationDefinition a = (AssociationDefinition) m.elements().get(0);
+        assertEquals("List<B>", a.property1().targetClass());
+    }
+
+    @Test
+    void genericTypeInFunctionParameterAndReturn() {
+        // Function parameters and the return type both go through
+        // parseType. Both must accept generics.
+        ParsedModel m = ElementParser.parse(
+                "function my::f(x: List<String>[*]): Pair<String, Integer>[1] { $x }");
+        FunctionDefinition f = (FunctionDefinition) m.elements().get(0);
+        assertEquals("List<String>", f.parameters().get(0).type());
+        assertEquals("Pair<String, Integer>", f.returnType());
+    }
+
     // ---------------------------------------------------------------
     // Type parameters and superclasses
     // ---------------------------------------------------------------
@@ -1340,12 +1418,17 @@ final class ElementParserTest {
 
     @Test
     void relationalClassMappingTildeModifiers() {
+        // Legend-engine canonical clause order (RelationalParserGrammar.g4):
+        //   ~filter? ~distinct? ~groupBy? ~primaryKey? ~mainTable?
+        //   (propertyMapping,...)
+        // ~mainTable goes LAST among the tilde-commands -- writing it
+        // before ~distinct/~groupBy/~primaryKey is a grammar violation.
         var cm = firstRelationalClassMapping(
                 "Mapping my::M ( *model::Person: Relational { "
-                + "~mainTable [db::DB] PERSON "
                 + "~distinct "
-                + "~groupBy(DEPT_ID) "
-                + "~primaryKey(ID) "
+                + "~groupBy([db::DB]PERSON.DEPT_ID) "
+                + "~primaryKey([db::DB]PERSON.ID) "
+                + "~mainTable [db::DB] PERSON "
                 + "} )");
         assertTrue(cm.distinct());
         assertEquals("db::DB", ((ColumnRef) cm.groupBy().get(0)).databaseName());
@@ -1358,10 +1441,11 @@ final class ElementParserTest {
 
     @Test
     void relationalClassMappingFilterDirectLocal() {
+        // ~filter precedes ~mainTable per legend-engine grammar.
         var cm = firstRelationalClassMapping(
                 "Mapping my::M ( *model::Person: Relational { "
-                + "~mainTable [db::DB] PERSON "
                 + "~filter ActivePersonFilter "
+                + "~mainTable [db::DB] PERSON "
                 + "} )");
         assertInstanceOf(FilterMapping.Direct.class, cm.filter(),
                 "~filter <Name> must produce Direct, not JoinMediated");
@@ -1373,11 +1457,60 @@ final class ElementParserTest {
     }
 
     @Test
-    void relationalClassMappingFilterJoinMediated() {
+    void relationalClassMappingMainTableIsOptional() {
+        // Per legend-engine grammar, mappingMainTable? is 0..1 --
+        // a Relational class mapping MAY have no main table (e.g.
+        // when extending another set-id that supplies it, or when
+        // every property mapping self-qualifies with [DB]T.col).
+        // Our previous implementation hard-rejected this; legend-
+        // engine accepts.
         var cm = firstRelationalClassMapping(
                 "Mapping my::M ( *model::Person: Relational { "
-                + "~mainTable [db::DB] PERSON "
+                + "firstName: [db::DB]PERSON.FIRST_NAME "
+                + "} )");
+        assertNull(cm.mainTable(), "no ~mainTable -> mainTable is null");
+        assertEquals(1, cm.propertyMappings().size());
+    }
+
+    @Test
+    void relationalClassMappingClauseOrderIsEnforced() {
+        // ~mainTable before ~primaryKey is a legend-engine grammar
+        // violation; we must reject with a diagnostic that names
+        // the offending clause and the canonical order. A generic
+        // 'unexpected token' would not help users port from
+        // engine-lite (which accepts any order).
+        ParseException ex = assertThrows(ParseException.class,
+                () -> ElementParser.parse("Mapping my::M ( *model::Person: Relational { "
+                        + "~mainTable [db::DB] PERSON "
+                        + "~primaryKey([db::DB]PERSON.ID) "
+                        + "} )"));
+        assertTrue(ex.getMessage().contains("~primaryKey"),
+                () -> "error must name the offending clause, got: " + ex.getMessage());
+        assertTrue(ex.getMessage().contains("out of order"),
+                () -> "error must say 'out of order', got: " + ex.getMessage());
+    }
+
+    @Test
+    void relationalClassMappingDuplicateTildeClauseRejected() {
+        // Each ~clause is 0..1 per grammar. Two ~distinct in a row
+        // is duplicated; the second one is an out-of-order violation.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> ElementParser.parse("Mapping my::M ( *model::Person: Relational { "
+                        + "~distinct "
+                        + "~distinct "
+                        + "~mainTable [db::DB] PERSON "
+                        + "} )"));
+        assertTrue(ex.getMessage().contains("~distinct"),
+                () -> "want duplicated-clause diagnostic, got: " + ex.getMessage());
+    }
+
+    @Test
+    void relationalClassMappingFilterJoinMediated() {
+        // ~filter precedes ~mainTable per legend-engine grammar.
+        var cm = firstRelationalClassMapping(
+                "Mapping my::M ( *model::Person: Relational { "
                 + "~filter [db::DB] @PersonFirm | ActiveFirm "
+                + "~mainTable [db::DB] PERSON "
                 + "} )");
         var jm = (FilterMapping.JoinMediated) cm.filter();
         assertEquals("db::DB", jm.sourceDb());

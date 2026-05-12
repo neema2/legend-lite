@@ -1542,64 +1542,108 @@ public final class ElementParser {
      * Parse the body of a {@code Relational} class mapping (the {@code { ... }}
      * after the {@code : Relational} prefix). The opening brace has already
      * been consumed by the caller; we stop at the matching close brace.
+     *
+     * <h3>Grammar (legend-engine canonical, from
+     * {@code RelationalParserGrammar.g4:244-251})</h3>
+     * <pre>
+     *   classMapping : mappingFilter?       // ~filter    (0..1)
+     *                  DISTINCT_CMD?        // ~distinct  (0..1)
+     *                  mappingGroupBy?      // ~groupBy   (0..1)
+     *                  mappingPrimaryKey?   // ~primaryKey (0..1)
+     *                  mappingMainTable?    // ~mainTable (0..1)
+     *                  (propertyMapping (COMMA propertyMapping)*)?
+     * </pre>
+     *
+     * <p><b>Order is fixed.</b> Each {@code ~command} appears at most once,
+     * in the sequence shown. Writing {@code ~mainTable} before
+     * {@code ~primaryKey} is a grammar violation (even though it reads
+     * more naturally to an English speaker). Legend-engine's ANTLR
+     * parser enforces the order; we match. Engine-lite is more lax
+     * (any order), but that is an engine-lite-ism, not canonical.
+     *
+     * <p><b>{@code ~mainTable} is optional.</b> When present, its
+     * database becomes the default scope for unqualified table/column
+     * references in property-mapping bodies (the "scope-info" mechanism
+     * in legend-engine's {@code ScopeInfo}). When absent, every
+     * reference in property bodies must carry its own {@code [DB]}
+     * qualifier or the downstream resolver will fail.
+     *
+     * <p>{@code ~filter}, {@code ~groupBy}, {@code ~primaryKey} each
+     * parse their expressions BEFORE the main-table scope is known
+     * (the grammar orders them before {@code mappingMainTable}), so
+     * their expressions must self-qualify. {@link #parseDbOperation}
+     * accepts a {@code null} scope and defers the error to the
+     * identifier-resolution layer.
      */
     private ClassMapping parseRelationalClassMappingBody(
             String className, String setId, String extendsSetId, boolean root) {
 
-        MappingDefinition.TableReference mainTable = null;
         FilterMapping filter = null;
         boolean distinct = false;
         List<RelationalOperation> groupBy = new ArrayList<>();
         List<RelationalOperation> primaryKey = new ArrayList<>();
+        MappingDefinition.TableReference mainTable = null;
         List<PropertyMapping> propertyMappings = new ArrayList<>();
 
         MappingDefinition.TableReference savedScope = currentMappingScope;
         try {
+            // 1. Optional ~filter (pre-mainTable; null scope).
+            if (peek() == TokenType.FILTER_CMD) {
+                advance();
+                filter = parseViewFilterClause(null);
+            }
+            // 2. Optional ~distinct.
+            if (peek() == TokenType.DISTINCT_CMD) {
+                advance();
+                distinct = true;
+            }
+            // 3. Optional ~groupBy.
+            if (peek() == TokenType.GROUP_BY_CMD) {
+                advance();
+                expect(TokenType.PAREN_OPEN);
+                if (peek() != TokenType.PAREN_CLOSE) {
+                    groupBy.add(parseDbOperation(null));
+                    while (match(TokenType.COMMA)) groupBy.add(parseDbOperation(null));
+                }
+                expect(TokenType.PAREN_CLOSE);
+            }
+            // 4. Optional ~primaryKey.
+            if (peek() == TokenType.PRIMARY_KEY_CMD) {
+                advance();
+                expect(TokenType.PAREN_OPEN);
+                if (peek() != TokenType.PAREN_CLOSE) {
+                    primaryKey.add(parseDbOperation(null));
+                    while (match(TokenType.COMMA)) primaryKey.add(parseDbOperation(null));
+                }
+                expect(TokenType.PAREN_CLOSE);
+            }
+            // 5. Optional ~mainTable. Sets the scope for subsequent
+            //    property-mapping bodies.
+            if (peek() == TokenType.MAIN_TABLE_CMD) {
+                advance();
+                mainTable = parseMappingMainTable();
+                currentMappingScope = mainTable;
+            }
+            // 6. Zero-or-more property mappings. Property-mapping
+            //    expressions may rely on mainTable's scope when
+            //    mainTable is present; otherwise they must self-qualify.
             while (peek() != TokenType.BRACE_CLOSE) {
+                // Any stray ~command here is an out-of-order grammar
+                // violation. Legend-engine's ANTLR rejects; we match
+                // with a specific diagnostic naming the offending
+                // command and the canonical clause order, which is
+                // more useful than "unexpected token ~primaryKey".
                 TokenType t = peek();
-                if (t == TokenType.MAIN_TABLE_CMD) {
-                    advance();
-                    mainTable = parseMappingMainTable();
-                    currentMappingScope = mainTable;
-                    continue;
+                if (t == TokenType.FILTER_CMD || t == TokenType.DISTINCT_CMD
+                        || t == TokenType.GROUP_BY_CMD
+                        || t == TokenType.PRIMARY_KEY_CMD
+                        || t == TokenType.MAIN_TABLE_CMD) {
+                    error("'" + tildeCommandText(t)
+                            + "' out of order or duplicated in Relational class"
+                            + " mapping for '" + className + "'; legend-engine order is:"
+                            + " ~filter, ~distinct, ~groupBy, ~primaryKey, ~mainTable,"
+                            + " then property mappings");
                 }
-                if (t == TokenType.FILTER_CMD) {
-                    advance();
-                    requireMainTableForScopeOp("~filter", mainTable);
-                    filter = parseViewFilterClause(mainTable.database());
-                    continue;
-                }
-                if (t == TokenType.DISTINCT_CMD) {
-                    advance();
-                    distinct = true;
-                    continue;
-                }
-                if (t == TokenType.GROUP_BY_CMD) {
-                    advance();
-                    requireMainTableForScopeOp("~groupBy", mainTable);
-                    expect(TokenType.PAREN_OPEN);
-                    if (peek() != TokenType.PAREN_CLOSE) {
-                        groupBy.add(parseDbOperation(mainTable.database()));
-                        while (match(TokenType.COMMA)) groupBy.add(parseDbOperation(mainTable.database()));
-                    }
-                    expect(TokenType.PAREN_CLOSE);
-                    continue;
-                }
-                if (t == TokenType.PRIMARY_KEY_CMD) {
-                    advance();
-                    requireMainTableForScopeOp("~primaryKey", mainTable);
-                    expect(TokenType.PAREN_OPEN);
-                    if (peek() != TokenType.PAREN_CLOSE) {
-                        primaryKey.add(parseDbOperation(mainTable.database()));
-                        while (match(TokenType.COMMA)) primaryKey.add(parseDbOperation(mainTable.database()));
-                    }
-                    expect(TokenType.PAREN_CLOSE);
-                    continue;
-                }
-                // Property mapping. Property mappings always require a main
-                // table (engine parity: ScopeInfo must be populated before
-                // property bodies parse).
-                requireMainTableForScopeOp("property mapping", mainTable);
                 propertyMappings.add(parsePropertyMapping(mainTable));
                 match(TokenType.COMMA);
             }
@@ -1607,20 +1651,29 @@ public final class ElementParser {
             currentMappingScope = savedScope;
         }
 
-        if (mainTable == null) {
-            error("Relational class mapping for '" + className
-                    + "' is missing required ~mainTable clause");
-        }
         return new ClassMapping.Relational(
                 className, setId, extendsSetId, root,
                 mainTable, filter, distinct, groupBy, primaryKey, propertyMappings);
     }
 
-    private void requireMainTableForScopeOp(String opName,
-                                            MappingDefinition.TableReference mainTable) {
-        if (mainTable == null) {
-            error(opName + " must follow a ~mainTable declaration");
-        }
+    /**
+     * Surface spelling of a {@code ~}-command token, for error messages.
+     * Callers must pass only the five class-mapping tilde commands
+     * &mdash; any other token is a programmer error, not a user error,
+     * and throwing here surfaces that bug immediately rather than
+     * producing a confusing diagnostic with a raw token name in it
+     * (AGENTS.md invariant 4: NO FALLBACKS).
+     */
+    private static String tildeCommandText(TokenType t) {
+        return switch (t) {
+            case FILTER_CMD      -> "~filter";
+            case DISTINCT_CMD    -> "~distinct";
+            case GROUP_BY_CMD    -> "~groupBy";
+            case PRIMARY_KEY_CMD -> "~primaryKey";
+            case MAIN_TABLE_CMD  -> "~mainTable";
+            default -> throw new IllegalStateException(
+                    "tildeCommandText called with non-class-mapping token: " + t);
+        };
     }
 
     /**
@@ -2172,6 +2225,32 @@ public final class ElementParser {
         } else if (peek() == TokenType.AT
                 || (peek() == TokenType.BRACKET_OPEN && lookAheadIsJoin())) {
             expr = parseDbJoinOperation(dbScope);
+        } else if (peek() == TokenType.BRACKET_OPEN) {
+            // '[db]TABLE.COL' or '[db]SCHEMA.TABLE.COL' self-qualified
+            // column reference. Required in legend-engine's canonical
+            // ~groupBy / ~primaryKey clauses because those clauses are
+            // parsed BEFORE ~mainTable (per grammar order), so no
+            // enclosing scope is available. Real legend-engine .pure
+            // corpora use this form heavily -- e.g.
+            //   ~primaryKey([testDatabase]ABC.aName)
+            // Without this arm, null-scope clauses cannot carry column
+            // references at all, which would reject every real
+            // legend-engine mapping that has ~primaryKey or ~groupBy.
+            advance(); // consume '['
+            String db = parseQualifiedName();
+            expect(TokenType.BRACKET_CLOSE);
+            String firstId = parseRelationalIdentifier();
+            expect(TokenType.DOT);
+            String second = parseRelationalIdentifier();
+            if (peek() == TokenType.DOT) {
+                advance();
+                String third = parseRelationalIdentifier();
+                // [db]SCHEMA.TABLE.COL
+                expr = new RelationalOperation.ColumnRef(db, firstId + "." + second, third);
+            } else {
+                // [db]TABLE.COL
+                expr = new RelationalOperation.ColumnRef(db, firstId, second);
+            }
         } else if (peek() == TokenType.STRING) {
             expr = RelationalOperation.Literal.string(unquoteString(text()));
             advance();
@@ -2402,9 +2481,73 @@ public final class ElementParser {
         return sb.toString();
     }
 
-    /** Parse a (possibly qualified) type reference &mdash; just a qualified name in B.1. */
+    /**
+     * Parse a type reference and return its surface text. Three shapes
+     * are accepted, matching engine-lite's {@code parseType}:
+     *
+     * <ol>
+     *   <li>Bare function type: {@code {T[m] -> R[m]}} &mdash; the
+     *       entire brace-delimited span is captured verbatim.</li>
+     *   <li>Qualified name with optional generics:
+     *       {@code my::pkg::List<Person>}, where the generic argument
+     *       list may itself contain nested generics, multiplicities,
+     *       function types, commas, etc. Engine-lite tracks
+     *       {@code <...>} by depth; we match.</li>
+     *   <li>Plain qualified name: {@code my::pkg::Type}.</li>
+     * </ol>
+     *
+     * <p>Returned string is the source substring spanning the consumed
+     * tokens. Callers store it as the declared type text and defer
+     * structural parsing to the type-resolution layer (legend-engine
+     * proper does the same).
+     *
+     * <p>This is the SINGLE most impactful method in the parser for
+     * real-Pure compatibility &mdash; almost every property, parameter,
+     * association end, function return, and superclass type goes
+     * through here. A naive {@code parseQualifiedName()} implementation
+     * (the pre-fix behaviour) would reject any declared type with a
+     * generic argument, which is the majority of non-primitive types in
+     * the legend-engine corpus ({@code List<T>}, {@code Pair<A,B>},
+     * {@code Function<{T->R}>}, {@code Map<K,V>}, etc.).
+     */
     private String parseType() {
-        return parseQualifiedName();
+        int start = pos;
+        if (peek() == TokenType.BRACE_OPEN) {
+            // Bare function type: {T[m] -> R[m]} -- capture the whole
+            // brace-balanced span verbatim. Engine-lite does a raw
+            // depth-count here (no structural parse of the inner
+            // function signature); we match.
+            advance(); // consume '{'
+            int depth = 1;
+            while (!atEnd() && depth > 0) {
+                TokenType t = peek();
+                if (t == TokenType.BRACE_OPEN) depth++;
+                else if (t == TokenType.BRACE_CLOSE) depth--;
+                if (depth > 0) advance();
+            }
+            if (!atEnd()) advance(); // consume matching '}'
+        } else {
+            parseQualifiedName(); // consume the base type name
+            // Generic argument list: Type<...>. Depth-counted so nested
+            // generics (Pair<List<A>, B>), nested function types inside
+            // generics (Function<{T->R}>), and arbitrary punctuation
+            // within the argument list all pass through. The lexer
+            // produces separate '<' / '>' tokens which simplifies depth
+            // tracking -- no need to disambiguate from comparison
+            // operators at the element-parser level.
+            if (peek() == TokenType.LESS_THAN) {
+                advance(); // consume '<'
+                int depth = 1;
+                while (!atEnd() && depth > 0) {
+                    TokenType t = peek();
+                    if (t == TokenType.LESS_THAN) depth++;
+                    else if (t == TokenType.GREATER_THAN) depth--;
+                    if (depth > 0) advance();
+                }
+                if (!atEnd()) advance(); // consume matching '>'
+            }
+        }
+        return reconstructText(start, pos);
     }
 
     /**

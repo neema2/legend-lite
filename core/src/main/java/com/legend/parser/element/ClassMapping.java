@@ -97,7 +97,14 @@ public sealed interface ClassMapping permits ClassMapping.Relational, ClassMappi
 
         public Relational {
             Objects.requireNonNull(className, "Class name cannot be null");
-            Objects.requireNonNull(mainTable, "Main table cannot be null");
+            // mainTable is nullable: per legend-engine grammar
+            // (RelationalParserGrammar.g4:248), mappingMainTable is 0..1.
+            // A Relational class mapping MAY omit ~mainTable when it
+            // inherits from another set-id via extendsSetId, or when
+            // its property mappings all resolve to a single table that
+            // the compiler can infer (see RelationalCompilerExtension
+            // "Can't find the main table" check in legend-engine).
+            // Parser accepts; compiler enforces presence-or-inferability.
             // setId, extendsSetId, filter intentionally nullable: each is a
             // presence/absence with no structural variant downstream
             // (setId resolves to a default id; extendsSetId means inherit;
