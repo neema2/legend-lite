@@ -13,6 +13,8 @@ import com.legend.parser.spec.CLatestDate;
 import com.legend.parser.spec.CStrictDate;
 import com.legend.parser.spec.CStrictTime;
 import com.legend.parser.spec.CString;
+import com.legend.parser.spec.ColSpec;
+import com.legend.parser.spec.ColSpecArray;
 import com.legend.parser.spec.KeyExpression;
 import com.legend.parser.spec.LambdaFunction;
 import com.legend.parser.spec.Multiplicity;
@@ -1647,6 +1649,298 @@ final class SpecParserTest {
         assertEquals(new Variable("let"), SpecParser.parse("$let"));
         assertEquals(new Variable("class"), SpecParser.parse("$class"));
         assertEquals(new Variable("all"), SpecParser.parse("$all"));
+    }
+
+    // ----- column builders (C.6): ~col / ~[a, b] / ~name:lambda --------
+
+    @Test
+    void bareColumnReference() {
+        // '~name' \u2014 the simplest column spec: name only, both
+        // lambda slots null. Used in project/select positions where
+        // the column passes through unchanged.
+        assertEquals(
+                new ColSpec("name", null, null),
+                SpecParser.parse("~name"));
+    }
+
+    @Test
+    void columnWithMapLambda() {
+        // '~total:x|$x.amount' \u2014 column with a map function.
+        // function1 is the shorthand lambda; function2 stays null.
+        // Used in extend/rename positions.
+        assertEquals(
+                new ColSpec("total",
+                        new LambdaFunction(
+                                List.of(new Variable("x")),
+                                List.of(new AppliedProperty(
+                                        new Variable("x"), "amount"))),
+                        null),
+                SpecParser.parse("~total:x|$x.amount"));
+    }
+
+    @Test
+    void columnWithMapAndAggregateLambdas() {
+        // '~total:x|$x.amount:y|$y->sum()' \u2014 the canonical
+        // group-by column spec. function1 is the per-row map;
+        // function2 is the reduction. Engine grammar pins this
+        // exact shape (FuncColSpec vs AggColSpec in engine-pure;
+        // collapsed to a single ColSpec with two lambdas here).
+        assertEquals(
+                new ColSpec("total",
+                        new LambdaFunction(
+                                List.of(new Variable("x")),
+                                List.of(new AppliedProperty(
+                                        new Variable("x"), "amount"))),
+                        new LambdaFunction(
+                                List.of(new Variable("y")),
+                                List.of(new AppliedFunction("sum", List.of(
+                                        new Variable("y")))))),
+                SpecParser.parse("~total:x|$x.amount:y|$y->sum()"));
+    }
+
+    @Test
+    void colSpecArrayOfBareColumns() {
+        // '~[name, age, salary]' \u2014 array of bare references.
+        // Engine groups these for uniform project / groupBy calls.
+        assertEquals(
+                new ColSpecArray(List.of(
+                        new ColSpec("name"),
+                        new ColSpec("age"),
+                        new ColSpec("salary"))),
+                SpecParser.parse("~[name, age, salary]"));
+    }
+
+    @Test
+    void colSpecArrayMixesBareAndMapped() {
+        // '~[name, total:x|$x.amount]' \u2014 mixed forms in one
+        // array. Pin that each element parses independently
+        // (consistent with our parseLambdaParam discipline from C.5).
+        assertEquals(
+                new ColSpecArray(List.of(
+                        new ColSpec("name"),
+                        new ColSpec("total",
+                                new LambdaFunction(
+                                        List.of(new Variable("x")),
+                                        List.of(new AppliedProperty(
+                                                new Variable("x"), "amount"))),
+                                null))),
+                SpecParser.parse("~[name, total:x|$x.amount]"));
+    }
+
+    @Test
+    void emptyColSpecArrayIsLegalStructurally() {
+        // '~[]' \u2014 the parser admits an empty array; rejection
+        // (if any) is the type-checker's job. Pin so a future
+        // 'require >= 1 element' guard in the parser would fail
+        // this test loudly.
+        assertEquals(
+                new ColSpecArray(List.of()),
+                SpecParser.parse("~[]"));
+    }
+
+    @Test
+    void colSpecArrayTrailingCommaRejected() {
+        // Trailing comma is rejected, matching parseCollection and
+        // parseArgList conventions. The error phrase is
+        // ColSpec-specific so this test cannot crosswire to other
+        // trailing-comma cases.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("~[a, b,]"));
+        assertTrue(ex.getMessage().contains("ColSpec array"),
+                () -> "want ColSpec-array trailing-comma error, got: "
+                        + ex.getMessage());
+    }
+
+    @Test
+    void colSpecArrayUnterminatedRejected() {
+        // '~[a, b' \u2014 missing closing ']'. Pin the close-bracket
+        // expectation so a future regression couldn't silently
+        // consume to EOF.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("~[a, b"));
+        assertTrue(ex.getMessage().contains("']'")
+                        && ex.getMessage().contains("ColSpec array"),
+                () -> "want ColSpec-array close-bracket error, got: "
+                        + ex.getMessage());
+    }
+
+    @Test
+    void columnWithBracedLambda() {
+        // '~total:{x | $x.amount}' \u2014 braced lambda form (rather
+        // than shorthand). Both forms must be accepted in
+        // post-colon position.
+        assertEquals(
+                new ColSpec("total",
+                        new LambdaFunction(
+                                List.of(new Variable("x")),
+                                List.of(new AppliedProperty(
+                                        new Variable("x"), "amount"))),
+                        null),
+                SpecParser.parse("~total:{x | $x.amount}"));
+    }
+
+    @Test
+    void columnWithTypedLambda() {
+        // '~total:x: Integer[1] | $x' \u2014 typed shorthand lambda
+        // in column-spec position. Confirms the C.5 typed-lambda
+        // dispatch is reachable from parseColumnLambda.
+        assertEquals(
+                new ColSpec("total",
+                        new LambdaFunction(
+                                List.of(new Variable(
+                                        "x", "Integer",
+                                        Multiplicity.Concrete.PURE_ONE)),
+                                List.of(new Variable("x"))),
+                        null),
+                SpecParser.parse("~total:x: Integer[1] | $x"));
+    }
+
+    @Test
+    void columnSpecAsArrowArgument() {
+        // The realistic case: passing a ColSpec to a relation-API
+        // function. Combines C.2 (arrow + call), C.6 (column spec).
+        // Pin the full nesting so a regression in either layer's
+        // emission shape would fail loudly.
+        assertEquals(
+                new AppliedFunction("project", List.of(
+                        new AppliedFunction("all", List.of(
+                                new PackageableElementPtr("Person"))),
+                        new ColSpecArray(List.of(
+                                new ColSpec("name"),
+                                new ColSpec("age"))))),
+                SpecParser.parse("Person.all()->project(~[name, age])"));
+    }
+
+    @Test
+    void columnSpecMissingNameAfterTildeRejected() {
+        // '~' followed by something that isn't an identifier or '['
+        // \u2014 e.g. '~123' or '~+'. Pin the error phrase.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("~123"));
+        assertTrue(ex.getMessage().contains("column name after '~'"),
+                () -> "want missing-column-name error, got: " + ex.getMessage());
+    }
+
+    @Test
+    void quotedColumnName() {
+        // '~'My Column'' \u2014 quoted column name. Real Pure idiom
+        // for CSV/JDBC columns whose names contain whitespace or
+        // punctuation. Engine grammar admits both bare and quoted
+        // forms pervasively. Quotes are stripped and escapes
+        // resolved via the same unescapeString pipeline as quoted
+        // property names (.'My Name') and string literals.
+        //
+        // This case was discovered as a gap during a parser-vs-tests
+        // audit \u2014 the original parseOneColSpec only accepted bare
+        // identifiers, which would silently reject realistic input.
+        // The fix mirrors readPropertyName's STRING-first dispatch.
+        assertEquals(
+                new ColSpec("My Column", null, null),
+                SpecParser.parse("~'My Column'"));
+    }
+
+    @Test
+    void quotedColumnNameInArrayMixedWithBare() {
+        // Bare and quoted names mix freely in an array. Pin the
+        // parser handles them per-element, matching the
+        // 'parseOneColSpec is independent per call' discipline.
+        assertEquals(
+                new ColSpecArray(List.of(
+                        new ColSpec("name"),
+                        new ColSpec("Full Name"),
+                        new ColSpec("age"))),
+                SpecParser.parse("~[name, 'Full Name', age]"));
+    }
+
+    @Test
+    void columnLambdaBodyAllowsFullExpression() {
+        // '~total:x|$x.amount * 2' \u2014 the post-pipe body parses
+        // as a full combinedExpression, so arithmetic, calls, and
+        // arrow chains all work inside a column lambda. Pin the
+        // composition.
+        assertEquals(
+                new ColSpec("total",
+                        new LambdaFunction(
+                                List.of(new Variable("x")),
+                                List.of(new AppliedFunction("times", List.of(
+                                        new AppliedProperty(new Variable("x"), "amount"),
+                                        new CInteger(2L))))),
+                        null),
+                SpecParser.parse("~total:x|$x.amount * 2"));
+    }
+
+    @Test
+    void columnMapAndAggregateMixesLambdaForms() {
+        // '~total:{x|$x.amount}:y|$y->sum()' \u2014 the map slot
+        // uses a braced lambda; the aggregate slot uses shorthand.
+        // Pins that parseColumnLambda is called fresh for each slot
+        // and that the slot dispatcher doesn't lock to one form per
+        // ColSpec. A regression here would still pass the
+        // map-and-aggregate test (which uses two shorthand lambdas).
+        assertEquals(
+                new ColSpec("total",
+                        new LambdaFunction(
+                                List.of(new Variable("x")),
+                                List.of(new AppliedProperty(
+                                        new Variable("x"), "amount"))),
+                        new LambdaFunction(
+                                List.of(new Variable("y")),
+                                List.of(new AppliedFunction("sum", List.of(
+                                        new Variable("y")))))),
+                SpecParser.parse("~total:{x | $x.amount}:y|$y->sum()"));
+    }
+
+    @Test
+    void columnLambdaSupportsMultiStatementBracedBody() {
+        // '~total:{x | let y = 1; $y + 2}' \u2014 multi-statement
+        // body inside a braced lambda in column position.
+        // Cross-phase wiring (C.4 code blocks + C.6 column lambda):
+        // parseColumnLambda dispatches BRACE_OPEN to
+        // parseLambdaFunction, which uses parseCodeBlockStatements
+        // for the body. Pinning ensures a future refactor that
+        // bypasses parseLambdaFunction would not silently truncate
+        // multi-statement bodies at the first semicolon.
+        assertEquals(
+                new ColSpec("total",
+                        new LambdaFunction(
+                                List.of(new Variable("x")),
+                                List.of(
+                                        new AppliedFunction("letFunction",
+                                                List.of(new CString("y"),
+                                                        new CInteger(1L))),
+                                        new AppliedFunction("plus", List.of(
+                                                new Variable("y"),
+                                                new CInteger(2L))))),
+                        null),
+                SpecParser.parse("~total:{x | let y = 1; $y + 2}"));
+    }
+
+    @Test
+    void columnSpecColonAtEndOfInputRejected() {
+        // '~name:' \u2014 colon at end-of-input. parseColumnLambda
+        // sees EOF and throws explicitly, rather than silently
+        // returning a null lambda or some default. Small gap caught
+        // by the audit; the existing 'non-lambda after colon' test
+        // covers '~name:42' but not '~name:<EOF>'.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("~name:"));
+        assertTrue(ex.getMessage().contains("expected lambda")
+                        && ex.getMessage().contains("column spec"),
+                () -> "want EOF-after-colon error, got: " + ex.getMessage());
+    }
+
+    @Test
+    void columnSpecColonFollowedByNonLambdaRejected() {
+        // '~name:42' \u2014 something other than a lambda after the
+        // colon. parseColumnLambda explicitly rejects rather than
+        // silently calling parseCombinedExpression (which would
+        // accept '42' and produce a malformed AST).
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("~name:42"));
+        assertTrue(ex.getMessage().contains("expected lambda")
+                        && ex.getMessage().contains("column spec"),
+                () -> "want non-lambda-after-colon error, got: "
+                        + ex.getMessage());
     }
 
     // ----- slice entry point -------------------------------------------

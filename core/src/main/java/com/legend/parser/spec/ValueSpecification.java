@@ -54,6 +54,7 @@ public sealed interface ValueSpecification permits
         CStrictDate,
         CStrictTime,
         CString,
+        ColumnInstance,
         LambdaFunction,
         NewInstance,
         PackageableElementPtr,

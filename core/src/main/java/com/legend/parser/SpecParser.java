@@ -14,6 +14,9 @@ import com.legend.parser.spec.CLatestDate;
 import com.legend.parser.spec.CStrictDate;
 import com.legend.parser.spec.CStrictTime;
 import com.legend.parser.spec.CString;
+import com.legend.parser.spec.ColSpec;
+import com.legend.parser.spec.ColSpecArray;
+import com.legend.parser.spec.ColumnInstance;
 import com.legend.parser.spec.KeyExpression;
 import com.legend.parser.spec.LambdaFunction;
 import com.legend.parser.spec.Multiplicity;
@@ -579,6 +582,7 @@ public final class SpecParser {
             case NEW_SYMBOL -> parseNewInstance();
             case BRACE_OPEN -> parseLambdaFunction();
             case PIPE -> parseLambdaPipe();
+            case TILDE -> parseColumnBuilders();
             default -> {
                 if (ElementParser.IDENTIFIER_TOKENS.contains(t)) {
                     // Single-param lambda shorthand: 'x | body'. The
@@ -1528,6 +1532,155 @@ public final class SpecParser {
         pos++; // consume '|'
         ValueSpecification body = parseCombinedExpression();
         return new LambdaFunction(List.of(), List.of(body));
+    }
+
+    // -------------------------------------------------------------------
+    // Column builders (C.6): ~name, ~[a, b], ~name:lambda, ~name:fn:fn
+    // -------------------------------------------------------------------
+
+    /**
+     * Parse the tilde-column DSL. Grammar:
+     * <pre>
+     *   columnBuilders = '~' (colSpec | colSpecArray)
+     *   colSpecArray   = '[' colSpec (',' colSpec)* ']'
+     *   colSpec        = identifier (':' lambda (':' lambda)?)?
+     * </pre>
+     *
+     * <p>Pre-condition: cursor is on {@link TokenType#TILDE}. Emits
+     * a {@link ColumnInstance} subtype &mdash; either {@link ColSpec}
+     * (single) or {@link ColSpecArray} (bracketed). Both flow up
+     * through the normal {@link ValueSpecification} interface.
+     *
+     * <h3>Deferred forms</h3>
+     *
+     * <p>Engine grammar also admits a typed column spec
+     * {@code ~name:Type[mult]} (used in relation-type declarations).
+     * Disambiguating between {@code ~name:lambda} and
+     * {@code ~name:type[mult]} requires the same speculative
+     * lookahead as typed lambda parameters but with an additional
+     * branch. Deferred to a follow-up phase &mdash; for now the
+     * post-colon position parses as a lambda.
+     *
+     * <p>Engine's column-builder grammar also supports {@code FuncColSpec}
+     * and {@code AggColSpec} as distinct stdlib-class variants. We
+     * collapse those into a single {@link ColSpec} record with two
+     * optional lambda slots; the type-checker (which knows the
+     * enclosing function) dispatches downstream.
+     */
+    private ColumnInstance parseColumnBuilders() {
+        pos++; // consume '~'
+        if (pos < tokens.count() && tokens.type(pos) == TokenType.BRACKET_OPEN) {
+            return parseColSpecArray();
+        }
+        return parseOneColSpec();
+    }
+
+    private ColSpec parseOneColSpec() {
+        // Column names can be either bare identifiers or single-quoted
+        // strings (for names with whitespace / punctuation, e.g.
+        // {@code ~'My Column'}). Engine grammar admits both forms
+        // pervasively; quoted form is the canonical way to reference
+        // a CSV/JDBC column whose name doesn't match identifier rules.
+        // Mirrors readPropertyName's STRING-first dispatch (STRING is
+        // also a member of IDENTIFIER_TOKENS, so the bare-identifier
+        // branch would otherwise capture the quoted form with its
+        // outer quotes intact).
+        if (pos >= tokens.count()) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected column name after '~'");
+        }
+        TokenType nameTok = tokens.type(pos);
+        String name;
+        if (nameTok == TokenType.STRING) {
+            String raw = tokens.text(pos);
+            if (raw.length() < 2 || raw.charAt(0) != '\''
+                    || raw.charAt(raw.length() - 1) != '\'') {
+                ElementParser.throwAt(tokens, pos,
+                        "malformed quoted column name: missing surrounding quotes");
+            }
+            name = unescapeString(raw.substring(1, raw.length() - 1));
+            pos++;
+        } else if (isFqnSegmentToken(nameTok)) {
+            name = tokens.text(pos);
+            pos++;
+        } else {
+            ElementParser.throwAt(tokens, pos,
+                    "expected column name after '~'");
+            return null; // unreachable
+        }
+        LambdaFunction function1 = null;
+        LambdaFunction function2 = null;
+        if (pos < tokens.count() && tokens.type(pos) == TokenType.COLON) {
+            pos++; // consume ':'
+            function1 = parseColumnLambda();
+            if (pos < tokens.count() && tokens.type(pos) == TokenType.COLON) {
+                pos++; // consume ':'
+                function2 = parseColumnLambda();
+            }
+        }
+        return new ColSpec(name, function1, function2);
+    }
+
+    private ColSpecArray parseColSpecArray() {
+        pos++; // consume '['
+        List<ColSpec> specs = new ArrayList<>();
+        if (pos < tokens.count() && tokens.type(pos) == TokenType.BRACKET_CLOSE) {
+            pos++;
+            return new ColSpecArray(specs);
+        }
+        specs.add(parseOneColSpec());
+        while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
+            pos++; // consume ','
+            if (pos < tokens.count() && tokens.type(pos) == TokenType.BRACKET_CLOSE) {
+                ElementParser.throwAt(tokens, pos,
+                        "trailing comma in ColSpec array");
+            }
+            specs.add(parseOneColSpec());
+        }
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.BRACKET_CLOSE) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected ']' to close ColSpec array");
+        }
+        pos++; // consume ']'
+        return new ColSpecArray(specs);
+    }
+
+    /**
+     * Parse a lambda in column-spec position. Same four dispatch
+     * paths as {@link #parsePrimary()}'s lambda branches:
+     * {@code | body}, {@code {... | body}}, {@code x | body},
+     * {@code x: T[m] | body}. Factored out because column specs
+     * only admit lambdas in the post-colon position, not arbitrary
+     * expressions &mdash; calling {@link #parseCombinedExpression()}
+     * would silently accept (and then mis-emit) non-lambda values.
+     */
+    private LambdaFunction parseColumnLambda() {
+        if (pos >= tokens.count()) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected lambda after ':' in column spec");
+        }
+        TokenType t = tokens.type(pos);
+        if (t == TokenType.PIPE) {
+            return parseLambdaPipe();
+        }
+        if (t == TokenType.BRACE_OPEN) {
+            return parseLambdaFunction();
+        }
+        if (ElementParser.IDENTIFIER_TOKENS.contains(t)) {
+            if (pos + 1 < tokens.count()
+                    && tokens.type(pos + 1) == TokenType.PIPE) {
+                return parseSingleParamLambda();
+            }
+            if (pos + 1 < tokens.count()
+                    && tokens.type(pos + 1) == TokenType.COLON
+                    && looksLikeTypedLambdaParam()) {
+                return parseSingleParamLambda();
+            }
+        }
+        ElementParser.throwAt(tokens, pos,
+                "expected lambda after ':' in column spec, got " + t
+                + " ('" + safeText(tokens, pos) + "')");
+        return null; // unreachable
     }
 
     // -------------------------------------------------------------------
