@@ -17,6 +17,7 @@ import com.legend.parser.spec.CString;
 import com.legend.parser.spec.ColSpec;
 import com.legend.parser.spec.ColSpecArray;
 import com.legend.parser.spec.ColumnInstance;
+import com.legend.parser.spec.EnumValue;
 import com.legend.parser.spec.KeyExpression;
 import com.legend.parser.spec.LambdaFunction;
 import com.legend.parser.spec.Multiplicity;
@@ -419,6 +420,14 @@ public final class SpecParser {
                 expr = parseDotPostfix(expr);
             } else if (t == TokenType.ARROW) {
                 expr = parseArrowPostfix(expr);
+            } else if (t == TokenType.BRACKET_OPEN) {
+                // Bracket-indexing postfix: '$x[0]' (integer index) or
+                // '$x[\'key\']' (string key). Must be guarded against
+                // the top-level BRACKET_OPEN collection literal —
+                // reached here only if we already have a receiver
+                // expression, which is structurally distinct from a
+                // bare '[a,b,c]' collection.
+                expr = parseBracketPostfix(expr);
             } else {
                 break;
             }
@@ -585,6 +594,8 @@ public final class SpecParser {
             case PIPE -> parseLambdaPipe();
             case TILDE -> parseColumnBuilders();
             case AT -> parseTypeAnnotation();
+            case COMPARATOR -> parseComparatorExpression();
+            case TDS_LITERAL -> parseTdsLiteral();
             default -> {
                 if (ElementParser.IDENTIFIER_TOKENS.contains(t)) {
                     // Single-param lambda shorthand: 'x | body'. The
@@ -637,7 +648,28 @@ public final class SpecParser {
         }
     }
 
-    private CFloat parseFloat() {
+    /**
+     * FLOAT token &rarr; {@link CFloat} with an <em>automatic
+     * precision-loss promotion</em> to {@link CDecimal}. Rationale:
+     * the lexer classifies any non-suffixed number containing a
+     * decimal point or exponent as {@code FLOAT}. If the textual
+     * value doesn't round-trip through Java {@code double} exactly,
+     * emitting {@code CFloat(parsed-double)} would silently
+     * <em>lose information that was present in source</em> &mdash; a
+     * user writing {@code 1.0000000000000001} would get
+     * {@code CFloat(1.0)} back. Engine-lite detects this by
+     * comparing {@link BigDecimal} parses, and falls back to
+     * {@link CDecimal} so the exact value is preserved. We match
+     * that behaviour verbatim.
+     *
+     * <p>Note that this makes {@link #parseFloat()} sometimes return
+     * a {@code CFloat} and sometimes a {@code CDecimal}. The return
+     * type is the common supertype {@link ValueSpecification}; the
+     * callsite (the {@code FLOAT} case in {@link #parsePrimary()})
+     * never cares about the distinction because both are literal
+     * value specifications.
+     */
+    private ValueSpecification parseFloat() {
         String text = tokens.text(pos);
         pos++;
         // Strip optional 'f'/'F' suffix; Pure permits it on float literals
@@ -646,7 +678,12 @@ public final class SpecParser {
             char last = text.charAt(text.length() - 1);
             if (last == 'f' || last == 'F') text = text.substring(0, text.length() - 1);
         }
-        return new CFloat(Double.parseDouble(text));
+        BigDecimal exact = new BigDecimal(text);
+        double d = Double.parseDouble(text);
+        if (exact.compareTo(BigDecimal.valueOf(d)) != 0) {
+            return new CDecimal(exact);
+        }
+        return new CFloat(d);
     }
 
     /**
@@ -850,13 +887,185 @@ public final class SpecParser {
      * receiver &mdash; the postfix machinery is the same one used for
      * variable receivers.
      */
+    /**
+     * Parse an identifier-starting primary. Grammar branches (in
+     * lookahead order &mdash; engine-lite calls this
+     * {@code parseInstanceReference}):
+     *
+     * <ul>
+     *   <li><strong>Unit name</strong>: {@code Mass~kilogram} &mdash;
+     *       qualified name followed by {@code ~} and an identifier.
+     *       Emits a {@link PackageableElementPtr} whose
+     *       {@code fullPath} embeds the unit marker verbatim
+     *       ({@code "Mass~kilogram"}), matching engine-lite.
+     *       Unit-syntax must be handled HERE rather than in the
+     *       {@code TILDE} case of {@link #parsePrimary()} because
+     *       {@code ~} at the start of an expression is a column
+     *       builder, not a unit.</li>
+     *   <li><strong>Milestoning class access</strong>:
+     *       {@code Person.all()} &rarr;
+     *       {@code AppliedFunction("getAll", [PackageableElementPtr])};
+     *       {@code Person.all(%2024-01-01)} adds the date as a
+     *       second argument. Engine-lite uses the {@code "getAll"}
+     *       function name (not {@code "all"}) to match the Pure
+     *       stdlib resolved-overload signature; matching that name
+     *       keeps downstream binding tables working.
+     *       {@code allVersions()} and {@code allVersionsInRange}
+     *       follow the same pattern with their own {@code "get"}-
+     *       prefixed names.</li>
+     *   <li><strong>Top-level function call</strong>:
+     *       {@code my::pkg::add(x, y)} &rarr;
+     *       {@code AppliedFunction("my::pkg::add", [x, y])}
+     *       (qualifiedName followed by PAREN_OPEN).</li>
+     *   <li><strong>Bare class reference</strong>: {@code Person}
+     *       &rarr; {@code PackageableElementPtr("Person")} (no
+     *       suffix).</li>
+     * </ul>
+     */
     private ValueSpecification parseQualifiedNameStart() {
         String fqn = parseQualifiedName();
+
+        // Unit name: 'Mass~kilogram'. The TILDE here cannot be a
+        // column builder (that requires starting position) nor a
+        // column binding within a ColSpec (which has its own parse
+        // path). Engine-lite attaches the unit part with '~' as a
+        // literal separator in the name string.
+        if (pos < tokens.count() && tokens.type(pos) == TokenType.TILDE
+                && pos + 1 < tokens.count()
+                && isFqnSegmentToken(tokens.type(pos + 1))) {
+            pos++; // consume '~'
+            String unitPart = tokens.text(pos);
+            pos++;
+            fqn = fqn + "~" + unitPart;
+        }
+
+        // Class.all()/.allVersions()/.allVersionsInRange(...) path.
+        // Engine-lite emits 'getAll' / 'getAllVersions' /
+        // 'getAllVersionsInRange' (note the 'get' prefix), matching
+        // the resolved stdlib overload names. Using the same names
+        // keeps downstream binding tables uniform across the two
+        // parsers.
+        if (pos < tokens.count() && tokens.type(pos) == TokenType.DOT) {
+            int savedPos = pos;
+            pos++; // consume '.'
+            if (pos < tokens.count()) {
+                TokenType t = tokens.type(pos);
+                if (t == TokenType.ALL) {
+                    pos++;
+                    return parseAllCall(fqn);
+                }
+                if (t == TokenType.ALL_VERSIONS) {
+                    pos++;
+                    return parseAllVersionsCall(fqn);
+                }
+                if (t == TokenType.ALL_VERSIONS_IN_RANGE) {
+                    pos++;
+                    return parseAllVersionsInRangeCall(fqn);
+                }
+            }
+            // Not an all-like method -- backtrack; the outer postfix
+            // loop (parseExpression) will re-read the '.' as a
+            // regular property/method access on the
+            // PackageableElementPtr / EnumValue shape.
+            pos = savedPos;
+        }
+
         if (pos < tokens.count() && tokens.type(pos) == TokenType.PAREN_OPEN) {
             List<ValueSpecification> args = parseArgList();
             return new AppliedFunction(fqn, args);
         }
         return new PackageableElementPtr(fqn);
+    }
+
+    /**
+     * Parse the argument list of {@code Class.all(...)}. Pre-condition:
+     * cursor is on the opening {@code (}. Milestoning arguments ({@code %date},
+     * {@code %latest}, {@code $variable}) are the only values accepted in this
+     * position; any other value would fail in the type-checker so we reject
+     * early via {@link #parseMilestoningExpression}. Up to two milestoning
+     * args are legal (business-from, business-thru).
+     */
+    private AppliedFunction parseAllCall(String fqn) {
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_OPEN) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected '(' after '.all'");
+        }
+        pos++; // consume '('
+        List<ValueSpecification> args = new ArrayList<>();
+        args.add(new PackageableElementPtr(fqn));
+        if (pos < tokens.count() && tokens.type(pos) != TokenType.PAREN_CLOSE) {
+            args.add(parseMilestoningExpression());
+            if (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
+                pos++;
+                args.add(parseMilestoningExpression());
+            }
+        }
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_CLOSE) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected ')' to close '.all(...)'");
+        }
+        pos++; // consume ')'
+        return new AppliedFunction("getAll", args);
+    }
+
+    private AppliedFunction parseAllVersionsCall(String fqn) {
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_OPEN) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected '(' after '.allVersions'");
+        }
+        pos++; // '('
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_CLOSE) {
+            ElementParser.throwAt(tokens, pos,
+                    "'.allVersions()' takes no arguments");
+        }
+        pos++; // ')'
+        return new AppliedFunction("getAllVersions",
+                List.of(new PackageableElementPtr(fqn)));
+    }
+
+    private AppliedFunction parseAllVersionsInRangeCall(String fqn) {
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_OPEN) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected '(' after '.allVersionsInRange'");
+        }
+        pos++; // '('
+        ValueSpecification start = parseMilestoningExpression();
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.COMMA) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected ',' between range endpoints in '.allVersionsInRange'");
+        }
+        pos++; // ','
+        ValueSpecification end = parseMilestoningExpression();
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_CLOSE) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected ')' to close '.allVersionsInRange(...)'");
+        }
+        pos++; // ')'
+        return new AppliedFunction("getAllVersionsInRange",
+                List.of(new PackageableElementPtr(fqn), start, end));
+    }
+
+    /**
+     * Parse a single milestoning-position argument. Grammar admits
+     * only {@code %2024-01-15} / {@code %2024-01-15T10:30:00}
+     * ({@code DATE}), {@code %latest} ({@code LATEST_DATE}), or
+     * {@code $var} ({@code DOLLAR}). Anything else is a semantic
+     * error better caught at the parser than at the type-checker
+     * (one extra token's worth of work to pin the allowed shapes).
+     */
+    private ValueSpecification parseMilestoningExpression() {
+        if (pos >= tokens.count()) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected milestoning expression (%date, %latest, or $variable)");
+        }
+        TokenType t = tokens.type(pos);
+        if (t == TokenType.LATEST_DATE) return parseLatestDate();
+        if (t == TokenType.DATE) return parseDateOrDateTime();
+        if (t == TokenType.DOLLAR) return parseVariable();
+        ElementParser.throwAt(tokens, pos,
+                "expected milestoning expression (%date, %latest, or $variable), got "
+                + t + " ('" + safeText(tokens, pos) + "')");
+        return null; // unreachable
     }
 
     /**
@@ -929,6 +1138,16 @@ public final class SpecParser {
             params.add(receiver);
             params.addAll(args);
             return new AppliedFunction(name, params);
+        }
+        // Enum-value form: 'MyEnum.VALUE' on a PackageableElementPtr
+        // receiver. Engine-lite emits EnumValue rather than
+        // AppliedProperty here; the disambiguation is purely
+        // structural (property access on a class-name doesn't make
+        // sense), but committing to the distinct AST shape at parse
+        // time avoids a downstream re-walk to re-classify every
+        // property access against the model.
+        if (receiver instanceof PackageableElementPtr ptr) {
+            return new EnumValue(ptr.fullPath(), name);
         }
         return new AppliedProperty(receiver, name);
     }
@@ -1867,6 +2086,166 @@ public final class SpecParser {
             multiplicity = parseMultiplicity();
         }
         return new TypeAnnotation.RelationShape.Column(name, type, multiplicity);
+    }
+
+    // -------------------------------------------------------------------
+    // Bracket postfix (C.7a): $x[0] and $x['key']
+    // -------------------------------------------------------------------
+
+    /**
+     * Parse a bracket-indexing postfix on an existing receiver.
+     * Two shapes:
+     *
+     * <ul>
+     *   <li><strong>Integer index</strong> {@code $x[0]} &rarr;
+     *       {@code AppliedFunction("at", [receiver, CInteger(0)])}.
+     *       Desugars to the Pure stdlib
+     *       {@code at(collection: T[*], index: Integer[1]): T[1]}
+     *       function; by emitting the call at parse time we let the
+     *       existing {@code AppliedFunction} machinery handle binding
+     *       rather than introducing a dedicated "indexed-access" AST
+     *       node.</li>
+     *   <li><strong>String key</strong> {@code $x['key']} &rarr;
+     *       {@code AppliedProperty(receiver, "key")}. Engine-lite
+     *       treats the string form as shorthand for
+     *       {@code $x.key} &mdash; the brackets are sugar allowing
+     *       keys whose spelling isn't a legal identifier.</li>
+     * </ul>
+     *
+     * <p>Pre-condition: cursor is on {@code [}. Post-condition:
+     * cursor is past the matching {@code ]}. Errors for any other
+     * content (e.g. expressions, ranges) since Pure doesn't admit
+     * them in bracket-indexing position.
+     */
+    private ValueSpecification parseBracketPostfix(ValueSpecification receiver) {
+        pos++; // consume '['
+        if (pos >= tokens.count()) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected integer or string inside '[...]' index");
+        }
+        TokenType t = tokens.type(pos);
+        ValueSpecification result;
+        if (t == TokenType.INTEGER) {
+            CInteger index = parseInteger();
+            result = new AppliedFunction("at", List.of(receiver, index));
+        } else if (t == TokenType.STRING) {
+            CString key = parseString();
+            result = new AppliedProperty(receiver, key.value());
+        } else {
+            ElementParser.throwAt(tokens, pos,
+                    "expected integer or string inside '[...]' index, got "
+                    + t + " ('" + safeText(tokens, pos) + "')");
+            return null; // unreachable
+        }
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.BRACKET_CLOSE) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected ']' to close bracket-index expression");
+        }
+        pos++; // consume ']'
+        return result;
+    }
+
+    // -------------------------------------------------------------------
+    // Comparator expressions (C.7a): comparator(a:T[1], b:T[1]): Bool[1] { body }
+    // -------------------------------------------------------------------
+
+    /**
+     * Parse a {@code comparator} expression. Grammar:
+     * <pre>
+     *   comparatorExpr = 'comparator' '(' typedParam (',' typedParam)* ')'
+     *                    ':' type multiplicity '{' statements '}'
+     *   typedParam     = identifier ':' type multiplicity
+     * </pre>
+     *
+     * <p>Desugars to a {@link LambdaFunction} whose parameters carry
+     * the declared types and multiplicities. Matches engine-lite's
+     * behaviour of collapsing the named {@code comparator} syntax
+     * into a plain typed-lambda AST &mdash; downstream
+     * overload-resolution dispatches on the {@code Comparator<T>}
+     * function type which is recovered from the lambda's parameter
+     * types, not from a distinct AST variant.
+     *
+     * <p>The trailing return-type and return-multiplicity are
+     * consumed but dropped: the lambda's return type is inferred by
+     * the type-checker and the declared annotation is redundant
+     * (engine-lite does the same).
+     */
+    private LambdaFunction parseComparatorExpression() {
+        pos++; // consume 'comparator'
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_OPEN) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected '(' after 'comparator'");
+        }
+        pos++; // '('
+        List<Variable> params = new ArrayList<>();
+        params.add(parseComparatorParam());
+        while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
+            pos++;
+            params.add(parseComparatorParam());
+        }
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_CLOSE) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected ')' to close comparator parameter list");
+        }
+        pos++; // ')'
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.COLON) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected ':' and return type after comparator parameters");
+        }
+        pos++; // ':'
+        parseTypeText();      // return type, discarded
+        parseMultiplicity();  // return multiplicity, discarded
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.BRACE_OPEN) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected '{' to open comparator body");
+        }
+        pos++; // '{'
+        List<ValueSpecification> body = parseCodeBlockUntil(TokenType.BRACE_CLOSE);
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.BRACE_CLOSE) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected '}' to close comparator body");
+        }
+        pos++; // '}'
+        return new LambdaFunction(params, body);
+    }
+
+    private Variable parseComparatorParam() {
+        if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected parameter name in comparator(...)");
+        }
+        String name = tokens.text(pos);
+        pos++;
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.COLON) {
+            ElementParser.throwAt(tokens, pos,
+                    "comparator parameter requires ': Type[mult]' annotation");
+        }
+        pos++; // ':'
+        String typeText = parseTypeText();
+        Multiplicity mult = parseMultiplicity();
+        return new Variable(name, typeText, mult);
+    }
+
+    // -------------------------------------------------------------------
+    // TDS literal (C.7a)
+    // -------------------------------------------------------------------
+
+    /**
+     * Parse a TDS literal. {@code TDS_LITERAL} is a lexer-side
+     * aggregation of a {@code #TDS ... #} test-fixture block into a
+     * single token carrying the verbatim CSV-ish body. Engine-lite
+     * desugars the literal into
+     * {@code AppliedFunction("tds", [CString("TDS"), CString(body)])}
+     * so downstream resolution can dispatch on the function name.
+     * We emit the same shape; the {@code "TDS"} leading argument is
+     * a type-discriminator that the stdlib's {@code tds} function
+     * uses to distinguish bag-of-values overloads.
+     */
+    private AppliedFunction parseTdsLiteral() {
+        String raw = tokens.text(pos);
+        pos++;
+        return new AppliedFunction("tds",
+                List.of(new CString("TDS"), new CString(raw)));
     }
 
     // -------------------------------------------------------------------

@@ -15,6 +15,7 @@ import com.legend.parser.spec.CStrictTime;
 import com.legend.parser.spec.CString;
 import com.legend.parser.spec.ColSpec;
 import com.legend.parser.spec.ColSpecArray;
+import com.legend.parser.spec.EnumValue;
 import com.legend.parser.spec.KeyExpression;
 import com.legend.parser.spec.LambdaFunction;
 import com.legend.parser.spec.Multiplicity;
@@ -430,7 +431,7 @@ final class SpecParserTest {
         // The canonical Pure entry point: Person.all() ->
         // AppliedFunction("all", [PackageableElementPtr("Person")]).
         assertEquals(
-                new AppliedFunction("all", List.of(
+                new AppliedFunction("getAll", List.of(
                         new PackageableElementPtr("Person"))),
                 SpecParser.parse("Person.all()"));
     }
@@ -458,7 +459,7 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("limit", List.of(
                         new AppliedFunction("filter", List.of(
-                                new AppliedFunction("all", List.of(
+                                new AppliedFunction("getAll", List.of(
                                         new PackageableElementPtr("Person"))),
                                 new Variable("p"))),
                         new CInteger(10L))),
@@ -958,7 +959,7 @@ final class SpecParserTest {
         // function arguments via parseCombinedExpression.
         assertEquals(
                 new AppliedFunction("filter", List.of(
-                        new AppliedFunction("all", List.of(
+                        new AppliedFunction("getAll", List.of(
                                 new PackageableElementPtr("Person"))),
                         new AppliedFunction("greaterThan", List.of(
                                 new AppliedProperty(new Variable("p"), "age"),
@@ -1299,7 +1300,7 @@ final class SpecParserTest {
         // an arrow argument). Pin the full nesting.
         assertEquals(
                 new AppliedFunction("filter", List.of(
-                        new AppliedFunction("all", List.of(
+                        new AppliedFunction("getAll", List.of(
                                 new PackageableElementPtr("Person"))),
                         new LambdaFunction(
                                 List.of(new Variable("p")),
@@ -1453,7 +1454,7 @@ final class SpecParserTest {
         // lambda inside the arg list).
         assertEquals(
                 new AppliedFunction("filter", List.of(
-                        new AppliedFunction("all", List.of(
+                        new AppliedFunction("getAll", List.of(
                                 new PackageableElementPtr("Person"))),
                         new LambdaFunction(
                                 List.of(new Variable(
@@ -1804,7 +1805,7 @@ final class SpecParserTest {
         // emission shape would fail loudly.
         assertEquals(
                 new AppliedFunction("project", List.of(
-                        new AppliedFunction("all", List.of(
+                        new AppliedFunction("getAll", List.of(
                                 new PackageableElementPtr("Person"))),
                         new ColSpecArray(List.of(
                                 new ColSpec("name"),
@@ -2217,6 +2218,250 @@ final class SpecParserTest {
                         && ex.getMessage().contains("type-argument"),
                 () -> "want unterminated-generics error, got: "
                         + ex.getMessage());
+    }
+
+    // ----- C.7a: EnumValue (MyEnum.VALUE) ------------------------------
+
+    @Test
+    void enumValueFromPackageableElementReceiver() {
+        // 'JoinKind.INNER' \u2014 the receiver is a bare qualified
+        // name (parsed as PackageableElementPtr), and the dot
+        // postfix with no trailing '(' is structurally an enum
+        // value reference. Engine-lite emits EnumValue; we must
+        // match so downstream dispatch on AST shape stays uniform.
+        assertEquals(
+                new EnumValue("JoinKind", "INNER"),
+                SpecParser.parse("JoinKind.INNER"));
+    }
+
+    @Test
+    void enumValueWithQualifiedType() {
+        // 'my::pkg::Status.ACTIVE' \u2014 fully qualified enum type
+        // preserved verbatim in EnumValue.fullPath.
+        assertEquals(
+                new EnumValue("my::pkg::Status", "ACTIVE"),
+                SpecParser.parse("my::pkg::Status.ACTIVE"));
+    }
+
+    @Test
+    void enumValueDoesNotFireOnMethodCall() {
+        // 'Person.all()' must NOT be an EnumValue \u2014 the trailing
+        // '(' commits to a method-call path, which is the getAll
+        // special dispatch. Pin the discriminator so a regression
+        // that collapses '.name()' into EnumValue couldn't slip.
+        assertEquals(
+                new AppliedFunction("getAll",
+                        List.of(new PackageableElementPtr("Person"))),
+                SpecParser.parse("Person.all()"));
+    }
+
+    // ----- C.7a: bracket postfix ($x[0], $x['key']) --------------------
+
+    @Test
+    void bracketIndexIntegerDesugarsToAt() {
+        // '$x[0]' \u2014 integer index desugars to the stdlib 'at'
+        // function. Engine-lite shape: AppliedFunction("at",
+        // [receiver, CInteger]). Use the stdlib path rather than a
+        // dedicated IndexAccess AST node so overload resolution
+        // reuses the existing AppliedFunction machinery.
+        assertEquals(
+                new AppliedFunction("at", List.of(
+                        new Variable("x"),
+                        new CInteger(0L))),
+                SpecParser.parse("$x[0]"));
+    }
+
+    @Test
+    void bracketIndexStringDesugarsToAppliedProperty() {
+        // '$x[\\'key\\']' \u2014 string key is sugar for a property
+        // access whose name may contain punctuation. Engine-lite
+        // emits AppliedProperty(receiver, key) \u2014 same as the
+        // quoted-property form '$x.\\'key\\''.
+        assertEquals(
+                new AppliedProperty(new Variable("x"), "key"),
+                SpecParser.parse("$x['key']"));
+    }
+
+    @Test
+    void bracketIndexChainsOntoPostfix() {
+        // '$x.items[0]' \u2014 bracket postfix applies after a dot
+        // postfix. Pin the left-associative composition: first the
+        // property access, then the 'at' call on the resulting
+        // collection.
+        assertEquals(
+                new AppliedFunction("at", List.of(
+                        new AppliedProperty(new Variable("x"), "items"),
+                        new CInteger(0L))),
+                SpecParser.parse("$x.items[0]"));
+    }
+
+    @Test
+    void bracketIndexRejectsNonLiteral() {
+        // '$x[$i]' \u2014 a variable inside brackets is rejected;
+        // the grammar only admits INTEGER or STRING literals here.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("$x[$i]"));
+        assertTrue(ex.getMessage().contains("integer or string"),
+                () -> "want bracket-index error, got: " + ex.getMessage());
+    }
+
+    @Test
+    void bracketIndexRejectsUnterminated() {
+        // '$x[0' \u2014 missing ']'.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("$x[0"));
+        assertTrue(ex.getMessage().contains("']'"),
+                () -> "want unterminated-bracket error, got: " + ex.getMessage());
+    }
+
+    // ----- C.7a: .all()/.allVersions()/milestoning ---------------------
+
+    @Test
+    void classAllWithMilestoningDate() {
+        // 'Person.all(%2024-01-01)' \u2014 business-milestoned
+        // snapshot. Second argument is the milestoning date.
+        assertEquals(
+                new AppliedFunction("getAll", List.of(
+                        new PackageableElementPtr("Person"),
+                        new CStrictDate("2024-01-01"))),
+                SpecParser.parse("Person.all(%2024-01-01)"));
+    }
+
+    @Test
+    void classAllWithBiTemporalMilestoning() {
+        // 'Person.all(%2024-01-01, %latest)' \u2014 bi-temporal:
+        // business date + processing date (%latest). Pin both
+        // milestoning args and the ordered pair shape.
+        assertEquals(
+                new AppliedFunction("getAll", List.of(
+                        new PackageableElementPtr("Person"),
+                        new CStrictDate("2024-01-01"),
+                        new CLatestDate())),
+                SpecParser.parse("Person.all(%2024-01-01, %latest)"));
+    }
+
+    @Test
+    void classAllWithVariableMilestoning() {
+        // 'Person.all($asOfDate)' \u2014 milestoning can be a
+        // variable (bound from enclosing let / parameter).
+        assertEquals(
+                new AppliedFunction("getAll", List.of(
+                        new PackageableElementPtr("Person"),
+                        new Variable("asOfDate"))),
+                SpecParser.parse("Person.all($asOfDate)"));
+    }
+
+    @Test
+    void classAllVersions() {
+        // '.allVersions()' \u2014 all milestoned snapshots.
+        assertEquals(
+                new AppliedFunction("getAllVersions",
+                        List.of(new PackageableElementPtr("Person"))),
+                SpecParser.parse("Person.allVersions()"));
+    }
+
+    @Test
+    void classAllVersionsInRange() {
+        // '.allVersionsInRange(start, end)'.
+        assertEquals(
+                new AppliedFunction("getAllVersionsInRange", List.of(
+                        new PackageableElementPtr("Person"),
+                        new CStrictDate("2024-01-01"),
+                        new CStrictDate("2024-12-31"))),
+                SpecParser.parse("Person.allVersionsInRange(%2024-01-01, %2024-12-31)"));
+    }
+
+    @Test
+    void classAllWithBadMilestoningArgRejected() {
+        // 'Person.all(42)' \u2014 an integer is not a legal
+        // milestoning expression. Pin parser-level rejection so a
+        // non-date value doesn't silently flow through to type-check.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("Person.all(42)"));
+        assertTrue(ex.getMessage().contains("milestoning"),
+                () -> "want milestoning error, got: " + ex.getMessage());
+    }
+
+    // ----- C.7a: unit names (Mass~kilogram) ----------------------------
+
+    @Test
+    void unitNameAfterQualifiedName() {
+        // 'Mass~kilogram' \u2014 unit reference. PackageableElementPtr
+        // whose fullPath embeds the unit marker verbatim.
+        assertEquals(
+                new PackageableElementPtr("Mass~kilogram"),
+                SpecParser.parse("Mass~kilogram"));
+    }
+
+    @Test
+    void qualifiedUnitName() {
+        // 'my::pkg::Mass~kilogram'.
+        assertEquals(
+                new PackageableElementPtr("my::pkg::Mass~kilogram"),
+                SpecParser.parse("my::pkg::Mass~kilogram"));
+    }
+
+    // ----- C.7a: CFloat -> CDecimal precision promotion ----------------
+
+    @Test
+    void floatWithinDoublePrecisionStaysCFloat() {
+        // '1.5' round-trips exactly through double. Pin CFloat.
+        assertEquals(new CFloat(1.5), SpecParser.parse("1.5"));
+    }
+
+    @Test
+    void floatExceedingDoublePrecisionBecomesCDecimal() {
+        // '1.0000000000000001' \u2014 double rounds this to 1.0
+        // (17 significant digits exceed IEEE 754 double precision).
+        // Engine-lite promotes to CDecimal to preserve the exact
+        // source value; a silent CFloat(1.0) would lose information.
+        // This is the main motivation for precision promotion.
+        assertEquals(
+                new CDecimal(new BigDecimal("1.0000000000000001")),
+                SpecParser.parse("1.0000000000000001"));
+    }
+
+    // ----- C.7a: comparator expressions --------------------------------
+
+    @Test
+    void comparatorExpressionDesugarsToTypedLambda() {
+        // 'comparator(a: Integer[1], b: Integer[1]): Bool[1] {
+        //     $a - $b }'
+        // Desugars to a LambdaFunction with typed parameters. The
+        // trailing ': Bool[1]' is parsed and discarded (engine-lite
+        // does the same \u2014 return type is inferred).
+        assertEquals(
+                new LambdaFunction(
+                        List.of(
+                                new Variable("a", "Integer",
+                                        Multiplicity.Concrete.PURE_ONE),
+                                new Variable("b", "Integer",
+                                        Multiplicity.Concrete.PURE_ONE)),
+                        List.of(new AppliedFunction("minus", List.of(
+                                new Variable("a"),
+                                new Variable("b"))))),
+                SpecParser.parse(
+                        "comparator(a: Integer[1], b: Integer[1]): Bool[1] { $a - $b }"));
+    }
+
+    // ----- C.7a: TDS literal -------------------------------------------
+
+    @Test
+    void tdsLiteralDesugarsToTdsCall() {
+        // '#TDS name, age\\n alice, 30 #' \u2014 the lexer aggregates
+        // this whole block into a single TDS_LITERAL token. The
+        // parser emits 'tds("TDS", rawText)' so the stdlib tds
+        // function resolves the overload.
+        String src = "#TDS\n  name, age\n  alice, 30\n#";
+        ValueSpecification result = SpecParser.parse(src);
+        // Assertion on the structural shape rather than the full
+        // raw text (which contains the entire source chunk); the
+        // first argument 'TDS' is the discriminator.
+        assertTrue(result instanceof AppliedFunction af
+                        && af.function().equals("tds")
+                        && af.parameters().size() == 2
+                        && af.parameters().get(0).equals(new CString("TDS")),
+                () -> "want tds() call, got: " + result);
     }
 
     // ----- slice entry point -------------------------------------------
