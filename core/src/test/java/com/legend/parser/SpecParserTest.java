@@ -14,6 +14,7 @@ import com.legend.parser.spec.CStrictDate;
 import com.legend.parser.spec.CStrictTime;
 import com.legend.parser.spec.CString;
 import com.legend.parser.spec.KeyExpression;
+import com.legend.parser.spec.LambdaFunction;
 import com.legend.parser.spec.NewInstance;
 import com.legend.parser.spec.PackageableElementPtr;
 import com.legend.parser.spec.PureCollection;
@@ -906,7 +907,425 @@ final class SpecParserTest {
                 SpecParser.parse("[1+2, 3*4]"));
     }
 
-    // ----- coverage gap markers (C.3+ features) -----------------------
+    // ----- let-binding (C.4) ------------------------------------------
+
+    @Test
+    void letBindingDesugarsToLetFunctionCall() {
+        // 'let x = 5' parses as AppliedFunction("letFunction",
+        // [CString("x"), CInteger(5)]) \u2014 matching engine's
+        // parse-time representation. The 'everything is a function'
+        // pillar: 'let' is sugar for calling the stdlib's
+        // letFunction_String_1__T_m__T_m_, just like '+' is sugar
+        // for 'plus'. See parseLetExpression Javadoc for the full
+        // rationale (and the C.4 commit message for the analysis
+        // that landed on this shape over a dedicated record).
+        assertEquals(
+                new AppliedFunction("letFunction", List.of(
+                        new CString("x"), new CInteger(5L))),
+                SpecParser.parse("let x = 5"));
+    }
+
+    @Test
+    void letBindingValueIsFullCombinedExpression() {
+        // The RHS of '=' parses as parseCombinedExpression, so
+        // operators, calls, and arrow chains all work. The value
+        // becomes the second argument of the letFunction call.
+        assertEquals(
+                new AppliedFunction("letFunction", List.of(
+                        new CString("result"),
+                        new AppliedFunction("plus", List.of(
+                                new CInteger(1L), new CInteger(2L))))),
+                SpecParser.parse("let result = 1 + 2"));
+    }
+
+    @Test
+    void letVarNameIsCarriedInCString() {
+        // The variable name lives in a CString \u2014 NOT a Variable
+        // record. This matters: a Variable would mean 'reference to
+        // an existing binding', but here we are INTRODUCING a new
+        // binding. The CString is the same shape engine uses
+        // (InstanceValue containing a String literal). Downstream
+        // scope-registration code reads it via
+        //   ((CString) appliedFunction.parameters().get(0)).value()
+        // matching engine's letFunction-name guard pattern.
+        AppliedFunction parsed = (AppliedFunction) SpecParser.parse("let myVar = 42");
+        assertEquals("letFunction", parsed.function());
+        assertInstanceOf(CString.class, parsed.parameters().get(0));
+        assertEquals("myVar", ((CString) parsed.parameters().get(0)).value());
+    }
+
+    @Test
+    void letInsideExpressionIsRejected() {
+        // 'let' is statement-level only \u2014 parseProgramLine dispatches
+        // it, but parseCombinedExpression / parsePrimary do not. So
+        // 'let' nested in an arithmetic expression must error.
+        //
+        // SUBTLETY: LET is in ElementParser.IDENTIFIER_TOKENS (so that
+        // '$let' parses as a variable with that name). As a result,
+        // mid-expression 'let' is silently absorbed as
+        // PackageableElementPtr("let"), and the subsequent
+        // identifier (e.g. 'x') is what surfaces as a trailing
+        // token. The exact wording matters because a future change
+        // that DID add an explicit LET dispatch in parsePrimary would
+        // emit a different (clearer) message; flipping this test
+        // would be the signal that the change happened.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("1 + let x = 2"));
+        assertTrue(ex.getMessage().toLowerCase().contains("trailing"),
+                () -> "want trailing-tokens error (LET absorbed as identifier, "
+                        + "subsequent 'x' is trailing), got: " + ex.getMessage());
+    }
+
+    @Test
+    void letMissingVariableNameRejected() {
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("let = 5"));
+        assertTrue(ex.getMessage().contains("variable name after 'let'"),
+                () -> "want missing-var-name error, got: " + ex.getMessage());
+    }
+
+    @Test
+    void letMissingEqualsRejected() {
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("let x 5"));
+        assertTrue(ex.getMessage().contains("expected '=' after 'let x'"),
+                () -> "want missing-equals error, got: " + ex.getMessage());
+    }
+
+    // ----- lambdas: braced form (C.4) ---------------------------------
+
+    @Test
+    void bracedSingleParamLambda() {
+        // '{p | $p}' \u2014 one parameter, single-statement body.
+        // Body is a List with exactly one element.
+        assertEquals(
+                new LambdaFunction(
+                        List.of(new Variable("p")),
+                        List.of(new Variable("p"))),
+                SpecParser.parse("{p | $p}"));
+    }
+
+    @Test
+    void bracedMultiParamLambda() {
+        // '{p, q | $p + $q}' \u2014 multi-param.
+        assertEquals(
+                new LambdaFunction(
+                        List.of(new Variable("p"), new Variable("q")),
+                        List.of(new AppliedFunction("plus", List.of(
+                                new Variable("p"), new Variable("q"))))),
+                SpecParser.parse("{p, q | $p + $q}"));
+    }
+
+    @Test
+    void bracedZeroParamLambda() {
+        // '{| 42}' \u2014 zero parameters. params list is empty;
+        // body is a single statement.
+        assertEquals(
+                new LambdaFunction(List.of(), List.of(new CInteger(42L))),
+                SpecParser.parse("{| 42}"));
+    }
+
+    @Test
+    void bracedLambdaWithMultiStatementBody() {
+        // '{p | let x = $p; $x + 1}' \u2014 body is two statements:
+        // a letFunction call (the desugared 'let') followed by an
+        // arithmetic expression. The lambda's value would be the
+        // LAST statement (1 + $x); the parser preserves the sequence
+        // verbatim and leaves evaluation semantics to the compiler.
+        assertEquals(
+                new LambdaFunction(
+                        List.of(new Variable("p")),
+                        List.of(
+                                new AppliedFunction("letFunction", List.of(
+                                        new CString("x"), new Variable("p"))),
+                                new AppliedFunction("plus", List.of(
+                                        new Variable("x"), new CInteger(1L))))),
+                SpecParser.parse("{p | let x = $p; $x + 1}"));
+    }
+
+    // ----- lambdas: shorthand forms (C.4) ------------------------------
+
+    @Test
+    void singleParamShorthandLambda() {
+        // 'p | $p.age > 21' \u2014 no braces, single param.
+        // The IDENT+PIPE lookahead in parsePrimary's default arm
+        // dispatches to parseSingleParamLambda BEFORE falling
+        // through to parseQualifiedNameStart (which would have
+        // produced PackageableElementPtr("p")).
+        assertEquals(
+                new LambdaFunction(
+                        List.of(new Variable("p")),
+                        List.of(new AppliedFunction("greaterThan", List.of(
+                                new AppliedProperty(new Variable("p"), "age"),
+                                new CInteger(21L))))),
+                SpecParser.parse("p | $p.age > 21"));
+    }
+
+    @Test
+    void zeroParamPipeLambda() {
+        // '| 42' \u2014 PIPE at start, zero params.
+        assertEquals(
+                new LambdaFunction(List.of(), List.of(new CInteger(42L))),
+                SpecParser.parse("| 42"));
+    }
+
+    @Test
+    void nestedLambdaInLambdaBody() {
+        // '{p | {q | $p + $q}}' \u2014 outer lambda's body is a single
+        // statement which is itself a lambda. Exercises the recursive
+        // case: parseLambdaFunction is called from parseProgramLine
+        // (statement in outer body) which is called by
+        // parseLambdaFunction (outer body parsing). The inner
+        // lambda's body references the outer's parameter, but the
+        // parser doesn't resolve scopes \u2014 it just produces the
+        // structural shape. Closure semantics belong to the
+        // typechecker.
+        assertEquals(
+                new LambdaFunction(
+                        List.of(new Variable("p")),
+                        List.of(new LambdaFunction(
+                                List.of(new Variable("q")),
+                                List.of(new AppliedFunction("plus", List.of(
+                                        new Variable("p"),
+                                        new Variable("q"))))))),
+                SpecParser.parse("{p | {q | $p + $q}}"));
+    }
+
+    @Test
+    void lambdaAsLetRhsIsCommonRealWorldPattern() {
+        // 'let f = {p | $p + 1}' \u2014 binding a lambda to a name is
+        // the single most common real-world use of let in Pure. It
+        // composes the two main C.4 constructs: the let desugars to
+        // a letFunction call whose second argument is the lambda.
+        // Pin the full nested shape so a regression in either
+        // direction (let-desugaring OR lambda parsing) fails loud.
+        assertEquals(
+                new AppliedFunction("letFunction", List.of(
+                        new CString("f"),
+                        new LambdaFunction(
+                                List.of(new Variable("p")),
+                                List.of(new AppliedFunction("plus", List.of(
+                                        new Variable("p"),
+                                        new CInteger(1L))))))),
+                SpecParser.parse("let f = {p | $p + 1}"));
+    }
+
+    @Test
+    void lambdaInsideCollectionLiteral() {
+        // '[{p | $p}, {q | $q + 1}]' \u2014 lambdas as collection
+        // elements. This works because parseCollection (C.1) calls
+        // parseCombinedExpression for each element, which descends
+        // through parseExpression \u2192 parseUnaryAndPrimary \u2192
+        // parsePrimary, where BRACE_OPEN dispatches to
+        // parseLambdaFunction. A regression that hardened collection
+        // parsing to literals-only would fail this test.
+        assertEquals(
+                new PureCollection(List.of(
+                        new LambdaFunction(
+                                List.of(new Variable("p")),
+                                List.of(new Variable("p"))),
+                        new LambdaFunction(
+                                List.of(new Variable("q")),
+                                List.of(new AppliedFunction("plus", List.of(
+                                        new Variable("q"),
+                                        new CInteger(1L))))))),
+                SpecParser.parse("[{p | $p}, {q | $q + 1}]"));
+    }
+
+    @Test
+    void lambdaWithCascadingLetsInBody() {
+        // '{p | let x = $p + 1; let y = $x * 2; $y}' \u2014 the
+        // canonical "compute intermediate values, return the last"
+        // pattern. Body is THREE statements: two cascading lets
+        // (each referencing the previous binding), then a final
+        // expression whose value is the lambda's result.
+        //
+        // bracedLambdaWithMultiStatementBody covers ONE let in a
+        // body; this covers the realistic multi-let case where each
+        // let references the previous one. A regression that
+        // confused which statement was the return-value, or that
+        // stopped admitting more than one let in a body, would fail
+        // here.
+        assertEquals(
+                new LambdaFunction(
+                        List.of(new Variable("p")),
+                        List.of(
+                                new AppliedFunction("letFunction", List.of(
+                                        new CString("x"),
+                                        new AppliedFunction("plus", List.of(
+                                                new Variable("p"),
+                                                new CInteger(1L))))),
+                                new AppliedFunction("letFunction", List.of(
+                                        new CString("y"),
+                                        new AppliedFunction("times", List.of(
+                                                new Variable("x"),
+                                                new CInteger(2L))))),
+                                new Variable("y"))),
+                SpecParser.parse(
+                        "{p | let x = $p + 1; let y = $x * 2; $y}"));
+    }
+
+    @Test
+    void codeBlockBuildingMultipleNamedLambdas() {
+        // 'let f = {p | $p + 1}; let g = {q | $q * 2}; $f' \u2014
+        // a code block that builds two named lambdas (Pure's
+        // closest analogue to a module body or local function
+        // library) and produces one of them as the result.
+        //
+        // Exercises three things at once that no single existing
+        // test combines: parseCodeBlock with multiple statements,
+        // let-binding a lambda value, and the parse-time
+        // independence of each let (each desugars to its own
+        // letFunction call without any cross-statement state).
+        List<ValueSpecification> stmts = SpecParser.parseCodeBlock(
+                "let f = {p | $p + 1}; let g = {q | $q * 2}; $f");
+        assertEquals(
+                List.of(
+                        new AppliedFunction("letFunction", List.of(
+                                new CString("f"),
+                                new LambdaFunction(
+                                        List.of(new Variable("p")),
+                                        List.of(new AppliedFunction("plus", List.of(
+                                                new Variable("p"),
+                                                new CInteger(1L))))))),
+                        new AppliedFunction("letFunction", List.of(
+                                new CString("g"),
+                                new LambdaFunction(
+                                        List.of(new Variable("q")),
+                                        List.of(new AppliedFunction("times", List.of(
+                                                new Variable("q"),
+                                                new CInteger(2L))))))),
+                        new Variable("f")),
+                stmts);
+    }
+
+    @Test
+    void pipeFormLambdaAsArrowArgument() {
+        // '$opt->orElse(| 42)' \u2014 zero-param pipe lambda inside an
+        // arrow-call argument list. Exercises a DIFFERENT path from
+        // bracedZeroParamLambda: here the lambda is parsed from
+        // inside parseArgList (via parseCombinedExpression), and
+        // parsePrimary's PIPE case dispatches to parseLambdaPipe.
+        // The argument list must terminate the body at PAREN_CLOSE,
+        // which works because parseCombinedExpression breaks on any
+        // non-operator token (including ')').
+        assertEquals(
+                new AppliedFunction("orElse", List.of(
+                        new Variable("opt"),
+                        new LambdaFunction(
+                                List.of(),
+                                List.of(new CInteger(42L))))),
+                SpecParser.parse("$opt->orElse(| 42)"));
+    }
+
+    @Test
+    void lambdaAsArrowArgumentIsRealisticPureCode() {
+        // The canonical Pure query pattern:
+        // Person.all()->filter(p | $p.age > 21)
+        // This combines C.2 (arrow + property access), C.3
+        // (comparison operator), and C.4 (shorthand lambda inside
+        // an arrow argument). Pin the full nesting.
+        assertEquals(
+                new AppliedFunction("filter", List.of(
+                        new AppliedFunction("all", List.of(
+                                new PackageableElementPtr("Person"))),
+                        new LambdaFunction(
+                                List.of(new Variable("p")),
+                                List.of(new AppliedFunction("greaterThan", List.of(
+                                        new AppliedProperty(new Variable("p"), "age"),
+                                        new CInteger(21L))))))),
+                SpecParser.parse("Person.all()->filter(p | $p.age > 21)"));
+    }
+
+    // ----- lambda error cases (C.4) ------------------------------------
+
+    @Test
+    void typedLambdaParameterPointsToC5() {
+        // C.5 will add typed lambda params. Until then, the parser
+        // emits an explicit error mentioning the deferred phase
+        // rather than silently mis-parsing. This is the standard
+        // "fail-loud at boundary" pattern from earlier phases.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("{p: Integer[1] | $p}"));
+        assertTrue(ex.getMessage().contains("typed lambda parameters"),
+                () -> "want typed-param error, got: " + ex.getMessage());
+        assertTrue(ex.getMessage().contains("C.5"),
+                () -> "want C.5 pointer, got: " + ex.getMessage());
+    }
+
+    @Test
+    void lambdaMissingPipeRejected() {
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("{p $p}"));
+        assertTrue(ex.getMessage().contains("expected '|'"),
+                () -> "want missing-pipe error, got: " + ex.getMessage());
+    }
+
+    @Test
+    void lambdaMissingCloseBraceRejected() {
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("{p | $p"));
+        assertTrue(ex.getMessage().contains("expected '}'"),
+                () -> "want missing-close-brace error, got: " + ex.getMessage());
+    }
+
+    @Test
+    void lambdaEmptyBodyRejected() {
+        // '{| }' is not legal \u2014 lambda body must have at least
+        // one statement.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("{| }"));
+        assertTrue(ex.getMessage().contains("at least one statement"),
+                () -> "want empty-body error, got: " + ex.getMessage());
+    }
+
+    // ----- code block entry point (C.4) --------------------------------
+
+    @Test
+    void parseCodeBlockSingleStatement() {
+        // A code block with one statement is a list of one element;
+        // not collapsed to the bare value. Consumers always get a
+        // List<ValueSpecification>.
+        List<ValueSpecification> stmts = SpecParser.parseCodeBlock("42");
+        assertEquals(List.of(new CInteger(42L)), stmts);
+    }
+
+    @Test
+    void parseCodeBlockMultipleStatements() {
+        // Statements separated by ';'. Each statement is a full
+        // program line (so 'let' is admitted on each, each desugaring
+        // independently to its own letFunction call).
+        List<ValueSpecification> stmts = SpecParser.parseCodeBlock(
+                "let x = 1; let y = 2; $x + $y");
+        assertEquals(
+                List.of(
+                        new AppliedFunction("letFunction", List.of(
+                                new CString("x"), new CInteger(1L))),
+                        new AppliedFunction("letFunction", List.of(
+                                new CString("y"), new CInteger(2L))),
+                        new AppliedFunction("plus", List.of(
+                                new Variable("x"), new Variable("y")))),
+                stmts);
+    }
+
+    @Test
+    void parseCodeBlockTrailingSemicolonAllowed() {
+        // Engine permits a trailing ';' after the last statement
+        // ('1; 2;' is equivalent to '1; 2'). We match.
+        List<ValueSpecification> stmts = SpecParser.parseCodeBlock("1; 2;");
+        assertEquals(
+                List.of(new CInteger(1L), new CInteger(2L)),
+                stmts);
+    }
+
+    @Test
+    void parseCodeBlockEmptyInputIsEmptyList() {
+        // No statements at all is a degenerate but well-defined
+        // case: empty list, no error.
+        assertEquals(List.of(), SpecParser.parseCodeBlock(""));
+    }
+
+    // ----- coverage gap markers (C.4+ features) -----------------------
 
     @Test
     void negativeIntegerLiteralIsUnaryMinusOnLiteral() {

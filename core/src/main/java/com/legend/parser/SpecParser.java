@@ -15,6 +15,7 @@ import com.legend.parser.spec.CStrictDate;
 import com.legend.parser.spec.CStrictTime;
 import com.legend.parser.spec.CString;
 import com.legend.parser.spec.KeyExpression;
+import com.legend.parser.spec.LambdaFunction;
 import com.legend.parser.spec.NewInstance;
 import com.legend.parser.spec.PackageableElementPtr;
 import com.legend.parser.spec.PureCollection;
@@ -31,7 +32,7 @@ import java.util.Objects;
  * Parser for Pure value specifications (expressions). Produces a sealed
  * {@link ValueSpecification} AST.
  *
- * <h2>Phase status &mdash; C.3 (operators + new-instance)</h2>
+ * <h2>Phase status &mdash; C.4 (lambdas, let, code blocks)</h2>
  * The grammar covers:
  * <ul>
  *   <li><strong>Literals</strong> &mdash; {@link CInteger} (narrowing
@@ -94,6 +95,38 @@ import java.util.Objects;
  *       open paren.</li>
  * </ul>
  *
+ * <p>C.4 additionally recognises:
+ * <ul>
+ *   <li><strong>Lambdas</strong> ({@link LambdaFunction}) in three
+ *       source forms:
+ *       <ul>
+ *         <li>Braced: {@code {p | body}}, {@code {p, q | body}},
+ *             {@code {| body}} (zero-param). Body is a code block
+ *             (semicolon-separated statements).</li>
+ *         <li>Shorthand single-param: {@code x | body} (one body
+ *             expression, no braces).</li>
+ *         <li>Pipe zero-param: {@code | body} (one body
+ *             expression).</li>
+ *       </ul>
+ *       All three produce {@link LambdaFunction}; the source-form
+ *       distinction is irrelevant after parsing. Typed parameters
+ *       ({@code {p: Integer[1] | ...}}) land in C.5.</li>
+ *   <li><strong>{@code let varName = value}</strong> &mdash;
+ *       statement-level name binding, desugared to
+ *       {@code AppliedFunction("letFunction", [CString(varName),
+ *       value])} matching engine's parse-time representation
+ *       (engine's stdlib defines a real {@code letFunction} with
+ *       signature {@code String[1], T[m] -> T[m]}; the surface
+ *       {@code let} syntax is sugar for calling it). Allowed only
+ *       at the top of a program line; inside an expression
+ *       {@code let} is silently absorbed as an identifier and the
+ *       remaining tokens trip the trailing-tokens check.</li>
+ *   <li><strong>Code blocks</strong> &mdash; semicolon-separated
+ *       sequences of statements, exposed via
+ *       {@link #parseCodeBlock(String)}. The braced lambda body
+ *       uses the same machinery internally.</li>
+ * </ul>
+ *
  * <h3>Precedence (matching engine's {@code PureQueryParser})</h3>
  * <p>Pure's grammar is intentionally <em>flat</em> within arithmetic:
  * {@code 1 + 2 * 3} parses as {@code (1 + 2) * 3}, not
@@ -117,25 +150,33 @@ import java.util.Objects;
  * contents with {@link #parseCombinedExpression()} so the full
  * operator grammar works inside.
  *
- * <p>Anything else &mdash; lambdas, {@code let}, code blocks,
- * milestoning, type annotations, column instances ({@code ~col})
- * &mdash; raises a
+ * <p>Anything else &mdash; milestoning, type annotations, column
+ * instances ({@code ~col}), typed lambda parameters &mdash; raises a
  * {@link ParseException} that names the unsupported construct by
  * token type. Per the AGENTS.md no-fallbacks rule, the parser never
  * silently accepts an unknown construct as something else; the error
  * lists the source line/column so callers can repair the input
- * directly. Subsequent phases (C.4, C.5) progressively extend the
- * grammar to cover the full engine value-spec.
+ * directly. The remaining phase (C.5) covers the last grammar
+ * additions to reach engine parity.
  *
  * <h2>Entry points</h2>
  * <ul>
- *   <li>{@link #parse(String)} &mdash; lex the source and parse a single
- *       expression. Convenience entry for tests and one-off callers.</li>
- *   <li>{@link #parse(TokenStream)} &mdash; parse over a pre-lexed
- *       stream, which may be a {@link TokenStream#slice(int, int) slice}
- *       of a larger file. Source offsets in the slice are preserved, so
- *       error reporting points back to the original source.</li>
+ *   <li>{@link #parse(String)} / {@link #parse(TokenStream)} &mdash;
+ *       parse a single program line (one expression or one
+ *       let-binding). Convenience entry for tests, embedded
+ *       expressions (e.g. property defaults), and any context that
+ *       admits exactly one statement.</li>
+ *   <li>{@link #parseCodeBlock(String)} /
+ *       {@link #parseCodeBlock(TokenStream)} &mdash; parse a
+ *       semicolon-separated sequence of statements, returning a
+ *       {@code List<ValueSpecification>}. Used for function bodies
+ *       and any multi-statement context.</li>
  * </ul>
+ *
+ * <p>{@link TokenStream} entry points accept a
+ * {@link TokenStream#slice(int, int) slice} of a larger file; source
+ * offsets are preserved so error reporting points back to the
+ * original source line/column.
  *
  * <p>Both entry points consume the <em>entire</em> input: any tokens
  * remaining after the single expression cause a fail-fast error. This
@@ -168,7 +209,7 @@ public final class SpecParser {
      */
     public static ValueSpecification parse(TokenStream tokens) {
         SpecParser parser = new SpecParser(tokens);
-        ValueSpecification result = parser.parseCombinedExpression();
+        ValueSpecification result = parser.parseProgramLine();
         if (parser.pos < tokens.count()) {
             ElementParser.throwAt(tokens, parser.pos,
                     "trailing tokens after expression: " + tokens.type(parser.pos)
@@ -177,8 +218,160 @@ public final class SpecParser {
         return result;
     }
 
+    /**
+     * Parse a multi-statement code block from source text. A code
+     * block is a {@code ;}-separated sequence of statements; each
+     * statement is one program line (an expression or a let-binding).
+     * The block's value is the value of its last statement; the parser
+     * does not enforce or annotate this &mdash; it just returns the
+     * sequence.
+     *
+     * <p>This is the entry point ModelOrchestrator will use to parse
+     * function bodies in C.6. It is also used internally by the
+     * braced lambda form to parse the body between {@code {...|...}}.
+     */
+    public static List<ValueSpecification> parseCodeBlock(String source) {
+        return parseCodeBlock(Lexer.tokenize(source));
+    }
+
+    /**
+     * Token-stream variant of {@link #parseCodeBlock(String)}.
+     * Consumes the entire stream; trailing tokens after the last
+     * statement raise a fail-fast error.
+     */
+    public static List<ValueSpecification> parseCodeBlock(TokenStream tokens) {
+        SpecParser parser = new SpecParser(tokens);
+        List<ValueSpecification> stmts = parser.parseCodeBlockUntil(null);
+        if (parser.pos < tokens.count()) {
+            ElementParser.throwAt(tokens, parser.pos,
+                    "trailing tokens after code block: " + tokens.type(parser.pos)
+                    + " ('" + safeText(tokens, parser.pos) + "')");
+        }
+        return stmts;
+    }
+
     // -------------------------------------------------------------------
-    // Top-level expression dispatch
+    // Top-level program-line dispatch (statement level)
+    // -------------------------------------------------------------------
+
+    /**
+     * One statement &mdash; either a {@code let}-binding (desugared
+     * to a {@code letFunction} call) or a full expression.
+     * {@code let} is admitted <em>only</em> at this level (the top of
+     * a program line, including each statement in a code block); it
+     * is not a sub-expression. Engine has the same structural
+     * restriction in its {@code parseProgramLine}.
+     */
+    private ValueSpecification parseProgramLine() {
+        if (pos < tokens.count() && tokens.type(pos) == TokenType.LET) {
+            return parseLetExpression();
+        }
+        return parseCombinedExpression();
+    }
+
+    /**
+     * Parse {@code let varName = value} and desugar to an
+     * {@link AppliedFunction} call to {@code letFunction} matching
+     * engine's parse-time representation.
+     *
+     * <h3>Why desugar instead of producing a dedicated record</h3>
+     *
+     * <p>Pure's design pillar is &ldquo;everything is a
+     * function&rdquo;. {@code letFunction} is a real, type-signatured
+     * function in the Pure stdlib
+     * ({@code letFunction_String_1__T_m__T_m_}); the surface
+     * {@code let} keyword is <em>syntactic sugar</em> for calling it,
+     * in the same way {@code +} is sugar for {@code plus} and
+     * {@code ==} is sugar for {@code equal}. Desugaring at parse
+     * time has three concrete payoffs:
+     *
+     * <ol>
+     *   <li><strong>Single type-inference path.</strong> The
+     *       type-checker can look up {@code letFunction} in the
+     *       stdlib and apply the standard function-application
+     *       inference rule; no dedicated {@code Let}-shape case arm
+     *       in the inference pipeline. Same as engine
+     *       ({@code FunctionExpressionProcessor}).</li>
+     *   <li><strong>Type rule lives in data.</strong> The fact that
+     *       {@code let x = v} has the type of {@code v} is encoded
+     *       in the function's signature, not in the
+     *       type-checker. Consistent with how {@code plus},
+     *       {@code if}, {@code match}, etc. are handled.</li>
+     *   <li><strong>AST byte-comparability with engine.</strong>
+     *       Corpus tests that compare against engine's parser output
+     *       can compare directly without an adapter.</li>
+     * </ol>
+     *
+     * <p>Downstream concerns (scope registration so {@code $varName}
+     * resolves later, closure capture, codegen) recognise let by
+     * checking the function name &mdash; same as engine's
+     * {@code "letFunction".equals(functionName)} guards in
+     * {@code FunctionExpressionProcessor}, {@code LambdaFunctionProcessor},
+     * and {@code FunctionProcessor}.
+     *
+     * <p>A {@code LetExpression} record was considered and rejected;
+     * see the C.4 commit message for the analysis.
+     *
+     * <p>Pre-condition: cursor is on {@link TokenType#LET}. The
+     * value is parsed as a full combined expression so binary
+     * operators and arrow chains in the right-hand side work as
+     * expected.
+     */
+    private AppliedFunction parseLetExpression() {
+        pos++; // consume LET
+        if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected variable name after 'let'");
+        }
+        String varName = tokens.text(pos);
+        pos++;
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.EQUAL) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected '=' after 'let " + varName + "'");
+        }
+        pos++; // consume '='
+        ValueSpecification value = parseCombinedExpression();
+        return new AppliedFunction(
+                "letFunction",
+                List.of(new CString(varName), value));
+    }
+
+    /**
+     * Code-block helper used by both the public
+     * {@link #parseCodeBlock(TokenStream)} entry and by
+     * {@link #parseLambdaFunction()} for braced lambda bodies.
+     *
+     * <p>{@code terminator} is the token type that ends the block
+     * <em>without consuming it</em>: {@link TokenType#BRACE_CLOSE} for
+     * lambda bodies, {@code null} for the top-level entry (which
+     * reads to EOF). A trailing {@code ;} before the terminator is
+     * silently permitted, matching engine.
+     */
+    private List<ValueSpecification> parseCodeBlockUntil(TokenType terminator) {
+        List<ValueSpecification> stmts = new ArrayList<>();
+        if (atTerminator(terminator)) {
+            return stmts;
+        }
+        stmts.add(parseProgramLine());
+        while (pos < tokens.count() && tokens.type(pos) == TokenType.SEMI_COLON) {
+            pos++; // consume ';'
+            if (atTerminator(terminator)) {
+                break;
+            }
+            stmts.add(parseProgramLine());
+        }
+        return stmts;
+    }
+
+    private boolean atTerminator(TokenType terminator) {
+        if (pos >= tokens.count()) {
+            return true; // EOF terminates
+        }
+        return terminator != null && tokens.type(pos) == terminator;
+    }
+
+    // -------------------------------------------------------------------
+    // Combined-expression level (operators)
     // -------------------------------------------------------------------
 
     /**
@@ -381,8 +574,18 @@ public final class SpecParser {
             case BRACKET_OPEN -> parseCollection();
             case PAREN_OPEN -> parseParenthesised();
             case NEW_SYMBOL -> parseNewInstance();
+            case BRACE_OPEN -> parseLambdaFunction();
+            case PIPE -> parseLambdaPipe();
             default -> {
                 if (ElementParser.IDENTIFIER_TOKENS.contains(t)) {
+                    // Single-param lambda shorthand: 'x | body'. The
+                    // lookahead must NOT cross a PATH_SEPARATOR, since
+                    // 'my::pkg' is never a lambda parameter (lambda
+                    // params are simple identifiers, not FQNs).
+                    if (pos + 1 < tokens.count()
+                            && tokens.type(pos + 1) == TokenType.PIPE) {
+                        yield parseSingleParamLambda();
+                    }
                     yield parseQualifiedNameStart();
                 }
                 ElementParser.throwAt(tokens, pos,
@@ -894,6 +1097,107 @@ public final class SpecParser {
         }
         pos++; // consume '>'
         return args;
+    }
+
+    // -------------------------------------------------------------------
+    // Lambdas: { p, q | body } / x | body / | body
+    // -------------------------------------------------------------------
+
+    /**
+     * Braced lambda. Grammar:
+     * <pre>
+     *   lambdaFunction = '{' params? '|' codeBlock '}'
+     *   params         = identifier (',' identifier)*
+     * </pre>
+     *
+     * <p>Body is a code block &mdash; multiple {@code ;}-separated
+     * statements are admitted, the lambda's value is the last
+     * statement. Typed parameters
+     * ({@code {p: Integer[1] | ...}}) are deferred to C.5; the parser
+     * fails with an informative error if a {@code :} follows a lambda
+     * parameter name in C.4.
+     *
+     * <p>Pre-condition: cursor is on {@link TokenType#BRACE_OPEN}.
+     */
+    private LambdaFunction parseLambdaFunction() {
+        pos++; // consume '{'
+        List<Variable> params = new ArrayList<>();
+        if (pos < tokens.count() && tokens.type(pos) != TokenType.PIPE) {
+            params.add(parseLambdaParam());
+            while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
+                pos++; // consume ','
+                params.add(parseLambdaParam());
+            }
+        }
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PIPE) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected '|' to separate lambda parameters from body");
+        }
+        pos++; // consume '|'
+        List<ValueSpecification> body = parseCodeBlockUntil(TokenType.BRACE_CLOSE);
+        if (body.isEmpty()) {
+            ElementParser.throwAt(tokens, pos,
+                    "lambda body must contain at least one statement");
+        }
+        if (pos >= tokens.count() || tokens.type(pos) != TokenType.BRACE_CLOSE) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected '}' to close lambda");
+        }
+        pos++; // consume '}'
+        return new LambdaFunction(params, body);
+    }
+
+    /**
+     * Parse one lambda parameter. Untyped only in C.4: a bare
+     * identifier. A trailing {@code :} fails fast with a Phase-C.5
+     * pointer rather than silently mis-parsing the type annotation.
+     */
+    private Variable parseLambdaParam() {
+        if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
+            ElementParser.throwAt(tokens, pos,
+                    "expected lambda parameter name");
+        }
+        String name = tokens.text(pos);
+        pos++;
+        if (pos < tokens.count() && tokens.type(pos) == TokenType.COLON) {
+            ElementParser.throwAt(tokens, pos,
+                    "typed lambda parameters are not yet supported "
+                    + "(deferred to C.5); write '{" + name + " | ...}' "
+                    + "without the ':Type[mult]' annotation for now");
+        }
+        return new Variable(name);
+    }
+
+    /**
+     * Shorthand single-param lambda {@code x | body}. Body is one
+     * expression, not a code block &mdash; this form is meant for
+     * inline predicates (e.g. {@code $xs->filter(p | $p.age > 21)}).
+     *
+     * <p>Pre-condition: cursor is on the identifier, and the next
+     * token is {@link TokenType#PIPE} (verified by the caller in
+     * {@link #parsePrimary()}).
+     */
+    private LambdaFunction parseSingleParamLambda() {
+        String name = tokens.text(pos);
+        pos++; // consume identifier
+        pos++; // consume '|'
+        ValueSpecification body = parseCombinedExpression();
+        return new LambdaFunction(
+                List.of(new Variable(name)),
+                List.of(body));
+    }
+
+    /**
+     * Zero-param pipe-shorthand lambda {@code | body}. Body is one
+     * expression. Common as a zero-arg thunk argument:
+     * {@code $opt->orElse(| 'default')}.
+     *
+     * <p>Pre-condition: cursor is on {@link TokenType#PIPE}.
+     */
+    private LambdaFunction parseLambdaPipe() {
+        pos++; // consume '|'
+        ValueSpecification body = parseCombinedExpression();
+        return new LambdaFunction(List.of(), List.of(body));
     }
 
     // -------------------------------------------------------------------
