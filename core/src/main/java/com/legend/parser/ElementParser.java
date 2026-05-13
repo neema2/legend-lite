@@ -28,7 +28,11 @@ import com.legend.parser.element.PropertyMapping;
 import com.legend.parser.element.TypeExpression;
 import com.legend.parser.element.JsonModelConnection;
 import com.legend.parser.element.PackageableElement;
+import com.legend.parser.element.ComparisonOp;
+import com.legend.parser.element.RelationalDataType;
 import com.legend.parser.element.JoinChainElement;
+import com.legend.parser.element.JoinType;
+import com.legend.parser.element.LogicalOp;
 import com.legend.parser.element.ProfileDefinition;
 import com.legend.parser.element.RelationalOperation;
 import com.legend.parser.element.RuntimeDefinition;
@@ -1301,22 +1305,56 @@ public final class ElementParser {
 
     private DatabaseDefinition.ColumnDefinition parseColumnDefinition() {
         String columnName = parseRelationalIdentifier();
-        String dataType = parseIdentifier();
-        // Optional size / precision: VARCHAR(100), DECIMAL(10,2)
-        if (peek() == TokenType.PAREN_OPEN) {
-            advance();
-            String size = consume(TokenType.INTEGER);
-            dataType = dataType + "(" + size;
-            if (match(TokenType.COMMA)) {
-                dataType += "," + consume(TokenType.INTEGER);
-            }
-            expect(TokenType.PAREN_CLOSE);
-            dataType += ")";
-        }
+        RelationalDataType dataType = parseColumnDataType();
         boolean primaryKey = match(TokenType.PRIMARY_KEY);
         // PRIMARY KEY implies NOT NULL (engine parity).
         boolean notNull = primaryKey || match(TokenType.NOT_NULL);
         return new DatabaseDefinition.ColumnDefinition(columnName, dataType, primaryKey, notNull);
+    }
+
+    /**
+     * Parse a column data type, dispatching the source identifier (plus
+     * optional {@code (size)} or {@code (precision, scale)} arguments) to
+     * the appropriate {@link RelationalDataType} record.
+     *
+     * <p>Sized types ({@code VARCHAR}, {@code CHAR}, {@code BINARY},
+     * {@code VARBINARY}) consume one int. Precision/scale types
+     * ({@code DECIMAL}, {@code NUMERIC}) consume two. Other types must not
+     * carry parens. Unknown identifiers throw per AGENTS.md invariant 4.
+     */
+    private RelationalDataType parseColumnDataType() {
+        String name = parseIdentifier();
+        String upper = name.toUpperCase();
+        if (peek() == TokenType.PAREN_OPEN) {
+            advance();
+            int first = Integer.parseInt(consume(TokenType.INTEGER));
+            RelationalDataType sized;
+            if (match(TokenType.COMMA)) {
+                int second = Integer.parseInt(consume(TokenType.INTEGER));
+                sized = switch (upper) {
+                    case "DECIMAL" -> new RelationalDataType.Decimal(first, second);
+                    case "NUMERIC" -> new RelationalDataType.Numeric(first, second);
+                    default -> throw new IllegalArgumentException(
+                            "type '" + name + "' does not take (precision, scale)");
+                };
+            } else {
+                sized = switch (upper) {
+                    case "VARCHAR"   -> new RelationalDataType.Varchar(first);
+                    case "CHAR"      -> new RelationalDataType.Char_(first);
+                    case "BINARY"    -> new RelationalDataType.Binary(first);
+                    case "VARBINARY" -> new RelationalDataType.Varbinary(first);
+                    // Engine grammar permits DECIMAL(p) with implicit scale=0;
+                    // Numeric likewise. Mirror that.
+                    case "DECIMAL"   -> new RelationalDataType.Decimal(first, 0);
+                    case "NUMERIC"   -> new RelationalDataType.Numeric(first, 0);
+                    default -> throw new IllegalArgumentException(
+                            "type '" + name + "' does not take a (size) argument");
+                };
+            }
+            expect(TokenType.PAREN_CLOSE);
+            return sized;
+        }
+        return RelationalDataType.fromName(name);
     }
 
     private DatabaseDefinition.JoinDefinition parseDbJoin(String dbScope) {
@@ -2021,19 +2059,19 @@ public final class ElementParser {
      */
     private List<JoinChainElement> parseMappingJoinChain(String defaultDb) {
         List<JoinChainElement> chain = new ArrayList<>();
-        String firstJoinType = null;
+        JoinType firstJoinType = null;
         if (peek() == TokenType.PAREN_OPEN) {
             advance();
-            firstJoinType = parseIdentifier();
+            firstJoinType = JoinType.fromIdentifier(parseIdentifier());
             expect(TokenType.PAREN_CLOSE);
         }
         expect(TokenType.AT);
         chain.add(new JoinChainElement(parseIdentifier(), firstJoinType, defaultDb, false));
         while (match(TokenType.GREATER_THAN)) {
-            String joinType = null;
+            JoinType joinType = null;
             if (peek() == TokenType.PAREN_OPEN) {
                 advance();
-                joinType = parseIdentifier();
+                joinType = JoinType.fromIdentifier(parseIdentifier());
                 expect(TokenType.PAREN_CLOSE);
             }
             String hopDb = defaultDb;
@@ -2321,7 +2359,7 @@ public final class ElementParser {
         RelationalOperation left = parseDbAtomicOperation(dbScope);
         if (!atEnd() && IDENTIFIER_TOKENS.contains(peek())
                 && (textEquals("and") || textEquals("or"))) {
-            String op = text();
+            LogicalOp op = LogicalOp.fromKeyword(text());
             advance();
             RelationalOperation right = parseDbOperation(dbScope);
             return new RelationalOperation.BooleanOp(left, op, right);
@@ -2439,7 +2477,7 @@ public final class ElementParser {
                     || next == TokenType.TEST_NOT_EQUAL || next == TokenType.LESS_THAN
                     || next == TokenType.GREATER_THAN || next == TokenType.LESS_OR_EQUAL
                     || next == TokenType.GREATER_OR_EQUAL || next == TokenType.NOT_EQUAL) {
-                String op = text();
+                ComparisonOp op = ComparisonOp.fromToken(next);
                 advance();
                 RelationalOperation right = parseDbAtomicOperation(dbScope);
                 expr = new RelationalOperation.Comparison(expr, op, right);
@@ -2484,10 +2522,10 @@ public final class ElementParser {
         expect(TokenType.AT);
         chain.add(new JoinChainElement(parseIdentifier(), null, db, false));
         while (match(TokenType.GREATER_THAN)) {
-            String joinType = null;
+            JoinType joinType = null;
             if (peek() == TokenType.PAREN_OPEN) {
                 advance();
-                joinType = parseIdentifier();
+                joinType = JoinType.fromIdentifier(parseIdentifier());
                 expect(TokenType.PAREN_CLOSE);
             }
             String hopDb = db;

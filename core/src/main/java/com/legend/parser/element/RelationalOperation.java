@@ -126,26 +126,27 @@ public sealed interface RelationalOperation
     }
 
     /**
-     * Binary comparison: {@code left op right} where {@code op} is one of
-     * {@code = == != < <= > >= <>}. Captured as the raw operator string
-     * exactly as it appears in source.
+     * Binary comparison: {@code left op right} where {@code op} is a
+     * canonical {@link ComparisonOp}. Source-form synonyms ({@code =} vs
+     * {@code ==}, {@code !=} vs {@code <>}) are collapsed at parse time so
+     * downstream consumers see a closed enum.
      */
-    record Comparison(RelationalOperation left, String op, RelationalOperation right) implements RelationalOperation {
+    record Comparison(RelationalOperation left, ComparisonOp op, RelationalOperation right) implements RelationalOperation {
         public Comparison {
             Objects.requireNonNull(left, "Left cannot be null");
             Objects.requireNonNull(op, "Op cannot be null");
             Objects.requireNonNull(right, "Right cannot be null");
         }
         public static Comparison eq(RelationalOperation l, RelationalOperation r) {
-            return new Comparison(l, "=", r);
+            return new Comparison(l, ComparisonOp.EQ, r);
         }
     }
 
     /**
-     * Boolean combination: {@code left op right} where {@code op} is
-     * {@code "and"} or {@code "or"} (lowercased, as written in source).
+     * Boolean combination: {@code left op right} where {@code op} is one
+     * of {@link LogicalOp#AND} or {@link LogicalOp#OR}.
      */
-    record BooleanOp(RelationalOperation left, String op, RelationalOperation right) implements RelationalOperation {
+    record BooleanOp(RelationalOperation left, LogicalOp op, RelationalOperation right) implements RelationalOperation {
         public BooleanOp {
             Objects.requireNonNull(left, "Left cannot be null");
             Objects.requireNonNull(op, "Op cannot be null");

@@ -9,9 +9,10 @@ import java.util.Objects;
  * property RHS such as {@code [DB]@PersonFirm > @FirmCountry | COUNTRY.NAME}.
  *
  * @param joinName       the join's simple name (e.g. {@code "PersonFirm"})
- * @param joinType       optional join type spelled inside parens
- *                       (e.g. {@code "LEFT"}, {@code "OUTER"}); {@code null}
- *                       when the hop carries no explicit join type
+ * @param joinType       optional join type spelled inside parens (e.g.
+ *                       {@code (LEFT)}, {@code (OUTER)}), canonicalised to
+ *                       a {@link JoinType} value; {@code null} when the hop
+ *                       carries no explicit annotation
  * @param databaseName   the enclosing database qualifier that applies to this
  *                       hop &mdash; either inherited from the enclosing
  *                       {@code Database} scope, or overridden by an inline
@@ -21,7 +22,7 @@ import java.util.Objects;
  */
 public record JoinChainElement(
         String joinName,
-        String joinType,
+        JoinType joinType,
         String databaseName,
         boolean includeSelf) {
 

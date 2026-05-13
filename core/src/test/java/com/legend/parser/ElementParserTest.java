@@ -33,6 +33,9 @@ import com.legend.parser.element.PropertyMapping;
 import com.legend.parser.element.JsonModelConnection;
 import com.legend.parser.element.PackageableElement;
 import com.legend.parser.element.RelationalOperation;
+import com.legend.parser.element.ComparisonOp;
+import com.legend.parser.element.RelationalDataType;
+import com.legend.parser.element.LogicalOp;
 import com.legend.parser.element.RelationalOperation.BooleanOp;
 import com.legend.parser.element.RelationalOperation.ColumnRef;
 import com.legend.parser.element.RelationalOperation.Comparison;
@@ -1470,9 +1473,9 @@ final class ElementParserTest {
         assertEquals("T_PERSON", t.name());
         assertEquals(
                 List.of(
-                        new ColumnDefinition("ID", "INTEGER", true, true),     // PK ⇒ NOT NULL
-                        new ColumnDefinition("NAME", "VARCHAR(100)", false, true),
-                        new ColumnDefinition("SCORE", "DECIMAL(10,2)", false, false)),
+                        new ColumnDefinition("ID", new RelationalDataType.Integer_(), true, true),     // PK ⇒ NOT NULL
+                        new ColumnDefinition("NAME", new RelationalDataType.Varchar(100), false, true),
+                        new ColumnDefinition("SCORE", new RelationalDataType.Decimal(10, 2), false, false)),
                 t.columns());
     }
 
@@ -1538,7 +1541,7 @@ final class ElementParserTest {
         assertEquals("AB", j.name());
         Comparison c = (Comparison) j.operation();
         assertEquals(new ColumnRef(null, "A", "ID"), c.left());
-        assertEquals("=", c.op());
+        assertEquals(ComparisonOp.EQ, c.op());
         assertEquals(new ColumnRef(null, "B", "A_ID"), c.right());
     }
 
@@ -1550,7 +1553,7 @@ final class ElementParserTest {
                 + "Join AB(A.X = B.X and A.Y = B.Y) )").elements().get(0);
         JoinDefinition j = db.joins().get(0);
         BooleanOp bo = (BooleanOp) j.operation();
-        assertEquals("and", bo.op());
+        assertEquals(LogicalOp.AND, bo.op());
         // Right-recursive structure: BooleanOp(eq(A.X,B.X), and, eq(A.Y,B.Y))
         assertInstanceOf(Comparison.class, bo.left());
         assertInstanceOf(Comparison.class, bo.right());

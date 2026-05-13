@@ -79,15 +79,18 @@ public record DatabaseDefinition(
      * A column declaration.
      *
      * @param name       column name as written (post-quote-strip)
-     * @param dataType   SQL data type as written, including any size or
-     *                   precision spec (e.g. {@code "INTEGER"},
-     *                   {@code "VARCHAR(100)"}, {@code "DECIMAL(10,2)"})
+     * @param dataType   canonical {@link RelationalDataType} parsed from the SQL
+     *                   type spec &mdash; one of the closed variants
+     *                   (e.g. {@link RelationalDataType.Integer_},
+     *                   {@link RelationalDataType.Varchar}, {@link RelationalDataType.Decimal}).
+     *                   Unknown spellings throw at parse time per AGENTS.md
+     *                   invariant 4 (no fallbacks).
      * @param primaryKey {@code true} if {@code PRIMARY KEY} appeared
      * @param notNull    {@code true} if {@code NOT NULL} appeared
      *                   (implied by {@code PRIMARY KEY} in engine; we
      *                   preserve the same semantics)
      */
-    public record ColumnDefinition(String name, String dataType, boolean primaryKey, boolean notNull) {
+    public record ColumnDefinition(String name, RelationalDataType dataType, boolean primaryKey, boolean notNull) {
         public ColumnDefinition {
             Objects.requireNonNull(name, "Column name cannot be null");
             Objects.requireNonNull(dataType, "Data type cannot be null");
