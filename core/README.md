@@ -133,7 +133,8 @@ core/src/main/java/com/legend/
 │       ├── ColSpecArray.java
 │       ├── TypeAnnotation.java                  sealed
 │       ├── CBoolean.java, CString.java, CInteger.java, CFloat.java, CDecimal.java,
-│       └── CByteArray.java, CDateTime.java, CStrictDate.java, CStrictTime.java, CLatestDate.java
+│       ├── CByteArray.java, CDate.java, CTime.java, CLatestDate.java
+│       └── PureDateLiteral.java, PureTimeLiteral.java          sealed (structured date/time)
 │
 ├── normalizer/                        E. mapping desugar
 │   └── MappingNormalizer.java               PackageableElement → PackageableElement

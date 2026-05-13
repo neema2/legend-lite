@@ -5,13 +5,14 @@ import com.legend.lexer.TokenStream;
 import com.legend.parser.spec.AppliedFunction;
 import com.legend.parser.spec.AppliedProperty;
 import com.legend.parser.spec.CBoolean;
-import com.legend.parser.spec.CDateTime;
+import com.legend.parser.spec.CDate;
 import com.legend.parser.spec.CDecimal;
 import com.legend.parser.spec.CFloat;
 import com.legend.parser.spec.CInteger;
 import com.legend.parser.spec.CLatestDate;
-import com.legend.parser.spec.CStrictDate;
-import com.legend.parser.spec.CStrictTime;
+import com.legend.parser.spec.CTime;
+import com.legend.parser.spec.PureDateLiteral;
+import com.legend.parser.spec.PureTimeLiteral;
 import com.legend.parser.spec.CString;
 import com.legend.parser.spec.ColSpec;
 import com.legend.parser.spec.ColSpecArray;
@@ -149,35 +150,57 @@ final class SpecParserTest {
 
     @Test
     void strictDateLiteralYearMonthDay() {
-        // %2024-01-15 has no 'T' -> StrictDate, not DateTime.
-        assertEquals(new CStrictDate("2024-01-15"), SpecParser.parse("%2024-01-15"));
+        // %2024-01-15 -> structured StrictDate variant.
+        assertEquals(new CDate(new PureDateLiteral.StrictDate(2024, 1, 15)),
+                SpecParser.parse("%2024-01-15"));
     }
 
     @Test
-    void strictDateLiteralYearOnly() {
-        // Pure permits %2024 as a year-precision strict date.
-        assertEquals(new CStrictDate("2024"), SpecParser.parse("%2024"));
+    void yearOnlyLiteral() {
+        // %2024 -> Year variant. Previously this masqueraded as a
+        // "strict date" (type lie); the structured hierarchy gives it
+        // its own variant.
+        assertEquals(new CDate(new PureDateLiteral.Year(2024)),
+                SpecParser.parse("%2024"));
     }
 
     @Test
-    void dateTimeLiteralWithTimeComponent() {
-        // Presence of 'T' is the sole discriminator between StrictDate
-        // and DateTime; the test pins this so a future "smarter" parser
-        // doesn't drift the rule.
-        assertEquals(new CDateTime("2024-01-15T10:30:00"),
+    void yearMonthLiteral() {
+        assertEquals(new CDate(new PureDateLiteral.YearMonth(2024, 1)),
+                SpecParser.parse("%2024-01"));
+    }
+
+    @Test
+    void dateWithHourLiteral() {
+        // %2024-01-15T10 -> DateWithHour (legal per engine grammar).
+        assertEquals(new CDate(new PureDateLiteral.DateWithHour(2024, 1, 15, 10)),
+                SpecParser.parse("%2024-01-15T10"));
+    }
+
+    @Test
+    void dateTimeLiteralWithSeconds() {
+        assertEquals(new CDate(new PureDateLiteral.DateWithSecond(2024, 1, 15, 10, 30, 0)),
                 SpecParser.parse("%2024-01-15T10:30:00"));
     }
 
     @Test
-    void dateTimeLiteralWithFractionalSecondsAndTimezone() {
-        assertEquals(new CDateTime("2024-01-15T10:30:00.123+0000"),
+    void dateTimeLiteralWithSubsecondAndGmtTimezone() {
+        // GMT (+0000) -> no shift, just dropped.
+        assertEquals(new CDate(new PureDateLiteral.DateWithSubsecond(2024, 1, 15, 10, 30, 0, "123")),
                 SpecParser.parse("%2024-01-15T10:30:00.123+0000"));
     }
 
     @Test
+    void dateTimeLiteralTimezoneShifts() {
+        // %2024-01-15T10:00+0500 -> shift -5h to GMT -> %2024-01-15T05:00.
+        assertEquals(new CDate(new PureDateLiteral.DateWithMinute(2024, 1, 15, 5, 0)),
+                SpecParser.parse("%2024-01-15T10:00+0500"));
+    }
+
+    @Test
     void strictTimeLiteral() {
-        // %hh:mm:ss with no dashes -> StrictTime.
-        assertEquals(new CStrictTime("10:30:45"),
+        // %hh:mm:ss -> structured TimeWithSecond.
+        assertEquals(new CTime(new PureTimeLiteral.TimeWithSecond(10, 30, 45)),
                 SpecParser.parse("%10:30:45"));
     }
 
@@ -2324,7 +2347,7 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("getAll", List.of(
                         new PackageableElementPtr("Person"),
-                        new CStrictDate("2024-01-01"))),
+                        new CDate(new PureDateLiteral.StrictDate(2024, 1, 1)))),
                 SpecParser.parse("Person.all(%2024-01-01)"));
     }
 
@@ -2336,7 +2359,7 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("getAll", List.of(
                         new PackageableElementPtr("Person"),
-                        new CStrictDate("2024-01-01"),
+                        new CDate(new PureDateLiteral.StrictDate(2024, 1, 1)),
                         new CLatestDate())),
                 SpecParser.parse("Person.all(%2024-01-01, %latest)"));
     }
@@ -2367,8 +2390,8 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("getAllVersionsInRange", List.of(
                         new PackageableElementPtr("Person"),
-                        new CStrictDate("2024-01-01"),
-                        new CStrictDate("2024-12-31"))),
+                        new CDate(new PureDateLiteral.StrictDate(2024, 1, 1)),
+                        new CDate(new PureDateLiteral.StrictDate(2024, 12, 31)))),
                 SpecParser.parse("Person.allVersionsInRange(%2024-01-01, %2024-12-31)"));
     }
 

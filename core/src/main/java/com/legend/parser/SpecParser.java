@@ -6,14 +6,15 @@ import com.legend.lexer.TokenType;
 import com.legend.parser.spec.AppliedFunction;
 import com.legend.parser.spec.AppliedProperty;
 import com.legend.parser.spec.CBoolean;
-import com.legend.parser.spec.CDateTime;
+import com.legend.parser.spec.CDate;
 import com.legend.parser.spec.CDecimal;
 import com.legend.parser.spec.CFloat;
 import com.legend.parser.spec.CInteger;
 import com.legend.parser.spec.CLatestDate;
-import com.legend.parser.spec.CStrictDate;
-import com.legend.parser.spec.CStrictTime;
 import com.legend.parser.spec.CString;
+import com.legend.parser.spec.CTime;
+import com.legend.parser.spec.PureDateLiteral;
+import com.legend.parser.spec.PureTimeLiteral;
 import com.legend.parser.spec.ColSpec;
 import com.legend.parser.spec.ColSpecArray;
 import com.legend.parser.spec.ColumnInstance;
@@ -47,8 +48,9 @@ import java.util.Objects;
  *       to {@link Long} when the value fits else {@link BigInteger}),
  *       {@link CFloat}, {@link CDecimal} ({@code d}/{@code D} suffix),
  *       {@link CString} (quotes stripped, escapes resolved),
- *       {@link CBoolean}, {@link CDateTime}, {@link CStrictDate},
- *       {@link CStrictTime}, {@link CLatestDate} ({@code %latest}).</li>
+ *       {@link CBoolean}, {@link CDate} (year, year-month, strict-date,
+ *       date-with-hour, date-with-minute, date-with-second, date-with-subsecond),
+ *       {@link CTime} (strict-time), {@link CLatestDate} ({@code %latest}).</li>
  *   <li><strong>Variables</strong> ({@link Variable}) &mdash; {@code $name}.</li>
  *   <li><strong>Collection literals</strong> ({@link PureCollection})
  *       &mdash; {@code [v1, v2, ...]}, empty form {@code []} legal.</li>
@@ -775,10 +777,14 @@ public final class SpecParser {
     // -------------------------------------------------------------------
 
     /**
-     * DATE token &rarr; {@link CDateTime} or {@link CStrictDate}. The
-     * lexer collapses both into a single token type; the discriminator
-     * is the presence of the time-separator {@code T} in the source
-     * text (the {@code %} prefix is stripped here, mirroring engine's
+     * DATE token &rarr; {@link CDate} carrying a structured
+     * {@link PureDateLiteral}. The lexer routes year-only, year-month,
+     * strict-date, date-with-hour, date-with-minute, date-with-second,
+     * and date-with-subsecond shapes to a single DATE token (with
+     * optional TZ suffix on time-bearing forms); the structural variant
+     * is decided by {@link PureDateLiteral#parse}, which also validates
+     * component values and normalises any TZ to GMT (the {@code %}
+     * prefix is stripped here, mirroring engine's
      * record contract).
      */
     private ValueSpecification parseDateOrDateTime() {
@@ -788,18 +794,33 @@ public final class SpecParser {
                     "malformed date literal: expected leading '%'");
         }
         String value = raw.substring(1);
+        int datePos = pos;
         pos++;
-        return value.indexOf('T') >= 0 ? new CDateTime(value) : new CStrictDate(value);
+        try {
+            return new CDate(PureDateLiteral.parse(value));
+        } catch (IllegalArgumentException e) {
+            ElementParser.throwAt(tokens, datePos,
+                    "invalid date literal '%" + value + "': " + e.getMessage());
+            throw new IllegalStateException("unreachable", e);
+        }
     }
 
-    private CStrictTime parseStrictTime() {
+    private CTime parseStrictTime() {
         String raw = tokens.text(pos);
         if (raw.isEmpty() || raw.charAt(0) != '%') {
             ElementParser.throwAt(tokens, pos,
                     "malformed time literal: expected leading '%'");
         }
+        int timePos = pos;
         pos++;
-        return new CStrictTime(raw.substring(1));
+        String value = raw.substring(1);
+        try {
+            return new CTime(PureTimeLiteral.parse(value));
+        } catch (IllegalArgumentException e) {
+            ElementParser.throwAt(tokens, timePos,
+                    "invalid time literal '%" + value + "': " + e.getMessage());
+            throw new IllegalStateException("unreachable", e);
+        }
     }
 
     private CLatestDate parseLatestDate() {
