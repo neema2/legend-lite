@@ -844,6 +844,89 @@ final class ElementParserTest {
         assertEquals(List.of("m"), f.multiplicityParameters());
     }
 
+    @Test
+    void userFunctionWithSubsetConstraintInGeneric() {
+        // User functions inherit the native-signature grammar: a subset
+        // constraint <X\u2286T> inside a parameter's generic must parse,
+        // captured verbatim in the type text.
+        FunctionDefinition f = assertInstanceOf(FunctionDefinition.class,
+                ElementParser.parse(
+                        "function my::pickCols<X,T>(rel: Relation<T>[1], "
+                                + "info: SortInfo<X\u2286T>[*]): Relation<T>[1] "
+                                + "{ $rel }")
+                        .elements().get(0));
+        assertEquals(List.of("X", "T"), f.typeParameters());
+        assertEquals("Relation<T>", f.parameters().get(0).type());
+        assertEquals("SortInfo<X\u2286T>", f.parameters().get(1).type());
+        assertEquals(Multiplicity.zeroMany(), f.parameters().get(1).multiplicity());
+        assertEquals("Relation<T>", f.returnType());
+    }
+
+    @Test
+    void userFunctionWithSchemaAlgebraInReturnType() {
+        // Schema add (T+Z) in return type position.
+        FunctionDefinition f = assertInstanceOf(FunctionDefinition.class,
+                ElementParser.parse(
+                        "function my::ext<T,Z>(r: Relation<T>[1]): Relation<T+Z>[1] "
+                                + "{ $r }")
+                        .elements().get(0));
+        assertEquals("Relation<T+Z>", f.returnType());
+        assertEquals(Multiplicity.exactly(1), f.returnMultiplicity());
+    }
+
+    @Test
+    void userFunctionWithSchemaDropAddInReturnType() {
+        // Schema drop-then-add (T-Z+V) in return type position.
+        FunctionDefinition f = assertInstanceOf(FunctionDefinition.class,
+                ElementParser.parse(
+                        "function my::ren<T,Z,V>(r: Relation<T>[1]): Relation<T-Z+V>[1] "
+                                + "{ $r }")
+                        .elements().get(0));
+        assertEquals("Relation<T-Z+V>", f.returnType());
+    }
+
+    @Test
+    void userFunctionWithRenameDslAndSubsetInGeneric() {
+        // The hairiest form from Pure stdlib: ColSpec<Z=(?:K)\u2286T> means
+        // 'rename Z to K, where K is a subset of T'. Must parse verbatim.
+        FunctionDefinition f = assertInstanceOf(FunctionDefinition.class,
+                ElementParser.parse(
+                        "function my::ren2<T,Z,K>(r: Relation<T>[1], "
+                                + "spec: ColSpec<Z=(?:K)\u2286T>[1]): Relation<T>[1] "
+                                + "{ $r }")
+                        .elements().get(0));
+        assertEquals("ColSpec<Z=(?:K)\u2286T>", f.parameters().get(1).type());
+    }
+
+    @Test
+    void userFunctionWithNestedMultiArgFunctionTypeParameter() {
+        // Function type with three input arrows (matches extend-with-window
+        // shape). Captured as raw text by the signature parser.
+        FunctionDefinition f = assertInstanceOf(FunctionDefinition.class,
+                ElementParser.parse(
+                        "function my::win<T,R>(r: Relation<T>[1], "
+                                + "f: FuncColSpec<{Relation<T>[1],_Window<T>[1],T[1]->Any[0..1]},R>[1]"
+                                + "): Relation<T+R>[1] { $r }")
+                        .elements().get(0));
+        assertEquals(
+                "FuncColSpec<{Relation<T>[1],_Window<T>[1],T[1]->Any[0..1]},R>",
+                f.parameters().get(1).type());
+        assertEquals("Relation<T+R>", f.returnType());
+    }
+
+    @Test
+    void userFunctionWithUnderscorePrefixedTypeName() {
+        // _Window<T> and _Traversal exist as user-visible types; their
+        // leading underscore must not trip the identifier rule.
+        FunctionDefinition f = assertInstanceOf(FunctionDefinition.class,
+                ElementParser.parse(
+                        "function my::w<T>(w: _Window<T>[1], t: _Traversal[1]): T[1] "
+                                + "{ $w->cast(@T) }")
+                        .elements().get(0));
+        assertEquals("_Window<T>", f.parameters().get(0).type());
+        assertEquals("_Traversal", f.parameters().get(1).type());
+    }
+
     // ===============================================================
     // Native function declarations (C.5)
     // ===============================================================
