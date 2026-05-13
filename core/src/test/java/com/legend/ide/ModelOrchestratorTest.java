@@ -1,9 +1,16 @@
-package com.legend.parser;
+package com.legend.ide;
 
+import com.legend.parser.ElementParser;
+import com.legend.parser.ImportScope;
+import com.legend.parser.ParseException;
+import com.legend.parser.ParsedModel;
 import com.legend.parser.element.ClassDefinition;
 import com.legend.parser.element.FunctionDefinition;
 import com.legend.parser.element.MappingDefinition;
 import com.legend.parser.element.PackageableElement;
+import com.legend.parser.spec.AppliedFunction;
+import com.legend.parser.spec.AppliedProperty;
+import com.legend.parser.spec.Variable;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -187,13 +194,22 @@ final class ModelOrchestratorTest {
     // ----- specific element shapes through the demand path --------------
 
     @Test
-    void resolveFunctionPreservesBodyText() {
+    void resolveFunctionParsesBody() {
         ModelOrchestrator orch = new ModelOrchestrator(SOURCE);
         FunctionDefinition fn = (FunctionDefinition) orch.resolve("my::shout");
         assertEquals("my::shout", fn.qualifiedName());
-        // Body captured as raw text per D-1; should contain the arrow call.
-        assertTrue(fn.body().contains("toUpper"),
-                () -> "function body should round-trip via demand-driven path; got: " + fn.body());
+        // Body '$p.name->toUpper()' desugars to
+        //   toUpper(AppliedProperty(Variable("p"), "name")).
+        // Pinning the exact AST shape proves the demand-driven slice path
+        // produces the same body the eager path would; a slice that
+        // truncates or extends would yield a different (or rejected) AST.
+        assertEquals(1, fn.body().size());
+        AppliedFunction toUpper = assertInstanceOf(AppliedFunction.class, fn.body().get(0));
+        assertEquals("toUpper", toUpper.function());
+        assertEquals(1, toUpper.parameters().size());
+        AppliedProperty pName = assertInstanceOf(AppliedProperty.class, toUpper.parameters().get(0));
+        assertEquals("name", pName.property());
+        assertEquals(new Variable("p"), pName.receiver());
     }
 
     @Test

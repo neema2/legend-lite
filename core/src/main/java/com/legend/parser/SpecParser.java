@@ -234,8 +234,9 @@ public final class SpecParser {
      * does not enforce or annotate this &mdash; it just returns the
      * sequence.
      *
-     * <p>This is the entry point ModelOrchestrator will use to parse
-     * function bodies in C.6. It is also used internally by the
+     * <p>This is the entry point {@link ElementParser} uses to eagerly
+     * parse element bodies (function bodies, derived-property bodies)
+     * as part of a single batch parse. It is also used internally by the
      * braced lambda form to parse the body between {@code {...|...}}.
      */
     public static List<ValueSpecification> parseCodeBlock(String source) {

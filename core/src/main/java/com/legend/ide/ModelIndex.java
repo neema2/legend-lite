@@ -1,4 +1,7 @@
-package com.legend.parser;
+package com.legend.ide;
+
+import com.legend.parser.ElementKind;
+import com.legend.parser.ParsedModel;
 
 import java.util.Collection;
 import java.util.LinkedHashMap;

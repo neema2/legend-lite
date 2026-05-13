@@ -29,6 +29,7 @@ public sealed interface PackageableElement
                 EnumDefinition,
                 ProfileDefinition,
                 FunctionDefinition,
+                NativeFunctionDefinition,
                 ServiceDefinition,
                 RuntimeDefinition,
                 ConnectionDefinition,

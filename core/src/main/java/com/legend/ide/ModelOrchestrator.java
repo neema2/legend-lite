@@ -1,7 +1,10 @@
-package com.legend.parser;
+package com.legend.ide;
 
 import com.legend.lexer.Lexer;
 import com.legend.lexer.TokenStream;
+import com.legend.parser.ElementParser;
+import com.legend.parser.ImportScope;
+import com.legend.parser.ParsedModel;
 import com.legend.parser.element.PackageableElement;
 
 import java.util.ArrayList;

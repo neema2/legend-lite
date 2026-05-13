@@ -1,5 +1,7 @@
 package com.legend.parser.element;
 
+import com.legend.parser.spec.ValueSpecification;
+
 import java.util.List;
 import java.util.Objects;
 
@@ -22,9 +24,10 @@ import java.util.Objects;
  *       relational mappings share the same field layout in lite/engine
  *       (no distinct {@code mainTable}-less form is exposed).</li>
  *   <li>{@link Pure} (B.4e) &mdash; model-to-model (M2M) class mappings
- *       sourced from another Pure class. Property bodies are Pure value
- *       expressions captured as raw text at parse time (D-1) and parsed
- *       lazily by Phase C / Phase F.</li>
+ *       sourced from another Pure class. Property bodies and the
+ *       optional {@code ~filter} are Pure value expressions parsed
+ *       eagerly by {@code ElementParser} into
+ *       {@link ValueSpecification} ASTs.</li>
  * </ul>
  *
  * <p>Mirrors FINOS {@code legend-engine}'s {@code ClassMapping} hierarchy
@@ -130,22 +133,18 @@ public sealed interface ClassMapping permits ClassMapping.Relational, ClassMappi
      *   }
      * </pre>
      *
-     * <h2>D-1: deferred Pure-expression parsing</h2>
-     * Property bodies and the optional {@code ~filter} are full Pure value
-     * expressions. The element parser captures them as raw text
-     * ({@code filterSource}, {@code PropertyBinding.expressionSource}) and
-     * does NOT parse them. Phase C (SpecParser) parses these on demand;
-     * Phase F (ElementCompiler) type-checks them. Same pattern used for
-     * {@code FunctionDefinition.bodyText} in B.3 and constraint expressions
-     * in B.2.
+     * <h2>Eager body parsing</h2>
+     * Property bindings and the optional {@code ~filter} are Pure value
+     * expressions parsed eagerly at parse time by {@code ElementParser}
+     * (via {@code SpecParser}) and held as {@link ValueSpecification} ASTs.
+     * No separate lazy-parse phase.
      *
      * @param className         fully-qualified target class
      * @param setId             optional set identifier; {@code null} for default
      * @param extendsSetId      optional extends; {@code null} for none
      * @param root              {@code *} prefix present
      * @param sourceClass       fully-qualified path of the {@code ~src} class
-     * @param filterSource      raw text of the {@code ~filter} expression
-     *                          (without the {@code ~filter} keyword);
+     * @param filter            parsed {@code ~filter} expression, or
      *                          {@code null} when no filter was written
      * @param propertyBindings  per-property bindings in declaration order
      */
@@ -155,7 +154,7 @@ public sealed interface ClassMapping permits ClassMapping.Relational, ClassMappi
             String extendsSetId,
             boolean root,
             String sourceClass,
-            String filterSource,
+            ValueSpecification filter,
             List<PropertyBinding> propertyBindings) implements ClassMapping {
 
         public Pure {
@@ -167,16 +166,17 @@ public sealed interface ClassMapping permits ClassMapping.Relational, ClassMappi
         }
 
         /**
-         * One property binding inside a {@link Pure} class mapping.
+         * One property binding inside a {@link Pure} class mapping. The
+         * RHS expression is parsed eagerly into a
+         * {@link ValueSpecification} at parse time.
          *
-         * @param propertyName       target property name
-         * @param expressionSource   raw text of the RHS Pure expression
-         *                           (parsed lazily by Phase C / Phase F)
+         * @param propertyName  target property name
+         * @param expression    parsed RHS Pure expression
          */
-        public record PropertyBinding(String propertyName, String expressionSource) {
+        public record PropertyBinding(String propertyName, ValueSpecification expression) {
             public PropertyBinding {
                 Objects.requireNonNull(propertyName, "Property name cannot be null");
-                Objects.requireNonNull(expressionSource, "Expression source cannot be null");
+                Objects.requireNonNull(expression, "Property binding expression cannot be null");
             }
         }
     }

@@ -1,7 +1,11 @@
-package com.legend.parser;
+package com.legend.ide;
 
 import com.legend.lexer.Lexer;
 import com.legend.lexer.TokenStream;
+import com.legend.parser.ElementKind;
+import com.legend.parser.ElementParser;
+import com.legend.parser.ParseException;
+import com.legend.parser.ParsedModel;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;

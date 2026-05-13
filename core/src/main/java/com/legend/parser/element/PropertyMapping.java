@@ -264,22 +264,13 @@ public sealed interface PropertyMapping
      */
     record LocalProperty(String propertyName,
                          String type,
-                         int lowerBound,
-                         Integer upperBound,
+                         Multiplicity multiplicity,
                          PropertyMapping body) implements PropertyMapping {
         public LocalProperty {
             Objects.requireNonNull(propertyName, "Property name cannot be null");
             Objects.requireNonNull(type, "Local property type cannot be null");
+            Objects.requireNonNull(multiplicity, "Local property multiplicity cannot be null");
             Objects.requireNonNull(body, "Local property body cannot be null");
-            if (lowerBound < 0) {
-                throw new IllegalArgumentException(
-                        "Local property lowerBound must be >= 0: " + lowerBound);
-            }
-            if (upperBound != null && upperBound < lowerBound) {
-                throw new IllegalArgumentException(
-                        "Local property upperBound (" + upperBound
-                                + ") must be >= lowerBound (" + lowerBound + ")");
-            }
         }
     }
 }

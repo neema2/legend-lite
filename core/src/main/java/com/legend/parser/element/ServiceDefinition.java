@@ -1,5 +1,7 @@
 package com.legend.parser.element;
 
+import com.legend.parser.spec.ValueSpecification;
+
 import java.util.Objects;
 
 /**
@@ -41,8 +43,8 @@ import java.util.Objects;
  * @param qualifiedName     fully qualified service name
  * @param pattern           the URL pattern as written (e.g. {@code "/api/person/{id}"});
  *                          never {@code null} &mdash; defaults to {@code "/"} when absent
- * @param functionBody      the query expression body as raw source text
- *                          (parsed lazily in Phase G)
+ * @param functionBody      parsed query expression (the AST between
+ *                          {@code |...|} after {@code query:})
  * @param documentation     human-readable description, or {@code null} if absent
  * @param mappingRef        qualified name of the {@code Mapping} bound to this service,
  *                          or {@code null} if absent
@@ -54,7 +56,7 @@ import java.util.Objects;
 public record ServiceDefinition(
         String qualifiedName,
         String pattern,
-        String functionBody,
+        ValueSpecification functionBody,
         String documentation,
         String mappingRef,
         String runtimeRef,

@@ -25,6 +25,8 @@ import com.legend.parser.element.ClassMapping;
 import com.legend.parser.element.FilterMapping;
 import com.legend.parser.element.FilterPointer;
 import com.legend.parser.element.FunctionDefinition;
+import com.legend.parser.element.Multiplicity;
+import com.legend.parser.element.NativeFunctionDefinition;
 import com.legend.parser.element.JoinChainElement;
 import com.legend.parser.element.MappingDefinition;
 import com.legend.parser.element.PropertyMapping;
@@ -41,6 +43,12 @@ import com.legend.parser.element.RuntimeDefinition;
 import com.legend.parser.element.ServiceDefinition;
 import com.legend.parser.element.StereotypeApplication;
 import com.legend.parser.element.TaggedValue;
+import com.legend.parser.spec.AppliedFunction;
+import com.legend.parser.spec.AppliedProperty;
+import com.legend.parser.spec.CInteger;
+import com.legend.parser.spec.CString;
+import com.legend.parser.spec.PackageableElementPtr;
+import com.legend.parser.spec.Variable;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -78,7 +86,7 @@ final class ElementParserTest {
 
     /** Property with no annotations &mdash; the common shape. */
     private static PropertyDefinition prop(String name, String type, int lower, Integer upper) {
-        return new PropertyDefinition(name, type, lower, upper, List.of(), List.of());
+        return new PropertyDefinition(name, type, Multiplicity.range(lower, upper), List.of(), List.of());
     }
 
     private static ClassDefinition parseOneClass(String source) {
@@ -190,9 +198,11 @@ final class ElementParserTest {
                         prop("c", "Date", 0, null),       // [*]
                         prop("d", "Float", 1, null)),     // [1..*]
                 c.properties());
-        // Defensive: confirm null upperBound is the encoding for unbounded.
-        assertNull(c.properties().get(2).upperBound());
-        assertNull(c.properties().get(3).upperBound());
+        // Defensive: confirm '*' is encoded as Concrete(lower, null), not Parameter.
+        assertEquals(new Multiplicity.Concrete(0, null),
+                c.properties().get(2).multiplicity());
+        assertEquals(new Multiplicity.Concrete(1, null),
+                c.properties().get(3).multiplicity());
     }
 
     @Test
@@ -362,7 +372,7 @@ final class ElementParserTest {
         ClassDefinition c = parseOneClass(
                 "Class P { <<doc::D.required>> { doc::D.note = 'pk' } id: String[1]; }");
         PropertyDefinition expected = new PropertyDefinition(
-                "id", "String", 1, 1,
+                "id", "String", Multiplicity.exactly(1),
                 List.of(new StereotypeApplication("doc::D", "required")),
                 List.of(new TaggedValue("doc::D", "note", "pk")));
         assertEquals(List.of(expected), c.properties());
@@ -519,11 +529,14 @@ final class ElementParserTest {
         DerivedPropertyDefinition d = c.derivedProperties().get(0);
         assertEquals("fullName", d.name());
         assertEquals(List.of(), d.parameters());
-        // Body text reconstructed verbatim from source (whitespace preserved).
-        assertEquals("'a' + 'b'", d.expression().trim());
+        // Body parses eagerly to ValueSpec AST (C.8). 'a' + 'b' desugars
+        // to plus(CString("a"), CString("b")) per SpecParser's operator desugaring.
+        assertEquals(1, d.expression().size());
+        AppliedFunction plus = assertInstanceOf(AppliedFunction.class, d.expression().get(0));
+        assertEquals("plus", plus.function());
+        assertEquals(List.of(new CString("a"), new CString("b")), plus.parameters());
         assertEquals("String", d.type());
-        assertEquals(1, d.lowerBound());
-        assertEquals(Integer.valueOf(1), d.upperBound());
+        assertEquals(Multiplicity.exactly(1), d.multiplicity());
         // Regular properties list stays empty.
         assertTrue(c.properties().isEmpty());
     }
@@ -537,11 +550,18 @@ final class ElementParserTest {
         assertEquals("tax", d.name());
         assertEquals(
                 List.of(
-                        new ParameterDefinition("rate", "Float", 1, 1),
-                        new ParameterDefinition("country", "String", 0, 1)),
+                        new ParameterDefinition("rate", "Float", Multiplicity.exactly(1)),
+                        new ParameterDefinition("country", "String", Multiplicity.range(0, 1))),
                 d.parameters());
-        assertTrue(d.expression().contains("$this.price * $rate"),
-                () -> "body should capture the expression text, got: " + d.expression());
+        // $this.price * $rate desugars to times(AppliedProperty($this, price), Variable(rate)).
+        assertEquals(1, d.expression().size());
+        AppliedFunction times = assertInstanceOf(AppliedFunction.class, d.expression().get(0));
+        assertEquals("times", times.function());
+        assertEquals(2, times.parameters().size());
+        AppliedProperty thisPrice = assertInstanceOf(AppliedProperty.class, times.parameters().get(0));
+        assertEquals("price", thisPrice.property());
+        assertEquals(new Variable("this"), thisPrice.receiver());
+        assertEquals(new Variable("rate"), times.parameters().get(1));
         assertEquals("Float", d.type());
     }
 
@@ -572,15 +592,27 @@ final class ElementParserTest {
         assertEquals(1, c.constraints().size());
         ConstraintDefinition cn = c.constraints().get(0);
         assertEquals("validAge", cn.name());
-        assertEquals("$this.age >= 0", cn.expression().trim());
+        // $this.age >= 0 desugars to greaterThanEqual(AppliedProperty($this, age), CInteger(0)).
+        AppliedFunction gte = assertInstanceOf(AppliedFunction.class, cn.expression());
+        assertEquals("greaterThanEqual", gte.function());
+        assertEquals(2, gte.parameters().size());
+        AppliedProperty thisAge = assertInstanceOf(AppliedProperty.class, gte.parameters().get(0));
+        assertEquals("age", thisAge.property());
+        assertEquals(new Variable("this"), thisAge.receiver());
+        assertEquals(new CInteger(0L), gte.parameters().get(1));
     }
 
     @Test
     void unnamedConstraintGetsDefaultName() {
         ClassDefinition c = parseOneClass("Class P [$this.age >= 0] {}");
         assertEquals(1, c.constraints().size());
-        assertEquals("unnamed", c.constraints().get(0).name());
-        assertEquals("$this.age >= 0", c.constraints().get(0).expression().trim());
+        ConstraintDefinition cn = c.constraints().get(0);
+        assertEquals("unnamed", cn.name());
+        // Same body shape as namedConstraintCapturesExpressionText — verifies that
+        // omitting the name doesn't disturb body parsing.
+        AppliedFunction gte = assertInstanceOf(AppliedFunction.class, cn.expression());
+        assertEquals("greaterThanEqual", gte.function());
+        assertEquals(new CInteger(0L), gte.parameters().get(1));
     }
 
     @Test
@@ -604,9 +636,9 @@ final class ElementParserTest {
         AssociationDefinition a = assertInstanceOf(AssociationDefinition.class,
                 m.elements().get(0));
         assertEquals("my::ns::Person_Firm", a.qualifiedName());
-        assertEquals(new AssociationEndDefinition("firm", "Firm", 1, 1),
+        assertEquals(new AssociationEndDefinition("firm", "Firm", Multiplicity.exactly(1)),
                 a.property1());
-        assertEquals(new AssociationEndDefinition("employees", "Person", 0, null),
+        assertEquals(new AssociationEndDefinition("employees", "Person", Multiplicity.zeroMany()),
                 a.property2());
     }
 
@@ -721,9 +753,9 @@ final class ElementParserTest {
         assertEquals("my::pkg::greet", f.qualifiedName());
         assertEquals(List.of(), f.parameters());
         assertEquals("String", f.returnType());
-        assertEquals(1, f.returnLowerBound());
-        assertEquals(Integer.valueOf(1), f.returnUpperBound());
-        assertEquals("'hello'", f.body().trim());
+        assertEquals(Multiplicity.exactly(1), f.returnMultiplicity());
+        // 'hello' parses to a single CString literal.
+        assertEquals(List.of(new CString("hello")), f.body());
         assertEquals(List.of(), f.stereotypes());
         assertEquals(List.of(), f.taggedValues());
     }
@@ -735,30 +767,308 @@ final class ElementParserTest {
         FunctionDefinition f = assertInstanceOf(FunctionDefinition.class, m.elements().get(0));
         assertEquals(
                 List.of(
-                        new FunctionDefinition.ParameterDefinition("a", "Integer", 1, 1),
-                        new FunctionDefinition.ParameterDefinition("b", "Integer", 0, 1)),
+                        new FunctionDefinition.ParameterDefinition("a", "Integer", Multiplicity.exactly(1)),
+                        new FunctionDefinition.ParameterDefinition("b", "Integer", Multiplicity.range(0, 1))),
                 f.parameters());
         assertEquals("Integer", f.returnType());
-        assertEquals("$a + $b", f.body().trim());
+        // $a + $b desugars to plus(Variable(a), Variable(b)).
+        assertEquals(
+                List.of(new AppliedFunction("plus",
+                        List.of(new Variable("a"), new Variable("b")))),
+                f.body());
     }
 
     @Test
-    void functionBodyPreservesNestedBraces() {
-        // The body itself contains braces — depth-balance must keep them in.
+    void functionBodyParsesNestedLambdaBraces() {
+        // The body contains a nested braced lambda — the brace-balancing
+        // scan must locate the outer '}' correctly so SpecParser sees the
+        // full body. Two statements: a let-binding (which contains the
+        // nested '{x | ...}' lambda) and an arrow-eval.
         ParsedModel m = ElementParser.parse(
-                "function my::f(): String[1] { let x = { 'inner' }; $x }");
+                "function my::f(): Integer[1] { let inc = {x | $x + 1}; $inc->eval(1) }");
         FunctionDefinition f = assertInstanceOf(FunctionDefinition.class, m.elements().get(0));
-        assertTrue(f.body().contains("{ 'inner' }"),
-                () -> "nested braces should be preserved in body, got: " + f.body());
+        assertEquals(2, f.body().size(),
+                () -> "two-statement body should parse to two ValueSpecs, got: " + f.body());
+        // Stmt 0: 'let inc = ...' desugars to letFunction(CString("inc"), <lambda>).
+        AppliedFunction letFn = assertInstanceOf(AppliedFunction.class, f.body().get(0));
+        assertEquals("letFunction", letFn.function());
+        assertEquals(2, letFn.parameters().size());
+        assertEquals(new CString("inc"), letFn.parameters().get(0));
+        // Stmt 1: '$inc->eval(1)' desugars to eval(Variable(inc), CInteger(1)).
+        AppliedFunction evalCall = assertInstanceOf(AppliedFunction.class, f.body().get(1));
+        assertEquals("eval", evalCall.function());
+        assertEquals(
+                List.of(new Variable("inc"), new CInteger(1L)),
+                evalCall.parameters());
     }
 
     @Test
-    void functionUpperBoundStarBecomesNull() {
+    void functionUpperBoundStarBecomesConcreteUnbounded() {
         FunctionDefinition f = assertInstanceOf(FunctionDefinition.class,
                 ElementParser.parse("function my::all(): Person[*] { Person.all() }")
                         .elements().get(0));
-        assertEquals(0, f.returnLowerBound());
-        assertEquals(null, f.returnUpperBound(), "* upper bound must be null");
+        assertEquals(Multiplicity.zeroMany(), f.returnMultiplicity(),
+                "[*] must parse to Concrete(0, null), not a parameter");
+        assertEquals(new Multiplicity.Concrete(0, null), f.returnMultiplicity());
+    }
+
+    @Test
+    void functionWithGenericTypeParameters() {
+        FunctionDefinition f = assertInstanceOf(FunctionDefinition.class,
+                ElementParser.parse(
+                        "function my::id<T>(x: T[1]): T[1] { $x }")
+                        .elements().get(0));
+        assertEquals(List.of("T"), f.typeParameters());
+        assertEquals(List.of(), f.multiplicityParameters());
+        assertEquals("T", f.parameters().get(0).type());
+        assertEquals("T", f.returnType());
+    }
+
+    @Test
+    void functionWithTypeAndMultiplicityParameters() {
+        FunctionDefinition f = assertInstanceOf(FunctionDefinition.class,
+                ElementParser.parse(
+                        "function my::pick<T,V|m,n>(a: T[m], b: V[n]): T[m] { $a }")
+                        .elements().get(0));
+        assertEquals(List.of("T", "V"), f.typeParameters());
+        assertEquals(List.of("m", "n"), f.multiplicityParameters());
+    }
+
+    @Test
+    void functionWithMultiplicityParametersOnly() {
+        FunctionDefinition f = assertInstanceOf(FunctionDefinition.class,
+                ElementParser.parse(
+                        "function my::take<|m>(xs: Any[m]): Any[m] { $xs }")
+                        .elements().get(0));
+        assertEquals(List.of(), f.typeParameters());
+        assertEquals(List.of("m"), f.multiplicityParameters());
+    }
+
+    // ===============================================================
+    // Native function declarations (C.5)
+    // ===============================================================
+
+    @Test
+    void nativeFunctionSimple() {
+        NativeFunctionDefinition f = assertInstanceOf(NativeFunctionDefinition.class,
+                ElementParser.parse(
+                        "native function meta::pure::functions::math::abs(x: Number[1]): Number[1];")
+                        .elements().get(0));
+        assertEquals("meta::pure::functions::math::abs", f.qualifiedName());
+        assertEquals(List.of(), f.typeParameters());
+        assertEquals(List.of(), f.multiplicityParameters());
+        assertEquals(
+                List.of(new FunctionDefinition.ParameterDefinition(
+                        "x", "Number", Multiplicity.exactly(1))),
+                f.parameters());
+        assertEquals("Number", f.returnType());
+        assertEquals(Multiplicity.exactly(1), f.returnMultiplicity());
+    }
+
+    @Test
+    void nativeFunctionWithStereotypeAndGenerics() {
+        NativeFunctionDefinition f = assertInstanceOf(NativeFunctionDefinition.class,
+                ElementParser.parse(
+                        "native function <<PCT.function>> meta::pure::functions::lang::cast<T|m>"
+                                + "(source: Any[m], object: T[1]): T[m];")
+                        .elements().get(0));
+        assertEquals("meta::pure::functions::lang::cast", f.qualifiedName());
+        assertEquals(List.of("T"), f.typeParameters());
+        assertEquals(List.of("m"), f.multiplicityParameters());
+        assertEquals(1, f.stereotypes().size());
+        assertEquals(2, f.parameters().size());
+        assertEquals("T", f.returnType());
+    }
+
+    @Test
+    void nativeFunctionWithFunctionTypeParameter() {
+        NativeFunctionDefinition f = assertInstanceOf(NativeFunctionDefinition.class,
+                ElementParser.parse(
+                        "native function meta::pure::functions::collection::map<T,V>"
+                                + "(value: T[*], func: Function<{T[1]->V[*]}>[1]): V[*];")
+                        .elements().get(0));
+        assertEquals(List.of("T", "V"), f.typeParameters());
+        // Function type captured as raw text (structural parse deferred to the model layer).
+        assertEquals(
+                List.of(
+                        new FunctionDefinition.ParameterDefinition("value", "T", Multiplicity.zeroMany()),
+                        new FunctionDefinition.ParameterDefinition(
+                                "func", "Function<{T[1]->V[*]}>", Multiplicity.exactly(1))),
+                f.parameters());
+        assertEquals("V", f.returnType());
+        assertEquals(Multiplicity.zeroMany(), f.returnMultiplicity());
+    }
+
+    @Test
+    void nativeFunctionWithRelationAndSubsetConstraint() {
+        // sort<X,T>(rel:Relation<T>[1], sortInfo:SortInfo<X⊆T>[*]):Relation<T>[1]
+        NativeFunctionDefinition f = assertInstanceOf(NativeFunctionDefinition.class,
+                ElementParser.parse(
+                        "native function meta::pure::functions::relation::sort<X,T>"
+                                + "(rel: Relation<T>[1], sortInfo: SortInfo<X\u2286T>[*]): Relation<T>[1];")
+                        .elements().get(0));
+        assertEquals(List.of("X", "T"), f.typeParameters());
+        assertEquals("Relation<T>", f.parameters().get(0).type());
+        // SUBSET (⊆) is swallowed by the depth-balanced <...> scan.
+        assertEquals("SortInfo<X\u2286T>", f.parameters().get(1).type());
+        assertEquals("Relation<T>", f.returnType());
+    }
+
+    @Test
+    void nativeFunctionWithSchemaAlgebraReturnType() {
+        // extend<T,K,V,R>(r:Relation<T>[1], agg:AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<T+R>[1]
+        NativeFunctionDefinition f = assertInstanceOf(NativeFunctionDefinition.class,
+                ElementParser.parse(
+                        "native function meta::pure::functions::relation::extend<T,K,V,R>"
+                                + "(r: Relation<T>[1], "
+                                + "agg: AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]"
+                                + "): Relation<T+R>[1];")
+                        .elements().get(0));
+        assertEquals(List.of("T", "K", "V", "R"), f.typeParameters());
+        assertEquals("Relation<T+R>", f.returnType());
+    }
+
+    @Test
+    void nativeFunctionWithFullSchemaAlgebraRename() {
+        // rename<T,Z,K,V>(r:Relation<T>[1], old:ColSpec<Z=(?:K)⊆T>[1], new:ColSpec<V=(?:K)>[1]):Relation<T-Z+V>[1]
+        NativeFunctionDefinition f = assertInstanceOf(NativeFunctionDefinition.class,
+                ElementParser.parse(
+                        "native function meta::pure::functions::relation::rename<T,Z,K,V>"
+                                + "(r: Relation<T>[1], "
+                                + "old: ColSpec<Z=(?:K)\u2286T>[1], "
+                                + "new: ColSpec<V=(?:K)>[1]"
+                                + "): Relation<T-Z+V>[1];")
+                        .elements().get(0));
+        assertEquals(List.of("T", "Z", "K", "V"), f.typeParameters());
+        // All four algebra operators (=, ⊆, +, -) survive verbatim through
+        // the depth-balanced type-text capture; structural parse happens
+        // in the model/compiler layer.
+        assertEquals("ColSpec<Z=(?:K)\u2286T>", f.parameters().get(1).type());
+        assertEquals("ColSpec<V=(?:K)>", f.parameters().get(2).type());
+        assertEquals("Relation<T-Z+V>", f.returnType());
+    }
+
+    @Test
+    void nativeFunctionWithSchemaLiteralAndSubset() {
+        // Mimics user-level signatures like meta::pure::functions::relation::filter<T>
+        //   (rel:Relation<(age:Integer)⊆T>[1], f:Function<{T[1]->Boolean[1]}>[1]):Relation<T>[1]
+        NativeFunctionDefinition f = assertInstanceOf(NativeFunctionDefinition.class,
+                ElementParser.parse(
+                        "native function my::filterAdults<T>"
+                                + "(rel: Relation<(age:Integer)\u2286T>[1], "
+                                + "f: Function<{T[1]->Boolean[1]}>[1]"
+                                + "): Relation<T>[1];")
+                        .elements().get(0));
+        assertEquals(List.of("T"), f.typeParameters());
+        assertEquals("Relation<(age:Integer)\u2286T>", f.parameters().get(0).type());
+        assertEquals("Relation<T>", f.returnType());
+    }
+
+    @Test
+    void nativeFunctionWithMultipleStereotypesAndTaggedValues() {
+        NativeFunctionDefinition f = assertInstanceOf(NativeFunctionDefinition.class,
+                ElementParser.parse(
+                        "native function "
+                                + "<<PCT.function, functionType.SideEffectFunction>> "
+                                + "{ doc.doc = 'writes a relation' } "
+                                + "meta::pure::functions::relation::write<T>"
+                                + "(rel: Relation<T>[1], "
+                                + "acc: RelationElementAccessor<T>[1]): Integer[1];")
+                        .elements().get(0));
+        assertEquals(2, f.stereotypes().size());
+        assertEquals(1, f.taggedValues().size());
+        assertEquals("Integer", f.returnType());
+    }
+
+    @Test
+    void nativeFunctionMissingSemicolonFails() {
+        ParseException ex = assertThrows(ParseException.class,
+                () -> ElementParser.parse(
+                        "native function my::oops(x: Integer[1]): Integer[1]"));
+        assertTrue(ex.getMessage().toLowerCase().contains("semi")
+                        || ex.getMessage().contains(";")
+                        || ex.getMessage().toLowerCase().contains("expected"),
+                () -> "expected diagnostic to reference missing ';' but got: " + ex.getMessage());
+    }
+
+    @Test
+    void nativeAndConcreteFunctionsMixInSameModel() {
+        ParsedModel m = ElementParser.parse(
+                "native function my::n(x: Integer[1]): Integer[1];\n"
+                        + "function my::u<T>(x: T[1]): T[1] { $x }\n");
+        assertEquals(2, m.elements().size());
+        assertInstanceOf(NativeFunctionDefinition.class, m.elements().get(0));
+        FunctionDefinition user = assertInstanceOf(FunctionDefinition.class, m.elements().get(1));
+        assertEquals(List.of("T"), user.typeParameters());
+    }
+
+    @Test
+    void functionMultiplicityParameterCaptured() {
+        // <|m> declares 'm'; Any[m] references it. The parser must store
+        // it as Multiplicity.Parameter, not silently coerce to [*].
+        FunctionDefinition f = assertInstanceOf(FunctionDefinition.class,
+                ElementParser.parse(
+                        "function my::take<|m>(xs: Any[m]): Any[m] { $xs }")
+                        .elements().get(0));
+        Multiplicity paramMult = f.parameters().get(0).multiplicity();
+        Multiplicity retMult = f.returnMultiplicity();
+        assertInstanceOf(Multiplicity.Parameter.class, paramMult);
+        assertInstanceOf(Multiplicity.Parameter.class, retMult);
+        assertEquals("m", ((Multiplicity.Parameter) paramMult).name());
+        assertEquals("m", ((Multiplicity.Parameter) retMult).name());
+    }
+
+    @Test
+    void nativeFunctionMultiplicityParameterCaptured() {
+        // The motivating case: native function signatures use multiplicity
+        // parameters to express "preserve cardinality from input to output".
+        NativeFunctionDefinition f = assertInstanceOf(NativeFunctionDefinition.class,
+                ElementParser.parse(
+                        "native function meta::pure::functions::collection::cast<T|m>"
+                                + "(source: Any[m], object: T[1]): T[m];")
+                        .elements().get(0));
+        assertInstanceOf(Multiplicity.Parameter.class, f.parameters().get(0).multiplicity());
+        assertInstanceOf(Multiplicity.Parameter.class, f.returnMultiplicity());
+        assertEquals("m", ((Multiplicity.Parameter) f.returnMultiplicity()).name());
+        // The second parameter still uses a concrete [1].
+        assertEquals(Multiplicity.exactly(1), f.parameters().get(1).multiplicity());
+    }
+
+    @Test
+    void concreteMultiplicityShapesRoundTrip() {
+        // Exercise each concrete shape end-to-end.
+        FunctionDefinition f = assertInstanceOf(FunctionDefinition.class,
+                ElementParser.parse(
+                        "function my::shapes("
+                                + "one: String[1], "
+                                + "opt: String[0..1], "
+                                + "many: String[*], "
+                                + "oneMany: String[1..*], "
+                                + "range: String[2..5]"
+                                + "): String[1] { 'x' }")
+                        .elements().get(0));
+        assertEquals(Multiplicity.exactly(1), f.parameters().get(0).multiplicity());
+        assertEquals(Multiplicity.range(0, 1), f.parameters().get(1).multiplicity());
+        assertEquals(Multiplicity.zeroMany(), f.parameters().get(2).multiplicity());
+        assertEquals(Multiplicity.range(1, null), f.parameters().get(3).multiplicity());
+        assertEquals(Multiplicity.range(2, 5), f.parameters().get(4).multiplicity());
+    }
+
+    @Test
+    void nativeFunctionImplementsSealedFunctionMarker() {
+        // The sealed Function marker lets downstream consumers handle both
+        // variants uniformly without instanceof per-record.
+        ParsedModel m = ElementParser.parse(
+                "native function my::n(x: Integer[1]): Integer[1];\n"
+                        + "function my::u(x: Integer[1]): Integer[1] { $x }");
+        com.legend.parser.element.Function n =
+                assertInstanceOf(com.legend.parser.element.Function.class, m.elements().get(0));
+        com.legend.parser.element.Function u =
+                assertInstanceOf(com.legend.parser.element.Function.class, m.elements().get(1));
+        assertEquals("my::n", n.qualifiedName());
+        assertEquals("my::u", u.qualifiedName());
+        assertEquals("Integer", n.returnType());
+        assertEquals("Integer", u.returnType());
     }
 
     // ===============================================================
@@ -934,8 +1244,12 @@ final class ElementParserTest {
         assertEquals("fetch by id", s.documentation());
         assertEquals("my::PersonMapping", s.mappingRef());
         assertEquals("my::PersonRuntime", s.runtimeRef());
-        assertTrue(s.functionBody().contains("Person.all()"),
-                () -> "body should capture query text, got: " + s.functionBody());
+        // 'Person.all()' desugars to getAll(PackageableElementPtr("Person")) —
+        // SpecParser uses the 'get'-prefixed stdlib overload name (see
+        // SpecParser.parseAllCall) to match the resolved-overload binding.
+        AppliedFunction getAll = assertInstanceOf(AppliedFunction.class, s.functionBody());
+        assertEquals("getAll", getAll.function());
+        assertEquals(List.of(new PackageableElementPtr("Person")), getAll.parameters());
         assertEquals(null, s.testSuitesSource(), "testSuites absent → null");
     }
 
@@ -1956,13 +2270,24 @@ final class ElementParserTest {
         assertEquals("model::Person", cm.className());
         assertTrue(cm.root());
         assertEquals("model::RawPerson", cm.sourceClass());
-        assertNull(cm.filterSource());
+        assertNull(cm.filter(), "no ~filter means cm.filter() is null");
         assertEquals(1, cm.propertyBindings().size());
         var b = cm.propertyBindings().get(0);
         assertEquals("fullName", b.propertyName());
-        assertTrue(b.expressionSource().contains("$src.firstName"),
-                () -> "captured expr: " + b.expressionSource());
-        assertTrue(b.expressionSource().contains("$src.lastName"));
+        // $src.firstName + ' ' + $src.lastName parses left-associative:
+        // plus(plus($src.firstName, ' '), $src.lastName).
+        AppliedFunction outerPlus = assertInstanceOf(AppliedFunction.class, b.expression());
+        assertEquals("plus", outerPlus.function());
+        assertEquals(2, outerPlus.parameters().size());
+        AppliedFunction innerPlus = assertInstanceOf(AppliedFunction.class, outerPlus.parameters().get(0));
+        assertEquals("plus", innerPlus.function());
+        AppliedProperty srcFirst = assertInstanceOf(AppliedProperty.class, innerPlus.parameters().get(0));
+        assertEquals("firstName", srcFirst.property());
+        assertEquals(new Variable("src"), srcFirst.receiver());
+        assertEquals(new CString(" "), innerPlus.parameters().get(1));
+        AppliedProperty srcLast = assertInstanceOf(AppliedProperty.class, outerPlus.parameters().get(1));
+        assertEquals("lastName", srcLast.property());
+        assertEquals(new Variable("src"), srcLast.receiver());
     }
 
     @Test
@@ -1990,9 +2315,14 @@ final class ElementParserTest {
                 + "~filter $src.isActive == true "
                 + "firstName: $src.firstName "
                 + "} )");
-        assertNotNull(cm.filterSource());
-        assertTrue(cm.filterSource().contains("$src.isActive"),
-                () -> "captured filter: " + cm.filterSource());
+        // ~filter $src.isActive == true desugars to
+        // equal(AppliedProperty($src, isActive), CBoolean(true)).
+        AppliedFunction eq = assertInstanceOf(AppliedFunction.class, cm.filter());
+        assertEquals("equal", eq.function());
+        assertEquals(2, eq.parameters().size());
+        AppliedProperty srcActive = assertInstanceOf(AppliedProperty.class, eq.parameters().get(0));
+        assertEquals("isActive", srcActive.property());
+        assertEquals(new Variable("src"), srcActive.receiver());
         assertEquals(1, cm.propertyBindings().size());
     }
 
@@ -2006,11 +2336,17 @@ final class ElementParserTest {
                 + "ageGroup: if($src.age < 18, |'Minor', |if($src.age < 65, |'Adult', |'Senior')), "
                 + "firstName: $src.firstName "
                 + "} )");
-        assertEquals(2, cm.propertyBindings().size());
+        assertEquals(2, cm.propertyBindings().size(),
+                "commas inside if(...) must not split the property binding");
         var ageGroup = cm.propertyBindings().get(0);
         assertEquals("ageGroup", ageGroup.propertyName());
-        assertTrue(ageGroup.expressionSource().contains("Senior"),
-                () -> "captured ageGroup: " + ageGroup.expressionSource());
+        // The whole if-expression parses to one AppliedFunction("if", ...) —
+        // if the parser had treated an internal comma as a property separator
+        // we'd see two property bindings (caught above) and a broken AST here.
+        AppliedFunction ifCall = assertInstanceOf(AppliedFunction.class, ageGroup.expression());
+        assertEquals("if", ifCall.function());
+        assertEquals(3, ifCall.parameters().size(),
+                "if(cond, then, else) takes three params after parse-time desugaring");
     }
 
     @Test
@@ -2025,9 +2361,13 @@ final class ElementParserTest {
                 + "} )");
         var b = cm.propertyBindings().get(0);
         assertEquals("upperLastName", b.propertyName());
-        String normalised = b.expressionSource().replaceAll("\\s+", "");
-        assertEquals("$src.lastName->toUpper()", normalised,
-                () -> "full RHS must round-trip; raw capture: " + b.expressionSource());
+        // $src.lastName->toUpper() desugars to toUpper(AppliedProperty($src, lastName)).
+        AppliedFunction toUpper = assertInstanceOf(AppliedFunction.class, b.expression());
+        assertEquals("toUpper", toUpper.function());
+        assertEquals(1, toUpper.parameters().size());
+        AppliedProperty srcLast = assertInstanceOf(AppliedProperty.class, toUpper.parameters().get(0));
+        assertEquals("lastName", srcLast.property());
+        assertEquals(new Variable("src"), srcLast.receiver());
     }
 
     @Test
@@ -2077,8 +2417,11 @@ final class ElementParserTest {
                 "trailing comma must not produce a phantom property binding");
         var only = cm.propertyBindings().get(0);
         assertEquals("name", only.propertyName());
-        assertEquals("$src.name",
-                only.expressionSource().replaceAll("\\s+", ""));
+        // $src.name parses to AppliedProperty(Variable(src), "name") —
+        // confirms the RHS terminator (trailing comma) didn't truncate or extend.
+        AppliedProperty srcName = assertInstanceOf(AppliedProperty.class, only.expression());
+        assertEquals("name", srcName.property());
+        assertEquals(new Variable("src"), srcName.receiver());
     }
 
     @Test
@@ -2195,8 +2538,7 @@ final class ElementParserTest {
         var local = (PropertyMapping.LocalProperty) cm.propertyMappings().get(1);
         assertEquals("localProp", local.propertyName());
         assertEquals("String", local.type());
-        assertEquals(1, local.lowerBound());
-        assertEquals(Integer.valueOf(1), local.upperBound());
+        assertEquals(Multiplicity.exactly(1), local.multiplicity());
         // Body is the regular Column binding.
         var col = (PropertyMapping.Column) local.body();
         assertEquals("db::DB", col.database());
@@ -2213,9 +2555,8 @@ final class ElementParserTest {
                 + "+tags: String[*]: T_PERSON.TAGS "
                 + "} )");
         var local = (PropertyMapping.LocalProperty) cm.propertyMappings().get(0);
-        assertEquals(0, local.lowerBound());
-        assertNull(local.upperBound(),
-                "upperBound == null is the '*' sentinel matching PropertyDefinition");
+        assertEquals(Multiplicity.zeroMany(), local.multiplicity(),
+                "[*] must parse to Concrete(0, null), same as PropertyDefinition");
     }
 
     @Test

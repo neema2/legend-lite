@@ -21,7 +21,9 @@ import com.legend.parser.element.ClassMapping;
 import com.legend.parser.element.FilterMapping;
 import com.legend.parser.element.FilterPointer;
 import com.legend.parser.element.FunctionDefinition;
+import com.legend.parser.element.NativeFunctionDefinition;
 import com.legend.parser.element.MappingDefinition;
+import com.legend.parser.element.Multiplicity;
 import com.legend.parser.element.PropertyMapping;
 import com.legend.parser.element.JsonModelConnection;
 import com.legend.parser.element.PackageableElement;
@@ -32,12 +34,14 @@ import com.legend.parser.element.RuntimeDefinition;
 import com.legend.parser.element.ServiceDefinition;
 import com.legend.parser.element.StereotypeApplication;
 import com.legend.parser.element.TaggedValue;
+import com.legend.parser.spec.ValueSpecification;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -58,14 +62,17 @@ import java.util.regex.Pattern;
  *   <li>{@code import} statements (wildcard and specific).</li>
  *   <li>{@code Class} (regular and {@code native}) with stereotypes, tagged
  *       values, generic type parameters, superclasses, properties,
- *       derived properties (body as raw text), and class-level constraints.</li>
+ *       derived properties (body parsed eagerly into {@link ValueSpecification}
+ *       statements), and class-level constraints (expression parsed eagerly).</li>
  *   <li>{@code Association} &mdash; exactly two ends.</li>
  *   <li>{@code Enum} &mdash; one or more value names.</li>
  *   <li>{@code Profile} &mdash; stereotypes and tags.</li>
- *   <li>{@code function} &mdash; signature plus body as raw text
- *       (lazy compilation in Phase G).</li>
- *   <li>{@code Service} &mdash; pattern, doc, execution (query/mapping/runtime),
- *       and {@code testSuites} block captured as raw text (decision D-3).</li>
+ *   <li>{@code function} &mdash; signature plus body parsed eagerly into a
+ *       {@code List<ValueSpecification>} via {@link SpecParser#parseCodeBlock}.</li>
+ *   <li>{@code Service} &mdash; pattern, doc, execution (query parsed eagerly as a
+ *       single {@link ValueSpecification}; mapping/runtime as FQN refs),
+ *       and {@code testSuites} block captured as raw text (decision D-3 &mdash;
+ *       still deferred until the test-suite grammar lands).</li>
  *   <li>{@code Runtime} (and {@code SingleConnectionRuntime}) &mdash; mappings,
  *       connection bindings, embedded {@code JsonModelConnection} islands.</li>
  *   <li>{@code RelationalDatabaseConnection} &mdash; store, type, specification,
@@ -122,11 +129,13 @@ public final class ElementParser {
     /**
      * Tokens that may stand in for an identifier in element / property
      * contexts &mdash; includes many keywords that are nonetheless permitted
-     * as names by Pure's grammar. Exposed package-private so the shallow
-     * scanner ({@link ModelIndexer}) can recognise FQN tokens without
-     * duplicating this set.
+     * as names by Pure's grammar. Exposed so the shallow scanner in the
+     * IDE layer ({@code com.legend.ide.ModelIndexer}) can recognise FQN
+     * tokens without duplicating this set, and so {@link SpecParser} can
+     * share the same predicate for variable names and qualified-name
+     * starts.
      */
-    static final Set<TokenType> IDENTIFIER_TOKENS;
+    public static final Set<TokenType> IDENTIFIER_TOKENS;
 
     static {
         IDENTIFIER_TOKENS = EnumSet.of(
@@ -210,32 +219,34 @@ public final class ElementParser {
     /**
      * Tokenize and parse a Pure source string into a {@link ParsedModel}.
      *
-     * <p>Delegates to {@link ModelOrchestrator} so this path exercises the
-     * same demand-driven machinery as {@code resolve(fqn)} call sites,
-     * just with every FQN forced. Equivalent in result to the historical
-     * one-shot parse but goes through the index + slice + parse-single
-     * pipeline.
+     * <p>Linear eager parse: every declared element is parsed in source
+     * order. The result is the batch compiler's parser-stage output.
+     *
+     * <p>Demand-driven element loading (parse only the elements an
+     * incremental client touches) is provided by the dormant IDE layer in
+     * {@code com.legend.ide}; it is not used by the batch compiler.
      */
     public static ParsedModel parse(String source) {
-        return new ModelOrchestrator(source).resolveAll();
+        return parse(Lexer.tokenize(Objects.requireNonNull(source, "source")));
     }
 
     /** Parse a pre-lexed token stream into a {@link ParsedModel}. */
     public static ParsedModel parse(TokenStream tokens) {
-        return new ModelOrchestrator(tokens).resolveAll();
+        return new ElementParser(Objects.requireNonNull(tokens, "tokens")).parseModel();
     }
 
     /**
      * Parse exactly one packageable element from a token-stream slice.
      *
      * <p>The slice is expected to contain the element's full token range
-     * (header + body) as produced by {@link ModelIndexer}; the first token
-     * must be the element's leading keyword (or {@code native} for native
-     * classes). After parsing the element the slice should be fully
-     * consumed &mdash; trailing tokens are an indexer or grammar bug and
+     * (header + body); the first token must be the element's leading
+     * keyword (or {@code native} for native classes). After parsing the
+     * element the slice should be fully consumed &mdash; trailing tokens
      * cause a {@link ParseException}.
      *
-     * <p>Used by {@link ModelOrchestrator} for demand-driven parsing.
+     * <p>Exposed for the IDE layer ({@code com.legend.ide}), which uses it
+     * to deep-parse a single element sliced out of a larger token stream
+     * via the shallow indexer. Not used by the batch compiler.
      */
     public static PackageableElement parseSingle(TokenStream slice) {
         ElementParser parser = new ElementParser(slice);
@@ -279,8 +290,9 @@ public final class ElementParser {
      * Dispatch on the current token (an element-starting keyword) and
      * parse exactly one packageable element. Used both by
      * {@link #parseModel} when iterating a full file and by
-     * {@link #parseSingle} when the caller has sliced one element out via
-     * {@link ModelIndexer}.
+     * {@link #parseSingle} when the IDE layer's shallow scanner
+     * ({@code com.legend.ide.ModelIndexer}) has sliced one element out of a
+     * larger stream.
      */
     private PackageableElement parseSingleElement() {
         TokenType t = peek();
@@ -288,10 +300,15 @@ public final class ElementParser {
             case CLASS -> parseClassDefinition(false);
             case NATIVE -> {
                 advance(); // consume 'native'
-                if (peek() != TokenType.CLASS) {
-                    error("expected 'Class' after 'native', got " + peek() + " ('" + safeText() + "')");
-                }
-                yield parseClassDefinition(true);
+                yield switch (peek()) {
+                    case CLASS -> parseClassDefinition(true);
+                    case FUNCTION -> parseNativeFunction();
+                    default -> {
+                        error("expected 'Class' or 'function' after 'native', got "
+                                + peek() + " ('" + safeText() + "')");
+                        yield null; // unreachable
+                    }
+                };
             }
             case ASSOCIATION -> parseAssociation();
             case ENUM -> parseEnumDefinition();
@@ -428,9 +445,10 @@ public final class ElementParser {
     /**
      * Parse a derived (computed) property:
      * {@code <<stereos>> {tags} name(params) { body }: Type[mult];}.
-     * The body between {@code &lcub;...&rcub;} is captured as raw source text
-     * &mdash; it is parsed and type-checked lazily by {@code SpecCompiler}
-     * in Phase G (lazy expression-body invariant).
+     * The body between {@code &lcub;...&rcub;} is parsed eagerly via
+     * {@link SpecParser#parseCodeBlock} and stored as a
+     * {@code List<ValueSpecification>} on the resulting
+     * {@link DerivedPropertyDefinition}.
      *
      * <p>NOTE: stereotypes and tagged values on derived properties are
      * parsed-and-discarded for engine parity (engine drops them too).
@@ -451,7 +469,7 @@ public final class ElementParser {
         }
         expect(TokenType.PAREN_CLOSE);
 
-        String body = "";
+        List<ValueSpecification> body = List.of();
         if (peek() == TokenType.BRACE_OPEN) {
             advance(); // consume {
             int bodyStart = pos;
@@ -462,28 +480,25 @@ public final class ElementParser {
                 else if (t == TokenType.BRACE_CLOSE) depth--;
                 if (depth > 0) advance();
             }
-            body = reconstructText(bodyStart, pos);
+            body = SpecParser.parseCodeBlock(tokens.slice(bodyStart, pos));
             expect(TokenType.BRACE_CLOSE);
         }
 
         expect(TokenType.COLON);
         String type = parseType();
-        int[] mult = parseMultiplicity();
+        Multiplicity mult = parseMultiplicity();
         expect(TokenType.SEMI_COLON);
 
         return new DerivedPropertyDefinition(
-                name, params, body, type, mult[0],
-                mult[1] == Integer.MIN_VALUE ? null : Integer.valueOf(mult[1]));
+                name, params, body, type, mult);
     }
 
     private ParameterDefinition parseDerivedPropertyParameter() {
         String name = parseIdentifier();
         expect(TokenType.COLON);
         String type = parseType();
-        int[] mult = parseMultiplicity();
-        return new ParameterDefinition(
-                name, type, mult[0],
-                mult[1] == Integer.MIN_VALUE ? null : Integer.valueOf(mult[1]));
+        Multiplicity mult = parseMultiplicity();
+        return new ParameterDefinition(name, type, mult);
     }
 
     // ============================================================
@@ -494,7 +509,8 @@ public final class ElementParser {
      * {@code [ constraint (, constraint)* ]} after the class header. Each
      * constraint may be {@code name: expression} or just {@code expression}
      * (named {@code "unnamed"} for parity with engine). The expression is
-     * captured as raw source text and parsed lazily by {@code SpecCompiler}.
+     * parsed eagerly via {@link SpecParser#parse(com.legend.lexer.TokenStream)}
+     * into a single {@link ValueSpecification}.
      */
     private List<ConstraintDefinition> parseConstraints() {
         expect(TokenType.BRACKET_OPEN);
@@ -532,7 +548,10 @@ public final class ElementParser {
             }
             advance();
         }
-        String expression = reconstructText(bodyStart, pos);
+        if (pos == bodyStart) {
+            error("empty constraint expression for '" + name + "'");
+        }
+        ValueSpecification expression = SpecParser.parse(tokens.slice(bodyStart, pos));
         return new ConstraintDefinition(name, expression);
     }
 
@@ -553,11 +572,9 @@ public final class ElementParser {
             String name = parseIdentifier();
             expect(TokenType.COLON);
             String type = parseType();
-            int[] mult = parseMultiplicity();
+            Multiplicity mult = parseMultiplicity();
             expect(TokenType.SEMI_COLON);
-            ends.add(new AssociationEndDefinition(
-                    name, type, mult[0],
-                    mult[1] == Integer.MIN_VALUE ? null : Integer.valueOf(mult[1])));
+            ends.add(new AssociationEndDefinition(name, type, mult));
         }
         expect(TokenType.BRACE_CLOSE);
 
@@ -655,13 +672,19 @@ public final class ElementParser {
     /**
      * {@code function <<stereos>> {tags} qualifiedName(params) : returnType[mult]
      * [optional-constraints] { body }}.
-     * Body captured as raw source text per decision D-1 (lazy parsing in Phase G).
+     * Body parsed eagerly via {@link SpecParser#parseCodeBlock} into a
+     * {@code List<ValueSpecification>} (sequence of statements).
      */
     private FunctionDefinition parseFunctionDefinition() {
         expect(TokenType.FUNCTION);
         List<StereotypeApplication> stereotypes = parseStereotypes();
         List<TaggedValue> taggedValues = parseTaggedValues();
         String qualifiedName = parseQualifiedName();
+
+        // Optional <T,V|m,n> generic + multiplicity parameters
+        List<String> typeParams = new ArrayList<>();
+        List<String> multParams = new ArrayList<>();
+        parseTypeAndMultiplicityParameters(typeParams, multParams);
 
         expect(TokenType.PAREN_OPEN);
         List<FunctionDefinition.ParameterDefinition> params = new ArrayList<>();
@@ -675,7 +698,7 @@ public final class ElementParser {
 
         expect(TokenType.COLON);
         String returnType = parseType();
-        int[] mult = parseMultiplicity();
+        Multiplicity returnMult = parseMultiplicity();
 
         // Optional constraints block — engine accepts then discards.
         // We accept and discard for parity; future work may attach these.
@@ -692,23 +715,112 @@ public final class ElementParser {
             else if (t == TokenType.BRACE_CLOSE) depth--;
             if (depth > 0) advance();
         }
-        String body = reconstructText(bodyStart, pos);
+        List<ValueSpecification> body = SpecParser.parseCodeBlock(tokens.slice(bodyStart, pos));
         expect(TokenType.BRACE_CLOSE);
 
         return new FunctionDefinition(
-                qualifiedName, params, returnType,
-                mult[0], mult[1] == Integer.MIN_VALUE ? null : Integer.valueOf(mult[1]),
+                qualifiedName,
+                List.copyOf(typeParams),
+                List.copyOf(multParams),
+                params,
+                returnType,
+                returnMult,
                 body, stereotypes, taggedValues);
+    }
+
+    /**
+     * Parse a {@code native function ...;} declaration. {@code native} has
+     * already been consumed by the caller. Mirrors Pure's
+     * {@code nativeFunction} grammar rule: same signature shape as
+     * {@link #parseFunctionDefinition()}, but no body block &mdash; the
+     * declaration is terminated by a semicolon.
+     *
+     * <p>Pure syntax:
+     * <pre>
+     *   native function &lt;&lt;stereo&gt;&gt; {tag=v}
+     *       my::pkg::fn&lt;T,V|m,n&gt;(p1:T1[m1], p2:T2[m2]):R[m];
+     * </pre>
+     */
+    private NativeFunctionDefinition parseNativeFunction() {
+        expect(TokenType.FUNCTION);
+        List<StereotypeApplication> stereotypes = parseStereotypes();
+        List<TaggedValue> taggedValues = parseTaggedValues();
+        String qualifiedName = parseQualifiedName();
+
+        List<String> typeParams = new ArrayList<>();
+        List<String> multParams = new ArrayList<>();
+        parseTypeAndMultiplicityParameters(typeParams, multParams);
+
+        expect(TokenType.PAREN_OPEN);
+        List<FunctionDefinition.ParameterDefinition> params = new ArrayList<>();
+        if (peek() != TokenType.PAREN_CLOSE) {
+            params.add(parseFunctionParameter());
+            while (match(TokenType.COMMA)) {
+                params.add(parseFunctionParameter());
+            }
+        }
+        expect(TokenType.PAREN_CLOSE);
+
+        expect(TokenType.COLON);
+        String returnType = parseType();
+        Multiplicity returnMult = parseMultiplicity();
+
+        expect(TokenType.SEMI_COLON);
+
+        return new NativeFunctionDefinition(
+                qualifiedName,
+                List.copyOf(typeParams),
+                List.copyOf(multParams),
+                params,
+                returnType,
+                returnMult,
+                stereotypes, taggedValues);
     }
 
     private FunctionDefinition.ParameterDefinition parseFunctionParameter() {
         String name = parseIdentifier();
         expect(TokenType.COLON);
         String type = parseType();
-        int[] mult = parseMultiplicity();
-        return new FunctionDefinition.ParameterDefinition(
-                name, type, mult[0],
-                mult[1] == Integer.MIN_VALUE ? null : Integer.valueOf(mult[1]));
+        Multiplicity mult = parseMultiplicity();
+        return new FunctionDefinition.ParameterDefinition(name, type, mult);
+    }
+
+    /**
+     * Optional {@code <T,V|m,n>} block declaring generic type and/or
+     * multiplicity parameters on a function (concrete or native).
+     *
+     * <p>Mirrors Pure's M3 grammar:
+     * <pre>
+     *   typeAndMultiplicityParameters: '<' ( typeParameters ('|' multParameters)? | multParameters ) '>'
+     * </pre>
+     * Either side may be omitted &mdash; e.g. {@code <T>}, {@code <T,V>},
+     * {@code <T|m>}, {@code <T,V|m,n>}, or just {@code <|m>}.
+     *
+     * <p>Caller passes empty mutable lists; this method appends discovered
+     * names. Does nothing if no leading {@code <}.
+     */
+    private void parseTypeAndMultiplicityParameters(List<String> typeParams,
+                                                     List<String> multParams) {
+        if (peek() != TokenType.LESS_THAN) return;
+        advance(); // consume '<'
+
+        // Type-parameter side (may be empty if next token is PIPE).
+        if (peek() != TokenType.PIPE) {
+            typeParams.add(parseIdentifier());
+            while (match(TokenType.COMMA)) {
+                typeParams.add(parseIdentifier());
+            }
+        }
+
+        // Optional multiplicity side: '|' multParam (',' multParam)*
+        if (match(TokenType.PIPE)) {
+            multParams.add(parseIdentifier());
+            while (match(TokenType.COMMA)) {
+                multParams.add(parseIdentifier());
+            }
+        }
+
+        expect(TokenType.GREATER_THAN);
     }
 
     // ============================================================
@@ -720,8 +832,10 @@ public final class ElementParser {
      * execution: Single { query: |...; mapping: ...; runtime: ...; }
      * testSuites { ... } }}.
      *
-     * <p>Unknown top-level keys throw (no silent skip). Query body and the
-     * full {@code testSuites} block are captured as raw text (D-1, D-3).
+     * <p>Unknown top-level keys throw (no silent skip). The query body
+     * is parsed eagerly into a {@link ValueSpecification}; the
+     * {@code testSuites} block is still captured as raw text (D-3),
+     * pending a test-suite grammar.
      */
     private ServiceDefinition parseServiceDefinition() {
         expect(TokenType.SERVICE);
@@ -730,7 +844,7 @@ public final class ElementParser {
 
         String pattern = null;
         String documentation = null;
-        String functionBody = null;
+        ValueSpecification functionBody = null;
         String mappingRef = null;
         String runtimeRef = null;
         String testSuitesSource = null;
@@ -778,7 +892,11 @@ public final class ElementParser {
                                     else if (tk == TokenType.SEMI_COLON && d <= 0) break;
                                     advance();
                                 }
-                                functionBody = reconstructText(bs, pos);
+                                if (pos == bs) {
+                                    error("empty query expression in Service '"
+                                            + qualifiedName + "'");
+                                }
+                                functionBody = SpecParser.parse(tokens.slice(bs, pos));
                                 expect(TokenType.SEMI_COLON);
                             }
                             case "mapping" -> {
@@ -814,10 +932,13 @@ public final class ElementParser {
         }
         expect(TokenType.BRACE_CLOSE);
 
+        if (functionBody == null) {
+            error("Service '" + qualifiedName + "' has no query expression");
+        }
         return new ServiceDefinition(
                 qualifiedName,
                 pattern != null ? pattern : "/",
-                functionBody != null ? functionBody : "",
+                functionBody,
                 documentation,
                 mappingRef,
                 runtimeRef,
@@ -1738,13 +1859,10 @@ public final class ElementParser {
         String propName = parseIdentifier();
         expect(TokenType.COLON);
         String type = parseType();
-        int[] mult = parseMultiplicity();
+        Multiplicity mult = parseMultiplicity();
         expect(TokenType.COLON);
         PropertyMapping body = parsePropertyMappingBody(propName, mainTable);
-        return new PropertyMapping.LocalProperty(
-                propName, type, mult[0],
-                mult[1] == Integer.MIN_VALUE ? null : Integer.valueOf(mult[1]),
-                body);
+        return new PropertyMapping.LocalProperty(propName, type, mult, body);
     }
 
     /**
@@ -2091,12 +2209,12 @@ public final class ElementParser {
      *   propBinding         := identifier : pureExpression
      * </pre>
      *
-     * <h2>D-1: deferred Pure expression parsing</h2>
+     * <h2>Eager Pure-expression parsing</h2>
      * The filter expression and each property RHS are full Pure value
-     * expressions. The element parser captures them as raw text using
-     * {@link #scanPureExpression} + {@link #reconstructText} and stores
-     * them as {@code filterSource} / {@code expressionSource}. Phase C
-     * parses them lazily.
+     * expressions. {@link #scanPureExpression} finds the token range for
+     * each; {@link SpecParser#parse} then parses the sliced range into a
+     * {@link ValueSpecification} which is stored directly on
+     * {@link ClassMapping.Pure#filter()} / {@link ClassMapping.Pure.PropertyBinding#expression()}.
      */
     private ClassMapping parsePureClassMappingBody(
             String className, String setId, String extendsSetId, boolean root) {
@@ -2105,16 +2223,16 @@ public final class ElementParser {
 
         // Optional ~filter <pure expression> — runs until the first
         // property binding starts.
-        String filterSource = null;
+        ValueSpecification filter = null;
         if (peek() == TokenType.FILTER_CMD) {
             advance();
             int start = pos;
             scanPureExpression(/*stopOnPropertyBindingStart=*/ true);
-            filterSource = reconstructText(start, pos).trim();
-            if (filterSource.isEmpty()) {
+            if (pos == start) {
                 error("~filter clause in Pure class mapping for '"
                         + className + "' is empty");
             }
+            filter = SpecParser.parse(tokens.slice(start, pos));
         }
 
         List<ClassMapping.Pure.PropertyBinding> bindings = new ArrayList<>();
@@ -2123,27 +2241,27 @@ public final class ElementParser {
             expect(TokenType.COLON);
             int start = pos;
             scanPureExpression(/*stopOnPropertyBindingStart=*/ false);
-            String exprText = reconstructText(start, pos).trim();
-            if (exprText.isEmpty()) {
+            if (pos == start) {
                 error("Pure class mapping property '" + propName
                         + "' has an empty body");
             }
-            bindings.add(new ClassMapping.Pure.PropertyBinding(propName, exprText));
+            ValueSpecification expression = SpecParser.parse(tokens.slice(start, pos));
+            bindings.add(new ClassMapping.Pure.PropertyBinding(propName, expression));
             // Properties are comma-separated; trailing comma tolerated.
             match(TokenType.COMMA);
         }
 
         return new ClassMapping.Pure(
                 className, setId, extendsSetId, root,
-                sourceClass, filterSource, bindings);
+                sourceClass, filter, bindings);
     }
 
     /**
      * Advance past a Pure value expression, stopping at the first
-     * top-level (depth-0) terminator. Used to capture raw expression
-     * text for deferred parsing (D-1). The matched tokens are NOT
-     * consumed beyond the expression itself; on return, {@code pos}
-     * points at the terminator.
+     * top-level (depth-0) terminator. The caller then slices the consumed
+     * range and hands it to {@link SpecParser} for eager parsing. The
+     * matched tokens are NOT consumed beyond the expression itself; on
+     * return, {@code pos} points at the terminator.
      *
      * <p>Terminators:
      * <ul>
@@ -2425,8 +2543,9 @@ public final class ElementParser {
     /**
      * Reconstruct the verbatim source text spanning tokens
      * {@code [startToken, endToken)}. Returns empty string if the range is
-     * empty. Used to capture derived-property bodies and constraint
-     * expressions for lazy compilation in Phase G.
+     * empty. Still used to capture {@code testSuites} blocks (D-3) and
+     * embedded JSON-island raw text; expression bodies are now sliced and
+     * handed to {@link SpecParser} instead of being kept as text.
      */
     private String reconstructText(int startToken, int endToken) {
         if (startToken >= endToken) return "";
@@ -2445,12 +2564,10 @@ public final class ElementParser {
         String name = parseIdentifier();
         expect(TokenType.COLON);
         String type = parseType();
-        int[] mult = parseMultiplicity();
+        Multiplicity mult = parseMultiplicity();
         expect(TokenType.SEMI_COLON);
         return new ClassDefinition.PropertyDefinition(
-                name, type, mult[0],
-                mult[1] == Integer.MIN_VALUE ? null : Integer.valueOf(mult[1]),
-                stereotypes, taggedValues);
+                name, type, mult, stereotypes, taggedValues);
     }
 
     // ============================================================
@@ -2551,31 +2668,44 @@ public final class ElementParser {
     }
 
     /**
-     * Parse a multiplicity annotation: {@code [1]}, {@code [*]},
-     * {@code [0..1]}, {@code [1..*]}. Returns {@code [lower, upper]} with
-     * {@code upper == Integer.MIN_VALUE} sentinel for unbounded {@code *}.
+     * Parse a multiplicity annotation. Mirrors Pure's M3 grammar:
+     * <pre>
+     *   multiplicity         : '[' multiplicityArgument ']'
+     *   multiplicityArgument : identifier
+     *                        | ((fromMultiplicity '..')? toMultiplicity)
+     * </pre>
+     * <p>Examples:
+     * <ul>
+     *   <li>Concrete: {@code [1]}, {@code [0..1]}, {@code [*]}, {@code [1..*]}</li>
+     *   <li>Parameter: {@code [m]} &mdash; refers to a multiplicity parameter
+     *       declared in the enclosing function signature</li>
+     * </ul>
      */
-    private int[] parseMultiplicity() {
+    private Multiplicity parseMultiplicity() {
         expect(TokenType.BRACKET_OPEN);
-        int lower;
-        int upper;
+        Multiplicity result;
         if (match(TokenType.STAR)) {
-            lower = 0;
-            upper = Integer.MIN_VALUE; // sentinel: unbounded
-        } else {
-            lower = parseInt(consume(TokenType.INTEGER));
+            result = Multiplicity.zeroMany();
+        } else if (peek() == TokenType.INTEGER) {
+            int lower = parseInt(consume(TokenType.INTEGER));
+            Integer upper;
             if (match(TokenType.DOT_DOT)) {
-                if (match(TokenType.STAR)) {
-                    upper = Integer.MIN_VALUE;
-                } else {
-                    upper = parseInt(consume(TokenType.INTEGER));
-                }
+                upper = match(TokenType.STAR) ? null : parseInt(consume(TokenType.INTEGER));
             } else {
                 upper = lower;
             }
+            result = Multiplicity.range(lower, upper);
+        } else if (IDENTIFIER_TOKENS.contains(peek())) {
+            // Multiplicity parameter reference, e.g. [m] where m is declared
+            // in the function's <|m> parameter block.
+            result = Multiplicity.parameter(parseIdentifier());
+        } else {
+            error("expected multiplicity (integer, '*', or identifier) but got "
+                    + peek() + " ('" + safeText() + "')");
+            return null; // unreachable
         }
         expect(TokenType.BRACKET_CLOSE);
-        return new int[]{lower, upper};
+        return result;
     }
 
     private static int parseInt(String s) {
@@ -2638,14 +2768,15 @@ public final class ElementParser {
      *
      * <p>Pattern matched: {@code '{' IDENT ('::' IDENT)* '.' IDENT '='}.
      * Shared by the parser (which dispatches on this when consuming tagged
-     * values inline) and the shallow scanner ({@link ModelIndexer}), which
+     * values inline) and the shallow scanner in the IDE layer
+     * ({@code com.legend.ide.ModelIndexer}), which
      * needs to skip a tagged-value block to reach the FQN. <strong>Both
      * must agree on the heuristic</strong>: if the scanner says yes but
      * the parser says no (or vice versa), token offsets drift and
      * downstream parses fail confusingly. Keeping the predicate in one
      * place prevents that drift.
      */
-    static boolean looksLikeTaggedValueBlock(TokenStream tokens, int bracePos) {
+    public static boolean looksLikeTaggedValueBlock(TokenStream tokens, int bracePos) {
         int n = tokens.count();
         if (bracePos >= n || tokens.type(bracePos) != TokenType.BRACE_OPEN) return false;
         int p = bracePos + 1;
@@ -2667,7 +2798,8 @@ public final class ElementParser {
      * Throw a {@link ParseException} reporting the offending token's
      * 1-indexed line and column derived from the source string. Shared so
      * tools that produce parse errors outside an {@link ElementParser}
-     * instance &mdash; notably {@link ModelIndexer} &mdash; can attach the
+     * instance &mdash; notably the IDE layer's {@code ModelIndexer} &mdash;
+     * can attach the
      * same location information instead of falling back to byte offsets.
      *
      * @param tokens   the token stream the position refers to
@@ -2677,7 +2809,7 @@ public final class ElementParser {
      * @param message  human-readable message; no location suffix needed (the
      *                 exception carries line/column separately)
      */
-    static void throwAt(TokenStream tokens, int tokenPos, String message) {
+    public static void throwAt(TokenStream tokens, int tokenPos, String message) {
         int n = tokens.count();
         int charPos;
         if (tokenPos < n) {

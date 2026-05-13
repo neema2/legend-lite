@@ -1,5 +1,7 @@
 package com.legend.parser.element;
 
+import com.legend.parser.spec.ValueSpecification;
+
 import java.util.List;
 import java.util.Objects;
 
@@ -84,26 +86,27 @@ public record ClassDefinition(
     public record PropertyDefinition(
             String name,
             String type,
-            int lowerBound,
-            Integer upperBound,
+            Multiplicity multiplicity,
             List<StereotypeApplication> stereotypes,
             List<TaggedValue> taggedValues) {
         public PropertyDefinition {
             Objects.requireNonNull(name, "Property name cannot be null");
             Objects.requireNonNull(type, "Property type cannot be null");
+            Objects.requireNonNull(multiplicity, "Property multiplicity cannot be null");
             stereotypes = stereotypes == null ? List.of() : List.copyOf(stereotypes);
             taggedValues = taggedValues == null ? List.of() : List.copyOf(taggedValues);
         }
     }
 
     /**
-     * A derived (computed) property declaration. Parser captures the body
-     * as a raw text span between braces; {@code SpecCompiler} parses and
-     * type-checks it on demand (lazy bodies invariant).
+     * A derived (computed) property declaration. Body is parsed eagerly
+     * by {@code ElementParser} into a sequence of {@link ValueSpecification}
+     * statements (the body grammar matches a function body's braced block).
      *
      * @param name        property name
      * @param parameters  parameter list (zero or more)
-     * @param expression  raw text of the body between {@code {...}}
+     * @param expression  parsed body statements between {@code {...}}; non-null,
+     *                    may be empty for a {@code {}} body
      * @param type        return type
      * @param lowerBound  lower multiplicity bound
      * @param upperBound  upper multiplicity bound ({@code null} = unbounded)
@@ -111,44 +114,46 @@ public record ClassDefinition(
     public record DerivedPropertyDefinition(
             String name,
             List<ParameterDefinition> parameters,
-            String expression,
+            List<ValueSpecification> expression,
             String type,
-            int lowerBound,
-            Integer upperBound) {
+            Multiplicity multiplicity) {
         public DerivedPropertyDefinition {
             Objects.requireNonNull(name, "Derived property name cannot be null");
             Objects.requireNonNull(type, "Derived property type cannot be null");
+            Objects.requireNonNull(multiplicity, "Derived property multiplicity cannot be null");
+            Objects.requireNonNull(expression, "Derived property expression cannot be null");
             parameters = parameters == null ? List.of() : List.copyOf(parameters);
-            expression = expression == null ? "" : expression;
+            expression = List.copyOf(expression);
         }
     }
 
     /**
      * A parameter declaration on a derived property or function.
      *
-     * @param name       parameter name
-     * @param type       parameter type
-     * @param lowerBound lower multiplicity bound
-     * @param upperBound upper multiplicity bound ({@code null} = unbounded)
+     * @param name         parameter name
+     * @param type         parameter type
+     * @param multiplicity declared multiplicity (concrete or parameter ref)
      */
     public record ParameterDefinition(
             String name,
             String type,
-            int lowerBound,
-            Integer upperBound) {
+            Multiplicity multiplicity) {
         public ParameterDefinition {
             Objects.requireNonNull(name, "Parameter name cannot be null");
             Objects.requireNonNull(type, "Parameter type cannot be null");
+            Objects.requireNonNull(multiplicity, "Parameter multiplicity cannot be null");
         }
     }
 
     /**
-     * A class-level constraint (validation rule).
+     * A class-level constraint (validation rule). The constraint body is
+     * a single Pure expression that must evaluate to a {@code Boolean};
+     * {@code ElementParser} parses it eagerly into a {@link ValueSpecification}.
      *
      * @param name       constraint name
-     * @param expression the Pure expression body that must evaluate to true
+     * @param expression parsed expression AST that must evaluate to true
      */
-    public record ConstraintDefinition(String name, String expression) {
+    public record ConstraintDefinition(String name, ValueSpecification expression) {
         public ConstraintDefinition {
             Objects.requireNonNull(name, "Constraint name cannot be null");
             Objects.requireNonNull(expression, "Constraint expression cannot be null");

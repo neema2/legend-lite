@@ -48,11 +48,11 @@ public record AssociationDefinition(
     public record AssociationEndDefinition(
             String propertyName,
             String targetClass,
-            int lowerBound,
-            Integer upperBound) {
+            Multiplicity multiplicity) {
         public AssociationEndDefinition {
             Objects.requireNonNull(propertyName, "Property name cannot be null");
             Objects.requireNonNull(targetClass, "Target class cannot be null");
+            Objects.requireNonNull(multiplicity, "End multiplicity cannot be null");
         }
     }
 }

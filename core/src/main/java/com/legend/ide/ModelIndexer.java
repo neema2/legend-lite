@@ -1,7 +1,10 @@
-package com.legend.parser;
+package com.legend.ide;
 
 import com.legend.lexer.TokenStream;
 import com.legend.lexer.TokenType;
+import com.legend.parser.ElementKind;
+import com.legend.parser.ElementParser;
+import com.legend.parser.ParseException;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
