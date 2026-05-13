@@ -23,9 +23,9 @@ import com.legend.parser.element.FilterPointer;
 import com.legend.parser.element.FunctionDefinition;
 import com.legend.parser.element.NativeFunctionDefinition;
 import com.legend.parser.element.MappingDefinition;
-import com.legend.parser.element.Multiplicity;
+import com.legend.parser.Multiplicity;
 import com.legend.parser.element.PropertyMapping;
-import com.legend.parser.element.TypeExpression;
+import com.legend.parser.TypeExpression;
 import com.legend.parser.element.JsonModelConnection;
 import com.legend.parser.element.PackageableElement;
 import com.legend.parser.element.ComparisonOp;
@@ -42,7 +42,6 @@ import com.legend.parser.element.TaggedValue;
 import com.legend.parser.spec.ValueSpecification;
 
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -125,81 +124,13 @@ import java.util.regex.Pattern;
  * keeping the same recursive-descent shape and identifier-token set
  * for parity testing.
  */
-public final class ElementParser {
-
-    // ============================================================
-    // Keywords that may appear as identifiers (engine-parity set)
-    // ============================================================
-
-    /**
-     * Tokens that may stand in for an identifier in element / property
-     * contexts &mdash; includes many keywords that are nonetheless permitted
-     * as names by Pure's grammar. Exposed so the shallow scanner in the
-     * IDE layer ({@code com.legend.ide.ModelIndexer}) can recognise FQN
-     * tokens without duplicating this set, and so {@link SpecParser} can
-     * share the same predicate for variable names and qualified-name
-     * starts.
-     */
-    public static final Set<TokenType> IDENTIFIER_TOKENS;
-
-    static {
-        IDENTIFIER_TOKENS = EnumSet.of(
-                TokenType.VALID_STRING, TokenType.STRING,
-                // M3
-                TokenType.ALL, TokenType.LET, TokenType.ALL_VERSIONS, TokenType.ALL_VERSIONS_IN_RANGE,
-                TokenType.COMPARATOR, TokenType.TO_BYTES_FUNCTION,
-                // Domain
-                TokenType.IMPORT, TokenType.CLASS, TokenType.FUNCTION, TokenType.PROFILE,
-                TokenType.ASSOCIATION, TokenType.ENUM, TokenType.MEASURE, TokenType.EXTENDS,
-                TokenType.STEREOTYPES, TokenType.TAGS, TokenType.NATIVE, TokenType.PROJECTS, TokenType.AS,
-                TokenType.CONSTRAINT_ENFORCEMENT_LEVEL_ERROR, TokenType.CONSTRAINT_ENFORCEMENT_LEVEL_WARN,
-                TokenType.AGGREGATION_TYPE_COMPOSITE, TokenType.AGGREGATION_TYPE_SHARED, TokenType.AGGREGATION_TYPE_NONE,
-                // Mapping
-                TokenType.MAPPING, TokenType.INCLUDE, TokenType.TESTS,
-                TokenType.MAPPING_TESTABLE_DOC, TokenType.MAPPING_TESTABLE_DATA, TokenType.MAPPING_TESTABLE_ASSERT,
-                TokenType.MAPPING_TESTABLE_SUITES, TokenType.MAPPING_TEST_ASSERTS, TokenType.MAPPING_TESTS,
-                TokenType.MAPPING_TESTS_QUERY,
-                // Runtime
-                TokenType.RUNTIME, TokenType.SINGLE_CONNECTION_RUNTIME, TokenType.MAPPINGS,
-                TokenType.CONNECTIONS, TokenType.CONNECTION, TokenType.CONNECTIONSTORES,
-                // Relational / Database
-                TokenType.DATABASE, TokenType.TABLE, TokenType.SCHEMA, TokenType.VIEW,
-                TokenType.TABULAR_FUNC, TokenType.FILTER, TokenType.MULTIGRAIN_FILTER, TokenType.JOIN,
-                TokenType.RELATIONAL_AND, TokenType.RELATIONAL_OR,
-                TokenType.MILESTONING, TokenType.BUSINESS_MILESTONING,
-                TokenType.BUSINESS_MILESTONING_FROM, TokenType.BUSINESS_MILESTONING_THRU,
-                TokenType.THRU_IS_INCLUSIVE, TokenType.BUS_SNAPSHOT_DATE,
-                TokenType.PROCESSING_MILESTONING, TokenType.PROCESSING_MILESTONING_IN,
-                TokenType.PROCESSING_MILESTONING_OUT, TokenType.OUT_IS_INCLUSIVE,
-                TokenType.INFINITY_DATE, TokenType.PROCESSING_SNAPSHOT_DATE,
-                TokenType.ASSOCIATION_MAPPING, TokenType.ENUMERATION_MAPPING,
-                TokenType.OTHERWISE, TokenType.INLINE, TokenType.BINDING, TokenType.SCOPE,
-                TokenType.PURE_MAPPING, TokenType.RELATIONAL,
-                // Connection
-                TokenType.STORE, TokenType.TYPE, TokenType.MODE,
-                TokenType.RELATIONAL_DATASOURCE_SPEC, TokenType.RELATIONAL_AUTH_STRATEGY,
-                TokenType.DB_TIMEZONE, TokenType.QUOTE_IDENTIFIERS, TokenType.QUERY_GENERATION_CONFIGS,
-                TokenType.DUCKDB, TokenType.SQLITE, TokenType.POSTGRES, TokenType.H2, TokenType.SNOWFLAKE,
-                TokenType.LOCALDUCKDB, TokenType.INMEMORY, TokenType.NOAUTH,
-                // Service
-                TokenType.SERVICE, TokenType.SERVICE_PATTERN, TokenType.SERVICE_OWNERS,
-                TokenType.SERVICE_DOCUMENTATION, TokenType.SERVICE_AUTO_ACTIVATE_UPDATES,
-                TokenType.SERVICE_EXEC, TokenType.SERVICE_SINGLE, TokenType.SERVICE_MULTI,
-                TokenType.SERVICE_MAPPING, TokenType.SERVICE_RUNTIME,
-                // Boolean literals
-                TokenType.TRUE, TokenType.FALSE,
-                // Additional
-                TokenType.RELATIONAL_DATABASE_CONNECTION,
-                TokenType.RELATIONAL_POST_PROCESSORS, TokenType.QUERY_TIMEOUT
-        );
-    }
+public final class ElementParser implements TokenStreamCursor {
 
     // ============================================================
     // Instance state (transient during parse)
     // ============================================================
 
     private final TokenStream tokens;
-    private final int count;
     private int pos;
 
     /**
@@ -213,7 +144,6 @@ public final class ElementParser {
 
     private ElementParser(TokenStream tokens) {
         this.tokens = tokens;
-        this.count = tokens.count();
         this.pos = 0;
     }
 
@@ -308,11 +238,8 @@ public final class ElementParser {
                 yield switch (peek()) {
                     case CLASS -> parseClassDefinition(true);
                     case FUNCTION -> parseNativeFunction();
-                    default -> {
-                        error("expected 'Class' or 'function' after 'native', got "
-                                + peek() + " ('" + safeText() + "')");
-                        yield null; // unreachable
-                    }
+                    default -> throw error("expected 'Class' or 'function' after 'native', got "
+                            + peek() + " ('" + safeText() + "')");
                 };
             }
             case ASSOCIATION -> parseAssociation();
@@ -325,10 +252,7 @@ public final class ElementParser {
             case RELATIONAL_DATABASE_CONNECTION -> parseConnection();
             case DATABASE -> parseDatabase();
             case MAPPING -> parseMapping();
-            default -> {
-                error("unsupported top-level keyword: " + t + " ('" + safeText() + "')");
-                yield null; // unreachable
-            }
+            default -> throw error("unsupported top-level keyword: " + t + " ('" + safeText() + "')");
         };
     }
 
@@ -426,7 +350,7 @@ public final class ElementParser {
         if (peek() == TokenType.LESS_THAN && peek(1) == TokenType.LESS_THAN) {
             int depth = 2;
             pos += 2;
-            while (pos < count && depth > 0) {
+            while (pos < tokens.count() && depth > 0) {
                 if (peek() == TokenType.GREATER_THAN) depth--;
                 else if (peek() == TokenType.LESS_THAN) depth++;
                 pos++;
@@ -436,13 +360,13 @@ public final class ElementParser {
         if (peek() == TokenType.BRACE_OPEN) {
             int depth = 1;
             pos++;
-            while (pos < count && depth > 0) {
+            while (pos < tokens.count() && depth > 0) {
                 if (peek() == TokenType.BRACE_OPEN) depth++;
                 else if (peek() == TokenType.BRACE_CLOSE) depth--;
                 pos++;
             }
         }
-        boolean derived = IDENTIFIER_TOKENS.contains(peek()) && peek(1) == TokenType.PAREN_OPEN;
+        boolean derived = isIdentifierToken(peek()) && peek(1) == TokenType.PAREN_OPEN;
         pos = saved;
         return derived;
     }
@@ -532,7 +456,7 @@ public final class ElementParser {
 
     private ConstraintDefinition parseConstraint() {
         String name = "unnamed";
-        if (IDENTIFIER_TOKENS.contains(peek()) && peek(1) == TokenType.COLON) {
+        if (isIdentifierToken(peek()) && peek(1) == TokenType.COLON) {
             name = parseIdentifier();
             advance(); // consume :
         }
@@ -1108,11 +1032,8 @@ public final class ElementParser {
                                 props.get("host"),
                                 props.containsKey("port") ? Integer.parseInt(props.get("port")) : 0,
                                 props.get("database"));
-                        default -> {
-                            error("unknown specification flavor '" + specType
-                                    + "' (expected InMemory / LocalFile / Static)");
-                            yield null; // unreachable
-                        }
+                        default -> throw error("unknown specification flavor '" + specType
+                                + "' (expected InMemory / LocalFile / Static)");
                     };
                     expect(TokenType.SEMI_COLON);
                 }
@@ -1127,11 +1048,8 @@ public final class ElementParser {
                         case "NoAuth" -> new AuthenticationSpec.NoAuth();
                         case "UsernamePassword" -> new AuthenticationSpec.UsernamePassword(
                                 props.get("username"), props.get("passwordVaultRef"));
-                        default -> {
-                            error("unknown auth flavor '" + authType
-                                    + "' (expected NoAuth / UsernamePassword)");
-                            yield null; // unreachable
-                        }
+                        default -> throw error("unknown auth flavor '" + authType
+                                + "' (expected NoAuth / UsernamePassword)");
                     };
                     expect(TokenType.SEMI_COLON);
                 }
@@ -1549,7 +1467,7 @@ public final class ElementParser {
                 includes.add(parseMappingInclude());
                 continue;
             }
-            if (IDENTIFIER_TOKENS.contains(peek()) && textEquals("testSuites")) {
+            if (isIdentifierToken(peek()) && textEquals("testSuites")) {
                 // B.4f / D-3: capture the testSuites block verbatim and
                 // hand it to Phase C for lazy parsing. Engine grammar
                 // wraps suites in '[ ... ]'.
@@ -1694,8 +1612,7 @@ public final class ElementParser {
             return;
         }
         // Reject anything else (Operation, AggregationAware, Relation, etc.)
-        error("unsupported class mapping type: '" + safeText() + "'");
-        throw new IllegalStateException("unreachable");
+        throw error("unsupported class mapping type: '" + safeText() + "'");
     }
 
     /**
@@ -2044,7 +1961,7 @@ public final class ElementParser {
      * operator before the dot.
      */
     private boolean looksLikeBareColumnRef() {
-        if (!IDENTIFIER_TOKENS.contains(peek()) && peek() != TokenType.QUOTED_STRING) {
+        if (!isIdentifierToken(peek()) && peek() != TokenType.QUOTED_STRING) {
             return false;
         }
         return peek(1) == TokenType.DOT;
@@ -2177,7 +2094,7 @@ public final class ElementParser {
         // Optional mapping ID: present when the next token is an
         // identifier (or identifier-like keyword) AND not the body open.
         String mappingId = null;
-        if (peek() != TokenType.BRACE_OPEN && IDENTIFIER_TOKENS.contains(peek())) {
+        if (peek() != TokenType.BRACE_OPEN && isIdentifierToken(peek())) {
             mappingId = parseIdentifier();
         }
         expect(TokenType.BRACE_OPEN);
@@ -2322,7 +2239,7 @@ public final class ElementParser {
             if (depth == 0) {
                 if (t == TokenType.BRACE_CLOSE || t == TokenType.COMMA) break;
                 if (stopOnPropertyBindingStart
-                        && IDENTIFIER_TOKENS.contains(t)
+                        && isIdentifierToken(t)
                         && peek(1) == TokenType.COLON) {
                     break;
                 }
@@ -2357,7 +2274,7 @@ public final class ElementParser {
     /** {@code dbBooleanOperation: dbAtomicOperation (("and" | "or") dbOperation)?}. */
     private RelationalOperation parseDbBooleanOperation(String dbScope) {
         RelationalOperation left = parseDbAtomicOperation(dbScope);
-        if (!atEnd() && IDENTIFIER_TOKENS.contains(peek())
+        if (!atEnd() && isIdentifierToken(peek())
                 && (textEquals("and") || textEquals("or"))) {
             LogicalOp op = LogicalOp.fromKeyword(text());
             advance();
@@ -2465,8 +2382,7 @@ public final class ElementParser {
                 // at parse time with this exact message
                 // (RelationalParseTreeWalker.generateTableAlias). Match that
                 // behavior: no implicit-table column refs in the AST.
-                error("Missing table or alias for column '" + firstId + "'");
-                throw new IllegalStateException("unreachable");
+                throw error("Missing table or alias for column '" + firstId + "'");
             }
         }
 
@@ -2613,229 +2529,34 @@ public final class ElementParser {
     // Shared helpers (engine-parity)
     // ============================================================
 
-    /** Parse a Pure identifier &mdash; accepts {@code VALID_STRING} or any keyword-as-identifier. */
-    private String parseIdentifier() {
-        TokenType t = peek();
-        if (IDENTIFIER_TOKENS.contains(t)) {
-            String id = text();
-            advance();
-            return id;
-        }
-        error("expected identifier but found " + t + " ('" + safeText() + "')");
-        return null; // unreachable
+    // -----------------------------------------------------------------
+    // TokenStreamCursor accessors.
+    //
+    // Implementing the interface gives us the entire lexical layer
+    // (peek/match/expect/consume/advance/text/safeText/textEquals/error,
+    // parseIdentifier, parseQualifiedName) plus the type-expression
+    // grammar (parseType / parseTypeArgument / parseMultiplicity and
+    // their sub-grammars) as inherited defaults.
+    //
+    // Previously ElementParser carried its own private duplicates of
+    // every primitive AND a bridge that allocated a standalone helper
+    // class for each type expression. Both layers are now gone; the
+    // interface is the single source of truth.
+    // -----------------------------------------------------------------
+
+    @Override
+    public TokenStream tokens() {
+        return tokens;
     }
 
-    /** Parse {@code identifier (:: identifier)*}; returns the joined {@code "a::b::c"}. */
-    private String parseQualifiedName() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(parseIdentifier());
-        while (peek() == TokenType.PATH_SEPARATOR) {
-            advance();
-            sb.append("::");
-            sb.append(parseIdentifier());
-        }
-        return sb.toString();
+    @Override
+    public int pos() {
+        return pos;
     }
 
-    /**
-     * Parse a type reference and return its structured AST. Four
-     * top-level shapes are accepted, matching engine's
-     * {@code PureNativeSignatureParser.parsePType}:
-     *
-     * <ol>
-     *   <li>Function type: {@code {Type[mult], ... -> Type[mult]}} &mdash;
-     *       brace-delimited, comma-separated typed parameters, then an
-     *       arrow, then a typed result. Empty parameter list is legal
-     *       ({@code {->R[1]}}).</li>
-     *   <li>Inline relation type: {@code (col:Type[mult], ...)} &mdash;
-     *       paren-delimited. Each column's multiplicity defaults to
-     *       {@code [1]} when not declared (matches engine).</li>
-     *   <li>Generic application: {@code my::pkg::List<arg, ...>}, where
-     *       each {@code arg} is parsed by {@link #parseTypeArgument()}
-     *       which adds support for the schema-algebra operators
-     *       ({@code T+Z}, {@code T-Z}, {@code Z\u2286T}, {@code Z=K}).</li>
-     *   <li>Plain name reference: {@code my::pkg::Type} or a single
-     *       identifier like {@code T} (a type-parameter binder).</li>
-     * </ol>
-     *
-     * <p>Returns a structured {@link TypeExpression}. Callers store it
-     * directly; downstream consumers (NameResolver, type checker) walk
-     * the AST rather than re-parsing strings.
-     *
-     * <p>Schema-algebra operators ({@code +}, {@code -}, {@code \u2286},
-     * {@code =}) are <em>not</em> consumed at the top level &mdash; they
-     * only appear inside a generic argument list and are handled by
-     * {@link #parseTypeArgument()}, mirroring engine's split between
-     * {@code parsePType} and {@code parseTypeWithOperation}.
-     */
-    private TypeExpression parseType() {
-        if (peek() == TokenType.BRACE_OPEN) {
-            return parseFunctionTypeExpression();
-        }
-        if (peek() == TokenType.PAREN_OPEN) {
-            return parseRelationTypeExpression();
-        }
-        String name = parseQualifiedName();
-        if (!match(TokenType.LESS_THAN)) {
-            return new TypeExpression.NameRef(name);
-        }
-        List<TypeExpression> args = new ArrayList<>();
-        args.add(parseTypeArgument());
-        while (match(TokenType.COMMA)) {
-            args.add(parseTypeArgument());
-        }
-        expect(TokenType.GREATER_THAN);
-        return new TypeExpression.Generic(name, args);
-    }
-
-    /**
-     * Parse one entry inside a generic argument list, adding support
-     * for the schema-algebra operators that engine's
-     * {@code parseTypeWithOperation} recognises. Precedence (binding
-     * tightest first):
-     * <ol>
-     *   <li>{@code =} (equal), applied to the immediately-parsed base;</li>
-     *   <li>{@code +} / {@code -} (union / difference), left-leaning
-     *       chain on whatever the EQUAL stage produced;</li>
-     *   <li>{@code \u2286} (subset), applied last to the whole.</li>
-     * </ol>
-     * <p>If no operator follows, returns the plain {@link #parseType()}
-     * result unchanged.
-     */
-    private TypeExpression parseTypeArgument() {
-        TypeExpression result = parseType();
-        if (match(TokenType.EQUAL)) {
-            TypeExpression right = parseType();
-            result = new TypeExpression.SchemaAlgebra(result, TypeExpression.Op.EQUAL, right);
-        }
-        while (peek() == TokenType.PLUS || peek() == TokenType.MINUS) {
-            TypeExpression.Op op = match(TokenType.PLUS)
-                    ? TypeExpression.Op.UNION
-                    : (match(TokenType.MINUS) ? TypeExpression.Op.DIFFERENCE : null);
-            // op is non-null because the while-condition guaranteed one of the two matched.
-            TypeExpression right = parseType();
-            result = new TypeExpression.SchemaAlgebra(result, op, right);
-        }
-        if (match(TokenType.SUBSET)) {
-            TypeExpression superSet = parseType();
-            result = new TypeExpression.SchemaAlgebra(result, TypeExpression.Op.SUBSET, superSet);
-        }
-        return result;
-    }
-
-    /**
-     * Parse {@code {Type[mult], ... -> Type[mult]}}. The opening
-     * {@code '{'} has not yet been consumed.
-     */
-    private TypeExpression parseFunctionTypeExpression() {
-        expect(TokenType.BRACE_OPEN);
-        List<TypeExpression.TypedParameter> params = new ArrayList<>();
-        if (peek() != TokenType.ARROW) {
-            params.add(parseTypedParameter());
-            while (match(TokenType.COMMA)) {
-                params.add(parseTypedParameter());
-            }
-        }
-        expect(TokenType.ARROW);
-        TypeExpression resultType = parseType();
-        Multiplicity resultMult = parseMultiplicity();
-        expect(TokenType.BRACE_CLOSE);
-        return new TypeExpression.FunctionType(
-                params,
-                new TypeExpression.TypedParameter(resultType, resultMult));
-    }
-
-    /**
-     * Parse {@code (col:Type[mult], ...)}. The opening {@code '('}
-     * has not yet been consumed. Column multiplicity defaults to
-     * {@code [1]} when not declared (engine parity).
-     */
-    private TypeExpression parseRelationTypeExpression() {
-        expect(TokenType.PAREN_OPEN);
-        List<TypeExpression.Column> columns = new ArrayList<>();
-        if (peek() != TokenType.PAREN_CLOSE) {
-            columns.add(parseRelationColumn());
-            while (match(TokenType.COMMA)) {
-                columns.add(parseRelationColumn());
-            }
-        }
-        expect(TokenType.PAREN_CLOSE);
-        return new TypeExpression.RelationType(columns);
-    }
-
-    /**
-     * Parse one column in a {@link TypeExpression.RelationType}:
-     * {@code name : Type [mult]?}. The column name may be a literal
-     * {@code "?"} wildcard (used in the rename DSL
-     * {@code Z=(?:K)\u2286T}).
-     */
-    private TypeExpression.Column parseRelationColumn() {
-        String colName = match(TokenType.QUESTION) ? "?" : parseIdentifier();
-        expect(TokenType.COLON);
-        TypeExpression colType = parseType();
-        Multiplicity mult = (peek() == TokenType.BRACKET_OPEN)
-                ? parseMultiplicity()
-                : Multiplicity.exactly(1);
-        return new TypeExpression.Column(colName, colType, mult);
-    }
-
-    /**
-     * Parse {@code Type[mult]} &mdash; a typed parameter as used in a
-     * function-type signature.
-     */
-    private TypeExpression.TypedParameter parseTypedParameter() {
-        TypeExpression t = parseType();
-        Multiplicity mult = parseMultiplicity();
-        return new TypeExpression.TypedParameter(t, mult);
-    }
-
-    /**
-     * Parse a multiplicity annotation. Mirrors Pure's M3 grammar:
-     * <pre>
-     *   multiplicity         : '[' multiplicityArgument ']'
-     *   multiplicityArgument : identifier
-     *                        | ((fromMultiplicity '..')? toMultiplicity)
-     * </pre>
-     * <p>Examples:
-     * <ul>
-     *   <li>Concrete: {@code [1]}, {@code [0..1]}, {@code [*]}, {@code [1..*]}</li>
-     *   <li>Parameter: {@code [m]} &mdash; refers to a multiplicity parameter
-     *       declared in the enclosing function signature</li>
-     * </ul>
-     */
-    private Multiplicity parseMultiplicity() {
-        expect(TokenType.BRACKET_OPEN);
-        Multiplicity result;
-        if (match(TokenType.STAR)) {
-            result = Multiplicity.zeroMany();
-        } else if (peek() == TokenType.INTEGER) {
-            int lower = parseInt(consume(TokenType.INTEGER));
-            Integer upper;
-            if (match(TokenType.DOT_DOT)) {
-                upper = match(TokenType.STAR) ? null : parseInt(consume(TokenType.INTEGER));
-            } else {
-                upper = lower;
-            }
-            result = Multiplicity.range(lower, upper);
-        } else if (IDENTIFIER_TOKENS.contains(peek())) {
-            // Multiplicity parameter reference, e.g. [m] where m is declared
-            // in the function's <|m> parameter block.
-            result = Multiplicity.parameter(parseIdentifier());
-        } else {
-            error("expected multiplicity (integer, '*', or identifier) but got "
-                    + peek() + " ('" + safeText() + "')");
-            return null; // unreachable
-        }
-        expect(TokenType.BRACKET_CLOSE);
-        return result;
-    }
-
-    private static int parseInt(String s) {
-        try {
-            return Integer.parseInt(s);
-        } catch (NumberFormatException e) {
-            throw new ParseException("invalid integer literal '" + s + "'");
-        }
+    @Override
+    public void setPos(int pos) {
+        this.pos = pos;
     }
 
     /** {@code <<profile.stereotype, ...>>}; returns empty list if absent. */
@@ -2865,7 +2586,7 @@ public final class ElementParser {
     /** {@code { profile.tag = 'value', ... }}; returns empty list if not a tag block. */
     private List<TaggedValue> parseTaggedValues() {
         if (peek() != TokenType.BRACE_OPEN) return List.of();
-        if (!isTaggedValueStart()) return List.of();
+        if (!looksLikeTaggedValueBlock(tokens, pos)) return List.of();
 
         advance(); // skip {
         List<TaggedValue> result = new ArrayList<>();
@@ -2875,11 +2596,6 @@ public final class ElementParser {
         }
         expect(TokenType.BRACE_CLOSE);
         return result;
-    }
-
-    /** Lookahead for {@code { QN . id = STRING ...}} pattern; restores cursor on miss. */
-    private boolean isTaggedValueStart() {
-        return looksLikeTaggedValueBlock(tokens, pos);
     }
 
     /**
@@ -2916,40 +2632,6 @@ public final class ElementParser {
         return p < n && tokens.type(p) == TokenType.EQUAL;
     }
 
-    /**
-     * Throw a {@link ParseException} reporting the offending token's
-     * 1-indexed line and column derived from the source string. Shared so
-     * tools that produce parse errors outside an {@link ElementParser}
-     * instance &mdash; notably the IDE layer's {@code ModelIndexer} &mdash;
-     * can attach the
-     * same location information instead of falling back to byte offsets.
-     *
-     * @param tokens   the token stream the position refers to
-     * @param tokenPos token index whose start offset becomes the error point;
-     *                 if at or past the end of the stream the error is reported
-     *                 at end-of-input
-     * @param message  human-readable message; no location suffix needed (the
-     *                 exception carries line/column separately)
-     */
-    public static void throwAt(TokenStream tokens, int tokenPos, String message) {
-        int n = tokens.count();
-        int charPos;
-        if (tokenPos < n) {
-            charPos = tokens.start(tokenPos);
-        } else if (n > 0) {
-            charPos = tokens.end(n - 1);
-        } else {
-            throw new ParseException(message);
-        }
-        int line = 1, col = 0;
-        String src = tokens.source();
-        for (int i = 0; i < charPos && i < src.length(); i++) {
-            if (src.charAt(i) == '\n') { line++; col = 0; }
-            else col++;
-        }
-        throw new ParseException(message, line, col);
-    }
-
     private TaggedValue parseTaggedValue() {
         String profile = parseQualifiedName();
         expect(TokenType.DOT);
@@ -2964,61 +2646,10 @@ public final class ElementParser {
     }
 
     // ============================================================
-    // Token cursor
+    // Token cursor: peek/peek(int)/text/safeText/textEquals/advance/
+    // atEnd/match/expect/consume/error/parseIdentifier/parseQualifiedName
+    // all live on TokenStreamCursor as default methods. The local
+    // duplicates that used to sit here were removed when this class
+    // started implementing the interface.
     // ============================================================
-
-    private TokenType peek() {
-        return pos < count ? tokens.type(pos) : TokenType.EOF;
-    }
-
-    private TokenType peek(int offset) {
-        int idx = pos + offset;
-        return idx < count ? tokens.type(idx) : TokenType.EOF;
-    }
-
-    private String text() {
-        return tokens.text(pos);
-    }
-
-    private void advance() {
-        pos++;
-    }
-
-    private boolean atEnd() {
-        return pos >= count;
-    }
-
-    private void expect(TokenType type) {
-        if (peek() != type) {
-            error("expected " + type + " but found " + peek() + " ('" + safeText() + "')");
-        }
-        advance();
-    }
-
-    private boolean match(TokenType type) {
-        if (peek() == type) { advance(); return true; }
-        return false;
-    }
-
-    private String consume(TokenType type) {
-        if (peek() != type) {
-            error("expected " + type + " but found " + peek() + " ('" + safeText() + "')");
-        }
-        String t = text();
-        advance();
-        return t;
-    }
-
-    private String safeText() {
-        return pos < count ? text() : "<EOF>";
-    }
-
-    /** Whether the current token's source text equals {@code s} exactly (case-sensitive). */
-    private boolean textEquals(String s) {
-        return pos < count && s.equals(tokens.text(pos));
-    }
-
-    private void error(String message) {
-        throwAt(tokens, pos, message);
-    }
 }

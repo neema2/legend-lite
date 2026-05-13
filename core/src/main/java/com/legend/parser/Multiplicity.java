@@ -1,4 +1,4 @@
-package com.legend.parser.spec;
+package com.legend.parser;
 
 import java.util.Objects;
 
@@ -6,6 +6,16 @@ import java.util.Objects;
  * Multiplicity annotation for typed Pure declarations &mdash; the
  * bracketed part after a type, e.g. {@code Integer[1]},
  * {@code String[0..1]}, {@code Person[*]}.
+ *
+ * <p>Lives at the top of the {@code parser} package because it is
+ * shared between element declarations (property / parameter / return
+ * multiplicities) and value specifications (lambda parameter
+ * multiplicities). Was previously duplicated as
+ * {@code parser.element.Multiplicity} (with {@code lower}/{@code upper}
+ * field names) and {@code parser.spec.Multiplicity} (with
+ * {@code lowerBound}/{@code upperBound}). This consolidation keeps the
+ * engine-protocol-faithful {@code lowerBound}/{@code upperBound} names
+ * and merges both APIs.
  *
  * <p>Two concrete cases:
  *
@@ -39,16 +49,6 @@ import java.util.Objects;
  * {@code Multiplicity} core-instance carries both numeric bounds
  * <em>and</em> a separate {@code multiplicityParameter} slot; an
  * instance has one populated and the other empty.
- *
- * <h2>Why this lives in {@code parser/spec/}</h2>
- *
- * <p>{@link Multiplicity} is referenced from {@link Variable}
- * (lambda parameter annotations) and will be referenced from the
- * {@code TypeAnnotation} record (C.7) and from {@code ElementParser}
- * once it migrates off raw {@code int[]} for property/function
- * multiplicities. Keeping it next to {@link ValueSpecification} keeps
- * the parser-spec types in one place; if it grows additional
- * non-spec consumers it can move to its own package later.
  */
 public sealed interface Multiplicity permits Multiplicity.Concrete, Multiplicity.Parameter {
 
@@ -95,6 +95,13 @@ public sealed interface Multiplicity permits Multiplicity.Concrete, Multiplicity
         public boolean isToOne() {
             return upperBound != null && upperBound == 1;
         }
+
+        @Override
+        public String toString() {
+            if (upperBound == null) return lowerBound == 0 ? "[*]" : "[" + lowerBound + "..*]";
+            if (lowerBound == upperBound.intValue()) return "[" + lowerBound + "]";
+            return "[" + lowerBound + ".." + upperBound + "]";
+        }
     }
 
     /**
@@ -111,5 +118,32 @@ public sealed interface Multiplicity permits Multiplicity.Concrete, Multiplicity
                 throw new IllegalArgumentException("multiplicity parameter name must be non-empty");
             }
         }
+
+        @Override
+        public String toString() {
+            return "[" + name + "]";
+        }
+    }
+
+    // ========== Factories ==========
+
+    /** {@code [n]} where {@code n} is a fixed integer. */
+    static Multiplicity exactly(int n) {
+        return new Concrete(n, n);
+    }
+
+    /** {@code [lower..upper]}; pass {@code null} for unbounded upper. */
+    static Multiplicity range(int lower, Integer upper) {
+        return new Concrete(lower, upper);
+    }
+
+    /** {@code [*]} &mdash; zero or more, unbounded. */
+    static Multiplicity zeroMany() {
+        return new Concrete(0, null);
+    }
+
+    /** {@code [m]} where {@code m} is a multiplicity parameter name. */
+    static Multiplicity parameter(String name) {
+        return new Parameter(name);
     }
 }

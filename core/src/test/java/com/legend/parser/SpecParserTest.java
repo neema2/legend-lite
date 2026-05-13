@@ -19,7 +19,7 @@ import com.legend.parser.spec.ColSpecArray;
 import com.legend.parser.spec.EnumValue;
 import com.legend.parser.spec.KeyExpression;
 import com.legend.parser.spec.LambdaFunction;
-import com.legend.parser.spec.Multiplicity;
+import com.legend.parser.Multiplicity;
 import com.legend.parser.spec.NewInstance;
 import com.legend.parser.spec.PackageableElementPtr;
 import com.legend.parser.spec.PureCollection;
@@ -34,6 +34,8 @@ import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 
+import static com.legend.parser.TypeExpressionFixtures.nr;
+import static com.legend.parser.TypeExpressionFixtures.tg;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -511,11 +513,13 @@ final class SpecParserTest {
 
     @Test
     void arrowWithoutFunctionNameRejected() {
-        // Disjunction would let weaker messages slip through; my parser
-        // emits BOTH substrings, so pin the exact (more specific) phrase.
+        // After the FQN parser was consolidated onto TokenStreamCursor,
+        // the missing-identifier message comes from the shared default:
+        // 'expected type name, got EOF'. Pin the new (still descriptive,
+        // still source-located) phrase.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("$x->"));
-        assertTrue(ex.getMessage().contains("qualified-name start"),
+        assertTrue(ex.getMessage().contains("expected type name"),
                 () -> "want missing-identifier error, got: " + ex.getMessage());
     }
 
@@ -890,7 +894,7 @@ final class SpecParserTest {
                 new AppliedFunction("new", List.of(
                         new PackageableElementPtr("Pair"),
                         new NewInstance("Pair",
-                                List.of("Integer", "String"),
+                                List.of(nr("Integer"), nr("String")),
                                 Map.of(
                                         "first", new KeyExpression(new CInteger(1L)),
                                         "second", new KeyExpression(new CString("a")))))),
@@ -1057,7 +1061,7 @@ final class SpecParserTest {
         // it, but parseCombinedExpression / parsePrimary do not. So
         // 'let' nested in an arithmetic expression must error.
         //
-        // SUBTLETY: LET is in ElementParser.IDENTIFIER_TOKENS (so that
+        // SUBTLETY: LET is in TokenStreamCursor.IDENTIFIER_TOKENS (so that
         // '$let' parses as a variable with that name). As a result,
         // mid-expression 'let' is silently absorbed as
         // PackageableElementPtr("let"), and the subsequent
@@ -1348,7 +1352,7 @@ final class SpecParserTest {
         assertEquals(
                 new LambdaFunction(
                         List.of(new Variable(
-                                "p", "Integer", Multiplicity.Concrete.PURE_ONE)),
+                                "p", nr("Integer"), Multiplicity.Concrete.PURE_ONE)),
                         List.of(new Variable("p"))),
                 SpecParser.parse("{p: Integer[1] | $p}"));
     }
@@ -1362,9 +1366,9 @@ final class SpecParserTest {
         assertEquals(
                 new LambdaFunction(
                         List.of(
-                                new Variable("p", "Integer",
+                                new Variable("p", nr("Integer"),
                                         Multiplicity.Concrete.PURE_ONE),
-                                new Variable("q", "String",
+                                new Variable("q", nr("String"),
                                         Multiplicity.Concrete.ZERO_MANY)),
                         List.of(new AppliedFunction("plus", List.of(
                                 new Variable("p"), new Variable("q"))))),
@@ -1381,7 +1385,7 @@ final class SpecParserTest {
         assertEquals(
                 new LambdaFunction(
                         List.of(new Variable(
-                                "p", "Integer", Multiplicity.Concrete.PURE_ONE)),
+                                "p", nr("Integer"), Multiplicity.Concrete.PURE_ONE)),
                         List.of(new AppliedFunction("plus", List.of(
                                 new Variable("p"), new CInteger(1L))))),
                 SpecParser.parse("p: Integer[1] | $p + 1"));
@@ -1394,7 +1398,7 @@ final class SpecParserTest {
         assertEquals(
                 new LambdaFunction(
                         List.of(new Variable(
-                                "p", "my::pkg::Person",
+                                "p", nr("my::pkg::Person"),
                                 Multiplicity.Concrete.PURE_ONE)),
                         List.of(new AppliedProperty(
                                 new Variable("p"), "age"))),
@@ -1416,7 +1420,7 @@ final class SpecParserTest {
         assertEquals(
                 new LambdaFunction(
                         List.of(new Variable(
-                                "p", "Pair<Integer,String>",
+                                "p", tg("Pair", nr("Integer"), nr("String")),
                                 Multiplicity.Concrete.PURE_ONE)),
                         List.of(new AppliedProperty(
                                 new Variable("p"), "first"))),
@@ -1466,7 +1470,7 @@ final class SpecParserTest {
         assertEquals(
                 new LambdaFunction(
                         List.of(new Variable(
-                                "p", "T", new Multiplicity.Parameter("m"))),
+                                "p", nr("T"), new Multiplicity.Parameter("m"))),
                         List.of(new Variable("p"))),
                 SpecParser.parse("{p: T[m] | $p}"));
     }
@@ -1482,7 +1486,7 @@ final class SpecParserTest {
                                 new PackageableElementPtr("Person"))),
                         new LambdaFunction(
                                 List.of(new Variable(
-                                        "p", "Person",
+                                        "p", nr("Person"),
                                         Multiplicity.Concrete.PURE_ONE)),
                                 List.of(new AppliedFunction("greaterThan", List.of(
                                         new AppliedProperty(new Variable("p"), "age"),
@@ -1500,8 +1504,9 @@ final class SpecParserTest {
         // type information that the type-checker needs).
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("{p: Integer | $p}"));
-        assertTrue(ex.getMessage().contains("'['")
-                        && ex.getMessage().contains("multiplicity"),
+        // Error comes from the shared TypeExpressionParser when its
+        // parseMultiplicity sees a non-'[' token after the type.
+        assertTrue(ex.getMessage().contains("BRACKET_OPEN"),
                 () -> "want missing-multiplicity error, got: " + ex.getMessage());
     }
 
@@ -1510,7 +1515,7 @@ final class SpecParserTest {
         // 'p: T[1..]' \u2014 missing upper bound after '..'.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("{p: T[1..] | $p}"));
-        assertTrue(ex.getMessage().contains("upper bound"),
+        assertTrue(ex.getMessage().contains("after '..' in multiplicity"),
                 () -> "want missing-upper-bound error, got: " + ex.getMessage());
     }
 
@@ -1527,7 +1532,7 @@ final class SpecParserTest {
                 new LambdaFunction(
                         List.of(
                                 new Variable("p"),
-                                new Variable("q", "String",
+                                new Variable("q", nr("String"),
                                         Multiplicity.Concrete.PURE_ONE)),
                         List.of(new AppliedFunction("plus", List.of(
                                 new Variable("p"), new Variable("q"))))),
@@ -1544,8 +1549,10 @@ final class SpecParserTest {
         // pass; the explicit error path is the right behaviour.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("{p: Pair<Integer | $p}"));
-        assertTrue(ex.getMessage().contains("unterminated")
-                        && ex.getMessage().contains("type-argument"),
+        // After flipping to structured TypeExpression, the inner
+        // parseTypeArgument call hits EOF inside <...> and the
+        // shared helper reports the expected closing GREATER_THAN.
+        assertTrue(ex.getMessage().contains("GREATER_THAN"),
                 () -> "want unterminated-type-args error, got: " + ex.getMessage());
     }
 
@@ -1558,7 +1565,7 @@ final class SpecParserTest {
         // as ZERO_MANY or PURE_ONE would fail this test.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("{p: T[] | $p}"));
-        assertTrue(ex.getMessage().contains("unexpected token in multiplicity"),
+        assertTrue(ex.getMessage().contains("multiplicity bound or parameter"),
                 () -> "want empty-multiplicity error, got: " + ex.getMessage());
     }
 
@@ -1669,7 +1676,7 @@ final class SpecParserTest {
     void variableNameMayBeAKeyword() {
         // Pure permits identifiers that lex as keyword tokens (let,
         // class, all, etc.) in any position where an identifier is
-        // expected. SpecParser borrows ElementParser.IDENTIFIER_TOKENS
+        // expected. SpecParser borrows TokenStreamCursor.IDENTIFIER_TOKENS
         // for this. Pin the bridge so a future tightening of the
         // keyword list doesn't silently break variable parsing.
         assertEquals(new Variable("let"), SpecParser.parse("$let"));
@@ -1814,7 +1821,7 @@ final class SpecParserTest {
                 new ColSpec("total",
                         new LambdaFunction(
                                 List.of(new Variable(
-                                        "x", "Integer",
+                                        "x", nr("Integer"),
                                         Multiplicity.Concrete.PURE_ONE)),
                                 List.of(new Variable("x"))),
                         null),
@@ -1977,7 +1984,7 @@ final class SpecParserTest {
         // type in '$x->cast(@Integer)'. Pin the Named variant with
         // record equality.
         assertEquals(
-                new TypeAnnotation.Named("Integer"),
+                new TypeAnnotation.Named(nr("Integer")),
                 SpecParser.parse("@Integer"));
     }
 
@@ -1987,7 +1994,7 @@ final class SpecParserTest {
         // PATH_SEPARATOR ('::') flows through parseQualifiedName,
         // and the result is one Named with the full path preserved.
         assertEquals(
-                new TypeAnnotation.Named("my::pkg::Foo"),
+                new TypeAnnotation.Named(nr("my::pkg::Foo")),
                 SpecParser.parse("@my::pkg::Foo"));
     }
 
@@ -2000,7 +2007,7 @@ final class SpecParserTest {
         // fire; we fall through to the depth-tracked angle-bracket
         // collection.
         assertEquals(
-                new TypeAnnotation.Named("List<Integer>"),
+                new TypeAnnotation.Named(tg("List", nr("Integer"))),
                 SpecParser.parse("@List<Integer>"));
     }
 
@@ -2011,7 +2018,7 @@ final class SpecParserTest {
         // where the inner '>' would close the outer angle pair
         // prematurely.
         assertEquals(
-                new TypeAnnotation.Named("Map<String,List<Integer>>"),
+                new TypeAnnotation.Named(tg("Map", nr("String"), tg("List", nr("Integer")))),
                 SpecParser.parse("@Map<String, List<Integer>>"));
     }
 
@@ -2025,11 +2032,11 @@ final class SpecParserTest {
                 new TypeAnnotation.RelationShape(List.of(
                         new TypeAnnotation.RelationShape.Column(
                                 "name",
-                                new TypeAnnotation.Named("String"),
+                                new TypeAnnotation.Named(nr("String")),
                                 null),
                         new TypeAnnotation.RelationShape.Column(
                                 "age",
-                                new TypeAnnotation.Named("Integer"),
+                                new TypeAnnotation.Named(nr("Integer")),
                                 null))),
                 SpecParser.parse("@Relation<(name:String, age:Integer)>"));
     }
@@ -2046,11 +2053,11 @@ final class SpecParserTest {
                 new TypeAnnotation.RelationShape(List.of(
                         new TypeAnnotation.RelationShape.Column(
                                 "id",
-                                new TypeAnnotation.Named("Integer"),
+                                new TypeAnnotation.Named(nr("Integer")),
                                 Multiplicity.Concrete.PURE_ONE),
                         new TypeAnnotation.RelationShape.Column(
                                 "optional",
-                                new TypeAnnotation.Named("String"),
+                                new TypeAnnotation.Named(nr("String")),
                                 Multiplicity.Concrete.ZERO_ONE))),
                 SpecParser.parse(
                         "@Relation<(id:Integer[1], optional:String[0..1])>"));
@@ -2066,11 +2073,11 @@ final class SpecParserTest {
                 new TypeAnnotation.RelationShape(List.of(
                         new TypeAnnotation.RelationShape.Column(
                                 "city",
-                                new TypeAnnotation.Named("String"),
+                                new TypeAnnotation.Named(nr("String")),
                                 null),
                         new TypeAnnotation.RelationShape.Column(
                                 "2011__|__newCol",
-                                new TypeAnnotation.Named("Integer"),
+                                new TypeAnnotation.Named(nr("Integer")),
                                 null))),
                 SpecParser.parse(
                         "@Relation<(city:String, '2011__|__newCol':Integer)>"));
@@ -2091,7 +2098,7 @@ final class SpecParserTest {
                                 null),
                         new TypeAnnotation.RelationShape.Column(
                                 "name",
-                                new TypeAnnotation.Named("String"),
+                                new TypeAnnotation.Named(nr("String")),
                                 null))),
                 SpecParser.parse("@Relation<(?:?, name:String)>"));
     }
@@ -2109,7 +2116,7 @@ final class SpecParserTest {
                 new TypeAnnotation.RelationShape(List.of(
                         new TypeAnnotation.RelationShape.Column(
                                 null,
-                                new TypeAnnotation.Named("String"),
+                                new TypeAnnotation.Named(nr("String")),
                                 null),
                         new TypeAnnotation.RelationShape.Column(
                                 "name",
@@ -2131,11 +2138,11 @@ final class SpecParserTest {
                 new TypeAnnotation.RelationShape(List.of(
                         new TypeAnnotation.RelationShape.Column(
                                 "owner",
-                                new TypeAnnotation.Named("my::pkg::Firm"),
+                                new TypeAnnotation.Named(nr("my::pkg::Firm")),
                                 null),
                         new TypeAnnotation.RelationShape.Column(
                                 "tags",
-                                new TypeAnnotation.Named("List<String>"),
+                                new TypeAnnotation.Named(tg("List", nr("String"))),
                                 null))),
                 SpecParser.parse(
                         "@Relation<(owner:my::pkg::Firm, tags:List<String>)>"));
@@ -2160,7 +2167,7 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("cast", List.of(
                         new Variable("x"),
-                        new TypeAnnotation.Named("Integer"))),
+                        new TypeAnnotation.Named(nr("Integer")))),
                 SpecParser.parse("$x->cast(@Integer)"));
     }
 
@@ -2175,11 +2182,11 @@ final class SpecParserTest {
                         new TypeAnnotation.RelationShape(List.of(
                                 new TypeAnnotation.RelationShape.Column(
                                         "city",
-                                        new TypeAnnotation.Named("String"),
+                                        new TypeAnnotation.Named(nr("String")),
                                         null),
                                 new TypeAnnotation.RelationShape.Column(
                                         "country",
-                                        new TypeAnnotation.Named("String"),
+                                        new TypeAnnotation.Named(nr("String")),
                                         null))))),
                 SpecParser.parse(
                         "$rel->cast(@Relation<(city:String, country:String)>)"));
@@ -2238,8 +2245,9 @@ final class SpecParserTest {
         // depth-tracker reaches the EOF guard and throws.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("@List<Integer"));
-        assertTrue(ex.getMessage().contains("unterminated")
-                        && ex.getMessage().contains("type-argument"),
+        // parseTypeArguments delegates the closing '>' check directly;
+        // the missing token surfaces as a 'close type arguments' error.
+        assertTrue(ex.getMessage().contains("close type arguments"),
                 () -> "want unterminated-generics error, got: "
                         + ex.getMessage());
     }
@@ -2457,9 +2465,9 @@ final class SpecParserTest {
         assertEquals(
                 new LambdaFunction(
                         List.of(
-                                new Variable("a", "Integer",
+                                new Variable("a", nr("Integer"),
                                         Multiplicity.Concrete.PURE_ONE),
-                                new Variable("b", "Integer",
+                                new Variable("b", nr("Integer"),
                                         Multiplicity.Concrete.PURE_ONE)),
                         List.of(new AppliedFunction("minus", List.of(
                                 new Variable("a"),

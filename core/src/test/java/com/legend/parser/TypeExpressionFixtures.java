@@ -1,12 +1,16 @@
-package com.legend.parser.element;
+package com.legend.parser;
 
-import com.legend.parser.element.TypeExpression.Column;
-import com.legend.parser.element.TypeExpression.Generic;
-import com.legend.parser.element.TypeExpression.NameRef;
-import com.legend.parser.element.TypeExpression.Op;
-import com.legend.parser.element.TypeExpression.RelationType;
-import com.legend.parser.element.TypeExpression.SchemaAlgebra;
-import com.legend.parser.element.TypeExpression.TypedParameter;
+import com.legend.parser.TypeExpression;
+
+import com.legend.parser.Multiplicity;
+
+import com.legend.parser.TypeExpression.Column;
+import com.legend.parser.TypeExpression.Generic;
+import com.legend.parser.TypeExpression.NameRef;
+import com.legend.parser.TypeExpression.Op;
+import com.legend.parser.TypeExpression.RelationType;
+import com.legend.parser.TypeExpression.SchemaAlgebra;
+import com.legend.parser.TypeExpression.TypedParameter;
 
 import java.util.List;
 

@@ -1,5 +1,7 @@
 package com.legend.parser.spec;
 
+import com.legend.parser.TypeExpression;
+
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -27,8 +29,8 @@ import java.util.Objects;
  *       {@code NewInstance("my::pkg::MyClass", [], {})} (zero
  *       bindings is legal)</li>
  *   <li>{@code ^Pair<Integer, String>(first=1, second='a')} &rarr;
- *       {@code NewInstance("Pair", ["Integer", "String"], {...})}
- *       (parametric class with type arguments)</li>
+ *       {@code NewInstance("Pair", [NameRef("Integer"), NameRef("String")],
+ *       {...})} (parametric class with type arguments)</li>
  *   <li>{@code ^MyClass(xs += 1, xs += 2)} &rarr;
  *       <em>only the second binding survives</em>: parse-time
  *       last-wins via the underlying {@link LinkedHashMap}, matching
@@ -36,9 +38,11 @@ import java.util.Objects;
  *       carries {@code isAdd=true}.</li>
  * </ul>
  *
- * <p>Type arguments are preserved as source-level strings (e.g.
- * {@code "Integer"}, {@code "my::pkg::Foo"}); structural type
- * resolution happens in the Element / Expression compiler.
+ * <p>Type arguments are preserved as structured
+ * {@link TypeExpression}s (most often {@code NameRef}s; arbitrary
+ * nested generics supported). Symmetric to lambda parameter types
+ * and element-side property/parameter types &mdash; a single AST
+ * walk in NameResolver rewrites every name reference.
  *
  * <h2>Shape rationale</h2>
  *
@@ -68,14 +72,14 @@ import java.util.Objects;
  *
  * @param className      class FQN as written in source (simple or
  *                       {@code ::}-qualified)
- * @param typeArguments  source-level type-argument names (empty
+ * @param typeArguments  structured type-argument expressions (empty
  *                       list when the class is non-parametric)
  * @param properties     property bindings keyed by source name;
  *                       insertion order preserved via {@link LinkedHashMap}
  */
 public record NewInstance(
         String className,
-        List<String> typeArguments,
+        List<TypeExpression> typeArguments,
         Map<String, KeyExpression> properties) implements ValueSpecification {
 
     public NewInstance {

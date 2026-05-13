@@ -1,4 +1,4 @@
-package com.legend.parser.element;
+package com.legend.parser;
 
 import java.util.List;
 import java.util.Objects;

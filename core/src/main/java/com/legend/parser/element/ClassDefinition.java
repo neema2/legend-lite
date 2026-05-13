@@ -1,5 +1,9 @@
 package com.legend.parser.element;
 
+import com.legend.parser.TypeExpression;
+
+import com.legend.parser.Multiplicity;
+
 import com.legend.parser.spec.ValueSpecification;
 
 import java.util.List;

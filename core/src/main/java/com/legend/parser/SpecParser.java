@@ -21,7 +21,8 @@ import com.legend.parser.spec.ColumnInstance;
 import com.legend.parser.spec.EnumValue;
 import com.legend.parser.spec.KeyExpression;
 import com.legend.parser.spec.LambdaFunction;
-import com.legend.parser.spec.Multiplicity;
+import com.legend.parser.Multiplicity;
+import com.legend.parser.TypeExpression;
 import com.legend.parser.spec.NewInstance;
 import com.legend.parser.spec.PackageableElementPtr;
 import com.legend.parser.spec.PureCollection;
@@ -193,7 +194,7 @@ import java.util.Objects;
  * matches {@link ElementParser}'s contract and prevents silent
  * truncation when the source contains more than one expression.
  */
-public final class SpecParser {
+public final class SpecParser implements TokenStreamCursor {
 
     private final TokenStream tokens;
     private int pos;
@@ -220,10 +221,9 @@ public final class SpecParser {
     public static ValueSpecification parse(TokenStream tokens) {
         SpecParser parser = new SpecParser(tokens);
         ValueSpecification result = parser.parseProgramLine();
-        if (parser.pos < tokens.count()) {
-            ElementParser.throwAt(tokens, parser.pos,
-                    "trailing tokens after expression: " + tokens.type(parser.pos)
-                    + " ('" + safeText(tokens, parser.pos) + "')");
+        if (!parser.atEnd()) {
+            throw parser.error("trailing tokens after expression: "
+                    + parser.peek() + " ('" + parser.safeText() + "')");
         }
         return result;
     }
@@ -253,10 +253,9 @@ public final class SpecParser {
     public static List<ValueSpecification> parseCodeBlock(TokenStream tokens) {
         SpecParser parser = new SpecParser(tokens);
         List<ValueSpecification> stmts = parser.parseCodeBlockUntil(null);
-        if (parser.pos < tokens.count()) {
-            ElementParser.throwAt(tokens, parser.pos,
-                    "trailing tokens after code block: " + tokens.type(parser.pos)
-                    + " ('" + safeText(tokens, parser.pos) + "')");
+        if (!parser.atEnd()) {
+            throw parser.error("trailing tokens after code block: "
+                    + parser.peek() + " ('" + parser.safeText() + "')");
         }
         return stmts;
     }
@@ -345,15 +344,9 @@ public final class SpecParser {
             varName = tokens.text(pos);
             pos++;
         } else {
-            ElementParser.throwAt(tokens, pos,
-                    "expected variable name after 'let'");
-            return null; // unreachable
+            throw error("expected variable name after 'let'");
         }
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.EQUAL) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected '=' after 'let " + varName + "'");
-        }
-        pos++; // consume '='
+        expect(TokenType.EQUAL, "expected '=' after 'let " + varName + "'");
         ValueSpecification value = parseCombinedExpression();
         return new AppliedFunction(
                 "letFunction",
@@ -589,7 +582,7 @@ public final class SpecParser {
      */
     private ValueSpecification parsePrimary() {
         if (pos >= tokens.count()) {
-            ElementParser.throwAt(tokens, pos, "expected expression, got end of input");
+            throw error( "expected expression, got end of input");
         }
         TokenType t = tokens.type(pos);
         return switch (t) {
@@ -614,7 +607,7 @@ public final class SpecParser {
             case TDS_LITERAL -> parseTdsLiteral();
             case ISLAND_OPEN -> parseDsl();
             default -> {
-                if (ElementParser.IDENTIFIER_TOKENS.contains(t)) {
+                if (isIdentifierToken(t)) {
                     // Single-param lambda shorthand: 'x | body'. The
                     // lookahead must NOT cross a PATH_SEPARATOR, since
                     // 'my::pkg' is never a lambda parameter (lambda
@@ -637,10 +630,8 @@ public final class SpecParser {
                     }
                     yield parseQualifiedNameStart();
                 }
-                ElementParser.throwAt(tokens, pos,
-                        "unsupported expression token: " + t
-                        + " ('" + safeText(tokens, pos) + "')");
-                yield null; // unreachable; throwAt does not return
+                throw error("unsupported expression token: " + t
+                        + " ('" + safeText() + "')");
             }
         };
     }
@@ -732,8 +723,7 @@ public final class SpecParser {
     private CString parseString() {
         String raw = tokens.text(pos);
         if (raw.length() < 2 || raw.charAt(0) != '\'' || raw.charAt(raw.length() - 1) != '\'') {
-            ElementParser.throwAt(tokens, pos,
-                    "malformed string literal: missing surrounding quotes");
+            throw error("malformed string literal: missing surrounding quotes");
         }
         String body = raw.substring(1, raw.length() - 1);
         String unescaped = unescapeString(body);
@@ -749,8 +739,7 @@ public final class SpecParser {
             char c = body.charAt(i);
             if (c != '\\') { sb.append(c); i++; continue; }
             if (i + 1 >= body.length()) {
-                ElementParser.throwAt(tokens, pos,
-                        "malformed string literal: trailing backslash");
+                throw error("malformed string literal: trailing backslash");
             }
             char esc = body.charAt(i + 1);
             switch (esc) {
@@ -759,7 +748,7 @@ public final class SpecParser {
                 case 'n' -> sb.append('\n');
                 case 't' -> sb.append('\t');
                 case 'r' -> sb.append('\r');
-                default -> ElementParser.throwAt(tokens, pos,
+                default -> throw error(
                         "malformed string literal: unsupported escape '\\" + esc + "'");
             }
             i += 2;
@@ -790,8 +779,7 @@ public final class SpecParser {
     private ValueSpecification parseDateOrDateTime() {
         String raw = tokens.text(pos);
         if (raw.isEmpty() || raw.charAt(0) != '%') {
-            ElementParser.throwAt(tokens, pos,
-                    "malformed date literal: expected leading '%'");
+            throw error("malformed date literal: expected leading '%'");
         }
         String value = raw.substring(1);
         int datePos = pos;
@@ -799,17 +787,15 @@ public final class SpecParser {
         try {
             return new CDate(PureDateLiteral.parse(value));
         } catch (IllegalArgumentException e) {
-            ElementParser.throwAt(tokens, datePos,
+            throw TokenStreamCursor.throwAt(tokens, datePos,
                     "invalid date literal '%" + value + "': " + e.getMessage());
-            throw new IllegalStateException("unreachable", e);
         }
     }
 
     private CTime parseStrictTime() {
         String raw = tokens.text(pos);
         if (raw.isEmpty() || raw.charAt(0) != '%') {
-            ElementParser.throwAt(tokens, pos,
-                    "malformed time literal: expected leading '%'");
+            throw error("malformed time literal: expected leading '%'");
         }
         int timePos = pos;
         pos++;
@@ -817,9 +803,8 @@ public final class SpecParser {
         try {
             return new CTime(PureTimeLiteral.parse(value));
         } catch (IllegalArgumentException e) {
-            ElementParser.throwAt(tokens, timePos,
+            throw TokenStreamCursor.throwAt(tokens, timePos,
                     "invalid time literal '%" + value + "': " + e.getMessage());
-            throw new IllegalStateException("unreachable", e);
         }
     }
 
@@ -840,9 +825,8 @@ public final class SpecParser {
      */
     private Variable parseVariable() {
         pos++; // consume '$'
-        if (pos >= tokens.count() || !ElementParser.IDENTIFIER_TOKENS.contains(tokens.type(pos))) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected identifier after '$' to form a variable reference");
+        if (!isIdentifierToken(peek())) {
+            throw error("expected identifier after '$' to form a variable reference");
         }
         String name = tokens.text(pos);
         pos++;
@@ -870,16 +854,11 @@ public final class SpecParser {
         while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
             pos++; // consume ','
             if (pos < tokens.count() && tokens.type(pos) == TokenType.BRACKET_CLOSE) {
-                ElementParser.throwAt(tokens, pos,
-                        "trailing comma in collection literal");
+                throw error("trailing comma in collection literal");
             }
             values.add(parseCombinedExpression());
         }
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.BRACKET_CLOSE) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected ']' to close collection literal");
-        }
-        pos++; // consume ']'
+        expect(TokenType.BRACKET_CLOSE, "expected ']' to close collection literal");
         return new PureCollection(values);
     }
 
@@ -901,11 +880,7 @@ public final class SpecParser {
         // users a way to override Pure's flat-arithmetic precedence,
         // e.g. '1 + (2 * 3)' to force right-side grouping.
         ValueSpecification inner = parseCombinedExpression();
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_CLOSE) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected ')' to close parenthesised expression");
-        }
-        pos++; // consume ')'
+        expect(TokenType.PAREN_CLOSE, "expected ')' to close parenthesised expression");
         return inner;
     }
 
@@ -1022,11 +997,7 @@ public final class SpecParser {
      * args are legal (business-from, business-thru).
      */
     private AppliedFunction parseAllCall(String fqn) {
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_OPEN) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected '(' after '.all'");
-        }
-        pos++; // consume '('
+        expect(TokenType.PAREN_OPEN, "expected '(' after '.all'");
         List<ValueSpecification> args = new ArrayList<>();
         args.add(new PackageableElementPtr(fqn));
         if (pos < tokens.count() && tokens.type(pos) != TokenType.PAREN_CLOSE) {
@@ -1036,47 +1007,23 @@ public final class SpecParser {
                 args.add(parseMilestoningExpression());
             }
         }
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_CLOSE) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected ')' to close '.all(...)'");
-        }
-        pos++; // consume ')'
+        expect(TokenType.PAREN_CLOSE, "expected ')' to close '.all(...)'");
         return new AppliedFunction("getAll", args);
     }
 
     private AppliedFunction parseAllVersionsCall(String fqn) {
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_OPEN) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected '(' after '.allVersions'");
-        }
-        pos++; // '('
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_CLOSE) {
-            ElementParser.throwAt(tokens, pos,
-                    "'.allVersions()' takes no arguments");
-        }
-        pos++; // ')'
+        expect(TokenType.PAREN_OPEN, "expected '(' after '.allVersions'");
+        expect(TokenType.PAREN_CLOSE, "'.allVersions()' takes no arguments");
         return new AppliedFunction("getAllVersions",
                 List.of(new PackageableElementPtr(fqn)));
     }
 
     private AppliedFunction parseAllVersionsInRangeCall(String fqn) {
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_OPEN) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected '(' after '.allVersionsInRange'");
-        }
-        pos++; // '('
+        expect(TokenType.PAREN_OPEN, "expected '(' after '.allVersionsInRange'");
         ValueSpecification start = parseMilestoningExpression();
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.COMMA) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected ',' between range endpoints in '.allVersionsInRange'");
-        }
-        pos++; // ','
+        expect(TokenType.COMMA, "expected ',' between range endpoints in '.allVersionsInRange'");
         ValueSpecification end = parseMilestoningExpression();
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_CLOSE) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected ')' to close '.allVersionsInRange(...)'");
-        }
-        pos++; // ')'
+        expect(TokenType.PAREN_CLOSE, "expected ')' to close '.allVersionsInRange(...)'");
         return new AppliedFunction("getAllVersionsInRange",
                 List.of(new PackageableElementPtr(fqn), start, end));
     }
@@ -1091,56 +1038,20 @@ public final class SpecParser {
      */
     private ValueSpecification parseMilestoningExpression() {
         if (pos >= tokens.count()) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected milestoning expression (%date, %latest, or $variable)");
+            throw error("expected milestoning expression (%date, %latest, or $variable)");
         }
         TokenType t = tokens.type(pos);
         if (t == TokenType.LATEST_DATE) return parseLatestDate();
         if (t == TokenType.DATE) return parseDateOrDateTime();
         if (t == TokenType.DOLLAR) return parseVariable();
-        ElementParser.throwAt(tokens, pos,
+        throw error(
                 "expected milestoning expression (%date, %latest, or $variable), got "
-                + t + " ('" + safeText(tokens, pos) + "')");
-        return null; // unreachable
+                + t + " ('" + safeText() + "')");
     }
 
-    /**
-     * IDENT ({@code ::} IDENT)* &rarr; reconstructed FQN string. Uses
-     * {@link ElementParser#IDENTIFIER_TOKENS} so that keyword-as-
-     * identifier names ({@code let}, {@code class}, {@code all}, ...)
-     * are admitted everywhere an identifier is required, matching the
-     * element parser's contract.
-     */
-    private String parseQualifiedName() {
-        if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected identifier (qualified-name start)");
-        }
-        StringBuilder sb = new StringBuilder();
-        sb.append(tokens.text(pos));
-        pos++;
-        while (pos + 1 < tokens.count()
-                && tokens.type(pos) == TokenType.PATH_SEPARATOR
-                && isFqnSegmentToken(tokens.type(pos + 1))) {
-            sb.append("::").append(tokens.text(pos + 1));
-            pos += 2;
-        }
-        return sb.toString();
-    }
-
-    /**
-     * FQN segments may be any identifier-shaped token EXCEPT
-     * {@link TokenType#STRING}. The element parser admits {@code STRING}
-     * as an "identifier" in some keyword positions (which is why
-     * {@link ElementParser#IDENTIFIER_TOKENS} includes it), but a Pure
-     * qualified name like {@code foo::'bar'} is not legal: FQN
-     * components are bare identifiers. Filtering {@code STRING} out
-     * here keeps a stray quoted string from sneaking into an FQN
-     * field with its surrounding quotes intact.
-     */
-    private static boolean isFqnSegmentToken(TokenType t) {
-        return t != TokenType.STRING && ElementParser.IDENTIFIER_TOKENS.contains(t);
-    }
+    // parseQualifiedName(), isFqnSegmentToken(TokenType), and
+    // isIdentifierToken(TokenType) are inherited from
+    // TokenStreamCursor; call sites reference them directly.
 
     // -------------------------------------------------------------------
     // Postfix operators: '.' and '->'
@@ -1164,8 +1075,7 @@ public final class SpecParser {
     private ValueSpecification parseDotPostfix(ValueSpecification receiver) {
         pos++; // consume '.'
         if (pos >= tokens.count()) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected property name after '.'");
+            throw error("expected property name after '.'");
         }
         String name = readPropertyName();
         if (pos < tokens.count() && tokens.type(pos) == TokenType.PAREN_OPEN) {
@@ -1206,21 +1116,18 @@ public final class SpecParser {
         if (t == TokenType.STRING) {
             String raw = tokens.text(pos);
             if (raw.length() < 2 || raw.charAt(0) != '\'' || raw.charAt(raw.length() - 1) != '\'') {
-                ElementParser.throwAt(tokens, pos,
-                        "malformed quoted property: missing surrounding quotes");
+                throw error("malformed quoted property: missing surrounding quotes");
             }
             String name = unescapeString(raw.substring(1, raw.length() - 1));
             pos++;
             return name;
         }
-        if (ElementParser.IDENTIFIER_TOKENS.contains(t)) {
+        if (isIdentifierToken(t)) {
             String name = tokens.text(pos);
             pos++;
             return name;
         }
-        ElementParser.throwAt(tokens, pos,
-                "expected property name (identifier or 'quoted name') after '.'");
-        return null; // unreachable
+        throw error("expected property name (identifier or 'quoted name') after '.'");
     }
 
     /**
@@ -1233,9 +1140,8 @@ public final class SpecParser {
     private AppliedFunction parseArrowPostfix(ValueSpecification receiver) {
         pos++; // consume '->'
         String fn = parseQualifiedName();
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_OPEN) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected '(' after arrow-call function name '" + fn + "'");
+        if (peek() != TokenType.PAREN_OPEN) {
+            throw error("expected '(' after arrow-call function name '" + fn + "'");
         }
         List<ValueSpecification> args = parseArgList();
         List<ValueSpecification> params = new ArrayList<>(1 + args.size());
@@ -1265,16 +1171,11 @@ public final class SpecParser {
         while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
             pos++; // consume ','
             if (pos < tokens.count() && tokens.type(pos) == TokenType.PAREN_CLOSE) {
-                ElementParser.throwAt(tokens, pos,
-                        "trailing comma in argument list");
+                throw error("trailing comma in argument list");
             }
             args.add(parseCombinedExpression());
         }
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_CLOSE) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected ')' to close argument list");
-        }
-        pos++; // consume ')'
+        expect(TokenType.PAREN_CLOSE, "expected ')' to close argument list");
         return args;
     }
 
@@ -1354,12 +1255,11 @@ public final class SpecParser {
         // Function name stays "new" for binding-table parity.
         ValueSpecification receiver;
         String className;
-        List<String> typeArgs = List.of();
+        List<TypeExpression> typeArgs = List.of();
         if (pos < tokens.count() && tokens.type(pos) == TokenType.DOLLAR) {
             pos++; // consume '$'
-            if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
-                ElementParser.throwAt(tokens, pos,
-                        "expected variable name after '^$' in copy-with-update");
+            if (!isFqnSegmentToken(peek())) {
+                throw error("expected variable name after '^$' in copy-with-update");
             }
             String varName = tokens.text(pos);
             pos++;
@@ -1372,11 +1272,7 @@ public final class SpecParser {
             }
             receiver = new PackageableElementPtr(className);
         }
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_OPEN) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected '(' after class name or $variable in ^NewInstance");
-        }
-        pos++; // consume '('
+        expect(TokenType.PAREN_OPEN, "expected '(' after class name or $variable in ^NewInstance");
         // LinkedHashMap to preserve source order for the small
         // observable cases (debug pretty-printers, AST dumps);
         // duplicate keys silently last-win matching engine-lite.
@@ -1389,16 +1285,11 @@ public final class SpecParser {
         while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
             pos++; // consume ','
             if (pos < tokens.count() && tokens.type(pos) == TokenType.PAREN_CLOSE) {
-                ElementParser.throwAt(tokens, pos,
-                        "trailing comma in ^NewInstance binding list");
+                throw error("trailing comma in ^NewInstance binding list");
             }
             parseAndPutKeyExpression(properties);
         }
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_CLOSE) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected ')' to close ^NewInstance");
-        }
-        pos++; // consume ')'
+        expect(TokenType.PAREN_CLOSE, "expected ')' to close ^NewInstance");
         return wrapNewInstance(receiver, className, typeArgs, properties);
     }
 
@@ -1411,7 +1302,7 @@ public final class SpecParser {
     private AppliedFunction wrapNewInstance(
             ValueSpecification receiver,
             String className,
-            List<String> typeArgs,
+            List<TypeExpression> typeArgs,
             Map<String, KeyExpression> properties) {
         return new AppliedFunction(
                 "new",
@@ -1434,9 +1325,8 @@ public final class SpecParser {
      * cross-engine-consistent.
      */
     private void parseAndPutKeyExpression(Map<String, KeyExpression> properties) {
-        if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected property name in ^NewInstance binding");
+        if (!isFqnSegmentToken(peek())) {
+            throw error("expected property name in ^NewInstance binding");
         }
         // Dotted property paths: '^Foo(addr.city = "NYC")' sets a
         // nested field atomically. Engine-lite admits arbitrary
@@ -1461,34 +1351,35 @@ public final class SpecParser {
             isAdd = true;
             pos++; // consume '+'
         }
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.EQUAL) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected '" + (isAdd ? "+=" : "=")
-                    + "' after property name '" + key
-                    + "' in ^NewInstance binding");
-        }
-        pos++; // consume '='
+        expect(TokenType.EQUAL,
+                "expected '" + (isAdd ? "+=" : "=")
+                + "' after property name '" + key
+                + "' in ^NewInstance binding");
         ValueSpecification value = parseCombinedExpression();
         properties.put(key.toString(), new KeyExpression(value, isAdd));
     }
 
-    private List<String> parseTypeArguments() {
+    /**
+     * Parse a {@code <T1, T2, ...>} type-argument list on a
+     * {@code ^Class<...>(...)} new-instance expression. Returns the
+     * arguments as structured {@link TypeExpression}s &mdash; the
+     * same shape produced everywhere else type text occurs in the
+     * AST. Cursor is on the opening {@code <}; advances past the
+     * closing {@code >}.
+     */
+    private List<TypeExpression> parseTypeArguments() {
         pos++; // consume '<'
-        List<String> args = new ArrayList<>();
+        List<TypeExpression> args = new ArrayList<>();
         if (pos < tokens.count() && tokens.type(pos) == TokenType.GREATER_THAN) {
             pos++;
             return args;
         }
-        args.add(parseQualifiedName());
+        args.add(parseType());
         while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
             pos++; // consume ','
-            args.add(parseQualifiedName());
+            args.add(parseType());
         }
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.GREATER_THAN) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected '>' to close type arguments");
-        }
-        pos++; // consume '>'
+        expect(TokenType.GREATER_THAN, "expected '>' to close type arguments");
         return args;
     }
 
@@ -1522,21 +1413,12 @@ public final class SpecParser {
                 params.add(parseLambdaParam());
             }
         }
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PIPE) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected '|' to separate lambda parameters from body");
-        }
-        pos++; // consume '|'
+        expect(TokenType.PIPE, "expected '|' to separate lambda parameters from body");
         List<ValueSpecification> body = parseCodeBlockUntil(TokenType.BRACE_CLOSE);
         if (body.isEmpty()) {
-            ElementParser.throwAt(tokens, pos,
-                    "lambda body must contain at least one statement");
+            throw error("lambda body must contain at least one statement");
         }
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.BRACE_CLOSE) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected '}' to close lambda");
-        }
-        pos++; // consume '}'
+        expect(TokenType.BRACE_CLOSE, "expected '}' to close lambda");
         return new LambdaFunction(params, body);
     }
 
@@ -1555,19 +1437,16 @@ public final class SpecParser {
      * </ul>
      */
     private Variable parseLambdaParam() {
-        if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected lambda parameter name");
+        if (!isFqnSegmentToken(peek())) {
+            throw error("expected lambda parameter name");
         }
         String name = tokens.text(pos);
         pos++;
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.COLON) {
-            return new Variable(name);
-        }
-        pos++; // consume ':'
-        String typeName = parseTypeText();
+        if (peek() != TokenType.COLON) return new Variable(name);
+        advance();
+        TypeExpression type = parseType();
         Multiplicity multiplicity = parseMultiplicity();
-        return new Variable(name, typeName, multiplicity);
+        return new Variable(name, type, multiplicity);
     }
 
     /**
@@ -1589,11 +1468,7 @@ public final class SpecParser {
      */
     private LambdaFunction parseSingleParamLambda() {
         Variable param = parseLambdaParam();
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PIPE) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected '|' after shorthand lambda parameter");
-        }
-        pos++; // consume '|'
+        expect(TokenType.PIPE, "expected '|' after shorthand lambda parameter");
         ValueSpecification body = parseCombinedExpression();
         return new LambdaFunction(
                 List.of(param),
@@ -1604,151 +1479,15 @@ public final class SpecParser {
     // Type and multiplicity annotations (C.5)
     // -------------------------------------------------------------------
 
-    /**
-     * Parse the type portion of a typed lambda parameter (or other
-     * annotated context). Returns a raw source string &mdash; the
-     * type-checker resolves the name to a concrete type by
-     * consulting the model.
-     *
-     * <p>Grammar (C.5 minimal subset):
-     * <pre>
-     *   type = qualifiedName ('&lt;' typeArgs '&gt;')?
-     * </pre>
-     *
-     * <p>Function types ({@code {T[m] -> U[m]}}) and relation types
-     * ({@code (col: T, ...)}) appear in stdlib signatures but not in
-     * the lambda-parameter position we currently support. They land
-     * with the rest of the type-grammar in C.6/C.7.
-     */
-    private String parseTypeText() {
-        if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected type name after ':'");
-        }
-        StringBuilder sb = new StringBuilder(parseQualifiedName());
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.LESS_THAN) {
-            // Type arguments — nested generics, so depth-track and
-            // splice the source text verbatim. The type-checker
-            // re-parses this if it needs to inspect the args.
-            sb.append('<');
-            pos++;
-            int depth = 1;
-            while (pos < tokens.count() && depth > 0) {
-                TokenType t = tokens.type(pos);
-                if (t == TokenType.LESS_THAN) {
-                    depth++;
-                } else if (t == TokenType.GREATER_THAN) {
-                    depth--;
-                    if (depth == 0) {
-                        pos++;
-                        break;
-                    }
-                }
-                sb.append(tokens.text(pos));
-                pos++;
-            }
-            sb.append('>');
-            if (depth != 0) {
-                ElementParser.throwAt(tokens, pos,
-                        "unterminated type-argument list in type annotation");
-            }
-        }
-        return sb.toString();
-    }
-
-    /**
-     * Parse a multiplicity annotation into a structured
-     * {@link Multiplicity}. Grammar:
-     * <pre>
-     *   multiplicity = '[' (concrete | parameter) ']'
-     *   concrete     = '*'
-     *                | INTEGER ('..' ('*' | INTEGER))?
-     *   parameter    = identifier         // e.g. 'm' in T[m]
-     * </pre>
-     *
-     * <p>Engine-lite produces a similar structured value (their
-     * {@code Multiplicity.Bounded} / {@code Var}); matching the
-     * shape (rather than carrying raw text) lets the type-checker
-     * consume the result directly with no re-parse step.
-     */
-    private Multiplicity parseMultiplicity() {
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.BRACKET_OPEN) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected '[' to open multiplicity annotation");
-        }
-        pos++; // consume '['
-        Multiplicity result = parseMultiplicityBody();
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.BRACKET_CLOSE) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected ']' to close multiplicity annotation");
-        }
-        pos++; // consume ']'
-        return result;
-    }
-
-    private Multiplicity parseMultiplicityBody() {
-        if (pos >= tokens.count()) {
-            ElementParser.throwAt(tokens, pos,
-                    "unexpected end-of-input inside multiplicity annotation");
-        }
-        TokenType t = tokens.type(pos);
-        if (t == TokenType.STAR) {
-            // '*' alone is shorthand for 0..* (ZERO_MANY).
-            pos++;
-            return Multiplicity.Concrete.ZERO_MANY;
-        }
-        if (t == TokenType.INTEGER) {
-            int lower = Integer.parseInt(tokens.text(pos));
-            pos++;
-            if (pos < tokens.count() && tokens.type(pos) == TokenType.DOT_DOT) {
-                pos++;
-                if (pos >= tokens.count()) {
-                    ElementParser.throwAt(tokens, pos,
-                            "expected upper bound after '..' in multiplicity");
-                }
-                if (tokens.type(pos) == TokenType.STAR) {
-                    pos++;
-                    return new Multiplicity.Concrete(lower, null);
-                }
-                if (tokens.type(pos) != TokenType.INTEGER) {
-                    ElementParser.throwAt(tokens, pos,
-                            "expected integer or '*' as upper bound, got "
-                            + tokens.type(pos));
-                }
-                int upperPos = pos;
-                int upper = Integer.parseInt(tokens.text(pos));
-                pos++;
-                // Pre-check the bounds at the parser layer so the
-                // error carries source line/col. Multiplicity.Concrete's
-                // constructor enforces the same invariant defensively
-                // (for programmatic constructors), but we want a
-                // ParseException here, not a raw IllegalArgumentException.
-                if (upper < lower) {
-                    ElementParser.throwAt(tokens, upperPos,
-                            "multiplicity upper bound (" + upper
-                            + ") must be >= lower bound (" + lower + ")");
-                }
-                return new Multiplicity.Concrete(lower, upper);
-            }
-            // Single integer: '[N]' means '[N..N]'.
-            return new Multiplicity.Concrete(lower, lower);
-        }
-        if (isFqnSegmentToken(t)) {
-            // Multiplicity variable, e.g. the 'm' in T[m]. Pervasive
-            // in stdlib native function signatures (letFunction, if,
-            // cast, match, reverse, sort, map). User code typically
-            // uses concrete multiplicities; legend-engine's user
-            // grammar walker (DomainParseTreeWalker) rejects them,
-            // but stdlib parsing must admit them.
-            String name = tokens.text(pos);
-            pos++;
-            return new Multiplicity.Parameter(name);
-        }
-        ElementParser.throwAt(tokens, pos,
-                "unexpected token in multiplicity annotation: " + t
-                + " ('" + safeText(tokens, pos) + "')");
-        return null; // unreachable
-    }
+    // parseType() and parseMultiplicity() are inherited from
+    // TokenStreamCursor as default methods. Earlier revisions of this
+    // file carried bridge methods that constructed a per-call
+    // TypeExpressionParser helper and copied its cursor back into our
+    // 'pos' field; the interface design eliminates both the helper
+    // class and the bridge.
+    //
+    // Call sites use parseType() directly. (The legacy alias
+    // 'parseTypeExpression()' is gone — callers were updated.)
 
     /**
      * Speculative lookahead: does the cursor sit on a typed
@@ -1768,14 +1507,12 @@ public final class SpecParser {
     private boolean looksLikeTypedLambdaParam() {
         int saved = pos;
         try {
-            if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
+            if (!isFqnSegmentToken(peek())) {
                 return false;
             }
             pos++; // identifier
-            if (pos >= tokens.count() || tokens.type(pos) != TokenType.COLON) {
-                return false;
-            }
-            pos++; // ':'
+            if (peek() != TokenType.COLON) return false;
+            advance();
             if (!skipTypeForLookahead()) {
                 return false;
             }
@@ -1791,13 +1528,13 @@ public final class SpecParser {
     }
 
     private boolean skipTypeForLookahead() {
-        if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
+        if (!isFqnSegmentToken(peek())) {
             return false;
         }
         pos++;
         while (pos < tokens.count() && tokens.type(pos) == TokenType.PATH_SEPARATOR) {
             pos++;
-            if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
+            if (!isFqnSegmentToken(peek())) {
                 return false;
             }
             pos++;
@@ -1817,10 +1554,8 @@ public final class SpecParser {
     }
 
     private boolean skipMultiplicityForLookahead() {
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.BRACKET_OPEN) {
-            return false;
-        }
-        pos++;
+        if (peek() != TokenType.BRACKET_OPEN) return false;
+        advance();
         while (pos < tokens.count() && tokens.type(pos) != TokenType.BRACKET_CLOSE) {
             pos++;
         }
@@ -1894,8 +1629,7 @@ public final class SpecParser {
         // branch would otherwise capture the quoted form with its
         // outer quotes intact).
         if (pos >= tokens.count()) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected column name after '~'");
+            throw error("expected column name after '~'");
         }
         TokenType nameTok = tokens.type(pos);
         String name;
@@ -1903,8 +1637,7 @@ public final class SpecParser {
             String raw = tokens.text(pos);
             if (raw.length() < 2 || raw.charAt(0) != '\''
                     || raw.charAt(raw.length() - 1) != '\'') {
-                ElementParser.throwAt(tokens, pos,
-                        "malformed quoted column name: missing surrounding quotes");
+                throw error("malformed quoted column name: missing surrounding quotes");
             }
             name = unescapeString(raw.substring(1, raw.length() - 1));
             pos++;
@@ -1912,9 +1645,7 @@ public final class SpecParser {
             name = tokens.text(pos);
             pos++;
         } else {
-            ElementParser.throwAt(tokens, pos,
-                    "expected column name after '~'");
-            return null; // unreachable
+            throw error("expected column name after '~'");
         }
         LambdaFunction function1 = null;
         LambdaFunction function2 = null;
@@ -1940,16 +1671,11 @@ public final class SpecParser {
         while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
             pos++; // consume ','
             if (pos < tokens.count() && tokens.type(pos) == TokenType.BRACKET_CLOSE) {
-                ElementParser.throwAt(tokens, pos,
-                        "trailing comma in ColSpec array");
+                throw error("trailing comma in ColSpec array");
             }
             specs.add(parseOneColSpec());
         }
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.BRACKET_CLOSE) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected ']' to close ColSpec array");
-        }
-        pos++; // consume ']'
+        expect(TokenType.BRACKET_CLOSE, "expected ']' to close ColSpec array");
         return new ColSpecArray(specs);
     }
 
@@ -1964,8 +1690,7 @@ public final class SpecParser {
      */
     private LambdaFunction parseColumnLambda() {
         if (pos >= tokens.count()) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected lambda after ':' in column spec");
+            throw error("expected lambda after ':' in column spec");
         }
         TokenType t = tokens.type(pos);
         if (t == TokenType.PIPE) {
@@ -1974,7 +1699,7 @@ public final class SpecParser {
         if (t == TokenType.BRACE_OPEN) {
             return parseLambdaFunction();
         }
-        if (ElementParser.IDENTIFIER_TOKENS.contains(t)) {
+        if (isIdentifierToken(t)) {
             if (pos + 1 < tokens.count()
                     && tokens.type(pos + 1) == TokenType.PIPE) {
                 return parseSingleParamLambda();
@@ -1985,10 +1710,9 @@ public final class SpecParser {
                 return parseSingleParamLambda();
             }
         }
-        ElementParser.throwAt(tokens, pos,
+        throw error(
                 "expected lambda after ':' in column spec, got " + t
-                + " ('" + safeText(tokens, pos) + "')");
-        return null; // unreachable
+                + " ('" + safeText() + "')");
     }
 
     // -------------------------------------------------------------------
@@ -2009,18 +1733,17 @@ public final class SpecParser {
      * PAREN_OPEN commits to the structural-shape parse; anything
      * else falls through to {@link TypeAnnotation.Named}.
      *
-     * <p>For non-relation generic types ({@code @List<Integer>})
-     * the type-argument list is collected verbatim into the
-     * {@link TypeAnnotation.Named#typeName() typeName} via the same
-     * token-concatenation mechanism {@link #parseTypeText()} uses.
-     * Whitespace between tokens is lost (documented C.5 quirk); a
-     * downstream re-parse can recover structure if needed.
+     * <p>For non-relation generic types ({@code @List<Integer>}) the
+     * type-argument list is parsed structurally into a nested
+     * {@link TypeExpression.Generic}. Earlier code path collected
+     * the {@code <...>} body as verbatim text; the structured form
+     * is symmetric to lambda parameter types and unblocks a single
+     * NameResolver tree-walk to rewrite simple names to FQNs.
      */
     private TypeAnnotation parseTypeAnnotation() {
         pos++; // consume '@'
-        if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected type name after '@'");
+        if (!isFqnSegmentToken(peek())) {
+            throw error("expected type name after '@'");
         }
         String name = parseQualifiedName();
         String simple = name.contains("::")
@@ -2039,46 +1762,21 @@ public final class SpecParser {
                 && tokens.type(pos + 1) == TokenType.PAREN_OPEN) {
             pos++; // consume '<'
             TypeAnnotation.RelationShape shape = parseRelationShape();
-            if (pos >= tokens.count() || tokens.type(pos) != TokenType.GREATER_THAN) {
-                ElementParser.throwAt(tokens, pos,
-                        "expected '>' to close @Relation type annotation");
-            }
-            pos++; // consume '>'
+            expect(TokenType.GREATER_THAN, "expected '>' to close @Relation type annotation");
             return shape;
         }
 
-        // Generic type arguments — collect verbatim into typeName.
-        // Same depth-tracking as parseTypeText so nested
-        // '<...>' (e.g. Map<K, List<V>>) round-trips correctly.
+        // Generic type arguments — parse structurally via the shared
+        // helper. Nested '<...>' (e.g. Map<K, List<V>>) is handled by
+        // recursive descent inside the helper.
+        TypeExpression type;
         if (pos < tokens.count() && tokens.type(pos) == TokenType.LESS_THAN) {
-            StringBuilder sb = new StringBuilder(name);
-            sb.append('<');
-            pos++;
-            int depth = 1;
-            while (pos < tokens.count() && depth > 0) {
-                TokenType tt = tokens.type(pos);
-                if (tt == TokenType.LESS_THAN) {
-                    depth++;
-                } else if (tt == TokenType.GREATER_THAN) {
-                    depth--;
-                    if (depth == 0) {
-                        pos++;
-                        break;
-                    }
-                }
-                sb.append(tokens.text(pos));
-                pos++;
-            }
-            sb.append('>');
-            if (depth != 0) {
-                ElementParser.throwAt(tokens, pos,
-                        "unterminated type-argument list in @"
-                        + name + " annotation");
-            }
-            name = sb.toString();
+            List<TypeExpression> args = parseTypeArguments();
+            type = new TypeExpression.Generic(name, args);
+        } else {
+            type = new TypeExpression.NameRef(name);
         }
-
-        return new TypeAnnotation.Named(name);
+        return new TypeAnnotation.Named(type);
     }
 
     /**
@@ -2095,17 +1793,12 @@ public final class SpecParser {
             while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
                 pos++; // consume ','
                 if (pos < tokens.count() && tokens.type(pos) == TokenType.PAREN_CLOSE) {
-                    ElementParser.throwAt(tokens, pos,
-                            "trailing comma in @Relation columns");
+                    throw error("trailing comma in @Relation columns");
                 }
                 columns.add(parseRelationColumn());
             }
         }
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_CLOSE) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected ')' to close @Relation columns");
-        }
-        pos++; // consume ')'
+        expect(TokenType.PAREN_CLOSE, "expected ')' to close @Relation columns");
         return new TypeAnnotation.RelationShape(columns);
     }
 
@@ -2124,8 +1817,7 @@ public final class SpecParser {
      */
     private TypeAnnotation.RelationShape.Column parseRelationColumn() {
         if (pos >= tokens.count()) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected column name or '?' inside @Relation");
+            throw error("expected column name or '?' inside @Relation");
         }
         TokenType nameTok = tokens.type(pos);
         String name;
@@ -2136,8 +1828,7 @@ public final class SpecParser {
             String raw = tokens.text(pos);
             if (raw.length() < 2 || raw.charAt(0) != '\''
                     || raw.charAt(raw.length() - 1) != '\'') {
-                ElementParser.throwAt(tokens, pos,
-                        "malformed quoted column name inside @Relation");
+                throw error("malformed quoted column name inside @Relation");
             }
             name = unescapeString(raw.substring(1, raw.length() - 1));
             pos++;
@@ -2145,27 +1836,20 @@ public final class SpecParser {
             name = tokens.text(pos);
             pos++;
         } else {
-            ElementParser.throwAt(tokens, pos,
+            throw error(
                     "expected column name or '?' inside @Relation, got "
                     + nameTok);
-            return null; // unreachable
         }
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.COLON) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected ':' after column name inside @Relation");
-        }
-        pos++; // consume ':'
+        expect(TokenType.COLON, "expected ':' after column name inside @Relation");
 
         TypeAnnotation type;
         if (pos < tokens.count() && tokens.type(pos) == TokenType.QUESTION) {
             type = new TypeAnnotation.Wildcard();
             pos++;
         } else {
-            // Inline type: qualifiedName + optional <typeArgs>.
-            // Reuses parseTypeText (C.5) so the same generics
-            // handling applies. The result is wrapped in a Named
-            // TypeAnnotation for downstream uniformity.
-            type = new TypeAnnotation.Named(parseTypeText());
+            // Inline type: structured TypeExpression. Wrapped in a
+            // Named TypeAnnotation for downstream uniformity.
+            type = new TypeAnnotation.Named(parseType());
         }
 
         Multiplicity multiplicity = null;
@@ -2207,8 +1891,7 @@ public final class SpecParser {
     private ValueSpecification parseBracketPostfix(ValueSpecification receiver) {
         pos++; // consume '['
         if (pos >= tokens.count()) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected integer or string inside '[...]' index");
+            throw error("expected integer or string inside '[...]' index");
         }
         TokenType t = tokens.type(pos);
         ValueSpecification result;
@@ -2219,16 +1902,11 @@ public final class SpecParser {
             CString key = parseString();
             result = new AppliedProperty(receiver, key.value());
         } else {
-            ElementParser.throwAt(tokens, pos,
+            throw error(
                     "expected integer or string inside '[...]' index, got "
-                    + t + " ('" + safeText(tokens, pos) + "')");
-            return null; // unreachable
+                    + t + " ('" + safeText() + "')");
         }
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.BRACKET_CLOSE) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected ']' to close bracket-index expression");
-        }
-        pos++; // consume ']'
+        expect(TokenType.BRACKET_CLOSE, "expected ']' to close bracket-index expression");
         return result;
     }
 
@@ -2259,58 +1937,33 @@ public final class SpecParser {
      */
     private LambdaFunction parseComparatorExpression() {
         pos++; // consume 'comparator'
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_OPEN) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected '(' after 'comparator'");
-        }
-        pos++; // '('
+        expect(TokenType.PAREN_OPEN, "expected '(' after 'comparator'");
         List<Variable> params = new ArrayList<>();
         params.add(parseComparatorParam());
         while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
             pos++;
             params.add(parseComparatorParam());
         }
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.PAREN_CLOSE) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected ')' to close comparator parameter list");
-        }
-        pos++; // ')'
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.COLON) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected ':' and return type after comparator parameters");
-        }
-        pos++; // ':'
-        parseTypeText();      // return type, discarded
+        expect(TokenType.PAREN_CLOSE, "expected ')' to close comparator parameter list");
+        expect(TokenType.COLON, "expected ':' and return type after comparator parameters");
+        parseType();          // return type, discarded
         parseMultiplicity();  // return multiplicity, discarded
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.BRACE_OPEN) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected '{' to open comparator body");
-        }
-        pos++; // '{'
+        expect(TokenType.BRACE_OPEN, "expected '{' to open comparator body");
         List<ValueSpecification> body = parseCodeBlockUntil(TokenType.BRACE_CLOSE);
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.BRACE_CLOSE) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected '}' to close comparator body");
-        }
-        pos++; // '}'
+        expect(TokenType.BRACE_CLOSE, "expected '}' to close comparator body");
         return new LambdaFunction(params, body);
     }
 
     private Variable parseComparatorParam() {
-        if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected parameter name in comparator(...)");
+        if (!isFqnSegmentToken(peek())) {
+            throw error("expected parameter name in comparator(...)");
         }
         String name = tokens.text(pos);
         pos++;
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.COLON) {
-            ElementParser.throwAt(tokens, pos,
-                    "comparator parameter requires ': Type[mult]' annotation");
-        }
-        pos++; // ':'
-        String typeText = parseTypeText();
+        expect(TokenType.COLON, "comparator parameter requires ': Type[mult]' annotation");
+        TypeExpression type = parseType();
         Multiplicity mult = parseMultiplicity();
-        return new Variable(name, typeText, mult);
+        return new Variable(name, type, mult);
     }
 
     // -------------------------------------------------------------------
@@ -2414,11 +2067,8 @@ public final class SpecParser {
         ValueSpecification result = switch (dslType) {
             case "" -> parseGraphFetchTree(contentText);
             case ">" -> parseTableReference(contentText);
-            default -> {
-                ElementParser.throwAt(tokens, pos,
-                        "unknown DSL island type: '#" + dslType + "{'");
-                yield null; // unreachable
-            }
+            default -> throw error(
+                    "unknown DSL island type: '#" + dslType + "{'");
         };
 
         // Post-island arrow chain: if the closer was '}->' then the
@@ -2461,7 +2111,7 @@ public final class SpecParser {
     private AppliedFunction parseTableReference(String content) {
         int lastDot = content.lastIndexOf('.');
         if (lastDot < 0) {
-            ElementParser.throwAt(tokens, pos,
+            throw error(
                     "table reference must be db.TABLE, got: '" + content + "'");
         }
         String db = content.substring(0, lastDot);
@@ -2503,11 +2153,7 @@ public final class SpecParser {
      * {@code { a, b, }} works the same as {@code { a, b }}.
      */
     private ColSpecArray parseGraphDefinition(int depth) {
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.BRACE_OPEN) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected '{' to open graph-fetch body");
-        }
-        pos++; // '{'
+        expect(TokenType.BRACE_OPEN, "expected '{' to open graph-fetch body");
         List<ColSpec> specs = new ArrayList<>();
         if (pos < tokens.count() && tokens.type(pos) != TokenType.BRACE_CLOSE) {
             specs.add(parseGraphPath(depth));
@@ -2519,11 +2165,7 @@ public final class SpecParser {
                 specs.add(parseGraphPath(depth));
             }
         }
-        if (pos >= tokens.count() || tokens.type(pos) != TokenType.BRACE_CLOSE) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected '}' to close graph-fetch body");
-        }
-        pos++; // '}'
+        expect(TokenType.BRACE_CLOSE, "expected '}' to close graph-fetch body");
         return new ColSpecArray(specs);
     }
 
@@ -2550,9 +2192,8 @@ public final class SpecParser {
                 && tokens.type(pos + 1) == TokenType.COLON) {
             pos += 2; // skip alias and colon
         }
-        if (pos >= tokens.count() || !isFqnSegmentToken(tokens.type(pos))) {
-            ElementParser.throwAt(tokens, pos,
-                    "expected property name in graph-fetch path");
+        if (!isFqnSegmentToken(peek())) {
+            throw error("expected property name in graph-fetch path");
         }
         String propName = tokens.text(pos);
         pos++;
@@ -2575,8 +2216,7 @@ public final class SpecParser {
                 if (depthParens > 0) pos++;
             }
             if (pos >= tokens.count()) {
-                ElementParser.throwAt(tokens, pos,
-                        "unterminated graph-fetch property parameters");
+                throw error("unterminated graph-fetch property parameters");
             }
             pos++; // consume matching ')'
         }
@@ -2594,11 +2234,25 @@ public final class SpecParser {
         return new ColSpec(propName, fn1, null);
     }
 
-    // -------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------
+    // -----------------------------------------------------------------
+    // TokenStreamCursor accessors. Implementing the interface gives us
+    // the lexical layer (peek/match/expect/error/...) plus the
+    // type-expression grammar (parseType / parseMultiplicity / ...) as
+    // inherited defaults shared with ElementParser.
+    // -----------------------------------------------------------------
 
-    private static String safeText(TokenStream tokens, int pos) {
-        return pos < tokens.count() ? tokens.text(pos) : "<EOF>";
+    @Override
+    public TokenStream tokens() {
+        return tokens;
+    }
+
+    @Override
+    public int pos() {
+        return pos;
+    }
+
+    @Override
+    public void setPos(int pos) {
+        this.pos = pos;
     }
 }

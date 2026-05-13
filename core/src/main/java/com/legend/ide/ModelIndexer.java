@@ -5,6 +5,7 @@ import com.legend.lexer.TokenType;
 import com.legend.parser.ElementKind;
 import com.legend.parser.ElementParser;
 import com.legend.parser.ParseException;
+import com.legend.parser.TokenStreamCursor;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -73,7 +74,7 @@ public final class ModelIndexer {
 
             ElementKind kind = ElementKind.fromHeaderToken(t);
             if (kind == null) {
-                ElementParser.throwAt(tokens, pos,
+                TokenStreamCursor.throwAt(tokens, pos,
                         "unsupported top-level keyword: " + t + " ('" + safeText(tokens, pos) + "')");
             }
 
@@ -82,7 +83,7 @@ public final class ModelIndexer {
             // 'native' is a one-token prefix on CLASS.
             if (t == TokenType.NATIVE) {
                 if (afterKeyword >= n || tokens.type(afterKeyword) != TokenType.CLASS) {
-                    ElementParser.throwAt(tokens, afterKeyword,
+                    TokenStreamCursor.throwAt(tokens, afterKeyword,
                             "expected 'Class' after 'native'");
                 }
                 afterKeyword++;
@@ -96,7 +97,7 @@ public final class ModelIndexer {
             ModelIndex.Entry existing = entries.put(fqn,
                     new ModelIndex.Entry(fqn, kind, elementStart, end));
             if (existing != null) {
-                ElementParser.throwAt(tokens, elementStart,
+                TokenStreamCursor.throwAt(tokens, elementStart,
                         "duplicate top-level element '" + fqn + "' (first declared as "
                         + existing.kind() + ")");
             }
@@ -164,13 +165,13 @@ public final class ModelIndexer {
      */
     private static int skipFqn(TokenStream tokens, int pos) {
         int n = tokens.count();
-        if (pos >= n || !isIdentifierToken(tokens.type(pos))) {
-            ElementParser.throwAt(tokens, pos, "expected identifier (FQN start)");
+        if (pos >= n || !TokenStreamCursor.IDENTIFIER_TOKENS.contains(tokens.type(pos))) {
+            TokenStreamCursor.throwAt(tokens, pos, "expected identifier (FQN start)");
         }
         pos++;
         while (pos + 1 < n
                 && tokens.type(pos) == TokenType.PATH_SEPARATOR
-                && isIdentifierToken(tokens.type(pos + 1))) {
+                && TokenStreamCursor.IDENTIFIER_TOKENS.contains(tokens.type(pos + 1))) {
             pos += 2;
         }
         return pos;
@@ -234,16 +235,16 @@ public final class ModelIndexer {
                 case BRACE_OPEN ->
                         // Only reachable for paren-bodied kinds (Database/Mapping):
                         // an unexpected '{' in their header is malformed.
-                        ElementParser.throwAt(tokens, pos,
+                        TokenStreamCursor.throwAt(tokens, pos,
                                 "unexpected '{' in header of " + kind + " element");
                 case PAREN_CLOSE, BRACKET_CLOSE, BRACE_CLOSE ->
-                        ElementParser.throwAt(tokens, pos,
+                        TokenStreamCursor.throwAt(tokens, pos,
                                 "unbalanced closing delimiter " + t + " in element header");
                 default -> pos++;
             }
         }
         if (pos >= n) {
-            ElementParser.throwAt(tokens, afterFqn,
+            TokenStreamCursor.throwAt(tokens, afterFqn,
                     "missing body for " + kind + " element (expected '" + bodyOpen + "')");
         }
 
@@ -276,7 +277,7 @@ public final class ModelIndexer {
         int start = pos;
         while (pos < n && tokens.type(pos) != TokenType.SEMI_COLON) pos++;
         if (pos >= n) {
-            ElementParser.throwAt(tokens, start, "import statement missing terminating ';'");
+            TokenStreamCursor.throwAt(tokens, start, "import statement missing terminating ';'");
         }
         return pos + 1;
     }
@@ -294,10 +295,6 @@ public final class ModelIndexer {
             pos++;
         }
         return pos;
-    }
-
-    private static boolean isIdentifierToken(TokenType t) {
-        return ElementParser.IDENTIFIER_TOKENS.contains(t);
     }
 
     private static String safeText(TokenStream tokens, int pos) {

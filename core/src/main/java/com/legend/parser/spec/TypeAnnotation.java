@@ -1,5 +1,8 @@
 package com.legend.parser.spec;
 
+import com.legend.parser.Multiplicity;
+import com.legend.parser.TypeExpression;
+
 import java.util.List;
 import java.util.Objects;
 
@@ -74,17 +77,24 @@ public sealed interface TypeAnnotation
                 TypeAnnotation.Wildcard {
 
     /**
-     * Named type reference, possibly qualified, possibly with
-     * type arguments embedded in the name string.
+     * Named type reference: a structured {@link TypeExpression} that
+     * captures simple ({@code Integer}), qualified
+     * ({@code my::pkg::Foo}), and generic ({@code List<Integer>},
+     * {@code Map<String, List<V>>}) forms with full nested structure.
      *
-     * @param typeName the source-level type name including any
-     *                 generic-argument list (e.g. {@code "Integer"},
-     *                 {@code "my::pkg::Foo"},
-     *                 {@code "List<Integer>"}); never {@code null}
+     * <p>Previously this carried a raw {@link String} containing the
+     * source-level type text, which lost whitespace and forced
+     * downstream consumers (NameResolver, type checker) to re-parse.
+     * The structured form is symmetric to lambda parameter types
+     * ({@link Variable#type()}) and element-side property/parameter
+     * types &mdash; a single AST walk rewrites every name reference
+     * in NameResolver.
+     *
+     * @param type the structured type expression; never {@code null}
      */
-    record Named(String typeName) implements TypeAnnotation {
+    record Named(TypeExpression type) implements TypeAnnotation {
         public Named {
-            Objects.requireNonNull(typeName, "typeName");
+            Objects.requireNonNull(type, "type");
         }
     }
 
