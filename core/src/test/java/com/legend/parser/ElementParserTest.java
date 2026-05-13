@@ -43,6 +43,10 @@ import com.legend.parser.element.RuntimeDefinition;
 import com.legend.parser.element.ServiceDefinition;
 import com.legend.parser.element.StereotypeApplication;
 import com.legend.parser.element.TaggedValue;
+import com.legend.parser.element.TypeExpression;
+import com.legend.parser.element.TypeExpression.FunctionType;
+import com.legend.parser.element.TypeExpression.NameRef;
+import com.legend.parser.element.TypeExpression.Op;
 import com.legend.parser.spec.AppliedFunction;
 import com.legend.parser.spec.AppliedProperty;
 import com.legend.parser.spec.CInteger;
@@ -54,6 +58,12 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
+import static com.legend.parser.element.TypeExpressionFixtures.col;
+import static com.legend.parser.element.TypeExpressionFixtures.nr;
+import static com.legend.parser.element.TypeExpressionFixtures.rel;
+import static com.legend.parser.element.TypeExpressionFixtures.sa;
+import static com.legend.parser.element.TypeExpressionFixtures.tg;
+import static com.legend.parser.element.TypeExpressionFixtures.tp;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -84,8 +94,20 @@ final class ElementParserTest {
                 List.of(), List.of(), List.of(), List.of(), isNative);
     }
 
-    /** Property with no annotations &mdash; the common shape. */
+    /** Property with no annotations &mdash; the common shape. The
+     *  {@code type} argument is a bare type-name string wrapped in a
+     *  {@link NameRef}. For structured types (generic / function /
+     *  relation / schema-algebra), use
+     *  {@link #propT(String, TypeExpression, int, Integer)}. */
     private static PropertyDefinition prop(String name, String type, int lower, Integer upper) {
+        return new PropertyDefinition(
+                name, new NameRef(type),
+                Multiplicity.range(lower, upper),
+                List.of(), List.of());
+    }
+
+    /** Property carrying a structured (non-NameRef) type. */
+    private static PropertyDefinition propT(String name, TypeExpression type, int lower, Integer upper) {
         return new PropertyDefinition(name, type, Multiplicity.range(lower, upper), List.of(), List.of());
     }
 
@@ -224,7 +246,7 @@ final class ElementParserTest {
         // are captured as part of the type text. Depth-tracked parsing
         // handles nested generics and embedded function types too.
         ClassDefinition c = parseOneClass("Class P { items: List<Person>[*]; }");
-        assertEquals(List.of(prop("items", "List<Person>", 0, null)),
+        assertEquals(List.of(propT("items", tg("List", nr("Person")), 0, null)),
                 c.properties());
     }
 
@@ -236,7 +258,8 @@ final class ElementParserTest {
         // the inner generic closes first.
         ClassDefinition c = parseOneClass(
                 "Class P { x: Pair<List<A>, B>[1]; }");
-        assertEquals(List.of(prop("x", "Pair<List<A>, B>", 1, 1)),
+        assertEquals(
+                List.of(propT("x", tg("Pair", tg("List", nr("A")), nr("B")), 1, 1)),
                 c.properties());
     }
 
@@ -249,7 +272,10 @@ final class ElementParserTest {
         // tracking because it's not a brace or angle.
         ClassDefinition c = parseOneClass(
                 "Class P { f: Function<{T[1]->U[1]}>[1]; }");
-        assertEquals(List.of(prop("f", "Function<{T[1]->U[1]}>", 1, 1)),
+        TypeExpression fnTU = new FunctionType(
+                List.of(tp(nr("T"), Multiplicity.exactly(1))),
+                tp(nr("U"), Multiplicity.exactly(1)));
+        assertEquals(List.of(propT("f", tg("Function", fnTU), 1, 1)),
                 c.properties());
     }
 
@@ -260,8 +286,10 @@ final class ElementParserTest {
         // function-type span, not the inner return multiplicity.
         ClassDefinition c = parseOneClass(
                 "Class P { g: {T[1]->U[1]}[1]; }");
-        assertEquals(List.of(prop("g", "{T[1]->U[1]}", 1, 1)),
-                c.properties());
+        TypeExpression fnTU = new FunctionType(
+                List.of(tp(nr("T"), Multiplicity.exactly(1))),
+                tp(nr("U"), Multiplicity.exactly(1)));
+        assertEquals(List.of(propT("g", fnTU, 1, 1)), c.properties());
     }
 
     @Test
@@ -272,7 +300,7 @@ final class ElementParserTest {
         // superclass parsing too, not just property types.
         ClassDefinition c = parseOneClass(
                 "Class my::Foo extends List<Bar> { x: Integer[1]; }");
-        assertEquals(List.of("List<Bar>"), c.superClasses());
+        assertEquals(List.of(tg("List", nr("Bar"))), c.superClasses());
     }
 
     @Test
@@ -282,7 +310,7 @@ final class ElementParserTest {
         ParsedModel m = ElementParser.parse(
                 "Association my::A { left: List<B>[*]; right: A[1]; }");
         AssociationDefinition a = (AssociationDefinition) m.elements().get(0);
-        assertEquals("List<B>", a.property1().targetClass());
+        assertEquals(tg("List", nr("B")), a.property1().targetClass());
     }
 
     @Test
@@ -292,8 +320,8 @@ final class ElementParserTest {
         ParsedModel m = ElementParser.parse(
                 "function my::f(x: List<String>[*]): Pair<String, Integer>[1] { $x }");
         FunctionDefinition f = (FunctionDefinition) m.elements().get(0);
-        assertEquals("List<String>", f.parameters().get(0).type());
-        assertEquals("Pair<String, Integer>", f.returnType());
+        assertEquals(tg("List", nr("String")), f.parameters().get(0).type());
+        assertEquals(tg("Pair", nr("String"), nr("Integer")), f.returnType());
     }
 
     // ---------------------------------------------------------------
@@ -310,7 +338,7 @@ final class ElementParserTest {
     @Test
     void multipleSuperclassesIncludingQualifiedNames() {
         ClassDefinition c = parseOneClass("Class Hybrid extends A, b::c::D {}");
-        assertEquals(List.of("A", "b::c::D"), c.superClasses());
+        assertEquals(List.of(nr("A"), nr("b::c::D")), c.superClasses());
         assertTrue(c.typeParams().isEmpty(), "extends must not leak into typeParams");
     }
 
@@ -328,7 +356,7 @@ final class ElementParserTest {
                 """);
         assertEquals("my::pkg::Big", c.qualifiedName());
         assertEquals(List.of("T", "U"), c.typeParams());
-        assertEquals(List.of("my::pkg::Base", "OtherBase"), c.superClasses());
+        assertEquals(List.of(nr("my::pkg::Base"), nr("OtherBase")), c.superClasses());
         assertEquals(List.of(new StereotypeApplication("doc::D", "deprecated")),
                 c.stereotypes());
         assertEquals(List.of(new TaggedValue("doc::D", "author", "Alice")),
@@ -372,7 +400,7 @@ final class ElementParserTest {
         ClassDefinition c = parseOneClass(
                 "Class P { <<doc::D.required>> { doc::D.note = 'pk' } id: String[1]; }");
         PropertyDefinition expected = new PropertyDefinition(
-                "id", "String", Multiplicity.exactly(1),
+                "id", nr("String"), Multiplicity.exactly(1),
                 List.of(new StereotypeApplication("doc::D", "required")),
                 List.of(new TaggedValue("doc::D", "note", "pk")));
         assertEquals(List.of(expected), c.properties());
@@ -416,7 +444,7 @@ final class ElementParserTest {
 
         ClassDefinition expectedFirm = new ClassDefinition(
                 "my::model::Firm",
-                List.of(), List.of("LegalEntity"),
+                List.of(), List.of(nr("LegalEntity")),
                 List.of(
                         prop("name", "String", 1, 1),
                         prop("ceo", "Person", 0, 1)),
@@ -442,7 +470,7 @@ final class ElementParserTest {
                 () -> c.typeParams().add("X"),
                 "typeParams list must be immutable");
         assertThrows(UnsupportedOperationException.class,
-                () -> c.superClasses().add("X"),
+                () -> c.superClasses().add(nr("X")),
                 "superClasses list must be immutable");
     }
 
@@ -535,7 +563,7 @@ final class ElementParserTest {
         AppliedFunction plus = assertInstanceOf(AppliedFunction.class, d.expression().get(0));
         assertEquals("plus", plus.function());
         assertEquals(List.of(new CString("a"), new CString("b")), plus.parameters());
-        assertEquals("String", d.type());
+        assertEquals(nr("String"), d.type());
         assertEquals(Multiplicity.exactly(1), d.multiplicity());
         // Regular properties list stays empty.
         assertTrue(c.properties().isEmpty());
@@ -550,8 +578,8 @@ final class ElementParserTest {
         assertEquals("tax", d.name());
         assertEquals(
                 List.of(
-                        new ParameterDefinition("rate", "Float", Multiplicity.exactly(1)),
-                        new ParameterDefinition("country", "String", Multiplicity.range(0, 1))),
+                        new ParameterDefinition("rate", nr("Float"), Multiplicity.exactly(1)),
+                        new ParameterDefinition("country", nr("String"), Multiplicity.range(0, 1))),
                 d.parameters());
         // $this.price * $rate desugars to times(AppliedProperty($this, price), Variable(rate)).
         assertEquals(1, d.expression().size());
@@ -562,7 +590,7 @@ final class ElementParserTest {
         assertEquals("price", thisPrice.property());
         assertEquals(new Variable("this"), thisPrice.receiver());
         assertEquals(new Variable("rate"), times.parameters().get(1));
-        assertEquals("Float", d.type());
+        assertEquals(nr("Float"), d.type());
     }
 
     @Test
@@ -636,9 +664,9 @@ final class ElementParserTest {
         AssociationDefinition a = assertInstanceOf(AssociationDefinition.class,
                 m.elements().get(0));
         assertEquals("my::ns::Person_Firm", a.qualifiedName());
-        assertEquals(new AssociationEndDefinition("firm", "Firm", Multiplicity.exactly(1)),
+        assertEquals(new AssociationEndDefinition("firm", nr("Firm"), Multiplicity.exactly(1)),
                 a.property1());
-        assertEquals(new AssociationEndDefinition("employees", "Person", Multiplicity.zeroMany()),
+        assertEquals(new AssociationEndDefinition("employees", nr("Person"), Multiplicity.zeroMany()),
                 a.property2());
     }
 
@@ -752,7 +780,7 @@ final class ElementParserTest {
         FunctionDefinition f = assertInstanceOf(FunctionDefinition.class, m.elements().get(0));
         assertEquals("my::pkg::greet", f.qualifiedName());
         assertEquals(List.of(), f.parameters());
-        assertEquals("String", f.returnType());
+        assertEquals(nr("String"), f.returnType());
         assertEquals(Multiplicity.exactly(1), f.returnMultiplicity());
         // 'hello' parses to a single CString literal.
         assertEquals(List.of(new CString("hello")), f.body());
@@ -767,10 +795,10 @@ final class ElementParserTest {
         FunctionDefinition f = assertInstanceOf(FunctionDefinition.class, m.elements().get(0));
         assertEquals(
                 List.of(
-                        new FunctionDefinition.ParameterDefinition("a", "Integer", Multiplicity.exactly(1)),
-                        new FunctionDefinition.ParameterDefinition("b", "Integer", Multiplicity.range(0, 1))),
+                        new FunctionDefinition.ParameterDefinition("a", nr("Integer"), Multiplicity.exactly(1)),
+                        new FunctionDefinition.ParameterDefinition("b", nr("Integer"), Multiplicity.range(0, 1))),
                 f.parameters());
-        assertEquals("Integer", f.returnType());
+        assertEquals(nr("Integer"), f.returnType());
         // $a + $b desugars to plus(Variable(a), Variable(b)).
         assertEquals(
                 List.of(new AppliedFunction("plus",
@@ -820,8 +848,8 @@ final class ElementParserTest {
                         .elements().get(0));
         assertEquals(List.of("T"), f.typeParameters());
         assertEquals(List.of(), f.multiplicityParameters());
-        assertEquals("T", f.parameters().get(0).type());
-        assertEquals("T", f.returnType());
+        assertEquals(nr("T"), f.parameters().get(0).type());
+        assertEquals(nr("T"), f.returnType());
     }
 
     @Test
@@ -856,10 +884,11 @@ final class ElementParserTest {
                                 + "{ $rel }")
                         .elements().get(0));
         assertEquals(List.of("X", "T"), f.typeParameters());
-        assertEquals("Relation<T>", f.parameters().get(0).type());
-        assertEquals("SortInfo<X\u2286T>", f.parameters().get(1).type());
+        assertEquals(tg("Relation", nr("T")), f.parameters().get(0).type());
+        assertEquals(tg("SortInfo", sa(nr("X"), Op.SUBSET, nr("T"))),
+                f.parameters().get(1).type());
         assertEquals(Multiplicity.zeroMany(), f.parameters().get(1).multiplicity());
-        assertEquals("Relation<T>", f.returnType());
+        assertEquals(tg("Relation", nr("T")), f.returnType());
     }
 
     @Test
@@ -870,7 +899,8 @@ final class ElementParserTest {
                         "function my::ext<T,Z>(r: Relation<T>[1]): Relation<T+Z>[1] "
                                 + "{ $r }")
                         .elements().get(0));
-        assertEquals("Relation<T+Z>", f.returnType());
+        assertEquals(tg("Relation", sa(nr("T"), Op.UNION, nr("Z"))),
+                f.returnType());
         assertEquals(Multiplicity.exactly(1), f.returnMultiplicity());
     }
 
@@ -882,7 +912,10 @@ final class ElementParserTest {
                         "function my::ren<T,Z,V>(r: Relation<T>[1]): Relation<T-Z+V>[1] "
                                 + "{ $r }")
                         .elements().get(0));
-        assertEquals("Relation<T-Z+V>", f.returnType());
+        assertEquals(
+                tg("Relation",
+                        sa(sa(nr("T"), Op.DIFFERENCE, nr("Z")), Op.UNION, nr("V"))),
+                f.returnType());
     }
 
     @Test
@@ -895,7 +928,13 @@ final class ElementParserTest {
                                 + "spec: ColSpec<Z=(?:K)\u2286T>[1]): Relation<T>[1] "
                                 + "{ $r }")
                         .elements().get(0));
-        assertEquals("ColSpec<Z=(?:K)\u2286T>", f.parameters().get(1).type());
+        // Z=(?:K)⊆T parses to SUBSET wrapping EQUAL; wildcard column (?:K)
+        // becomes a RelationType with one Column named "?".
+        TypeExpression wildcardOfK = rel(col("?", nr("K"), Multiplicity.exactly(1)));
+        TypeExpression zEqQK_subT = sa(
+                sa(nr("Z"), Op.EQUAL, wildcardOfK),
+                Op.SUBSET, nr("T"));
+        assertEquals(tg("ColSpec", zEqQK_subT), f.parameters().get(1).type());
     }
 
     @Test
@@ -908,10 +947,16 @@ final class ElementParserTest {
                                 + "f: FuncColSpec<{Relation<T>[1],_Window<T>[1],T[1]->Any[0..1]},R>[1]"
                                 + "): Relation<T+R>[1] { $r }")
                         .elements().get(0));
-        assertEquals(
-                "FuncColSpec<{Relation<T>[1],_Window<T>[1],T[1]->Any[0..1]},R>",
+        TypeExpression innerFn = new FunctionType(
+                List.of(
+                        tp(tg("Relation", nr("T")), Multiplicity.exactly(1)),
+                        tp(tg("_Window", nr("T")), Multiplicity.exactly(1)),
+                        tp(nr("T"), Multiplicity.exactly(1))),
+                tp(nr("Any"), Multiplicity.range(0, 1)));
+        assertEquals(tg("FuncColSpec", innerFn, nr("R")),
                 f.parameters().get(1).type());
-        assertEquals("Relation<T+R>", f.returnType());
+        assertEquals(tg("Relation", sa(nr("T"), Op.UNION, nr("R"))),
+                f.returnType());
     }
 
     @Test
@@ -923,8 +968,8 @@ final class ElementParserTest {
                         "function my::w<T>(w: _Window<T>[1], t: _Traversal[1]): T[1] "
                                 + "{ $w->cast(@T) }")
                         .elements().get(0));
-        assertEquals("_Window<T>", f.parameters().get(0).type());
-        assertEquals("_Traversal", f.parameters().get(1).type());
+        assertEquals(tg("_Window", nr("T")), f.parameters().get(0).type());
+        assertEquals(nr("_Traversal"), f.parameters().get(1).type());
     }
 
     // ===============================================================
@@ -942,9 +987,9 @@ final class ElementParserTest {
         assertEquals(List.of(), f.multiplicityParameters());
         assertEquals(
                 List.of(new FunctionDefinition.ParameterDefinition(
-                        "x", "Number", Multiplicity.exactly(1))),
+                        "x", nr("Number"), Multiplicity.exactly(1))),
                 f.parameters());
-        assertEquals("Number", f.returnType());
+        assertEquals(nr("Number"), f.returnType());
         assertEquals(Multiplicity.exactly(1), f.returnMultiplicity());
     }
 
@@ -960,7 +1005,7 @@ final class ElementParserTest {
         assertEquals(List.of("m"), f.multiplicityParameters());
         assertEquals(1, f.stereotypes().size());
         assertEquals(2, f.parameters().size());
-        assertEquals("T", f.returnType());
+        assertEquals(nr("T"), f.returnType());
     }
 
     @Test
@@ -974,11 +1019,15 @@ final class ElementParserTest {
         // Function type captured as raw text (structural parse deferred to the model layer).
         assertEquals(
                 List.of(
-                        new FunctionDefinition.ParameterDefinition("value", "T", Multiplicity.zeroMany()),
+                        new FunctionDefinition.ParameterDefinition("value", nr("T"), Multiplicity.zeroMany()),
                         new FunctionDefinition.ParameterDefinition(
-                                "func", "Function<{T[1]->V[*]}>", Multiplicity.exactly(1))),
+                                "func",
+                                tg("Function", new FunctionType(
+                                        List.of(tp(nr("T"), Multiplicity.exactly(1))),
+                                        tp(nr("V"), Multiplicity.zeroMany()))),
+                                Multiplicity.exactly(1))),
                 f.parameters());
-        assertEquals("V", f.returnType());
+        assertEquals(nr("V"), f.returnType());
         assertEquals(Multiplicity.zeroMany(), f.returnMultiplicity());
     }
 
@@ -991,10 +1040,11 @@ final class ElementParserTest {
                                 + "(rel: Relation<T>[1], sortInfo: SortInfo<X\u2286T>[*]): Relation<T>[1];")
                         .elements().get(0));
         assertEquals(List.of("X", "T"), f.typeParameters());
-        assertEquals("Relation<T>", f.parameters().get(0).type());
-        // SUBSET (⊆) is swallowed by the depth-balanced <...> scan.
-        assertEquals("SortInfo<X\u2286T>", f.parameters().get(1).type());
-        assertEquals("Relation<T>", f.returnType());
+        assertEquals(tg("Relation", nr("T")), f.parameters().get(0).type());
+        // SUBSET (⊆) parses to a structured SchemaAlgebra.
+        assertEquals(tg("SortInfo", sa(nr("X"), Op.SUBSET, nr("T"))),
+                f.parameters().get(1).type());
+        assertEquals(tg("Relation", nr("T")), f.returnType());
     }
 
     @Test
@@ -1008,7 +1058,8 @@ final class ElementParserTest {
                                 + "): Relation<T+R>[1];")
                         .elements().get(0));
         assertEquals(List.of("T", "K", "V", "R"), f.typeParameters());
-        assertEquals("Relation<T+R>", f.returnType());
+        assertEquals(tg("Relation", sa(nr("T"), Op.UNION, nr("R"))),
+                f.returnType());
     }
 
     @Test
@@ -1023,12 +1074,19 @@ final class ElementParserTest {
                                 + "): Relation<T-Z+V>[1];")
                         .elements().get(0));
         assertEquals(List.of("T", "Z", "K", "V"), f.typeParameters());
-        // All four algebra operators (=, ⊆, +, -) survive verbatim through
-        // the depth-balanced type-text capture; structural parse happens
-        // in the model/compiler layer.
-        assertEquals("ColSpec<Z=(?:K)\u2286T>", f.parameters().get(1).type());
-        assertEquals("ColSpec<V=(?:K)>", f.parameters().get(2).type());
-        assertEquals("Relation<T-Z+V>", f.returnType());
+        // All four algebra operators (=, ⊆, +, -) survive as structured
+        // SchemaAlgebra nodes; wildcard column (?:K) is a RelationType.
+        TypeExpression wildcardOfK = rel(col("?", nr("K"), Multiplicity.exactly(1)));
+        assertEquals(
+                tg("ColSpec", sa(sa(nr("Z"), Op.EQUAL, wildcardOfK), Op.SUBSET, nr("T"))),
+                f.parameters().get(1).type());
+        assertEquals(
+                tg("ColSpec", sa(nr("V"), Op.EQUAL, wildcardOfK)),
+                f.parameters().get(2).type());
+        assertEquals(
+                tg("Relation",
+                        sa(sa(nr("T"), Op.DIFFERENCE, nr("Z")), Op.UNION, nr("V"))),
+                f.returnType());
     }
 
     @Test
@@ -1043,8 +1101,12 @@ final class ElementParserTest {
                                 + "): Relation<T>[1];")
                         .elements().get(0));
         assertEquals(List.of("T"), f.typeParameters());
-        assertEquals("Relation<(age:Integer)\u2286T>", f.parameters().get(0).type());
-        assertEquals("Relation<T>", f.returnType());
+        // (age:Integer)⊆T parses as SchemaAlgebra(RelationType([age:Integer[1]]), SUBSET, T).
+        TypeExpression ageColSubT = sa(
+                rel(col("age", nr("Integer"), Multiplicity.exactly(1))),
+                Op.SUBSET, nr("T"));
+        assertEquals(tg("Relation", ageColSubT), f.parameters().get(0).type());
+        assertEquals(tg("Relation", nr("T")), f.returnType());
     }
 
     @Test
@@ -1060,7 +1122,7 @@ final class ElementParserTest {
                         .elements().get(0));
         assertEquals(2, f.stereotypes().size());
         assertEquals(1, f.taggedValues().size());
-        assertEquals("Integer", f.returnType());
+        assertEquals(nr("Integer"), f.returnType());
     }
 
     @Test
@@ -1150,8 +1212,8 @@ final class ElementParserTest {
                 assertInstanceOf(com.legend.parser.element.Function.class, m.elements().get(1));
         assertEquals("my::n", n.qualifiedName());
         assertEquals("my::u", u.qualifiedName());
-        assertEquals("Integer", n.returnType());
-        assertEquals("Integer", u.returnType());
+        assertEquals(nr("Integer"), n.returnType());
+        assertEquals(nr("Integer"), u.returnType());
     }
 
     // ===============================================================
@@ -2620,7 +2682,7 @@ final class ElementParserTest {
         assertEquals(2, cm.propertyMappings().size());
         var local = (PropertyMapping.LocalProperty) cm.propertyMappings().get(1);
         assertEquals("localProp", local.propertyName());
-        assertEquals("String", local.type());
+        assertEquals(nr("String"), local.type());
         assertEquals(Multiplicity.exactly(1), local.multiplicity());
         // Body is the regular Column binding.
         var col = (PropertyMapping.Column) local.body();

@@ -263,7 +263,7 @@ public sealed interface PropertyMapping
      * @param body          binding body (Column / Expression / Join / ...)
      */
     record LocalProperty(String propertyName,
-                         String type,
+                         TypeExpression type,
                          Multiplicity multiplicity,
                          PropertyMapping body) implements PropertyMapping {
         public LocalProperty {

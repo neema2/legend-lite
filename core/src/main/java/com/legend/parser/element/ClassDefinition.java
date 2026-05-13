@@ -33,7 +33,7 @@ import java.util.Objects;
  *
  * @param qualifiedName     fully qualified class name (e.g. {@code "model::Person"})
  * @param typeParams        generic type parameter names ({@code <T, U>}); empty list if absent
- * @param superClasses      direct superclass FQNs (or simple names, before resolution); empty if none
+ * @param superClasses      direct superclass references as structured ASTs; empty if none
  * @param properties        regular property declarations
  * @param derivedProperties derived (computed) property declarations
  * @param constraints       class-level constraints
@@ -44,7 +44,7 @@ import java.util.Objects;
 public record ClassDefinition(
         String qualifiedName,
         List<String> typeParams,
-        List<String> superClasses,
+        List<TypeExpression> superClasses,
         List<PropertyDefinition> properties,
         List<DerivedPropertyDefinition> derivedProperties,
         List<ConstraintDefinition> constraints,
@@ -85,7 +85,7 @@ public record ClassDefinition(
      */
     public record PropertyDefinition(
             String name,
-            String type,
+            TypeExpression type,
             Multiplicity multiplicity,
             List<StereotypeApplication> stereotypes,
             List<TaggedValue> taggedValues) {
@@ -115,7 +115,7 @@ public record ClassDefinition(
             String name,
             List<ParameterDefinition> parameters,
             List<ValueSpecification> expression,
-            String type,
+            TypeExpression type,
             Multiplicity multiplicity) {
         public DerivedPropertyDefinition {
             Objects.requireNonNull(name, "Derived property name cannot be null");
@@ -136,7 +136,7 @@ public record ClassDefinition(
      */
     public record ParameterDefinition(
             String name,
-            String type,
+            TypeExpression type,
             Multiplicity multiplicity) {
         public ParameterDefinition {
             Objects.requireNonNull(name, "Parameter name cannot be null");

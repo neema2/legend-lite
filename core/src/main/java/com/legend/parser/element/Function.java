@@ -43,8 +43,10 @@ public sealed interface Function
     /** Return multiplicity ({@link Multiplicity.Concrete} or {@link Multiplicity.Parameter}). */
     Multiplicity returnMultiplicity();
 
-    /** Return type as written (raw source text; structural parse deferred to the model layer). */
-    String returnType();
+    /** Declared return type as a structured AST. Pre-NameResolver may contain
+     *  simple (unresolved) {@link TypeExpression.NameRef} leaves; post-resolution
+     *  every leaf is FQN. */
+    TypeExpression returnType();
 
     /** Applied stereotypes (may be empty). */
     List<StereotypeApplication> stereotypes();

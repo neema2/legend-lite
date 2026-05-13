@@ -45,7 +45,7 @@ import java.util.Objects;
  * @param typeParameters          declared generic type parameter names (e.g. {@code <T,V>})
  * @param multiplicityParameters  declared multiplicity parameter names (e.g. {@code <|m,n>})
  * @param parameters              parameter declarations in source order
- * @param returnType              return type as written (simple or qualified, unresolved)
+ * @param returnType              declared return type as a structured AST
  * @param returnMultiplicity      return multiplicity ({@link Multiplicity.Concrete} or {@link Multiplicity.Parameter})
  * @param body                    parsed function body as a sequence of statements;
  *                                non-null but may be empty for a {@code {}} body
@@ -57,7 +57,7 @@ public record FunctionDefinition(
         List<String> typeParameters,
         List<String> multiplicityParameters,
         List<ParameterDefinition> parameters,
-        String returnType,
+        TypeExpression returnType,
         Multiplicity returnMultiplicity,
         List<ValueSpecification> body,
         List<StereotypeApplication> stereotypes,
@@ -77,17 +77,13 @@ public record FunctionDefinition(
     }
 
     /**
-     * A function parameter declaration.
-     *
-     * <p>Engine's {@code FunctionDefinition.ParameterDefinition} carries two
-     * compiler-cache fields ({@code Type.FunctionType functionType},
-     * {@code Type parsedType}) used by engine's type checker. Core/'s parser
-     * record stays pure data; type structure is rebuilt by {@code SpecCompiler}
-     * in Phase G from {@code type} (the raw type string).
+     * A function parameter declaration. Parameter type is a structured
+     * {@link TypeExpression}; pre-NameResolver leaves may carry simple
+     * unresolved names, post-resolution every leaf is FQN.
      */
     public record ParameterDefinition(
             String name,
-            String type,
+            TypeExpression type,
             Multiplicity multiplicity) {
         public ParameterDefinition {
             Objects.requireNonNull(name, "Parameter name cannot be null");

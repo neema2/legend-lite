@@ -25,6 +25,7 @@ import com.legend.parser.element.NativeFunctionDefinition;
 import com.legend.parser.element.MappingDefinition;
 import com.legend.parser.element.Multiplicity;
 import com.legend.parser.element.PropertyMapping;
+import com.legend.parser.element.TypeExpression;
 import com.legend.parser.element.JsonModelConnection;
 import com.legend.parser.element.PackageableElement;
 import com.legend.parser.element.JoinChainElement;
@@ -360,7 +361,7 @@ public final class ElementParser {
 
         List<String> typeParams = parseClassTypeParams();
 
-        List<String> superClasses = new ArrayList<>();
+        List<TypeExpression> superClasses = new ArrayList<>();
         if (match(TokenType.EXTENDS)) {
             superClasses.add(parseType());
             while (match(TokenType.COMMA)) {
@@ -485,7 +486,7 @@ public final class ElementParser {
         }
 
         expect(TokenType.COLON);
-        String type = parseType();
+        TypeExpression type = parseType();
         Multiplicity mult = parseMultiplicity();
         expect(TokenType.SEMI_COLON);
 
@@ -496,7 +497,7 @@ public final class ElementParser {
     private ParameterDefinition parseDerivedPropertyParameter() {
         String name = parseIdentifier();
         expect(TokenType.COLON);
-        String type = parseType();
+        TypeExpression type = parseType();
         Multiplicity mult = parseMultiplicity();
         return new ParameterDefinition(name, type, mult);
     }
@@ -571,7 +572,7 @@ public final class ElementParser {
         while (peek() != TokenType.BRACE_CLOSE && !atEnd()) {
             String name = parseIdentifier();
             expect(TokenType.COLON);
-            String type = parseType();
+            TypeExpression type = parseType();
             Multiplicity mult = parseMultiplicity();
             expect(TokenType.SEMI_COLON);
             ends.add(new AssociationEndDefinition(name, type, mult));
@@ -697,7 +698,7 @@ public final class ElementParser {
         expect(TokenType.PAREN_CLOSE);
 
         expect(TokenType.COLON);
-        String returnType = parseType();
+        TypeExpression returnType = parseType();
         Multiplicity returnMult = parseMultiplicity();
 
         // Optional constraints block — engine accepts then discards.
@@ -762,7 +763,7 @@ public final class ElementParser {
         expect(TokenType.PAREN_CLOSE);
 
         expect(TokenType.COLON);
-        String returnType = parseType();
+        TypeExpression returnType = parseType();
         Multiplicity returnMult = parseMultiplicity();
 
         expect(TokenType.SEMI_COLON);
@@ -780,7 +781,7 @@ public final class ElementParser {
     private FunctionDefinition.ParameterDefinition parseFunctionParameter() {
         String name = parseIdentifier();
         expect(TokenType.COLON);
-        String type = parseType();
+        TypeExpression type = parseType();
         Multiplicity mult = parseMultiplicity();
         return new FunctionDefinition.ParameterDefinition(name, type, mult);
     }
@@ -1858,7 +1859,7 @@ public final class ElementParser {
         expect(TokenType.PLUS);
         String propName = parseIdentifier();
         expect(TokenType.COLON);
-        String type = parseType();
+        TypeExpression type = parseType();
         Multiplicity mult = parseMultiplicity();
         expect(TokenType.COLON);
         PropertyMapping body = parsePropertyMappingBody(propName, mainTable);
@@ -2563,7 +2564,7 @@ public final class ElementParser {
         List<TaggedValue> taggedValues = parseTaggedValues();
         String name = parseIdentifier();
         expect(TokenType.COLON);
-        String type = parseType();
+        TypeExpression type = parseType();
         Multiplicity mult = parseMultiplicity();
         expect(TokenType.SEMI_COLON);
         return new ClassDefinition.PropertyDefinition(
@@ -2599,72 +2600,155 @@ public final class ElementParser {
     }
 
     /**
-     * Parse a type reference and return its surface text. Three shapes
-     * are accepted, matching engine-lite's {@code parseType}:
+     * Parse a type reference and return its structured AST. Four
+     * top-level shapes are accepted, matching engine's
+     * {@code PureNativeSignatureParser.parsePType}:
      *
      * <ol>
-     *   <li>Bare function type: {@code {T[m] -> R[m]}} &mdash; the
-     *       entire brace-delimited span is captured verbatim.</li>
-     *   <li>Qualified name with optional generics:
-     *       {@code my::pkg::List<Person>}, where the generic argument
-     *       list may itself contain nested generics, multiplicities,
-     *       function types, commas, etc. Engine-lite tracks
-     *       {@code <...>} by depth; we match.</li>
-     *   <li>Plain qualified name: {@code my::pkg::Type}.</li>
+     *   <li>Function type: {@code {Type[mult], ... -> Type[mult]}} &mdash;
+     *       brace-delimited, comma-separated typed parameters, then an
+     *       arrow, then a typed result. Empty parameter list is legal
+     *       ({@code {->R[1]}}).</li>
+     *   <li>Inline relation type: {@code (col:Type[mult], ...)} &mdash;
+     *       paren-delimited. Each column's multiplicity defaults to
+     *       {@code [1]} when not declared (matches engine).</li>
+     *   <li>Generic application: {@code my::pkg::List<arg, ...>}, where
+     *       each {@code arg} is parsed by {@link #parseTypeArgument()}
+     *       which adds support for the schema-algebra operators
+     *       ({@code T+Z}, {@code T-Z}, {@code Z\u2286T}, {@code Z=K}).</li>
+     *   <li>Plain name reference: {@code my::pkg::Type} or a single
+     *       identifier like {@code T} (a type-parameter binder).</li>
      * </ol>
      *
-     * <p>Returned string is the source substring spanning the consumed
-     * tokens. Callers store it as the declared type text and defer
-     * structural parsing to the type-resolution layer (legend-engine
-     * proper does the same).
+     * <p>Returns a structured {@link TypeExpression}. Callers store it
+     * directly; downstream consumers (NameResolver, type checker) walk
+     * the AST rather than re-parsing strings.
      *
-     * <p>This is the SINGLE most impactful method in the parser for
-     * real-Pure compatibility &mdash; almost every property, parameter,
-     * association end, function return, and superclass type goes
-     * through here. A naive {@code parseQualifiedName()} implementation
-     * (the pre-fix behaviour) would reject any declared type with a
-     * generic argument, which is the majority of non-primitive types in
-     * the legend-engine corpus ({@code List<T>}, {@code Pair<A,B>},
-     * {@code Function<{T->R}>}, {@code Map<K,V>}, etc.).
+     * <p>Schema-algebra operators ({@code +}, {@code -}, {@code \u2286},
+     * {@code =}) are <em>not</em> consumed at the top level &mdash; they
+     * only appear inside a generic argument list and are handled by
+     * {@link #parseTypeArgument()}, mirroring engine's split between
+     * {@code parsePType} and {@code parseTypeWithOperation}.
      */
-    private String parseType() {
-        int start = pos;
+    private TypeExpression parseType() {
         if (peek() == TokenType.BRACE_OPEN) {
-            // Bare function type: {T[m] -> R[m]} -- capture the whole
-            // brace-balanced span verbatim. Engine-lite does a raw
-            // depth-count here (no structural parse of the inner
-            // function signature); we match.
-            advance(); // consume '{'
-            int depth = 1;
-            while (!atEnd() && depth > 0) {
-                TokenType t = peek();
-                if (t == TokenType.BRACE_OPEN) depth++;
-                else if (t == TokenType.BRACE_CLOSE) depth--;
-                if (depth > 0) advance();
-            }
-            if (!atEnd()) advance(); // consume matching '}'
-        } else {
-            parseQualifiedName(); // consume the base type name
-            // Generic argument list: Type<...>. Depth-counted so nested
-            // generics (Pair<List<A>, B>), nested function types inside
-            // generics (Function<{T->R}>), and arbitrary punctuation
-            // within the argument list all pass through. The lexer
-            // produces separate '<' / '>' tokens which simplifies depth
-            // tracking -- no need to disambiguate from comparison
-            // operators at the element-parser level.
-            if (peek() == TokenType.LESS_THAN) {
-                advance(); // consume '<'
-                int depth = 1;
-                while (!atEnd() && depth > 0) {
-                    TokenType t = peek();
-                    if (t == TokenType.LESS_THAN) depth++;
-                    else if (t == TokenType.GREATER_THAN) depth--;
-                    if (depth > 0) advance();
-                }
-                if (!atEnd()) advance(); // consume matching '>'
+            return parseFunctionTypeExpression();
+        }
+        if (peek() == TokenType.PAREN_OPEN) {
+            return parseRelationTypeExpression();
+        }
+        String name = parseQualifiedName();
+        if (!match(TokenType.LESS_THAN)) {
+            return new TypeExpression.NameRef(name);
+        }
+        List<TypeExpression> args = new ArrayList<>();
+        args.add(parseTypeArgument());
+        while (match(TokenType.COMMA)) {
+            args.add(parseTypeArgument());
+        }
+        expect(TokenType.GREATER_THAN);
+        return new TypeExpression.Generic(name, args);
+    }
+
+    /**
+     * Parse one entry inside a generic argument list, adding support
+     * for the schema-algebra operators that engine's
+     * {@code parseTypeWithOperation} recognises. Precedence (binding
+     * tightest first):
+     * <ol>
+     *   <li>{@code =} (equal), applied to the immediately-parsed base;</li>
+     *   <li>{@code +} / {@code -} (union / difference), left-leaning
+     *       chain on whatever the EQUAL stage produced;</li>
+     *   <li>{@code \u2286} (subset), applied last to the whole.</li>
+     * </ol>
+     * <p>If no operator follows, returns the plain {@link #parseType()}
+     * result unchanged.
+     */
+    private TypeExpression parseTypeArgument() {
+        TypeExpression result = parseType();
+        if (match(TokenType.EQUAL)) {
+            TypeExpression right = parseType();
+            result = new TypeExpression.SchemaAlgebra(result, TypeExpression.Op.EQUAL, right);
+        }
+        while (peek() == TokenType.PLUS || peek() == TokenType.MINUS) {
+            TypeExpression.Op op = match(TokenType.PLUS)
+                    ? TypeExpression.Op.UNION
+                    : (match(TokenType.MINUS) ? TypeExpression.Op.DIFFERENCE : null);
+            // op is non-null because the while-condition guaranteed one of the two matched.
+            TypeExpression right = parseType();
+            result = new TypeExpression.SchemaAlgebra(result, op, right);
+        }
+        if (match(TokenType.SUBSET)) {
+            TypeExpression superSet = parseType();
+            result = new TypeExpression.SchemaAlgebra(result, TypeExpression.Op.SUBSET, superSet);
+        }
+        return result;
+    }
+
+    /**
+     * Parse {@code {Type[mult], ... -> Type[mult]}}. The opening
+     * {@code '{'} has not yet been consumed.
+     */
+    private TypeExpression parseFunctionTypeExpression() {
+        expect(TokenType.BRACE_OPEN);
+        List<TypeExpression.TypedParameter> params = new ArrayList<>();
+        if (peek() != TokenType.ARROW) {
+            params.add(parseTypedParameter());
+            while (match(TokenType.COMMA)) {
+                params.add(parseTypedParameter());
             }
         }
-        return reconstructText(start, pos);
+        expect(TokenType.ARROW);
+        TypeExpression resultType = parseType();
+        Multiplicity resultMult = parseMultiplicity();
+        expect(TokenType.BRACE_CLOSE);
+        return new TypeExpression.FunctionType(
+                params,
+                new TypeExpression.TypedParameter(resultType, resultMult));
+    }
+
+    /**
+     * Parse {@code (col:Type[mult], ...)}. The opening {@code '('}
+     * has not yet been consumed. Column multiplicity defaults to
+     * {@code [1]} when not declared (engine parity).
+     */
+    private TypeExpression parseRelationTypeExpression() {
+        expect(TokenType.PAREN_OPEN);
+        List<TypeExpression.Column> columns = new ArrayList<>();
+        if (peek() != TokenType.PAREN_CLOSE) {
+            columns.add(parseRelationColumn());
+            while (match(TokenType.COMMA)) {
+                columns.add(parseRelationColumn());
+            }
+        }
+        expect(TokenType.PAREN_CLOSE);
+        return new TypeExpression.RelationType(columns);
+    }
+
+    /**
+     * Parse one column in a {@link TypeExpression.RelationType}:
+     * {@code name : Type [mult]?}. The column name may be a literal
+     * {@code "?"} wildcard (used in the rename DSL
+     * {@code Z=(?:K)\u2286T}).
+     */
+    private TypeExpression.Column parseRelationColumn() {
+        String colName = match(TokenType.QUESTION) ? "?" : parseIdentifier();
+        expect(TokenType.COLON);
+        TypeExpression colType = parseType();
+        Multiplicity mult = (peek() == TokenType.BRACKET_OPEN)
+                ? parseMultiplicity()
+                : Multiplicity.exactly(1);
+        return new TypeExpression.Column(colName, colType, mult);
+    }
+
+    /**
+     * Parse {@code Type[mult]} &mdash; a typed parameter as used in a
+     * function-type signature.
+     */
+    private TypeExpression.TypedParameter parseTypedParameter() {
+        TypeExpression t = parseType();
+        Multiplicity mult = parseMultiplicity();
+        return new TypeExpression.TypedParameter(t, mult);
     }
 
     /**

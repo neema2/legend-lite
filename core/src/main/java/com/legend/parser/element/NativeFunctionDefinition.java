@@ -34,7 +34,7 @@ import java.util.Objects;
  * @param typeParameters          declared generic type parameter names
  * @param multiplicityParameters  declared multiplicity parameter names
  * @param parameters              parameter declarations in source order
- * @param returnType              return type as written (raw text, structural parse deferred)
+ * @param returnType              declared return type as a structured AST
  * @param returnMultiplicity      return multiplicity ({@link Multiplicity.Concrete} or {@link Multiplicity.Parameter})
  * @param stereotypes             applied stereotypes
  * @param taggedValues            applied tagged values
@@ -44,7 +44,7 @@ public record NativeFunctionDefinition(
         List<String> typeParameters,
         List<String> multiplicityParameters,
         List<FunctionDefinition.ParameterDefinition> parameters,
-        String returnType,
+        TypeExpression returnType,
         Multiplicity returnMultiplicity,
         List<StereotypeApplication> stereotypes,
         List<TaggedValue> taggedValues) implements PackageableElement, Function {

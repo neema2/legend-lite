@@ -41,13 +41,13 @@ public record AssociationDefinition(
      * unbounded ({@code *}).
      *
      * @param propertyName property name on the source side
-     * @param targetClass  the class this property points to (simple or qualified, unresolved)
+     * @param targetClass  the class this property points to, as a structured AST
      * @param lowerBound   lower multiplicity bound
      * @param upperBound   upper multiplicity bound ({@code null} = unbounded)
      */
     public record AssociationEndDefinition(
             String propertyName,
-            String targetClass,
+            TypeExpression targetClass,
             Multiplicity multiplicity) {
         public AssociationEndDefinition {
             Objects.requireNonNull(propertyName, "Property name cannot be null");

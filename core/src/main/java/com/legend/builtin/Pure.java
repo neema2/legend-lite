@@ -15,6 +15,8 @@
 package com.legend.builtin;
 
 import com.legend.parser.ElementParser;
+import com.legend.parser.element.ClassDefinition;
+import com.legend.parser.element.EnumDefinition;
 import com.legend.parser.element.NativeFunctionDefinition;
 
 import java.util.ArrayList;
@@ -37,6 +39,288 @@ import java.util.List;
  */
 public final class Pure {
     private Pure() {}
+
+    // ================================================================
+    // Built-in type FQNs.
+    //
+    // Single source of truth for the names of stdlib types Pure code
+    // refers to without an explicit import. Same role as the
+    // {@link NativeFunctionDefinition} constants below, restricted to
+    // strings until {@code NativeClassDefinition} (planned follow-up)
+    // lands and these get promoted to structured records.
+    //
+    // Consumers (NameResolver, TypeChecker, tests, etc.) should
+    // reference these constants instead of hard-coding the FQN string.
+    // ================================================================
+
+    /** {@code meta::pure::metamodel::type::} &mdash; package for core
+     *  primitives and {@code Any}, {@code Type}, etc. */
+    public static final String TYPE_PKG = "meta::pure::metamodel::type";
+
+    /** {@code meta::pure::metamodel::relation::} &mdash; package for
+     *  {@link #RELATION}, {@link #COL_SPEC}, etc. */
+    public static final String RELATION_PKG = "meta::pure::metamodel::relation";
+
+    /** {@code meta::pure::metamodel::function::} &mdash; package for
+     *  {@link #FUNCTION}. */
+    public static final String FUNCTION_PKG = "meta::pure::metamodel::function";
+
+    /** {@code meta::pure::functions::relation::} &mdash; package for
+     *  relation-algebra helpers ({@link #WINDOW}, {@link #SORT_INFO}, ...). */
+    public static final String RELATION_FUNCTIONS_PKG = "meta::pure::functions::relation";
+
+    /** {@code meta::pure::functions::date::} &mdash; package for date-related
+     *  enums ({@link #DURATION_UNIT}, {@link #MONTH}, ...) and helpers. */
+    public static final String DATE_FUNCTIONS_PKG = "meta::pure::functions::date";
+
+    /** {@code meta::pure::functions::hash::} &mdash; package for hash-related
+     *  enums ({@link #HASH_TYPE}). */
+    public static final String HASH_FUNCTIONS_PKG = "meta::pure::functions::hash";
+
+    /** {@code meta::pure::functions::collection::} &mdash; package for collection
+     *  helper carriers ({@link #LIST}, {@link #PAIR}). */
+    public static final String COLLECTION_PKG = "meta::pure::functions::collection";
+
+    /** {@code meta::pure::functions::math::mathUtility::} &mdash; package for math
+     *  helper carriers ({@link #ROW_MAPPER}). */
+    public static final String MATH_UTILITY_PKG = "meta::pure::functions::math::mathUtility";
+
+    /** {@code meta::pure::metamodel::variant::} &mdash; package for {@link #VARIANT}. */
+    public static final String VARIANT_PKG = "meta::pure::metamodel::variant";
+
+    /** {@code meta::pure::graphFetch::} &mdash; package for graph-fetch
+     *  tree carriers ({@link #ROOT_GRAPH_FETCH_TREE}). */
+    public static final String GRAPH_FETCH_PKG = "meta::pure::graphFetch";
+
+    /** {@code meta::relational::metamodel::} &mdash; package for relational-store
+     *  built-ins ({@link #SORT_DIRECTION}). Distinct from
+     *  {@link #RELATION_FUNCTIONS_PKG} which carries Pure-level relation
+     *  algebra: this one lives under {@code meta::relational::} and is owned
+     *  by the relational DSL. */
+    public static final String RELATIONAL_PKG = "meta::relational::metamodel";
+
+    // ================================================================
+    // Native class catalog.
+    //
+    // Built-in types declared as parsed {@link ClassDefinition} records
+    // (with {@code isNative=true}) so consumers can treat them uniformly
+    // with user classes: same record type, same access patterns, same
+    // {@link com.legend.context.ModelContext} lookups. Bodies are empty
+    // for now &mdash; we only carry name + type parameters + superclass
+    // hierarchy. Property bodies will land in a follow-up when the
+    // type-checker needs them.
+    //
+    // Hierarchy mirrors the engine's M3 platform Pure declarations.
+    //
+    // Naming: the constants below are the records themselves
+    // (e.g. {@link #INTEGER} is a {@link ClassDefinition}, not a string).
+    // For the FQN string, call {@code .qualifiedName()}.
+    // ================================================================
+
+    /** Native classes in declaration order. Populated by {@link #nativeClass(String)}. */
+    private static final List<ClassDefinition> ALL_CLASSES = new ArrayList<>();
+
+    /** Snapshot of every native class declared by {@link Pure}, declaration order. */
+    public static List<ClassDefinition> allNativeClasses() {
+        return Collections.unmodifiableList(ALL_CLASSES);
+    }
+
+    /**
+     * Parse one {@code native Class ...} declaration through
+     * {@link ElementParser} and stash the resulting record.
+     *
+     * <p>Call sites contain real Pure source verbatim &mdash; the same
+     * text that would appear in an engine {@code .pure} file. This keeps
+     * the catalog visually identical to engine declarations and means
+     * any copy-paste from engine sources just works.
+     *
+     * <p>Class-load fails loudly if {@code pureSource} is malformed, parses
+     * to something other than a {@link ClassDefinition}, or comes back
+     * with {@code isNative=false}.
+     */
+    private static ClassDefinition nativeClass(String pureSource) {
+        var parsed = ElementParser.parse(pureSource);
+        if (parsed.elements().size() != 1) {
+            throw new IllegalStateException(
+                    "expected exactly one element parsed from: " + pureSource
+                            + " (got " + parsed.elements().size() + ")");
+        }
+        var el = parsed.elements().get(0);
+        if (!(el instanceof ClassDefinition cls)) {
+            throw new IllegalStateException(
+                    "expected ClassDefinition but got " + el.getClass().getSimpleName()
+                            + " from: " + pureSource);
+        }
+        if (!cls.isNative()) {
+            throw new IllegalStateException(
+                    "expected native class but parsed isNative=false from: " + pureSource);
+        }
+        ALL_CLASSES.add(cls);
+        return cls;
+    }
+
+    // ---- Top of the hierarchy ----
+    public static final ClassDefinition ANY  = nativeClass("native Class meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition NIL  = nativeClass("native Class meta::pure::metamodel::type::Nil  extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition TYPE = nativeClass("native Class meta::pure::metamodel::type::Type extends meta::pure::metamodel::type::Any {}");
+
+    // ---- Numeric tower ----
+    public static final ClassDefinition NUMBER  = nativeClass("native Class meta::pure::metamodel::type::Number  extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition INTEGER = nativeClass("native Class meta::pure::metamodel::type::Integer extends meta::pure::metamodel::type::Number {}");
+    public static final ClassDefinition FLOAT   = nativeClass("native Class meta::pure::metamodel::type::Float   extends meta::pure::metamodel::type::Number {}");
+    public static final ClassDefinition DECIMAL = nativeClass("native Class meta::pure::metamodel::type::Decimal extends meta::pure::metamodel::type::Number {}");
+
+    // ---- Other primitives ----
+    public static final ClassDefinition STRING  = nativeClass("native Class meta::pure::metamodel::type::String  extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition BOOLEAN = nativeClass("native Class meta::pure::metamodel::type::Boolean extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition BYTE    = nativeClass("native Class meta::pure::metamodel::type::Byte    extends meta::pure::metamodel::type::Any {}");
+
+    // ---- Date hierarchy ----
+    public static final ClassDefinition DATE        = nativeClass("native Class meta::pure::metamodel::type::Date        extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition STRICT_DATE = nativeClass("native Class meta::pure::metamodel::type::StrictDate  extends meta::pure::metamodel::type::Date {}");
+    public static final ClassDefinition DATE_TIME   = nativeClass("native Class meta::pure::metamodel::type::DateTime    extends meta::pure::metamodel::type::Date {}");
+    public static final ClassDefinition LATEST_DATE = nativeClass("native Class meta::pure::metamodel::type::LatestDate  extends meta::pure::metamodel::type::Date {}");
+
+    // ---- Relation algebra (parameterized) ----
+    public static final ClassDefinition RELATION             = nativeClass("native Class meta::pure::metamodel::relation::Relation<T>         extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition COL_SPEC             = nativeClass("native Class meta::pure::metamodel::relation::ColSpec<T>          extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition COL_SPEC_ARRAY       = nativeClass("native Class meta::pure::metamodel::relation::ColSpecArray<T>     extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition FUNC_COL_SPEC        = nativeClass("native Class meta::pure::metamodel::relation::FuncColSpec<F, R>   extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition FUNC_COL_SPEC_ARRAY  = nativeClass("native Class meta::pure::metamodel::relation::FuncColSpecArray<F, R> extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition AGG_COL_SPEC         = nativeClass("native Class meta::pure::metamodel::relation::AggColSpec<F, U, R> extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition AGG_COL_SPEC_ARRAY   = nativeClass("native Class meta::pure::metamodel::relation::AggColSpecArray<F, U, R> extends meta::pure::metamodel::type::Any {}");
+
+    // ---- Function carrier (parameterized over a function-type token) ----
+    public static final ClassDefinition FUNCTION = nativeClass("native Class meta::pure::metamodel::function::Function<F> extends meta::pure::metamodel::type::Any {}");
+
+    // ---- Metaclass ----
+    // Pure exposes the metaclass as `Class<T>` (parameterized over the
+    // class it describes); used by signatures like `getAll(Class<T>):T[*]`.
+    public static final ClassDefinition CLASS = nativeClass("native Class meta::pure::metamodel::type::Class<T> extends meta::pure::metamodel::type::Type {}");
+
+    // ---- Variant (semi-structured value carrier) ----
+    public static final ClassDefinition VARIANT = nativeClass("native Class meta::pure::metamodel::variant::Variant extends meta::pure::metamodel::type::Any {}");
+
+    // ---- Collection carriers ----
+    public static final ClassDefinition LIST = nativeClass("native Class meta::pure::functions::collection::List<T>    extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition PAIR = nativeClass("native Class meta::pure::functions::collection::Pair<U, V> extends meta::pure::metamodel::type::Any {}");
+
+    // ---- Math helper carrier (rowwise correlation/covariance inputs) ----
+    public static final ClassDefinition ROW_MAPPER = nativeClass("native Class meta::pure::functions::math::mathUtility::RowMapper<T, U> extends meta::pure::metamodel::type::Any {}");
+
+    // ---- Graph-fetch tree carrier ----
+    public static final ClassDefinition ROOT_GRAPH_FETCH_TREE =
+            nativeClass("native Class meta::pure::graphFetch::RootGraphFetchTree<T> extends meta::pure::metamodel::type::Any {}");
+
+    // ---- Relation-functions helpers ----
+    public static final ClassDefinition WINDOW    = nativeClass("native Class meta::pure::functions::relation::_Window<T>   extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition TRAVERSAL = nativeClass("native Class meta::pure::functions::relation::_Traversal   extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition SORT_INFO = nativeClass("native Class meta::pure::functions::relation::SortInfo<T>  extends meta::pure::metamodel::type::Any {}");
+
+    // ---- Window-frame hierarchy (mirrors engine's frame.pure / range.pure / rows.pure) ----
+    public static final ClassDefinition FRAME                 = nativeClass("native Class meta::pure::functions::relation::Frame                extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition FRAME_VALUE           = nativeClass("native Class meta::pure::functions::relation::FrameValue           extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition UNBOUNDED_FRAME_VALUE = nativeClass("native Class meta::pure::functions::relation::UnboundedFrameValue  extends meta::pure::functions::relation::FrameValue {}");
+    public static final ClassDefinition _RANGE                = nativeClass("native Class meta::pure::functions::relation::_Range               extends meta::pure::functions::relation::Frame {}");
+    public static final ClassDefinition ROWS                  = nativeClass("native Class meta::pure::functions::relation::Rows                 extends meta::pure::functions::relation::Frame {}");
+
+    // ================================================================
+    // Native enum catalog.
+    //
+    // Engine declares several stdlib types as {@code Enum} rather than
+    // {@code Class} (e.g. {@link #DURATION_UNIT}, {@link #JOIN_KIND}).
+    // Modelled as parsed {@link EnumDefinition} records so they round-trip
+    // through {@link ElementParser} the same way native classes do.
+    //
+    // Same naming convention as the class catalog: the constant is the
+    // record itself (e.g. {@link #JOIN_KIND} is an {@link EnumDefinition}).
+    // ================================================================
+
+    /** Native enums in declaration order. Populated by {@link #nativeEnum(String)}. */
+    private static final List<EnumDefinition> ALL_ENUMS = new ArrayList<>();
+
+    /** Snapshot of every native enum declared by {@link Pure}, declaration order. */
+    public static List<EnumDefinition> allNativeEnums() {
+        return Collections.unmodifiableList(ALL_ENUMS);
+    }
+
+    /**
+     * Parse one {@code Enum ...} declaration through {@link ElementParser}
+     * and stash the resulting record.
+     *
+     * <p>Like {@link #nativeClass(String)}, call sites contain real Pure
+     * source verbatim. Class-load fails loudly on any malformed declaration.
+     */
+    private static EnumDefinition nativeEnum(String pureSource) {
+        var parsed = ElementParser.parse(pureSource);
+        if (parsed.elements().size() != 1) {
+            throw new IllegalStateException(
+                    "expected exactly one element parsed from: " + pureSource
+                            + " (got " + parsed.elements().size() + ")");
+        }
+        var el = parsed.elements().get(0);
+        if (!(el instanceof EnumDefinition def)) {
+            throw new IllegalStateException(
+                    "expected EnumDefinition but got " + el.getClass().getSimpleName()
+                            + " from: " + pureSource);
+        }
+        ALL_ENUMS.add(def);
+        return def;
+    }
+
+    // ---- Date enums ----
+    public static final EnumDefinition DURATION_UNIT = nativeEnum("""
+            Enum meta::pure::functions::date::DurationUnit
+            {
+                YEARS, MONTHS, WEEKS, DAYS, HOURS, MINUTES,
+                SECONDS, MILLISECONDS, MICROSECONDS, NANOSECONDS
+            }
+            """);
+
+    public static final EnumDefinition MONTH = nativeEnum("""
+            Enum meta::pure::functions::date::Month
+            {
+                January, February, March, April, May, June,
+                July, August, September, October, November, December
+            }
+            """);
+
+    public static final EnumDefinition QUARTER = nativeEnum("""
+            Enum meta::pure::functions::date::Quarter
+            {
+                Q1, Q2, Q3, Q4
+            }
+            """);
+
+    public static final EnumDefinition DAY_OF_WEEK = nativeEnum("""
+            Enum meta::pure::functions::date::DayOfWeek
+            {
+                Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday
+            }
+            """);
+
+    // ---- Relation enums ----
+    public static final EnumDefinition SORT_TYPE = nativeEnum(
+            "Enum meta::pure::functions::relation::SortType { ASC, DESC }");
+
+    public static final EnumDefinition JOIN_KIND = nativeEnum("""
+            Enum meta::pure::functions::relation::JoinKind
+            {
+                LEFT, RIGHT, FULL, INNER
+            }
+            """);
+
+    // ---- Hash enum ----
+    public static final EnumDefinition HASH_TYPE = nativeEnum(
+            "Enum meta::pure::functions::hash::HashType { MD5, SHA1, SHA256 }");
+
+    // ---- Relational-store enum (lives under meta::relational, not meta::pure) ----
+    public static final EnumDefinition SORT_DIRECTION = nativeEnum(
+            "Enum meta::relational::metamodel::SortDirection { ASC, DESC }");
+
+    // ================================================================
+    // Native function catalog.
+    // ================================================================
 
     /**
      * Definitions in declaration order &mdash; which is alphabetical by

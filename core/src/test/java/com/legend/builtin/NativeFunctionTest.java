@@ -1,8 +1,19 @@
 package com.legend.builtin;
 
+import com.legend.parser.element.ClassDefinition;
+import com.legend.parser.element.EnumDefinition;
 import com.legend.parser.element.FunctionDefinition.ParameterDefinition;
 import com.legend.parser.element.Multiplicity;
 import com.legend.parser.element.NativeFunctionDefinition;
+import com.legend.parser.element.TypeExpression;
+import com.legend.parser.element.TypeExpression.Column;
+import com.legend.parser.element.TypeExpression.FunctionType;
+import com.legend.parser.element.TypeExpression.Generic;
+import com.legend.parser.element.TypeExpression.NameRef;
+import com.legend.parser.element.TypeExpression.Op;
+import com.legend.parser.element.TypeExpression.RelationType;
+import com.legend.parser.element.TypeExpression.SchemaAlgebra;
+import com.legend.parser.element.TypeExpression.TypedParameter;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
@@ -10,7 +21,14 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static com.legend.parser.element.TypeExpressionFixtures.col;
+import static com.legend.parser.element.TypeExpressionFixtures.nr;
+import static com.legend.parser.element.TypeExpressionFixtures.rel;
+import static com.legend.parser.element.TypeExpressionFixtures.sa;
+import static com.legend.parser.element.TypeExpressionFixtures.tg;
+import static com.legend.parser.element.TypeExpressionFixtures.tp;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -64,18 +82,18 @@ class NativeFunctionTest {
     @Test
     void filterRelation_pinShape() {
         // filter<T>(Relation<T>[1], Function<{T[1]->Boolean[1]}>[1]):Relation<T>[1]
+        TypeExpression relationOfT = tg(Pure.RELATION, nr("T"));
+        TypeExpression filterFn = tg(Pure.FUNCTION, new FunctionType(
+                List.of(tp(nr("T"), Multiplicity.exactly(1))),
+                tp(nr(Pure.BOOLEAN), Multiplicity.exactly(1))));
         var expected = new NativeFunctionDefinition(
                 "filter",
                 List.of("T"),
                 List.of(),
                 List.of(
-                        new ParameterDefinition("rel",
-                                "meta::pure::metamodel::relation::Relation<T>",
-                                Multiplicity.exactly(1)),
-                        new ParameterDefinition("f",
-                                "meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>",
-                                Multiplicity.exactly(1))),
-                "meta::pure::metamodel::relation::Relation<T>",
+                        new ParameterDefinition("rel", relationOfT, Multiplicity.exactly(1)),
+                        new ParameterDefinition("f", filterFn, Multiplicity.exactly(1))),
+                relationOfT,
                 Multiplicity.exactly(1),
                 List.of(),
                 List.of());
@@ -91,11 +109,10 @@ class NativeFunctionTest {
                 List.of("T"),
                 List.of("m"),
                 List.of(
-                        new ParameterDefinition("source",
-                                "meta::pure::metamodel::type::Any",
+                        new ParameterDefinition("source", nr(Pure.ANY),
                                 new Multiplicity.Parameter("m")),
-                        new ParameterDefinition("type", "T", Multiplicity.exactly(1))),
-                "T",
+                        new ParameterDefinition("type", nr("T"), Multiplicity.exactly(1))),
+                nr("T"),
                 new Multiplicity.Parameter("m"),
                 List.of(),
                 List.of());
@@ -109,21 +126,34 @@ class NativeFunctionTest {
         //   ColSpec<Z=(?:K) \u2286 T>[1],
         //   ColSpec<V=(?:K)>[1]
         // ): Relation<T-Z+V>[1]
+        // Wildcard column (?:K) parses as RelationType([Column("?",NameRef("K"),[1])]).
+        TypeExpression wildcardOfK = rel(col("?", nr("K"), Multiplicity.exactly(1)));
+        // Z=(?:K)⊆T parses left-associatively: SUBSET wraps the EQUAL
+        // node, matching engine's parseTypeWithOperation precedence.
+        TypeExpression zEqQK_subT = sa(
+                sa(nr("Z"), Op.EQUAL, wildcardOfK),
+                Op.SUBSET, nr("T"));
+        // V=(?:K) has no SUBSET tail — just the EQUAL.
+        TypeExpression vEqQK = sa(nr("V"), Op.EQUAL, wildcardOfK);
+        // T-Z+V is left-leaning: (T-Z)+V.
+        TypeExpression tMinusZPlusV = sa(
+                sa(nr("T"), Op.DIFFERENCE, nr("Z")),
+                Op.UNION, nr("V"));
         var expected = new NativeFunctionDefinition(
                 "rename",
                 List.of("T", "Z", "K", "V"),
                 List.of(),
                 List.of(
                         new ParameterDefinition("r",
-                                "meta::pure::metamodel::relation::Relation<T>",
+                                tg(Pure.RELATION, nr("T")),
                                 Multiplicity.exactly(1)),
                         new ParameterDefinition("old",
-                                "meta::pure::metamodel::relation::ColSpec<Z=(?:K)\u2286T>",
+                                tg(Pure.COL_SPEC, zEqQK_subT),
                                 Multiplicity.exactly(1)),
                         new ParameterDefinition("new",
-                                "meta::pure::metamodel::relation::ColSpec<V=(?:K)>",
+                                tg(Pure.COL_SPEC, vEqQK),
                                 Multiplicity.exactly(1))),
-                "meta::pure::metamodel::relation::Relation<T-Z+V>",
+                tg(Pure.RELATION, tMinusZPlusV),
                 Multiplicity.exactly(1),
                 List.of(),
                 List.of());
@@ -134,21 +164,18 @@ class NativeFunctionTest {
     void ifWithEmptyArgFunctionType_pinShape() {
         // if<T>(Boolean[1], Function<{->T[*]}>[1], Function<{->T[*]}>[1]): T[*]
         // Exercises the empty-parameter-list function-type grammar `{->T[*]}`.
+        TypeExpression thunkOfT = tg(Pure.FUNCTION, new FunctionType(
+                List.of(),
+                tp(nr("T"), Multiplicity.zeroMany())));
         var expected = new NativeFunctionDefinition(
                 "if",
                 List.of("T"),
                 List.of(),
                 List.of(
-                        new ParameterDefinition("test",
-                                "meta::pure::metamodel::type::Boolean",
-                                Multiplicity.exactly(1)),
-                        new ParameterDefinition("then",
-                                "meta::pure::metamodel::function::Function<{->T[*]}>",
-                                Multiplicity.exactly(1)),
-                        new ParameterDefinition("else",
-                                "meta::pure::metamodel::function::Function<{->T[*]}>",
-                                Multiplicity.exactly(1))),
-                "T",
+                        new ParameterDefinition("test", nr(Pure.BOOLEAN), Multiplicity.exactly(1)),
+                        new ParameterDefinition("then", thunkOfT, Multiplicity.exactly(1)),
+                        new ParameterDefinition("else", thunkOfT, Multiplicity.exactly(1))),
+                nr("T"),
                 Multiplicity.zeroMany(),
                 List.of(),
                 List.of());
@@ -174,16 +201,18 @@ class NativeFunctionTest {
         assertEquals(List.of("T", "Z", "W", "R"), def.typeParameters());
         assertEquals(List.of(), def.multiplicityParameters());
         assertEquals(3, def.parameters().size());
-        assertEquals("meta::pure::functions::relation::_Window<T>",
-                def.parameters().get(1).type());
-        // Verbatim capture of the nested function type with three input arrows.
-        assertEquals(
-                "meta::pure::metamodel::relation::FuncColSpec<"
-                        + "{meta::pure::metamodel::relation::Relation<T>[1],"
-                        + "meta::pure::functions::relation::_Window<T>[1],"
-                        + "T[1]->meta::pure::metamodel::type::Any[0..1]},R>",
+        assertEquals(tg(Pure.WINDOW, nr("T")), def.parameters().get(1).type());
+        // Structural pin of the nested function type with three input arrows.
+        TypeExpression innerFn = new FunctionType(
+                List.of(
+                        tp(tg(Pure.RELATION, nr("T")), Multiplicity.exactly(1)),
+                        tp(tg(Pure.WINDOW, nr("T")), Multiplicity.exactly(1)),
+                        tp(nr("T"), Multiplicity.exactly(1))),
+                tp(nr(Pure.ANY), Multiplicity.range(0, 1)));
+        assertEquals(tg(Pure.FUNC_COL_SPEC, innerFn, nr("R")),
                 def.parameters().get(2).type());
-        assertEquals("meta::pure::metamodel::relation::Relation<T+R>",
+        // Return type Relation<T+R> = Generic(Relation, [SchemaAlgebra(T, UNION, R)]).
+        assertEquals(tg(Pure.RELATION, sa(nr("T"), Op.UNION, nr("R"))),
                 def.returnType());
         assertEquals(Multiplicity.exactly(1), def.returnMultiplicity());
     }
@@ -191,18 +220,17 @@ class NativeFunctionTest {
     @Test
     void sortWithSubsetConstraintMultiplicityMany_pinShape() {
         // sort<X,T>(Relation<T>[1], SortInfo<X \u2286 T>[*]): Relation<T>[1]
+        TypeExpression relationOfT = tg(Pure.RELATION, nr("T"));
+        TypeExpression sortInfoXsubT = tg(Pure.SORT_INFO,
+                sa(nr("X"), Op.SUBSET, nr("T")));
         var expected = new NativeFunctionDefinition(
                 "sort",
                 List.of("X", "T"),
                 List.of(),
                 List.of(
-                        new ParameterDefinition("rel",
-                                "meta::pure::metamodel::relation::Relation<T>",
-                                Multiplicity.exactly(1)),
-                        new ParameterDefinition("sortInfo",
-                                "meta::pure::functions::relation::SortInfo<X\u2286T>",
-                                Multiplicity.zeroMany())),
-                "meta::pure::metamodel::relation::Relation<T>",
+                        new ParameterDefinition("rel", relationOfT, Multiplicity.exactly(1)),
+                        new ParameterDefinition("sortInfo", sortInfoXsubT, Multiplicity.zeroMany())),
+                relationOfT,
                 Multiplicity.exactly(1),
                 List.of(),
                 List.of());
@@ -217,7 +245,7 @@ class NativeFunctionTest {
                 List.of(),
                 List.of(),
                 List.of(),
-                "meta::pure::metamodel::type::String",
+                nr(Pure.STRING),
                 Multiplicity.exactly(1),
                 List.of(),
                 List.of());
@@ -296,6 +324,281 @@ class NativeFunctionTest {
             assertTrue(simpleNames.contains(required),
                     () -> "required native '" + required
                             + "' missing from Pure catalog");
+        }
+    }
+
+    // ===============================================================
+    // Native class catalog ({@link Pure#allNativeClasses}).
+    //
+    // Same shape contract as the function catalog: class-load fails
+    // loudly if any declaration stops parsing, and the tests below pin
+    // structural invariants (hierarchy edges, type-parameter arity,
+    // headline presence, the isNative flag).
+    // ===============================================================
+
+    @Test
+    void nativeClassCatalogSizeIsPinned() {
+        // Update this deliberately when adding or removing native classes.
+        assertEquals(36, Pure.allNativeClasses().size(),
+                "Pure.allNativeClasses() size pin: review the catalog if this changes");
+    }
+
+    @Test
+    void everyNativeClassIsMarkedNativeAndHasEmptyBody() {
+        for (ClassDefinition c : Pure.allNativeClasses()) {
+            assertTrue(c.isNative(),
+                    () -> "native class '" + c.qualifiedName() + "' has isNative=false");
+            assertTrue(c.properties().isEmpty(),
+                    () -> "native class '" + c.qualifiedName()
+                            + "' must have empty properties for now (got "
+                            + c.properties() + ")");
+            assertTrue(c.derivedProperties().isEmpty(),
+                    () -> "native class '" + c.qualifiedName()
+                            + "' must have empty derived properties");
+            assertTrue(c.constraints().isEmpty(),
+                    () -> "native class '" + c.qualifiedName()
+                            + "' must have empty constraints");
+        }
+    }
+
+    @Test
+    void everyNativeClassHasUniqueFqn() {
+        Set<String> seen = new HashSet<>();
+        for (ClassDefinition c : Pure.allNativeClasses()) {
+            assertTrue(seen.add(c.qualifiedName()),
+                    () -> "duplicate native class FQN: " + c.qualifiedName());
+        }
+    }
+
+    @Test
+    void numericTowerHierarchyIsCorrect() {
+        // Integer/Float/Decimal extend Number; Number extends Any.
+        assertEquals(List.of(nr(Pure.ANY)), Pure.NUMBER.superClasses());
+        assertEquals(List.of(nr(Pure.NUMBER)), Pure.INTEGER.superClasses());
+        assertEquals(List.of(nr(Pure.NUMBER)), Pure.FLOAT.superClasses());
+        assertEquals(List.of(nr(Pure.NUMBER)), Pure.DECIMAL.superClasses());
+    }
+
+    @Test
+    void dateHierarchyIsCorrect() {
+        // Date extends Any; StrictDate/DateTime/LatestDate extend Date.
+        assertEquals(List.of(nr(Pure.ANY)),  Pure.DATE.superClasses());
+        assertEquals(List.of(nr(Pure.DATE)), Pure.STRICT_DATE.superClasses());
+        assertEquals(List.of(nr(Pure.DATE)), Pure.DATE_TIME.superClasses());
+        assertEquals(List.of(nr(Pure.DATE)), Pure.LATEST_DATE.superClasses());
+    }
+
+    @Test
+    void anyHasNoSuperclass() {
+        // Top of the hierarchy: Any must have no supers.
+        assertTrue(Pure.ANY.superClasses().isEmpty(),
+                () -> "Any must have no superclasses, got " + Pure.ANY.superClasses());
+    }
+
+    @Test
+    void parameterizedNativeClassesCarryTypeParameters() {
+        // Single-parameter generics.
+        assertEquals(List.of("T"), Pure.RELATION.typeParams());
+        assertEquals(List.of("T"), Pure.COL_SPEC.typeParams());
+        assertEquals(List.of("T"), Pure.COL_SPEC_ARRAY.typeParams());
+        assertEquals(List.of("T"), Pure.WINDOW.typeParams());
+        assertEquals(List.of("T"), Pure.SORT_INFO.typeParams());
+        assertEquals(List.of("F"), Pure.FUNCTION.typeParams());
+        // Two-parameter generics.
+        assertEquals(List.of("F", "R"), Pure.FUNC_COL_SPEC.typeParams());
+        assertEquals(List.of("F", "R"), Pure.FUNC_COL_SPEC_ARRAY.typeParams());
+        // Three-parameter generics.
+        assertEquals(List.of("F", "U", "R"), Pure.AGG_COL_SPEC.typeParams());
+        assertEquals(List.of("F", "U", "R"), Pure.AGG_COL_SPEC_ARRAY.typeParams());
+    }
+
+    @Test
+    void nonParameterizedNativeClassesHaveNoTypeParameters() {
+        // The primitives, Any/Type/Nil, and _Traversal carry no type
+        // parameters. Pinning this catches accidental drift where a
+        // declaration grows an unintended <T>.
+        for (ClassDefinition c : List.of(
+                Pure.ANY, Pure.TYPE, Pure.NIL,
+                Pure.NUMBER, Pure.INTEGER, Pure.FLOAT, Pure.DECIMAL,
+                Pure.STRING, Pure.BOOLEAN, Pure.BYTE,
+                Pure.DATE, Pure.STRICT_DATE, Pure.DATE_TIME, Pure.LATEST_DATE,
+                Pure.TRAVERSAL)) {
+            assertTrue(c.typeParams().isEmpty(),
+                    () -> "expected no type params on " + c.qualifiedName()
+                            + ", got " + c.typeParams());
+        }
+    }
+
+    @Test
+    void headlineNativeClassesAreAllPresent() {
+        Set<String> simpleNames = Pure.allNativeClasses().stream()
+                .map(c -> simpleName(c.qualifiedName()))
+                .collect(Collectors.toSet());
+        for (String required : List.of(
+                "Any", "Nil", "Type",
+                "Number", "Integer", "Float", "Decimal",
+                "String", "Boolean", "Byte",
+                "Date", "StrictDate", "DateTime", "LatestDate",
+                "Relation", "ColSpec", "FuncColSpec", "AggColSpec",
+                "Function",
+                "_Window", "_Traversal", "SortInfo")) {
+            assertTrue(simpleNames.contains(required),
+                    () -> "required native class '" + required
+                            + "' missing from Pure.allNativeClasses()");
+        }
+    }
+
+    @Test
+    void nativeClassFqnsAreInExpectedPackages() {
+        // Every native FQN must live under one of the documented packages;
+        // a typo or stray declaration that leaks elsewhere is a bug.
+        List<String> expected = List.of(
+                Pure.TYPE_PKG, Pure.RELATION_PKG, Pure.FUNCTION_PKG,
+                Pure.RELATION_FUNCTIONS_PKG, Pure.COLLECTION_PKG,
+                Pure.MATH_UTILITY_PKG, Pure.VARIANT_PKG, Pure.GRAPH_FETCH_PKG);
+        for (ClassDefinition c : Pure.allNativeClasses()) {
+            String fqn = c.qualifiedName();
+            boolean ok = expected.stream().anyMatch(p -> fqn.startsWith(p + "::"));
+            assertTrue(ok, () -> "native class FQN outside expected packages: " + fqn);
+        }
+    }
+
+    // ===============================================================
+    // Native enum catalog ({@link Pure#allNativeEnums}).
+    //
+    // Engine declares several stdlib types as {@code Enum} rather than
+    // {@code Class} (DurationUnit, JoinKind, ...). They round-trip
+    // through {@link ElementParser} the same way native classes do.
+    // ===============================================================
+
+    @Test
+    void nativeEnumCatalogSizeIsPinned() {
+        // Update this deliberately when adding or removing native enums.
+        assertEquals(8, Pure.allNativeEnums().size(),
+                "Pure.allNativeEnums() size pin: review the catalog if this changes");
+    }
+
+    @Test
+    void everyNativeEnumHasAtLeastOneValueAndUniqueValues() {
+        for (EnumDefinition e : Pure.allNativeEnums()) {
+            assertFalse(e.values().isEmpty(),
+                    () -> "native enum '" + e.qualifiedName() + "' has no values");
+            Set<String> seen = new HashSet<>(e.values());
+            assertEquals(e.values().size(), seen.size(),
+                    () -> "native enum '" + e.qualifiedName()
+                            + "' has duplicate values: " + e.values());
+        }
+    }
+
+    @Test
+    void everyNativeEnumHasUniqueFqn() {
+        Set<String> seen = new HashSet<>();
+        for (EnumDefinition e : Pure.allNativeEnums()) {
+            assertTrue(seen.add(e.qualifiedName()),
+                    () -> "duplicate native enum FQN: " + e.qualifiedName());
+        }
+    }
+
+    @Test
+    void headlineNativeEnumValuesArePinned() {
+        // Spot-check the enums most consumers reach for. If engine extends
+        // any of these we'll catch it here before downstream code breaks.
+        assertEquals(List.of("ASC", "DESC"), Pure.SORT_TYPE.values());
+        assertEquals(List.of("LEFT", "RIGHT", "FULL", "INNER"), Pure.JOIN_KIND.values());
+        assertEquals(List.of("MD5", "SHA1", "SHA256"), Pure.HASH_TYPE.values());
+        assertEquals(List.of("Q1", "Q2", "Q3", "Q4"), Pure.QUARTER.values());
+        assertEquals(10, Pure.DURATION_UNIT.values().size(),
+                "DurationUnit has YEARS..NANOSECONDS = 10 values");
+        assertEquals(12, Pure.MONTH.values().size(),
+                "Month has January..December = 12 values");
+        assertEquals(7, Pure.DAY_OF_WEEK.values().size(),
+                "DayOfWeek has Monday..Sunday = 7 values");
+    }
+
+    // ===============================================================
+    // Coverage: every FQN referenced in a native function signature
+    // (parameter types, return type, generic arguments) MUST resolve
+    // to a record in the class or enum catalog. This is the single
+    // tenet that keeps natives and types consistent: nothing in the
+    // signatures dangles unresolved.
+    //
+    // If this fails: either declare the missing type in {@link Pure}
+    // or remove the offending native.
+    // ===============================================================
+
+    @Test
+    void everyTypePositionFqnInNativeSignaturesResolvesToCatalog() {
+        Set<String> catalogFqns = new HashSet<>();
+        Pure.allNativeClasses().forEach(c -> catalogFqns.add(c.qualifiedName()));
+        Pure.allNativeEnums().forEach(e -> catalogFqns.add(e.qualifiedName()));
+
+        java.util.SortedSet<String> missing = new java.util.TreeSet<>();
+        for (NativeFunctionDefinition def : Pure.all()) {
+            Set<String> typeParams = Set.copyOf(def.typeParameters());
+            for (var p : def.parameters()) {
+                collectTypePositionFqns(p.type(), typeParams, catalogFqns, missing);
+            }
+            collectTypePositionFqns(def.returnType(), typeParams, catalogFqns, missing);
+        }
+        assertTrue(missing.isEmpty(),
+                () -> "FQNs referenced in native signatures but missing from "
+                        + "Pure.allNativeClasses() / Pure.allNativeEnums():\n  "
+                        + String.join("\n  ", missing));
+    }
+
+    /**
+     * Walks a {@link TypeExpression} and records every FQN (anything with
+     * {@code ::}) that appears in a type position. Bare names (no {@code ::})
+     * are skipped &mdash; they're type-parameter binders. Recurses into
+     * generic arguments, function-type parameter/return types, relation-type
+     * columns, and schema-algebra operands.
+     */
+    private static void collectTypePositionFqns(
+            TypeExpression t,
+            Set<String> typeParams,
+            Set<String> catalog,
+            Set<String> missing) {
+        switch (t) {
+            case NameRef nr -> recordIfFqn(nr.name(), typeParams, catalog, missing);
+            case Generic g -> {
+                recordIfFqn(g.name(), typeParams, catalog, missing);
+                for (TypeExpression arg : g.arguments()) {
+                    collectTypePositionFqns(arg, typeParams, catalog, missing);
+                }
+            }
+            case FunctionType ft -> {
+                for (TypedParameter p : ft.parameters()) {
+                    collectTypePositionFqns(p.type(), typeParams, catalog, missing);
+                }
+                collectTypePositionFqns(ft.result().type(), typeParams, catalog, missing);
+            }
+            case RelationType rt -> {
+                for (Column c : rt.columns()) {
+                    collectTypePositionFqns(c.type(), typeParams, catalog, missing);
+                }
+            }
+            case SchemaAlgebra sa -> {
+                collectTypePositionFqns(sa.left(), typeParams, catalog, missing);
+                collectTypePositionFqns(sa.right(), typeParams, catalog, missing);
+            }
+            default -> {
+                // Other variants (if any) carry no FQN-shaped references.
+            }
+        }
+    }
+
+    private static void recordIfFqn(
+            String name,
+            Set<String> typeParams,
+            Set<String> catalog,
+            Set<String> missing) {
+        // FQNs always contain '::'. Bare names like 'T', 'K', 'm' are type
+        // parameters; they have no FQN to resolve.
+        if (!name.contains("::")) {
+            return;
+        }
+        if (!catalog.contains(name)) {
+            missing.add(name);
         }
     }
 
