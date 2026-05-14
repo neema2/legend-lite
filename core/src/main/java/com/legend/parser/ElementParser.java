@@ -23,9 +23,7 @@ import com.legend.parser.element.FilterPointer;
 import com.legend.parser.element.FunctionDefinition;
 import com.legend.parser.element.NativeFunctionDefinition;
 import com.legend.parser.element.MappingDefinition;
-import com.legend.parser.Multiplicity;
 import com.legend.parser.element.PropertyMapping;
-import com.legend.parser.TypeExpression;
 import com.legend.parser.element.JsonModelConnection;
 import com.legend.parser.element.PackageableElement;
 import com.legend.parser.element.ComparisonOp;
@@ -46,7 +44,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 

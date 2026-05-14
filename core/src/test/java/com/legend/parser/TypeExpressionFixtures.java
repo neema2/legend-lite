@@ -1,9 +1,5 @@
 package com.legend.parser;
 
-import com.legend.parser.TypeExpression;
-
-import com.legend.parser.Multiplicity;
-
 import com.legend.parser.TypeExpression.Column;
 import com.legend.parser.TypeExpression.Generic;
 import com.legend.parser.TypeExpression.NameRef;

@@ -19,7 +19,6 @@ import com.legend.parser.spec.ColSpecArray;
 import com.legend.parser.spec.EnumValue;
 import com.legend.parser.spec.KeyExpression;
 import com.legend.parser.spec.LambdaFunction;
-import com.legend.parser.Multiplicity;
 import com.legend.parser.spec.NewInstance;
 import com.legend.parser.spec.PackageableElementPtr;
 import com.legend.parser.spec.PureCollection;
@@ -2600,11 +2599,14 @@ final class SpecParserTest {
     void tableReferenceDsl() {
         // '#>{my::db.CUSTOMER}#' \u2014 table reference DSL. The
         // content is split on the LAST '.': db = 'my::db', table
-        // = 'CUSTOMER'. Emits
-        // AppliedFunction("tableReference", [CString, CString]).
+        // = 'CUSTOMER'. The db arg is emitted as a typed
+        // PackageableElementPtr (an FQN reference) so the resolver
+        // and downstream layers treat it uniformly with every other
+        // element reference; the table name stays a CString because
+        // it is a physical-DB identifier, not a Pure FQN.
         assertEquals(
                 new AppliedFunction("tableReference", List.of(
-                        new CString("my::db"),
+                        new PackageableElementPtr("my::db"),
                         new CString("CUSTOMER"))),
                 SpecParser.parse("#>{my::db.CUSTOMER}#"));
     }

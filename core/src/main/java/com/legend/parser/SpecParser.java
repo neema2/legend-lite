@@ -21,8 +21,6 @@ import com.legend.parser.spec.ColumnInstance;
 import com.legend.parser.spec.EnumValue;
 import com.legend.parser.spec.KeyExpression;
 import com.legend.parser.spec.LambdaFunction;
-import com.legend.parser.Multiplicity;
-import com.legend.parser.TypeExpression;
 import com.legend.parser.spec.NewInstance;
 import com.legend.parser.spec.PackageableElementPtr;
 import com.legend.parser.spec.PureCollection;
@@ -2102,11 +2100,26 @@ public final class SpecParser implements TokenStreamCursor {
 
     /**
      * Parse a table reference DSL: {@code #>{db::path.TABLE}#}
-     * &rarr; {@code AppliedFunction("tableReference", [CString(db),
-     * CString(tableName)])}. The content is a dotted path where
-     * everything before the LAST {@code .} is the database name and
-     * everything after is the table name. Matches engine-lite's
-     * split rule verbatim.
+     * &rarr; {@code AppliedFunction("tableReference",
+     * [PackageableElementPtr(db), CString(tableName)])}. The content
+     * is a dotted path where everything before the LAST {@code .} is
+     * the database FQN and everything after is the table name.
+     *
+     * <p>The {@code db} argument is emitted as a
+     * {@link PackageableElementPtr} (a typed FQN reference) rather
+     * than a {@link CString}. This means the resolver and downstream
+     * type checker treat it uniformly with every other element
+     * reference \u2014 no special-case "this string is actually a
+     * name" carve-out is needed. The table name remains a
+     * {@link CString} because it is opaque physical-DB-level
+     * identifier, not a Pure FQN.
+     *
+     * <p>Diverges intentionally from engine-lite, which emitted
+     * {@code CString} for both args and added per-layer special cases
+     * (in {@code NameResolver}, {@code TableReferenceChecker},
+     * {@code MappingNormalizer}) to interpret the first string as an
+     * FQN. Encoding the distinction once, at parse time, lets every
+     * downstream layer dispatch structurally.
      */
     private AppliedFunction parseTableReference(String content) {
         int lastDot = content.lastIndexOf('.');
@@ -2117,7 +2130,7 @@ public final class SpecParser implements TokenStreamCursor {
         String db = content.substring(0, lastDot);
         String tableName = content.substring(lastDot + 1);
         return new AppliedFunction("tableReference",
-                List.of(new CString(db), new CString(tableName)));
+                List.of(new PackageableElementPtr(db), new CString(tableName)));
     }
 
     /**

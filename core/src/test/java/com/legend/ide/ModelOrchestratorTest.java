@@ -130,7 +130,7 @@ final class ModelOrchestratorTest {
 
     @Test
     void indexExposesAllFqnsWithoutTriggeringDeepParse() {
-        ModelOrchestrator orch = new ModelOrchestrator(SOURCE);
+        new ModelOrchestrator(SOURCE);
         // Even though we have a syntactically valid source, this asserts
         // the API contract: index() doesn't deep-parse.
         // We can detect "no deep parse happened" by using a source with a
