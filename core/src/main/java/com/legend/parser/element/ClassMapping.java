@@ -85,6 +85,15 @@ public sealed interface ClassMapping permits ClassMapping.Relational, ClassMappi
      * @param groupBy           optional {@code ~groupBy(...)} expressions
      * @param primaryKey        optional {@code ~primaryKey(...)} expressions
      * @param propertyMappings  per-property bindings in declaration order
+     * @param sourceUrl         optional URL for external data sources (e.g.
+     *                          {@code data:application/json,...}, {@code file:},
+     *                          {@code http:}). {@code null} for ordinary
+     *                          table-backed mappings. Populated by
+     *                          {@code ModelBuilder.from()} when a
+     *                          {@code RuntimeDefinition}'s
+     *                          {@code JsonModelConnection} binds this class
+     *                          (engine parity: {@code RelationalMapping.variantIdentity}
+     *                          in legend-engine's PureModelBuilder).
      */
     record Relational(
             String className,
@@ -96,7 +105,8 @@ public sealed interface ClassMapping permits ClassMapping.Relational, ClassMappi
             boolean distinct,
             List<RelationalOperation> groupBy,
             List<RelationalOperation> primaryKey,
-            List<PropertyMapping> propertyMappings) implements ClassMapping {
+            List<PropertyMapping> propertyMappings,
+            String sourceUrl) implements ClassMapping {
 
         public Relational {
             Objects.requireNonNull(className, "Class name cannot be null");
@@ -111,7 +121,8 @@ public sealed interface ClassMapping permits ClassMapping.Relational, ClassMappi
             // setId, extendsSetId, filter intentionally nullable: each is a
             // presence/absence with no structural variant downstream
             // (setId resolves to a default id; extendsSetId means inherit;
-            // filter means subject the rowset to a Filter).
+            // filter means subject the rowset to a Filter; sourceUrl means
+            // bind to an external data source via JsonModelConnection).
             groupBy = groupBy == null ? List.of() : List.copyOf(groupBy);
             primaryKey = primaryKey == null ? List.of() : List.copyOf(primaryKey);
             propertyMappings = propertyMappings == null ? List.of() : List.copyOf(propertyMappings);

@@ -1727,7 +1727,8 @@ public final class ElementParser implements TokenStreamCursor {
 
         return new ClassMapping.Relational(
                 className, setId, extendsSetId, root,
-                mainTable, filter, distinct, groupBy, primaryKey, propertyMappings);
+                mainTable, filter, distinct, groupBy, primaryKey, propertyMappings,
+                /* sourceUrl */ null);
     }
 
     /**
@@ -2406,7 +2407,13 @@ public final class ElementParser implements TokenStreamCursor {
     }
 
     private RelationalOperation parseDbFunctionArg(String dbScope) {
-        if (peek() == TokenType.BRACKET_OPEN) {
+        // R4.4 prerequisite: distinguish [db]@joinName (a self-qualified
+        // JoinNavigation) from [a, b, c] (an array literal). Without the
+        // lookahead, every '[' was consumed as array-literal opening and
+        // a function argument like concat([db::DB] @J | T.X, ...) failed
+        // to parse. Defer to parseDbOperation when the bracket region is
+        // a database qualifier on a join chain.
+        if (peek() == TokenType.BRACKET_OPEN && !lookAheadIsJoin()) {
             advance();
             List<RelationalOperation> elements = new ArrayList<>();
             if (peek() != TokenType.BRACKET_CLOSE) {

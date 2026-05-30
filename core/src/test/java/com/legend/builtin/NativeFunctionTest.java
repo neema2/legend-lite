@@ -51,7 +51,36 @@ class NativeFunctionTest {
     @Test
     void catalogSizeIsPinned() {
         // Update this number deliberately when adding or removing natives.
-        assertEquals(475, Pure.all().size(),
+        // 476 → 478: R0 additions for the MappingNormalizer rewrite
+        // (OTHERWISE__T_1__T_0_1 for Layer 4b fallback; cross-class
+        // ASSOCIATE__CLASS_MANY__COL_SPEC_1__FUNCTION_1 for Layer 3 /
+        // Layer 6' FK-style class-typed PMs). See
+        // MAPPING_NORMALIZER_REWRITE_PLAN.md §0 / §9.
+        // 478 → 479: R0b adds LEGACY_ASSOCIATE__CLASS_MANY__COL_SPEC_1__FUNCTION_1,
+        // the legacy-mode peer of `associate` used for class-typed `Join` PMs in
+        // relational mappings (column-form predicate, no normalize-time reverse
+        // lookup). See MAPPING_NORMALIZER_REWRITE_PLAN.md §§2, 2.4, 9.
+        // 479 → 478: R4.5 deletes OTHERWISE__T_1__T_0_1. OtherwiseEmbedded
+        // is now lowered as a co-named-slot dispatch-merge (partial inline
+        // ^Inner + top-level legacyAssociate naming the same property
+        // slot); no runtime fallback primitive needed. See
+        // MAPPING_NORMALIZER_FOLLOWUPS.md R4.5 / D3.
+        // 478 → 479: Phase-C MappingNormalizer rewrite adds the
+        // legacyAssocPredicate native (row-extraction adapter for
+        // Relational AssociationMapping predicate bodies). The class-typed
+        // Join PM path now also emits the legacyNavigate pipeline step
+        // (already in the catalog). See docs/MAPPING_LEGACY_TO_FUNCTION.md §2.
+        // 479 → 478: remove the never-emitted ASSOCIATE__CLASS_MANY__COL_SPEC_1
+        // __FUNCTION_1. The multi-hop association design (Option A, doc §5.6.1b)
+        // realizes ends via join + legacyNavigate, not the cross-store
+        // `associate` primitive; the native was superseded scaffolding from the
+        // earlier FK-lift design and was emitted nowhere.
+        // 478 → 479: register OTHERWISE__T_1__T_0_1 — the generic class-level
+        // structural-merge primitive (docs/MAPPING_CLEAN_SHEET.md §4.3) that
+        // MappingNormalizer already emits for OtherwiseEmbedded PMs
+        // (otherwise(^Inner(...), $row.<slot>)). Closes the emitted-but-
+        // unregistered gap so the overload resolves (AGENTS.md invariant 1).
+        assertEquals(479, Pure.all().size(),
                 "Pure.all() size pin: review the catalog if this changes");
     }
 

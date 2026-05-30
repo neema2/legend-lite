@@ -556,6 +556,13 @@ public final class Pure {
     public static final NativeFunctionDefinition JOIN_STRINGS__STRING_MANY__STRING_1 = signature("native function joinStrings(strings:meta::pure::metamodel::type::String[*], separator:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition JOIN_STRINGS__STRING_MANY__STRING_1__STRING_1__STRING_1 = signature("native function joinStrings(strings:meta::pure::metamodel::type::String[*], prefix:meta::pure::metamodel::type::String[1], separator:meta::pure::metamodel::type::String[1], suffix:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition JOIN__RELATION_1__RELATION_1__JOIN_KIND_1__FUNCTION_1 = signature("native function join<T,V>(rel1:meta::pure::metamodel::relation::Relation<T>[1], rel2:meta::pure::metamodel::relation::Relation<V>[1], joinKind:meta::pure::functions::relation::JoinKind[1], f:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<T+V>[1];");
+    // join (ColSpec form, Relation<S> -> Relation<S+A>): chain-join used by
+    // MappingNormalizer's relational synth. The ColSpec binds a sub-row alias
+    // (~firm:) to a tableReference in its function1 body; the trailing lambda
+    // is the join condition over (source-row, target-row). Defaults to LEFT.
+    // This is the relational, same-store widening primitive; cross-class
+    // widening uses `associate` on Class[*] above.
+    public static final NativeFunctionDefinition JOIN__RELATION_1__COL_SPEC_1__FUNCTION_1 = signature("native function join<S,T,A>(rel:meta::pure::metamodel::relation::Relation<S>[1], binding:meta::pure::metamodel::relation::ColSpec<A>[1], cond:meta::pure::metamodel::function::Function<{S[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<S+A>[1];");
     public static final NativeFunctionDefinition JOIN__RELATION_1__RELATION_1__JOIN_KIND_1__FUNCTION_1__STRING_1 = signature("native function join<T,V>(rel1:meta::pure::metamodel::relation::Relation<T>[1], rel2:meta::pure::metamodel::relation::Relation<V>[1], joinKind:meta::pure::functions::relation::JoinKind[1], f:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1], prefix:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::relation::Relation<T+V>[1];");
     public static final NativeFunctionDefinition LAG__RELATION_1__T_1 = signature("native function lag<T>(w:meta::pure::metamodel::relation::Relation<T>[1], r:T[1]):T[0..1];");
     public static final NativeFunctionDefinition LAG__RELATION_1__T_1__INTEGER_1 = signature("native function lag<T>(w:meta::pure::metamodel::relation::Relation<T>[1], r:T[1], offset:meta::pure::metamodel::type::Integer[1]):T[0..1];");
@@ -565,6 +572,26 @@ public final class Pure {
     public static final NativeFunctionDefinition LEAD__RELATION_1__T_1__INTEGER_1 = signature("native function lead<T>(w:meta::pure::metamodel::relation::Relation<T>[1], r:T[1], offset:meta::pure::metamodel::type::Integer[1]):T[0..1];");
     public static final NativeFunctionDefinition LEAST__ANY_MANY = signature("native function least(values:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Any[0..1];");
     public static final NativeFunctionDefinition LEFT__STRING_1__INTEGER_1 = signature("native function left(str:meta::pure::metamodel::type::String[1], len:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1];");
+    // legacyNavigate (pipeline step): structurally symmetric to clean-
+    // sheet `navigate`. Widens the current row scope by adding a named
+    // slot bound to an instance of the target class, materialized
+    // through the target's mapping. The lambda takes two ROW references
+    // (source-row from the current scope, target-main-table-row of the
+    // slot class); using physical-column access in the lambda is what
+    // makes the call "legacy" rather than clean. Emitted exclusively by
+    // MappingNormalizer for class-typed Join PMs (single-hop final hop,
+    // multi-hop final hop, OtherwiseEmbedded fallback). See
+    // docs/MAPPING_LEGACY_TO_FUNCTION.md §2.1.
+    public static final NativeFunctionDefinition LEGACY_NAVIGATE__RELATION_1__COL_SPEC_1__FUNCTION_1 = signature("native function legacyNavigate<S,T,A>(rel:meta::pure::metamodel::relation::Relation<S>[1], binding:meta::pure::metamodel::relation::ColSpec<A>[1], cond:meta::pure::metamodel::function::Function<{S[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<S+A>[1];");
+    // legacyAssocPredicate: row-extraction adapter for AssociationMapping
+    // predicate function bodies. The outer function signature is
+    // (A[1], B[1]) -> Boolean[1] (matching a clean AssociationMapping
+    // predicate function); the adapter extracts the underlying main-
+    // table rows of $a and $b and binds them to the lambda's two Row
+    // parameters so the body can speak physical-column predicates.
+    // Emitted exclusively by MappingNormalizer for Relational
+    // AssociationMapping bodies. See docs/MAPPING_LEGACY_TO_FUNCTION.md §2.2.
+    public static final NativeFunctionDefinition LEGACY_ASSOC_PREDICATE__A_1__B_1__FUNCTION_1 = signature("native function legacyAssocPredicate<A,B>(a:A[1], b:B[1], cond:meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::Any[1],meta::pure::metamodel::type::Any[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition LENGTH__STRING_1 = signature("native function length(str:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition LESS_THAN_EQUAL__DATE_0_1__DATE_0_1 = signature("native function lessThanEqual(left:meta::pure::metamodel::type::Date[0..1], right:meta::pure::metamodel::type::Date[0..1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition LESS_THAN_EQUAL__DATE_0_1__DATE_1 = signature("native function lessThanEqual(left:meta::pure::metamodel::type::Date[0..1], right:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Boolean[1];");
@@ -671,6 +698,15 @@ public final class Pure {
     public static final NativeFunctionDefinition OFFSET__RELATION_1__T_1__INTEGER_1 = signature("native function offset<T>(w:meta::pure::metamodel::relation::Relation<T>[1], r:T[1], offset:meta::pure::metamodel::type::Integer[1]):T[0..1];");
     public static final NativeFunctionDefinition OR__BOOLEAN_1__BOOLEAN_1 = signature("native function or(left:meta::pure::metamodel::type::Boolean[1], right:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition OR__BOOLEAN_MANY = signature("native function or(values:meta::pure::metamodel::type::Boolean[*]):meta::pure::metamodel::type::Boolean[1];");
+    // otherwise (generic class-level structural merge): takes a partial
+    // instance and a fallback instance of the same class and returns a
+    // complete instance — partial's set fields win, fallback fills the
+    // rest (docs/MAPPING_CLEAN_SHEET.md §4.3). Emitted by MappingNormalizer
+    // for OtherwiseEmbedded PMs as otherwise(^Inner(<inline subs>),
+    // $row.<slot>) where the fallback slot is a legacyNavigate'd
+    // instance. partial is always constructed (T[1]); the fallback slot
+    // may be optional (T[0..1]); the merge yields a complete T[1].
+    public static final NativeFunctionDefinition OTHERWISE__T_1__T_0_1 = signature("native function otherwise<T>(partial:T[1], fallback:T[0..1]):T[1];");
     public static final NativeFunctionDefinition OVER__COL_SPEC_1 = signature("native function over<T>(cols:meta::pure::metamodel::relation::ColSpec<T>[1]):meta::pure::functions::relation::_Window<T>[1];");
     public static final NativeFunctionDefinition OVER__COL_SPEC_1__SORT_INFO_MANY = signature("native function over<T>(cols:meta::pure::metamodel::relation::ColSpec<T>[1], sortInfo:meta::pure::functions::relation::SortInfo<T>[*]):meta::pure::functions::relation::_Window<T>[1];");
     public static final NativeFunctionDefinition OVER__COL_SPEC_1__SORT_INFO_MANY__RANGE_1 = signature("native function over<T>(cols:meta::pure::metamodel::relation::ColSpec<T>[1], sortInfo:meta::pure::functions::relation::SortInfo<T>[*], range:meta::pure::functions::relation::_Range[1]):meta::pure::functions::relation::_Window<T>[1];");

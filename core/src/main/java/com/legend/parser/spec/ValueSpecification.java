@@ -57,6 +57,7 @@ public sealed interface ValueSpecification permits
         EnumValue,
         LambdaFunction,
         NewInstance,
+        NewInstanceCast,
         PackageableElementPtr,
         PureCollection,
         TypeAnnotation,

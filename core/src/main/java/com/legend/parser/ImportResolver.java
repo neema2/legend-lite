@@ -54,6 +54,7 @@ import com.legend.parser.spec.EnumValue;
 import com.legend.parser.spec.KeyExpression;
 import com.legend.parser.spec.LambdaFunction;
 import com.legend.parser.spec.NewInstance;
+import com.legend.parser.spec.NewInstanceCast;
 import com.legend.parser.spec.PackageableElementPtr;
 import com.legend.parser.spec.PureCollection;
 import com.legend.parser.spec.TypeAnnotation;
@@ -477,7 +478,7 @@ public final class ImportResolver {
                 }
                 yield new ClassMapping.Relational(className, r.setId(), r.extendsSetId(),
                         r.root(), mainTable, filter, r.distinct(),
-                        groupBy, primaryKey, props);
+                        groupBy, primaryKey, props, r.sourceUrl());
             }
             case ClassMapping.Pure p -> {
                 String className = resolveName(p.className(), scope);
@@ -917,6 +918,21 @@ public final class ImportResolver {
                     yield ni;
                 }
                 yield new NewInstance(className, typeArgs, props);
+            }
+            case NewInstanceCast nic -> {
+                // Cast form ^Class($src): rewrite className (FQN
+                // resolution against the import scope) and recurse
+                // into the source expression. Type arguments rewritten
+                // via the same path as NewInstance.
+                String className = resolveName(nic.className(), scope);
+                List<TypeExpression> typeArgs = resolveTypeList(nic.typeArguments(), scope);
+                ValueSpecification src = resolveVs(nic.src(), scope);
+                if (className.equals(nic.className())
+                        && typeArgs == nic.typeArguments()
+                        && src == nic.src()) {
+                    yield nic;
+                }
+                yield new NewInstanceCast(className, typeArgs, src);
             }
             case PureCollection coll -> {
                 List<ValueSpecification> values = resolveVsList(coll.values(), scope);

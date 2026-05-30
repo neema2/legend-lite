@@ -44,15 +44,25 @@ import java.util.Objects;
  * @param isAdd  {@code true} if the source used {@code +=};
  *               {@code false} if it used {@code =}
  */
-public record KeyExpression(ValueSpecification value, boolean isAdd) {
+public record KeyExpression(ValueSpecification value, boolean isAdd, boolean isLocal) {
     public KeyExpression {
         Objects.requireNonNull(value, "value");
     }
 
     /**
-     * Convenience constructor for the common {@code =} (assign) case.
+     * Convenience constructor for the common {@code =} (assign) case
+     * binding a public property.
      */
     public KeyExpression(ValueSpecification value) {
-        this(value, false);
+        this(value, false, false);
+    }
+
+    /**
+     * Backwards-compatible two-arg constructor: assign / add semantics
+     * for a public property. Use the three-arg form to mark a local
+     * (mapping-private) property declaration ({@code +name=value}).
+     */
+    public KeyExpression(ValueSpecification value, boolean isAdd) {
+        this(value, isAdd, false);
     }
 }

@@ -1,7 +1,5 @@
 package com.legend.parser.element;
 
-import com.legend.parser.Multiplicity;
-
 import java.util.Objects;
 
 /**

@@ -396,7 +396,8 @@ class ImportResolverTest {
         var rel = new ClassMapping.Relational(
                 "Person", "p_set", null, true,
                 new TableReference("DB", "PersonTbl"),
-                null, false, List.of(), List.of(), List.of());
+                null, false, List.of(), List.of(), List.of(),
+                /* sourceUrl */ null);
         var md = new MappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         ImportScope both = new ImportScope.Builder()
@@ -451,7 +452,8 @@ class ImportResolverTest {
         var rel = new ClassMapping.Relational(
                 "model::Person", "p_set", null, true,
                 new TableReference("store::DB", "PersonTbl"),
-                null, false, List.of(), List.of(), List.of(col));
+                null, false, List.of(), List.of(), List.of(col),
+                /* sourceUrl */ null);
         var md = new MappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         var r = (MappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS);
@@ -468,7 +470,8 @@ class ImportResolverTest {
         var rel = new ClassMapping.Relational(
                 "model::Sub", "s_set", null, true,
                 new TableReference("store::DB", "T"),
-                null, false, List.of(), List.of(), List.of(lp));
+                null, false, List.of(), List.of(), List.of(lp),
+                /* sourceUrl */ null);
         var md = new MappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         ImportScope both = new ImportScope.Builder()
@@ -850,7 +853,8 @@ class ImportResolverTest {
         var rel = new ClassMapping.Relational(
                 className, "s_set", null, true,
                 new TableReference("DB", "T"),
-                null, false, List.of(), List.of(), List.of(pm));
+                null, false, List.of(), List.of(), List.of(pm),
+                /* sourceUrl */ null);
         return new MappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
     }
@@ -1059,7 +1063,8 @@ class ImportResolverTest {
         var rel = new ClassMapping.Relational(
                 "model::Person", "p_set", null, true,
                 new TableReference("store::DB", "T"),
-                fm, false, List.of(), List.of(), List.of());
+                fm, false, List.of(), List.of(), List.of(),
+                /* sourceUrl */ null);
         var md = new MappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         var r = (MappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS);
@@ -1073,7 +1078,8 @@ class ImportResolverTest {
         var rel = new ClassMapping.Relational(
                 "model::Person", "p_set", null, true,
                 new TableReference("store::DB", "T"),
-                fm, false, List.of(), List.of(), List.of());
+                fm, false, List.of(), List.of(), List.of(),
+                /* sourceUrl */ null);
         var md = new MappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         var r = (MappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS);
@@ -1092,7 +1098,8 @@ class ImportResolverTest {
         var rel = new ClassMapping.Relational(
                 "model::Person", "p_set", null, true,
                 new TableReference("store::DB", "T"),
-                fm, false, List.of(), List.of(), List.of());
+                fm, false, List.of(), List.of(), List.of(),
+                /* sourceUrl */ null);
         var md = new MappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         var r = (MappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS);
@@ -1282,7 +1289,8 @@ class ImportResolverTest {
         var rel = new ClassMapping.Relational(
                 "Person", "p_set", "parent_set", true,
                 new TableReference("DB", "T"),
-                null, false, List.of(), List.of(), List.of());
+                null, false, List.of(), List.of(), List.of(),
+                /* sourceUrl */ null);
         var md = new MappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         var r = (MappingDefinition) resolveOne(md, imp, trickyFqns);
@@ -1610,7 +1618,8 @@ class ImportResolverTest {
                 jmFm, false,
                 List.of(new RelationalOperation.ColumnRef("DB", "T", "g")),  // groupBy
                 List.of(new RelationalOperation.ColumnRef("DB", "T", "pk")), // primaryKey
-                List.of(pmCol, pmJoin));
+                List.of(pmCol, pmJoin),
+                /* sourceUrl */ null);
         var md = new MappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         var r = (MappingDefinition) resolveOne(md, both, FQNS);

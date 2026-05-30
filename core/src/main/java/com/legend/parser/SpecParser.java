@@ -22,6 +22,7 @@ import com.legend.parser.spec.EnumValue;
 import com.legend.parser.spec.KeyExpression;
 import com.legend.parser.spec.LambdaFunction;
 import com.legend.parser.spec.NewInstance;
+import com.legend.parser.spec.NewInstanceCast;
 import com.legend.parser.spec.PackageableElementPtr;
 import com.legend.parser.spec.PureCollection;
 import com.legend.parser.spec.TypeAnnotation;
@@ -1278,6 +1279,31 @@ public final class SpecParser implements TokenStreamCursor {
         if (pos < tokens.count() && tokens.type(pos) == TokenType.PAREN_CLOSE) {
             pos++;
             return wrapNewInstance(receiver, className, typeArgs, properties);
+        }
+        // Disambiguate explicit-bindings vs positional-cast form.
+        // Positional cast: ^Class($srcExpr) — the body is a single
+        // ValueSpecification, no property bindings.
+        //
+        // Rule: bindings ALWAYS start with an identifier (the property
+        // name); cast bodies start with anything else (a $variable, a
+        // literal, a parenthesised expression, etc.). Any identifier-
+        // led body goes through the binding path so a missing '='
+        // surfaces the canonical "expected '='" error instead of a
+        // confusing "expected ')' to close cast" message. This excludes
+        // bare-identifier cast sources like ^Class(somePackageableThing) —
+        // not a documented form; users wanting a cast write $x.
+        //
+        // Cast is only legal in the class-literal form (className non-
+        // empty), never in the copy-with-update ^$var(...) form.
+        if (!className.isEmpty() && !isFqnSegmentToken(tokens.type(pos))) {
+            ValueSpecification src = parseCombinedExpression();
+            expect(TokenType.PAREN_CLOSE,
+                    "expected ')' to close ^" + className + "($src) positional cast");
+            return new AppliedFunction(
+                    "new",
+                    List.of(
+                            receiver,
+                            new NewInstanceCast(className, typeArgs, src)));
         }
         parseAndPutKeyExpression(properties);
         while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {

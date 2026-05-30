@@ -54,6 +54,12 @@ import java.util.Objects;
  * @param testSuitesSource     raw text of the {@code testSuites: [...]} block
  *                             when present (B.4f, D-3 deferred); {@code null}
  *                             when no test suites were declared
+ * @param mappingFunctions     synth Layer-2 {@link FunctionDefinition}s produced
+ *                             by {@link com.legend.normalizer.MappingNormalizer}
+ *                             (Phase E). One per {@link ClassMapping}; each
+ *                             returns {@code TargetClass[*]} and its body
+ *                             ends in {@code map(<bind> | ^Target(...))}.
+ *                             Empty pre-normalize; populated post-normalize.
  */
 public record MappingDefinition(
         String qualifiedName,
@@ -61,7 +67,8 @@ public record MappingDefinition(
         List<ClassMapping> classMappings,
         List<AssociationMapping> associationMappings,
         List<EnumerationMapping> enumerationMappings,
-        String testSuitesSource) implements PackageableElement {
+        String testSuitesSource,
+        List<FunctionDefinition> mappingFunctions) implements PackageableElement {
 
     public MappingDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
@@ -69,8 +76,56 @@ public record MappingDefinition(
         classMappings = classMappings == null ? List.of() : List.copyOf(classMappings);
         associationMappings = associationMappings == null ? List.of() : List.copyOf(associationMappings);
         enumerationMappings = enumerationMappings == null ? List.of() : List.copyOf(enumerationMappings);
+        mappingFunctions = mappingFunctions == null ? List.of() : List.copyOf(mappingFunctions);
         // testSuitesSource intentionally nullable: presence/absence with
         // no structural variant (Phase C parses the captured text lazily).
+    }
+
+    /**
+     * Convenience constructor preserving the pre-Phase-E surface (no
+     * synth functions yet). Callers in the parser pipeline build
+     * mappings before normalization runs; the {@code mappingFunctions}
+     * list defaults to empty.
+     */
+    public MappingDefinition(
+            String qualifiedName,
+            List<MappingInclude> includes,
+            List<ClassMapping> classMappings,
+            List<AssociationMapping> associationMappings,
+            List<EnumerationMapping> enumerationMappings,
+            String testSuitesSource) {
+        this(qualifiedName, includes, classMappings, associationMappings,
+             enumerationMappings, testSuitesSource, List.of());
+    }
+
+    /**
+     * Return a copy of this mapping with {@code mappingFunctions}
+     * replaced. Used by {@link com.legend.normalizer.MappingNormalizer}
+     * to attach the synthesized Layer-2 functions without mutating the
+     * original parser output.
+     */
+    public MappingDefinition withMappingFunctions(List<FunctionDefinition> functions) {
+        Objects.requireNonNull(functions, "functions");
+        return new MappingDefinition(
+                qualifiedName, includes, classMappings,
+                associationMappings, enumerationMappings, testSuitesSource,
+                List.copyOf(functions));
+    }
+
+    /**
+     * Return a copy of this mapping with {@code classMappings}
+     * replaced. Used by {@code ModelBuilder.from()} to cross-bake
+     * synthetic {@link ClassMapping.Relational}s derived from
+     * {@code JsonModelConnection} bindings on bound runtimes (engine
+     * parity: {@code RelationalMapping.variantIdentity} + per-mapping
+     * registration in {@code PureModelBuilder.addRuntime}).
+     */
+    public MappingDefinition withClassMappings(List<ClassMapping> newClassMappings) {
+        Objects.requireNonNull(newClassMappings, "classMappings");
+        return new MappingDefinition(
+                qualifiedName, includes, List.copyOf(newClassMappings),
+                associationMappings, enumerationMappings, testSuitesSource,
+                mappingFunctions);
     }
 
     /**

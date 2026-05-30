@@ -20,6 +20,7 @@ import com.legend.parser.spec.EnumValue;
 import com.legend.parser.spec.KeyExpression;
 import com.legend.parser.spec.LambdaFunction;
 import com.legend.parser.spec.NewInstance;
+import com.legend.parser.spec.NewInstanceCast;
 import com.legend.parser.spec.PackageableElementPtr;
 import com.legend.parser.spec.PureCollection;
 import com.legend.parser.spec.TypeAnnotation;
@@ -974,6 +975,149 @@ final class SpecParserTest {
         assertTrue(ex.getMessage().contains("^NewInstance binding list"),
                 () -> "want NewInstance-specific trailing-comma error, got: "
                         + ex.getMessage());
+    }
+
+    // ----- ^Class($src) positional cast (R1) -----------------------------
+
+    // The positional-cast form is the second of the ^Class(...) shapes
+    // documented in MAPPING_NORMALIZER_DESIGN.md ("Constructor forms"):
+    // it feeds $src through Class's active mapping rather than building
+    // an instance from explicit field bindings. The parser emits a
+    // distinct NewInstanceCast carrier so downstream lowering can pattern-
+    // match it (the cast lowers by invoking Class's synthesized M_Class
+    // function on $src; the named-args form beta-reduces field accesses).
+
+    @Test
+    void newInstanceCastSingleVariableSrc() {
+        // ^Firm($x) — minimal cast form. The inner carrier is
+        // NewInstanceCast, not NewInstance: distinct shape, distinct
+        // downstream behavior.
+        assertEquals(
+                new AppliedFunction("new", List.of(
+                        new PackageableElementPtr("Firm"),
+                        new NewInstanceCast("Firm", List.of(),
+                                new Variable("x")))),
+                SpecParser.parse("^Firm($x)"));
+    }
+
+    @Test
+    void newInstanceCastWithPropertyAccessSrc() {
+        // ^DeptInfo($emp.department) — the Layer 6 (M2M class-typed
+        // slot) example from the design doc.
+        assertEquals(
+                new AppliedFunction("new", List.of(
+                        new PackageableElementPtr("DeptInfo"),
+                        new NewInstanceCast("DeptInfo", List.of(),
+                                new AppliedProperty(
+                                        new Variable("emp"), "department")))),
+                SpecParser.parse("^DeptInfo($emp.department)"));
+    }
+
+    @Test
+    void newInstanceCastWithQualifiedClassName() {
+        // FQN preserved verbatim in both the PackageableElementPtr
+        // wrapper and the NewInstanceCast carrier; mirrors the
+        // named-args form's duplication.
+        assertEquals(
+                new AppliedFunction("new", List.of(
+                        new PackageableElementPtr("my::pkg::Firm"),
+                        new NewInstanceCast("my::pkg::Firm", List.of(),
+                                new Variable("src")))),
+                SpecParser.parse("^my::pkg::Firm($src)"));
+    }
+
+    @Test
+    void newInstanceCastWithTypeArguments() {
+        // ^Pair<Integer, String>($p) — type arguments live on the
+        // cast carrier just as they do on NewInstance.
+        assertEquals(
+                new AppliedFunction("new", List.of(
+                        new PackageableElementPtr("Pair"),
+                        new NewInstanceCast("Pair",
+                                List.of(nr("Integer"), nr("String")),
+                                new Variable("p")))),
+                SpecParser.parse("^Pair<Integer, String>($p)"));
+    }
+
+    @Test
+    void newInstanceCastDoesNotShadowNamedArgs() {
+        // Regression: adding the cast detection must not break the
+        // named-args path. Same input parses to NewInstance, not
+        // NewInstanceCast.
+        assertEquals(
+                new AppliedFunction("new", List.of(
+                        new PackageableElementPtr("Person"),
+                        new NewInstance("Person", List.of(), Map.of(
+                                "name", new KeyExpression(new CString("Alice")))))),
+                SpecParser.parse("^Person(name='Alice')"));
+    }
+
+    @Test
+    void newInstanceCastDoesNotShadowEmptyConstructor() {
+        // ^Foo() with no body is an empty NewInstance (default
+        // construction), never a cast. The disambiguator only fires
+        // when there IS body content that doesn't look like a binding.
+        assertEquals(
+                new AppliedFunction("new", List.of(
+                        new PackageableElementPtr("Foo"),
+                        new NewInstance("Foo", List.of(), Map.of()))),
+                SpecParser.parse("^Foo()"));
+    }
+
+    @Test
+    void newInstanceCastWithCallExpressionSrc() {
+        // The cast body parses with parseCombinedExpression, so
+        // arbitrary value expressions are admitted (not just bare
+        // variables).
+        assertEquals(
+                new AppliedFunction("new", List.of(
+                        new PackageableElementPtr("Result"),
+                        new NewInstanceCast("Result", List.of(),
+                                new AppliedFunction("plus", List.of(
+                                        new CInteger(1L),
+                                        new CInteger(2L)))))),
+                SpecParser.parse("^Result(1 + 2)"));
+    }
+
+    @Test
+    void copyWithUpdateRejectsPositionalForm() {
+        // Cast form is class-literal-only. The copy-with-update
+        // ^$var(...) form always takes named bindings; a bare
+        // expression inside must surface as a binding-shape parse
+        // error so callers can't accidentally write a cast there.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> SpecParser.parse("^$existing($src)"));
+        // We don't pin the exact error text; the key contract is that
+        // this does NOT parse to a NewInstanceCast.
+        assertTrue(ex.getMessage().contains("^NewInstance")
+                        || ex.getMessage().contains("property name"),
+                () -> "want a NewInstance binding-shape error, got: "
+                        + ex.getMessage());
+    }
+
+    // ----- map(@Class) sugar (already parses; pinning the shape) ---------
+
+    @Test
+    void mapAtClassSugarParsesAsTypeAnnotationArg() {
+        // map(@Person) is the "construct Person from each row by
+        // column-name match" sugar described in
+        // MAPPING_NORMALIZER_DESIGN.md ("map(@Class) sugar"). No new
+        // AST node is needed: the @Class form already parses as a
+        // TypeAnnotation.Named at expression position. The synth
+        // emits this as the second arg of map; lowering recognizes
+        // the TypeAnnotation.Named arg and desugars to the explicit
+        // map(r | ^Class(p1=$r.p1, ...)) form.
+        //
+        // Pin: map(rel, @Person) parses to an AppliedFunction("map",
+        // ...) whose 2nd arg is a TypeAnnotation.Named carrying the
+        // class NameRef.
+        ValueSpecification parsed = SpecParser.parse("$rel->map(@Person)");
+        AppliedFunction af = assertInstanceOf(AppliedFunction.class, parsed);
+        assertEquals("map", af.function());
+        assertEquals(2, af.parameters().size());
+        TypeAnnotation.Named ann =
+                assertInstanceOf(TypeAnnotation.Named.class, af.parameters().get(1));
+        assertEquals(nr("Person"), ann.type());
     }
 
     // ----- realistic combined forms (C.3) -----------------------------
