@@ -148,6 +148,12 @@ public final class MappingNormalizer {
                                                      ModelBuilder model) {
         detectM2MCycles(md, model);
 
+        // Pre-pass: flatten `extends [parentSetId]` by merging inherited
+        // property mappings into each child mapping (child overrides on
+        // property-name conflict; multi-level resolves recursively). See
+        // docs/MAPPING_LEGACY_TO_FUNCTION.md §5.2.3.
+        md = resolveExtends(md);
+
         // Pre-pass: inject MULTI-HOP association ends as class-typed Join PMs
         // into their owning class mappings (Option A; see
         // docs/MAPPING_LEGACY_TO_FUNCTION.md §5.6.1b). Single-hop ends keep the
@@ -166,6 +172,97 @@ public final class MappingNormalizer {
             if (fn != null) synths.add(fn);
         }
         return md.withMappingFunctions(synths);
+    }
+
+    // ====================================================================
+    // Pre-pass: flatten `extends [parentSetId]`  —  doc §5.2.3
+    // ====================================================================
+
+    /**
+     * Resolve {@code extends [parentSetId]} on Relational class mappings by
+     * merging the parent's property mappings into the child
+     * ({@code docs/MAPPING_LEGACY_TO_FUNCTION.md} §5.2.3):
+     * <ol>
+     *   <li>Resolve the parent binding by {@code setId} within this mapping.</li>
+     *   <li>Concatenate parent + child property mappings, child winning on
+     *       property-name conflict.</li>
+     *   <li>Multi-level {@code extends} resolves recursively before merging.</li>
+     *   <li>The {@code extends} annotation is preserved on the binding for
+     *       query-time set-ID dispatch.</li>
+     * </ol>
+     * The parent's {@code ~mainTable} is <em>not</em> auto-copied; the child
+     * must declare its own (the function form requires explicitness).
+     */
+    private static MappingDefinition resolveExtends(MappingDefinition md) {
+        boolean any = md.classMappings().stream().anyMatch(cm -> cm.extendsSetId() != null);
+        if (!any) return md;
+        Map<String, ClassMapping> bySetId = new HashMap<>();
+        for (ClassMapping cm : md.classMappings()) {
+            if (cm.setId() != null) bySetId.put(cm.setId(), cm);
+        }
+        List<ClassMapping> rewritten = new ArrayList<>(md.classMappings().size());
+        for (ClassMapping cm : md.classMappings()) {
+            if (cm.extendsSetId() == null) {
+                rewritten.add(cm);
+            } else if (cm instanceof ClassMapping.Relational rcm) {
+                rewritten.add(flattenExtends(rcm, bySetId, new LinkedHashSet<>(), md));
+            } else {
+                // Pure (M2M) extends is not covered by §5.2.3; reject loudly
+                // rather than silently ignore the inheritance (AGENTS.md: no
+                // fallbacks).
+                throw new UnsupportedOperationException(
+                        "Class mapping for '" + cm.className() + "' uses extends ["
+                      + cm.extendsSetId() + "] on a non-Relational (Pure) mapping; "
+                      + "only Relational extends is supported. Mapping="
+                      + md.qualifiedName());
+            }
+        }
+        return md.withClassMappings(rewritten);
+    }
+
+    /**
+     * Recursively flatten one Relational child's {@code extends} chain into a
+     * single binding carrying the merged property mappings (child overrides
+     * parent on property-name conflict).
+     */
+    private static ClassMapping.Relational flattenExtends(ClassMapping.Relational child,
+                                                         Map<String, ClassMapping> bySetId,
+                                                         Set<String> chain,
+                                                         MappingDefinition md) {
+        String parentSetId = child.extendsSetId();
+        if (!chain.add(parentSetId)) {
+            throw new IllegalStateException(
+                    "Circular 'extends' chain in mapping '" + md.qualifiedName()
+                  + "': " + String.join(" -> ", chain) + " -> " + parentSetId);
+        }
+        ClassMapping parent = bySetId.get(parentSetId);
+        if (parent == null) {
+            throw new IllegalStateException(
+                    "Class mapping for '" + child.className() + "' extends ["
+                  + parentSetId + "] but no class mapping with set id '" + parentSetId
+                  + "' exists in mapping=" + md.qualifiedName());
+        }
+        if (!(parent instanceof ClassMapping.Relational parentRcm)) {
+            throw new UnsupportedOperationException(
+                    "Class mapping for '" + child.className() + "' extends ["
+                  + parentSetId + "] which is not a Relational mapping; only "
+                  + "Relational extends is supported. Mapping=" + md.qualifiedName());
+        }
+        ClassMapping.Relational flatParent = parentRcm.extendsSetId() != null
+                ? flattenExtends(parentRcm, bySetId, chain, md)
+                : parentRcm;
+        // Parent PMs first (declaration order), child overrides by property name.
+        LinkedHashMap<String, PropertyMapping> merged = new LinkedHashMap<>();
+        for (PropertyMapping pm : flatParent.propertyMappings()) {
+            merged.put(pm.propertyName(), pm);
+        }
+        for (PropertyMapping pm : child.propertyMappings()) {
+            merged.put(pm.propertyName(), pm);
+        }
+        return new ClassMapping.Relational(
+                child.className(), child.setId(), child.extendsSetId(), child.root(),
+                child.mainTable(), child.filter(), child.distinct(), child.groupBy(),
+                child.primaryKey(), new ArrayList<>(merged.values()), child.sourceUrl());
     }
 
     // ====================================================================
@@ -512,26 +609,30 @@ public final class MappingNormalizer {
     private static PropertyMapping rewritePmThroughView(PropertyMapping pm,
                                                        Map<String, RelationalOperation> viewCols,
                                                        String dbFqn, String mainTable) {
-        if (pm instanceof PropertyMapping.Column col && viewCols.containsKey(col.column())) {
-            RelationalOperation expr = viewCols.get(col.column());
-            return rewriteColumnPmAsViewExpr(col, expr, dbFqn, mainTable);
-        }
-        if (pm instanceof PropertyMapping.LocalProperty lp) {
-            return new PropertyMapping.LocalProperty(lp.propertyName(), lp.type(),
-                    lp.multiplicity(),
+        return switch (pm) {
+            case PropertyMapping.Column col when viewCols.containsKey(col.column()) ->
+                    rewriteColumnPmAsViewExpr(col, viewCols.get(col.column()), dbFqn, mainTable);
+            case PropertyMapping.LocalProperty lp -> new PropertyMapping.LocalProperty(
+                    lp.propertyName(), lp.type(), lp.multiplicity(),
                     rewritePmThroughView(lp.body(), viewCols, dbFqn, mainTable));
-        }
-        if (pm instanceof PropertyMapping.Embedded emb) {
-            List<PropertyMapping> rewrittenSubs = new ArrayList<>();
-            for (PropertyMapping sub : emb.propertyMappings()) {
-                rewrittenSubs.add(rewritePmThroughView(sub, viewCols, dbFqn, mainTable));
+            case PropertyMapping.Embedded emb -> {
+                List<PropertyMapping> rewrittenSubs = new ArrayList<>();
+                for (PropertyMapping sub : emb.propertyMappings()) {
+                    rewrittenSubs.add(rewritePmThroughView(sub, viewCols, dbFqn, mainTable));
+                }
+                yield new PropertyMapping.Embedded(emb.propertyName(), rewrittenSubs);
             }
-            return new PropertyMapping.Embedded(emb.propertyName(), rewrittenSubs);
-        }
-        // Join, JoinTerminalColumn, EnumeratedColumn, Expression,
-        // InlineEmbedded, OtherwiseEmbedded: pass through unchanged
-        // (view rewriting at column granularity).
-        return pm;
+            // Non-view Column, Join, JoinTerminalColumn, EnumeratedColumn,
+            // Expression, InlineEmbedded, OtherwiseEmbedded: pass through
+            // unchanged (view rewriting is at column granularity).
+            case PropertyMapping.Column col -> col;
+            case PropertyMapping.Join j -> j;
+            case PropertyMapping.JoinTerminalColumn jtc -> jtc;
+            case PropertyMapping.EnumeratedColumn ec -> ec;
+            case PropertyMapping.Expression expr -> expr;
+            case PropertyMapping.InlineEmbedded ie -> ie;
+            case PropertyMapping.OtherwiseEmbedded oe -> oe;
+        };
     }
 
     /**
@@ -664,6 +765,14 @@ public final class MappingNormalizer {
         // "A__B") AND the lookup readers use to recover the slot name,
         // rather than re-flattening the hop list (which is lossy).
         final Map<List<String>, String> pathToSlot = new LinkedHashMap<>();
+        // Physical (non-class) target tables reached by MORE THAN ONE distinct
+        // sub-row slot and which are NOT the main table. A bare column ref to
+        // such a table (in a filter/expression/groupBy/column PM) cannot
+        // identify which sub-row is meant, so it is left unbound in the row
+        // scope and a read fails loudly (see columnRead / translateRelOp)
+        // instead of silently resolving to an arbitrary sub-row. Pin the
+        // intended sub-row with a join-terminal column (| T.COL) instead.
+        final Set<String> ambiguousTables = new HashSet<>();
         Pipeline(ValueSpecification expr) { this.expr = expr; }
     }
 
@@ -746,7 +855,7 @@ public final class MappingNormalizer {
         // Terminal: map(row | ^Class(...)).
         Map<String, ValueSpecification> tableScope = new LinkedHashMap<>();
         tableScope.put(mainTable, rowBind);
-        seedAliasScope(tableScope, p, rowBind);
+        seedAliasScope(tableScope, p, rowBind, mainTable);
 
         Map<String, KeyExpression> fields = new LinkedHashMap<>();
         for (PropertyMapping pm : rcm.propertyMappings()) {
@@ -1064,68 +1173,54 @@ public final class MappingNormalizer {
             return new CtorField(pm.propertyName(),
                     new AppliedProperty(rowBind, pm.propertyName()), false);
         }
-        if (pm instanceof PropertyMapping.Column col) {
-            return new CtorField(col.propertyName(),
-                    columnRead(col.table(), col.column(), tableScope, defaultTable),
+        return switch (pm) {
+            case PropertyMapping.Column col -> new CtorField(col.propertyName(),
+                    columnRead(col.table(), col.column(), tableScope, defaultTable, pipeline),
                     false);
-        }
-        if (pm instanceof PropertyMapping.EnumeratedColumn ec) {
-            return new CtorField(ec.propertyName(),
-                    translateEnumeratedColumn(ec, tableScope, defaultTable, md),
+            case PropertyMapping.EnumeratedColumn ec -> new CtorField(ec.propertyName(),
+                    translateEnumeratedColumn(ec, tableScope, defaultTable, md, pipeline),
                     false);
-        }
-        if (pm instanceof PropertyMapping.Expression expr) {
-            return new CtorField(expr.propertyName(),
-                    translateRelOp(expr.expression(), tableScope, null,
-                            rowBind, pipeline),
+            case PropertyMapping.Expression expr -> new CtorField(expr.propertyName(),
+                    translateRelOp(expr.expression(), tableScope, null, rowBind, pipeline),
                     false);
-        }
-        if (pm instanceof PropertyMapping.Join j) {
-            String targetIfMapped = classTypedTargetIfMapped(ownerClassFqn,
-                    j.propertyName(), model);
-            String slot = targetIfMapped != null
-                    ? j.propertyName()
-                    : slotFor(pipeline, j.joins());
-            return new CtorField(j.propertyName(),
-                    new AppliedProperty(rowBind, slot), false);
-        }
-        if (pm instanceof PropertyMapping.JoinTerminalColumn jtc) {
-            String alias = slotFor(pipeline, jtc.joins());
-            ValueSpecification subRow = new AppliedProperty(rowBind, alias);
-            Map<String, ValueSpecification> scope = new LinkedHashMap<>(tableScope);
-            String terminalTable = pipeline.aliasToTargetTable.get(alias);
-            if (terminalTable != null) scope.put(terminalTable, subRow);
-            return new CtorField(jtc.propertyName(),
-                    translateRelOp(jtc.terminalColumn(), scope, null, rowBind, pipeline),
-                    false);
-        }
-        if (pm instanceof PropertyMapping.LocalProperty lp) {
-            CtorField inner = translatePmToField(lp.body(), rowBind, tableScope,
-                    defaultTable, pipeline, ownerClassFqn, md, model, false);
-            return new CtorField(lp.propertyName(), inner.value(), true);
-        }
-        if (pm instanceof PropertyMapping.Embedded emb) {
-            return new CtorField(emb.propertyName(),
+            case PropertyMapping.Join j -> {
+                String targetIfMapped = classTypedTargetIfMapped(ownerClassFqn,
+                        j.propertyName(), model);
+                String slot = targetIfMapped != null
+                        ? j.propertyName()
+                        : slotFor(pipeline, j.joins());
+                yield new CtorField(j.propertyName(),
+                        new AppliedProperty(rowBind, slot), false);
+            }
+            case PropertyMapping.JoinTerminalColumn jtc -> {
+                String alias = slotFor(pipeline, jtc.joins());
+                ValueSpecification subRow = new AppliedProperty(rowBind, alias);
+                Map<String, ValueSpecification> scope = new LinkedHashMap<>(tableScope);
+                String terminalTable = pipeline.aliasToTargetTable.get(alias);
+                if (terminalTable != null) scope.put(terminalTable, subRow);
+                yield new CtorField(jtc.propertyName(),
+                        translateRelOp(jtc.terminalColumn(), scope, null, rowBind, pipeline),
+                        false);
+            }
+            case PropertyMapping.LocalProperty lp -> {
+                CtorField inner = translatePmToField(lp.body(), rowBind, tableScope,
+                        defaultTable, pipeline, ownerClassFqn, md, model, false);
+                yield new CtorField(lp.propertyName(), inner.value(), true);
+            }
+            case PropertyMapping.Embedded emb -> new CtorField(emb.propertyName(),
                     materializeEmbedded(emb.propertyName(), emb.propertyMappings(),
                             rowBind, tableScope, defaultTable, pipeline,
                             ownerClassFqn, md, model, new HashSet<>()),
                     false);
-        }
-        if (pm instanceof PropertyMapping.InlineEmbedded ie) {
-            return new CtorField(ie.propertyName(),
+            case PropertyMapping.InlineEmbedded ie -> new CtorField(ie.propertyName(),
                     materializeInlineEmbedded(ie, rowBind, tableScope, defaultTable,
                             pipeline, ownerClassFqn, md, model),
                     false);
-        }
-        if (pm instanceof PropertyMapping.OtherwiseEmbedded oe) {
-            return new CtorField(oe.propertyName(),
+            case PropertyMapping.OtherwiseEmbedded oe -> new CtorField(oe.propertyName(),
                     materializeOtherwiseEmbedded(oe, rowBind, tableScope, defaultTable,
                             pipeline, ownerClassFqn, md, model),
                     false);
-        }
-        throw new UnsupportedOperationException(
-                "Unhandled PropertyMapping variant: " + pm.getClass().getSimpleName()
-              + " for property '" + pm.propertyName() + "'");
+        };
     }
 
     // ====================================================================
@@ -1271,7 +1366,7 @@ public final class MappingNormalizer {
               + md.qualifiedName()));
         Map<String, ValueSpecification> scope = new LinkedHashMap<>();
         scope.put(mainTable, rowBind);
-        seedAliasScope(scope, p, rowBind);
+        seedAliasScope(scope, p, rowBind, mainTable);
         ValueSpecification cond = translateRelOp(fd.condition(), scope, null, rowBind, p);
         return new AppliedFunction("filter", List.of(source,
                 new LambdaFunction(List.of(rowBind), List.of(cond))));
@@ -1302,7 +1397,7 @@ public final class MappingNormalizer {
         ValueSpecification terminalRow = new AppliedProperty(rowBind, terminalAlias);
         Map<String, ValueSpecification> scope = new LinkedHashMap<>();
         scope.put(mainTable, rowBind);
-        seedAliasScope(scope, p, rowBind);
+        seedAliasScope(scope, p, rowBind, mainTable);
         String terminalTable = p.aliasToTargetTable.get(terminalAlias);
         if (terminalTable != null) scope.putIfAbsent(terminalTable, terminalRow);
         ValueSpecification cond = translateRelOp(fd.condition(), scope, terminalRow,
@@ -1321,7 +1416,7 @@ public final class MappingNormalizer {
                                                   Pipeline p, MappingDefinition md) {
         Map<String, ValueSpecification> scope = new LinkedHashMap<>();
         scope.put(mainTable, rowBind);
-        seedAliasScope(scope, p, rowBind);
+        seedAliasScope(scope, p, rowBind, mainTable);
 
         List<RelationalOperation> keyOps = rcm.groupBy();
         String[] keyNames = new String[keyOps.size()];
@@ -1568,7 +1663,7 @@ public final class MappingNormalizer {
     private static ValueSpecification translateEnumeratedColumn(
             PropertyMapping.EnumeratedColumn ec,
             Map<String, ValueSpecification> tableScope,
-            String defaultTable, MappingDefinition md) {
+            String defaultTable, MappingDefinition md, Pipeline p) {
         EnumerationMapping em = null;
         for (EnumerationMapping cand : md.enumerationMappings()) {
             if (cand.mappingId().equals(ec.enumMappingId())) { em = cand; break; }
@@ -1580,7 +1675,7 @@ public final class MappingNormalizer {
                   + md.qualifiedName());
         }
         ValueSpecification colRead = columnRead(ec.table(), ec.column(),
-                tableScope, defaultTable);
+                tableScope, defaultTable, p);
         ValueSpecification tail = new PureCollection(List.of());
         List<EnumerationMapping.EnumValueMapping> values = em.valueMappings();
         for (int i = values.size() - 1; i >= 0; i--) {
@@ -1622,10 +1717,26 @@ public final class MappingNormalizer {
     // ====================================================================
 
     private static void seedAliasScope(Map<String, ValueSpecification> scope,
-                                      Pipeline p, Variable rowBind) {
+                                      Pipeline p, Variable rowBind, String mainTable) {
+        // Count physical (non-class) sub-rows per target table.
+        Map<String, Integer> perTable = new LinkedHashMap<>();
         for (Map.Entry<String, String> e : p.aliasToTargetTable.entrySet()) {
             if (p.classSlots.contains(e.getKey())) continue;
-            scope.putIfAbsent(e.getValue(), new AppliedProperty(rowBind, e.getKey()));
+            perTable.merge(e.getValue(), 1, Integer::sum);
+        }
+        for (Map.Entry<String, String> e : p.aliasToTargetTable.entrySet()) {
+            if (p.classSlots.contains(e.getKey())) continue;
+            String table = e.getValue();
+            // A NON-main table reached by more than one physical sub-row is
+            // ambiguous for bare column refs: leave it unbound and record it
+            // so reads fail loudly rather than picking an arbitrary sub-row.
+            // (The main table is exempt: a bare ref means the top row by
+            // convention; its sub-rows are reached via their own slots.)
+            if (!table.equals(mainTable) && perTable.get(table) > 1) {
+                p.ambiguousTables.add(table);
+                continue;
+            }
+            scope.putIfAbsent(table, new AppliedProperty(rowBind, e.getKey()));
         }
     }
 
@@ -1689,8 +1800,11 @@ public final class MappingNormalizer {
 
     private static ValueSpecification columnRead(String table, String column,
                                                 Map<String, ValueSpecification> tableScope,
-                                                String defaultTable) {
+                                                String defaultTable, Pipeline p) {
         ValueSpecification base = tableScope.get(table);
+        if (base == null && p != null && p.ambiguousTables.contains(table)) {
+            throw ambiguousTableRef(table, column);
+        }
         if (base == null) base = tableScope.get(defaultTable);
         if (base == null) {
             throw new IllegalStateException(
@@ -1698,6 +1812,21 @@ public final class MappingNormalizer {
                   + "'; available=" + tableScope.keySet());
         }
         return new AppliedProperty(base, column);
+    }
+
+    /**
+     * A bare column reference to a table the join chain reaches through more
+     * than one path is irreducibly ambiguous: the legacy DSL addresses by
+     * table name, which cannot pick between two sub-rows of the same table.
+     * Fail loudly with guidance rather than resolve to an arbitrary sub-row.
+     */
+    private static IllegalStateException ambiguousTableRef(String table, String column) {
+        return new IllegalStateException(
+                "Ambiguous column reference '" + table + "." + column + "': the join "
+              + "chain reaches table '" + table + "' through more than one path, so a "
+              + "bare column reference cannot identify which sub-row is meant. Pin the "
+              + "intended sub-row with a join-terminal column (e.g. @SomeJoin | "
+              + table + "." + column + ").");
     }
 
     /**
@@ -1716,6 +1845,10 @@ public final class MappingNormalizer {
         return switch (op) {
             case RelationalOperation.ColumnRef ref -> {
                 ValueSpecification path = tableScope.get(ref.table());
+                if (path == null && pipelineOrNull != null
+                        && pipelineOrNull.ambiguousTables.contains(ref.table())) {
+                    throw ambiguousTableRef(ref.table(), ref.column());
+                }
                 if (path == null) {
                     throw new IllegalStateException(
                             "ColumnRef references table '" + ref.table()

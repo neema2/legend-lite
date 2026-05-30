@@ -4110,4 +4110,179 @@ class MappingNormalizerTest {
                 "inherited property 'id' is mapped without a 'not declared' rejection");
         assertEquals(List.of("id", "name"), List.copyOf(ni.properties().keySet()));
     }
+
+    // ====================================================================
+    // extends [parentSetId]  —  doc §5.2.3
+    //
+    // A child Relational binding absorbs the parent set's property mappings
+    // (resolved by setId), child overriding on property-name conflict;
+    // multi-level extends resolves recursively. The parent's ~mainTable is
+    // NOT auto-copied (the child declares its own).
+    // ====================================================================
+
+    /** Ctor NewInstance of a synth fn whose FQN ends with {@code suffix}. */
+    private static NewInstance synthCtor(ParsedModel normalized, String suffix) {
+        FunctionDefinition fn = firstMapping(normalized).mappingFunctions().stream()
+                .filter(f -> f.qualifiedName().endsWith(suffix))
+                .findFirst().orElseThrow(() ->
+                        new AssertionError("no synth fn ending with " + suffix));
+        return (NewInstance) ((AppliedFunction) sole(
+                ((LambdaFunction) ((AppliedFunction) sole(fn.body()))
+                        .parameters().get(1)).body())).parameters().get(1);
+    }
+
+    @Test
+    @DisplayName("extends_mergesInheritedPropertyMappings")
+    void extends_mergesInheritedPropertyMappings() {
+        ParsedModel parsed = ElementParser.parse(
+                "Class model::Person { name: String[1]; } "
+                        + "Class model::Employee extends model::Person { salary: Integer[1]; } "
+                        + "Database db::DB ( Table T (NAME VARCHAR(50), SAL INTEGER) ) "
+                        + "Mapping my::M ( "
+                        + "  model::Person[person]: Relational { "
+                        + "    ~mainTable [db::DB] T  name: T.NAME "
+                        + "  } "
+                        + "  *model::Employee[emp] extends [person]: Relational { "
+                        + "    ~mainTable [db::DB] T  salary: T.SAL "
+                        + "  } "
+                        + ")");
+        NewInstance ni = synthCtor(MappingNormalizer.normalize(parsed), "_Employee");
+        // Parent PM 'name' is inherited, then child's 'salary' (declaration order).
+        assertEquals(List.of("name", "salary"), List.copyOf(ni.properties().keySet()),
+                "child absorbs parent PMs (parent first), then its own");
+        AppliedProperty nameRead = (AppliedProperty) ni.properties().get("name").value();
+        assertEquals("NAME", nameRead.property(),
+                "inherited 'name' still reads the parent's T.NAME column");
+    }
+
+    @Test
+    @DisplayName("extends_childOverridesParentOnPropertyNameConflict")
+    void extends_childOverridesParentOnPropertyNameConflict() {
+        ParsedModel parsed = ElementParser.parse(
+                "Class model::Person { name: String[1]; } "
+                        + "Class model::Employee extends model::Person { } "
+                        + "Database db::DB ( Table T (NAME VARCHAR(50), FULL_NAME VARCHAR(50)) ) "
+                        + "Mapping my::M ( "
+                        + "  model::Person[person]: Relational { "
+                        + "    ~mainTable [db::DB] T  name: T.NAME "
+                        + "  } "
+                        + "  *model::Employee[emp] extends [person]: Relational { "
+                        + "    ~mainTable [db::DB] T  name: T.FULL_NAME "
+                        + "  } "
+                        + ")");
+        NewInstance ni = synthCtor(MappingNormalizer.normalize(parsed), "_Employee");
+        assertEquals(List.of("name"), List.copyOf(ni.properties().keySet()),
+                "conflicting property appears once");
+        AppliedProperty nameRead = (AppliedProperty) ni.properties().get("name").value();
+        assertEquals("FULL_NAME", nameRead.property(),
+                "child PM wins on property-name conflict");
+    }
+
+    @Test
+    @DisplayName("extends_multiLevelResolvesRecursively")
+    void extends_multiLevelResolvesRecursively() {
+        ParsedModel parsed = ElementParser.parse(
+                "Class model::A { pa: String[1]; } "
+                        + "Class model::B extends model::A { pb: String[1]; } "
+                        + "Class model::C extends model::B { pc: String[1]; } "
+                        + "Database db::DB ( Table T (PA VARCHAR(9), PB VARCHAR(9), PC VARCHAR(9)) ) "
+                        + "Mapping my::M ( "
+                        + "  model::A[a]: Relational { ~mainTable [db::DB] T  pa: T.PA } "
+                        + "  model::B[b] extends [a]: Relational { ~mainTable [db::DB] T  pb: T.PB } "
+                        + "  *model::C[c] extends [b]: Relational { ~mainTable [db::DB] T  pc: T.PC } "
+                        + ")");
+        NewInstance ni = synthCtor(MappingNormalizer.normalize(parsed), "_C");
+        assertEquals(List.of("pa", "pb", "pc"), List.copyOf(ni.properties().keySet()),
+                "grandparent + parent + child PMs flatten in inheritance order");
+    }
+
+    @Test
+    @DisplayName("extends_unknownParentSetIdThrows")
+    void extends_unknownParentSetIdThrows() {
+        ParsedModel parsed = ElementParser.parse(
+                "Class model::Employee { x: String[1]; } "
+                        + "Database db::DB ( Table T (X VARCHAR(9)) ) "
+                        + "Mapping my::M ( "
+                        + "  *model::Employee[emp] extends [nope]: Relational { "
+                        + "    ~mainTable [db::DB] T  x: T.X "
+                        + "  } "
+                        + ")");
+        IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalStateException.class,
+                () -> MappingNormalizer.normalize(parsed));
+        assertTrue(ex.getMessage().contains("nope"),
+                () -> "Expected the unknown parent set id to be named; got: " + ex.getMessage());
+    }
+
+    // ====================================================================
+    // Physical-table-name row-scope clash
+    //
+    // The row scope is keyed by physical table name. When a join chain
+    // reaches the SAME non-main table through more than one path, two
+    // distinct sub-rows share that table name. A join-terminal column pins
+    // its own sub-row (and still resolves), but a BARE column reference to
+    // that table is irreducibly ambiguous and must fail loudly rather than
+    // silently resolve to an arbitrary sub-row (AGENTS.md invariant 4).
+    // ====================================================================
+
+    @Test
+    @DisplayName("sameTableTwoJoins_terminalColumnsPinTheirOwnSubRow")
+    void sameTableTwoJoins_terminalColumnsPinTheirOwnSubRow() {
+        // Two FKs to T_FIRM => two sub-rows of the same table. Each
+        // join-terminal column reads from its own slot; no ambiguity.
+        ParsedModel parsed = ElementParser.parse(
+                "Class model::Person { primaryFirmName: String[1]; secondaryFirmName: String[1]; } "
+                        + "Database db::DB ( "
+                        + "  Table T_PERSON (PRIMARY_FIRM_ID INTEGER, SECONDARY_FIRM_ID INTEGER) "
+                        + "  Table T_FIRM   (ID INTEGER, NAME VARCHAR(50)) "
+                        + "  Join Person_PrimaryFirm  ( T_PERSON.PRIMARY_FIRM_ID   = T_FIRM.ID ) "
+                        + "  Join Person_SecondaryFirm( T_PERSON.SECONDARY_FIRM_ID = T_FIRM.ID ) "
+                        + ") "
+                        + "Mapping my::M ( "
+                        + "  *model::Person: Relational { "
+                        + "    ~mainTable [db::DB] T_PERSON "
+                        + "    primaryFirmName:   [db::DB] @Person_PrimaryFirm   | T_FIRM.NAME, "
+                        + "    secondaryFirmName: [db::DB] @Person_SecondaryFirm | T_FIRM.NAME "
+                        + "  } "
+                        + ")");
+        NewInstance ni = synthCtor(MappingNormalizer.normalize(parsed), "_Person");
+        AppliedProperty primary = (AppliedProperty) ni.properties().get("primaryFirmName").value();
+        assertEquals("NAME", primary.property());
+        assertEquals("Person_PrimaryFirm", ((AppliedProperty) primary.receiver()).property(),
+                "primary terminal column reads from its own sub-row slot");
+        AppliedProperty secondary = (AppliedProperty) ni.properties().get("secondaryFirmName").value();
+        assertEquals("NAME", secondary.property());
+        assertEquals("Person_SecondaryFirm", ((AppliedProperty) secondary.receiver()).property(),
+                "secondary terminal column reads from its OWN, distinct sub-row slot");
+    }
+
+    @Test
+    @DisplayName("sameTableTwoJoins_bareColumnRefIsAmbiguousAndThrows")
+    void sameTableTwoJoins_bareColumnRefIsAmbiguousAndThrows() {
+        // Same two-FK shape, but a third PM reads T_FIRM.NAME by bare table
+        // name. The chain reaches T_FIRM via two paths, so the bare ref
+        // cannot identify which firm — must fail loudly with guidance.
+        ParsedModel parsed = ElementParser.parse(
+                "Class model::Person { "
+                        + "  primaryFirmName: String[1]; secondaryFirmName: String[1]; label: String[1]; } "
+                        + "Database db::DB ( "
+                        + "  Table T_PERSON (PRIMARY_FIRM_ID INTEGER, SECONDARY_FIRM_ID INTEGER) "
+                        + "  Table T_FIRM   (ID INTEGER, NAME VARCHAR(50)) "
+                        + "  Join Person_PrimaryFirm  ( T_PERSON.PRIMARY_FIRM_ID   = T_FIRM.ID ) "
+                        + "  Join Person_SecondaryFirm( T_PERSON.SECONDARY_FIRM_ID = T_FIRM.ID ) "
+                        + ") "
+                        + "Mapping my::M ( "
+                        + "  *model::Person: Relational { "
+                        + "    ~mainTable [db::DB] T_PERSON "
+                        + "    primaryFirmName:   [db::DB] @Person_PrimaryFirm   | T_FIRM.NAME, "
+                        + "    secondaryFirmName: [db::DB] @Person_SecondaryFirm | T_FIRM.NAME, "
+                        + "    label: T_FIRM.NAME "
+                        + "  } "
+                        + ")");
+        IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalStateException.class,
+                () -> MappingNormalizer.normalize(parsed));
+        assertTrue(ex.getMessage().contains("Ambiguous") && ex.getMessage().contains("T_FIRM"),
+                () -> "Expected an ambiguous-table diagnostic naming T_FIRM; got: " + ex.getMessage());
+    }
 }
