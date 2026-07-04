@@ -56,7 +56,22 @@ public record TypedFunction(
         Type returnType,
         Multiplicity returnMultiplicity,
         Optional<List<ValueSpecification>> body,
-        boolean isNative) implements TypedElement {
+        boolean isNative,
+        com.legend.parser.element.Function definition) implements TypedElement {
+
+    /**
+     * Test convenience: a signature with no source definition. Real
+     * compilation always threads the parser definition &mdash; it is the
+     * lowering's dispatch identity (a resolved native call dispatches on
+     * WHICH overload Phase G chose, never on the function's name).
+     */
+    public TypedFunction(String qualifiedName, List<String> typeParameters,
+                         List<String> multiplicityParameters, List<TypedParameter> parameters,
+                         Type returnType, Multiplicity returnMultiplicity,
+                         Optional<List<ValueSpecification>> body, boolean isNative) {
+        this(qualifiedName, typeParameters, multiplicityParameters, parameters,
+                returnType, returnMultiplicity, body, isNative, null);
+    }
 
     public TypedFunction {
         Objects.requireNonNull(qualifiedName, "qualifiedName");

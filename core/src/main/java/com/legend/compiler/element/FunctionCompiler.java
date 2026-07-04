@@ -73,7 +73,8 @@ final class FunctionCompiler {
                 classifier.classify(f.returnType(), typeParams),
                 TypeClassifier.multiplicity(f.returnMultiplicity()),
                 body,
-                f instanceof NativeFunctionDefinition);
+                f instanceof NativeFunctionDefinition,
+                f);
     }
 
     /**
