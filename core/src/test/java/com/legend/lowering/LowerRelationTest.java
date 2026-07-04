@@ -536,6 +536,52 @@ class LowerRelationTest {
                 exec(sql + "\nORDER BY t0.E_TS"), "each event gets its latest prior quote");
     }
 
+    // ---- scalar roots, from(), flatten ----
+
+    @Test
+    @DisplayName("SCALAR result shape: bare scalar query is a FROM-less SELECT")
+    void scalarRoot() throws SQLException {
+        String sql = sqlOf("1 + 1");
+        assertEquals("SELECT 1 + 1 AS value", sql);
+        assertEquals(List.of("2"), exec(sql));
+        assertEquals(List.of("7"), exec(sqlOf("1 + 2 * 3")),
+                "REAL Pure precedence: * binds tighter (engine-lite's flat grammar gave 9)");
+        assertEquals(List.of("true"), exec(sqlOf("true || true && false")),
+                "&& binds tighter than || (flat grammar gives false)");
+    }
+
+    @Test
+    @DisplayName("from(runtime) is a pass-through — zero SQL footprint")
+    void fromPassThrough() throws SQLException {
+        String withFrom = sqlOf("#>{test::DB.T_PERSON}#->filter(x|$x.AGE > 50)"
+                + "->from(test::DB)");
+        String without = sqlOf("#>{test::DB.T_PERSON}#->filter(x|$x.AGE > 50)");
+        assertEquals(without, withFrom, "from() adds nothing to the SQL");
+        assertEquals(List.of("Dan|55|null"), exec(withFrom));
+    }
+
+    @Test
+    @DisplayName("flatten explodes a variant column via UNNEST; other columns ride along")
+    void flattenVariant() throws SQLException {
+        try (var st = conn.createStatement()) {
+            st.execute("CREATE TABLE T_ORDERS (ID INTEGER NOT NULL, ITEMS VARCHAR)");
+            st.execute("INSERT INTO T_ORDERS VALUES (1, '[10, 20]'), (2, '[30]'), (3, NULL)");
+        }
+        String model = """
+                Database test::DB
+                (
+                  Table T_ORDERS (ID INTEGER NOT NULL, ITEMS SEMISTRUCTURED)
+                )
+                """;
+        SqlQuery q = new Lowerer().lower(Compiler.compileQuery(model,
+                "#>{test::DB.T_ORDERS}#->flatten(~ITEMS)"));
+        String sql = new DuckDb().render(q);
+        assertEquals(1, count(sql, "SELECT"), "flatten folds: " + sql);
+        assertTrue(sql.contains("unnest(CAST(t0.ITEMS AS JSON[])) AS ITEMS"), sql);
+        assertEquals(List.of("1|10", "1|20", "2|30"), exec(sql + "\nORDER BY ID, ITEMS"),
+                "rows explode per element; NULL list yields no rows");
+    }
+
     @Test
     @DisplayName("TDS literal → VALUES; filter folds onto it")
     void tdsLiterals() throws SQLException {

@@ -639,19 +639,32 @@ final class SpecParserTest {
     }
 
     @Test
-    void mixedArithmeticOpsAreFlatLeftAssociative() {
-        // PURE'S GRAMMAR INVARIANT: '1 + 2 * 3' is (1+2)*3, not 1+(2*3).
-        // There is NO precedence between + and *; all arithmetic ops
-        // share one flat level. This is the most counter-intuitive
-        // grammar choice in C.3 \u2014 if a future refactor "fixed" it to
-        // standard precedence, this test fails immediately, forcing a
-        // conscious decision.
+    void booleanPrecedenceMatchesRealPure() {
+        // && binds tighter than || (engine DomainParseTreeWalker
+        // isLowerPrecedenceBoolean): 'a || b && c' is or(a, and(b, c)).
+        AppliedFunction or = (AppliedFunction) SpecParser.parse("true || true && false");
+        assertEquals("or", or.function());
+        assertEquals("and", ((AppliedFunction) or.parameters().get(1)).function());
+    }
+
+    @Test
+    void arithmeticPrecedenceMatchesRealPure() {
+        // REAL Pure HAS precedence: legend-pure's AbstractTestPrecedence
+        // asserts `2+3*4/2 == 8`-style facts, so '1 + 2 * 3' is 1+(2*3)=7.
+        // Engine-lite's flat left-associative grammar was a DIVERGENCE from
+        // real Pure (the previous version of this very test pinned it and
+        // demanded a conscious decision — this is that decision, made with
+        // legend-pure's own test corpus as the authority; found by an
+        // EXECUTED lowering test returning 9 where Pure returns 7).
         assertEquals(
-                new AppliedFunction("times", List.of(
-                        new AppliedFunction("plus", List.of(
-                                new CInteger(1L), new CInteger(2L))),
-                        new CInteger(3L))),
+                new AppliedFunction("plus", List.of(
+                        new CInteger(1L),
+                        new AppliedFunction("times", List.of(
+                                new CInteger(2L), new CInteger(3L))))),
                 SpecParser.parse("1 + 2 * 3"));
+        // Comparisons bind loosest: 1 + 2 * 3 > 4 * 5 + 6 == (7 > 26).
+        assertEquals("greaterThan",
+                ((AppliedFunction) SpecParser.parse("1 + 2 * 3 > 4 * 5 + 6")).function());
     }
 
     @Test

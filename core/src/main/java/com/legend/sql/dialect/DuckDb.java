@@ -50,7 +50,7 @@ public final class DuckDb implements SqlDialect {
     private static final Set<String> PLAIN_FNS = Set.of(
             "abs", "length", "upper", "lower", "coalesce", "greatest", "least",
             "list_filter", "list_transform", "list_reduce", "list_concat", "list_contains",
-            "list_bool_or", "list_bool_and", "len");
+            "list_bool_or", "list_bool_and", "len", "unnest");
 
     /** Infix operators: semantic name → (sql, precedence). Higher binds tighter. */
     private record Infix(String sql, int prec) {
@@ -103,8 +103,10 @@ public final class DuckDb implements SqlDialect {
         sb.append(s.projections().isEmpty()
                 ? "*"
                 : s.projections().stream().map(this::projection).collect(Collectors.joining(", ")));
-        nl(sb, depth).append("FROM ");
-        source(sb, s.from(), depth);
+        if (s.from() != null) {
+            nl(sb, depth).append("FROM ");
+            source(sb, s.from(), depth);
+        }
         if (s.where() != null) {
             nl(sb, depth).append("WHERE ").append(expr(s.where(), 0));
         }
@@ -234,6 +236,7 @@ public final class DuckDb implements SqlDialect {
             case "mod" -> "MOD(MOD(" + expr(a.get(0), 0) + ", " + expr(a.get(1), 0) + ") + "
                     + expr(a.get(1), 0) + ", " + expr(a.get(1), 0) + ")";
             case "rem" -> "MOD(" + expr(a.get(0), 0) + ", " + expr(a.get(1), 0) + ")";
+            case "cast_json_array" -> "CAST(" + expr(a.get(0), 0) + " AS JSON[])";
             default -> {
                 if (!PLAIN_FNS.contains(c.fn())) {
                     throw new IllegalStateException(

@@ -523,51 +523,67 @@ public final class SpecParser implements TokenStreamCursor {
         String fn = (t == TokenType.AND) ? "and" : "or";
         pos++;
         ValueSpecification right = parseCombinedArithmeticOnly();
+        // REAL Pure: && binds tighter than || (engine DomainParseTreeWalker's
+        // isLowerPrecedenceBoolean) — an AND-chain claims the operand before
+        // an OR folds it: a || b && c == or(a, and(b, c)).
+        while (fn.equals("or") && pos < tokens.count() && tokens.type(pos) == TokenType.AND) {
+            right = parseBooleanPart(right);
+        }
         return new AppliedFunction(fn, List.of(left, right));
     }
 
     /**
      * Arithmetic and comparison operators desugared to
-     * {@link AppliedFunction}s. Pure's grammar treats all of
-     * {@code +}, {@code -}, {@code *}, {@code /}, {@code <},
-     * {@code <=}, {@code >}, {@code >=} as a single flat precedence
-     * level &mdash; there is no {@code *} binding tighter than
-     * {@code +}. Same-operator runs ({@code 1 + 2 + 3}) are flattened
-     * into a chain of same-named {@link AppliedFunction}s; different
-     * operators ({@code 1 + 2 * 3}) leave this method and re-enter via
-     * the {@link #parseCombinedExpression()} loop, yielding
-     * {@code times(plus(1, 2), 3)} &mdash; left-associative across
-     * operator kinds.
+     * {@link AppliedFunction}s via PRECEDENCE CLIMBING &mdash; REAL Pure's
+     * grammar (legend-pure {@code AbstractTestPrecedence} is the spec):
+     * {@code *}/{@code /} bind tighter than {@code +}/{@code -}, which bind
+     * tighter than comparisons, so {@code 1 + 2 * 3} is
+     * {@code plus(1, times(2, 3))} = 7. (Engine-lite's flat grammar —
+     * {@code times(plus(1,2),3)} = 9 — was a DIVERGENCE from real Pure that
+     * we deliberately do not carry; caught by an executed lowering test.)
+     * Left-associative within a tier.
      */
-    private AppliedFunction parseArithmeticPart(ValueSpecification left) {
-        TokenType op = tokens.type(pos);
-        String fn = switch (op) {
-            case PLUS -> "plus";
-            case MINUS -> "minus";
-            case STAR -> "times";
-            case DIVIDE -> "divide";
-            case LESS_THAN -> "lessThan";
-            case LESS_OR_EQUAL -> "lessThanEqual";
-            case GREATER_THAN -> "greaterThan";
-            case GREATER_OR_EQUAL -> "greaterThanEqual";
-            default -> throw new IllegalStateException(
-                    "parseArithmeticPart invoked on non-arithmetic token: " + op);
-        };
-        pos++;
-        ValueSpecification right = parseExpression();
-        AppliedFunction result = new AppliedFunction(fn, List.of(left, right));
-        // Same-operator chaining is only meaningful for the binary
-        // arithmetic ops; comparison ops do not chain ('a < b < c' is
-        // not legal Pure).
-        if (op == TokenType.PLUS || op == TokenType.MINUS
-                || op == TokenType.STAR || op == TokenType.DIVIDE) {
-            while (pos < tokens.count() && tokens.type(pos) == op) {
-                pos++;
-                right = parseExpression();
-                result = new AppliedFunction(fn, List.of(result, right));
+    private ValueSpecification parseArithmeticPart(ValueSpecification left) {
+        return parseArithmeticClimb(left, 1);
+    }
+
+    private ValueSpecification parseArithmeticClimb(ValueSpecification left, int minPrec) {
+        while (pos < tokens.count() && isArithmeticOp(tokens.type(pos))
+                && precedenceOf(tokens.type(pos)) >= minPrec) {
+            TokenType op = tokens.type(pos);
+            int prec = precedenceOf(op);
+            String fn = switch (op) {
+                case PLUS -> "plus";
+                case MINUS -> "minus";
+                case STAR -> "times";
+                case DIVIDE -> "divide";
+                case LESS_THAN -> "lessThan";
+                case LESS_OR_EQUAL -> "lessThanEqual";
+                case GREATER_THAN -> "greaterThan";
+                case GREATER_OR_EQUAL -> "greaterThanEqual";
+                default -> throw new IllegalStateException(
+                        "parseArithmeticClimb on non-arithmetic token: " + op);
+            };
+            pos++;
+            ValueSpecification right = parseExpression();
+            // Tighter-binding operators on the right claim the operand first.
+            while (pos < tokens.count() && isArithmeticOp(tokens.type(pos))
+                    && precedenceOf(tokens.type(pos)) > prec) {
+                right = parseArithmeticClimb(right, precedenceOf(tokens.type(pos)));
             }
+            left = new AppliedFunction(fn, List.of(left, right));
         }
-        return result;
+        return left;
+    }
+
+    /** {@code *}/{@code /} &gt; {@code +}/{@code -} &gt; comparisons (real Pure). */
+    private static int precedenceOf(TokenType t) {
+        return switch (t) {
+            case STAR, DIVIDE -> 3;
+            case PLUS, MINUS -> 2;
+            case LESS_THAN, LESS_OR_EQUAL, GREATER_THAN, GREATER_OR_EQUAL -> 1;
+            default -> 0;
+        };
     }
 
     /**

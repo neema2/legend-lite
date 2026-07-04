@@ -61,10 +61,31 @@ public final class Lowerer {
     private final java.util.ArrayDeque<java.util.function.BiFunction<String, String, SqlExpr>>
             enclosing = new java.util.ArrayDeque<>();
 
-    /** Lower a typed relation pipeline to a SQL query. */
+    /** Lower a typed query to SQL: relation pipelines and scalar roots. */
     public SqlQuery lower(TypedSpec spec) {
         // A terminal concatenate is a BARE set operation — no wrapping SELECT *.
-        return spec instanceof TypedConcatenate c ? union(c) : relation(spec);
+        if (spec instanceof TypedConcatenate c) {
+            return union(c);
+        }
+        if (spec.info().type() instanceof Type.RelationType) {
+            return relation(spec);
+        }
+        return scalarRoot(spec);
+    }
+
+    /**
+     * SCALAR result shape: a FROM-less single-value SELECT. Collections and
+     * class roots (COLLECTION/GRAPH shapes) are still honestly unbuilt.
+     */
+    private SqlSelect scalarRoot(TypedSpec spec) {
+        SqlExpr e = scalar(spec, (var, name) -> {
+            throw new IllegalStateException("a scalar query has no row scope for $"
+                    + var + "." + name);
+        });
+        return new SqlSelect(
+                List.of(new SqlSelect.Projection(e, "value")), false, null,
+                null, List.of(), null, null, List.of(), null, null,
+                List.of(new OutputCol("value", spec.info().type(), spec.info().multiplicity())));
     }
 
     private String nextAlias() {
@@ -127,6 +148,12 @@ public final class Lowerer {
             case com.legend.compiler.spec.typed.TypedAsOfJoin aj -> asOfJoin(aj);
 
             case TypedExtendAgg ea -> extendAgg(ea);
+
+            // from(mapping, runtime): execution-context metadata — a Phase-H
+            // concern; the relation flows through unchanged.
+            case com.legend.compiler.spec.typed.TypedFrom fr -> relation(fr.source());
+
+            case com.legend.compiler.spec.typed.TypedFlatten fl -> flatten(fl);
 
             default -> throw new IllegalStateException("lowering not yet implemented for "
                     + spec.getClass().getSimpleName());
@@ -773,6 +800,41 @@ public final class Lowerer {
             default -> throw new IllegalStateException("scalar lowering not yet implemented for "
                     + spec.getClass().getSimpleName());
         };
+    }
+
+    /**
+     * flatten(~col): the column explodes via UNNEST in the select list —
+     * schema-driven explicit projections (every other column plain, the
+     * flattened one replaced). Downstream refs to the flattened column are
+     * COMPUTED projections, so the fold policy isolates them naturally.
+     * A Variant column casts to JSON[] first; a typed list unnests directly.
+     */
+    private SqlSelect flatten(com.legend.compiler.spec.typed.TypedFlatten fl) {
+        SqlSelect src = relation(fl.source());
+        SqlSelect base = Fold.extendFolds(src) ? src : isolate(src);
+        Type.RelationType schema = schemaOf(fl.source());
+        List<SqlSelect.Projection> ps = new ArrayList<>();
+        for (Type.Column c : schema.columns()) {
+            SqlExpr col = Fold.resolveInto(base, c.name());
+            if (col == null) {
+                return flatten(new com.legend.compiler.spec.typed.TypedFlatten(
+                        isolatedCopySource(fl), fl.column(), fl.info()));
+            }
+            if (c.name().equals(fl.column())) {
+                SqlExpr list = c.type() instanceof Type.ClassType
+                        ? new SqlExpr.Call("cast_json_array", List.of(col))
+                        : col;
+                ps.add(new SqlSelect.Projection(
+                        new SqlExpr.Call("unnest", List.of(list)), c.name()));
+            } else {
+                ps.add(new SqlSelect.Projection(col, null));
+            }
+        }
+        return base.withProjections(ps, outputsOf(fl.info()));
+    }
+
+    private TypedSpec isolatedCopySource(com.legend.compiler.spec.typed.TypedFlatten fl) {
+        throw new IllegalStateException("flatten over an unresolvable projection");
     }
 
     // ==================================================================
