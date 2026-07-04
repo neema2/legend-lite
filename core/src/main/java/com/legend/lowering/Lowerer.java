@@ -53,6 +53,14 @@ public final class Lowerer {
 
     private int aliasCounter = 0;
 
+    /**
+     * Enclosing lambda scopes for CORRELATED nesting: when a relation query is
+     * lowered INSIDE a lambda (a correlated subquery), the outer lambda's
+     * resolver is pushed here so the inner predicate can reference outer rows.
+     */
+    private final java.util.ArrayDeque<java.util.function.BiFunction<String, String, SqlExpr>>
+            enclosing = new java.util.ArrayDeque<>();
+
     /** Lower a typed relation pipeline to a SQL query. */
     public SqlQuery lower(TypedSpec spec) {
         // A terminal concatenate is a BARE set operation — no wrapping SELECT *.
@@ -114,6 +122,10 @@ public final class Lowerer {
 
             case TypedExtendWindow w -> extendWindow(w);
 
+            case com.legend.compiler.spec.typed.TypedJoin j -> join(j);
+
+            case com.legend.compiler.spec.typed.TypedAsOfJoin aj -> asOfJoin(aj);
+
             case TypedExtendAgg ea -> extendAgg(ea);
 
             default -> throw new IllegalStateException("lowering not yet implemented for "
@@ -148,8 +160,8 @@ public final class Lowerer {
         List<SqlSelect.Projection> ps = new ArrayList<>();
         for (TypedGroupBy.GroupKey k : g.keys()) {
             SqlExpr e = k.fn().isPresent()
-                    ? scalar(last(k.fn().get()), name -> resolveOrThrow(base, name))
-                    : Fold.resolveInto(base, fromAlias(base), k.column());
+                    ? scalar(last(k.fn().get()), (v, name) -> resolveOrThrow(base, name))
+                    : Fold.resolveInto(base, k.column());
             if (e == null) {
                 return groupByOnto(isolate(base), g);
             }
@@ -167,7 +179,7 @@ public final class Lowerer {
         List<SqlExpr> keys = new ArrayList<>();
         List<SqlSelect.Projection> ps = new ArrayList<>();
         for (TypedGroupBy.GroupKey k : g.keys()) {
-            SqlExpr e = new SqlExpr.Column(fromAlias(base), k.column());
+            SqlExpr e = Fold.sourceColumn(base.from(), k.column());
             keys.add(e);
             ps.add(new SqlSelect.Projection(e, null));
         }
@@ -205,7 +217,7 @@ public final class Lowerer {
             return new SqlAgg.Reducer(fn, List.of(), false);
         }
         return new SqlAgg.Reducer(fn,
-                List.of(scalar(mapBody, name -> resolveOrThrow(base, name))), false);
+                List.of(scalar(mapBody, (v, name) -> resolveOrThrow(base, name))), false);
     }
 
     /**
@@ -228,7 +240,7 @@ public final class Lowerer {
         for (TypedFuncCol c : columns) {
             SqlExpr e;
             try {
-                e = scalar(last(c.fn()), name -> resolveOrThrow(base, name));
+                e = scalar(last(c.fn()), (v, name) -> resolveOrThrow(base, name));
             } catch (UnfoldableRef ref) {
                 return extendWith(isolate(base), columns, info, append);
             }
@@ -280,9 +292,9 @@ public final class Lowerer {
      */
     private SqlExpr tryPredicate(SqlSelect select, TypedLambda lambda) {
         try {
-            java.util.function.Function<String, SqlExpr> columns = select.groupBy().isEmpty()
-                    ? name -> resolveOrThrow(select, name)
-                    : name -> projectionExprOrThrow(select, name);
+            java.util.function.BiFunction<String, String, SqlExpr> columns = select.groupBy().isEmpty()
+                    ? scopedResolver(select)
+                    : (v, name) -> projectionExprOrThrow(select, name);
             return scalar(last(lambda), columns);
         } catch (UnfoldableRef e) {
             return null;
@@ -292,7 +304,7 @@ public final class Lowerer {
     /** Resolve refs via projections, flagging any that substitute a window call. */
     private SqlExpr tryWindowPredicate(SqlSelect select, TypedLambda lambda, boolean[] sawWindow) {
         try {
-            return scalar(last(lambda), name -> {
+            return scalar(last(lambda), (v, name) -> {
                 SqlExpr e = projectionExprOrThrow(select, name);
                 if (e instanceof SqlExpr.WindowCall) {
                     sawWindow[0] = true;
@@ -317,11 +329,33 @@ public final class Lowerer {
     }
 
     private SqlExpr resolveOrThrow(SqlSelect select, String column) {
-        SqlExpr resolved = Fold.resolveInto(select, fromAlias(select), column);
+        SqlExpr resolved = Fold.resolveInto(select, column);
         if (resolved == null) {
             throw new UnfoldableRef(column);
         }
         return resolved;
+    }
+
+    /**
+     * A lambda-body resolver over {@code select} that falls back to ENCLOSING
+     * lambda scopes — the correlation channel for nested relation queries.
+     * The own select is tried first (inner scope shadows outer).
+     */
+    private java.util.function.BiFunction<String, String, SqlExpr> scopedResolver(SqlSelect select) {
+        return (var, name) -> {
+            try {
+                return resolveOrThrow(select, name);
+            } catch (UnfoldableRef e) {
+                for (var outer : enclosing) {
+                    try {
+                        return outer.apply(var, name);
+                    } catch (UnfoldableRef ignored) {
+                        // keep walking outward
+                    }
+                }
+                throw e;
+            }
+        };
     }
 
     private static final class UnfoldableRef extends RuntimeException {
@@ -339,7 +373,7 @@ public final class Lowerer {
         }
         List<SqlSelect.Projection> ps = new ArrayList<>(columns.size());
         for (String c : columns) {
-            SqlExpr e = Fold.resolveInto(base, fromAlias(base), c);
+            SqlExpr e = Fold.resolveInto(base, c);
             if (e == null) {
                 base = isolate(base);
                 return narrowTo(base, columns, distinct, info);
@@ -370,7 +404,7 @@ public final class Lowerer {
         // Pre-pass: if ANY source column would not resolve to a plain column
         // reference in the folded select, isolate ONCE, then project.
         for (Type.Column c : sourceSchema.columns()) {
-            if (Fold.resolveInto(base, fromAlias(base), c.name()) == null) {
+            if (Fold.resolveInto(base, c.name()) == null) {
                 base = isolate(base);
                 break;
             }
@@ -383,7 +417,7 @@ public final class Lowerer {
                     target = cr.to();
                 }
             }
-            SqlExpr e = Fold.resolveInto(base, fromAlias(base), c.name());
+            SqlExpr e = Fold.resolveInto(base, c.name());
             ps.add(new SqlSelect.Projection(e, target.equals(
                     e instanceof SqlExpr.Column col ? col.name() : null) ? null : target));
         }
@@ -395,7 +429,7 @@ public final class Lowerer {
         SqlSelect base = Fold.sortFolds(src) ? src : isolate(src);
         List<SqlSelect.SortKey> keys = new ArrayList<>(s.keys().size());
         for (TypedSort.TypedSortKey k : s.keys()) {
-            SqlExpr e = Fold.resolveInto(base, fromAlias(base), k.column());
+            SqlExpr e = Fold.resolveInto(base, k.column());
             if (e == null) {
                 base = isolate(base);
                 return sortOnto(base, s);
@@ -409,7 +443,7 @@ public final class Lowerer {
         List<SqlSelect.SortKey> keys = new ArrayList<>(s.keys().size());
         for (TypedSort.TypedSortKey k : s.keys()) {
             keys.add(new SqlSelect.SortKey(
-                    new SqlExpr.Column(fromAlias(base), k.column()), k.ascending(), null));
+                    Fold.sourceColumn(base.from(), k.column()), k.ascending(), null));
         }
         return base.withOrderBy(keys);
     }
@@ -434,6 +468,105 @@ public final class Lowerer {
             rows.add(cells);
         }
         return SqlSelect.starOf(new SqlSource.Values(rows, names, alias, outputsOf(tds.info())));
+    }
+
+    // ==================================================================
+    // Joins — a structural SOURCE (JoinTree); sides bind per lambda param
+    // ==================================================================
+
+    private SqlSelect join(com.legend.compiler.spec.typed.TypedJoin j) {
+        SqlSource left = asSource(relation(j.left()), true);
+        SqlSource right = asSource(relation(j.right()), false);
+        SqlExpr on = sideCondition(j.condition(), left, right);
+        SqlSource.Join.Kind kind = switch (j.kind().value()) {
+            case "INNER" -> SqlSource.Join.Kind.INNER;
+            case "LEFT" -> SqlSource.Join.Kind.LEFT;
+            case "RIGHT" -> SqlSource.Join.Kind.RIGHT;
+            case "FULL" -> SqlSource.Join.Kind.FULL;
+            default -> throw new IllegalStateException("unknown join kind " + j.kind().value());
+        };
+        return joined(new SqlSource.Join(left, right, kind, on), j.prefix(), j.right(), j.info());
+    }
+
+    /** asOfJoin: DuckDB ASOF LEFT JOIN; ON = optional keys AND the match inequality. */
+    private SqlSelect asOfJoin(com.legend.compiler.spec.typed.TypedAsOfJoin aj) {
+        SqlSource left = asSource(relation(aj.left()), true);
+        SqlSource right = asSource(relation(aj.right()), false);
+        SqlExpr on = sideCondition(aj.match(), left, right);
+        if (aj.condition().isPresent()) {
+            on = SqlExpr.Call.of("and", sideCondition(aj.condition().get(), left, right), on);
+        }
+        return joined(new SqlSource.Join(left, right, SqlSource.Join.Kind.ASOF_LEFT, on),
+                aj.prefix(), aj.right(), aj.info());
+    }
+
+    /**
+     * The joined select: bare star when column names are disjoint (Phase G
+     * guarantees), or left star + explicitly re-aliased right columns when a
+     * prefix renames EVERY right column.
+     */
+    private SqlSelect joined(SqlSource.Join source, java.util.Optional<String> prefix,
+                             TypedSpec rightNode, com.legend.compiler.spec.ExprType info) {
+        SqlSelect out = SqlSelect.starOf(source);
+        if (prefix.isEmpty()) {
+            return out.withProjections(List.of(), outputsOf(info));
+        }
+        List<SqlSelect.Projection> ps = new ArrayList<>();
+        ps.add(new SqlSelect.Projection(new SqlExpr.Star(aliasOf(source.left())), null));
+        for (Type.Column c : schemaOf(rightNode).columns()) {
+            ps.add(new SqlSelect.Projection(
+                    new SqlExpr.Column(aliasOf(source.right()), c.name()),
+                    prefix.get() + c.name()));
+        }
+        return out.withProjections(ps, outputsOf(info));
+    }
+
+    /**
+     * A join side must be FROM-addressable: a bare scan joins directly;
+     * anything with clauses wraps. A bare JOIN-select may stay a bare join
+     * tree ONLY on the LEFT — SQL join syntax is left-associative, so
+     * {@code (a JOIN b) JOIN c} renders flat, while a join on the RIGHT would
+     * be ambiguous and must wrap.
+     */
+    private SqlSource asSource(SqlSelect side, boolean leftSide) {
+        boolean bare = side.projections().isEmpty() && !side.distinct()
+                && side.where() == null && side.groupBy().isEmpty() && side.having() == null
+                && side.qualify() == null && side.orderBy().isEmpty()
+                && side.limit() == null && side.offset() == null;
+        if (bare && (leftSide || !(side.from() instanceof SqlSource.Join))) {
+            return side.from();
+        }
+        return new SqlSource.Subselect(side, nextAlias());
+    }
+
+    /**
+     * The two-parameter condition: each lambda variable binds to its side.
+     * A flat-chained left side is a join TREE — its refs resolve by walking
+     * side schemas ({@link Fold#sourceColumn}), not by a single alias.
+     */
+    private SqlExpr sideCondition(TypedLambda lambda, SqlSource left, SqlSource right) {
+        String leftVar = lambda.parameters().get(0);
+        return scalar(last(lambda), (var, prop) -> {
+            SqlSource side = var.equals(leftVar) ? left : right;
+            SqlExpr.Column c = side instanceof SqlSource.Join
+                    ? Fold.sourceColumn(side, prop)
+                    : new SqlExpr.Column(aliasOf(side), prop);
+            if (c == null) {
+                throw new IllegalStateException("join condition references unknown column '"
+                        + prop + "' on its " + (var.equals(leftVar) ? "left" : "right") + " side");
+            }
+            return c;
+        });
+    }
+
+    private static String aliasOf(SqlSource src) {
+        return switch (src) {
+            case SqlSource.Table t -> t.alias();
+            case SqlSource.Subselect sub -> sub.alias();
+            case SqlSource.Values v -> v.alias();
+            case SqlSource.Join j -> throw new IllegalStateException(
+                    "a nested join has no single alias");
+        };
     }
 
     // ==================================================================
@@ -473,9 +606,12 @@ public final class Lowerer {
     }
 
     private List<SqlSelect.Projection> starProjections(SqlSelect base) {
-        return base.projections().isEmpty()
-                ? List.of(new SqlSelect.Projection(new SqlExpr.Star(fromAlias(base)), null))
-                : base.projections();
+        if (!base.projections().isEmpty()) {
+            return base.projections();
+        }
+        SqlExpr star = base.from() instanceof SqlSource.Join
+                ? new SqlExpr.Star(null) : new SqlExpr.Star(fromAlias(base));
+        return List.of(new SqlSelect.Projection(star, null));
     }
 
     private record Over(List<SqlExpr> partitionBy, List<SqlSelect.SortKey> orderBy,
@@ -573,7 +709,7 @@ public final class Lowerer {
                 return Scalars.lower(call, args);
             }
             default -> {
-                return scalar(body, name -> resolveOrThrow(base, name));
+                return scalar(body, (v, name) -> resolveOrThrow(base, name));
             }
         }
     }
@@ -591,8 +727,8 @@ public final class Lowerer {
     // Scalar lowering (lambda bodies)
     // ==================================================================
 
-    /** {@code columns} resolves a row-property name to a SQL expression in scope. */
-    private SqlExpr scalar(TypedSpec spec, Function<String, SqlExpr> columns) {
+    /** {@code columns} resolves (lambda variable, property) to a SQL expression in scope. */
+    private SqlExpr scalar(TypedSpec spec, java.util.function.BiFunction<String, String, SqlExpr> columns) {
         return switch (spec) {
             case TypedCInteger c -> new SqlExpr.IntLit(c.value().longValue());
             case TypedCString c -> new SqlExpr.StringLit(c.value());
@@ -600,13 +736,98 @@ public final class Lowerer {
             case TypedCFloat c -> new SqlExpr.FloatLit(c.value());
             case TypedCollection c -> new SqlExpr.ArrayLit(
                     c.elements().stream().map(e -> scalar(e, columns)).toList());
-            case TypedPropertyAccess p when p.source() instanceof TypedVariable
-                    -> columns.apply(p.property());
+            case TypedPropertyAccess p when p.source() instanceof TypedVariable v
+                    -> columns.apply(v.name(), p.property());
+            // A bare lambda variable (a list element inside exists/forAll etc.).
+            case TypedVariable v -> columns.apply(v.name(), null);
+            // An inner lambda: its parameter shadows; everything else resolves outward.
+            case TypedLambda l -> {
+                String param = l.parameters().isEmpty() ? null : l.parameters().get(0);
+                yield new SqlExpr.Lambda(l.parameters(),
+                        scalar(last(l), (var, prop) -> var.equals(param)
+                                ? (prop == null ? new SqlExpr.Column(null, var)
+                                        : new SqlExpr.Column(var, prop))
+                                : columns.apply(var, prop)));
+            }
+            // RELATION-level predicates — the true-SQL-EXISTS family. The
+            // collection natives accept a Relation argument (T binds the
+            // relation; the lambda is row-shaped via relation column access);
+            // in SQL these ARE the EXISTS forms, correlated via the enclosing
+            // scope stack:
+            //   exists(rel, p)  -> EXISTS (SELECT * FROM rel WHERE p)
+            //   forAll(rel, p)  -> NOT EXISTS (... WHERE NOT p)   [vacuously true]
+            //   isEmpty(rel)    -> NOT EXISTS (...);  isNotEmpty -> EXISTS (...)
+            //   size(rel)       -> (SELECT COUNT(*) FROM ...)
+            case TypedNativeCall n when n.args().size() >= 1
+                    && n.args().get(0).info().type() instanceof Type.RelationType
+                    && relationPredicate(n) != null -> {
+                enclosing.push(columns);
+                try {
+                    yield relationPredicate(n).lower(this, n);
+                } finally {
+                    enclosing.pop();
+                }
+            }
             case TypedNativeCall n -> Scalars.lower(n,
                     n.args().stream().map(a -> scalar(a, columns)).toList());
             default -> throw new IllegalStateException("scalar lowering not yet implemented for "
                     + spec.getClass().getSimpleName());
         };
+    }
+
+    // ==================================================================
+    // Relation-level predicate family (EXISTS forms)
+    // ==================================================================
+
+    private interface RelationPredicate {
+        SqlExpr lower(Lowerer lowerer, TypedNativeCall call);
+    }
+
+    private static boolean isFamily(TypedNativeCall n, String pureName) {
+        return com.legend.builtin.Pure.nativeFunctionsAt(pureName)
+                .contains(n.callee().definition());
+    }
+
+    private static RelationPredicate relationPredicate(TypedNativeCall n) {
+        if (isFamily(n, "size")) {
+            return (lw, call) -> new SqlExpr.ScalarSubquery(lw.relation(call.args().get(0))
+                    .withProjections(List.of(new SqlSelect.Projection(
+                            SqlAgg.Reducer.of("COUNT"), null)), List.of()));
+        }
+        if (isFamily(n, "exists")) {
+            return (lw, call) -> new SqlExpr.Exists(
+                    lw.whereLambda(call.args().get(0), call.args().get(1), false));
+        }
+        if (isFamily(n, "forAll")) {
+            return (lw, call) -> SqlExpr.Call.of("not", new SqlExpr.Exists(
+                    lw.whereLambda(call.args().get(0), call.args().get(1), true)));
+        }
+        if (isFamily(n, "isEmpty")) {
+            return (lw, call) -> SqlExpr.Call.of("not",
+                    new SqlExpr.Exists(lw.relation(call.args().get(0))));
+        }
+        if (isFamily(n, "isNotEmpty")) {
+            return (lw, call) -> new SqlExpr.Exists(lw.relation(call.args().get(0)));
+        }
+        return null;
+    }
+
+    /** Lower {@code rel} and fold {@code pred} (negated for forAll) into its WHERE. */
+    private SqlSelect whereLambda(TypedSpec rel, TypedSpec predArg, boolean negate) {
+        if (!(predArg instanceof TypedLambda lambda)) {
+            throw new IllegalStateException("relation exists/forAll expects a predicate lambda");
+        }
+        SqlSelect sub = relation(rel);
+        SqlExpr pred = tryPredicate(sub, lambda);
+        if (pred == null) {
+            sub = isolate(sub);
+            pred = tryPredicate(sub, lambda);
+        }
+        if (negate) {
+            pred = SqlExpr.Call.of("not", pred);
+        }
+        return sub.withWhere(sub.where() == null ? pred
+                : SqlExpr.Call.of("and", sub.where(), pred));
     }
 
     // ==================================================================

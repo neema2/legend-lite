@@ -49,7 +49,8 @@ public final class DuckDb implements SqlDialect {
      */
     private static final Set<String> PLAIN_FNS = Set.of(
             "abs", "length", "upper", "lower", "coalesce", "greatest", "least",
-            "list_filter", "list_transform", "list_reduce", "list_concat", "list_contains");
+            "list_filter", "list_transform", "list_reduce", "list_concat", "list_contains",
+            "list_bool_or", "list_bool_and", "len");
 
     /** Infix operators: semantic name → (sql, precedence). Higher binds tighter. */
     private record Infix(String sql, int prec) {

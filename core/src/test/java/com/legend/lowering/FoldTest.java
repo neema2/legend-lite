@@ -111,27 +111,27 @@ class FoldTest {
                 new SqlSelect.Projection(new SqlExpr.Star("t0"), null),
                 new SqlSelect.Projection(SqlExpr.Call.of("plus", col("A"), col("B")), "computed")),
                 List.of());
-        assertEquals(col("AGE"), Fold.resolveInto(extended, "t0", "AGE"),
+        assertEquals(col("AGE"), Fold.resolveInto(extended, "AGE"),
                 "unclaimed names pass through the star to the source");
-        assertNull(Fold.resolveInto(extended, "t0", "computed"),
+        assertNull(Fold.resolveInto(extended, "computed"),
                 "the computed column still refuses substitution");
     }
 
     @Test
     @DisplayName("resolveInto: star → source column; plain projection → substituted; computed → null")
     void resolveIntoRules() {
-        assertEquals(col("AGE"), Fold.resolveInto(BARE, "t0", "AGE"));
+        assertEquals(col("AGE"), Fold.resolveInto(BARE, "AGE"));
         SqlSelect projected = BARE.withProjections(List.of(
                 new SqlSelect.Projection(col("AGE"), "YEARS"),
                 new SqlSelect.Projection(col("NAME"), null),
                 new SqlSelect.Projection(SqlExpr.Call.of("plus", col("A"), col("B")), "SUM_AB")),
                 List.of());
-        assertEquals(col("AGE"), Fold.resolveInto(projected, "t0", "YEARS"),
+        assertEquals(col("AGE"), Fold.resolveInto(projected, "YEARS"),
                 "renamed column substitutes to its source");
-        assertEquals(col("NAME"), Fold.resolveInto(projected, "t0", "NAME"));
-        assertNull(Fold.resolveInto(projected, "t0", "SUM_AB"),
+        assertEquals(col("NAME"), Fold.resolveInto(projected, "NAME"));
+        assertNull(Fold.resolveInto(projected, "SUM_AB"),
                 "computed projection cannot fold — caller isolates");
-        assertNull(Fold.resolveInto(projected, "t0", "DROPPED"),
+        assertNull(Fold.resolveInto(projected, "DROPPED"),
                 "a column not in the projection is gone");
     }
 }

@@ -32,6 +32,10 @@ class LowerRelationTest {
             (
               Table T_PERSON (NAME VARCHAR(100) NOT NULL, AGE INTEGER NOT NULL,
                               FIRM VARCHAR(50))
+              Table T_FIRM (F_NAME VARCHAR(50) NOT NULL, CITY VARCHAR(50) NOT NULL)
+              Table T_EVENTS (E_NAME VARCHAR(50) NOT NULL, E_TS TIMESTAMP NOT NULL)
+              Table T_QUOTES (Q_NAME VARCHAR(50) NOT NULL, Q_TS TIMESTAMP NOT NULL,
+                              PRICE INTEGER NOT NULL)
             )
             """;
 
@@ -45,6 +49,17 @@ class LowerRelationTest {
                     + " FIRM VARCHAR)");
             st.execute("INSERT INTO T_PERSON VALUES ('Ann', 25, 'ACME'),"
                     + " ('Bob', 35, 'ACME'), ('Cat', 45, 'Widget'), ('Dan', 55, NULL)");
+            st.execute("CREATE TABLE T_FIRM (F_NAME VARCHAR NOT NULL, CITY VARCHAR NOT NULL)");
+            st.execute("INSERT INTO T_FIRM VALUES ('ACME', 'NYC'), ('Widget', 'SF')");
+            st.execute("CREATE TABLE T_EVENTS (E_NAME VARCHAR NOT NULL, E_TS TIMESTAMP NOT NULL)");
+            st.execute("INSERT INTO T_EVENTS VALUES"
+                    + " ('A', TIMESTAMP '2024-01-01 10:30:00'),"
+                    + " ('A', TIMESTAMP '2024-01-01 11:30:00')");
+            st.execute("CREATE TABLE T_QUOTES (Q_NAME VARCHAR NOT NULL, Q_TS TIMESTAMP NOT NULL,"
+                    + " PRICE INTEGER NOT NULL)");
+            st.execute("INSERT INTO T_QUOTES VALUES"
+                    + " ('A', TIMESTAMP '2024-01-01 10:00:00', 100),"
+                    + " ('A', TIMESTAMP '2024-01-01 11:00:00', 110)");
         }
     }
 
@@ -446,6 +461,79 @@ class LowerRelationTest {
                 + "->extend(over(~FIRM), ~n : {p, w, r | $p->rowNumber($r)})");
         assertEquals(2, count(sql, "SELECT"), "boundary: " + sql);
         assertEquals(2, exec(sql).size(), "window ran over the 2 surviving rows");
+    }
+
+    // ---- joins: structural JoinTree source, per-side variable binding ----
+
+    @Test
+    @DisplayName("join: tables join DIRECTLY — one SELECT, inline ON, no side wrapping")
+    void joinFlat() throws SQLException {
+        String sql = sqlOf("#>{test::DB.T_PERSON}#->join(#>{test::DB.T_FIRM}#,"
+                + " JoinKind.INNER, {p, f | $p.FIRM == $f.F_NAME})");
+        assertEquals("""
+                SELECT *
+                FROM T_PERSON AS t0
+                JOIN T_FIRM AS t1 ON t0.FIRM = t1.F_NAME""", sql);
+        assertEquals(List.of("Ann|25|ACME|ACME|NYC", "Bob|35|ACME|ACME|NYC",
+                "Cat|45|Widget|Widget|SF"), exec(sql + "\nORDER BY t0.AGE"));
+    }
+
+    @Test
+    @DisplayName("LEFT join keeps unmatched rows (Dan, null firm)")
+    void leftJoinKeepsUnmatched() throws SQLException {
+        String sql = sqlOf("#>{test::DB.T_PERSON}#->join(#>{test::DB.T_FIRM}#,"
+                + " JoinKind.LEFT, {p, f | $p.FIRM == $f.F_NAME})");
+        assertTrue(sql.contains("LEFT OUTER JOIN"), sql);
+        assertEquals(List.of("Dan|55|null|null|null"),
+                exec(sql + "\nORDER BY t0.AGE").subList(3, 4));
+    }
+
+    @Test
+    @DisplayName("prefix join renames EVERY right column explicitly")
+    void prefixJoinRenames() throws SQLException {
+        String sql = sqlOf("#>{test::DB.T_PERSON}#->join(#>{test::DB.T_FIRM}#,"
+                + " JoinKind.INNER, {p, f | $p.FIRM == $f.F_NAME}, 'f_')");
+        assertEquals("""
+                SELECT t0.*, t1.F_NAME AS f_F_NAME, t1.CITY AS f_CITY
+                FROM T_PERSON AS t0
+                JOIN T_FIRM AS t1 ON t0.FIRM = t1.F_NAME""", sql);
+        assertEquals(3, exec(sql).size());
+    }
+
+    @Test
+    @DisplayName("filter after join FOLDS: WHERE resolves to the correct SIDE alias")
+    void joinThenFilterFolds() throws SQLException {
+        String sql = sqlOf("#>{test::DB.T_PERSON}#->join(#>{test::DB.T_FIRM}#,"
+                + " JoinKind.INNER, {p, f | $p.FIRM == $f.F_NAME})"
+                + "->filter(x|$x.CITY == 'NYC')");
+        assertEquals(1, count(sql, "SELECT"), "folds onto the join select: " + sql);
+        assertTrue(sql.contains("WHERE t1.CITY = 'NYC'"),
+                "the ref resolves to the RIGHT side's alias: " + sql);
+        assertEquals(List.of("Ann|25|ACME|ACME|NYC", "Bob|35|ACME|ACME|NYC"),
+                exec(sql + "\nORDER BY t0.AGE"));
+    }
+
+    @Test
+    @DisplayName("a filtered side wraps ONCE; the plain side joins directly")
+    void filteredSideWrapsOnce() throws SQLException {
+        String sql = sqlOf("#>{test::DB.T_PERSON}#->filter(x|$x.AGE > 30)"
+                + "->join(#>{test::DB.T_FIRM}#, JoinKind.INNER, {p, f | $p.FIRM == $f.F_NAME})");
+        assertEquals(2, count(sql, "SELECT"), "left wraps (it has a WHERE), right does not: " + sql);
+        assertTrue(sql.contains("JOIN T_FIRM AS"), "right side joins directly: " + sql);
+        assertEquals(List.of("Bob|35|ACME|ACME|NYC", "Cat|45|Widget|Widget|SF"),
+                exec(sql + "\nORDER BY AGE"));
+    }
+
+    @Test
+    @DisplayName("asOfJoin: ASOF LEFT JOIN picks the latest quote at-or-before each event")
+    void asOfJoinExecutes() throws SQLException {
+        String sql = sqlOf("#>{test::DB.T_EVENTS}#->asOfJoin(#>{test::DB.T_QUOTES}#,"
+                + " {e, q | $e.E_TS >= $q.Q_TS})");
+        assertTrue(sql.contains("ASOF LEFT JOIN T_QUOTES AS t1 ON t0.E_TS >= t1.Q_TS"), sql);
+        assertEquals(List.of(
+                "A|2024-01-01 10:30:00.0|A|2024-01-01 10:00:00.0|100",
+                "A|2024-01-01 11:30:00.0|A|2024-01-01 11:00:00.0|110"),
+                exec(sql + "\nORDER BY t0.E_TS"), "each event gets its latest prior quote");
     }
 
     @Test

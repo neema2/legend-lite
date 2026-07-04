@@ -72,6 +72,23 @@ final class Scalars {
             RULES.put(f, (n, args) -> args.get(0));
         }
 
+        // exists/forAll over collections: DuckDB list lambdas. Pure's
+        // empty-collection semantics are LOAD-BEARING: exists([]) = false,
+        // forAll([]) = TRUE — hence the COALESCE defaults (list_bool_* on an
+        // empty list yields NULL).
+        for (Function f : Pure.nativeFunctionsAt("exists")) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call("coalesce", List.of(
+                    new SqlExpr.Call("list_bool_or", List.of(
+                            new SqlExpr.Call("list_transform", args))),
+                    new SqlExpr.BoolLit(false))));
+        }
+        for (Function f : Pure.nativeFunctionsAt("forAll")) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call("coalesce", List.of(
+                    new SqlExpr.Call("list_bool_and", List.of(
+                            new SqlExpr.Call("list_transform", args))),
+                    new SqlExpr.BoolLit(true))));
+        }
+
         // Overload-specific overrides — the resolved signature IS the decision.
         RULES.put(Pure.PLUS__STRING_1__STRING_1, (n, args) -> new SqlExpr.Call("concat", args));
         RULES.put(Pure.IN__ANY_1__ANY_MANY, (n, args) -> {

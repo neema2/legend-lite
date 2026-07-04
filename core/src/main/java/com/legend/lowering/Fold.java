@@ -2,6 +2,7 @@ package com.legend.lowering;
 
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlSelect;
+import com.legend.sql.SqlSource;
 
 /**
  * THE fold authority (PHASE_HIJ_LOWERING.md): the single owner of the
@@ -134,9 +135,9 @@ final class Fold {
      * returns null and the caller isolates (recomputing scalars in WHERE is
      * legal but deferred until the corpus pins it).
      */
-    static SqlExpr resolveInto(SqlSelect s, String fromAlias, String column) {
+    static SqlExpr resolveInto(SqlSelect s, String column) {
         if (s.projections().isEmpty()) {
-            return new SqlExpr.Column(fromAlias, column);
+            return sourceColumn(s.from(), column);
         }
         boolean star = false;
         for (SqlSelect.Projection p : s.projections()) {
@@ -153,6 +154,40 @@ final class Fold {
         // A star projection (extend's `t0.*, expr AS x`) keeps every source
         // column visible; names not claimed by an explicit projection resolve
         // straight to the source.
-        return star ? new SqlExpr.Column(fromAlias, column) : null;
+        return star ? sourceColumn(s.from(), column) : null;
+    }
+
+    /**
+     * The qualified column reference for {@code column} within a FROM source.
+     * Single-alias sources resolve schema-blind (the alias qualifies any name
+     * — Phase G already validated existence). A JOIN resolves by SIDE: the
+     * side whose output schema claims the name qualifies it; join outputs are
+     * disjoint by Phase-G typing (duplicate columns are a type error; prefix
+     * joins rename). Null when no side claims the column.
+     */
+    static SqlExpr.Column sourceColumn(SqlSource src, String column) {
+        return switch (src) {
+            case SqlSource.Table t -> claims(t.outputs(), column)
+                    ? new SqlExpr.Column(t.alias(), column) : null;
+            case SqlSource.Subselect sub -> claims(sub.outputs(), column)
+                    ? new SqlExpr.Column(sub.alias(), column) : null;
+            case SqlSource.Values v -> claims(v.outputs(), column)
+                    ? new SqlExpr.Column(v.alias(), column) : null;
+            case SqlSource.Join j -> {
+                SqlExpr.Column left = sourceColumn(j.left(), column);
+                yield left != null ? left : sourceColumn(j.right(), column);
+            }
+        };
+    }
+
+    /**
+     * Schema-AWARE claim check: with outputs stamped (the real pipeline), a
+     * source claims only columns it actually has — load-bearing for
+     * CORRELATED scopes, where an unclaimed name must fall through to the
+     * enclosing lambda instead of being blindly alias-qualified. Sources with
+     * no stamped outputs (hand-built test IR) stay schema-blind.
+     */
+    private static boolean claims(java.util.List<com.legend.sql.OutputCol> outputs, String column) {
+        return outputs.isEmpty() || outputs.stream().anyMatch(c -> c.name().equals(column));
     }
 }
