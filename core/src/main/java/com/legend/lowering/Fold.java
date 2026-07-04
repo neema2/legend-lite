@@ -71,6 +71,25 @@ final class Fold {
         return true;
     }
 
+    /**
+     * GROUP BY replaces the select's row space; it folds only onto a select
+     * with nothing group-sensitive accumulated (no prior grouping/dedup/
+     * truncation/order — grouping does not preserve order).
+     */
+    static boolean groupByFolds(SqlSelect s) {
+        return s.groupBy().isEmpty() && !s.distinct() && s.orderBy().isEmpty()
+                && s.limit() == null && s.offset() == null;
+    }
+
+    /**
+     * extend APPENDS a computed column: row count is untouched, so it commutes
+     * with truncation and ordering; only DISTINCT is a boundary (extending a
+     * deduped row set would dedup WITH the new column).
+     */
+    static boolean extendFolds(SqlSelect s) {
+        return !s.distinct();
+    }
+
     /** Sort folds iff ORDER BY is free (a second sort re-orders; last wins only via isolation). */
     static boolean sortFolds(SqlSelect s) {
         return s.orderBy().isEmpty();
@@ -109,13 +128,21 @@ final class Fold {
         if (s.projections().isEmpty()) {
             return new SqlExpr.Column(fromAlias, column);
         }
+        boolean star = false;
         for (SqlSelect.Projection p : s.projections()) {
+            if (p.expr() instanceof SqlExpr.Star) {
+                star = true;
+                continue;
+            }
             String name = p.alias() != null ? p.alias()
                     : p.expr() instanceof SqlExpr.Column c ? c.name() : null;
             if (column.equals(name)) {
                 return p.expr() instanceof SqlExpr.Column c ? c : null;
             }
         }
-        return null;
+        // A star projection (extend's `t0.*, expr AS x`) keeps every source
+        // column visible; names not claimed by an explicit projection resolve
+        // straight to the source.
+        return star ? new SqlExpr.Column(fromAlias, column) : null;
     }
 }

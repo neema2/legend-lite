@@ -5,13 +5,20 @@ import com.legend.compiler.spec.typed.TypedCBoolean;
 import com.legend.compiler.spec.typed.TypedCFloat;
 import com.legend.compiler.spec.typed.TypedCInteger;
 import com.legend.compiler.spec.typed.TypedCString;
+import com.legend.compiler.spec.typed.TypedAggCol;
+import com.legend.compiler.spec.typed.TypedAggregate;
 import com.legend.compiler.spec.typed.TypedCollection;
+import com.legend.compiler.spec.typed.TypedConcatenate;
 import com.legend.compiler.spec.typed.TypedDistinct;
+import com.legend.compiler.spec.typed.TypedExtend;
+import com.legend.compiler.spec.typed.TypedFuncCol;
+import com.legend.compiler.spec.typed.TypedGroupBy;
 import com.legend.compiler.spec.typed.TypedDrop;
 import com.legend.compiler.spec.typed.TypedFilter;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedLimit;
 import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedProject;
 import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedRename;
 import com.legend.compiler.spec.typed.TypedSelect;
@@ -22,10 +29,12 @@ import com.legend.compiler.spec.typed.TypedTableReference;
 import com.legend.compiler.spec.typed.TypedTds;
 import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.sql.OutputCol;
+import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
+import com.legend.sql.SqlUnion;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,7 +52,8 @@ public final class Lowerer {
 
     /** Lower a typed relation pipeline to a SQL query. */
     public SqlQuery lower(TypedSpec spec) {
-        return relation(spec);
+        // A terminal concatenate is a BARE set operation — no wrapping SELECT *.
+        return spec instanceof TypedConcatenate c ? union(c) : relation(spec);
     }
 
     private String nextAlias() {
@@ -88,9 +98,136 @@ public final class Lowerer {
                 yield base.withOffset(start).withLimit(intOf(s.stop()) - start);
             }
 
+            case TypedGroupBy g -> groupBy(g);
+
+            case TypedAggregate a -> aggregate(a);
+
+            case TypedExtend e -> extendWith(relation(e.source()), e.columns(), e.info(), true);
+
+            case TypedProject p -> extendWith(relation(p.source()), p.columns(), p.info(), false);
+
+            case TypedConcatenate c -> SqlSelect.starOf(
+                    new SqlSource.Subselect(union(c), nextAlias()));
+
             default -> throw new IllegalStateException("lowering not yet implemented for "
                     + spec.getClass().getSimpleName());
         };
+    }
+
+    /** Nested concatenates flatten into ONE multi-branch union. */
+    private SqlUnion union(TypedConcatenate c) {
+        List<com.legend.sql.SqlQuery> branches = new ArrayList<>();
+        collectBranches(c, branches);
+        return new SqlUnion(branches, true, outputsOf(c.info()));
+    }
+
+    private void collectBranches(TypedSpec spec, List<com.legend.sql.SqlQuery> out) {
+        if (spec instanceof TypedConcatenate c) {
+            collectBranches(c.left(), out);
+            collectBranches(c.right(), out);
+        } else {
+            out.add(relation(spec));
+        }
+    }
+
+    /**
+     * groupBy: keys + aggregates REPLACE the projection list; the GROUP BY
+     * clause carries the key expressions.
+     */
+    private SqlSelect groupBy(TypedGroupBy g) {
+        SqlSelect src = relation(g.source());
+        SqlSelect base = Fold.groupByFolds(src) ? src : isolate(src);
+        List<SqlExpr> keys = new ArrayList<>(g.keys().size());
+        List<SqlSelect.Projection> ps = new ArrayList<>();
+        for (TypedGroupBy.GroupKey k : g.keys()) {
+            SqlExpr e = k.fn().isPresent()
+                    ? scalar(last(k.fn().get()), name -> resolveOrThrow(base, name))
+                    : Fold.resolveInto(base, fromAlias(base), k.column());
+            if (e == null) {
+                return groupByOnto(isolate(base), g);
+            }
+            keys.add(e);
+            ps.add(new SqlSelect.Projection(e,
+                    e instanceof SqlExpr.Column c && c.name().equals(k.column()) ? null : k.column()));
+        }
+        for (TypedAggCol a : g.aggs()) {
+            ps.add(new SqlSelect.Projection(aggExpr(base, a), a.name()));
+        }
+        return base.withGroupBy(keys).withProjections(ps, outputsOf(g.info()));
+    }
+
+    private SqlSelect groupByOnto(SqlSelect base, TypedGroupBy g) {
+        List<SqlExpr> keys = new ArrayList<>();
+        List<SqlSelect.Projection> ps = new ArrayList<>();
+        for (TypedGroupBy.GroupKey k : g.keys()) {
+            SqlExpr e = new SqlExpr.Column(fromAlias(base), k.column());
+            keys.add(e);
+            ps.add(new SqlSelect.Projection(e, null));
+        }
+        for (TypedAggCol a : g.aggs()) {
+            ps.add(new SqlSelect.Projection(aggExpr(base, a), a.name()));
+        }
+        return base.withGroupBy(keys).withProjections(ps, outputsOf(g.info()));
+    }
+
+    /** aggregate: whole-relation reduction — aggregates only, no GROUP BY clause. */
+    private SqlSelect aggregate(TypedAggregate a) {
+        SqlSelect src = relation(a.source());
+        SqlSelect base = Fold.groupByFolds(src) ? src : isolate(src);
+        List<SqlSelect.Projection> ps = new ArrayList<>(a.aggs().size());
+        for (TypedAggCol col : a.aggs()) {
+            ps.add(new SqlSelect.Projection(aggExpr(base, col), col.name()));
+        }
+        return base.withProjections(ps, outputsOf(a.info()));
+    }
+
+    /**
+     * One agg column: the map lambda yields the value expression; the reduce
+     * lambda's resolved overload names the SQL reducer. A bare-row map
+     * ({@code x|$x}) is COUNT(*)-style — no value argument.
+     */
+    private SqlAgg.Reducer aggExpr(SqlSelect base, TypedAggCol a) {
+        TypedSpec reduceBody = last(a.reduce());
+        if (!(reduceBody instanceof TypedNativeCall call)) {
+            throw new IllegalStateException("aggregate reduce must be a native reducer call, got "
+                    + reduceBody.getClass().getSimpleName());
+        }
+        String fn = Aggregates.reducerFor(call.callee().definition(), call.callee().qualifiedName());
+        TypedSpec mapBody = last(a.map());
+        if (mapBody instanceof TypedVariable) {
+            return new SqlAgg.Reducer(fn, List.of(), false);
+        }
+        return new SqlAgg.Reducer(fn,
+                List.of(scalar(mapBody, name -> resolveOrThrow(base, name))), false);
+    }
+
+    /**
+     * extend (append=true) / project (append=false) with computed columns.
+     * Column lambdas resolve against the CURRENT select via substitution, so
+     * a plain-projection or star select stays flat.
+     */
+    private SqlSelect extendWith(SqlSelect src, List<TypedFuncCol> columns,
+                                 com.legend.compiler.spec.ExprType info, boolean append) {
+        SqlSelect base = (append ? Fold.extendFolds(src) : Fold.projectionFolds(src))
+                ? src : isolate(src);
+        List<SqlSelect.Projection> ps = new ArrayList<>();
+        if (append) {
+            if (base.projections().isEmpty()) {
+                ps.add(new SqlSelect.Projection(new SqlExpr.Star(fromAlias(base)), null));
+            } else {
+                ps.addAll(base.projections());
+            }
+        }
+        for (TypedFuncCol c : columns) {
+            SqlExpr e;
+            try {
+                e = scalar(last(c.fn()), name -> resolveOrThrow(base, name));
+            } catch (UnfoldableRef ref) {
+                return extendWith(isolate(base), columns, info, append);
+            }
+            ps.add(new SqlSelect.Projection(e, c.name()));
+        }
+        return base.withProjections(ps, outputsOf(info));
     }
 
     private SqlSelect filter(TypedFilter f) {
@@ -117,15 +254,33 @@ public final class Lowerer {
         };
     }
 
-    /** Lower the predicate against this select's columns; null = a ref would not fold. */
+    /**
+     * Lower the predicate against this select's columns; null = a ref would
+     * not fold. Over a GROUPED select, refs resolve to the projection
+     * EXPRESSIONS themselves (group keys and aggregate calls are exactly what
+     * standard SQL admits in HAVING).
+     */
     private SqlExpr tryPredicate(SqlSelect select, TypedLambda lambda) {
-        String param = lambda.parameters().get(0);
         try {
-            return scalar(last(lambda), name ->
-                    resolveOrThrow(select, name));
+            java.util.function.Function<String, SqlExpr> columns = select.groupBy().isEmpty()
+                    ? name -> resolveOrThrow(select, name)
+                    : name -> projectionExprOrThrow(select, name);
+            return scalar(last(lambda), columns);
         } catch (UnfoldableRef e) {
             return null;
         }
+    }
+
+    /** A post-aggregation ref: the projection's expression, computed or not. */
+    private SqlExpr projectionExprOrThrow(SqlSelect select, String column) {
+        for (SqlSelect.Projection p : select.projections()) {
+            String name = p.alias() != null ? p.alias()
+                    : p.expr() instanceof SqlExpr.Column c ? c.name() : null;
+            if (column.equals(name)) {
+                return p.expr();
+            }
+        }
+        throw new UnfoldableRef(column);
     }
 
     private SqlExpr resolveOrThrow(SqlSelect select, String column) {

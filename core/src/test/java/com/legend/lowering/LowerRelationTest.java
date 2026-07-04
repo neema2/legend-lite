@@ -213,6 +213,106 @@ class LowerRelationTest {
     }
 
     @Test
+    @DisplayName("groupBy folds: keys+aggs replace projections, ONE SELECT")
+    void groupByFlat() throws SQLException {
+        String sql = sqlOf("#>{test::DB.T_PERSON}#"
+                + "->filter(x|$x.AGE > 20)"
+                + "->groupBy(~FIRM, ~total : x|$x.AGE : y|$y->sum())");
+        assertEquals("""
+                SELECT t0.FIRM, SUM(t0.AGE) AS total
+                FROM T_PERSON AS t0
+                WHERE t0.AGE > 20
+                GROUP BY t0.FIRM
+                """.strip(), sql);
+        assertEquals(List.of("ACME|60", "Widget|45", "null|55"),
+                exec(sql + "\nORDER BY t0.FIRM"), "grouped sums");
+    }
+
+    @Test
+    @DisplayName("HAVING goes live: filter after groupBy folds as HAVING with the agg expr")
+    void filterAfterGroupByIsHaving() throws SQLException {
+        String sql = sqlOf("#>{test::DB.T_PERSON}#"
+                + "->groupBy(~FIRM, ~total : x|$x.AGE : y|$y->sum())"
+                + "->filter(x|$x.total > 50)");
+        assertEquals(1, count(sql, "SELECT"), "HAVING keeps it flat: " + sql);
+        String having = sql.lines().filter(l -> l.startsWith("HAVING")).findFirst().orElseThrow();
+        assertEquals("HAVING SUM(t0.AGE) > 50", having,
+                "the aggregate EXPRESSION substitutes into HAVING");
+        assertEquals(List.of("ACME|60", "null|55"),
+                exec(sql + "\nORDER BY 1"), "only groups above 50");
+    }
+
+    @Test
+    @DisplayName("filter on a group KEY also folds to HAVING (standard SQL)")
+    void filterOnGroupKeyIsHaving() throws SQLException {
+        String sql = sqlOf("#>{test::DB.T_PERSON}#"
+                + "->groupBy(~FIRM, ~n : x|$x : y|$y->count())"
+                + "->filter(x|$x.FIRM == 'ACME')");
+        assertEquals(1, count(sql, "SELECT"));
+        assertEquals(List.of("ACME|2"), exec(sql));
+    }
+
+    @Test
+    @DisplayName("aggregate collapses to one row, no GROUP BY clause")
+    void aggregateOneRow() throws SQLException {
+        String sql = sqlOf("#>{test::DB.T_PERSON}#"
+                + "->aggregate(~avgAge : x|$x.AGE : y|$y->average())");
+        assertEquals("""
+                SELECT AVG(t0.AGE) AS avgAge
+                FROM T_PERSON AS t0""", sql);
+        assertEquals(List.of("40.0"), exec(sql));
+    }
+
+    @Test
+    @DisplayName("extend commutes with LIMIT — appends stay flat where master nested")
+    void extendAfterLimitStaysFlat() throws SQLException {
+        String sql = sqlOf("#>{test::DB.T_PERSON}#->sort(~AGE->ascending())->limit(2)"
+                + "->extend(~doubled : x|$x.AGE * 2)");
+        assertEquals(1, count(sql, "SELECT"), "extend adds a column, row count untouched: " + sql);
+        assertEquals(List.of("Ann|25|ACME|50", "Bob|35|ACME|70"), exec(sql));
+    }
+
+    @Test
+    @DisplayName("extend-on-extend chains flat; computed ref forces isolation")
+    void extendChains() throws SQLException {
+        String flat = sqlOf("#>{test::DB.T_PERSON}#"
+                + "->extend(~a : x|$x.AGE + 1)->extend(~b : x|$x.AGE + 2)");
+        assertEquals(1, count(flat, "SELECT"), "independent extends fold: " + flat);
+
+        String nested = sqlOf("#>{test::DB.T_PERSON}#"
+                + "->extend(~a : x|$x.AGE + 1)->extend(~b : x|$x.a * 2)");
+        assertEquals(2, count(nested, "SELECT"),
+                "ref to a COMPUTED column isolates (no silent recompute): " + nested);
+        assertEquals(List.of("Ann|25|ACME|26|52"),
+                exec(nested + "\nLIMIT 1"));
+    }
+
+    @Test
+    @DisplayName("project replaces columns with computed ones")
+    void projectComputed() throws SQLException {
+        String sql = sqlOf("#>{test::DB.T_PERSON}#"
+                + "->project(~[who : x|$x.NAME, older : x|$x.AGE + 10])");
+        assertEquals("""
+                SELECT t0.NAME AS who, t0.AGE + 10 AS older
+                FROM T_PERSON AS t0""", sql);
+        assertEquals(List.of("Ann|35", "Bob|45", "Cat|55", "Dan|65"), exec(sql));
+    }
+
+    @Test
+    @DisplayName("concatenate: bare UNION ALL, zero wrapper SELECTs; folds under later ops")
+    void concatenateShapes() throws SQLException {
+        String bare = sqlOf("#>{test::DB.T_PERSON}#->concatenate(#>{test::DB.T_PERSON}#)");
+        assertEquals(2, count(bare, "SELECT"), "two branches, NO wrapper: " + bare);
+        assertEquals(8, exec(bare).size());
+
+        String filtered = sqlOf("#>{test::DB.T_PERSON}#"
+                + "->concatenate(#>{test::DB.T_PERSON}#)"
+                + "->filter(x|$x.AGE > 50)");
+        assertEquals(3, count(filtered, "SELECT"), "union wraps once, filter folds on top: " + filtered);
+        assertEquals(List.of("Dan|55|null", "Dan|55|null"), exec(filtered));
+    }
+
+    @Test
     @DisplayName("TDS literal → VALUES; filter folds onto it")
     void tdsLiterals() throws SQLException {
         String sql = sqlOf("#TDS\n  id, name\n  1, a\n  2, b\n#->filter(x|$x.id > 1)");

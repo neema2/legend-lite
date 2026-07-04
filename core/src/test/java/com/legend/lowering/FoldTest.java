@@ -87,6 +87,37 @@ class FoldTest {
     }
 
     @Test
+    @DisplayName("groupBy folds only onto a clean select; extend only minds DISTINCT")
+    void groupByAndExtendRules() {
+        assertTrue(Fold.groupByFolds(BARE));
+        assertFalse(Fold.groupByFolds(BARE.withGroupBy(List.of(col("A")))));
+        assertFalse(Fold.groupByFolds(BARE.withDistinct()));
+        assertFalse(Fold.groupByFolds(BARE.withOrderBy(List.of(SqlSelect.SortKey.asc(col("A"))))),
+                "grouping does not preserve order");
+        assertFalse(Fold.groupByFolds(BARE.withLimit(1L)));
+
+        assertTrue(Fold.extendFolds(BARE));
+        assertTrue(Fold.extendFolds(BARE.withLimit(1L)),
+                "extend commutes with truncation — row count untouched");
+        assertTrue(Fold.extendFolds(BARE.withOrderBy(List.of(SqlSelect.SortKey.asc(col("A"))))));
+        assertFalse(Fold.extendFolds(BARE.withDistinct()),
+                "extending a deduped set would dedup WITH the new column");
+    }
+
+    @Test
+    @DisplayName("resolveInto sees THROUGH a star projection to source columns")
+    void resolveThroughStar() {
+        SqlSelect extended = BARE.withProjections(List.of(
+                new SqlSelect.Projection(new SqlExpr.Star("t0"), null),
+                new SqlSelect.Projection(SqlExpr.Call.of("plus", col("A"), col("B")), "computed")),
+                List.of());
+        assertEquals(col("AGE"), Fold.resolveInto(extended, "t0", "AGE"),
+                "unclaimed names pass through the star to the source");
+        assertNull(Fold.resolveInto(extended, "t0", "computed"),
+                "the computed column still refuses substitution");
+    }
+
+    @Test
     @DisplayName("resolveInto: star → source column; plain projection → substituted; computed → null")
     void resolveIntoRules() {
         assertEquals(col("AGE"), Fold.resolveInto(BARE, "t0", "AGE"));
