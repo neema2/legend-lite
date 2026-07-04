@@ -367,7 +367,7 @@ final class ModelIndexerTest {
             case com.legend.parser.element.RuntimeDefinition r -> r.qualifiedName();
             case com.legend.parser.element.ConnectionDefinition co -> co.qualifiedName();
             case com.legend.parser.element.DatabaseDefinition d -> d.qualifiedName();
-            case com.legend.parser.element.MappingDefinition m -> m.qualifiedName();
+            case com.legend.parser.element.LegacyMappingDefinition m -> m.qualifiedName();
             default -> throw new AssertionError("unknown element kind: " + e.getClass());
         };
     }
@@ -428,7 +428,7 @@ final class ModelIndexerTest {
                         case com.legend.parser.element.RuntimeDefinition r -> r.qualifiedName();
                         case com.legend.parser.element.ConnectionDefinition co -> co.qualifiedName();
                         case com.legend.parser.element.DatabaseDefinition d -> d.qualifiedName();
-                        case com.legend.parser.element.MappingDefinition m -> m.qualifiedName();
+                        case com.legend.parser.element.LegacyMappingDefinition m -> m.qualifiedName();
                         default -> throw new AssertionError("unknown element: " + e.getClass());
                     };
                 })

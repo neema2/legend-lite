@@ -67,4 +67,27 @@ final class ArchitectureTest {
             .as("Invariant 2: no util/ package — helpers live with the code that needs them.")
             .check(CORE_PROD_CLASSES);
     }
+
+    /**
+     * <strong>Invariant 3 — Caches must be content-addressed.</strong> The only
+     * sanctioned cache is {@code com.legend.cache.ContentStore}, keyed by a
+     * {@link com.legend.cache.Hash} of content, which cannot desync. To keep a
+     * name-/version-keyed cache (engine's {@code planCache} scar) from sneaking
+     * in unreviewed, every {@code *Cache} / {@code *Store} type is funneled into
+     * {@code com.legend.cache}. A reviewer there ensures it is content-addressed.
+     *
+     * <p>ArchUnit cannot prove the semantic &ldquo;no desync&rdquo; property;
+     * the behavioral guarantee lives in {@code ContentStoreTest}. This rule is
+     * the structural funnel that backs it.
+     */
+    @Test
+    void cachesAreFunneledToContentAddressedStore() {
+        noClasses()
+            .that().resideOutsideOfPackage("com.legend.cache")
+            .should().haveSimpleNameEndingWith("Cache")
+            .orShould().haveSimpleNameEndingWith("Store")
+            .as("Invariant 3: caches must be content-addressed — put them in "
+              + "com.legend.cache on ContentStore (Hash-keyed). See core/README.md.")
+            .check(CORE_PROD_CLASSES);
+    }
 }

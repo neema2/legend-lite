@@ -90,7 +90,7 @@ public sealed interface PropertyMapping
      *
      * @param propertyName     Pure property name
      * @param enumMappingId    name of the {@code EnumerationMapping} declared
-     *                         elsewhere in this {@link MappingDefinition} (or
+     *                         elsewhere in this {@link LegacyMappingDefinition} (or
      *                         an included one); resolution validates the
      *                         reference in Phase D
      * @param database         database the column lives in
@@ -205,7 +205,7 @@ public sealed interface PropertyMapping
      * Inline embedded reference: {@code propName() Inline[setId]}.
      *
      * <p>The property is mapped by reference to another class mapping
-     * declared elsewhere in the same {@link MappingDefinition} (or an
+     * declared elsewhere in the same {@link LegacyMappingDefinition} (or an
      * included one), identified by its set id. No body is parsed; the
      * empty parens are required by the grammar.
      *

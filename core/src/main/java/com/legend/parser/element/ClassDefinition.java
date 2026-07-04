@@ -54,7 +54,8 @@ public record ClassDefinition(
         List<ConstraintDefinition> constraints,
         List<StereotypeApplication> stereotypes,
         List<TaggedValue> taggedValues,
-        boolean isNative) implements PackageableElement {
+        boolean isNative)
+        implements PackageableElement {
 
     public ClassDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
@@ -118,16 +119,33 @@ public record ClassDefinition(
     public record DerivedPropertyDefinition(
             String name,
             List<ParameterDefinition> parameters,
-            List<ValueSpecification> expression,
+            Realization realization,
             TypeExpression type,
             Multiplicity multiplicity) {
         public DerivedPropertyDefinition {
             Objects.requireNonNull(name, "Derived property name cannot be null");
             Objects.requireNonNull(type, "Derived property type cannot be null");
             Objects.requireNonNull(multiplicity, "Derived property multiplicity cannot be null");
-            Objects.requireNonNull(expression, "Derived property expression cannot be null");
+            Objects.requireNonNull(realization, "Derived property realization cannot be null");
             parameters = parameters == null ? List.of() : List.copyOf(parameters);
-            expression = List.copyOf(expression);
+        }
+
+        /** Convenience: the sugar (inline-expression) form. */
+        public DerivedPropertyDefinition(String name, List<ParameterDefinition> parameters,
+                                         List<ValueSpecification> expression,
+                                         TypeExpression type, Multiplicity multiplicity) {
+            this(name, parameters, new Realization.Inline(expression), type, multiplicity);
+        }
+
+        /**
+         * The inline body (sugar form). Valid only when the realization is an
+         * {@link Realization.Inline}; a Door-4 function-ref binding has no inline
+         * body (its realizing function is the bound FQN).
+         */
+        public List<ValueSpecification> expression() {
+            if (realization instanceof Realization.Inline inl) return inl.body();
+            throw new IllegalStateException(
+                    "derived property '" + name + "' is a function-ref binding, not an inline body");
         }
     }
 
@@ -157,10 +175,27 @@ public record ClassDefinition(
      * @param name       constraint name
      * @param expression parsed expression AST that must evaluate to true
      */
-    public record ConstraintDefinition(String name, ValueSpecification expression) {
+    public record ConstraintDefinition(String name, Realization realization) {
         public ConstraintDefinition {
             Objects.requireNonNull(name, "Constraint name cannot be null");
-            Objects.requireNonNull(expression, "Constraint expression cannot be null");
+            Objects.requireNonNull(realization, "Constraint realization cannot be null");
+        }
+
+        /** Convenience: the sugar (inline-predicate) form. */
+        public ConstraintDefinition(String name, ValueSpecification expression) {
+            this(name, new Realization.Inline(List.of(expression)));
+        }
+
+        /**
+         * The inline predicate (sugar form). Valid only when the realization is
+         * an {@link Realization.Inline}; a Door-4 function-ref binding has none.
+         */
+        public ValueSpecification expression() {
+            if (realization instanceof Realization.Inline inl && inl.body().size() == 1) {
+                return inl.body().get(0);
+            }
+            throw new IllegalStateException(
+                    "constraint '" + name + "' is a function-ref binding, not an inline predicate");
         }
     }
 }

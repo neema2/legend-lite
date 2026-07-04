@@ -36,7 +36,7 @@ right.
 text                                                            [FRONTEND]
   ──▶  lexer/        Lexer.tokenize                              text → tokens
   ──▶  parser/       ElementParser, SpecParser                   tokens → parsed syntax
-  ──▶  parser/       NameResolver                                simple → FQN
+  ──▶  parser/       ImportResolver                              simple → FQN
   ──▶  normalizer/   MappingNormalizer                           Decl → Decl (mappings → fns)
   ──▶  compiler/     ElementCompiler                             Decl → Def     (compiled model)
   ──▶  compiler/     SpecCompiler                                Spec + model → TypedSpec
@@ -55,7 +55,7 @@ text                                                            [FRONTEND]
 | A | lex | `lexer/` | `Lexer` | `Token` stream |
 | B | parse elements | `parser/` | `ElementParser` | `parser.element.PackageableElement` (`ClassDefinition`, `MappingDefinition`, …) wrapped in `ParsedModel` |
 | C | parse specs | `parser/` | `SpecParser` | `parser.spec.ValueSpecification` (`LambdaFunction`, `AppliedFunction`, `Variable`, `CString`, …) |
-| D | resolve names | `parser/` | `NameResolver` | (same shapes, FQN-rewritten) |
+| D | resolve names | `parser/` | `ImportResolver` | (same shapes, FQN-rewritten) |
 | E | normalize model | `normalizer/` | `MappingNormalizer` | `PackageableElement` (mappings desugared into `FunctionDefinition`s) |
 | F | compile elements | `compiler/` | `ElementCompiler` | `compiler.element.TypedElement` (`TypedClass`, `TypedMapping`, …) + `ModelContext` |
 | G | compile specs | `compiler/` | `SpecCompiler` | `compiler.spec.TypedSpec` (`TypedFilter`, `TypedProject`, …) + `Dependencies` |
@@ -89,7 +89,7 @@ core/src/main/java/com/legend/
 ├── parser/                            B,C,D. tokens → resolved syntax
 │   ├── ElementParser.java                   B driver
 │   ├── SpecParser.java                      C driver
-│   ├── NameResolver.java                    D driver
+│   ├── ImportResolver.java                  D driver (imports → FQN; with ImportScope)
 │   ├── ImportScope.java
 │   ├── SourceLocation.java
 │   ├── ParsedModel.java                     B output wrapper: (List<PackageableElement>, ImportScope)
@@ -279,18 +279,11 @@ core/src/main/java/com/legend/
 
 Things we deferred deliberately. Each entry: **what's deferred**, **why now**, **when to revisit**, **options on the table**.
 
-### D-1. Body capture format for derived properties, constraints, function bodies
+### D-1. Body capture format for derived properties, constraints, function bodies (closed — Phase C)
 
-- **What.** `ClassDefinition.DerivedPropertyDefinition.expression`, `ClassDefinition.ConstraintDefinition.expression`, `FunctionDefinition.body`, and `ServiceDefinition.functionBody` are currently captured as raw `String` (source-text slice via `reconstructText`).
-- **Why now.** Phase C (`SpecParser` for `ValueSpecification`) doesn't exist yet, so we can't parse the bodies. Text capture is the smallest placeholder.
-- **Risk.** Lazy *compilation* of bodies is required by AGENTS.md invariant 5 (no force-loading transitive graphs). Lazy *parsing* of bodies is **not** required — parsing is structurally local and cannot trigger cycles. Choosing raw text was a convenience, not an architectural necessity. Engine conflates the two; core/ should not.
-- **When to revisit.** Just before / during Phase C lands `SpecParser`.
-- **Options.**
-  1. **Keep raw text.** Re-lex + re-parse on demand. Simplest, matches engine. Loses early syntax-error detection on bodies.
-  2. **Eager parse into typed AST.** Replace `String expression` with `ValueSpecification expression`. Catches body syntax errors at parse time. ElementParser depends on SpecParser (clean one-way).
-  3. **`TokenSpan(TokenStream, int startToken, int endTokenExclusive)`** (preferred). Phase B emits spans; Phase C walks each span with SpecParser, producing a refined `ParsedModel`. No re-lexing; bodies independently parseable; `ParsedModel` carries a reference to its source `TokenStream`.
-
-  **Tentative leaning: Option 3.** Records reshape in one focused commit when `SpecParser` has a concrete shape.
+- **What.** `ClassDefinition.DerivedPropertyDefinition.expression`, `ClassDefinition.ConstraintDefinition.expression`, `FunctionDefinition.body`, `ServiceDefinition.functionBody`, and the M2M `ClassMapping.Pure` property RHS + `~filter` hold the parsed body as a typed `ValueSpecification` (`List<ValueSpecification>` for braced bodies).
+- **Resolution.** **Option 2 (eager parse into typed AST) was chosen**, not the tentatively-leaned Option 3. Once `SpecParser` landed (Phase C.1–C.5), `ElementParser` was wired to parse every body eagerly during deep-parse (`SpecParser.parse` / `parseCodeBlock` on the body token slice). Bodies are therefore typed from parse time, and body syntax errors surface during parsing. Because deep-parse is driven per element by `ModelOrchestrator`, this stays demand-driven (only resolved elements parse their bodies) — the lazy-*compilation* requirement (AGENTS.md invariant 5) is unaffected since parsing never force-loads transitive graphs.
+- **Status.** Closed (C.6). No raw-`String` body fields remain. The only adjacent raw-text holdout is `testSuitesSource` (D-3), which is a separate test-suite-grammar concern, not a value-expression body.
 
 ### D-2. Strict unknown-key handling in Runtime / Connection / Service (closed parity fix)
 
@@ -336,14 +329,14 @@ Things we deferred deliberately. Each entry: **what's deferred**, **why now**, *
 - [x] Phase A: lexer (`Lexer` + `TokenStream` + `Token` + `TokenType`; 25 unit tests)
 - [x] Phase B: parser/element + ElementParser **— full feature parity with `legend-lite/engine`**
   - [x] B.1: scaffolding + `Class` (imports, properties, type params, extends, native, stereotypes, tagged values; 29 unit tests)
-  - [x] B.2: derived properties + constraints + `Association` + `Enum` + `Profile` (42 unit tests; lazy body text capture)
+  - [x] B.2: derived properties + constraints + `Association` + `Enum` + `Profile` (42 unit tests; derived-property/constraint bodies captured as raw text at B.2, now parsed into `ValueSpecification` — D-1 closed)
   - [x] B.3: `function` + `Service` + `Runtime` + `RelationalDatabaseConnection` (60 unit tests, 87 total; strict unknown-key handling — D-2; testSuites raw-text capture — D-3; FunctionDefinition deliberately omits engine's compiler-cache fields)
   - [x] B.4: `Database` + `Mapping` (170 unit tests total in `ElementParserTest`)
-    - [x] B.4a: `Database` (21 tests, 108 total) — full relational expression sub-AST: ColumnRef, TargetColumnRef, Literal, FunctionCall, Comparison, BooleanOp, IsNull, IsNotNull, Group, ArrayLiteral, JoinNavigation; full view-filter sub-AST: sealed `FilterMapping` (Direct/JoinMediated) and `FilterPointer` (Local/Cross); sliced eagerly because the relational sub-grammar is small and bounded (≠ Pure value expressions, which still defer per D-1); audit-driven cleanups closed all engine-parity gaps: D-2, D-6, D-7.
+    - [x] B.4a: `Database` (21 tests, 108 total) — full relational expression sub-AST: ColumnRef, TargetColumnRef, Literal, FunctionCall, Comparison, BooleanOp, IsNull, IsNotNull, Group, ArrayLiteral, JoinNavigation; full view-filter sub-AST: sealed `FilterMapping` (Direct/JoinMediated) and `FilterPointer` (Local/Cross); sliced eagerly because the relational sub-grammar is small and bounded (a distinct sub-language from Pure value expressions, which are parsed by `SpecParser` — D-1 closed); audit-driven cleanups closed all engine-parity gaps: D-2, D-6, D-7.
     - [x] B.4b: `Mapping` shell + Relational class mappings (19 tests, 127 total) — `MappingDefinition` + sealed `ClassMapping` (permits `Relational`, `Pure`) + sealed `PropertyMapping` (Column / EnumeratedColumn / Join / JoinTerminalColumn / Expression); mapping `~filter` reuses the sealed `FilterMapping` from B.4a; mapping-context bare identifiers resolve eagerly to the class mapping's main table at parse time (engine `ScopeInfo` parity); `extends`, `setId`, `~mainTable`, `~filter`, `~distinct`, `~groupBy`, `~primaryKey`, store substitutions in `include` brackets, multi-class mappings all supported. The syntactic `*` (root marker) is captured as a `root: boolean` field on a single `Relational` variant rather than a separate `RootRelational` subtype, matching lite/engine's surface (no non-root standalone form exists).
     - [x] B.4c: Association mappings (8 tests) — sealed `AssociationMapping` + `AssociationPropertyMapping` with per-property `[srcSetId, dstSetId]` brackets; reuses existing `PropertyMapping` variants for the body; DB-required guard surfaces missing `[db::DB]` cleanly.
     - [x] B.4d: Enumeration mappings (10 tests) — `EnumerationMapping` + sealed `SourceValue` (StringValue / IntegerValue / EnumRef); supports optional mapping id, bracketed and unbracketed source lists, mixed string/int/cross-enum sources, trailing comma.
-    - [x] B.4e: Pure (M2M) class mappings (10 tests) — `ClassMapping.Pure` variant with raw-text capture for `~filter` and per-property RHS expressions (D-1 deferred parsing matches B.3 function bodies); nested commas in `if(...)` calls don't split bindings; mixes cleanly with Relational class mappings.
+    - [x] B.4e: Pure (M2M) class mappings (10 tests) — `ClassMapping.Pure` variant whose `~filter` and per-property RHS are parsed into `ValueSpecification` (eagerly during deep-parse once `SpecParser` landed — D-1 closed; the B.4e milestone originally captured them as raw text, like B.3 function bodies); nested commas in `if(...)` calls don't split bindings; mixes cleanly with Relational class mappings.
     - [x] B.4f: Mapping test suites (4 tests) — `MappingDefinition.testSuitesSource` captures the `testSuites: [...]` block verbatim via `skipBalancedContent` + `reconstructText`; closes D-3 for `MappingDefinition` (Service still uses the same shape from B.3).
     - [x] B.4g: Property mapping parity fillers (9 tests) — four new `PropertyMapping` variants: `Embedded` (`prop ( subs )`, recursive), `InlineEmbedded` (`prop() Inline[setId]`), `OtherwiseEmbedded` (`prop ( subs ) Otherwise ([setId]: body)`), `LocalProperty` (`+name: Type[mult]: body` with full multiplicity parsing reusing `parseMultiplicity()`); dispatched in `parsePropertyMapping` by `+` prefix or `(` after the property name. **Ahead of lite/engine** here — lite/engine lists these as `GAP` tests and parses-and-discards the data.
 
@@ -351,14 +344,14 @@ Things we deferred deliberately. Each entry: **what's deferred**, **why now**, *
 
 For every element kind that `legend-lite/engine` parses, `legend-lite/core` parses it equivalently or more strictly, and structurally captures the same data (often more — embedded / inline / otherwise / local property mappings yield first-class records in `core/`, where `engine/` discards their detail). The two intentional divergences are:
 
-1. **D-1 / D-3 deferred parsing.** Pure value expressions (function bodies, M2M property RHS, M2M `~filter`) and test suites are captured as raw text in B and parsed lazily in Phase C. `engine/` parses these eagerly via the FINOS engine grammar.
+1. **D-3 deferred parsing.** Test suites (`testSuitesSource`) are captured as raw text pending a test-suite grammar. (Pure value-expression bodies — function bodies, derived properties, constraints, service queries, M2M property RHS / `~filter` — are now parsed eagerly into `ValueSpecification` during deep-parse; D-1 is closed, see Open Decisions.) `engine/` parses test suites eagerly via the FINOS engine grammar.
 2. **D-2 strict unknown-key handling.** `Runtime` / `Connection` / `Service` / `Mapping` bodies reject unknown keys with `ParseException` instead of silently skipping. `engine/` silently drops unknown content (including unknown mapping types like `Operation` and `AggregationAware`).
 
 Constructs that exist in upstream FINOS `legend-engine` but are **not implemented in `legend-lite/engine` either** — `Operation` (union/merge) class mappings, `AggregationAware` class mappings, Relation function class mappings, true non-root embedded `Relational` class mappings (with their own scope, distinct from `PropertyMapping.Embedded`) — are out of scope for parity. They are not regressions and not blockers for Phase C.
 
 ### Remaining phases
 
-- [~] Phase C: demand-driven parsing + SpecParser
+- [x] Phase C: demand-driven parsing + SpecParser
   - [x] C.0: `ModelOrchestrator` (199 tests total; 199/199 green) &mdash; demand-driven element parsing built on top of Phase B with zero changes to the existing element parser logic.
     - **`TokenStream.slice(from, to)`** &mdash; cheap sub-stream that preserves source-offset indices so error reporting still points into the original file (3 tests).
     - **`ModelIndex` + `ModelIndexer`** &mdash; single-pass shallow scan over the token stream that records every declared FQN's `(kind, [startToken, endToken))` range without parsing element bodies. Handles `native Class`, function `<<stereo>>` and `{tag=...}` decorations before the FQN, `(...)`-bodied Database/Mapping, interleaved imports, and rejects duplicate FQNs (16 tests, including a property-based parity assertion that the shallow FQN set matches the eager parser's element set).
@@ -366,12 +359,12 @@ Constructs that exist in upstream FINOS `legend-engine` but are **not implemente
     - **`ModelOrchestrator`** &mdash; the demand-driven entry point. Constructor lexes + shallow-scans eagerly; `resolve(fqn)` deep-parses a single element from its slice and memoises the result; `resolveAll()` forces every FQN and returns a `ParsedModel` equivalent to the historical eager parse. **Cache is pure memoization on an immutable input** &mdash; the source cannot mutate during the orchestrator's lifetime, so cache entries never need invalidation (10 tests covering cache identity, demand isolation against broken neighbours, unknown-FQN errors, `resolveAll()` ↔ per-FQN equivalence, and import handling).
     - **`ElementParser.parse(source)` now delegates** to `new ModelOrchestrator(source).resolveAll()`, so every existing element parser test (143) exercises the demand-driven pipeline. No element parser logic changed.
     - **Architectural payoff.** The 100K stress case in `docs/STRESS_TEST_BENCHMARKS.md` shows parse + build at 71% of cold-start (1,496 ms of 2,115 ms) with a 4 GB heap requirement. With this foundation, a query that reaches 50 of those 100K elements pays for the shallow scan (linear in source) plus deep-parse of 50 elements &mdash; not all 100K. Heap footprint shrinks proportionally because only resolved elements are held as full record graphs.
-  - [ ] C.1 &ndash; C.5: `SpecParser` &mdash; sealed `ValueSpec` AST + Pure expression grammar (literals, variables, property paths, function calls, operators, lambdas, `let`, code blocks, collections, milestoning). Standalone module taking a `String` (or `TokenStream` slice) and returning a `ValueSpec`. No coupling to the orchestrator yet.
-  - [ ] C.6: Wire `SpecParser` into `ModelOrchestrator.resolve()` so captured raw bodies (`FunctionDefinition.body`, M2M property RHS, M2M `~filter`, `MappingDefinition.testSuitesSource`) parse just-in-time into typed `ValueSpec`s. This closes D-1 and D-3.
+  - [x] C.1 &ndash; C.5: `SpecParser` &mdash; sealed `ValueSpec` AST + Pure expression grammar (literals, variables, property paths, function calls, operators, lambdas, `let`, code blocks, collections, milestoning). Standalone module taking a `String` (or `TokenStream` slice) and returning a `ValueSpec`. **211 tests in `SpecParserTest`.**
+  - [x] C.6: `SpecParser` wired into element parsing &mdash; all value-expression bodies (`FunctionDefinition.body`, derived properties, constraints, `ServiceDefinition.functionBody`, M2M property RHS + `~filter`) parse eagerly into typed `ValueSpec` during deep-parse, driven per-element by `ModelOrchestrator` &rarr; `ElementParser.parseSingle` (so it is just-in-time per resolved element, implemented inside the element parser rather than as a separate orchestrator step). **Closes D-1.** The one remaining raw-text holdout is `testSuitesSource` (D-3) &mdash; a separate test-suite-grammar concern, not `SpecParser`.
 
-- [ ] Phase D: NameResolver
-- [ ] Phase E: MappingNormalizer
-- [ ] Phase F: ElementCompiler + compiler/element (TypedElement family)
+- [x] Phase D: NameResolver — implemented as `parser/ImportResolver` + `ImportScope` (imports → FQN over def records; 116 tests in `ImportResolverTest`)
+- [x] Phase E: MappingNormalizer — `normalizer/MappingNormalizer` (mappings desugared into `FunctionDefinition`s; 86 tests in `MappingNormalizerTest`)
+- [ ] Phase F: ElementCompiler + compiler/element (TypedElement family) — design: `docs/CORE_PHASE_F_TYPED_ELEMENTS.md`
 - [ ] Phase G: SpecCompiler + compiler/spec (TypedSpec family) + compiler/checker
 - [ ] Phase H: MappingResolver + resolver/rule
 - [ ] Phase I: SqlBuilder + sql/ data records

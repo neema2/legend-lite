@@ -2,6 +2,7 @@ package com.legend.parser.element;
 
 import com.legend.parser.spec.ValueSpecification;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -34,7 +35,7 @@ import java.util.Objects;
  *   <li><strong>{@code testSuitesSource} is captured as raw source text</strong>
  *       (not parsed into typed records). Engine skips the block entirely; we
  *       preserve it so Phase B.4 can parse it once
- *       {@code MappingDefinition.TestSuiteDefinition} lands.
+ *       {@code LegacyMappingDefinition.TestSuiteDefinition} lands.
  *       Tracked as decision D-3 in core's README.</li>
  *   <li><strong>Unknown top-level keys throw</strong> (engine silently
  *       {@code skipToSemicolon}'s). Matches AGENTS.md invariant 4 (no fallbacks).</li>
@@ -60,7 +61,8 @@ public record ServiceDefinition(
         String documentation,
         String mappingRef,
         String runtimeRef,
-        String testSuitesSource) implements PackageableElement {
+        String testSuitesSource)
+        implements PackageableElement {
 
     public ServiceDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");

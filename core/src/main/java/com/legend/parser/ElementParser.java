@@ -22,8 +22,12 @@ import com.legend.parser.element.FilterMapping;
 import com.legend.parser.element.FilterPointer;
 import com.legend.parser.element.FunctionDefinition;
 import com.legend.parser.element.NativeFunctionDefinition;
+import com.legend.parser.element.LegacyMappingDefinition;
 import com.legend.parser.element.MappingDefinition;
+import com.legend.parser.element.Realization;
+import com.legend.parser.element.MappingInclude;
 import com.legend.parser.element.PropertyMapping;
+import com.legend.parser.spec.PackageableElementPtr;
 import com.legend.parser.element.JsonModelConnection;
 import com.legend.parser.element.PackageableElement;
 import com.legend.parser.element.ComparisonOp;
@@ -137,7 +141,7 @@ public final class ElementParser implements TokenStreamCursor {
      * null (Database context), bare identifiers throw per D-7. Set/cleared
      * around mapping-body parsing in {@link #parseRelationalClassMappingBody}.
      */
-    private MappingDefinition.TableReference currentMappingScope;
+    private LegacyMappingDefinition.TableReference currentMappingScope;
 
     private ElementParser(TokenStream tokens) {
         this.tokens = tokens;
@@ -415,8 +419,23 @@ public final class ElementParser implements TokenStreamCursor {
         Multiplicity mult = parseMultiplicity();
         expect(TokenType.SEMI_COLON);
 
+        // Door 4: a bare function-reference body binds the derived property to a
+        // user function; any other expression is the sugar (inline) form.
         return new DerivedPropertyDefinition(
-                name, params, body, type, mult);
+                name, params, realizationOf(body), type, mult);
+    }
+
+    /**
+     * Classify a parsed body as a {@link Realization}: a single bare element
+     * reference ({@link PackageableElementPtr}) is a function ref (Door 1/4);
+     * anything else is an inline expression body (sugar / Door 3). Shared by
+     * mapping bindings and the class/service hats.
+     */
+    private static Realization realizationOf(List<ValueSpecification> body) {
+        if (body.size() == 1 && body.get(0) instanceof PackageableElementPtr ptr) {
+            return new Realization.Ref(ptr.fullPath());
+        }
+        return new Realization.Inline(body);
     }
 
     private ParameterDefinition parseDerivedPropertyParameter() {
@@ -478,7 +497,9 @@ public final class ElementParser implements TokenStreamCursor {
             error("empty constraint expression for '" + name + "'");
         }
         ValueSpecification expression = SpecParser.parse(tokens.slice(bodyStart, pos));
-        return new ConstraintDefinition(name, expression);
+        // Door 4: `[name: some::fn]` binds the constraint to a predicate
+        // function; any other expression is the sugar (inline) predicate.
+        return new ConstraintDefinition(name, realizationOf(List.of(expression)));
     }
 
     // ============================================================
@@ -1447,15 +1468,13 @@ public final class ElementParser implements TokenStreamCursor {
      * naming the unsupported construct &mdash; better than silently
      * dropping data (D-2 strictness).
      */
-    private MappingDefinition parseMapping() {
+    private PackageableElement parseMapping() {
         expect(TokenType.MAPPING);
         String qualifiedName = parseQualifiedName();
         expect(TokenType.PAREN_OPEN);
 
-        List<MappingDefinition.MappingInclude> includes = new ArrayList<>();
-        List<ClassMapping> classMappings = new ArrayList<>();
-        List<AssociationMapping> associationMappings = new ArrayList<>();
-        List<EnumerationMapping> enumerationMappings = new ArrayList<>();
+        List<MappingInclude> includes = new ArrayList<>();
+        MappingAccum accum = new MappingAccum();
         String testSuitesSource = null;
 
         while (peek() != TokenType.PAREN_CLOSE) {
@@ -1487,24 +1506,53 @@ public final class ElementParser implements TokenStreamCursor {
                 continue;
             }
             // Class/association/enumeration mappings share an outer shape
-            // (`path: MappingType { body }`). parseMappingElement
-            // dispatches by the MappingType keyword and (for Relational)
-            // by the first body token.
-            parseMappingElement(classMappings, associationMappings, enumerationMappings);
+            // (`path: MappingType { body }`). parseMappingElement dispatches by
+            // the MappingType keyword and (for a kind block) by the first body
+            // tokens: a legacy DSL body (`~directive` / `prop:`) goes to the
+            // legacy lists; a clean-sheet function-ref body (a bare FQN) goes
+            // to the canonical binding lists (CLEAN_SHEET_INVERSION §5.1).
+            parseMappingElement(accum);
         }
         expect(TokenType.PAREN_CLOSE);
-        return new MappingDefinition(qualifiedName, includes,
-                classMappings, associationMappings, enumerationMappings,
-                testSuitesSource);
+
+        boolean hasLegacy = !accum.classMappings.isEmpty()
+                || !accum.associationMappings.isEmpty();
+        boolean hasCanonical = !accum.classBindings.isEmpty()
+                || !accum.associationBindings.isEmpty();
+        if (hasLegacy && hasCanonical) {
+            throw error("Mapping '" + qualifiedName + "' mixes legacy DSL bodies with "
+                + "function-form bindings; a mapping must be all-legacy or "
+                + "all-clean-sheet (convert the whole mapping)");
+        }
+        // Whole-element split (CLEAN_SHEET_INVERSION §1.5.2): clean-sheet text
+        // parses straight to the canonical binding table; legacy DSL to the
+        // legacy surface tree (rewritten to canonical by MappingNormalizer).
+        if (hasCanonical) {
+            return new MappingDefinition(qualifiedName, includes,
+                    accum.classBindings, accum.associationBindings,
+                    accum.enumerationMappings, testSuitesSource);
+        }
+        return new LegacyMappingDefinition(qualifiedName, includes,
+                accum.classMappings, accum.associationMappings,
+                accum.enumerationMappings, testSuitesSource);
+    }
+
+    /** Per-mapping body accumulator: legacy surface records vs canonical bindings. */
+    private static final class MappingAccum {
+        final List<ClassMapping> classMappings = new ArrayList<>();
+        final List<AssociationMapping> associationMappings = new ArrayList<>();
+        final List<EnumerationMapping> enumerationMappings = new ArrayList<>();
+        final List<MappingDefinition.ClassBinding> classBindings = new ArrayList<>();
+        final List<MappingDefinition.AssociationBinding> associationBindings = new ArrayList<>();
     }
 
     /**
      * {@code includedPath ([oldStore -> newStore (, oldStore -> newStore)*])?}.
      * The {@code include} keyword has already been consumed by the caller.
      */
-    private MappingDefinition.MappingInclude parseMappingInclude() {
+    private MappingInclude parseMappingInclude() {
         String includedPath = parseQualifiedName();
-        List<MappingDefinition.MappingInclude.StoreSubstitution> subs = new ArrayList<>();
+        List<MappingInclude.StoreSubstitution> subs = new ArrayList<>();
         if (peek() == TokenType.BRACKET_OPEN) {
             advance();
             if (peek() != TokenType.BRACKET_CLOSE) {
@@ -1513,10 +1561,10 @@ public final class ElementParser implements TokenStreamCursor {
             }
             expect(TokenType.BRACKET_CLOSE);
         }
-        return new MappingDefinition.MappingInclude(includedPath, subs);
+        return new MappingInclude(includedPath, subs);
     }
 
-    private MappingDefinition.MappingInclude.StoreSubstitution parseStoreSubstitution() {
+    private MappingInclude.StoreSubstitution parseStoreSubstitution() {
         String original = parseQualifiedName();
         // engine grammar uses `->` between the two store names
         if (peek() != TokenType.ARROW) {
@@ -1524,7 +1572,7 @@ public final class ElementParser implements TokenStreamCursor {
         }
         advance();
         String replacement = parseQualifiedName();
-        return new MappingDefinition.MappingInclude.StoreSubstitution(original, replacement);
+        return new MappingInclude.StoreSubstitution(original, replacement);
     }
 
     /**
@@ -1542,9 +1590,7 @@ public final class ElementParser implements TokenStreamCursor {
      * <p>The result is added to whichever output list corresponds to
      * its kind.
      */
-    private void parseMappingElement(List<ClassMapping> classMappings,
-                                     List<AssociationMapping> associationMappings,
-                                     List<EnumerationMapping> enumerationMappings) {
+    private void parseMappingElement(MappingAccum accum) {
         boolean root = match(TokenType.STAR);
         String elementPath = parseQualifiedName();
 
@@ -1573,14 +1619,31 @@ public final class ElementParser implements TokenStreamCursor {
                 error("Enumeration mappings do not accept [setId] or extends [parentId]");
             }
             advance(); // consume EnumerationMapping keyword
-            enumerationMappings.add(parseEnumerationMappingBody(elementPath));
+            accum.enumerationMappings.add(parseEnumerationMappingBody(elementPath));
             return;
         }
-        if (mappingTypeToken == TokenType.RELATIONAL) {
+        // Clean-sheet: AssociationMapping is its own kind tag (not nested inside
+        // Relational). Body is a bare predicate-function FQN.
+        if (mappingTypeToken == TokenType.ASSOCIATION_MAPPING) {
+            if (root) {
+                error("Association mappings cannot be marked root (the leading '*' "
+                        + "is only valid for class mappings)");
+            }
+            if (setId != null || extendsSetId != null) {
+                error("Association mappings do not accept [setId] or extends [parentId]");
+            }
+            advance(); // consume AssociationMapping keyword
+            expect(TokenType.BRACE_OPEN);
+            accum.associationBindings.add(new MappingDefinition.AssociationBinding(
+                    elementPath, parseCleanSheetBody(elementPath)));
+            return;
+        }
+        if (mappingTypeToken == TokenType.RELATIONAL || mappingTypeToken == TokenType.PURE_MAPPING) {
+            boolean pure = mappingTypeToken == TokenType.PURE_MAPPING;
             advance();
             expect(TokenType.BRACE_OPEN);
-            // Dispatch class vs association by peeking the first body token.
-            if (peek() == TokenType.ASSOCIATION_MAPPING) {
+            // Legacy nested AssociationMapping (`Relational { AssociationMapping (...) }`).
+            if (!pure && peek() == TokenType.ASSOCIATION_MAPPING) {
                 if (root) {
                     error("Association mappings cannot be marked root (the leading '*' "
                             + "is only valid for class mappings)");
@@ -1592,24 +1655,86 @@ public final class ElementParser implements TokenStreamCursor {
                 advance(); // consume AssociationMapping keyword
                 AssociationMapping am = parseAssociationMappingBody(elementPath);
                 expect(TokenType.BRACE_CLOSE);
-                associationMappings.add(am);
+                accum.associationMappings.add(am);
                 return;
             }
-            ClassMapping cm = parseRelationalClassMappingBody(elementPath, setId, extendsSetId, root);
+            // Disambiguate clean-sheet body vs legacy DSL body
+            // (CLEAN_SHEET_INVERSION §5.1): a legacy body opens with a
+            // `~directive` or a `prop:` property mapping; anything else is a
+            // clean-sheet Pure expression (a function ref or an inline body).
+            if (isCleanSheetBody()) {
+                accum.classBindings.add(new MappingDefinition.ClassBinding(
+                        elementPath,
+                        pure ? MappingDefinition.Kind.PURE : MappingDefinition.Kind.RELATIONAL,
+                        setId, extendsSetId, root, parseCleanSheetBody(elementPath)));
+                return;
+            }
+            ClassMapping cm = pure
+                    ? parsePureClassMappingBody(elementPath, setId, extendsSetId, root)
+                    : parseRelationalClassMappingBody(elementPath, setId, extendsSetId, root);
             expect(TokenType.BRACE_CLOSE);
-            classMappings.add(cm);
-            return;
-        }
-        if (mappingTypeToken == TokenType.PURE_MAPPING) {
-            advance();
-            expect(TokenType.BRACE_OPEN);
-            ClassMapping cm = parsePureClassMappingBody(elementPath, setId, extendsSetId, root);
-            expect(TokenType.BRACE_CLOSE);
-            classMappings.add(cm);
+            accum.classMappings.add(cm);
             return;
         }
         // Reject anything else (Operation, AggregationAware, Relation, etc.)
         throw error("unsupported class mapping type: '" + safeText() + "'");
+    }
+
+    /**
+     * True if the kind block body (after the opening brace) is a clean-sheet
+     * Pure expression rather than a legacy DSL body. Two-token lookahead, no
+     * backtracking (CLEAN_SHEET_INVERSION §5.1): a legacy body opens with a
+     * {@code ~command} ({@code ~mainTable}/{@code ~src}/&hellip;, each its own
+     * token) or an {@code identifier ':'} property mapping; everything else is
+     * a clean-sheet expression (a function ref or an inline body, distinguished
+     * after parsing by {@link #parseCleanSheetBody}).
+     */
+    private boolean isCleanSheetBody() {
+        if (isLegacyMappingCommand(peek())) return false;                  // ~mainTable / ~filter / ~src / ...
+        if (isIdentifierToken(peek()) && peek(1) == TokenType.COLON) return false;  // prop: legacy PM
+        return true;
+    }
+
+    /** The {@code ~command} tokens that open a legacy class-mapping body. */
+    private static boolean isLegacyMappingCommand(TokenType t) {
+        return t == TokenType.MAIN_TABLE_CMD
+            || t == TokenType.FILTER_CMD
+            || t == TokenType.DISTINCT_CMD
+            || t == TokenType.GROUP_BY_CMD
+            || t == TokenType.PRIMARY_KEY_CMD
+            || t == TokenType.SRC_CMD;
+    }
+
+    /**
+     * Parse a clean-sheet kind-block body (the opening brace already consumed)
+     * into a {@link Realization}, then consume the closing
+     * brace. The body is parsed as a Pure expression and classified by shape
+     * (CLEAN_SHEET_INVERSION §5.3):
+     * <ul>
+     *   <li>a single bare element reference ({@code acme::funcs::personMapping})
+     *       &mdash; a {@link PackageableElementPtr} &mdash; is a function
+     *       reference ({@link Realization.Ref}, Door 1);</li>
+     *   <li>anything else (a call/pipeline/lambda) is an inline body
+     *       ({@link Realization.Inline}, Door 3), lifted to a
+     *       function by Phase E.</li>
+     * </ul>
+     */
+    private Realization parseCleanSheetBody(String elementPath) {
+        int bodyStart = pos;
+        int depth = 1;
+        while (!atEnd() && depth > 0) {
+            TokenType t = peek();
+            if (t == TokenType.BRACE_OPEN) depth++;
+            else if (t == TokenType.BRACE_CLOSE) depth--;
+            if (depth > 0) advance();
+        }
+        List<ValueSpecification> body = SpecParser.parseCodeBlock(tokens.slice(bodyStart, pos));
+        expect(TokenType.BRACE_CLOSE);
+        if (body.isEmpty()) {
+            throw error("clean-sheet mapping binding for '" + elementPath
+                + "' has an empty body");
+        }
+        return realizationOf(body);
     }
 
     /**
@@ -1656,10 +1781,10 @@ public final class ElementParser implements TokenStreamCursor {
         boolean distinct = false;
         List<RelationalOperation> groupBy = new ArrayList<>();
         List<RelationalOperation> primaryKey = new ArrayList<>();
-        MappingDefinition.TableReference mainTable = null;
+        LegacyMappingDefinition.TableReference mainTable = null;
         List<PropertyMapping> propertyMappings = new ArrayList<>();
 
-        MappingDefinition.TableReference savedScope = currentMappingScope;
+        LegacyMappingDefinition.TableReference savedScope = currentMappingScope;
         try {
             // 1. Optional ~filter (pre-mainTable; null scope).
             if (peek() == TokenType.FILTER_CMD) {
@@ -1755,7 +1880,7 @@ public final class ElementParser implements TokenStreamCursor {
      * Parse {@code [db::DB] TABLE_NAME} or {@code [db::DB] SCHEMA.TABLE}.
      * The {@code ~mainTable} command has already been consumed.
      */
-    private MappingDefinition.TableReference parseMappingMainTable() {
+    private LegacyMappingDefinition.TableReference parseMappingMainTable() {
         expect(TokenType.BRACKET_OPEN);
         String db = parseQualifiedName();
         expect(TokenType.BRACKET_CLOSE);
@@ -1764,7 +1889,7 @@ public final class ElementParser implements TokenStreamCursor {
             advance();
             table = table + "." + parseRelationalIdentifier();
         }
-        return new MappingDefinition.TableReference(db, table);
+        return new LegacyMappingDefinition.TableReference(db, table);
     }
 
     /**
@@ -1791,7 +1916,7 @@ public final class ElementParser implements TokenStreamCursor {
      * body alone → Embedded). The colon-introduced forms fall through
      * to {@link #parsePropertyMappingBody}.
      */
-    private PropertyMapping parsePropertyMapping(MappingDefinition.TableReference mainTable) {
+    private PropertyMapping parsePropertyMapping(LegacyMappingDefinition.TableReference mainTable) {
         if (peek() == TokenType.PLUS) {
             return parseLocalPropertyMapping(mainTable);
         }
@@ -1808,7 +1933,7 @@ public final class ElementParser implements TokenStreamCursor {
      * The leading {@code +} has not yet been consumed.
      */
     private PropertyMapping parseLocalPropertyMapping(
-            MappingDefinition.TableReference mainTable) {
+            LegacyMappingDefinition.TableReference mainTable) {
         expect(TokenType.PLUS);
         String propName = parseIdentifier();
         expect(TokenType.COLON);
@@ -1833,7 +1958,7 @@ public final class ElementParser implements TokenStreamCursor {
      * {@code mainTable} threads through unchanged.
      */
     private PropertyMapping parseEmbeddedPropertyMapping(
-            String propName, MappingDefinition.TableReference mainTable) {
+            String propName, LegacyMappingDefinition.TableReference mainTable) {
         expect(TokenType.PAREN_OPEN);
         if (peek() == TokenType.PAREN_CLOSE) {
             // Inline embedded: propName() Inline[setId]
@@ -1880,7 +2005,7 @@ public final class ElementParser implements TokenStreamCursor {
      * presence/absence of ScopeInfo.
      */
     private PropertyMapping parsePropertyMappingBody(
-            String propName, MappingDefinition.TableReference mainTable) {
+            String propName, LegacyMappingDefinition.TableReference mainTable) {
         // Optional EnumerationMapping prefix:
         //   prop: EnumerationMapping enumId : ...
         String enumMappingId = null;

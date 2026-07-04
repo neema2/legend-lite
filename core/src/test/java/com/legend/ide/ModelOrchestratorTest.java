@@ -6,7 +6,7 @@ import com.legend.parser.ParseException;
 import com.legend.parser.ParsedModel;
 import com.legend.parser.element.ClassDefinition;
 import com.legend.parser.element.FunctionDefinition;
-import com.legend.parser.element.MappingDefinition;
+import com.legend.parser.element.LegacyMappingDefinition;
 import com.legend.parser.element.PackageableElement;
 import com.legend.parser.spec.AppliedFunction;
 import com.legend.parser.spec.AppliedProperty;
@@ -218,10 +218,10 @@ final class ModelOrchestratorTest {
         // full stream and parses just that. Result must equal what the
         // eager path produced.
         ModelOrchestrator orch = new ModelOrchestrator(SOURCE);
-        MappingDefinition viaResolve = (MappingDefinition) orch.resolve("my::M");
-        MappingDefinition viaEager = (MappingDefinition) ElementParser.parse(SOURCE)
+        LegacyMappingDefinition viaResolve = (LegacyMappingDefinition) orch.resolve("my::M");
+        LegacyMappingDefinition viaEager = (LegacyMappingDefinition) ElementParser.parse(SOURCE)
                 .elements().stream()
-                .filter(e -> e instanceof MappingDefinition m && m.qualifiedName().equals("my::M"))
+                .filter(e -> e instanceof LegacyMappingDefinition m && m.qualifiedName().equals("my::M"))
                 .findFirst().orElseThrow();
         assertEquals(viaEager, viaResolve);
     }

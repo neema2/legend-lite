@@ -80,7 +80,12 @@ class NativeFunctionTest {
         // MappingNormalizer already emits for OtherwiseEmbedded PMs
         // (otherwise(^Inner(...), $row.<slot>)). Closes the emitted-but-
         // unregistered gap so the overload resolves (AGENTS.md invariant 1).
-        assertEquals(479, Pure.all().size(),
+        // 479 → 482: engine-corpus parity pass adds from<T>(T[*],mapping,runtime)
+        // (M2M execution binding) and the rows(…) frame overloads accepting
+        // unbounded() (engine ExtendWindowCheckerTest frame forms).
+        // 482 → 485: the clean-sheet navigate primitive lands (pre-map / post-map /
+        // inline overloads, MAPPING_CLEAN_SHEET.md §3) — the last §12 row.
+        assertEquals(485, Pure.all().size(),
                 "Pure.all() size pin: review the catalog if this changes");
     }
 
@@ -191,21 +196,21 @@ class NativeFunctionTest {
 
     @Test
     void ifWithEmptyArgFunctionType_pinShape() {
-        // if<T>(Boolean[1], Function<{->T[*]}>[1], Function<{->T[*]}>[1]): T[*]
-        // Exercises the empty-parameter-list function-type grammar `{->T[*]}`.
+        // Real legend-pure: if<T|m>(Boolean[1], Function<{->T[m]}>[1], Function<{->T[m]}>[1]): T[m]
+        // Exercises the empty-parameter-list function-type grammar `{->T[m]}` with a multiplicity var.
         TypeExpression thunkOfT = tg(Pure.FUNCTION, new FunctionType(
                 List.of(),
-                tp(nr("T"), Multiplicity.zeroMany())));
+                tp(nr("T"), Multiplicity.parameter("m"))));
         var expected = new NativeFunctionDefinition(
                 "if",
                 List.of("T"),
-                List.of(),
+                List.of("m"),
                 List.of(
                         new ParameterDefinition("test", nr(Pure.BOOLEAN), Multiplicity.exactly(1)),
                         new ParameterDefinition("then", thunkOfT, Multiplicity.exactly(1)),
                         new ParameterDefinition("else", thunkOfT, Multiplicity.exactly(1))),
                 nr("T"),
-                Multiplicity.zeroMany(),
+                Multiplicity.parameter("m"),
                 List.of(),
                 List.of());
         assertEquals(expected, Pure.IF__BOOLEAN_1__FUNCTION_1__FUNCTION_1);
@@ -368,7 +373,8 @@ class NativeFunctionTest {
     @Test
     void nativeClassCatalogSizeIsPinned() {
         // Update this deliberately when adding or removing native classes.
-        assertEquals(36, Pure.allNativeClasses().size(),
+        // 37: +StrictTime (real legend-pure meta::pure::metamodel::type::StrictTime).
+        assertEquals(37, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 

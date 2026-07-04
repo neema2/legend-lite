@@ -1734,9 +1734,11 @@ public final class SpecParser implements TokenStreamCursor {
                 return parseSingleParamLambda();
             }
         }
-        throw error(
-                "expected lambda after ':' in column spec, got " + t
-                + " ('" + safeText() + "')");
+        // Not a lambda: a general expression body (the clean-sheet navigate form
+        // `~firm: acme::Firm.all()`, MAPPING_CLEAN_SHEET.md §3.1) — wrapped as a
+        // zero-parameter thunk, so the AST stays uniformly lambda-shaped and the
+        // checker decides which enclosing calls admit expression bodies.
+        return new LambdaFunction(List.of(), List.of(parseCombinedExpression()));
     }
 
     // -------------------------------------------------------------------

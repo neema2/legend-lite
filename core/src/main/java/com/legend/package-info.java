@@ -16,7 +16,7 @@
  *   <li>{@code parser/}     — tokens → {@code parser.element.PackageableElement} (ElementParser)</li>
  *   <li>{@code parser/}     — tokens → {@code parser.spec.ValueSpecification} (SpecParser)</li>
  *   <li>{@code parser/}     — simple name → FQN (NameResolver)</li>
- *   <li>{@code normalizer/} — {@code MappingDefinition} → synth {@code FunctionDefinition}</li>
+ *   <li>{@code normalizer/} — {@code LegacyMappingDefinition} → binding-table {@code MappingDefinition} + lifted {@code FunctionDefinition}</li>
  *   <li>{@code compiler/}   — {@code PackageableElement} → {@code compiler.element.TypedElement} (ElementCompiler)</li>
  *   <li>{@code compiler/}   — {@code ValueSpecification} → {@code compiler.spec.TypedSpec} (SpecCompiler)</li>
  *   <li>{@code resolver/}   — logical {@code TypedSpec} → physical {@code TypedSpec} (MappingResolver, rules 1-4)</li>

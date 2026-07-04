@@ -1,5 +1,9 @@
-package com.legend.parser;
+package com.legend.compiler;
 
+import com.legend.builtin.Pure;
+import com.legend.parser.ImportScope;
+import com.legend.parser.ParsedModel;
+import com.legend.parser.TypeExpression;
 import com.legend.parser.element.AssociationDefinition;
 import com.legend.parser.element.AssociationDefinition.AssociationEndDefinition;
 import com.legend.parser.element.AssociationMapping;
@@ -21,10 +25,12 @@ import com.legend.parser.element.FilterMapping;
 import com.legend.parser.element.FilterPointer;
 import com.legend.parser.element.FunctionDefinition;
 import com.legend.parser.element.JoinChainElement;
+import com.legend.parser.element.LegacyMappingDefinition;
 import com.legend.parser.element.MappingDefinition;
-import com.legend.parser.element.MappingDefinition.MappingInclude;
-import com.legend.parser.element.MappingDefinition.MappingInclude.StoreSubstitution;
-import com.legend.parser.element.MappingDefinition.TableReference;
+import com.legend.parser.element.Realization;
+import com.legend.parser.element.MappingInclude;
+import com.legend.parser.element.MappingInclude.StoreSubstitution;
+import com.legend.parser.element.LegacyMappingDefinition.TableReference;
 import com.legend.parser.element.EnumDefinition;
 import com.legend.parser.element.EnumerationMapping;
 import com.legend.parser.element.EnumerationMapping.EnumValueMapping;
@@ -76,7 +82,7 @@ import java.util.Set;
  * <h2>Pipeline position (AGENTS.md)</h2>
  *
  * <pre>
- * ElementParser / SpecParser  &rarr;  <strong>ImportResolver</strong>  &rarr;  PureModelBuilder / TypeChecker
+ * ElementParser / SpecParser  &rarr;  <strong>NameResolver</strong>  &rarr;  PureModelBuilder / TypeChecker
  * </pre>
  *
  * <h2>Contract</h2>
@@ -121,23 +127,77 @@ import java.util.Set;
  * outer wrappers. A fully-resolved input graph round-trips through
  * {@code resolve(...)} without allocating new records.
  */
-public final class ImportResolver {
+public final class NameResolver {
 
-    private ImportResolver() {}
+    private NameResolver() {}
 
     // =================================================================
     // Public entry points
     // =================================================================
 
     /**
+     * Resolve {@code parsed} against the user's imports <em>plus the platform
+     * prelude</em>. This is the frontend entry point.
+     *
+     * <p>The prelude is the bootstrap import set (every {@link Pure} native
+     * class/enum) that is <strong>always in scope</strong> &mdash; the same way
+     * {@code java.lang} is auto-imported in Java, {@code scala.Predef} in Scala,
+     * or {@code std::prelude} is injected into every Rust module. A bare
+     * {@code String} therefore resolves to
+     * {@code meta::pure::metamodel::type::String} with no user import.
+     *
+     * <p>The prelude lives <strong>here</strong>, in the name-resolution layer
+     * that legitimately knows the builtin catalog &mdash; not in the pipeline
+     * driver. Knowing the fixed platform catalog is not "consulting the model"
+     * (AGENTS.md): the model is the user's compiled elements; the prelude is
+     * bootstrap data.
+     */
+    public static ParsedModel resolve(ParsedModel parsed) {
+        Objects.requireNonNull(parsed, "parsed");
+        ParsedModel scoped = new ParsedModel(parsed.elements(), withPrelude(parsed.imports()));
+        return resolve(scoped, knownFqns(parsed.elements()));
+    }
+
+    /**
      * Resolve every simple name reference in {@code model} to its FQN
-     * using {@code model.imports()} and {@code knownFqns}.
+     * using {@code model.imports()} and {@code knownFqns}. Lower-level entry:
+     * the caller supplies the full import scope and FQN universe (the
+     * prelude-aware {@link #resolve(ParsedModel)} is the usual entry).
      */
     public static ParsedModel resolve(ParsedModel model, Set<String> knownFqns) {
         Scope scope = Scope.of(model.imports(), knownFqns);
         List<PackageableElement> resolved = resolveElementList(model.elements(), scope);
         return resolved == model.elements() ? model
                 : new ParsedModel(resolved, model.imports());
+    }
+
+    /** User imports merged with the always-in-scope platform prelude. */
+    private static ImportScope withPrelude(ImportScope user) {
+        ImportScope.Builder b = new ImportScope.Builder();
+        for (String wildcard : user.wildcards()) {
+            b.add(wildcard + "::*");
+        }
+        for (String fqn : user.typeImports().values()) {
+            b.add(fqn);
+        }
+        for (String fqn : Pure.nativeClassFqns()) {
+            b.add(fqn);
+        }
+        for (String fqn : Pure.nativeEnumFqns()) {
+            b.add(fqn);
+        }
+        return b.build();
+    }
+
+    /** Declared element FQNs + platform FQNs: the wildcard-disambiguation universe. */
+    private static Set<String> knownFqns(List<PackageableElement> elements) {
+        Set<String> known = new HashSet<>();
+        for (PackageableElement el : elements) {
+            known.add(el.qualifiedName());
+        }
+        known.addAll(Pure.nativeClassFqns());
+        known.addAll(Pure.nativeEnumFqns());
+        return known;
     }
 
     private static PackageableElement resolveElement(
@@ -147,7 +207,7 @@ public final class ImportResolver {
             case AssociationDefinition ad -> resolveAssociation(ad, scope);
             case FunctionDefinition fd -> resolveFunction(fd, scope);
             case NativeFunctionDefinition nfd -> resolveNativeFunction(nfd, scope);
-            case MappingDefinition md -> resolveMapping(md, scope);
+            case LegacyMappingDefinition md -> resolveMapping(md, scope);
             case DatabaseDefinition db -> resolveDatabase(db, scope);
             case RuntimeDefinition rd -> resolveRuntime(rd, scope);
             case ServiceDefinition sd -> resolveService(sd, scope);
@@ -157,6 +217,10 @@ public final class ImportResolver {
             // skipping resolution.
             case EnumDefinition ed -> ed;
             case ProfileDefinition pd -> pd;
+            // The canonical (binding-table) MappingDefinition is produced
+            // directly by Door 1 (clean-sheet text), so it reaches the resolver
+            // and its binding FQNs must be resolved like any other element's.
+            case MappingDefinition md -> resolveCanonicalMapping(md, scope);
         };
     }
 
@@ -169,6 +233,28 @@ public final class ImportResolver {
     public static ValueSpecification resolve(
             ValueSpecification vs, Scope scope) {
         return resolveVs(vs, scope);
+    }
+
+    /**
+     * Resolve a <strong>standalone query</strong> expression &mdash; real
+     * legend-engine's SECTIONLESS-lambda scope ({@code CompileContext.META_IMPORTS}):
+     * the platform prelude is always in scope (&ldquo;system elements will always
+     * be resolved no matter what&rdquo;), so {@code JoinKind.INNER} or
+     * {@code SortDirection.DESC} resolve bare; user elements require full paths,
+     * exactly like an ad-hoc lambda with no import-bearing section. An unresolved
+     * bare name passes through and fails loudly in Phase G.
+     */
+    public static ValueSpecification resolveQuery(ValueSpecification query) {
+        return resolveVs(query, QUERY_SCOPE);
+    }
+
+    /** The sectionless-query scope: prelude imports only; the native FQN universe. */
+    private static final Scope QUERY_SCOPE = querycope();
+
+    private static Scope querycope() {
+        Set<String> known = new HashSet<>(Pure.nativeClassFqns());
+        known.addAll(Pure.nativeEnumFqns());
+        return Scope.of(withPrelude(new ImportScope.Builder().build()), Set.copyOf(known));
     }
 
     private static TypeExpression resolveType(
@@ -187,14 +273,14 @@ public final class ImportResolver {
             }
             case TypeExpression.FunctionType ft -> {
                 List<TypeExpression.TypedParameter> params = resolveList(
-                        ft.parameters(), ImportResolver::resolveTypedParameter, scope);
+                        ft.parameters(), NameResolver::resolveTypedParameter, scope);
                 TypeExpression.TypedParameter result = resolveTypedParameter(ft.result(), scope);
                 yield (params == ft.parameters() && result == ft.result()) ? ft
                         : new TypeExpression.FunctionType(params, result);
             }
             case TypeExpression.RelationType rt -> {
                 List<TypeExpression.Column> cols = resolveList(
-                        rt.columns(), ImportResolver::resolveColumn, scope);
+                        rt.columns(), NameResolver::resolveColumn, scope);
                 yield cols == rt.columns() ? rt : new TypeExpression.RelationType(cols);
             }
             case TypeExpression.SchemaAlgebra sa -> {
@@ -284,12 +370,12 @@ public final class ImportResolver {
     private static DerivedPropertyDefinition resolveDerivedProperty(
             DerivedPropertyDefinition dp, Scope scope) {
         List<ParameterDefinition> params = resolveParameterList(dp.parameters(), scope);
-        List<ValueSpecification> body = resolveVsList(dp.expression(), scope);
+        Realization realization = resolveRealization(dp.realization(), scope);
         TypeExpression type = resolveType(dp.type(), scope);
-        if (params == dp.parameters() && body == dp.expression() && type == dp.type()) {
+        if (params == dp.parameters() && realization == dp.realization() && type == dp.type()) {
             return dp;
         }
-        return new DerivedPropertyDefinition(dp.name(), params, body, type, dp.multiplicity());
+        return new DerivedPropertyDefinition(dp.name(), params, realization, type, dp.multiplicity());
     }
 
     private static ParameterDefinition resolveParameter(
@@ -301,8 +387,8 @@ public final class ImportResolver {
 
     private static ConstraintDefinition resolveConstraint(
             ConstraintDefinition c, Scope scope) {
-        ValueSpecification expr = resolveVs(c.expression(), scope);
-        return expr == c.expression() ? c : new ConstraintDefinition(c.name(), expr);
+        Realization realization = resolveRealization(c.realization(), scope);
+        return realization == c.realization() ? c : new ConstraintDefinition(c.name(), realization);
     }
 
     private static AssociationDefinition resolveAssociation(
@@ -368,8 +454,8 @@ public final class ImportResolver {
     // Mapping
     // =================================================================
 
-    private static MappingDefinition resolveMapping(
-            MappingDefinition md, Scope scope) {
+    private static LegacyMappingDefinition resolveMapping(
+            LegacyMappingDefinition md, Scope scope) {
         List<MappingInclude> includes = resolveMappingIncludes(md.includes(), scope);
         List<ClassMapping> classMappings = resolveClassMappings(md.classMappings(), scope);
         List<AssociationMapping> assocMappings = resolveAssociationMappings(
@@ -381,13 +467,78 @@ public final class ImportResolver {
                 && enumMappings == md.enumerationMappings()) {
             return md;
         }
-        return new MappingDefinition(md.qualifiedName(), includes, classMappings,
+        return new LegacyMappingDefinition(md.qualifiedName(), includes, classMappings,
                 assocMappings, enumMappings, md.testSuitesSource());
+    }
+
+    /**
+     * Resolve a canonical (binding-table) {@link MappingDefinition} produced by
+     * Door 1. Every binding references types/functions by FQN; a clean-sheet
+     * author writes those as simple names under {@code import}, so each must be
+     * resolved here exactly like the legacy form's class/association mappings.
+     * {@code setId}/{@code extendsSetId}/{@code root}/{@code kind} are not names
+     * (set ids are local; kind/root are flags) and pass through unchanged.
+     * Reference-equality preserved when nothing resolved.
+     */
+    private static MappingDefinition resolveCanonicalMapping(
+            MappingDefinition md, Scope scope) {
+        List<MappingInclude> includes = resolveMappingIncludes(md.includes(), scope);
+        List<MappingDefinition.ClassBinding> classBindings =
+                resolveList(md.classBindings(), NameResolver::resolveClassBinding, scope);
+        List<MappingDefinition.AssociationBinding> assocBindings =
+                resolveList(md.associationBindings(), NameResolver::resolveAssociationBinding, scope);
+        List<EnumerationMapping> enumMappings = resolveEnumerationMappings(
+                md.enumerationMappings(), scope);
+        if (includes == md.includes() && classBindings == md.classBindings()
+                && assocBindings == md.associationBindings()
+                && enumMappings == md.enumerationMappings()) {
+            return md;
+        }
+        return new MappingDefinition(md.qualifiedName(), includes, classBindings,
+                assocBindings, enumMappings, md.testSuitesSource());
+    }
+
+    private static MappingDefinition.ClassBinding resolveClassBinding(
+            MappingDefinition.ClassBinding b, Scope scope) {
+        String classFqn = resolveName(b.classFqn(), scope);
+        Realization realization = resolveRealization(b.realization(), scope);
+        if (classFqn.equals(b.classFqn()) && realization == b.realization()) return b;
+        return new MappingDefinition.ClassBinding(
+                classFqn, b.kind(), b.setId(), b.extendsSetId(), b.root(), realization);
+    }
+
+    private static MappingDefinition.AssociationBinding resolveAssociationBinding(
+            MappingDefinition.AssociationBinding b, Scope scope) {
+        String assocFqn = resolveName(b.associationFqn(), scope);
+        Realization realization = resolveRealization(b.realization(), scope);
+        if (assocFqn.equals(b.associationFqn()) && realization == b.realization()) return b;
+        return new MappingDefinition.AssociationBinding(assocFqn, realization);
+    }
+
+    /**
+     * Resolve a binding realization: a {@code Ref} resolves its function FQN; an
+     * {@code Inline} resolves the names inside its expression body (it is an
+     * ordinary {@link ValueSpecification}). Reference-equality preserved.
+     */
+    private static Realization resolveRealization(
+            Realization r, Scope scope) {
+        return switch (r) {
+            case Realization.Ref ref -> {
+                String fqn = resolveName(ref.functionFqn(), scope);
+                yield fqn.equals(ref.functionFqn()) ? ref
+                        : new Realization.Ref(fqn);
+            }
+            case Realization.Inline inl -> {
+                List<ValueSpecification> body = resolveList(inl.body(), NameResolver::resolveVs, scope);
+                yield body == inl.body() ? inl
+                        : new Realization.Inline(body);
+            }
+        };
     }
 
     private static List<EnumerationMapping> resolveEnumerationMappings(
             List<EnumerationMapping> mappings, Scope scope) {
-        return resolveList(mappings, ImportResolver::resolveEnumerationMapping, scope);
+        return resolveList(mappings, NameResolver::resolveEnumerationMapping, scope);
     }
 
     private static EnumerationMapping resolveEnumerationMapping(
@@ -408,12 +559,12 @@ public final class ImportResolver {
 
     private static List<EnumValueMapping> resolveEnumValueMappings(
             List<EnumValueMapping> values, Scope scope) {
-        return resolveList(values, ImportResolver::resolveEnumValueMapping, scope);
+        return resolveList(values, NameResolver::resolveEnumValueMapping, scope);
     }
 
     private static List<SourceValue> resolveSourceValues(
             List<SourceValue> sources, Scope scope) {
-        return resolveList(sources, ImportResolver::resolveSourceValue, scope);
+        return resolveList(sources, NameResolver::resolveSourceValue, scope);
     }
 
     private static SourceValue resolveSourceValue(
@@ -439,7 +590,7 @@ public final class ImportResolver {
 
     private static List<MappingInclude> resolveMappingIncludes(
             List<MappingInclude> includes, Scope scope) {
-        return resolveList(includes, ImportResolver::resolveMappingInclude, scope);
+        return resolveList(includes, NameResolver::resolveMappingInclude, scope);
     }
 
     private static StoreSubstitution resolveStoreSubstitution(
@@ -452,12 +603,12 @@ public final class ImportResolver {
 
     private static List<StoreSubstitution> resolveStoreSubstitutions(
             List<StoreSubstitution> subs, Scope scope) {
-        return resolveList(subs, ImportResolver::resolveStoreSubstitution, scope);
+        return resolveList(subs, NameResolver::resolveStoreSubstitution, scope);
     }
 
     private static List<ClassMapping> resolveClassMappings(
             List<ClassMapping> mappings, Scope scope) {
-        return resolveList(mappings, ImportResolver::resolveClassMapping, scope);
+        return resolveList(mappings, NameResolver::resolveClassMapping, scope);
     }
 
     private static ClassMapping resolveClassMapping(
@@ -508,12 +659,12 @@ public final class ImportResolver {
 
     private static List<ClassMapping.Pure.PropertyBinding> resolvePropertyBindings(
             List<ClassMapping.Pure.PropertyBinding> bindings, Scope scope) {
-        return resolveList(bindings, ImportResolver::resolvePropertyBinding, scope);
+        return resolveList(bindings, NameResolver::resolvePropertyBinding, scope);
     }
 
     private static List<AssociationMapping> resolveAssociationMappings(
             List<AssociationMapping> mappings, Scope scope) {
-        return resolveList(mappings, ImportResolver::resolveAssociationMapping, scope);
+        return resolveList(mappings, NameResolver::resolveAssociationMapping, scope);
     }
 
     private static AssociationMapping resolveAssociationMapping(
@@ -538,7 +689,7 @@ public final class ImportResolver {
 
     private static List<AssociationPropertyMapping> resolveAssocPropMappingList(
             List<AssociationPropertyMapping> list, Scope scope) {
-        return resolveList(list, ImportResolver::resolveAssocPropMapping, scope);
+        return resolveList(list, NameResolver::resolveAssocPropMapping, scope);
     }
 
     // =================================================================
@@ -547,7 +698,7 @@ public final class ImportResolver {
 
     private static List<PropertyMapping> resolvePropertyMappingList(
             List<PropertyMapping> list, Scope scope) {
-        return resolveList(list, ImportResolver::resolvePropertyMapping, scope);
+        return resolveList(list, NameResolver::resolvePropertyMapping, scope);
     }
 
     private static PropertyMapping resolvePropertyMapping(
@@ -637,7 +788,7 @@ public final class ImportResolver {
 
     private static List<SchemaDefinition> resolveSchemas(
             List<SchemaDefinition> schemas, Scope scope) {
-        return resolveList(schemas, ImportResolver::resolveSchema, scope);
+        return resolveList(schemas, NameResolver::resolveSchema, scope);
     }
 
     private static ViewDefinition resolveView(ViewDefinition v, Scope scope) {
@@ -651,7 +802,7 @@ public final class ImportResolver {
 
     private static List<ViewDefinition> resolveViews(
             List<ViewDefinition> views, Scope scope) {
-        return resolveList(views, ImportResolver::resolveView, scope);
+        return resolveList(views, NameResolver::resolveView, scope);
     }
 
     private static ViewColumnMapping resolveViewColumn(ViewColumnMapping c, Scope scope) {
@@ -662,7 +813,7 @@ public final class ImportResolver {
 
     private static List<ViewColumnMapping> resolveViewColumns(
             List<ViewColumnMapping> cols, Scope scope) {
-        return resolveList(cols, ImportResolver::resolveViewColumn, scope);
+        return resolveList(cols, NameResolver::resolveViewColumn, scope);
     }
 
     private static JoinDefinition resolveJoin(JoinDefinition j, Scope scope) {
@@ -672,7 +823,7 @@ public final class ImportResolver {
 
     private static List<JoinDefinition> resolveJoins(
             List<JoinDefinition> joins, Scope scope) {
-        return resolveList(joins, ImportResolver::resolveJoin, scope);
+        return resolveList(joins, NameResolver::resolveJoin, scope);
     }
 
     private static FilterDefinition resolveFilter(FilterDefinition f, Scope scope) {
@@ -682,7 +833,7 @@ public final class ImportResolver {
 
     private static List<FilterDefinition> resolveFilters(
             List<FilterDefinition> filters, Scope scope) {
-        return resolveList(filters, ImportResolver::resolveFilter, scope);
+        return resolveList(filters, NameResolver::resolveFilter, scope);
     }
 
     // =================================================================
@@ -774,7 +925,7 @@ public final class ImportResolver {
 
     private static List<JoinChainElement> resolveJoinChain(
             List<JoinChainElement> chain, Scope scope) {
-        return resolveList(chain, ImportResolver::resolveJoinChainElement, scope);
+        return resolveList(chain, NameResolver::resolveJoinChainElement, scope);
     }
 
     // =================================================================
@@ -848,7 +999,7 @@ public final class ImportResolver {
 
     private static List<RelationalOperation> resolveRelOpList(
             List<RelationalOperation> ops, Scope scope) {
-        return resolveList(ops, ImportResolver::resolveRelOp, scope);
+        return resolveList(ops, NameResolver::resolveRelOp, scope);
     }
 
     // =================================================================
@@ -864,7 +1015,7 @@ public final class ImportResolver {
 
     private static List<StereotypeApplication> resolveStereotypes(
             List<StereotypeApplication> apps, Scope scope) {
-        return resolveList(apps, ImportResolver::resolveStereotype, scope);
+        return resolveList(apps, NameResolver::resolveStereotype, scope);
     }
 
     private static TaggedValue resolveTaggedValue(TaggedValue tv, Scope scope) {
@@ -875,7 +1026,7 @@ public final class ImportResolver {
 
     private static List<TaggedValue> resolveTaggedValues(
             List<TaggedValue> tvs, Scope scope) {
-        return resolveList(tvs, ImportResolver::resolveTaggedValue, scope);
+        return resolveList(tvs, NameResolver::resolveTaggedValue, scope);
     }
 
     // =================================================================
@@ -940,7 +1091,7 @@ public final class ImportResolver {
             }
             case ColSpec cs -> resolveColSpec(cs, scope);
             case ColSpecArray csa -> {
-                List<ColSpec> out = resolveList(csa.colSpecs(), ImportResolver::resolveColSpec, scope);
+                List<ColSpec> out = resolveList(csa.colSpecs(), NameResolver::resolveColSpec, scope);
                 yield out == csa.colSpecs() ? csa : new ColSpecArray(out);
             }
             case TypeAnnotation ta -> resolveTypeAnnotation(ta, scope);
@@ -961,7 +1112,7 @@ public final class ImportResolver {
 
     private static List<ValueSpecification> resolveVsList(
             List<ValueSpecification> list, Scope scope) {
-        return resolveList(list, ImportResolver::resolveVs, scope);
+        return resolveList(list, NameResolver::resolveVs, scope);
     }
 
     private static Variable resolveVariable(Variable v, Scope scope) {
@@ -971,7 +1122,7 @@ public final class ImportResolver {
 
     private static List<Variable> resolveVariableList(
             List<Variable> vars, Scope scope) {
-        return resolveList(vars, ImportResolver::resolveVariable, scope);
+        return resolveList(vars, NameResolver::resolveVariable, scope);
     }
 
     /**
@@ -1031,7 +1182,7 @@ public final class ImportResolver {
             case TypeAnnotation.Wildcard ignored -> ta;
             case TypeAnnotation.RelationShape shape -> {
                 List<TypeAnnotation.RelationShape.Column> out = resolveList(
-                        shape.columns(), ImportResolver::resolveRelationShapeColumn, scope);
+                        shape.columns(), NameResolver::resolveRelationShapeColumn, scope);
                 yield out == shape.columns() ? shape
                         : new TypeAnnotation.RelationShape(out);
             }
@@ -1073,37 +1224,37 @@ public final class ImportResolver {
     }
 
     private static List<PackageableElement> resolveElementList(List<PackageableElement> els, Scope scope) {
-        return resolveList(els, ImportResolver::resolveElement, scope);
+        return resolveList(els, NameResolver::resolveElement, scope);
     }
 
     private static List<TypeExpression> resolveTypeList(List<TypeExpression> types, Scope scope) {
-        return resolveList(types, ImportResolver::resolveType, scope);
+        return resolveList(types, NameResolver::resolveType, scope);
     }
 
     private static List<PropertyDefinition> resolvePropertyList(List<PropertyDefinition> props, Scope scope) {
-        return resolveList(props, ImportResolver::resolveProperty, scope);
+        return resolveList(props, NameResolver::resolveProperty, scope);
     }
 
     private static List<DerivedPropertyDefinition> resolveDerivedList(List<DerivedPropertyDefinition> derived, Scope scope) {
-        return resolveList(derived, ImportResolver::resolveDerivedProperty, scope);
+        return resolveList(derived, NameResolver::resolveDerivedProperty, scope);
     }
 
     private static List<ParameterDefinition> resolveParameterList(List<ParameterDefinition> params, Scope scope) {
-        return resolveList(params, ImportResolver::resolveParameter, scope);
+        return resolveList(params, NameResolver::resolveParameter, scope);
     }
 
     private static List<ConstraintDefinition> resolveConstraintList(List<ConstraintDefinition> constraints, Scope scope) {
-        return resolveList(constraints, ImportResolver::resolveConstraint, scope);
+        return resolveList(constraints, NameResolver::resolveConstraint, scope);
     }
 
     private static List<FunctionDefinition.ParameterDefinition> resolveFunctionParams(
             List<FunctionDefinition.ParameterDefinition> params, Scope scope) {
-        return resolveList(params, ImportResolver::resolveFunctionParam, scope);
+        return resolveList(params, NameResolver::resolveFunctionParam, scope);
     }
 
     /** Resolve every entry in a list of FQN strings (e.g. db includes). */
     private static List<String> resolveFqnList(List<String> fqns, Scope scope) {
-        return resolveList(fqns, ImportResolver::resolveName, scope);
+        return resolveList(fqns, NameResolver::resolveName, scope);
     }
 
     private static Map<String, String> resolveFqnMapKeysAndValues(

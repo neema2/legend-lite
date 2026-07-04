@@ -1,173 +1,124 @@
 package com.legend.parser.element;
 
+import com.legend.parser.spec.ValueSpecification;
+
 import java.util.List;
 import java.util.Objects;
 
 /**
- * A parsed Pure {@code Mapping} declaration &mdash; the bridge between
- * Pure classes (logical model) and stores (physical data).
+ * The canonical {@code Mapping} element &mdash; a <strong>binding table</strong>
+ * (docs/CLEAN_SHEET_INVERSION.md §2.1). Structure only: each binding pairs a
+ * class / association with a realizing function <em>by FQN</em>; no
+ * {@code ValueSpecification} and no DSL body lives here. This is the form every
+ * phase after E sees and the form the clean-sheet surface parses to directly
+ * (Door 1); the legacy DSL ({@link LegacyMappingDefinition}) is rewritten into
+ * it by {@code MappingNormalizer}.
  *
- * <p>Pure syntax:
- * <pre>
- *   Mapping package::MappingName
- *   (
- *     include other::BaseMapping [origStore -&gt; newStore]
- *
- *     *model::Person[setId] extends [parentSetId]: Relational
- *     {
- *       ~mainTable [db::DB] PERSON
- *       ~filter [db::DB] ActivePersonFilter
- *       ~distinct
- *       ~groupBy(PERSON.DEPT_ID)
- *       ~primaryKey(PERSON.ID)
- *       firstName: PERSON.FIRST_NAME,
- *       lastName:  EnumerationMapping NameStyle : PERSON.LAST_NAME,
- *       firm:      [db::DB] @Person_Firm,
- *       address:   [db::DB] @Person_Address &gt; @Address_City | CITY.NAME,
- *       fullName:  concat(PERSON.FIRST_NAME, ' ', PERSON.LAST_NAME)
- *     }
- *   )
- * </pre>
- *
- * <h2>Sub-slice scope</h2>
- * <ul>
- *   <li>B.4b: relational class mappings ({@link ClassMapping.Relational})</li>
- *   <li>B.4c: relational association mappings ({@link AssociationMapping.Relational})</li>
- *   <li>B.4d: enumeration mappings ({@link EnumerationMapping})</li>
- *   <li>B.4e &mdash; M2M / Pure-instance class mappings &mdash; deferred (will add
- *       new {@link ClassMapping} variants)</li>
- *   <li>B.4f: mapping test suites &mdash; captured as raw {@code testSuitesSource}
- *       text (D-3 deferred parsing)</li>
- * </ul>
- * The {@link ClassMapping} and {@link AssociationMapping} sealed types are
- * intentionally open so future slices add variants without reshaping
- * {@code MappingDefinition} itself.
+ * <p>Bodies live in ordinary {@link FunctionDefinition}s in the model's element
+ * list, lifted by Phase E and named per {@code SynthFqn} (the
+ * {@code <mapping>$class$<classFqn>} / {@code <mapping>$assoc$<assocFqn>}
+ * scheme). A {@link ClassBinding#functionFqn()} is exactly the lifted
+ * function's FQN, so dispatch (§6) is: binding table &rarr; FQN &rarr; the one
+ * {@code findFunction} index. Nothing reconstructs or parses these strings.
  *
  * @param qualifiedName        fully-qualified mapping name
- * @param includes             other mappings included, with optional store substitutions
- * @param classMappings        per-class mappings ({@link ClassMapping.Relational}
- *                             in B.4b; {@link ClassMapping.Pure} added in B.4e)
- * @param associationMappings  per-association mappings ({@link AssociationMapping.Relational}
- *                             in B.4c)
- * @param enumerationMappings  per-enumeration mappings (B.4d); each
- *                             translates source values to enum members
- * @param testSuitesSource     raw text of the {@code testSuites: [...]} block
- *                             when present (B.4f, D-3 deferred); {@code null}
- *                             when no test suites were declared
- * @param mappingFunctions     synth Layer-2 {@link FunctionDefinition}s produced
- *                             by {@link com.legend.normalizer.MappingNormalizer}
- *                             (Phase E). One per {@link ClassMapping}; each
- *                             returns {@code TargetClass[*]} and its body
- *                             ends in {@code map(<bind> | ^Target(...))}.
- *                             Empty pre-normalize; populated post-normalize.
+ * @param includes             included mappings, with optional store substitutions
+ * @param classBindings        per-class realizing-function bindings
+ * @param associationBindings  per-association predicate-function bindings
+ * @param enumerationMappings  per-enumeration mappings (inline static tables &mdash;
+ *                             data, not expressions, so they stay structural)
+ * @param testSuitesSource     raw {@code testSuites: [...]} text, or {@code null}
  */
 public record MappingDefinition(
         String qualifiedName,
         List<MappingInclude> includes,
-        List<ClassMapping> classMappings,
-        List<AssociationMapping> associationMappings,
+        List<ClassBinding> classBindings,
+        List<AssociationBinding> associationBindings,
         List<EnumerationMapping> enumerationMappings,
-        String testSuitesSource,
-        List<FunctionDefinition> mappingFunctions) implements PackageableElement {
+        String testSuitesSource)
+        implements PackageableElement {
 
     public MappingDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
         includes = includes == null ? List.of() : List.copyOf(includes);
-        classMappings = classMappings == null ? List.of() : List.copyOf(classMappings);
-        associationMappings = associationMappings == null ? List.of() : List.copyOf(associationMappings);
+        classBindings = classBindings == null ? List.of() : List.copyOf(classBindings);
+        associationBindings = associationBindings == null ? List.of() : List.copyOf(associationBindings);
         enumerationMappings = enumerationMappings == null ? List.of() : List.copyOf(enumerationMappings);
-        mappingFunctions = mappingFunctions == null ? List.of() : List.copyOf(mappingFunctions);
-        // testSuitesSource intentionally nullable: presence/absence with
-        // no structural variant (Phase C parses the captured text lazily).
     }
 
-    /**
-     * Convenience constructor preserving the pre-Phase-E surface (no
-     * synth functions yet). Callers in the parser pipeline build
-     * mappings before normalization runs; the {@code mappingFunctions}
-     * list defaults to empty.
-     */
-    public MappingDefinition(
-            String qualifiedName,
-            List<MappingInclude> includes,
-            List<ClassMapping> classMappings,
-            List<AssociationMapping> associationMappings,
-            List<EnumerationMapping> enumerationMappings,
-            String testSuitesSource) {
-        this(qualifiedName, includes, classMappings, associationMappings,
-             enumerationMappings, testSuitesSource, List.of());
-    }
+    /** Class-mapping kind tag. Both kinds realize {@code Class[*]}; the tag is a
+     * property of the binding relationship, not derivable from the function
+     * (MAPPING_CLEAN_SHEET.md §1). */
+    public enum Kind { RELATIONAL, PURE }
 
     /**
-     * Return a copy of this mapping with {@code mappingFunctions}
-     * replaced. Used by {@link com.legend.normalizer.MappingNormalizer}
-     * to attach the synthesized Layer-2 functions without mutating the
-     * original parser output.
-     */
-    public MappingDefinition withMappingFunctions(List<FunctionDefinition> functions) {
-        Objects.requireNonNull(functions, "functions");
-        return new MappingDefinition(
-                qualifiedName, includes, classMappings,
-                associationMappings, enumerationMappings, testSuitesSource,
-                List.copyOf(functions));
-    }
-
-    /**
-     * Return a copy of this mapping with {@code classMappings}
-     * replaced. Used by {@code ModelBuilder.from()} to cross-bake
-     * synthetic {@link ClassMapping.Relational}s derived from
-     * {@code JsonModelConnection} bindings on bound runtimes (engine
-     * parity: {@code RelationalMapping.variantIdentity} + per-mapping
-     * registration in {@code PureModelBuilder.addRuntime}).
-     */
-    public MappingDefinition withClassMappings(List<ClassMapping> newClassMappings) {
-        Objects.requireNonNull(newClassMappings, "classMappings");
-        return new MappingDefinition(
-                qualifiedName, includes, List.copyOf(newClassMappings),
-                associationMappings, enumerationMappings, testSuitesSource,
-                mappingFunctions);
-    }
-
-    /**
-     * An {@code include} clause:
-     * <pre>
-     *   include other::BaseMapping
-     *   include other::BaseMapping [oldStore -&gt; newStore, oldStore2 -&gt; newStore2]
-     * </pre>
+     * A class binding: structure only; the body is a {@link Realization}
+     * (function ref or &mdash; B&rarr;E only &mdash; an inline expression).
      *
-     * @param mappingPath    fully-qualified path of the included mapping
-     * @param substitutions  store substitutions applied during inclusion;
-     *                       empty list when none were written
+     * @param classFqn      the mapped class
+     * @param kind          {@code RELATIONAL} | {@code PURE}
+     * @param setId         explicit set identifier, or {@code null} for the default set
+     * @param extendsSetId  parent set id for {@code extends [parentId]}, or {@code null}
+     * @param root          {@code true} when marked root ({@code *})
+     * @param realization   how the binding is realized ({@link Realization.Ref} /
+     *                      {@link Realization.Inline})
      */
-    public record MappingInclude(String mappingPath, List<StoreSubstitution> substitutions) {
-        public MappingInclude {
-            Objects.requireNonNull(mappingPath, "Mapping path cannot be null");
-            substitutions = substitutions == null ? List.of() : List.copyOf(substitutions);
+    public record ClassBinding(
+            String classFqn,
+            Kind kind,
+            String setId,
+            String extendsSetId,
+            boolean root,
+            Realization realization) {
+        public ClassBinding {
+            Objects.requireNonNull(classFqn, "classFqn");
+            Objects.requireNonNull(kind, "kind");
+            Objects.requireNonNull(realization, "realization");
         }
 
-        /** A single {@code oldStore -> newStore} pair inside an include's bracket list. */
-        public record StoreSubstitution(String originalStore, String replacementStore) {
-            public StoreSubstitution {
-                Objects.requireNonNull(originalStore, "Original store cannot be null");
-                Objects.requireNonNull(replacementStore, "Replacement store cannot be null");
-            }
+        /** Convenience: a function-ref binding (Door 1 / post-lift). */
+        public ClassBinding(String classFqn, Kind kind, String setId,
+                            String extendsSetId, boolean root, String functionFqn) {
+            this(classFqn, kind, setId, extendsSetId, root, new Realization.Ref(functionFqn));
+        }
+
+        /**
+         * The realizing function's FQN. Valid only when the realization is a
+         * {@link Realization.Ref} &mdash; always true after Phase E, since the
+         * normalizer lifts every {@link Realization.Inline}. Throws on an
+         * unlifted inline binding (a phase-ordering bug, surfaced loudly).
+         */
+        public String functionFqn() {
+            if (realization instanceof Realization.Ref r) return r.functionFqn();
+            throw new IllegalStateException(
+                    "class binding for '" + classFqn + "' is an unlifted inline body");
         }
     }
 
     /**
-     * A db-qualified table reference: {@code [database::name] TABLE_NAME}.
-     * Used for class-mapping main tables and (in later slices) other
-     * relational anchors. Both fields are required; bare-table references
-     * inside mapping context are rejected by the parser (engine parity:
-     * mappings always specify the source database).
+     * An association binding: the association realized by a predicate. The body
+     * is a {@link Realization} (a predicate-function ref, or &mdash; B&rarr;E
+     * only &mdash; an inline {@code (Source[1], Target[1]) -> Boolean[1]} lambda).
      *
-     * @param database  fully-qualified database name (from the {@code [..]} bracket)
-     * @param table     table name
+     * @param associationFqn the mapped association
+     * @param realization    how the predicate is realized
      */
-    public record TableReference(String database, String table) {
-        public TableReference {
-            Objects.requireNonNull(database, "Database cannot be null");
-            Objects.requireNonNull(table, "Table cannot be null");
+    public record AssociationBinding(String associationFqn, Realization realization) {
+        public AssociationBinding {
+            Objects.requireNonNull(associationFqn, "associationFqn");
+            Objects.requireNonNull(realization, "realization");
+        }
+
+        /** Convenience: a function-ref predicate binding (Door 1 / post-lift). */
+        public AssociationBinding(String associationFqn, String predicateFunctionFqn) {
+            this(associationFqn, new Realization.Ref(predicateFunctionFqn));
+        }
+
+        /** The predicate function's FQN. Valid only post-lift (see {@link ClassBinding#functionFqn()}). */
+        public String predicateFunctionFqn() {
+            if (realization instanceof Realization.Ref r) return r.functionFqn();
+            throw new IllegalStateException(
+                    "association binding for '" + associationFqn + "' is an unlifted inline body");
         }
     }
 }

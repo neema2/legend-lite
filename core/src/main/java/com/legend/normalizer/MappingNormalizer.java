@@ -1,6 +1,7 @@
 package com.legend.normalizer;
 
 import com.legend.compiler.ModelBuilder;
+import com.legend.compiler.SynthFqn;
 import com.legend.parser.Multiplicity;
 import com.legend.parser.ParsedModel;
 import com.legend.parser.TypeExpression;
@@ -17,9 +18,12 @@ import com.legend.parser.element.FilterPointer;
 import com.legend.parser.element.FunctionDefinition;
 import com.legend.parser.element.JoinChainElement;
 import com.legend.parser.element.LogicalOp;
+import com.legend.parser.element.LegacyMappingDefinition;
 import com.legend.parser.element.MappingDefinition;
+import com.legend.parser.element.Realization;
 import com.legend.parser.element.PackageableElement;
 import com.legend.parser.element.PropertyMapping;
+import com.legend.parser.element.SynthHat;
 import com.legend.parser.element.RelationalOperation;
 import com.legend.parser.spec.AppliedFunction;
 import com.legend.parser.spec.AppliedProperty;
@@ -53,7 +57,7 @@ import java.util.Set;
 
 /**
  * Legacy Mapping DSL desugarer. Translates every legacy
- * {@link MappingDefinition} into clean-sheet function form per
+ * {@link LegacyMappingDefinition} into clean-sheet function form per
  * {@code docs/MAPPING_LEGACY_TO_FUNCTION.md} with full feature parity to
  * engine's {@code com.gs.legend.compiler.MappingNormalizer}.
  *
@@ -125,27 +129,62 @@ public final class MappingNormalizer {
     // Entry point
     // ====================================================================
 
-    public static ParsedModel normalize(ParsedModel parsed) {
+    /**
+     * Desugar legacy mapping DSL (Phase E.1) into synthesized realizing
+     * functions, threading a pre-built resolution index.
+     *
+     * <p>{@code model} MUST be {@code ModelBuilder.from(parsed)} for the same
+     * {@code parsed}: it is the shared resolution view
+     * (findClass/findAssociation/findJoin/findFilter) and supplies the
+     * cross-baked mappings (findMapping picks up JsonModelConnection synthetic
+     * class mappings injected during {@code ModelBuilder.from}). The index is
+     * owned by the step-5 entry {@link ModelNormalizer} (or a test), never
+     * self-built here, so this phase is a pure function of {@code (parsed, model)}
+     * and every caller — prod and test — exercises this single code path.
+     */
+    public static NormalizedModel normalize(ParsedModel parsed, ModelBuilder model) {
         Objects.requireNonNull(parsed, "parsed");
-        ModelBuilder model = ModelBuilder.from(parsed);
+        Objects.requireNonNull(model, "model");
         List<PackageableElement> out = new ArrayList<>(parsed.elements().size());
+        List<FunctionDefinition> lifted = new ArrayList<>();
         for (PackageableElement el : parsed.elements()) {
-            // The MappingDefinition we read from `parsed` may have been
+            // The legacy mapping we read from `parsed` may have been
             // cross-baked (e.g., by JsonModelConnection bindings) in
-            // ModelBuilder.from. Re-fetch the latest from the model to
-            // pick up any synthetic class mappings.
-            if (el instanceof MappingDefinition md) {
-                MappingDefinition latest = model.findMapping(md.qualifiedName()).orElse(md);
-                out.add(normalizeMapping(latest, model));
+            // ModelBuilder.from. Re-fetch the latest legacy surface from the
+            // resolution index to pick up any synthetic class mappings.
+            if (el instanceof LegacyMappingDefinition md) {
+                LegacyMappingDefinition latest =
+                        model.findLegacyMapping(md.qualifiedName()).orElse(md);
+                // Rewrite legacy surface -> canonical binding table; the legacy
+                // record does NOT flow past Phase E (CLEAN_SHEET_INVERSION §1.5).
+                out.add(normalizeMapping(latest, model, lifted));
+            } else if (el instanceof MappingDefinition canonical) {
+                // Clean-sheet (Door 1/3) mapping: function-ref bindings pass
+                // through; inline expression bindings (Door 3) are lambda-lifted
+                // here (CLEAN_SHEET_INVERSION §5.3), so no Inline survives Phase E.
+                out.add(liftInlineBindings(canonical, model, lifted));
             } else {
                 out.add(el);
             }
         }
-        return new ParsedModel(out, parsed.imports());
+        // Lifted realizing functions are ordinary top-level elements
+        // (docs/CLEAN_SHEET_INVERSION.md §1) — appended after the
+        // structural elements, never stored on the mapping record.
+        out.addAll(lifted);
+        return new NormalizedModel(out, parsed.imports());
     }
 
-    private static MappingDefinition normalizeMapping(MappingDefinition md,
-                                                     ModelBuilder model) {
+    /**
+     * Rewrite one legacy mapping surface into the canonical
+     * {@link MappingDefinition} binding table, lifting each class/association
+     * transform into an ordinary top-level {@link FunctionDefinition}
+     * (appended to {@code lifted}). Each binding references its realizing
+     * function by the function's own FQN — the same string the lift produced,
+     * so binding and function agree by construction (no regeneration).
+     */
+    private static MappingDefinition normalizeMapping(LegacyMappingDefinition md,
+                                                     ModelBuilder model,
+                                                     List<FunctionDefinition> lifted) {
         detectM2MCycles(md, model);
 
         // Pre-pass: flatten `extends [parentSetId]` by merging inherited
@@ -160,18 +199,154 @@ public final class MappingNormalizer {
         // §5.6.1 standalone predicate.
         md = injectMultiHopAssociationPMs(md, model);
 
-        List<FunctionDefinition> synths = new ArrayList<>(
-                md.classMappings().size() + md.associationMappings().size());
+        List<MappingDefinition.ClassBinding> classBindings =
+                new ArrayList<>(md.classMappings().size());
         for (ClassMapping cm : md.classMappings()) {
-            synths.add(synthesizeClassMapping(md, cm, model));
+            FunctionDefinition fn = synthesizeClassMapping(md, cm, model);
+            lifted.add(fn);
+            classBindings.add(new MappingDefinition.ClassBinding(
+                    cm.className(),
+                    cm instanceof ClassMapping.Pure
+                            ? MappingDefinition.Kind.PURE
+                            : MappingDefinition.Kind.RELATIONAL,
+                    cm.setId(), cm.extendsSetId(), cm.root(),
+                    fn.qualifiedName()));
         }
+        List<MappingDefinition.AssociationBinding> assocBindings =
+                new ArrayList<>(md.associationMappings().size());
         for (AssociationMapping am : md.associationMappings()) {
             // null => multi-hop association, realized by per-end navigation
-            // injected above; no standalone predicate function.
+            // injected above; no standalone predicate function, hence no binding.
             FunctionDefinition fn = synthesizeAssociationMapping(md, am, model);
-            if (fn != null) synths.add(fn);
+            if (fn != null) {
+                lifted.add(fn);
+                assocBindings.add(new MappingDefinition.AssociationBinding(
+                        am.associationName(), fn.qualifiedName()));
+            }
         }
-        return md.withMappingFunctions(synths);
+        // includes survive the rewrite unchanged — one shared MappingInclude type.
+        return new MappingDefinition(
+                md.qualifiedName(),
+                md.includes(),
+                classBindings,
+                assocBindings,
+                md.enumerationMappings(),
+                md.testSuitesSource());
+    }
+
+    // ====================================================================
+    // Door 3 — lift inline expression bindings in a clean-sheet mapping
+    // ====================================================================
+
+    /**
+     * Lambda-lift every inline binding ({@link Realization.Inline})
+     * in a clean-sheet mapping into an ordinary top-level function (appended to
+     * {@code lifted}) and rewrite the binding to a function ref. Function-ref
+     * bindings pass through untouched. Post-condition: no {@code Inline}
+     * survives (CLEAN_SHEET_INVERSION §5.3 / §7.4). Reference-equality preserved
+     * when the mapping has no inline bindings.
+     */
+    private static MappingDefinition liftInlineBindings(MappingDefinition md,
+                                                       ModelBuilder model,
+                                                       List<FunctionDefinition> lifted) {
+        boolean changed = false;
+        List<MappingDefinition.ClassBinding> classBindings =
+                new ArrayList<>(md.classBindings().size());
+        for (MappingDefinition.ClassBinding cb : md.classBindings()) {
+            if (cb.realization() instanceof Realization.Inline inl) {
+                String fnFqn = SynthFqn.mappingClass(md.qualifiedName(), cb.classFqn());
+                lifted.add(liftClassInline(md, cb, inl, fnFqn));
+                classBindings.add(new MappingDefinition.ClassBinding(
+                        cb.classFqn(), cb.kind(), cb.setId(), cb.extendsSetId(), cb.root(), fnFqn));
+                changed = true;
+            } else {
+                classBindings.add(cb);
+            }
+        }
+        List<MappingDefinition.AssociationBinding> assocBindings =
+                new ArrayList<>(md.associationBindings().size());
+        for (MappingDefinition.AssociationBinding ab : md.associationBindings()) {
+            if (ab.realization() instanceof Realization.Inline inl) {
+                String fnFqn = SynthFqn.mappingAssoc(md.qualifiedName(), ab.associationFqn());
+                lifted.add(liftAssocInline(md, ab, inl, fnFqn, model));
+                assocBindings.add(new MappingDefinition.AssociationBinding(
+                        ab.associationFqn(), fnFqn));
+                changed = true;
+            } else {
+                assocBindings.add(ab);
+            }
+        }
+        if (!changed) return md;
+        return new MappingDefinition(md.qualifiedName(), md.includes(),
+                classBindings, assocBindings, md.enumerationMappings(), md.testSuitesSource());
+    }
+
+    /**
+     * A class inline body lifts to a param-less {@code (): Class[*]} function
+     * whose body is the user's expression verbatim. Kind-agnostic: Relational
+     * and Pure differ only in what the body starts from, which the lift never
+     * inspects.
+     */
+    private static FunctionDefinition liftClassInline(MappingDefinition md,
+                                                     MappingDefinition.ClassBinding cb,
+                                                     Realization.Inline inl,
+                                                     String fnFqn) {
+        return new FunctionDefinition(
+                fnFqn, List.of(), List.of(), List.of(),
+                new TypeExpression.NameRef(cb.classFqn()),
+                Multiplicity.Concrete.ZERO_MANY,
+                inl.body(),
+                List.of(), List.of())
+                .withSynthesizedFrom(new FunctionDefinition.Synthesized(
+                        SynthHat.CLASS, md.qualifiedName(), cb.classFqn()));
+    }
+
+    /**
+     * An association inline body is a single {@code (source, target) -> Boolean}
+     * lambda; it lifts to a two-parameter {@code Boolean[1]} predicate. The
+     * param <em>names</em> come from the user's lambda; the param <em>types</em>
+     * come from the association's two ends (looked up in the model), matching
+     * the legacy predicate signature.
+     */
+    private static FunctionDefinition liftAssocInline(MappingDefinition md,
+                                                     MappingDefinition.AssociationBinding ab,
+                                                     Realization.Inline inl,
+                                                     String fnFqn,
+                                                     ModelBuilder model) {
+        if (inl.body().size() != 1 || !(inl.body().get(0) instanceof LambdaFunction lam)) {
+            throw new IllegalStateException(
+                    "inline association predicate for '" + ab.associationFqn()
+                  + "' must be a single (source, target) -> Boolean lambda; mapping="
+                  + md.qualifiedName());
+        }
+        if (lam.parameters().size() != 2) {
+            throw new IllegalStateException(
+                    "inline association predicate for '" + ab.associationFqn()
+                  + "' must take exactly 2 parameters (source, target); got "
+                  + lam.parameters().size() + "; mapping=" + md.qualifiedName());
+        }
+        AssociationDefinition ad = model.findAssociation(ab.associationFqn())
+                .orElseThrow(() -> new IllegalStateException(
+                        "inline association predicate references unknown association '"
+                      + ab.associationFqn() + "'; mapping=" + md.qualifiedName()));
+        String classA = associationEndClass(ad.property1().targetClass(),
+                "association '" + ab.associationFqn() + "' end1");
+        String classB = associationEndClass(ad.property2().targetClass(),
+                "association '" + ab.associationFqn() + "' end2");
+        Variable p0 = lam.parameters().get(0);
+        Variable p1 = lam.parameters().get(1);
+        var paramA = new FunctionDefinition.ParameterDefinition(
+                p0.name(), new TypeExpression.NameRef(classA), Multiplicity.Concrete.PURE_ONE);
+        var paramB = new FunctionDefinition.ParameterDefinition(
+                p1.name(), new TypeExpression.NameRef(classB), Multiplicity.Concrete.PURE_ONE);
+        return new FunctionDefinition(
+                fnFqn, List.of(), List.of(), List.of(paramA, paramB),
+                new TypeExpression.NameRef("Boolean"),
+                Multiplicity.Concrete.PURE_ONE,
+                lam.body(),
+                List.of(), List.of())
+                .withSynthesizedFrom(new FunctionDefinition.Synthesized(
+                        SynthHat.ASSOC, md.qualifiedName(), ab.associationFqn()));
     }
 
     // ====================================================================
@@ -193,7 +368,7 @@ public final class MappingNormalizer {
      * The parent's {@code ~mainTable} is <em>not</em> auto-copied; the child
      * must declare its own (the function form requires explicitness).
      */
-    private static MappingDefinition resolveExtends(MappingDefinition md) {
+    private static LegacyMappingDefinition resolveExtends(LegacyMappingDefinition md) {
         boolean any = md.classMappings().stream().anyMatch(cm -> cm.extendsSetId() != null);
         if (!any) return md;
         Map<String, ClassMapping> bySetId = new HashMap<>();
@@ -228,7 +403,7 @@ public final class MappingNormalizer {
     private static ClassMapping.Relational flattenExtends(ClassMapping.Relational child,
                                                          Map<String, ClassMapping> bySetId,
                                                          Set<String> chain,
-                                                         MappingDefinition md) {
+                                                         LegacyMappingDefinition md) {
         String parentSetId = child.extendsSetId();
         if (!chain.add(parentSetId)) {
             throw new IllegalStateException(
@@ -278,7 +453,7 @@ public final class MappingNormalizer {
      * before class-mapping synthesis. Single-hop ends are left to the
      * standalone {@code legacyAssocPredicate} path (§5.6.1).
      */
-    private static MappingDefinition injectMultiHopAssociationPMs(MappingDefinition md,
+    private static LegacyMappingDefinition injectMultiHopAssociationPMs(LegacyMappingDefinition md,
                                                                  ModelBuilder model) {
         if (md.associationMappings().isEmpty()) return md;
         Map<String, List<PropertyMapping>> injected = new LinkedHashMap<>();
@@ -332,19 +507,14 @@ public final class MappingNormalizer {
         return t instanceof TypeExpression.NameRef nr ? nr.name() : null;
     }
 
-    /** {@code <mappingFqn>_<classOrAssocSimple>} (engine convention). */
-    static String synthFqn(String mappingFqn, String elementFqn) {
-        String simple = elementFqn.contains("::")
-                ? elementFqn.substring(elementFqn.lastIndexOf("::") + 2)
-                : elementFqn;
-        return mappingFqn + "_" + simple;
-    }
+    // Lifted-function FQNs are owned by SynthFqn (the single naming authority,
+    // docs/CLEAN_SHEET_INVERSION.md §3): SynthFqn.mappingClass / mappingAssoc.
 
     // ====================================================================
     // M2M cycle detection  —  rejects A.~src=B, B.~src=A (or longer) cycles
     // ====================================================================
 
-    private static void detectM2MCycles(MappingDefinition md, ModelBuilder model) {
+    private static void detectM2MCycles(LegacyMappingDefinition md, ModelBuilder model) {
         // Index PureClassMappings by target class FQN for fast walk.
         Map<String, ClassMapping.Pure> pureByTarget = new HashMap<>();
         for (ClassMapping cm : md.classMappings()) {
@@ -360,7 +530,7 @@ public final class MappingNormalizer {
 
     private static void walkM2MChain(ClassMapping.Pure pcm,
                                     Map<String, ClassMapping.Pure> pureByTarget,
-                                    Set<String> visiting, MappingDefinition md) {
+                                    Set<String> visiting, LegacyMappingDefinition md) {
         if (!visiting.add(pcm.className())) {
             throw new IllegalStateException(
                     "Circular M2M ~src chain detected in mapping '"
@@ -376,7 +546,7 @@ public final class MappingNormalizer {
     // Class mapping synthesis (top-level dispatch)
     // ====================================================================
 
-    private static FunctionDefinition synthesizeClassMapping(MappingDefinition md,
+    private static FunctionDefinition synthesizeClassMapping(LegacyMappingDefinition md,
                                                             ClassMapping cm,
                                                             ModelBuilder model) {
         ValueSpecification body = switch (cm) {
@@ -384,19 +554,21 @@ public final class MappingNormalizer {
             case ClassMapping.Relational rcm -> synthRelational(md, rcm, model);
         };
         return new FunctionDefinition(
-                synthFqn(md.qualifiedName(), cm.className()),
+                SynthFqn.mappingClass(md.qualifiedName(), cm.className()),
                 List.of(), List.of(), List.of(),
                 new TypeExpression.NameRef(cm.className()),
                 Multiplicity.Concrete.ZERO_MANY,
                 List.of(body),
-                List.of(), List.of());
+                List.of(), List.of())
+                .withSynthesizedFrom(new FunctionDefinition.Synthesized(
+                        SynthHat.CLASS, md.qualifiedName(), cm.className()));
     }
 
     // ====================================================================
     // M2M (ClassMapping.Pure)  —  doc §5.5
     // ====================================================================
 
-    private static ValueSpecification synthM2M(MappingDefinition md,
+    private static ValueSpecification synthM2M(LegacyMappingDefinition md,
                                               ClassMapping.Pure pcm,
                                               ModelBuilder model,
                                               Set<String> cycleStack) {
@@ -434,7 +606,7 @@ public final class MappingNormalizer {
 
     private static ValueSpecification m2mPropertyValue(
             ClassMapping.Pure.PropertyBinding pb, ClassDefinition tgt,
-            MappingDefinition md, ModelBuilder model, Set<String> cycleStack) {
+            LegacyMappingDefinition md, ModelBuilder model, Set<String> cycleStack) {
         if (tgt == null) return pb.expression();
         TypeExpression propType = findPropertyTypeDeep(tgt, pb.propertyName(), model);
         if (!(propType instanceof TypeExpression.NameRef nr)) return pb.expression();
@@ -463,7 +635,7 @@ public final class MappingNormalizer {
     // Relational dispatch:  JsonSource | View-backed | Table-backed
     // ====================================================================
 
-    private static ValueSpecification synthRelational(MappingDefinition md,
+    private static ValueSpecification synthRelational(LegacyMappingDefinition md,
                                                      ClassMapping.Relational rcm,
                                                      ModelBuilder model) {
         // JSON-source: synthesized by ModelBuilder cross-baking from a
@@ -503,7 +675,7 @@ public final class MappingNormalizer {
      * properties; the class mapping itself carries no PMs (the cross-
      * bake from ModelBuilder synthesizes an empty PM list).
      */
-    private static ValueSpecification synthJsonSourceMapping(MappingDefinition md,
+    private static ValueSpecification synthJsonSourceMapping(LegacyMappingDefinition md,
                                                             ClassMapping.Relational rcm,
                                                             ModelBuilder model) {
         ValueSpecification source = new AppliedFunction("sourceUrl",
@@ -558,7 +730,7 @@ public final class MappingNormalizer {
      *       sequences first).</li>
      * </ol>
      */
-    private static ValueSpecification synthViewBackedMapping(MappingDefinition md,
+    private static ValueSpecification synthViewBackedMapping(LegacyMappingDefinition md,
                                                             ClassMapping.Relational rcm,
                                                             DatabaseDefinition.ViewDefinition view,
                                                             ModelBuilder model) {
@@ -587,7 +759,7 @@ public final class MappingNormalizer {
         mergedGroupBy.addAll(rcm.groupBy());
         ClassMapping.Relational effective = new ClassMapping.Relational(
                 rcm.className(), rcm.setId(), rcm.extendsSetId(), rcm.root(),
-                new MappingDefinition.TableReference(mainDb, physicalTable),
+                new LegacyMappingDefinition.TableReference(mainDb, physicalTable),
                 mergedFilter, mergedDistinct, mergedGroupBy, rcm.primaryKey(),
                 rewrittenPms, null);
         ValueSpecification body = synthTableBackedMapping(md, effective, model);
@@ -675,7 +847,7 @@ public final class MappingNormalizer {
                                                               ClassMapping.Relational rcm,
                                                               String physicalTable,
                                                               ModelBuilder model,
-                                                              MappingDefinition md) {
+                                                              LegacyMappingDefinition md) {
         FilterMapping fm = rcm.filter();
         if (!(fm instanceof FilterMapping.Direct direct)) {
             // A JoinMediated mapping filter over a view that already carries
@@ -722,7 +894,7 @@ public final class MappingNormalizer {
      * must remain, else fail loudly.
      */
     private static String inferViewMainTable(DatabaseDefinition.ViewDefinition view,
-                                            String viewName, MappingDefinition md) {
+                                            String viewName, LegacyMappingDefinition md) {
         Set<String> tables = new LinkedHashSet<>();
         for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
             RelationalOperation expr = vc.expression();
@@ -776,7 +948,7 @@ public final class MappingNormalizer {
         Pipeline(ValueSpecification expr) { this.expr = expr; }
     }
 
-    private static ValueSpecification synthTableBackedMapping(MappingDefinition md,
+    private static ValueSpecification synthTableBackedMapping(LegacyMappingDefinition md,
                                                              ClassMapping.Relational rcm,
                                                              ModelBuilder model) {
         validatePmNames(rcm, model, md);
@@ -869,7 +1041,7 @@ public final class MappingNormalizer {
     }
 
     private static void validatePmNames(ClassMapping.Relational rcm,
-                                       ModelBuilder model, MappingDefinition md) {
+                                       ModelBuilder model, LegacyMappingDefinition md) {
         ClassDefinition cd = model.findClass(rcm.className()).orElse(null);
         if (cd == null) return;
         for (PropertyMapping pm : rcm.propertyMappings()) {
@@ -893,7 +1065,7 @@ public final class MappingNormalizer {
     private static void emitHopsForStructuralPm(Pipeline p, PropertyMapping pm,
                                                String ownerClassFqn, String mainDb,
                                                String mainTable, Variable rowBind,
-                                               ModelBuilder model, MappingDefinition md) {
+                                               ModelBuilder model, LegacyMappingDefinition md) {
         switch (pm) {
             case PropertyMapping.Join j -> emitJoinChain(p, j.joins(), j.database(),
                     j.propertyName(), ownerClassFqn, mainDb, mainTable,
@@ -920,7 +1092,7 @@ public final class MappingNormalizer {
                                                 PropertyMapping.OtherwiseEmbedded oe,
                                                 String ownerClassFqn, String mainDb,
                                                 String mainTable, Variable rowBind,
-                                                ModelBuilder model, MappingDefinition md) {
+                                                ModelBuilder model, LegacyMappingDefinition md) {
         if (!(oe.fallback() instanceof PropertyMapping.Join joinFallback)) {
             throw new UnsupportedOperationException(
                     "OtherwiseEmbedded PM '" + oe.propertyName() + "' fallback kind "
@@ -962,7 +1134,7 @@ public final class MappingNormalizer {
                                      String chainDb, String propName,
                                      String ownerClassFqn, String mainDb,
                                      String mainTable, Variable rowBind,
-                                     ModelBuilder model, MappingDefinition md,
+                                     ModelBuilder model, LegacyMappingDefinition md,
                                      boolean classTypedTerminus) {
         String targetClassFqn = null;
         if (classTypedTerminus && propName != null) {
@@ -1163,7 +1335,7 @@ public final class MappingNormalizer {
     private static CtorField translatePmToField(PropertyMapping pm, Variable rowBind,
                                                Map<String, ValueSpecification> tableScope,
                                                String defaultTable, Pipeline pipeline,
-                                               String ownerClassFqn, MappingDefinition md,
+                                               String ownerClassFqn, LegacyMappingDefinition md,
                                                ModelBuilder model,
                                                boolean underGroupBy) {
         // Under ~groupBy, every PM (key-matching or aggregate) reads
@@ -1230,7 +1402,7 @@ public final class MappingNormalizer {
     private static ValueSpecification materializeEmbedded(
             String propName, List<PropertyMapping> subPms, Variable rowBind,
             Map<String, ValueSpecification> tableScope, String defaultTable,
-            Pipeline pipeline, String ownerClassFqn, MappingDefinition md,
+            Pipeline pipeline, String ownerClassFqn, LegacyMappingDefinition md,
             ModelBuilder model, Set<String> cycleStack) {
         ClassDefinition owner = model.findClass(ownerClassFqn).orElse(null);
         if (owner == null) {
@@ -1288,7 +1460,7 @@ public final class MappingNormalizer {
     private static ValueSpecification materializeOtherwiseEmbedded(
             PropertyMapping.OtherwiseEmbedded oe, Variable rowBind,
             Map<String, ValueSpecification> tableScope, String defaultTable,
-            Pipeline pipeline, String ownerClassFqn, MappingDefinition md,
+            Pipeline pipeline, String ownerClassFqn, LegacyMappingDefinition md,
             ModelBuilder model) {
         ValueSpecification partial = materializeEmbedded(oe.propertyName(),
                 oe.embedded(), rowBind, tableScope, defaultTable, pipeline,
@@ -1302,13 +1474,13 @@ public final class MappingNormalizer {
     //
     // Splice the referenced class mapping's PMs as embedded sub-mappings
     // of the current class. The referenced ClassMapping.Relational is
-    // located by setId within the enclosing MappingDefinition.
+    // located by setId within the enclosing LegacyMappingDefinition.
     // ====================================================================
 
     private static ValueSpecification materializeInlineEmbedded(
             PropertyMapping.InlineEmbedded ie, Variable rowBind,
             Map<String, ValueSpecification> tableScope, String defaultTable,
-            Pipeline pipeline, String ownerClassFqn, MappingDefinition md,
+            Pipeline pipeline, String ownerClassFqn, LegacyMappingDefinition md,
             ModelBuilder model) {
         ClassMapping.Relational referenced = null;
         for (ClassMapping cm : md.classMappings()) {
@@ -1337,7 +1509,7 @@ public final class MappingNormalizer {
                                                  ClassMapping.Relational rcm,
                                                  Variable rowBind, String mainDb,
                                                  String mainTable, Pipeline p,
-                                                 ModelBuilder model, MappingDefinition md) {
+                                                 ModelBuilder model, LegacyMappingDefinition md) {
         return switch (rcm.filter()) {
             case FilterMapping.Direct direct ->
                     applyDirectFilter(source, rcm, rowBind, mainDb, mainTable, p,
@@ -1354,7 +1526,7 @@ public final class MappingNormalizer {
                                                        String mainTable, Pipeline p,
                                                        ModelBuilder model,
                                                        FilterMapping.Direct direct,
-                                                       MappingDefinition md) {
+                                                       LegacyMappingDefinition md) {
         String dbFqn = switch (direct.filter()) {
             case FilterPointer.Cross c -> c.db();
             case FilterPointer.Local l -> mainDb;
@@ -1378,7 +1550,7 @@ public final class MappingNormalizer {
                                                              String mainTable, Pipeline p,
                                                              ModelBuilder model,
                                                              FilterMapping.JoinMediated jm,
-                                                             MappingDefinition md) {
+                                                             LegacyMappingDefinition md) {
         String dbFqn = switch (jm.filter()) {
             case FilterPointer.Cross c -> c.db();
             case FilterPointer.Local l -> jm.sourceDb();
@@ -1413,7 +1585,7 @@ public final class MappingNormalizer {
     private static ValueSpecification applyGroupBy(ValueSpecification source,
                                                   ClassMapping.Relational rcm,
                                                   Variable rowBind, String mainTable,
-                                                  Pipeline p, MappingDefinition md) {
+                                                  Pipeline p, LegacyMappingDefinition md) {
         Map<String, ValueSpecification> scope = new LinkedHashMap<>();
         scope.put(mainTable, rowBind);
         seedAliasScope(scope, p, rowBind, mainTable);
@@ -1520,7 +1692,7 @@ public final class MappingNormalizer {
     // AssociationMapping → predicate function  —  doc §5.6.1
     // ====================================================================
 
-    private static FunctionDefinition synthesizeAssociationMapping(MappingDefinition md,
+    private static FunctionDefinition synthesizeAssociationMapping(LegacyMappingDefinition md,
                                                                   AssociationMapping am,
                                                                   ModelBuilder model) {
         if (!(am instanceof AssociationMapping.Relational rel)) {
@@ -1580,12 +1752,14 @@ public final class MappingNormalizer {
         FunctionDefinition.ParameterDefinition pB = new FunctionDefinition.ParameterDefinition(
                 "b", new TypeExpression.NameRef(classB), Multiplicity.Concrete.PURE_ONE);
         return new FunctionDefinition(
-                synthFqn(md.qualifiedName(), am.associationName()),
+                SynthFqn.mappingAssoc(md.qualifiedName(), am.associationName()),
                 List.of(), List.of(), List.of(pA, pB),
                 new TypeExpression.NameRef("Boolean"),
                 Multiplicity.Concrete.PURE_ONE,
                 List.of(body),
-                List.of(), List.of());
+                List.of(), List.of())
+                .withSynthesizedFrom(new FunctionDefinition.Synthesized(
+                        SynthHat.ASSOC, md.qualifiedName(), am.associationName()));
     }
 
     /**
@@ -1600,7 +1774,7 @@ public final class MappingNormalizer {
                                                              String classA, String classB,
                                                              Variable srcRow, Variable tgtRow,
                                                              String associationName,
-                                                             MappingDefinition md,
+                                                             LegacyMappingDefinition md,
                                                              ModelBuilder model) {
         if (join.joins().isEmpty()) {
             throw new IllegalStateException(
@@ -1643,7 +1817,7 @@ public final class MappingNormalizer {
               + t.getClass().getSimpleName());
     }
 
-    private static String mainTableOf(MappingDefinition md, String classFqn) {
+    private static String mainTableOf(LegacyMappingDefinition md, String classFqn) {
         for (ClassMapping cm : md.classMappings()) {
             if (cm instanceof ClassMapping.Relational rcm
                     && classFqn.equals(rcm.className())
@@ -1663,7 +1837,7 @@ public final class MappingNormalizer {
     private static ValueSpecification translateEnumeratedColumn(
             PropertyMapping.EnumeratedColumn ec,
             Map<String, ValueSpecification> tableScope,
-            String defaultTable, MappingDefinition md, Pipeline p) {
+            String defaultTable, LegacyMappingDefinition md, Pipeline p) {
         EnumerationMapping em = null;
         for (EnumerationMapping cand : md.enumerationMappings()) {
             if (cand.mappingId().equals(ec.enumMappingId())) { em = cand; break; }

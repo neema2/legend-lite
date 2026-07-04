@@ -9,7 +9,9 @@ import com.legend.parser.element.DatabaseDefinition.FilterDefinition;
 import com.legend.parser.element.DatabaseDefinition.JoinDefinition;
 import com.legend.parser.element.EnumDefinition;
 import com.legend.parser.element.Function;
-import com.legend.parser.element.MappingDefinition;
+import com.legend.parser.element.LegacyMappingDefinition;
+import com.legend.normalizer.MappingNormalizer;
+import com.legend.normalizer.NormalizedModel;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -190,7 +192,7 @@ class ModelBuilderTest {
               + "  *model::Person: Pure { ~src model::Person name: $src.name } "
               + ")");
         ModelBuilder mb = ModelBuilder.from(parsed);
-        MappingDefinition md = mb.findMapping("pkg::M").orElseThrow();
+        LegacyMappingDefinition md = mb.findLegacyMapping("pkg::M").orElseThrow();
         assertEquals("pkg::M", md.qualifiedName());
         assertEquals(1, md.classMappings().size());
     }
@@ -235,8 +237,8 @@ class ModelBuilderTest {
         ModelBuilder mb = ModelBuilder.from(parsed);
         assertTrue(mb.isMappedClass("model::Person"));
         // Both mappings are independently retrievable.
-        assertNotNull(mb.findMapping("pkg::M1").orElseThrow());
-        assertNotNull(mb.findMapping("pkg::M2").orElseThrow());
+        assertNotNull(mb.findLegacyMapping("pkg::M1").orElseThrow());
+        assertNotNull(mb.findLegacyMapping("pkg::M2").orElseThrow());
     }
 
     @Test
@@ -290,6 +292,52 @@ class ModelBuilderTest {
     }
 
     // ====================================================================
+    // Synth mapping functions: owner-stored, lookup-flattened
+    // ====================================================================
+
+    @Test
+    @DisplayName("lifted mapping functions resolve through findFunction")
+    void mappingFunctionsAreIngestedIntoFindFunction() {
+        ParsedModel raw = ElementParser.parse(
+                "Class model::Person { name: String[1]; } "
+              + "Class model::RawPerson { name: String[1]; } "
+              + "Mapping my::M ( "
+              + "  *model::Person: Pure { ~src model::RawPerson name: $src.name } "
+              + ")");
+        NormalizedModel normalized = MappingNormalizer.normalize(raw, ModelBuilder.from(raw));
+        ModelBuilder mb = ModelBuilder.from(normalized);
+        // The lifted realizing function resolves through the ONE findFunction
+        // path, identical to a user-written function: it is an ordinary
+        // top-level FunctionDefinition element ingested by the same function
+        // arm (no bespoke flatten — docs/CLEAN_SHEET_INVERSION.md §2.2).
+        List<Function> hit = mb.findFunction("my::M$class$model::Person");
+        assertEquals(1, hit.size(),
+                "lifted mapping fn must be resolvable via findFunction");
+        assertEquals("my::M$class$model::Person", hit.get(0).qualifiedName());
+    }
+
+    @Test
+    @DisplayName("the function index is a pure function of the normalized input (implicit invalidation)")
+    void mappingFunctionIndexIsDrivenByNormalizedInput() {
+        ParsedModel raw = ElementParser.parse(
+                "Class model::Person { name: String[1]; } "
+              + "Class model::RawPerson { name: String[1]; } "
+              + "Mapping my::M ( "
+              + "  *model::Person: Pure { ~src model::RawPerson name: $src.name } "
+              + ")");
+        // Pre-normalize: no lifted function exists yet, so findFunction is
+        // empty for the lifted FQN.
+        assertTrue(ModelBuilder.from(raw).findFunction("my::M$class$model::Person").isEmpty(),
+                "before normalization there is no lifted fn to index");
+        // Post-normalize: rebuilding from the normalized model re-derives the
+        // index and surfaces the lifted fn. Invalidation is implicit — there is
+        // no cache; the index is a pure function of the (normalized) input.
+        NormalizedModel normalized = MappingNormalizer.normalize(raw, ModelBuilder.from(raw));
+        assertFalse(ModelBuilder.from(normalized).findFunction("my::M$class$model::Person").isEmpty(),
+                "after normalization the rebuilt index includes the synth fn");
+    }
+
+    // ====================================================================
     // Iteration accessors
     // ====================================================================
 
@@ -303,7 +351,7 @@ class ModelBuilderTest {
         ModelBuilder mb = ModelBuilder.from(parsed);
         assertEquals(2, mb.classes().count());
         assertEquals(1, mb.databases().count());
-        assertEquals(1, mb.mappings().count());
+        assertEquals(1, mb.legacyMappings().count());
     }
 
     // ====================================================================

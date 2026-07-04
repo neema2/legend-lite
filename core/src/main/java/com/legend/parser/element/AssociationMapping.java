@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A relational association mapping inside a {@link MappingDefinition} body.
+ * A relational association mapping inside a {@link LegacyMappingDefinition} body.
  *
  * <p>Surface syntax:
  * <pre>

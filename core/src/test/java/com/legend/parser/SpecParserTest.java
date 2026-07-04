@@ -2106,17 +2106,15 @@ final class SpecParserTest {
     }
 
     @Test
-    void columnSpecColonFollowedByNonLambdaRejected() {
-        // '~name:42' \u2014 something other than a lambda after the
-        // colon. parseColumnLambda explicitly rejects rather than
-        // silently calling parseCombinedExpression (which would
-        // accept '42' and produce a malformed AST).
-        ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("~name:42"));
-        assertTrue(ex.getMessage().contains("expected lambda")
-                        && ex.getMessage().contains("column spec"),
-                () -> "want non-lambda-after-colon error, got: "
-                        + ex.getMessage());
+    void columnSpecColonFollowedByExpressionWrapsAsThunk() {
+        // '~name: <expr>' — a non-lambda body wraps into a ZERO-PARAM thunk
+        // (the clean-sheet navigate form `~firm: acme::Firm.all()`,
+        // MAPPING_CLEAN_SHEET.md §3.1). The checker decides which enclosing
+        // calls admit expression bodies; the parser stays uniform.
+        ColSpec cs = assertInstanceOf(ColSpec.class, SpecParser.parse("~name:42"));
+        assertEquals("name", cs.name());
+        assertTrue(cs.function1().parameters().isEmpty(), "expression body = zero-param thunk");
+        assertInstanceOf(CInteger.class, cs.function1().body().get(0));
     }
 
     // ----- type annotations (C.7): @Type / @Relation<(...)> ----------

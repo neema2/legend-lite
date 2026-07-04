@@ -5,9 +5,13 @@ import com.legend.parser.Multiplicity;
 import com.legend.parser.ParsedModel;
 import com.legend.parser.TypeExpression;
 import com.legend.parser.element.FunctionDefinition;
+import com.legend.parser.element.LegacyMappingDefinition;
 import com.legend.parser.element.MappingDefinition;
+import com.legend.parser.element.Realization;
 import com.legend.parser.element.PackageableElement;
+import com.legend.parser.element.SynthHat;
 import com.legend.builtin.Pure;
+import com.legend.compiler.ModelBuilder;
 import com.legend.parser.spec.AppliedFunction;
 import com.legend.parser.spec.AppliedProperty;
 import com.legend.parser.spec.ColSpec;
@@ -23,6 +27,7 @@ import com.legend.parser.spec.Variable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.SortedSet;
@@ -63,14 +68,14 @@ class MappingNormalizerTest {
     void passthroughForNonMappingElements() {
         ParsedModel parsed = ElementParser.parse(
                 "Class model::Person { firstName: String[1]; }");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
         assertEquals(1, normalized.elements().size());
         assertSame(parsed.elements().get(0), normalized.elements().get(0),
                 "Non-Mapping elements should be referentially identical (not rebuilt)");
     }
 
     @Test
-    void preNormalize_mappingFunctionsIsEmpty_postNormalize_oneFnPerClassMapping() {
+    void preNormalize_noLiftedFunctions_postNormalize_oneFnPerClassMapping() {
         ParsedModel parsed = ElementParser.parse(
                 "Class model::Person { name: String[1]; } "
                         + "Class model::Firm   { legalName: String[1]; } "
@@ -80,19 +85,21 @@ class MappingNormalizerTest {
                         + "  *model::Person: Pure { ~src model::RawPerson name: $src.name } "
                         + "  *model::Firm:   Pure { ~src model::RawFirm   legalName: $src.legalName } "
                         + ")");
-        MappingDefinition md = firstMapping(parsed);
-        assertEquals(0, md.mappingFunctions().size(),
-                "Pre-normalize: mappingFunctions is empty");
+        // Pre-normalize: the parsed model carries no lifted functions at all.
+        long preLifted = parsed.elements().stream()
+                .filter(e -> e instanceof FunctionDefinition fd && fd.isSynthesized())
+                .count();
+        assertEquals(0, preLifted, "Pre-normalize: no lifted functions in the model");
 
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
-        MappingDefinition nmd = firstMapping(normalized);
-        assertEquals(2, nmd.mappingFunctions().size(),
-                "Post-normalize: one synth fn per ClassMapping, preserving declaration order");
-        assertEquals("my::M_Person", nmd.mappingFunctions().get(0).qualifiedName());
-        assertEquals("my::M_Firm",   nmd.mappingFunctions().get(1).qualifiedName());
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        List<FunctionDefinition> lifted = liftedFunctions(normalized);
+        assertEquals(2, lifted.size(),
+                "Post-normalize: one lifted fn per ClassMapping, preserving declaration order");
+        assertEquals("my::M$class$model::Person", lifted.get(0).qualifiedName());
+        assertEquals("my::M$class$model::Firm",   lifted.get(1).qualifiedName());
         // Body shape sanity: each must end in ^Target(...). If the body were
         // empty or missing the terminal map(...|^Target), this asserts that.
-        for (FunctionDefinition fn : nmd.mappingFunctions()) {
+        for (FunctionDefinition fn : lifted) {
             AppliedFunction map = (AppliedFunction) sole(fn.body());
             assertEquals("map", map.function(),
                     "every synth body terminates in map(...)");
@@ -100,6 +107,238 @@ class MappingNormalizerTest {
             AppliedFunction newCall = (AppliedFunction) sole(lambda.body());
             assertEquals("new", newCall.function(),
                     "every map lambda body is ^Target(...) ie new()");
+        }
+    }
+
+    // ====================================================================
+    // M3 — canonical binding table (surface -> canonical rewrite)
+    // ====================================================================
+
+    @Test
+    @DisplayName("M3: legacy mapping rewrites to a canonical binding table; bindings point at the lifted FQNs")
+    void legacyRewritesToCanonicalBindingTable() {
+        ParsedModel parsed = ElementParser.parse(
+                "Class model::Person { name: String[1]; } "
+                        + "Class model::Firm   { legalName: String[1]; } "
+                        + "Class model::RawPerson { name: String[1]; } "
+                        + "Class model::RawFirm   { legalName: String[1]; } "
+                        + "Mapping my::M ( "
+                        + "  *model::Person:    Pure { ~src model::RawPerson name: $src.name } "
+                        + "   model::Firm:      Pure { ~src model::RawFirm   legalName: $src.legalName } "
+                        + ")");
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        var md = canonicalMapping(normalized, "my::M");
+
+        assertEquals(2, md.classBindings().size(), "one binding per class mapping, in order");
+        var personBinding = md.classBindings().get(0);
+        assertEquals("model::Person", personBinding.classFqn());
+        assertEquals(com.legend.parser.element.MappingDefinition.Kind.PURE, personBinding.kind());
+        assertTrue(personBinding.root(), "leading * marks the binding root");
+        assertEquals("my::M$class$model::Person", personBinding.functionFqn(),
+                "binding references the lifted function by its exact FQN");
+
+        var firmBinding = md.classBindings().get(1);
+        assertEquals("model::Firm", firmBinding.classFqn());
+        assertFalse(firmBinding.root(), "no * => not root");
+
+        // The binding's functionFqn must resolve to an actually-lifted function
+        // — binding and lifted function agree by construction.
+        for (var b : md.classBindings()) {
+            assertTrue(liftedFunctions(normalized).stream()
+                            .anyMatch(f -> f.qualifiedName().equals(b.functionFqn())),
+                    "every class binding points at a present lifted function: " + b.functionFqn());
+        }
+    }
+
+    @Test
+    @DisplayName("M3: no LegacyMappingDefinition survives into the NormalizedModel (§7.4 guard)")
+    void noLegacyMappingSurvivesPhaseE() {
+        ParsedModel parsed = ElementParser.parse(
+                "Class model::Person { name: String[1]; } "
+                        + "Class model::RawPerson { name: String[1]; } "
+                        + "Mapping my::M ( "
+                        + "  *model::Person: Pure { ~src model::RawPerson name: $src.name } "
+                        + ")");
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        for (PackageableElement el : normalized.elements()) {
+            assertFalse(el instanceof LegacyMappingDefinition,
+                    "the legacy surface tree must not flow past Phase E — only the "
+                  + "canonical binding table does (CLEAN_SHEET_INVERSION §1.5)");
+        }
+        // And the canonical form IS present.
+        assertEquals(1, normalized.elements().stream()
+                .filter(e -> e instanceof com.legend.parser.element.MappingDefinition)
+                .count(), "exactly the canonical MappingDefinition is carried forward");
+    }
+
+    @Test
+    @DisplayName("M3: a single-hop association mapping produces an association binding")
+    void associationBindingProduced() {
+        ParsedModel parsed = ElementParser.parse(
+                "Class model::Firm   { id: Integer[1]; } "
+                        + "Class model::Person { firmId: Integer[1]; } "
+                        + "Association model::Person_Firm { "
+                        + "  firm: model::Firm[1]; person: model::Person[1]; } "
+                        + "Database db::DB ( "
+                        + "  Table T_FIRM   (ID INTEGER) "
+                        + "  Table T_PERSON (FIRM_ID INTEGER) "
+                        + "  Join Person_Firm( T_PERSON.FIRM_ID = T_FIRM.ID ) "
+                        + ") "
+                        + "Mapping my::M ( "
+                        + "  *model::Firm: Relational { ~mainTable [db::DB] T_FIRM  id: T_FIRM.ID } "
+                        + "  *model::Person: Relational { ~mainTable [db::DB] T_PERSON  firmId: T_PERSON.FIRM_ID } "
+                        + "  model::Person_Firm: Relational { AssociationMapping ( "
+                        + "    firm: [db::DB] @Person_Firm "
+                        + "  ) } "
+                        + ")");
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        var md = canonicalMapping(normalized, "my::M");
+        assertEquals(1, md.associationBindings().size());
+        var ab = md.associationBindings().get(0);
+        assertEquals("model::Person_Firm", ab.associationFqn());
+        assertEquals("my::M$assoc$model::Person_Firm", ab.predicateFunctionFqn());
+        assertTrue(liftedFunctions(normalized).stream()
+                        .anyMatch(f -> f.qualifiedName().equals(ab.predicateFunctionFqn())),
+                "association binding points at the lifted predicate function");
+    }
+
+    @Test
+    @DisplayName("M4: a clean-sheet mapping passes through Phase E unchanged (no lift, no legacy)")
+    void cleanSheetMappingPassesThroughNormalizeUnchanged() {
+        // A function-form mapping parses straight to the canonical binding
+        // table (Door 1); its realizing functions are user-authored, so the
+        // normalizer lifts NOTHING and the binding table flows through verbatim.
+        ParsedModel parsed = ElementParser.parse(
+                "Class model::Person { name: String[1]; } "
+                        + "function acme::funcs::personMapping(): model::Person[*] "
+                        + "  { model::Person.all() } "
+                        + "Mapping acme::M ( "
+                        + "  *model::Person: Pure { acme::funcs::personMapping } "
+                        + ")");
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+
+        // No lifted (synthesized) mapping functions — the user wrote the body.
+        assertTrue(liftedFunctions(normalized).isEmpty(),
+                "clean-sheet mappings lift nothing; the function is user-authored");
+        // The canonical binding table is carried forward, binding intact.
+        var md = canonicalMapping(normalized, "acme::M");
+        assertEquals(1, md.classBindings().size());
+        assertEquals("model::Person", md.classBindings().get(0).classFqn());
+        assertEquals("acme::funcs::personMapping",
+                md.classBindings().get(0).functionFqn(),
+                "binding still references the user function by FQN");
+        // No legacy surface tree anywhere.
+        for (PackageableElement el : normalized.elements()) {
+            assertFalse(el instanceof LegacyMappingDefinition);
+        }
+    }
+
+    @Test
+    @DisplayName("M5: an inline class binding is lambda-lifted to a function; the binding becomes a Ref")
+    void cleanSheetInlineClassBindingIsLifted() {
+        // Door 3: the body is an inline pipeline (NOT a named function). Phase E
+        // lambda-lifts it to <mapping>$class$<classFqn>(): Class[*] and rewrites
+        // the binding to a function ref.
+        ParsedModel parsed = ElementParser.parse(
+                "Class model::Person { name: String[1]; } "
+                        + "Mapping acme::M ( "
+                        + "  *model::Person: Relational { model::Person.all() } "
+                        + ")");
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+
+        // The inline body WAS lifted into exactly one function.
+        List<FunctionDefinition> lifted = liftedFunctions(normalized);
+        assertEquals(1, lifted.size(), "the inline body is lifted to one function");
+        FunctionDefinition fn = lifted.get(0);
+        assertEquals("acme::M$class$model::Person", fn.qualifiedName());
+        assertTrue(fn.parameters().isEmpty(), "a class realizing fn is param-less");
+        assertEquals("model::Person",
+                ((TypeExpression.NameRef) fn.returnType()).name());
+        assertEquals(Multiplicity.Concrete.ZERO_MANY, fn.returnMultiplicity(),
+                "returns Class[*]");
+        assertEquals(SynthHat.CLASS, fn.synthesizedFrom().hat());
+
+        // The binding now points at the lifted function (no Inline survives).
+        var md = canonicalMapping(normalized, "acme::M");
+        var b = md.classBindings().get(0);
+        assertInstanceOf(Realization.Ref.class, b.realization(),
+                "no inline realization survives Phase E");
+        assertEquals("acme::M$class$model::Person", b.functionFqn());
+    }
+
+    @Test
+    @DisplayName("M5: an inline association lambda lifts to a 2-param Boolean predicate typed from the ends")
+    void cleanSheetInlineAssociationIsLifted() {
+        ParsedModel parsed = ElementParser.parse(
+                "Class model::Person { firmId: Integer[1]; } "
+                        + "Class model::Firm { id: Integer[1]; } "
+                        + "Association model::Person_Firm { "
+                        + "  firm: model::Firm[1]; person: model::Person[1]; } "
+                        + "Mapping acme::M ( "
+                        + "  model::Person_Firm: AssociationMapping { {p, f | $p.firmId == $f.id} } "
+                        + ")");
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+
+        FunctionDefinition fn = liftedFunctions(normalized).stream()
+                .filter(f -> f.qualifiedName().equals("acme::M$assoc$model::Person_Firm"))
+                .findFirst().orElseThrow();
+        assertEquals(2, fn.parameters().size(), "predicate takes (source, target)");
+        // Param names come from the user's lambda; types from the association ends.
+        assertEquals("p", fn.parameters().get(0).name());
+        assertEquals("model::Firm",
+                ((TypeExpression.NameRef) fn.parameters().get(0).type()).name(),
+                "param type from association end1 (Firm)");
+        assertEquals("f", fn.parameters().get(1).name());
+        assertEquals("model::Person",
+                ((TypeExpression.NameRef) fn.parameters().get(1).type()).name(),
+                "param type from association end2 (Person)");
+        assertEquals("Boolean", ((TypeExpression.NameRef) fn.returnType()).name());
+        assertEquals(SynthHat.ASSOC, fn.synthesizedFrom().hat());
+
+        var md = canonicalMapping(normalized, "acme::M");
+        assertInstanceOf(Realization.Ref.class,
+                md.associationBindings().get(0).realization());
+    }
+
+    @Test
+    @DisplayName("M5: inline works for Pure (M2M) bindings too — same lift, kind-agnostic")
+    void cleanSheetInlinePureBindingIsLifted() {
+        ParsedModel parsed = ElementParser.parse(
+                "Class model::Person { name: String[1]; } "
+                        + "Class model::RawPerson { name: String[1]; } "
+                        + "Mapping acme::M ( "
+                        + "  *model::Person: Pure { model::RawPerson.all() } "
+                        + ")");
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        FunctionDefinition fn = soleSynth(normalized);
+        assertEquals("acme::M$class$model::Person", fn.qualifiedName());
+        assertEquals(Multiplicity.Concrete.ZERO_MANY, fn.returnMultiplicity());
+        // The kind tag stays PURE on the binding; the lift didn't inspect it.
+        var b = canonicalMapping(normalized, "acme::M").classBindings().get(0);
+        assertEquals(MappingDefinition.Kind.PURE, b.kind());
+        assertEquals("acme::M$class$model::Person", b.functionFqn());
+    }
+
+    @Test
+    @DisplayName("M5: §7.4 guard — no inline realization survives a NormalizedModel")
+    void noInlineRealizationSurvivesPhaseE() {
+        ParsedModel parsed = ElementParser.parse(
+                "Class model::Person { name: String[1]; } "
+                        + "Mapping acme::M ( "
+                        + "  *model::Person: Relational { model::Person.all() } "
+                        + ")");
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        for (PackageableElement el : normalized.elements()) {
+            if (el instanceof MappingDefinition cmd) {
+                for (var b : cmd.classBindings()) {
+                    assertInstanceOf(Realization.Ref.class, b.realization(),
+                            "class binding must be a Ref post-E");
+                }
+                for (var b : cmd.associationBindings()) {
+                    assertInstanceOf(Realization.Ref.class, b.realization(),
+                            "association binding must be a Ref post-E");
+                }
+            }
         }
     }
 
@@ -120,11 +359,11 @@ class MappingNormalizerTest {
                         + "    age: $src.age "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
         FunctionDefinition fn = soleSynth(normalized);
 
-        // FQN: my::M_Person
-        assertEquals("my::M_Person", fn.qualifiedName());
+        // FQN: my::M$Person
+        assertEquals("my::M$class$model::Person", fn.qualifiedName());
 
         // Return type: model::Person [*]
         assertEquals(new TypeExpression.NameRef("model::Person"), fn.returnType());
@@ -199,11 +438,11 @@ class MappingNormalizerTest {
                         + "    lastName:  T_PERSON.LAST "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
         FunctionDefinition fn = soleSynth(normalized);
 
         // FQN + return type
-        assertEquals("my::M_Person", fn.qualifiedName());
+        assertEquals("my::M$class$model::Person", fn.qualifiedName());
         assertEquals(new TypeExpression.NameRef("model::Person"), fn.returnType());
         assertEquals(Multiplicity.Concrete.ZERO_MANY, fn.returnMultiplicity());
 
@@ -245,9 +484,11 @@ class MappingNormalizerTest {
     @Test
     @DisplayName("synthFunctionFqnFollowsConvention")
     void synthFunctionFqnFollowsConvention() {
-        // Class FQN model::Person + mapping FQN pkg::M::PersonMap
-        // should produce synth fn pkg::M::PersonMap_Person (class simple
-        // name only).
+        // Class FQN model::Person + mapping FQN pkg::M::PersonMap should
+        // produce lifted fn pkg::M::PersonMap$class$model::Person: the full
+        // mapping FQN, the $class$ hat segment, and the FULL class FQN (not
+        // its simple name — the encoding is injective so distinct classes
+        // never collide; docs/CLEAN_SHEET_INVERSION.md §3, SynthFqn.mappingClass).
         ParsedModel parsed = ElementParser.parse(
                 "Class model::Person { name: String[1]; } "
                         + "Class model::RawPerson { name: String[1]; } "
@@ -257,10 +498,18 @@ class MappingNormalizerTest {
                         + "    name: $src.name "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
         FunctionDefinition fn = soleSynth(normalized);
-        assertEquals("pkg::M::PersonMap_Person", fn.qualifiedName(),
-                "synth FQN uses class simple name only");
+        assertEquals("pkg::M::PersonMap$class$model::Person", fn.qualifiedName(),
+                "lifted FQN is <mapping>$class$<full classFqn>");
+        assertEquals(SynthHat.CLASS, fn.synthesizedFrom().hat());
+        // The hat enum is the SINGLE source of truth for both the provenance
+        // tag and the FQN segment — they cannot drift. Pin it: the FQN's middle
+        // segment IS hat.segment().
+        assertTrue(fn.qualifiedName().contains(
+                        "$" + fn.synthesizedFrom().hat().segment() + "$"),
+                "the lifted FQN's $-segment must equal the provenance hat's segment() "
+                        + "(one source of truth — SynthHat)");
     }
 
     // ====================================================================
@@ -280,7 +529,7 @@ class MappingNormalizerTest {
                         + "    name: $src.name "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
         FunctionDefinition fn = soleSynth(normalized);
 
         // Body: map(filter(getAll(RawPerson), src | <filter>), src | ^ActivePerson(...))
@@ -327,7 +576,7 @@ class MappingNormalizerTest {
                         + "    name: T_PERSON.NAME "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
         FunctionDefinition fn = soleSynth(normalized);
 
         // Body: map(filter(tableReference(...), row | $row.IS_ACTIVE == 1), row | ^Person(...))
@@ -375,7 +624,7 @@ class MappingNormalizerTest {
                         + ")");
         IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 IllegalStateException.class,
-                () -> MappingNormalizer.normalize(parsed));
+                () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("other::DB"),
                 () -> "Expected unknown-db error to name the missing db; got: " + ex.getMessage());
     }
@@ -394,7 +643,7 @@ class MappingNormalizerTest {
                         + ")");
         IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 IllegalStateException.class,
-                () -> MappingNormalizer.normalize(parsed));
+                () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("NonexistentFilter"),
                 () -> "Expected missing-filter error to name the filter; got: " + ex.getMessage());
     }
@@ -430,11 +679,11 @@ class MappingNormalizerTest {
                         + "    location: $src.location "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
 
         // Find the StaffWithDept synth fn (not DeptInfo's).
-        FunctionDefinition swdFn = firstMapping(normalized).mappingFunctions().stream()
-                .filter(f -> f.qualifiedName().endsWith("_StaffWithDept"))
+        FunctionDefinition swdFn = liftedFunctions(normalized).stream()
+                .filter(f -> f.qualifiedName().endsWith("::StaffWithDept"))
                 .findFirst().orElseThrow();
 
         AppliedFunction mapCall = (AppliedFunction) sole(swdFn.body());
@@ -490,7 +739,7 @@ class MappingNormalizerTest {
                         + ")");
         IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 IllegalStateException.class,
-                () -> MappingNormalizer.normalize(parsed));
+                () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("model::DeptInfo"),
                 () -> "Expected error to name the missing target type; got: " + ex.getMessage());
         assertTrue(ex.getMessage().contains("unmapped class"),
@@ -515,12 +764,12 @@ class MappingNormalizerTest {
                         + "  *model::A: Pure { ~src model::SrcA b: $src.b } "
                         + "  *model::B: Pure { ~src model::SrcB a: $src.a } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
-        MappingDefinition md = firstMapping(normalized);
-        assertEquals(2, md.mappingFunctions().size(),
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        List<FunctionDefinition> lifted = liftedFunctions(normalized);
+        assertEquals(2, lifted.size(),
                 "Both A and B get their own synth fn; mutual reference does not recurse");
 
-        for (FunctionDefinition fn : md.mappingFunctions()) {
+        for (FunctionDefinition fn : lifted) {
             AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
             LambdaFunction lam = (LambdaFunction) mapCall.parameters().get(1);
             NewInstance ni = (NewInstance)
@@ -550,7 +799,7 @@ class MappingNormalizerTest {
                         + "    fullName: $src.firstName + ' ' + $src.lastName "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
         FunctionDefinition fn = soleSynth(normalized);
         var pcm = (com.legend.parser.element.ClassMapping.Pure)
                 firstMapping(parsed).classMappings().get(0);
@@ -589,7 +838,7 @@ class MappingNormalizerTest {
                         + "    firmName: [db::DB] @Person_Firm | T_FIRM.LEGAL_NAME "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
         FunctionDefinition fn = soleSynth(normalized);
 
         // Body shape: map(join(tableRef, ColSpec, cond), row | ^Person(...))
@@ -667,7 +916,7 @@ class MappingNormalizerTest {
                         + "    orgName: [db::DB] @Person_Firm > @Firm_Org | T_ORG.NAME "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
         FunctionDefinition fn = soleSynth(normalized);
 
         // Body: map(join(join(tableRef, ColSpec1, cond1), ColSpec2, cond2), row | ^Person(...))
@@ -744,7 +993,7 @@ class MappingNormalizerTest {
                         + "    managerId: [db::DB] @Person_Manager | T_PERSON.ID "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
         FunctionDefinition fn = soleSynth(normalized);
 
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
@@ -807,11 +1056,11 @@ class MappingNormalizerTest {
                         + "    revenue:   T_FIRM.REVENUE "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
 
         // Find the Person synth fn (not Firm's).
-        FunctionDefinition personFn = firstMapping(normalized).mappingFunctions().stream()
-                .filter(f -> f.qualifiedName().endsWith("_Person"))
+        FunctionDefinition personFn = liftedFunctions(normalized).stream()
+                .filter(f -> f.qualifiedName().endsWith("::Person"))
                 .findFirst().orElseThrow();
 
         // Top-level is map(legacyNavigate(...), row | ^Person(...)).
@@ -905,7 +1154,7 @@ class MappingNormalizerTest {
                         + "    ) "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
 
         // No associates -- Embedded reads from outer scope.
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
@@ -962,7 +1211,7 @@ class MappingNormalizerTest {
                         + ")");
         UnsupportedOperationException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 UnsupportedOperationException.class,
-                () -> MappingNormalizer.normalize(parsed));
+                () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("Embedded sub-PM"),
                 () -> "Expected nested-Join-in-Embedded error; got: " + ex.getMessage());
     }
@@ -989,9 +1238,9 @@ class MappingNormalizerTest {
                         + "    license: T_PERSON.BROKER_LICENSE "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
-        FunctionDefinition personFn = firstMapping(normalized).mappingFunctions().stream()
-                .filter(f -> f.qualifiedName().endsWith("_Person"))
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        FunctionDefinition personFn = liftedFunctions(normalized).stream()
+                .filter(f -> f.qualifiedName().endsWith("::Person"))
                 .findFirst().orElseThrow();
         AppliedFunction mapCall = (AppliedFunction) sole(personFn.body());
         LambdaFunction projectLambda = (LambdaFunction) mapCall.parameters().get(1);
@@ -1027,7 +1276,7 @@ class MappingNormalizerTest {
                         + ")");
         IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 IllegalStateException.class,
-                () -> MappingNormalizer.normalize(parsed));
+                () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("no_such_set"),
                 () -> "Expected unknown-setId error; got: " + ex.getMessage());
     }
@@ -1058,7 +1307,7 @@ class MappingNormalizerTest {
                         + "    name: T_PERSON.NAME "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
 
         // Pipeline: map(filter(join(tableRef, ColSpec, cond), <lambda>), ^Person)
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
@@ -1109,7 +1358,7 @@ class MappingNormalizerTest {
                         + "    name: T_PERSON.NAME "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         AppliedFunction distinctCall = (AppliedFunction) mapCall.parameters().get(0);
         assertEquals("distinct", distinctCall.function(),
@@ -1144,7 +1393,7 @@ class MappingNormalizerTest {
                         + "    Inactive: 'I' "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         LambdaFunction projectLambda = (LambdaFunction) mapCall.parameters().get(1);
         NewInstance ni = (NewInstance) ((AppliedFunction) sole(projectLambda.body()))
@@ -1208,7 +1457,7 @@ class MappingNormalizerTest {
                         + "    +localTag: String[1]: T_PERSON.EXTRA "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         LambdaFunction projectLambda = (LambdaFunction) mapCall.parameters().get(1);
         NewInstance ni = (NewInstance) ((AppliedFunction) sole(projectLambda.body()))
@@ -1235,7 +1484,7 @@ class MappingNormalizerTest {
                         + "    +computed: String[1]: concat(T_PERSON.A, ' ', T_PERSON.B) "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         LambdaFunction projectLambda = (LambdaFunction) mapCall.parameters().get(1);
         NewInstance ni = (NewInstance) ((AppliedFunction) sole(projectLambda.body()))
@@ -1279,9 +1528,9 @@ class MappingNormalizerTest {
                         + "    ) Otherwise ([firm_set1]: [db::DB] @Person_Firm) "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
-        FunctionDefinition personFn = firstMapping(normalized).mappingFunctions().stream()
-                .filter(f -> f.qualifiedName().endsWith("_Person"))
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        FunctionDefinition personFn = liftedFunctions(normalized).stream()
+                .filter(f -> f.qualifiedName().endsWith("::Person"))
                 .findFirst().orElseThrow();
 
         // New shape: the OE fallback emits a legacyNavigate(~firm) pipeline
@@ -1331,7 +1580,7 @@ class MappingNormalizerTest {
     @DisplayName("otherwiseEmbedded_unmappedTargetClassThrows (R4.5)")
     void otherwiseEmbedded_unmappedTargetClassThrows() {
         // model::Firm is referenced by the OE PM but is NOT itself mapped
-        // in this MappingDefinition. Lifting the fallback to a class-level
+        // in this LegacyMappingDefinition. Lifting the fallback to a class-level
         // association requires Firm to have a class mapping (so Firm.all()
         // can be resolved).
         ParsedModel parsed = ElementParser.parse(
@@ -1353,7 +1602,7 @@ class MappingNormalizerTest {
                         + ")");
         UnsupportedOperationException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 UnsupportedOperationException.class,
-                () -> MappingNormalizer.normalize(parsed));
+                () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("model::Firm"),
                 () -> "Expected error to name the unmapped target class; got: " + ex.getMessage());
         assertTrue(ex.getMessage().contains("not mapped"),
@@ -1391,9 +1640,9 @@ class MappingNormalizerTest {
                         + "    ) Otherwise ([firm_set1]: [db::DB] @Person_Firm > @Firm_Org) "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
-        FunctionDefinition personFn = firstMapping(normalized).mappingFunctions().stream()
-                .filter(f -> f.qualifiedName().endsWith("_Person"))
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        FunctionDefinition personFn = liftedFunctions(normalized).stream()
+                .filter(f -> f.qualifiedName().endsWith("::Person"))
                 .findFirst().orElseThrow();
         // Final hop emits legacyNavigate(~firm); the single intermediate
         // hop (Person_Firm) is a join beneath it.
@@ -1443,9 +1692,9 @@ class MappingNormalizerTest {
                         + "  } "
                         + ")";
 
-        FunctionDefinition fnWithout = soleSynth(MappingNormalizer.normalize(
+        FunctionDefinition fnWithout = soleSynth(normalizeViaPipeline(
                 ElementParser.parse(shared + mappingWithoutAnnotation)));
-        FunctionDefinition fnWith = soleSynth(MappingNormalizer.normalize(
+        FunctionDefinition fnWith = soleSynth(normalizeViaPipeline(
                 ElementParser.parse(shared + mappingWithLeftAnnotation)));
 
         assertEquals(fnWithout.body(), fnWith.body(),
@@ -1469,7 +1718,7 @@ class MappingNormalizerTest {
                         + ")");
         IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 IllegalStateException.class,
-                () -> MappingNormalizer.normalize(parsed));
+                () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("Nonexistent"),
                 () -> "Expected error to name the missing join; got: " + ex.getMessage());
     }
@@ -1493,7 +1742,7 @@ class MappingNormalizerTest {
                         + "    firmIdStr: concat(T_FIRM.ID, '') "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
         FunctionDefinition fn = soleSynth(normalized);
 
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
@@ -1538,7 +1787,7 @@ class MappingNormalizerTest {
                         + "    countryName: [db::DB] @Person_Firm > @Firm_Org > @Org_Country | T_COUNTRY.NAME "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
 
         // Outer-most call is map; underneath are three joins nested in
         // emission order (hop1 innermost, hop3 outermost).
@@ -1611,7 +1860,7 @@ class MappingNormalizerTest {
                         + "    age:       T_PERSON.AGE "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         LambdaFunction projectLambda = (LambdaFunction) mapCall.parameters().get(1);
         AppliedFunction newCall = (AppliedFunction) sole(projectLambda.body());
@@ -1674,7 +1923,7 @@ class MappingNormalizerTest {
                         + "    firmName: [db::DB] @Person_Firm | T_FIRM.LEGAL_NAME "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
 
         // Outer is map; under it: filter -> join -> tableReference.
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
@@ -1710,7 +1959,7 @@ class MappingNormalizerTest {
                         + "    firmId:   [db::DB] @Person_Firm | T_FIRM.ID "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
 
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         // Exactly ONE join: the shared Person_Firm chain.
@@ -1767,7 +2016,7 @@ class MappingNormalizerTest {
                         + "    combo:    concat(T_FIRM.NAME, ' / ', T_DEPT.NAME) "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
 
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         LambdaFunction projectLambda = (LambdaFunction) mapCall.parameters().get(1);
@@ -1821,10 +2070,14 @@ class MappingNormalizerTest {
                         + "    orgName:  [db::DB] @Person_Firm > @Firm_Org | T_ORG.NAME "
                         + "  } "
                         + ")");
-        ParsedModel once = MappingNormalizer.normalize(parsed);
-        ParsedModel twice = MappingNormalizer.normalize(once);
-        assertEquals(firstMapping(once).mappingFunctions(),
-                firstMapping(twice).mappingFunctions(),
+        // Post-inversion normalize() cannot be re-applied (it returns a
+        // NormalizedModel it does not accept — the re-normalization footgun
+        // is gone at the type level), so the surviving property is
+        // determinism: two independent passes over the same parsed input
+        // produce structurally-equal lifted functions.
+        NormalizedModel once = normalizeViaPipeline(parsed);
+        NormalizedModel twice = normalizeViaPipeline(parsed);
+        assertEquals(liftedFunctions(once), liftedFunctions(twice),
                 "Two passes over a Relational mapping with filter + multi-hop "
                         + "joins must yield structurally-equal synth functions");
     }
@@ -1844,11 +2097,13 @@ class MappingNormalizerTest {
                         + "    name: $src.name "
                         + "  } "
                         + ")");
-        ParsedModel once = MappingNormalizer.normalize(parsed);
-        ParsedModel twice = MappingNormalizer.normalize(once);
-        // Structural equality of the mapping functions across passes.
-        assertEquals(firstMapping(once).mappingFunctions(),
-                firstMapping(twice).mappingFunctions());
+        // normalize() is deterministic: two independent passes over the same
+        // parsed input yield structurally-equal lifted functions. (It can no
+        // longer be re-applied to its own output — NormalizedModel is not an
+        // accepted input — so this replaces the old re-normalize idempotence.)
+        NormalizedModel once = normalizeViaPipeline(parsed);
+        NormalizedModel twice = normalizeViaPipeline(parsed);
+        assertEquals(liftedFunctions(once), liftedFunctions(twice));
     }
 
     // ====================================================================
@@ -1963,14 +2218,10 @@ class MappingNormalizerTest {
 
         Set<String> emitted = new TreeSet<>();
         for (String src : models) {
-            ParsedModel normalized = MappingNormalizer.normalize(ElementParser.parse(src));
-            for (PackageableElement el : normalized.elements()) {
-                if (el instanceof MappingDefinition md) {
-                    for (FunctionDefinition fn : md.mappingFunctions()) {
-                        for (ValueSpecification stmt : fn.body()) {
-                            collectEmittedFunctionNames(stmt, emitted);
-                        }
-                    }
+            NormalizedModel normalized = normalizeViaPipeline(ElementParser.parse(src));
+            for (FunctionDefinition fn : liftedFunctions(normalized)) {
+                for (ValueSpecification stmt : fn.body()) {
+                    collectEmittedFunctionNames(stmt, emitted);
                 }
             }
         }
@@ -2137,21 +2388,63 @@ class MappingNormalizerTest {
     // Helpers
     // ====================================================================
 
-    private static MappingDefinition firstMapping(ParsedModel pm) {
+    private static LegacyMappingDefinition firstMapping(ParsedModel pm) {
         for (PackageableElement el : pm.elements()) {
-            if (el instanceof MappingDefinition md) {
+            if (el instanceof LegacyMappingDefinition md) {
                 return md;
             }
         }
-        fail("no MappingDefinition in model");
+        fail("no LegacyMappingDefinition in model");
         throw new AssertionError("unreachable");
     }
 
-    private static FunctionDefinition soleSynth(ParsedModel pm) {
-        MappingDefinition md = firstMapping(pm);
-        assertEquals(1, md.mappingFunctions().size(),
-                "expected exactly one synth fn");
-        return md.mappingFunctions().get(0);
+    /** The canonical (binding-table) MappingDefinition for {@code fqn} in the normalized model. */
+    private static com.legend.parser.element.MappingDefinition canonicalMapping(
+            NormalizedModel m, String fqn) {
+        for (PackageableElement el : m.elements()) {
+            if (el instanceof com.legend.parser.element.MappingDefinition md
+                    && md.qualifiedName().equals(fqn)) {
+                return md;
+            }
+        }
+        throw new AssertionError("no canonical MappingDefinition '" + fqn + "' in normalized model");
+    }
+
+    /**
+     * Run Phase E.1 exactly as production does: invoke the single
+     * {@link MappingNormalizer#normalize(ParsedModel, ModelBuilder)} method with
+     * a real {@code ModelBuilder.from(parsed)} resolution index &mdash; the same
+     * two calls the {@code ModelNormalizer} / {@code Compiler} orchestrator makes.
+     * This is call-site glue, not a second implementation: there is exactly one
+     * {@code normalize} code path, and tests and prod both go through it.
+     */
+    private static NormalizedModel normalizeViaPipeline(ParsedModel parsed) {
+        return MappingNormalizer.normalize(parsed, ModelBuilder.from(parsed));
+    }
+
+    /**
+     * The mapping realizing functions Phase E lifted into the element list
+     * (hats {@code "class"} / {@code "assoc"}), in element order. Post-inversion
+     * these are ordinary top-level {@link FunctionDefinition}s, not stored on
+     * the {@link LegacyMappingDefinition} (docs/CLEAN_SHEET_INVERSION.md §1). Replaces
+     * the old {@code firstMapping(...).mappingFunctions()} accessor.
+     */
+    private static List<FunctionDefinition> liftedFunctions(NormalizedModel m) {
+        List<FunctionDefinition> out = new ArrayList<>();
+        for (PackageableElement el : m.elements()) {
+            if (el instanceof FunctionDefinition fd && fd.isSynthesized()
+                    && (fd.synthesizedFrom().hat() == SynthHat.CLASS
+                        || fd.synthesizedFrom().hat() == SynthHat.ASSOC)) {
+                out.add(fd);
+            }
+        }
+        return out;
+    }
+
+    private static FunctionDefinition soleSynth(NormalizedModel m) {
+        List<FunctionDefinition> fns = liftedFunctions(m);
+        assertEquals(1, fns.size(), "expected exactly one synth fn");
+        return fns.get(0);
     }
 
     private static <T> T sole(List<T> list) {
@@ -2235,9 +2528,9 @@ class MappingNormalizerTest {
                         + "    region: T_ADDR.REGION "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
-        FunctionDefinition personFn = firstMapping(normalized).mappingFunctions().stream()
-                .filter(f -> f.qualifiedName().endsWith("_Person"))
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        FunctionDefinition personFn = liftedFunctions(normalized).stream()
+                .filter(f -> f.qualifiedName().endsWith("::Person"))
                 .findFirst().orElseThrow();
 
         // Condition appears verbatim in the legacyNavigate lambda:
@@ -2289,9 +2582,9 @@ class MappingNormalizerTest {
                         + "    ka: T_TGT.A "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
-        FunctionDefinition srcFn = firstMapping(normalized).mappingFunctions().stream()
-                .filter(f -> f.qualifiedName().endsWith("_Source"))
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        FunctionDefinition srcFn = liftedFunctions(normalized).stream()
+                .filter(f -> f.qualifiedName().endsWith("::Source"))
                 .findFirst().orElseThrow();
 
         // Three-conjunct AND reconstructed verbatim in the legacyNavigate
@@ -2350,9 +2643,9 @@ class MappingNormalizerTest {
                         + "    id: T_TGT.ID "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
-        FunctionDefinition srcFn = firstMapping(normalized).mappingFunctions().stream()
-                .filter(f -> f.qualifiedName().endsWith("_Source"))
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        FunctionDefinition srcFn = liftedFunctions(normalized).stream()
+                .filter(f -> f.qualifiedName().endsWith("::Source"))
                 .findFirst().orElseThrow();
 
         // Condition: or(equal($s.A, $t.A), equal($s.B, $t.B)) — OR
@@ -2397,9 +2690,9 @@ class MappingNormalizerTest {
                         + "    id: T_TGT.ID "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
-        FunctionDefinition srcFn = firstMapping(normalized).mappingFunctions().stream()
-                .filter(f -> f.qualifiedName().endsWith("_Source"))
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        FunctionDefinition srcFn = liftedFunctions(normalized).stream()
+                .filter(f -> f.qualifiedName().endsWith("::Source"))
                 .findFirst().orElseThrow();
 
         AppliedFunction andCall = (AppliedFunction) navCondBody(srcFn);
@@ -2438,9 +2731,9 @@ class MappingNormalizerTest {
                         + "    id: T_TGT.ID "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
-        FunctionDefinition srcFn = firstMapping(normalized).mappingFunctions().stream()
-                .filter(f -> f.qualifiedName().endsWith("_Source"))
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        FunctionDefinition srcFn = liftedFunctions(normalized).stream()
+                .filter(f -> f.qualifiedName().endsWith("::Source"))
                 .findFirst().orElseThrow();
 
         // Ctor reads $row.active (slot) — no +propFk lift.
@@ -2484,9 +2777,9 @@ class MappingNormalizerTest {
                         + "    id: T_TGT.ID "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
-        FunctionDefinition srcFn = firstMapping(normalized).mappingFunctions().stream()
-                .filter(f -> f.qualifiedName().endsWith("_Source"))
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        FunctionDefinition srcFn = liftedFunctions(normalized).stream()
+                .filter(f -> f.qualifiedName().endsWith("::Source"))
                 .findFirst().orElseThrow();
 
         // Ctor reads $row.tgt (slot) — no +propFk lift.
@@ -2531,9 +2824,9 @@ class MappingNormalizerTest {
                         + "    id: T_TGT.ID "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
-        FunctionDefinition srcFn = firstMapping(normalized).mappingFunctions().stream()
-                .filter(f -> f.qualifiedName().endsWith("_Source"))
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        FunctionDefinition srcFn = liftedFunctions(normalized).stream()
+                .filter(f -> f.qualifiedName().endsWith("::Source"))
                 .findFirst().orElseThrow();
 
         // Ctor reads $row.tgt (slot) — no +propFk lift.
@@ -2584,7 +2877,7 @@ class MappingNormalizerTest {
                         + ")");
         UnsupportedOperationException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 UnsupportedOperationException.class,
-                () -> MappingNormalizer.normalize(parsed));
+                () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("T_OTHER"),
                 () -> "Diagnostic must name the offending table; got: " + ex.getMessage());
         assertTrue(ex.getMessage().contains("multi-table"),
@@ -2630,9 +2923,9 @@ class MappingNormalizerTest {
                         + "    name: T_ORG.NAME "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
-        FunctionDefinition personFn = firstMapping(normalized).mappingFunctions().stream()
-                .filter(f -> f.qualifiedName().endsWith("_Person"))
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        FunctionDefinition personFn = liftedFunctions(normalized).stream()
+                .filter(f -> f.qualifiedName().endsWith("::Person"))
                 .findFirst().orElseThrow();
 
         // New shape: intermediate hop (Person_Firm) is a clean join();
@@ -2695,9 +2988,9 @@ class MappingNormalizerTest {
                         + "    name: T_DIV.NAME "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
-        FunctionDefinition personFn = firstMapping(normalized).mappingFunctions().stream()
-                .filter(f -> f.qualifiedName().endsWith("_Person"))
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        FunctionDefinition personFn = liftedFunctions(normalized).stream()
+                .filter(f -> f.qualifiedName().endsWith("::Person"))
                 .findFirst().orElseThrow();
 
         // Two intermediate joins (Person_Firm, Person_Firm__Firm_Org) then
@@ -2753,9 +3046,9 @@ class MappingNormalizerTest {
                         + ")");
         // No exception thrown — the success path proves both prefix and
         // full-chain alias are present in the prelude.
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
-        FunctionDefinition personFn = firstMapping(normalized).mappingFunctions().stream()
-                .filter(f -> f.qualifiedName().endsWith("_Person"))
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        FunctionDefinition personFn = liftedFunctions(normalized).stream()
+                .filter(f -> f.qualifiedName().endsWith("::Person"))
                 .findFirst().orElseThrow();
         // New shape: the final hop is a legacyNavigate; the single
         // intermediate hop (Person_Firm) is a join beneath it, whose
@@ -2798,9 +3091,9 @@ class MappingNormalizerTest {
                         + "    name: T_FIRM.NAME "
                         + "  } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
-        FunctionDefinition personFn = firstMapping(normalized).mappingFunctions().stream()
-                .filter(f -> f.qualifiedName().endsWith("_Person"))
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        FunctionDefinition personFn = liftedFunctions(normalized).stream()
+                .filter(f -> f.qualifiedName().endsWith("::Person"))
                 .findFirst().orElseThrow();
 
         // Final hop is the self-join Firm_Parent; emitted as legacyNavigate.
@@ -2857,7 +3150,7 @@ class MappingNormalizerTest {
                         + "                        [db::DB] @Person_Addr | T_ADDR.STREET) "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
 
         // Pipeline: map(join(join(tableRef, ~Person_Firm), ~Person_Addr), ...)
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
@@ -2931,7 +3224,7 @@ class MappingNormalizerTest {
                         + "                 [db::DB] @Person_Firm | T_FIRM.LEGAL_NAME) "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
 
         // Exactly one join in the prelude.
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
@@ -2979,7 +3272,7 @@ class MappingNormalizerTest {
                         + "    name: T_PERSON.NAME "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
 
         // Pipeline shape: map(filter(join(tableRef, ~Person_Firm), <cond>), ...)
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
@@ -3023,7 +3316,7 @@ class MappingNormalizerTest {
                         + "    tagLine:  concat([db::DB] @Person_Firm | T_FIRM.NAME, '!') "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
 
         // Exactly ONE join: shape map(join(tableRef, ~Person_Firm), ...).
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
@@ -3056,7 +3349,7 @@ class MappingNormalizerTest {
                         + "    +displayFirm: String[1]: concat([db::DB] @Person_Firm | T_FIRM.LEGAL_NAME, '*') "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
 
         // Pipeline shape: map(join(tableRef, ~Person_Firm), ...) — the
         // chain from the LocalProperty body has been hoisted.
@@ -3109,7 +3402,7 @@ class MappingNormalizerTest {
                         + "    tagline: concat([db::DB] @Person_Firm > @Firm_Org | T_ORG.NAME, '!') "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
 
         // Pipeline shape: map(join(join(tableRef, ~Person_Firm), ~Person_Firm__Firm_Org), ...)
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
@@ -3171,7 +3464,7 @@ class MappingNormalizerTest {
                         + "    count:    count(T_PERSON.ID) "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
 
         // Pipeline: map(groupBy(join(tableRef, ~Person_Firm), ~[keys], ~[aggs]), ...)
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
@@ -3222,7 +3515,7 @@ class MappingNormalizerTest {
                         + "    quantity: sum(T_TRADE.QTY) "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
 
         // Pipeline shape: map(groupBy(tableRef, ~[keys], ~[aggs]), row | ^Position(...))
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
@@ -3273,7 +3566,7 @@ class MappingNormalizerTest {
                         + "    quantity: sum(T_TRADE.QTY) "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
 
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         AppliedFunction groupBy = (AppliedFunction) mapCall.parameters().get(0);
@@ -3318,7 +3611,7 @@ class MappingNormalizerTest {
                         + "    total: sum(T.QTY) "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
         AppliedFunction groupBy = (AppliedFunction) ((AppliedFunction) sole(fn.body()))
                 .parameters().get(0);
         com.legend.parser.spec.ColSpecArray aggArr =
@@ -3362,7 +3655,7 @@ class MappingNormalizerTest {
                         + ")");
         UnsupportedOperationException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 UnsupportedOperationException.class,
-                () -> MappingNormalizer.normalize(parsed));
+                () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("extra"),
                 () -> "Expected error to name the orphan PM; got: " + ex.getMessage());
         assertTrue(ex.getMessage().contains("~groupBy"),
@@ -3388,7 +3681,7 @@ class MappingNormalizerTest {
                         + "    total: sum(T.QTY) "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         LambdaFunction projectLambda = (LambdaFunction) mapCall.parameters().get(1);
         NewInstance ni = (NewInstance) ((AppliedFunction) sole(projectLambda.body()))
@@ -3411,15 +3704,15 @@ class MappingNormalizerTest {
     //
     // The normalizer builds a Set<String> of every class FQN that has a
     // ClassMapping somewhere in the model. Building this set ALSO enforces
-    // the design's multi-set-id deferral: within ONE MappingDefinition, the
+    // the design's multi-set-id deferral: within ONE LegacyMappingDefinition, the
     // same class FQN must not appear in two ClassMappings.
     // ====================================================================
 
     @Test
-    @DisplayName("R2: duplicate ClassMapping within one MappingDefinition is rejected")
+    @DisplayName("R2: duplicate ClassMapping within one LegacyMappingDefinition is rejected")
     void duplicateClassMappingWithinOneMappingIsRejected() {
         // Two M2M ClassMappings, both targeting model::Person, in a single
-        // MappingDefinition. Differ only by setId (one default, one named).
+        // LegacyMappingDefinition. Differ only by setId (one default, one named).
         // The deferred multi-set-id path should trip the index-build check.
         ParsedModel parsed = ElementParser.parse(
                 "Class model::Person { name: String[1]; } "
@@ -3431,7 +3724,7 @@ class MappingNormalizerTest {
                         + ")");
         IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 IllegalStateException.class,
-                () -> MappingNormalizer.normalize(parsed));
+                () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("model::Person"),
                 () -> "Expected duplicate-mapping error to name the class; got: " + ex.getMessage());
         assertTrue(ex.getMessage().contains("multiple ClassMappings"),
@@ -3439,10 +3732,10 @@ class MappingNormalizerTest {
     }
 
     @Test
-    @DisplayName("R2: same class mapped in two distinct MappingDefinitions is allowed")
+    @DisplayName("R2: same class mapped in two distinct LegacyMappingDefinitions is allowed")
     void sameClassInTwoMappingsIsAllowed() {
-        // Each MappingDefinition is its own setId namespace; mapping the
-        // same class from two MappingDefinitions is a legitimate setup
+        // Each LegacyMappingDefinition is its own setId namespace; mapping the
+        // same class from two LegacyMappingDefinitions is a legitimate setup
         // (e.g. test vs prod). The R2 index is a Set, idempotent on union.
         ParsedModel parsed = ElementParser.parse(
                 "Class model::Person { name: String[1]; } "
@@ -3454,14 +3747,44 @@ class MappingNormalizerTest {
                         + "Mapping my::MB ( "
                         + "  *model::Person: Pure { ~src model::SrcB name: $src.name } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
-        // Both mappings get a synth; nothing thrown.
-        long synths = normalized.elements().stream()
-                .filter(e -> e instanceof MappingDefinition)
-                .mapToLong(e -> ((MappingDefinition) e).mappingFunctions().size())
-                .sum();
-        assertEquals(2, synths,
-                "Both MappingDefinitions should produce one synth each");
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        // Both mappings get a synth; nothing thrown. Each lifts a distinct
+        // FQN, both ordinary top-level elements.
+        List<FunctionDefinition> lifted = liftedFunctions(normalized);
+        assertEquals(2, lifted.size(),
+                "Both LegacyMappingDefinitions should produce one synth each");
+        assertEquals(java.util.Set.of("my::MA$class$model::Person", "my::MB$class$model::Person"),
+                lifted.stream().map(FunctionDefinition::qualifiedName)
+                        .collect(Collectors.toSet()));
+    }
+
+    @Test
+    @DisplayName("same simple name, different packages, one mapping: lifted FQNs do NOT collide")
+    void sameSimpleNameDifferentPackagesDoNotCollide() {
+        // The lifted FQN embeds the FULL class FQN, so a::Person and b::Person
+        // mapped in the SAME mapping lift to distinct functions. A simple-name
+        // scheme (<mapping>$class$Person) would collapse both to one FQN and
+        // silently drop a mapping from findFunction — the injectivity bug the
+        // full-FQN encoding rules out by construction (CLEAN_SHEET_INVERSION §3).
+        ParsedModel parsed = ElementParser.parse(
+                "Class a::Person { name: String[1]; } "
+                        + "Class b::Person { name: String[1]; } "
+                        + "Class src::RawA { name: String[1]; } "
+                        + "Class src::RawB { name: String[1]; } "
+                        + "Mapping my::M ( "
+                        + "  *a::Person: Pure { ~src src::RawA name: $src.name } "
+                        + "  *b::Person: Pure { ~src src::RawB name: $src.name } "
+                        + ")");
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        List<FunctionDefinition> lifted = liftedFunctions(normalized);
+        assertEquals(java.util.Set.of("my::M$class$a::Person", "my::M$class$b::Person"),
+                lifted.stream().map(FunctionDefinition::qualifiedName)
+                        .collect(Collectors.toSet()),
+                "two same-simple-name classes must lift to distinct, non-colliding FQNs");
+        // Both resolve independently through the one findFunction index.
+        ModelBuilder mb = ModelBuilder.from(normalized);
+        assertEquals(1, mb.findFunction("my::M$class$a::Person").size());
+        assertEquals(1, mb.findFunction("my::M$class$b::Person").size());
     }
 
     // ====================================================================
@@ -3496,9 +3819,9 @@ class MappingNormalizerTest {
                         + "    firm: [db::DB] @Person_Firm "
                         + "  ) } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
-        FunctionDefinition assocFn = firstMapping(normalized).mappingFunctions().stream()
-                .filter(f -> f.qualifiedName().endsWith("_Person_Firm"))
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        FunctionDefinition assocFn = liftedFunctions(normalized).stream()
+                .filter(f -> f.qualifiedName().endsWith("::Person_Firm"))
                 .findFirst().orElseThrow();
 
         // Signature: (a: model::Firm[1], b: model::Person[1]) -> Boolean[1].
@@ -3560,7 +3883,7 @@ class MappingNormalizerTest {
                         + "    acct: T_TRADE.ACC_NUM "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
 
         // ~primaryKey is still parsed onto the ClassMapping.
         var rcm = (com.legend.parser.element.ClassMapping.Relational)
@@ -3594,7 +3917,7 @@ class MappingNormalizerTest {
                         + ")");
         IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 IllegalStateException.class,
-                () -> MappingNormalizer.normalize(parsed));
+                () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("Circular M2M"),
                 () -> "Expected circular-M2M diagnostic; got: " + ex.getMessage());
         assertTrue(ex.getMessage().contains("model::A") && ex.getMessage().contains("model::B"),
@@ -3622,7 +3945,7 @@ class MappingNormalizerTest {
                         + ")");
         IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 IllegalStateException.class,
-                () -> MappingNormalizer.normalize(parsed));
+                () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("bogus"),
                 () -> "Expected error to name the offending PM; got: " + ex.getMessage());
         assertTrue(ex.getMessage().contains("not declared"),
@@ -3658,7 +3981,7 @@ class MappingNormalizerTest {
                         + "    name: V_PERSON.pname "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
 
         // Pipeline: tableReference(db::DB, T_PERSON) -> distinct() -> map.
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
@@ -3705,7 +4028,7 @@ class MappingNormalizerTest {
                         + ")");
         IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 IllegalStateException.class,
-                () -> MappingNormalizer.normalize(parsed));
+                () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("V_MIX")
                         && ex.getMessage().contains("single root table"),
                 () -> "Expected a multi-root-table diagnostic naming V_MIX; got: "
@@ -3734,7 +4057,7 @@ class MappingNormalizerTest {
                         + ")");
         IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 IllegalStateException.class,
-                () -> MappingNormalizer.normalize(parsed));
+                () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("V_ALLJOIN")
                         && ex.getMessage().contains("cannot infer underlying main table"),
                 () -> "Expected a no-root-table diagnostic naming V_ALLJOIN; got: "
@@ -3767,7 +4090,7 @@ class MappingNormalizerTest {
                         + "    firmName: V_PERSON.pfirmName "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
 
         // Pipeline: join(tableReference(T_PERSON), ~Person_Firm: ..., cond) -> map.
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
@@ -3820,7 +4143,7 @@ class MappingNormalizerTest {
                         + "    age:  V_PERSON.page "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
 
         // Pipeline: filter(filter(tableReference(T_PERSON), <view>), <mapping>) -> map.
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
@@ -3865,7 +4188,7 @@ class MappingNormalizerTest {
                         + "    k: V_G.vk "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         assertEquals("map", mapCall.function());
         AppliedFunction groupBy = (AppliedFunction) mapCall.parameters().get(0);
@@ -3910,7 +4233,7 @@ class MappingNormalizerTest {
                         + "    otherName: [db::DB] @A__B | T_OTHER.NAME "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
         Set<String> tables = new TreeSet<>();
         collectTableReferenceTables(sole(fn.body()), tables);
         assertTrue(tables.contains("T_END"),
@@ -3949,9 +4272,9 @@ class MappingNormalizerTest {
                         + "Runtime my::R { mappings: [my::M]; connections: [ "
                         + "ModelStore: [ json: #{ JsonModelConnection { "
                         + "class: model::Raw; url: 'data:application/json,[]'; } }# ] ]; }");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
-        FunctionDefinition rawFn = firstMapping(normalized).mappingFunctions().stream()
-                .filter(f -> f.qualifiedName().endsWith("_Raw"))
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
+        FunctionDefinition rawFn = liftedFunctions(normalized).stream()
+                .filter(f -> f.qualifiedName().endsWith("::Raw"))
                 .findFirst().orElseThrow(() ->
                         new AssertionError("expected a cross-baked synth fn for model::Raw"));
 
@@ -4018,12 +4341,12 @@ class MappingNormalizerTest {
                         + "    city: [db::DB] @Person_Address > @Address_City "
                         + "  ) } "
                         + ")");
-        ParsedModel normalized = MappingNormalizer.normalize(parsed);
+        NormalizedModel normalized = normalizeViaPipeline(parsed);
 
         // The `city` end is owned by Person (the opposite end's target), so it
         // is injected into Person's realizing function as a class-typed Join.
-        FunctionDefinition personFn = firstMapping(normalized).mappingFunctions().stream()
-                .filter(f -> f.qualifiedName().endsWith("_Person"))
+        FunctionDefinition personFn = liftedFunctions(normalized).stream()
+                .filter(f -> f.qualifiedName().endsWith("::Person"))
                 .findFirst().orElseThrow();
 
         // Final hop emits legacyNavigate(~city); the intermediate hop
@@ -4064,8 +4387,8 @@ class MappingNormalizerTest {
         // OWNERSHIP: `city` is owned by Person (the opposite end's target), so
         // it lands on Person — NOT on City. City's realizing function carries
         // no navigation (its source is a bare tableReference).
-        FunctionDefinition cityFn = firstMapping(normalized).mappingFunctions().stream()
-                .filter(f -> f.qualifiedName().endsWith("_City"))
+        FunctionDefinition cityFn = liftedFunctions(normalized).stream()
+                .filter(f -> f.qualifiedName().endsWith("::City"))
                 .findFirst().orElseThrow();
         AppliedFunction cityMap = (AppliedFunction) sole(cityFn.body());
         assertEquals("tableReference",
@@ -4073,8 +4396,8 @@ class MappingNormalizerTest {
                 "the city end was routed to Person, so City's source is unnavigated");
 
         // No standalone (A,B)->Boolean predicate function is emitted.
-        boolean hasPredicateFn = firstMapping(normalized).mappingFunctions().stream()
-                .anyMatch(f -> f.qualifiedName().endsWith("_Person_City"));
+        boolean hasPredicateFn = liftedFunctions(normalized).stream()
+                .anyMatch(f -> f.qualifiedName().endsWith("::Person_City"));
         org.junit.jupiter.api.Assertions.assertFalse(hasPredicateFn,
                 "multi-hop association emits no standalone predicate function");
     }
@@ -4102,7 +4425,7 @@ class MappingNormalizerTest {
                         + "    name: T_PERSON.NAME "
                         + "  } "
                         + ")");
-        FunctionDefinition fn = soleSynth(MappingNormalizer.normalize(parsed));
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
         NewInstance ni = (NewInstance) ((AppliedFunction)
                 ((LambdaFunction) ((AppliedFunction) sole(fn.body())).parameters().get(1))
                         .body().get(0)).parameters().get(1);
@@ -4121,8 +4444,8 @@ class MappingNormalizerTest {
     // ====================================================================
 
     /** Ctor NewInstance of a synth fn whose FQN ends with {@code suffix}. */
-    private static NewInstance synthCtor(ParsedModel normalized, String suffix) {
-        FunctionDefinition fn = firstMapping(normalized).mappingFunctions().stream()
+    private static NewInstance synthCtor(NormalizedModel normalized, String suffix) {
+        FunctionDefinition fn = liftedFunctions(normalized).stream()
                 .filter(f -> f.qualifiedName().endsWith(suffix))
                 .findFirst().orElseThrow(() ->
                         new AssertionError("no synth fn ending with " + suffix));
@@ -4146,7 +4469,7 @@ class MappingNormalizerTest {
                         + "    ~mainTable [db::DB] T  salary: T.SAL "
                         + "  } "
                         + ")");
-        NewInstance ni = synthCtor(MappingNormalizer.normalize(parsed), "_Employee");
+        NewInstance ni = synthCtor(normalizeViaPipeline(parsed), "::Employee");
         // Parent PM 'name' is inherited, then child's 'salary' (declaration order).
         assertEquals(List.of("name", "salary"), List.copyOf(ni.properties().keySet()),
                 "child absorbs parent PMs (parent first), then its own");
@@ -4170,7 +4493,7 @@ class MappingNormalizerTest {
                         + "    ~mainTable [db::DB] T  name: T.FULL_NAME "
                         + "  } "
                         + ")");
-        NewInstance ni = synthCtor(MappingNormalizer.normalize(parsed), "_Employee");
+        NewInstance ni = synthCtor(normalizeViaPipeline(parsed), "::Employee");
         assertEquals(List.of("name"), List.copyOf(ni.properties().keySet()),
                 "conflicting property appears once");
         AppliedProperty nameRead = (AppliedProperty) ni.properties().get("name").value();
@@ -4191,7 +4514,7 @@ class MappingNormalizerTest {
                         + "  model::B[b] extends [a]: Relational { ~mainTable [db::DB] T  pb: T.PB } "
                         + "  *model::C[c] extends [b]: Relational { ~mainTable [db::DB] T  pc: T.PC } "
                         + ")");
-        NewInstance ni = synthCtor(MappingNormalizer.normalize(parsed), "_C");
+        NewInstance ni = synthCtor(normalizeViaPipeline(parsed), "::C");
         assertEquals(List.of("pa", "pb", "pc"), List.copyOf(ni.properties().keySet()),
                 "grandparent + parent + child PMs flatten in inheritance order");
     }
@@ -4209,7 +4532,7 @@ class MappingNormalizerTest {
                         + ")");
         IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 IllegalStateException.class,
-                () -> MappingNormalizer.normalize(parsed));
+                () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("nope"),
                 () -> "Expected the unknown parent set id to be named; got: " + ex.getMessage());
     }
@@ -4245,7 +4568,7 @@ class MappingNormalizerTest {
                         + "    secondaryFirmName: [db::DB] @Person_SecondaryFirm | T_FIRM.NAME "
                         + "  } "
                         + ")");
-        NewInstance ni = synthCtor(MappingNormalizer.normalize(parsed), "_Person");
+        NewInstance ni = synthCtor(normalizeViaPipeline(parsed), "::Person");
         AppliedProperty primary = (AppliedProperty) ni.properties().get("primaryFirmName").value();
         assertEquals("NAME", primary.property());
         assertEquals("Person_PrimaryFirm", ((AppliedProperty) primary.receiver()).property(),
@@ -4281,7 +4604,7 @@ class MappingNormalizerTest {
                         + ")");
         IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 IllegalStateException.class,
-                () -> MappingNormalizer.normalize(parsed));
+                () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("Ambiguous") && ex.getMessage().contains("T_FIRM"),
                 () -> "Expected an ambiguous-table diagnostic naming T_FIRM; got: " + ex.getMessage());
     }

@@ -2,6 +2,11 @@
 
 > **This file is read by AI coding assistants. Follow these rules strictly.**
 >
+> **North-star tenet:** *Total Knowledge, Demand-Driven Work* — be eager and
+> total about Knowledge (parse/index/manifest), lazy about Work (type-check
+> bodies, lower, SQL, execute). See `docs/TENETS.md` before any "lazy vs eager?"
+> decision.
+>
 > Active architectural plans:
 > - `docs/pipeline-architecture.md` — backend (HIR → MIR → SQL).
 > - `docs/frontend-architecture.md` — frontend (text → HIR).

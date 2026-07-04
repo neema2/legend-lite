@@ -27,7 +27,9 @@ import com.legend.parser.element.FilterPointer;
 import com.legend.parser.element.FunctionDefinition;
 import com.legend.parser.element.NativeFunctionDefinition;
 import com.legend.parser.element.JoinChainElement;
+import com.legend.parser.element.LegacyMappingDefinition;
 import com.legend.parser.element.MappingDefinition;
+import com.legend.parser.element.Realization;
 import com.legend.parser.element.PropertyMapping;
 import com.legend.parser.element.JsonModelConnection;
 import com.legend.parser.element.PackageableElement;
@@ -54,6 +56,7 @@ import com.legend.parser.spec.CInteger;
 import com.legend.parser.spec.CString;
 import com.legend.parser.spec.PackageableElementPtr;
 import com.legend.parser.spec.Variable;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -568,6 +571,41 @@ final class ElementParserTest {
         assertEquals(Multiplicity.exactly(1), d.multiplicity());
         // Regular properties list stays empty.
         assertTrue(c.properties().isEmpty());
+    }
+
+    @Test
+    @DisplayName("M7 Door 4: a derived property whose body is a bare FQN binds to that function (Ref)")
+    void derivedProperty_functionRefBinding_parsesToRef() {
+        ClassDefinition c = parseOneClass(
+                "Class P { fullName() { my::funcs::fullName }: String[1]; }");
+        DerivedPropertyDefinition d = c.derivedProperties().get(0);
+        assertEquals("fullName", d.name());
+        var ref = assertInstanceOf(com.legend.parser.element.Realization.Ref.class, d.realization(),
+                "a bare-FQN body binds to a function (not an inline expression)");
+        assertEquals("my::funcs::fullName", ref.functionFqn());
+        // The inline accessor is invalid for a ref binding.
+        assertThrows(IllegalStateException.class, d::expression);
+    }
+
+    @Test
+    @DisplayName("M7: the sugar (inline) derived property is still an Inline realization")
+    void derivedProperty_inlineBody_isInlineRealization() {
+        ClassDefinition c = parseOneClass(
+                "Class P { fullName() { $this.a + $this.b }: String[1]; }");
+        assertInstanceOf(com.legend.parser.element.Realization.Inline.class,
+                c.derivedProperties().get(0).realization());
+    }
+
+    @Test
+    @DisplayName("M7 Door 4: a constraint whose body is a bare FQN binds to that predicate (Ref)")
+    void constraint_functionRefBinding_parsesToRef() {
+        ClassDefinition c = parseOneClass(
+                "Class P [adult: my::funcs::isAdult] { age: Integer[1]; }");
+        var con = c.constraints().get(0);
+        assertEquals("adult", con.name());
+        var ref = assertInstanceOf(com.legend.parser.element.Realization.Ref.class, con.realization());
+        assertEquals("my::funcs::isAdult", ref.functionFqn());
+        assertThrows(IllegalStateException.class, con::expression);
     }
 
     @Test
@@ -1801,17 +1839,176 @@ final class ElementParserTest {
     }
 
     // ===============================================================
+    // M4 — Door 1: clean-sheet function-ref mappings parse straight to a
+    // canonical binding table (CLEAN_SHEET_INVERSION §5.1). These are the
+    // FIRST tests that feed clean-sheet syntax to the parser, not legacy DSL.
+    // ===============================================================
+
+    private static com.legend.parser.element.MappingDefinition canonicalMapping(String src) {
+        return (com.legend.parser.element.MappingDefinition)
+                ElementParser.parse(src).elements().get(0);
+    }
+
+    @Test
+    void cleanSheet_relationalFunctionRef_parsesToClassBinding() {
+        var md = canonicalMapping(
+                "Mapping acme::M ( "
+              + "  *acme::Person: Relational { acme::funcs::personMapping } "
+              + ")");
+        assertEquals("acme::M", md.qualifiedName());
+        assertEquals(1, md.classBindings().size());
+        var b = md.classBindings().get(0);
+        assertEquals("acme::Person", b.classFqn());
+        assertEquals(com.legend.parser.element.MappingDefinition.Kind.RELATIONAL, b.kind());
+        assertTrue(b.root());
+        assertNull(b.setId());
+        assertNull(b.extendsSetId());
+        assertEquals("acme::funcs::personMapping", b.functionFqn());
+    }
+
+    @Test
+    void cleanSheet_pureFunctionRef_parsesToPureBinding() {
+        var md = canonicalMapping(
+                "Mapping acme::M ( "
+              + "  acme::StaffMember: Pure { acme::funcs::staffMapping } "
+              + ")");
+        var b = md.classBindings().get(0);
+        assertEquals("acme::StaffMember", b.classFqn());
+        assertEquals(com.legend.parser.element.MappingDefinition.Kind.PURE, b.kind());
+        assertFalse(b.root(), "no leading * => not root");
+        assertEquals("acme::funcs::staffMapping", b.functionFqn());
+    }
+
+    @Test
+    void cleanSheet_setIdAndExtends_carriedOntoBinding() {
+        var md = canonicalMapping(
+                "Mapping acme::M ( "
+              + "  acme::Person[emp] extends [base]: Relational { acme::funcs::employeeMapping } "
+              + ")");
+        var b = md.classBindings().get(0);
+        assertEquals("emp", b.setId());
+        assertEquals("base", b.extendsSetId());
+        assertEquals("acme::funcs::employeeMapping", b.functionFqn());
+    }
+
+    @Test
+    void cleanSheet_associationMappingKindTag_parsesToAssociationBinding() {
+        var md = canonicalMapping(
+                "Mapping acme::M ( "
+              + "  *acme::Person: Relational { acme::funcs::personMapping } "
+              + "  *acme::Firm:   Relational { acme::funcs::firmMapping } "
+              + "  acme::Person_Firm: AssociationMapping { acme::funcs::personFirmMatch } "
+              + ")");
+        assertEquals(2, md.classBindings().size());
+        assertEquals(1, md.associationBindings().size());
+        var ab = md.associationBindings().get(0);
+        assertEquals("acme::Person_Firm", ab.associationFqn());
+        assertEquals("acme::funcs::personFirmMatch", ab.predicateFunctionFqn());
+    }
+
+    @Test
+    void cleanSheet_multipleBindings_preserveOrderAndRootMarkers() {
+        var md = canonicalMapping(
+                "Mapping acme::M ( "
+              + "  *acme::Person: Relational { acme::funcs::personMapping } "
+              + "   acme::Firm:   Relational { acme::funcs::firmMapping } "
+              + ")");
+        assertEquals(java.util.List.of("acme::Person", "acme::Firm"),
+                md.classBindings().stream()
+                        .map(com.legend.parser.element.MappingDefinition.ClassBinding::classFqn)
+                        .toList());
+        assertTrue(md.classBindings().get(0).root());
+        assertFalse(md.classBindings().get(1).root());
+    }
+
+    @Test
+    void cleanSheet_disambiguation_legacyBodyStillParsesAsLegacy() {
+        // A `~mainTable` / `prop:` body is legacy DSL even under the same
+        // Relational kind tag — the §5.1 rule must NOT misread it as clean-sheet.
+        var parsed = ElementParser.parse(
+                "Mapping my::M ( "
+              + "  *model::Person: Relational { ~mainTable [db::DB] PERSON firstName: PERSON.FIRST_NAME } "
+              + ")").elements().get(0);
+        assertInstanceOf(LegacyMappingDefinition.class, parsed,
+                "a legacy DSL body must still produce the legacy surface tree");
+    }
+
+    @Test
+    void cleanSheet_mixingLegacyAndFunctionForm_isRejected() {
+        // legacy first, then clean-sheet.
+        var ex = assertThrows(
+                com.legend.parser.ParseException.class,
+                () -> ElementParser.parse(
+                        "Mapping my::M ( "
+                      + "  *model::Person: Relational { ~mainTable [db::DB] PERSON firstName: PERSON.FIRST_NAME } "
+                      + "  *model::Firm:   Relational { acme::funcs::firmMapping } "
+                      + ")"));
+        assertTrue(ex.getMessage().contains(
+                        "Mapping 'my::M' mixes legacy DSL bodies with function-form bindings"),
+                () -> "expected the exact mix-rejection message; got: " + ex.getMessage());
+    }
+
+    @Test
+    void cleanSheet_mixingFunctionFormThenLegacy_isAlsoRejected() {
+        // clean-sheet first, then legacy — order must not matter.
+        var ex = assertThrows(
+                com.legend.parser.ParseException.class,
+                () -> ElementParser.parse(
+                        "Mapping my::M ( "
+                      + "  *model::Firm:   Relational { acme::funcs::firmMapping } "
+                      + "  *model::Person: Relational { ~mainTable [db::DB] PERSON firstName: PERSON.FIRST_NAME } "
+                      + ")"));
+        assertTrue(ex.getMessage().contains(
+                        "Mapping 'my::M' mixes legacy DSL bodies with function-form bindings"),
+                () -> "expected the exact mix-rejection message; got: " + ex.getMessage());
+    }
+
+    @Test
+    void cleanSheet_inlineExpressionBody_parsesToInlineRealization() {
+        // M5 / Door 3: an inline pipeline body parses to a ClassBinding whose
+        // realization is Inline (carrying the expression), NOT a function ref.
+        var md = canonicalMapping(
+                "Mapping my::M ( "
+              + "  *model::Person: Relational { acme::prep::rows() -> map(@model::Person) } "
+              + ")");
+        var b = md.classBindings().get(0);
+        assertEquals("model::Person", b.classFqn());
+        assertInstanceOf(Realization.Inline.class, b.realization(),
+                "a pipeline body is an inline realization, not a function ref");
+        var inline = (Realization.Inline) b.realization();
+        assertEquals(1, inline.body().size(), "the inline body carries the parsed expression");
+        // The bare-FQN sibling case must still be a Ref (regression guard).
+        var refMd = canonicalMapping(
+                "Mapping my::M ( *model::Person: Relational { acme::funcs::personMapping } )");
+        assertInstanceOf(Realization.Ref.class,
+                refMd.classBindings().get(0).realization(),
+                "a bare FQN body is still a function ref, not inline");
+    }
+
+    @Test
+    void cleanSheet_inlineAssociationLambda_parsesToInlineRealization() {
+        var md = canonicalMapping(
+                "Mapping my::M ( "
+              + "  acme::Person_Firm: AssociationMapping { {p, f | $p.firmId == $f.id} } "
+              + ")");
+        var ab = md.associationBindings().get(0);
+        assertEquals("acme::Person_Firm", ab.associationFqn());
+        assertInstanceOf(Realization.Inline.class, ab.realization(),
+                "an inline lambda predicate is an inline realization");
+    }
+
+    // ===============================================================
     // B.4b — Mapping (relational class mappings)
     // ===============================================================
 
     private static ClassMapping.Relational firstRelationalClassMapping(String src) {
-        MappingDefinition md = (MappingDefinition) ElementParser.parse(src).elements().get(0);
+        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(src).elements().get(0);
         return (ClassMapping.Relational) md.classMappings().get(0);
     }
 
     @Test
     void mappingEmpty() {
-        MappingDefinition md = (MappingDefinition)
+        LegacyMappingDefinition md = (LegacyMappingDefinition)
                 ElementParser.parse("Mapping my::M ( )").elements().get(0);
         assertEquals("my::M", md.qualifiedName());
         assertTrue(md.includes().isEmpty());
@@ -1820,7 +2017,7 @@ final class ElementParserTest {
 
     @Test
     void mappingIncludeWithoutSubstitutions() {
-        MappingDefinition md = (MappingDefinition)
+        LegacyMappingDefinition md = (LegacyMappingDefinition)
                 ElementParser.parse("Mapping my::M ( include other::Base )").elements().get(0);
         assertEquals(1, md.includes().size());
         assertEquals("other::Base", md.includes().get(0).mappingPath());
@@ -1829,7 +2026,7 @@ final class ElementParserTest {
 
     @Test
     void mappingIncludeWithStoreSubstitutions() {
-        MappingDefinition md = (MappingDefinition)
+        LegacyMappingDefinition md = (LegacyMappingDefinition)
                 ElementParser.parse(
                         "Mapping my::M ( include other::Base "
                         + "[ store::OldDb -> store::NewDb, store::Old2 -> store::New2 ] )")
@@ -1850,7 +2047,7 @@ final class ElementParserTest {
         assertNull(cm.setId());
         assertNull(cm.extendsSetId());
         assertTrue(cm.root());
-        assertEquals(new MappingDefinition.TableReference("db::DB", "PERSON"), cm.mainTable());
+        assertEquals(new LegacyMappingDefinition.TableReference("db::DB", "PERSON"), cm.mainTable());
         assertNull(cm.filter());
         assertFalse(cm.distinct());
         assertTrue(cm.groupBy().isEmpty());
@@ -2121,7 +2318,7 @@ final class ElementParserTest {
     // ===============================================================
 
     private static AssociationMapping.Relational firstAssociationMapping(String src) {
-        MappingDefinition md = (MappingDefinition) ElementParser.parse(src).elements().get(0);
+        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(src).elements().get(0);
         return (AssociationMapping.Relational) md.associationMappings().get(0);
     }
 
@@ -2218,7 +2415,7 @@ final class ElementParserTest {
 
     @Test
     void mappingMixesClassAndAssociationMappings() {
-        MappingDefinition md = (MappingDefinition) ElementParser.parse(
+        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
                 "Mapping my::M ( "
                 + "*model::Person: Relational { ~mainTable [db::DB] PERSON  name: PERSON.NAME } "
                 + "my::Person_Firm: Relational { AssociationMapping ( firm: [db::DB] @P_F ) } "
@@ -2248,7 +2445,7 @@ final class ElementParserTest {
     // ===============================================================
 
     private static EnumerationMapping firstEnumerationMapping(String src) {
-        MappingDefinition md = (MappingDefinition) ElementParser.parse(src).elements().get(0);
+        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(src).elements().get(0);
         return md.enumerationMappings().get(0);
     }
 
@@ -2380,7 +2577,7 @@ final class ElementParserTest {
 
     @Test
     void mappingWithClassAndEnumerationMappingTogether() {
-        MappingDefinition md = (MappingDefinition) ElementParser.parse(
+        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
                 "Mapping my::M ( "
                 + "*model::Order: Relational { ~mainTable [db::DB] ORDERS "
                 + "  status: EnumerationMapping StatusMap : ORDERS.STATUS } "
@@ -2401,7 +2598,7 @@ final class ElementParserTest {
     // ===============================================================
 
     private static ClassMapping.Pure firstPureClassMapping(String src) {
-        MappingDefinition md = (MappingDefinition) ElementParser.parse(src).elements().get(0);
+        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(src).elements().get(0);
         return (ClassMapping.Pure) md.classMappings().get(0);
     }
 
@@ -2572,7 +2769,7 @@ final class ElementParserTest {
 
     @Test
     void mappingMixesPureAndRelationalClassMappings() {
-        MappingDefinition md = (MappingDefinition) ElementParser.parse(
+        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
                 "Mapping my::M ( "
                 + "*model::Person: Pure { ~src model::RawPerson  name: $src.name } "
                 + "*model::Firm: Relational { ~mainTable [db::DB] FIRMS  legalName: FIRMS.NAME } "
@@ -2588,7 +2785,7 @@ final class ElementParserTest {
     // ===============================================================
 
     private static ClassMapping.Relational firstRelational(String src) {
-        MappingDefinition md = (MappingDefinition) ElementParser.parse(src).elements().get(0);
+        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(src).elements().get(0);
         return (ClassMapping.Relational) md.classMappings().get(0);
     }
 
@@ -2758,7 +2955,7 @@ final class ElementParserTest {
 
     @Test
     void mappingWithoutTestSuitesHasNullSource() {
-        MappingDefinition md = (MappingDefinition) ElementParser.parse(
+        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
                 "Mapping my::M ( "
                 + "*model::P: Relational { ~mainTable [db::DB] T  x: T.X } "
                 + ")").elements().get(0);
@@ -2767,7 +2964,7 @@ final class ElementParserTest {
 
     @Test
     void mappingTestSuitesBlockCapturedVerbatim() {
-        MappingDefinition md = (MappingDefinition) ElementParser.parse(
+        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
                 "Mapping my::M ( "
                 + "*model::P: Relational { ~mainTable [db::DB] T  x: T.X } "
                 + "testSuites: [ "
@@ -2789,7 +2986,7 @@ final class ElementParserTest {
     @Test
     void mappingTestSuitesInteriorBracesBalanced() {
         // Nested braces and brackets must balance correctly inside capture.
-        MappingDefinition md = (MappingDefinition) ElementParser.parse(
+        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
                 "Mapping my::M ( "
                 + "testSuites: [ "
                 + "  S1: { tests: [ T1: { q: |[1, 2, 3]->size() } ] } "
@@ -2817,7 +3014,7 @@ final class ElementParserTest {
 
     @Test
     void mappingTwoClassMappingsWithCommonMainTable() {
-        MappingDefinition md = (MappingDefinition) ElementParser.parse(
+        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
                 "Mapping my::M ( "
                 + "*model::Person: Relational { ~mainTable [db::DB] PERSON  name: PERSON.NAME } "
                 + "*model::Firm: Relational { ~mainTable [db::DB] FIRM  legalName: FIRM.LEGAL_NAME } "

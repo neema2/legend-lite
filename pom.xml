@@ -16,6 +16,7 @@
     </description>
 
     <modules>
+        <module>core</module>
         <module>engine</module>
         <module>nlq</module>
         <module>pct</module>
@@ -30,6 +31,7 @@
         <duckdb.version>1.5.0.0</duckdb.version>
         <sqlite.version>3.47.1.0</sqlite.version>
         <junit.version>5.11.3</junit.version>
+        <archunit.version>1.3.0</archunit.version>
     </properties>
 
     <dependencyManagement>
@@ -37,8 +39,20 @@
             <!-- Internal modules -->
             <dependency>
                 <groupId>org.finos.legend</groupId>
+                <artifactId>legend-lite-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.finos.legend</groupId>
                 <artifactId>legend-lite-engine</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+
+            <!-- ArchUnit (test scope; for core/ wall enforcement) -->
+            <dependency>
+                <groupId>com.tngtech.archunit</groupId>
+                <artifactId>archunit-junit5</artifactId>
+                <version>${archunit.version}</version>
             </dependency>
 
             <!-- DuckDB JDBC Driver -->

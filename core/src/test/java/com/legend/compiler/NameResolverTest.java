@@ -1,5 +1,9 @@
-package com.legend.parser;
+package com.legend.compiler;
 
+import com.legend.parser.ImportScope;
+import com.legend.parser.Multiplicity;
+import com.legend.parser.ParsedModel;
+import com.legend.parser.TypeExpression;
 import com.legend.parser.element.AssociationDefinition;
 import com.legend.parser.element.AssociationDefinition.AssociationEndDefinition;
 import com.legend.parser.element.AssociationMapping;
@@ -17,9 +21,10 @@ import com.legend.parser.element.DatabaseDefinition.JoinDefinition;
 import com.legend.parser.element.FunctionDefinition;
 import com.legend.parser.element.JoinChainElement;
 import com.legend.parser.element.JoinType;
+import com.legend.parser.element.LegacyMappingDefinition;
 import com.legend.parser.element.MappingDefinition;
-import com.legend.parser.element.MappingDefinition.MappingInclude;
-import com.legend.parser.element.MappingDefinition.TableReference;
+import com.legend.parser.element.MappingInclude;
+import com.legend.parser.element.LegacyMappingDefinition.TableReference;
 import com.legend.parser.element.NativeFunctionDefinition;
 import com.legend.parser.element.PackageableElement;
 import com.legend.parser.element.PropertyMapping;
@@ -60,9 +65,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for {@link ImportResolver}. Covers the core resolution rule
+ * Tests for {@link NameResolver}. Covers the core resolution rule
  * (wildcard / specific / FQN / ambiguity), reference-equality
  * preservation, and the structural walkers for every
  * {@link PackageableElement} kind, every
@@ -70,7 +76,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * shared {@link TypeExpression}, {@link RelationalOperation},
  * {@link PropertyMapping} hierarchies.
  */
-class ImportResolverTest {
+class NameResolverTest {
 
     // =================================================================
     // Fixtures
@@ -96,7 +102,7 @@ class ImportResolverTest {
 
     private static PackageableElement resolveOne(
             PackageableElement el, ImportScope imp, Set<String> fqns) {
-        return ImportResolver.resolve(new ParsedModel(List.of(el), imp), fqns)
+        return NameResolver.resolve(new ParsedModel(List.of(el), imp), fqns)
                 .elements().get(0);
     }
 
@@ -173,7 +179,7 @@ class ImportResolverTest {
         var cd = simpleClass("model::Sub",
                 List.of(nameRef("model::Firm")), List.of());
         var model = new ParsedModel(List.of(cd), EMPTY);
-        ParsedModel r = ImportResolver.resolve(model, FQNS);
+        ParsedModel r = NameResolver.resolve(model, FQNS);
         assertSame(model, r, "all-FQN model should round-trip unchanged");
         assertSame(cd, r.elements().get(0));
     }
@@ -181,7 +187,7 @@ class ImportResolverTest {
     @Test
     void emptyParsedModelReturnsSameInstance() {
         var m = new ParsedModel(List.of(), WILDCARD_MODEL);
-        assertSame(m, ImportResolver.resolve(m, FQNS));
+        assertSame(m, NameResolver.resolve(m, FQNS));
     }
 
     // =================================================================
@@ -337,14 +343,14 @@ class ImportResolverTest {
     @Test
     void valueSpecPackageableElementPtrResolved() {
         ValueSpecification vs = new PackageableElementPtr("Person");
-        var r = (PackageableElementPtr) ImportResolver.resolve(vs, ImportResolver.Scope.of(WILDCARD_MODEL, FQNS));
+        var r = (PackageableElementPtr) NameResolver.resolve(vs, NameResolver.Scope.of(WILDCARD_MODEL, FQNS));
         assertEquals("model::Person", r.fullPath());
     }
 
     @Test
     void valueSpecEnumValueClassPathResolved() {
         ValueSpecification vs = new EnumValue("Person", "ACTIVE");
-        var r = (EnumValue) ImportResolver.resolve(vs, ImportResolver.Scope.of(WILDCARD_MODEL, FQNS));
+        var r = (EnumValue) NameResolver.resolve(vs, NameResolver.Scope.of(WILDCARD_MODEL, FQNS));
         assertEquals("model::Person", r.fullPath());
         assertEquals("ACTIVE", r.value());
     }
@@ -354,7 +360,7 @@ class ImportResolverTest {
         var ni = new NewInstance("Person",
                 List.of(nameRef("Firm")),
                 Map.of("name", new KeyExpression(new CString("alice"), false)));
-        var r = (NewInstance) ImportResolver.resolve(ni, ImportResolver.Scope.of(WILDCARD_MODEL, FQNS));
+        var r = (NewInstance) NameResolver.resolve(ni, NameResolver.Scope.of(WILDCARD_MODEL, FQNS));
         assertEquals("model::Person", r.className());
         assertEquals("model::Firm",
                 ((TypeExpression.NameRef) r.typeArguments().get(0)).name());
@@ -365,7 +371,7 @@ class ImportResolverTest {
         var lam = new LambdaFunction(
                 List.of(new Variable("x", nameRef("Person"), ONE)),
                 List.of(new Variable("x", null, ONE)));
-        var r = (LambdaFunction) ImportResolver.resolve(lam, ImportResolver.Scope.of(WILDCARD_MODEL, FQNS));
+        var r = (LambdaFunction) NameResolver.resolve(lam, NameResolver.Scope.of(WILDCARD_MODEL, FQNS));
         assertEquals("model::Person",
                 ((TypeExpression.NameRef) r.parameters().get(0).type()).name());
     }
@@ -379,7 +385,7 @@ class ImportResolverTest {
         var af = new AppliedFunction("tableReference",
                 List.of(new PackageableElementPtr("DB"),
                         new CString("Schema.Table")));
-        var r = (AppliedFunction) ImportResolver.resolve(af, ImportResolver.Scope.of(WILDCARD_STORE, FQNS));
+        var r = (AppliedFunction) NameResolver.resolve(af, NameResolver.Scope.of(WILDCARD_STORE, FQNS));
         assertEquals("store::DB",
                 ((PackageableElementPtr) r.parameters().get(0)).fullPath());
         assertEquals("Schema.Table",
@@ -398,11 +404,11 @@ class ImportResolverTest {
                 new TableReference("DB", "PersonTbl"),
                 null, false, List.of(), List.of(), List.of(),
                 /* sourceUrl */ null);
-        var md = new MappingDefinition("mapping::M", List.of(),
+        var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         ImportScope both = new ImportScope.Builder()
                 .add("model::*").add("store::*").build();
-        var r = (MappingDefinition) resolveOne(md, both, FQNS);
+        var r = (LegacyMappingDefinition) resolveOne(md, both, FQNS);
         var rrel = (ClassMapping.Relational) r.classMappings().get(0);
         assertEquals("model::Person", rrel.className());
         assertEquals("store::DB", rrel.mainTable().database());
@@ -412,9 +418,9 @@ class ImportResolverTest {
     void mappingClassMappingPureClassNameAndSourceClassResolved() {
         var pure = new ClassMapping.Pure("Person", "p_set", null, true,
                 "Firm", null, List.of());
-        var md = new MappingDefinition("mapping::M", List.of(),
+        var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(pure), List.of(), List.of(), null);
-        var r = (MappingDefinition) resolveOne(md);
+        var r = (LegacyMappingDefinition) resolveOne(md);
         var rp = (ClassMapping.Pure) r.classMappings().get(0);
         assertEquals("model::Person", rp.className());
         assertEquals("model::Firm", rp.sourceClass());
@@ -424,9 +430,9 @@ class ImportResolverTest {
     void mappingIncludePathResolved() {
         var inc = new MappingInclude("PersonMapping", List.of());
         ImportScope imp = new ImportScope.Builder().add("mapping::*").build();
-        var md = new MappingDefinition("mapping::M", List.of(inc),
+        var md = new LegacyMappingDefinition("mapping::M", List.of(inc),
                 List.of(), List.of(), List.of(), null);
-        var r = (MappingDefinition) resolveOne(md, imp, FQNS);
+        var r = (LegacyMappingDefinition) resolveOne(md, imp, FQNS);
         assertEquals("mapping::PersonMapping", r.includes().get(0).mappingPath());
     }
 
@@ -435,9 +441,9 @@ class ImportResolverTest {
         ImportScope imp = new ImportScope.Builder().add("model::*").build();
         Set<String> fqns = Set.of("model::Employment");
         var am = new AssociationMapping.Relational("Employment", List.of());
-        var md = new MappingDefinition("mapping::M", List.of(), List.of(),
+        var md = new LegacyMappingDefinition("mapping::M", List.of(), List.of(),
                 List.of(am), List.of(), null);
-        var r = (MappingDefinition) resolveOne(md, imp, fqns);
+        var r = (LegacyMappingDefinition) resolveOne(md, imp, fqns);
         var ram = (AssociationMapping.Relational) r.associationMappings().get(0);
         assertEquals("model::Employment", ram.associationName());
     }
@@ -454,9 +460,9 @@ class ImportResolverTest {
                 new TableReference("store::DB", "PersonTbl"),
                 null, false, List.of(), List.of(), List.of(col),
                 /* sourceUrl */ null);
-        var md = new MappingDefinition("mapping::M", List.of(),
+        var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
-        var r = (MappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS);
+        var r = (LegacyMappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS);
         var rrel = (ClassMapping.Relational) r.classMappings().get(0);
         var rcol = (PropertyMapping.Column) rrel.propertyMappings().get(0);
         assertEquals("store::DB", rcol.database());
@@ -472,11 +478,11 @@ class ImportResolverTest {
                 new TableReference("store::DB", "T"),
                 null, false, List.of(), List.of(), List.of(lp),
                 /* sourceUrl */ null);
-        var md = new MappingDefinition("mapping::M", List.of(),
+        var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         ImportScope both = new ImportScope.Builder()
                 .add("model::*").add("store::*").build();
-        var r = (MappingDefinition) resolveOne(md, both, FQNS);
+        var r = (LegacyMappingDefinition) resolveOne(md, both, FQNS);
         var rrel = (ClassMapping.Relational) r.classMappings().get(0);
         var rlp = (PropertyMapping.LocalProperty) rrel.propertyMappings().get(0);
         assertEquals("model::Person",
@@ -740,7 +746,7 @@ class ImportResolverTest {
                 new AppliedFunction("all",
                         List.of(new PackageableElementPtr("Person")))));
         ValueSpecification ap = new AppliedProperty(recv, "name");
-        var r = (AppliedProperty) ImportResolver.resolve(ap, ImportResolver.Scope.of(WILDCARD_MODEL, FQNS));
+        var r = (AppliedProperty) NameResolver.resolve(ap, NameResolver.Scope.of(WILDCARD_MODEL, FQNS));
         assertEquals("name", r.property());
         var rRecv = (AppliedFunction) r.receiver();
         var rAll = (AppliedFunction) rRecv.parameters().get(0);
@@ -754,7 +760,7 @@ class ImportResolverTest {
                 new PackageableElementPtr("Person"),
                 new PackageableElementPtr("Firm"),
                 new CInteger(42)));
-        var r = (PureCollection) ImportResolver.resolve(coll, ImportResolver.Scope.of(WILDCARD_MODEL, FQNS));
+        var r = (PureCollection) NameResolver.resolve(coll, NameResolver.Scope.of(WILDCARD_MODEL, FQNS));
         assertEquals("model::Person",
                 ((PackageableElementPtr) r.values().get(0)).fullPath());
         assertEquals("model::Firm",
@@ -771,7 +777,7 @@ class ImportResolverTest {
                 List.of(new AppliedFunction("all",
                         List.of(new PackageableElementPtr("Person")))));
         var cs = new ColSpec("name", lam, null);
-        var r = (ColSpec) ImportResolver.resolve(cs, ImportResolver.Scope.of(WILDCARD_MODEL, FQNS));
+        var r = (ColSpec) NameResolver.resolve(cs, NameResolver.Scope.of(WILDCARD_MODEL, FQNS));
         assertEquals("name", r.name());
         var rbody = (AppliedFunction) r.function1().body().get(0);
         assertEquals("model::Person",
@@ -785,7 +791,7 @@ class ImportResolverTest {
         var csa = new ColSpecArray(List.of(
                 new ColSpec("a", l1, null),
                 new ColSpec("b", l2, null)));
-        var r = (ColSpecArray) ImportResolver.resolve(csa, ImportResolver.Scope.of(WILDCARD_MODEL, FQNS));
+        var r = (ColSpecArray) NameResolver.resolve(csa, NameResolver.Scope.of(WILDCARD_MODEL, FQNS));
         assertEquals("model::Person",
                 ((PackageableElementPtr) r.colSpecs().get(0).function1().body().get(0))
                         .fullPath());
@@ -797,7 +803,7 @@ class ImportResolverTest {
     @Test
     void typeAnnotationNamedResolved() {
         var ta = new TypeAnnotation.Named(nameRef("Person"));
-        var r = (TypeAnnotation.Named) ImportResolver.resolve(ta, ImportResolver.Scope.of(WILDCARD_MODEL, FQNS));
+        var r = (TypeAnnotation.Named) NameResolver.resolve(ta, NameResolver.Scope.of(WILDCARD_MODEL, FQNS));
         assertEquals("model::Person", ((TypeExpression.NameRef) r.type()).name());
     }
 
@@ -806,7 +812,7 @@ class ImportResolverTest {
         var col = new TypeAnnotation.RelationShape.Column(
                 "p", new TypeAnnotation.Named(nameRef("Person")), ONE);
         var shape = new TypeAnnotation.RelationShape(List.of(col));
-        var r = (TypeAnnotation.RelationShape) ImportResolver.resolve(shape, ImportResolver.Scope.of(WILDCARD_MODEL, FQNS));
+        var r = (TypeAnnotation.RelationShape) NameResolver.resolve(shape, NameResolver.Scope.of(WILDCARD_MODEL, FQNS));
         var rcol = r.columns().get(0);
         assertEquals("p", rcol.name(), "column name preserved");
         var named = (TypeAnnotation.Named) rcol.type();
@@ -816,7 +822,7 @@ class ImportResolverTest {
     @Test
     void typeAnnotationWildcardPassesThrough() {
         var wc = new TypeAnnotation.Wildcard();
-        var r = ImportResolver.resolve(wc, ImportResolver.Scope.of(WILDCARD_MODEL, FQNS));
+        var r = NameResolver.resolve(wc, NameResolver.Scope.of(WILDCARD_MODEL, FQNS));
         assertSame(wc, r);
     }
 
@@ -824,14 +830,14 @@ class ImportResolverTest {
     void leafLiteralPassesThrough() {
         ValueSpecification cstr = new CString("hello");
         ValueSpecification cint = new CInteger(42);
-        assertSame(cstr, ImportResolver.resolve(cstr, ImportResolver.Scope.of(WILDCARD_MODEL, FQNS)));
-        assertSame(cint, ImportResolver.resolve(cint, ImportResolver.Scope.of(WILDCARD_MODEL, FQNS)));
+        assertSame(cstr, NameResolver.resolve(cstr, NameResolver.Scope.of(WILDCARD_MODEL, FQNS)));
+        assertSame(cint, NameResolver.resolve(cint, NameResolver.Scope.of(WILDCARD_MODEL, FQNS)));
     }
 
     @Test
     void variableTypeAloneResolved() {
         ValueSpecification v = new Variable("x", nameRef("Person"), ONE);
-        var r = (Variable) ImportResolver.resolve(v, ImportResolver.Scope.of(WILDCARD_MODEL, FQNS));
+        var r = (Variable) NameResolver.resolve(v, NameResolver.Scope.of(WILDCARD_MODEL, FQNS));
         assertEquals("model::Person", ((TypeExpression.NameRef) r.type()).name());
         assertEquals("x", r.name());
         assertSame(ONE, r.multiplicity(), "multiplicity preserved by identity");
@@ -840,7 +846,7 @@ class ImportResolverTest {
     @Test
     void variableWithoutTypePassesThrough() {
         ValueSpecification v = new Variable("x", null, ONE);
-        var r = ImportResolver.resolve(v, ImportResolver.Scope.of(WILDCARD_MODEL, FQNS));
+        var r = NameResolver.resolve(v, NameResolver.Scope.of(WILDCARD_MODEL, FQNS));
         assertSame(v, r, "null-type variable should round-trip unchanged");
     }
 
@@ -849,17 +855,17 @@ class ImportResolverTest {
     // =================================================================
 
     /** Helper: wrap a single PropertyMapping in a minimal Mapping element. */
-    private static MappingDefinition mapping(PropertyMapping pm, String className) {
+    private static LegacyMappingDefinition mapping(PropertyMapping pm, String className) {
         var rel = new ClassMapping.Relational(
                 className, "s_set", null, true,
                 new TableReference("DB", "T"),
                 null, false, List.of(), List.of(), List.of(pm),
                 /* sourceUrl */ null);
-        return new MappingDefinition("mapping::M", List.of(),
+        return new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
     }
 
-    private static PropertyMapping firstPm(MappingDefinition md) {
+    private static PropertyMapping firstPm(LegacyMappingDefinition md) {
         var rel = (ClassMapping.Relational) md.classMappings().get(0);
         return rel.propertyMappings().get(0);
     }
@@ -870,7 +876,7 @@ class ImportResolverTest {
                 "DB", "T", "status_col");
         var md = mapping(ec, "model::Person");
         var r = (PropertyMapping.EnumeratedColumn) firstPm(
-                (MappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS));
+                (LegacyMappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS));
         assertEquals("store::DB", r.database());
         assertEquals("myEnum", r.enumMappingId(), "enumMappingId is a set ID, not resolved");
         assertEquals("status_col", r.column());
@@ -884,7 +890,7 @@ class ImportResolverTest {
         var j = new PropertyMapping.Join("friend", "DB", chain);
         var md = mapping(j, "model::Person");
         var r = (PropertyMapping.Join) firstPm(
-                (MappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS));
+                (LegacyMappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS));
         assertEquals("store::DB", r.database());
         assertEquals("store::DB", r.joins().get(0).databaseName());
         assertEquals("store::DB", r.joins().get(1).databaseName());
@@ -898,7 +904,7 @@ class ImportResolverTest {
         var jtc = new PropertyMapping.JoinTerminalColumn("id", "DB", chain, term);
         var md = mapping(jtc, "model::Person");
         var r = (PropertyMapping.JoinTerminalColumn) firstPm(
-                (MappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS));
+                (LegacyMappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS));
         assertEquals("store::DB", r.database());
         assertEquals("store::DB", r.joins().get(0).databaseName());
         assertEquals("store::DB",
@@ -911,7 +917,7 @@ class ImportResolverTest {
                 new RelationalOperation.ColumnRef("DB", "T", "c"));
         var md = mapping(expr, "model::Person");
         var r = (PropertyMapping.Expression) firstPm(
-                (MappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS));
+                (LegacyMappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS));
         assertEquals("store::DB",
                 ((RelationalOperation.ColumnRef) r.expression()).databaseName());
     }
@@ -922,7 +928,7 @@ class ImportResolverTest {
         var emb = new PropertyMapping.Embedded("addr", List.of(inner));
         var md = mapping(emb, "model::Person");
         var r = (PropertyMapping.Embedded) firstPm(
-                (MappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS));
+                (LegacyMappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS));
         var rInner = (PropertyMapping.Column) r.propertyMappings().get(0);
         assertEquals("store::DB", rInner.database());
         assertEquals("addr", r.propertyName(), "parent property preserved");
@@ -932,7 +938,7 @@ class ImportResolverTest {
     void propertyMappingInlineEmbeddedPassesThroughIdentity() {
         var ie = new PropertyMapping.InlineEmbedded("addr", "AddressMapping_set");
         var md = mapping(ie, "model::Person");
-        var resolved = (MappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS);
+        var resolved = (LegacyMappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS);
         var rie = (PropertyMapping.InlineEmbedded) firstPm(resolved);
         assertSame(ie, rie, "InlineEmbedded has no FQN refs; identity preserved");
     }
@@ -945,7 +951,7 @@ class ImportResolverTest {
                 List.of(inner), "default_set", fallback);
         var md = mapping(oe, "model::Person");
         var r = (PropertyMapping.OtherwiseEmbedded) firstPm(
-                (MappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS));
+                (LegacyMappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS));
         assertEquals("store::DB",
                 ((PropertyMapping.Column) r.embedded().get(0)).database());
         assertEquals("store::DB",
@@ -1065,9 +1071,9 @@ class ImportResolverTest {
                 new TableReference("store::DB", "T"),
                 fm, false, List.of(), List.of(), List.of(),
                 /* sourceUrl */ null);
-        var md = new MappingDefinition("mapping::M", List.of(),
+        var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
-        var r = (MappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS);
+        var r = (LegacyMappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS);
         var rrel = (ClassMapping.Relational) r.classMappings().get(0);
         assertSame(fm, rrel.filter(), "Direct(Local) has no FQN refs; same instance");
     }
@@ -1080,9 +1086,9 @@ class ImportResolverTest {
                 new TableReference("store::DB", "T"),
                 fm, false, List.of(), List.of(), List.of(),
                 /* sourceUrl */ null);
-        var md = new MappingDefinition("mapping::M", List.of(),
+        var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
-        var r = (MappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS);
+        var r = (LegacyMappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS);
         var rrel = (ClassMapping.Relational) r.classMappings().get(0);
         var rfm = (FilterMapping.Direct) rrel.filter();
         var cross = (FilterPointer.Cross) rfm.filter();
@@ -1100,9 +1106,9 @@ class ImportResolverTest {
                 new TableReference("store::DB", "T"),
                 fm, false, List.of(), List.of(), List.of(),
                 /* sourceUrl */ null);
-        var md = new MappingDefinition("mapping::M", List.of(),
+        var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
-        var r = (MappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS);
+        var r = (LegacyMappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS);
         var rrel = (ClassMapping.Relational) r.classMappings().get(0);
         var rfm = (FilterMapping.JoinMediated) rrel.filter();
         assertEquals("store::DB", rfm.sourceDb());
@@ -1116,14 +1122,14 @@ class ImportResolverTest {
 
     @Test
     void mappingIncludeStoreSubstitutionResolved() {
-        var sub = new MappingDefinition.MappingInclude.StoreSubstitution(
+        var sub = new MappingInclude.StoreSubstitution(
                 "DB", "OtherDB");
         var inc = new MappingInclude("PersonMapping", List.of(sub));
         ImportScope imp = new ImportScope.Builder()
                 .add("mapping::*").add("store::*").build();
-        var md = new MappingDefinition("mapping::M", List.of(inc),
+        var md = new LegacyMappingDefinition("mapping::M", List.of(inc),
                 List.of(), List.of(), List.of(), null);
-        var r = (MappingDefinition) resolveOne(md, imp, FQNS);
+        var r = (LegacyMappingDefinition) resolveOne(md, imp, FQNS);
         var rinc = r.includes().get(0);
         assertEquals("mapping::PersonMapping", rinc.mappingPath());
         var rsub = rinc.substitutions().get(0);
@@ -1149,9 +1155,9 @@ class ImportResolverTest {
     void classMappingPureWithNullSourceClassAndFilter() {
         var pure = new ClassMapping.Pure("Person", "p_set", null, true,
                 "Firm", null, List.of()); // sourceClass = Firm
-        var md = new MappingDefinition("mapping::M", List.of(),
+        var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(pure), List.of(), List.of(), null);
-        var r = (MappingDefinition) resolveOne(md);
+        var r = (LegacyMappingDefinition) resolveOne(md);
         var rp = (ClassMapping.Pure) r.classMappings().get(0);
         assertEquals("model::Person", rp.className());
         assertEquals("model::Firm", rp.sourceClass());
@@ -1163,7 +1169,7 @@ class ImportResolverTest {
         var cd = simpleClass("model::Sub",
                 List.of(nameRef("Person")), List.of());
         var model = new ParsedModel(List.of(cd), EMPTY);
-        var r = ImportResolver.resolve(model, FQNS);
+        var r = NameResolver.resolve(model, FQNS);
         assertSame(model, r,
                 "no imports + simple name with no wildcard match \u2192 no change");
     }
@@ -1180,7 +1186,7 @@ class ImportResolverTest {
         var lam = new LambdaFunction(List.of(),
                 List.of(new PackageableElementPtr("Foo")));
         assertThrows(IllegalStateException.class,
-                () -> ImportResolver.resolve(lam, ImportResolver.Scope.of(two, ambig)));
+                () -> NameResolver.resolve(lam, NameResolver.Scope.of(two, ambig)));
     }
 
     @Test
@@ -1218,7 +1224,7 @@ class ImportResolverTest {
         var inner = new NewInstance("Firm", List.of(), Map.of());
         var outer = new NewInstance("Person", List.of(),
                 Map.of("friend", new KeyExpression(inner, false)));
-        var r = (NewInstance) ImportResolver.resolve(outer, ImportResolver.Scope.of(WILDCARD_MODEL, FQNS));
+        var r = (NewInstance) NameResolver.resolve(outer, NameResolver.Scope.of(WILDCARD_MODEL, FQNS));
         assertEquals("model::Person", r.className());
         var rInner = (NewInstance) r.properties().get("friend").value();
         assertEquals("model::Firm", rInner.className());
@@ -1263,7 +1269,7 @@ class ImportResolverTest {
         var col = new PropertyMapping.Column("name", "DB", "T", "name_col");
         var md = mapping(col, "model::Person");
         var r = (PropertyMapping.Column) firstPm(
-                (MappingDefinition) resolveOne(md, imp, trickyFqns));
+                (LegacyMappingDefinition) resolveOne(md, imp, trickyFqns));
         assertEquals("name", r.propertyName(),
                 "propertyName is a property identifier, never resolved");
     }
@@ -1276,7 +1282,7 @@ class ImportResolverTest {
         var col = new PropertyMapping.Column("x", "DB", "T", "name_col");
         var md = mapping(col, "model::Person");
         var r = (PropertyMapping.Column) firstPm(
-                (MappingDefinition) resolveOne(md, imp, trickyFqns));
+                (LegacyMappingDefinition) resolveOne(md, imp, trickyFqns));
         assertEquals("T", r.table(), "table name not a Pure FQN; never resolved");
         assertEquals("name_col", r.column(), "column name not a Pure FQN; never resolved");
     }
@@ -1291,13 +1297,57 @@ class ImportResolverTest {
                 new TableReference("DB", "T"),
                 null, false, List.of(), List.of(), List.of(),
                 /* sourceUrl */ null);
-        var md = new MappingDefinition("mapping::M", List.of(),
+        var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
-        var r = (MappingDefinition) resolveOne(md, imp, trickyFqns);
+        var r = (LegacyMappingDefinition) resolveOne(md, imp, trickyFqns);
         var rrel = (ClassMapping.Relational) r.classMappings().get(0);
         assertEquals("p_set", rrel.setId(), "setId is a local id; never resolved");
         assertEquals("parent_set", rrel.extendsSetId(),
                 "extendsSetId is a local id; never resolved");
+    }
+
+    @Test
+    void cleanSheetMappingBindingFqnsResolved() {
+        // The clean-sheet (canonical) mapping is parsed straight from Door 1, so
+        // its binding FQNs reach the resolver as simple names under `import` and
+        // MUST resolve — the gap M4.5 closed (NameResolver used to pass the
+        // canonical record through untouched).
+        Set<String> fqns = Set.of("acme::Person", "acme::personMapping",
+                "acme::Person_Firm", "acme::personFirmMatch");
+        ImportScope imp = new ImportScope.Builder().add("acme::*").build();
+        var classBinding = new MappingDefinition.ClassBinding(
+                "Person", MappingDefinition.Kind.RELATIONAL, "emp", "base", true, "personMapping");
+        var assocBinding = new MappingDefinition.AssociationBinding(
+                "Person_Firm", "personFirmMatch");
+        var md = new MappingDefinition("acme::M", List.of(),
+                List.of(classBinding), List.of(assocBinding), List.of(), null);
+
+        var r = (MappingDefinition) resolveOne(md, imp, fqns);
+        var cb = r.classBindings().get(0);
+        assertEquals("acme::Person", cb.classFqn(), "class FQN resolved via wildcard import");
+        assertEquals("acme::personMapping", cb.functionFqn(), "function FQN resolved");
+        assertEquals("emp", cb.setId(), "setId is a local id; never resolved");
+        assertEquals("base", cb.extendsSetId(), "extendsSetId is a local id; never resolved");
+        assertEquals(MappingDefinition.Kind.RELATIONAL, cb.kind());
+        assertTrue(cb.root());
+        var ab = r.associationBindings().get(0);
+        assertEquals("acme::Person_Firm", ab.associationFqn());
+        assertEquals("acme::personFirmMatch", ab.predicateFunctionFqn());
+    }
+
+    @Test
+    void cleanSheetMappingWithFqnsRoundTripsUnchanged() {
+        // Reference-equality discipline: a mapping whose binding names are
+        // already fully qualified resolves to the identical instance.
+        Set<String> fqns = Set.of("acme::Person", "acme::personMapping");
+        ImportScope imp = new ImportScope.Builder().add("acme::*").build();
+        var md = new MappingDefinition("acme::M", List.of(),
+                List.of(new MappingDefinition.ClassBinding(
+                        "acme::Person", MappingDefinition.Kind.PURE, null, null, true,
+                        "acme::personMapping")),
+                List.of(), List.of(), null);
+        assertSame(md, resolveOne(md, imp, fqns),
+                "already-FQN bindings round-trip without allocating a new record");
     }
 
     @Test
@@ -1324,7 +1374,7 @@ class ImportResolverTest {
         Set<String> trickyFqns = Set.of("model::x");
         ImportScope imp = new ImportScope.Builder().add("model::*").build();
         ValueSpecification v = new Variable("x", null, ONE);
-        var r = (Variable) ImportResolver.resolve(v, ImportResolver.Scope.of(imp, trickyFqns));
+        var r = (Variable) NameResolver.resolve(v, NameResolver.Scope.of(imp, trickyFqns));
         assertEquals("x", r.name(), "variable name never resolved");
     }
 
@@ -1334,7 +1384,7 @@ class ImportResolverTest {
         Set<String> trickyFqns = Set.of("model::Person", "model::name");
         ImportScope imp = new ImportScope.Builder().add("model::*").build();
         var ap = new AppliedProperty(new PackageableElementPtr("Person"), "name");
-        var r = (AppliedProperty) ImportResolver.resolve(ap, ImportResolver.Scope.of(imp, trickyFqns));
+        var r = (AppliedProperty) NameResolver.resolve(ap, NameResolver.Scope.of(imp, trickyFqns));
         assertEquals("name", r.property(),
                 "property name field never resolved even when match exists in FQNS");
     }
@@ -1345,7 +1395,7 @@ class ImportResolverTest {
         Set<String> trickyFqns = Set.of("model::Status", "model::ACTIVE");
         ImportScope imp = new ImportScope.Builder().add("model::*").build();
         var ev = new EnumValue("Status", "ACTIVE");
-        var r = (EnumValue) ImportResolver.resolve(ev, ImportResolver.Scope.of(imp, trickyFqns));
+        var r = (EnumValue) NameResolver.resolve(ev, NameResolver.Scope.of(imp, trickyFqns));
         assertEquals("model::Status", r.fullPath(), "enum FQN resolved");
         assertEquals("ACTIVE", r.value(), "enum value name never resolved");
     }
@@ -1492,7 +1542,7 @@ class ImportResolverTest {
         var lam = new LambdaFunction(
                 List.of(new Variable("x", nameRef("Integer"), ONE)),
                 List.of(new Variable("x", null, ONE)));
-        var r = (LambdaFunction) ImportResolver.resolve(lam, ImportResolver.Scope.of(WILDCARD_MODEL, FQNS));
+        var r = (LambdaFunction) NameResolver.resolve(lam, NameResolver.Scope.of(WILDCARD_MODEL, FQNS));
         assertEquals("Integer",
                 ((TypeExpression.NameRef) r.parameters().get(0).type()).name());
     }
@@ -1620,9 +1670,9 @@ class ImportResolverTest {
                 List.of(new RelationalOperation.ColumnRef("DB", "T", "pk")), // primaryKey
                 List.of(pmCol, pmJoin),
                 /* sourceUrl */ null);
-        var md = new MappingDefinition("mapping::M", List.of(),
+        var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
-        var r = (MappingDefinition) resolveOne(md, both, FQNS);
+        var r = (LegacyMappingDefinition) resolveOne(md, both, FQNS);
         var rrel = (ClassMapping.Relational) r.classMappings().get(0);
         assertEquals("model::Person", rrel.className());
         assertEquals("store::DB", rrel.mainTable().database());
@@ -1650,9 +1700,9 @@ class ImportResolverTest {
         var em = new EnumerationMapping("Status", "status_set",
                 List.of(new EnumValueMapping("ACTIVE",
                         List.of(new SourceValue.StringValue("A")))));
-        var md = new MappingDefinition("mapping::M", List.of(),
+        var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(), List.of(), List.of(em), null);
-        var r = (MappingDefinition) resolveOne(md, imp, fqns);
+        var r = (LegacyMappingDefinition) resolveOne(md, imp, fqns);
         assertEquals("model::Status",
                 r.enumerationMappings().get(0).enumName(),
                 "enum FQN must be resolved");
@@ -1668,9 +1718,9 @@ class ImportResolverTest {
         var ref = new SourceValue.EnumRef("Source", "ACTIVE");
         var em = new EnumerationMapping("Status", "status_set",
                 List.of(new EnumValueMapping("ACTIVE", List.of(ref))));
-        var md = new MappingDefinition("mapping::M", List.of(),
+        var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(), List.of(), List.of(em), null);
-        var r = (MappingDefinition) resolveOne(md, imp, fqns);
+        var r = (LegacyMappingDefinition) resolveOne(md, imp, fqns);
         var rref = (SourceValue.EnumRef) r.enumerationMappings().get(0)
                 .valueMappings().get(0).sourceValues().get(0);
         assertEquals("model::Source", rref.enumPath());
@@ -1687,9 +1737,9 @@ class ImportResolverTest {
         var sv2 = new SourceValue.IntegerValue(1L);
         var em = new EnumerationMapping("model::Status", "status_set",
                 List.of(new EnumValueMapping("ACTIVE", List.of(sv1, sv2))));
-        var md = new MappingDefinition("mapping::M", List.of(),
+        var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(), List.of(), List.of(em), null);
-        var r = (MappingDefinition) resolveOne(md, imp, fqns);
+        var r = (LegacyMappingDefinition) resolveOne(md, imp, fqns);
         var values = r.enumerationMappings().get(0).valueMappings().get(0).sourceValues();
         assertSame(sv1, values.get(0));
         assertSame(sv2, values.get(1));
@@ -1701,7 +1751,7 @@ class ImportResolverTest {
         var em = new EnumerationMapping("model::Status", "status_set",
                 List.of(new EnumValueMapping("ACTIVE",
                         List.of(new SourceValue.EnumRef("model::Source", "X")))));
-        var md = new MappingDefinition("mapping::M", List.of(),
+        var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(), List.of(), List.of(em), null);
         var r = resolveOne(md);
         assertSame(md, r, "fully-FQN enumeration mapping round-trips unchanged");
@@ -1718,8 +1768,8 @@ class ImportResolverTest {
                 List.of(nameRef("Person")),
                 List.of(prop("addr", nameRef("Address"))));
         var model = new ParsedModel(List.of(cd), WILDCARD_MODEL);
-        var once = ImportResolver.resolve(model, FQNS);
-        var twice = ImportResolver.resolve(once, FQNS);
+        var once = NameResolver.resolve(model, FQNS);
+        var twice = NameResolver.resolve(once, FQNS);
         assertEquals(once, twice, "structural equality after second resolve");
         assertSame(once, twice,
                 "all names already FQN after first pass \u2192 second pass is a no-op");
@@ -1732,7 +1782,7 @@ class ImportResolverTest {
         var cd = simpleClass("model::Sub",
                 List.of(nameRef("Person")), List.of());
         var model = new ParsedModel(List.of(cd), WILDCARD_MODEL);
-        var resolved = ImportResolver.resolve(model, FQNS);
+        var resolved = NameResolver.resolve(model, FQNS);
         assertNotSame(model, resolved,
                 "name was rewritten somewhere \u2192 outer ParsedModel must differ");
         assertNotSame(cd, resolved.elements().get(0),
@@ -1848,7 +1898,7 @@ class ImportResolverTest {
                 List.of(prop("x", nameRef("T"))),
                 List.of(), List.of(), List.of(), List.of(), false);
         var model = new ParsedModel(List.of(foo, bar), WILDCARD_MODEL);
-        var resolved = ImportResolver.resolve(model, trickyFqns);
+        var resolved = NameResolver.resolve(model, trickyFqns);
         var rFoo = (ClassDefinition) resolved.elements().get(0);
         var rBar = (ClassDefinition) resolved.elements().get(1);
         assertEquals("T",
@@ -1867,7 +1917,7 @@ class ImportResolverTest {
                 List.of(new TypeExpression.NameRef("model::Firm")),
                 List.of(prop("name", new TypeExpression.NameRef("model::Address"))));
         var model = new ParsedModel(List.of(cd), WILDCARD_MODEL);
-        var resolved = ImportResolver.resolve(model, FQNS);
+        var resolved = NameResolver.resolve(model, FQNS);
         assertSame(model, resolved);
         assertSame(cd, resolved.elements().get(0));
         assertSame(cd.superClasses(), ((ClassDefinition) resolved.elements().get(0))

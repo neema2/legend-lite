@@ -15,6 +15,7 @@ import com.legend.parser.element.EnumDefinition;
 import com.legend.parser.element.Function;
 import com.legend.parser.element.FunctionDefinition;
 import com.legend.parser.element.JsonModelConnection;
+import com.legend.parser.element.LegacyMappingDefinition;
 import com.legend.parser.element.MappingDefinition;
 import com.legend.parser.element.NativeFunctionDefinition;
 import com.legend.parser.element.PackageableElement;
@@ -103,6 +104,11 @@ public final class ModelBuilder {
     private final ArrayList<EnumDefinition>        enums         = new ArrayList<>();
     private final ArrayList<ProfileDefinition>     profiles      = new ArrayList<>();
     private final ArrayList<DatabaseDefinition>    databases     = new ArrayList<>();
+    // Legacy mapping surface trees — the cross-bake and MappingNormalizer read
+    // these. Canonical binding tables — Phase F / dispatch read these. Both can
+    // be populated in one build: a model may mix legacy-DSL mappings and
+    // clean-sheet (Door 1) mappings, which parse to the two record types.
+    private final ArrayList<LegacyMappingDefinition> legacyMappings = new ArrayList<>();
     private final ArrayList<MappingDefinition>     mappings      = new ArrayList<>();
     private final ArrayList<ServiceDefinition>     services      = new ArrayList<>();
     private final ArrayList<RuntimeDefinition>     runtimes      = new ArrayList<>();
@@ -198,6 +204,7 @@ public final class ModelBuilder {
 
         // Phase 2: data-model elements. Order within this phase is
         // arbitrary; each element only depends on the symbol table.
+        // (Phase-F callers enter via from(NormalizedModel) below.)
         for (PackageableElement el : model.elements()) {
             switch (el) {
                 case ClassDefinition cd -> putAtId(mb.classes, mb.intern(cd.qualifiedName()), cd);
@@ -214,7 +221,8 @@ public final class ModelBuilder {
         // JSON cross-bake (phase 3b) can mutate the bound mapping.
         for (PackageableElement el : model.elements()) {
             switch (el) {
-                case MappingDefinition md -> mb.ingestMapping(md);
+                case LegacyMappingDefinition md -> mb.ingestLegacyMapping(md);
+                case MappingDefinition md -> mb.ingestCanonicalMapping(md);
                 case ServiceDefinition sd -> putAtId(mb.services, mb.intern(sd.qualifiedName()), sd);
                 case ConnectionDefinition cd -> putAtId(mb.connections, mb.intern(cd.qualifiedName()), cd);
                 case FunctionDefinition fd -> mb.appendFunction(fd);
@@ -222,6 +230,13 @@ public final class ModelBuilder {
                 default -> { /* phase 2 or phase 3b */ }
             }
         }
+
+        // Lifted behavior functions (Phase E output) need no special pass:
+        // they are ordinary FunctionDefinition elements in the normalized
+        // element list, ingested by the phase-3a arm above exactly like
+        // user-written functions (docs/CLEAN_SHEET_INVERSION.md §2.2).
+        // Lifted FQNs use the reserved '$' sigil, so they cannot collide
+        // with a user-writable name in findFunction.
 
         // Phase 3b: runtimes. Each runtime's JsonModelConnection
         // bindings synthesize an identity ClassMapping.Relational (with
@@ -233,6 +248,19 @@ public final class ModelBuilder {
         }
 
         return mb;
+    }
+
+    /**
+     * Build from a Phase-E {@link com.legend.normalizer.NormalizedModel} &mdash;
+     * the Phase-F entry. The parameter type is the phase gate
+     * ({@code docs/CLEAN_SHEET_INVERSION.md} &sect;4): element compilation
+     * demands a normalized model at the signature level. Lifted behavior
+     * functions are ordinary elements in the normalized list and are ingested
+     * by the same function arm as user-written functions.
+     */
+    public static ModelBuilder from(com.legend.normalizer.NormalizedModel normalized) {
+        Objects.requireNonNull(normalized, "normalized");
+        return from(new ParsedModel(normalized.elements(), normalized.imports()));
     }
 
     private void ingestDatabase(DatabaseDefinition db) {
@@ -275,8 +303,8 @@ public final class ModelBuilder {
         }
     }
 
-    private void ingestMapping(MappingDefinition md) {
-        putAtId(mappings, intern(md.qualifiedName()), md);
+    private void ingestLegacyMapping(LegacyMappingDefinition md) {
+        putAtId(legacyMappings, intern(md.qualifiedName()), md);
         // R2: enforce single ClassMapping per class FQN within one MappingDefinition.
         // Cross-mapping duplication is allowed (each is its own setId
         // namespace); set semantics collapse cross-mapping repeats.
@@ -292,6 +320,25 @@ public final class ModelBuilder {
                               + "ClassMappings of the same class).");
             }
             mappedClassIds.add(intern(classFqn));
+        }
+    }
+
+    /**
+     * Index a canonical {@link MappingDefinition} (binding table) for
+     * {@link #findMapping}. Phase F has no other mapping consumer yet (dispatch
+     * is Phase G/H), so this just registers it by FQN; the lifted realizing
+     * functions it references arrive as ordinary top-level
+     * {@link FunctionDefinition} elements and are ingested by the phase-3a
+     * function arm.
+     */
+    private void ingestCanonicalMapping(MappingDefinition md) {
+        putAtId(mappings, intern(md.qualifiedName()), md);
+        // Feed the mapped-class set so isMappedClass() is correct for
+        // clean-sheet mappings too (a model may mix legacy + clean-sheet, and
+        // the normalizer's Layer-3 join validation asks isMappedClass for any
+        // class mapped anywhere — regardless of which surface declared it).
+        for (MappingDefinition.ClassBinding cb : md.classBindings()) {
+            mappedClassIds.add(intern(cb.classFqn()));
         }
     }
 
@@ -325,7 +372,7 @@ public final class ModelBuilder {
             String classFqn = jmc.className();
             for (String mappingName : rd.mappings()) {
                 int mappingId = intern(mappingName);
-                MappingDefinition md = idGet(mappings, mappingId);
+                LegacyMappingDefinition md = idGet(legacyMappings, mappingId);
                 if (md == null) continue;       // mapping declared in this batch?
                 // User-authored class mapping wins.
                 boolean alreadyMapped = md.classMappings().stream()
@@ -345,8 +392,8 @@ public final class ModelBuilder {
                         /* sourceUrl */ jmc.url());
                 List<ClassMapping> updated = new ArrayList<>(md.classMappings());
                 updated.add(synthetic);
-                MappingDefinition rebuilt = md.withClassMappings(updated);
-                putAtId(mappings, mappingId, rebuilt);
+                LegacyMappingDefinition rebuilt = md.withClassMappings(updated);
+                putAtId(legacyMappings, mappingId, rebuilt);
                 mappedClassIds.add(intern(classFqn));
             }
         }
@@ -445,9 +492,21 @@ public final class ModelBuilder {
         return Optional.ofNullable(idGet(databases, symbols.resolveId(fqn)));
     }
 
-    /** O(1). Returns {@link MappingDefinition} for {@code fqn}, if any. */
+    /**
+     * O(1). Returns the canonical {@link MappingDefinition} (binding table) for
+     * {@code fqn}, if any. Populated at Phase F (from a {@code NormalizedModel}).
+     */
     public Optional<MappingDefinition> findMapping(String fqn) {
         return Optional.ofNullable(idGet(mappings, symbols.resolveId(fqn)));
+    }
+
+    /**
+     * O(1). Returns the legacy {@link LegacyMappingDefinition} surface tree for
+     * {@code fqn}, if any. Populated only at resolution time (from a
+     * {@code ParsedModel}); {@code MappingNormalizer} is the sole consumer.
+     */
+    public Optional<LegacyMappingDefinition> findLegacyMapping(String fqn) {
+        return Optional.ofNullable(idGet(legacyMappings, symbols.resolveId(fqn)));
     }
 
     /** O(1). Returns {@link ServiceDefinition} for {@code fqn}, if any. */
@@ -554,9 +613,14 @@ public final class ModelBuilder {
         return databases.stream().filter(Objects::nonNull);
     }
 
-    /** All {@link MappingDefinition}s in ingest order. */
+    /** All canonical {@link MappingDefinition}s in ingest order (Phase F). */
     public Stream<MappingDefinition> mappings() {
         return mappings.stream().filter(Objects::nonNull);
+    }
+
+    /** All legacy {@link LegacyMappingDefinition}s in ingest order (resolution time). */
+    public Stream<LegacyMappingDefinition> legacyMappings() {
+        return legacyMappings.stream().filter(Objects::nonNull);
     }
 
     /** All {@link EnumDefinition}s in ingest order. */

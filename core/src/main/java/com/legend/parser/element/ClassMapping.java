@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * One per-class mapping inside a {@link MappingDefinition} &mdash;
+ * One per-class mapping inside a {@link LegacyMappingDefinition} &mdash;
  * &quot;how does this Pure class get values from a store?&quot;
  *
  * <p>Sealed because different store kinds require structurally different
@@ -100,7 +100,7 @@ public sealed interface ClassMapping permits ClassMapping.Relational, ClassMappi
             String setId,
             String extendsSetId,
             boolean root,
-            MappingDefinition.TableReference mainTable,
+            LegacyMappingDefinition.TableReference mainTable,
             FilterMapping filter,
             boolean distinct,
             List<RelationalOperation> groupBy,

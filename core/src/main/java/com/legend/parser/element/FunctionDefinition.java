@@ -55,6 +55,12 @@ import java.util.Objects;
  *                                non-null but may be empty for a {@code {}} body
  * @param stereotypes             applied stereotypes
  * @param taggedValues            applied tagged values
+ * @param synthesizedFrom         {@code null} for a user-written function; otherwise
+ *                                the source body site this function was lowered from
+ *                                during Phase E, so diagnostics can speak in user terms
+ *                                (e.g. "derived property 'fullName' of model::Person")
+ *                                rather than the desugared {@code $}-FQN. See
+ *                                {@code docs/STRUCTURE_VS_BEHAVIOR.md}.
  */
 public record FunctionDefinition(
         String qualifiedName,
@@ -65,7 +71,8 @@ public record FunctionDefinition(
         Multiplicity returnMultiplicity,
         List<ValueSpecification> body,
         List<StereotypeApplication> stereotypes,
-        List<TaggedValue> taggedValues) implements PackageableElement, Function {
+        List<TaggedValue> taggedValues,
+        Synthesized synthesizedFrom) implements PackageableElement, Function {
 
     public FunctionDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
@@ -78,6 +85,70 @@ public record FunctionDefinition(
         body = List.copyOf(body);
         stereotypes = stereotypes == null ? List.of() : List.copyOf(stereotypes);
         taggedValues = taggedValues == null ? List.of() : List.copyOf(taggedValues);
+        // synthesizedFrom intentionally nullable: null == user-written.
+    }
+
+    /**
+     * Convenience constructor for user-written (non-synthesized) functions:
+     * {@code synthesizedFrom} defaults to {@code null}. The parser and
+     * {@code NameResolver} build functions this way; only Phase E synthesizers
+     * tag provenance, via {@link #withSynthesizedFrom(Synthesized)}.
+     */
+    public FunctionDefinition(
+            String qualifiedName,
+            List<String> typeParameters,
+            List<String> multiplicityParameters,
+            List<ParameterDefinition> parameters,
+            TypeExpression returnType,
+            Multiplicity returnMultiplicity,
+            List<ValueSpecification> body,
+            List<StereotypeApplication> stereotypes,
+            List<TaggedValue> taggedValues) {
+        this(qualifiedName, typeParameters, multiplicityParameters, parameters,
+                returnType, returnMultiplicity, body, stereotypes, taggedValues, null);
+    }
+
+    /** {@code true} if this function was synthesized from a body site in Phase E. */
+    public boolean isSynthesized() {
+        return synthesizedFrom != null;
+    }
+
+    /** Return a copy of this function tagged with the given Phase-E provenance. */
+    public FunctionDefinition withSynthesizedFrom(Synthesized provenance) {
+        return new FunctionDefinition(qualifiedName, typeParameters, multiplicityParameters,
+                parameters, returnType, returnMultiplicity, body, stereotypes, taggedValues,
+                provenance);
+    }
+
+    /**
+     * Provenance of a Phase-E synthesized function: which source body site it
+     * was lowered from. The {@link SynthHat hat} is the single source of truth
+     * for the {@code $}-sigil segment of the synth FQN (see {@code SynthFqn});
+     * {@code ownerFqn} is the structural owner (class, mapping, service);
+     * {@code memberName} is the original member/route name. See
+     * {@code docs/CLEAN_SHEET_INVERSION.md} §3.
+     *
+     * @param hat        body-site kind ({@link SynthHat})
+     * @param ownerFqn   FQN of the structural owner the body site belonged to
+     * @param memberName original member name (derived property / constraint / mapped class / association / route)
+     */
+    public record Synthesized(SynthHat hat, String ownerFqn, String memberName) {
+        public Synthesized {
+            Objects.requireNonNull(hat, "hat");
+            Objects.requireNonNull(ownerFqn, "ownerFqn");
+            Objects.requireNonNull(memberName, "memberName");
+        }
+
+        /** Human-readable phrase for diagnostics, e.g. {@code "derived property 'fullName' of model::Person"}. */
+        public String describe() {
+            return switch (hat) {
+                case PROP       -> "derived property '" + memberName + "' of " + ownerFqn;
+                case CONSTRAINT -> "constraint '" + memberName + "' of " + ownerFqn;
+                case CLASS      -> "class mapping '" + memberName + "' of " + ownerFqn;
+                case ASSOC      -> "association mapping '" + memberName + "' of " + ownerFqn;
+                case QUERY      -> "service query of " + ownerFqn;
+            };
+        }
     }
 
     /**
