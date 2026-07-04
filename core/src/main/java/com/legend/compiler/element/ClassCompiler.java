@@ -53,8 +53,8 @@ final class ClassCompiler {
             // lifted <owner>$prop$<name>; for a Door-4 ref binding it is the
             // user-bound function FQN. Either way the typed property carries only
             // a signature + that FQN reference.
+            // Reference safety already ran (ModelIntegrity, eager+total).
             String fqn = realizedFqn(dp.realization(), SynthFqn.prop(cd.qualifiedName(), dp.name()));
-            functions.requireFunction(fqn, "derived property '" + dp.name() + "' of " + cd.qualifiedName());
             properties.add(new Property.Derived(
                     dp.name(),
                     classifier.classify(dp.type(), typeParams),
@@ -67,10 +67,6 @@ final class ClassCompiler {
         for (ClassDefinition.ConstraintDefinition con : cd.constraints()) {
             // Lifted <owner>$constraint$<name> for sugar; the bound FQN for Door 4.
             String fqn = realizedFqn(con.realization(), SynthFqn.constraint(cd.qualifiedName(), con.name()));
-            String site = "constraint '" + con.name() + "' of " + cd.qualifiedName();
-            functions.requireFunction(fqn, site);                              // F.a existence
-            functions.requireShape(fqn, FunctionCompiler::returnsBooleanOne,   // F.c shape
-                    site, "returning Boolean[1]");
             constraints.add(TypedConstraint.of(con.name(), fqn));
         }
 

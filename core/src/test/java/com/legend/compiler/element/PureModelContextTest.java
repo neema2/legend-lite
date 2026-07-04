@@ -137,14 +137,17 @@ class PureModelContextTest {
     // ====================================================================
 
     @Test
-    @DisplayName("a property referencing an unknown type fails the compile, not silently")
+    @DisplayName("a property referencing an unknown type fails EAGERLY at construction")
     void unknownPropertyTypeThrows() {
+        // F.a is eager + whole-model: the dangling reference fails compileModel
+        // itself — an invalid model never becomes a queryable context, even if
+        // nothing ever demands the bad class (pipeline stage-failure finding).
         ParsedModel parsed = ElementParser.parse(
                 "Class model::Bad { x: not::a::RealType[1]; }");
-        PureModelContext ctx = PureModelContext.from(asNormalized(parsed));
         IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> ctx.findClass("model::Bad"));
+                () -> PureModelContext.from(asNormalized(parsed)));
         assertTrue(ex.getMessage().contains("Unknown type"));
+        assertTrue(ex.getMessage().contains("not::a::RealType"));
     }
 
     // ====================================================================
@@ -154,11 +157,11 @@ class PureModelContextTest {
     @Test
     @DisplayName("F.a: a Door-4 derived property bound to a missing function fails, naming the site")
     void derivedPropertyBoundToMissingFunctionThrows() {
-        var ctx = com.legend.Compiler.compileModel(
-                "Class model::Person { name: String[1]; "
-              + "  fullName() { model::funcs::missing }: String[1]; }");
+        // ModelIntegrity is eager: the dangling realizer fails compileModel itself.
         IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> ctx.findClass("model::Person"));
+                () -> com.legend.Compiler.compileModel(
+                        "Class model::Person { name: String[1]; "
+                      + "  fullName() { model::funcs::missing }: String[1]; }"));
         assertTrue(ex.getMessage().contains("binds to unknown function"),
                 () -> "got: " + ex.getMessage());
         assertTrue(ex.getMessage().contains("derived property 'fullName' of model::Person"),
@@ -170,10 +173,9 @@ class PureModelContextTest {
     @Test
     @DisplayName("F.a: a Door-4 constraint bound to a missing predicate fails")
     void constraintBoundToMissingFunctionThrows() {
-        var ctx = com.legend.Compiler.compileModel(
-                "Class model::Person [adult: model::funcs::missingPredicate] { age: Integer[1]; }");
         IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> ctx.findClass("model::Person"));
+                () -> com.legend.Compiler.compileModel(
+                        "Class model::Person [adult: model::funcs::missingPredicate] { age: Integer[1]; }"));
         assertTrue(ex.getMessage().contains("binds to unknown function")
                         && ex.getMessage().contains("constraint 'adult' of model::Person"),
                 () -> "got: " + ex.getMessage());
@@ -251,12 +253,11 @@ class PureModelContextTest {
     @Test
     @DisplayName("F.c: a constraint bound to a non-Boolean function fails")
     void constraintBoundToNonBooleanFunctionThrows() {
-        var ctx = com.legend.Compiler.compileModel(
-                "Class model::Person { age: Integer[1]; } "
-              + "function my::funcs::wrong(p: model::Person[1]): String[1] { 'x' } "
-              + "Class model::P2 [adult: my::funcs::wrong] { x: Integer[1]; }");
         IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> ctx.findClass("model::P2"));
+                () -> com.legend.Compiler.compileModel(
+                        "Class model::Person { age: Integer[1]; } "
+                      + "function my::funcs::wrong(p: model::Person[1]): String[1] { 'x' } "
+                      + "Class model::P2 [adult: my::funcs::wrong] { x: Integer[1]; }"));
         assertTrue(ex.getMessage().contains("constraint 'adult' of model::P2")
                         && ex.getMessage().contains("returning Boolean[1]"),
                 () -> "got: " + ex.getMessage());

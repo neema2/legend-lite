@@ -17,8 +17,8 @@ import java.util.Optional;
  * compiles in its own compiler (the Phase-G checker layout, mirrored) &mdash;
  * {@link TypeClassifier} is the shared name&rarr;kind kernel,
  * {@link FunctionCompiler}/{@link ClassCompiler} materialize {@code Typed*}
- * records on demand, {@link MappingCompiler} runs the eager F.b binding
- * integrity at construction, {@link StoreCompiler} resolves table schemas.
+ * records on demand, {@link ModelIntegrity} runs the eager F.a/F.b
+ * reference-safety pass at construction, {@link StoreCompiler} resolves table schemas.
  *
  * <ul>
  *   <li><b>{@link #findType(String)} &mdash; Knowledge, cheap.</b> Kind
@@ -51,10 +51,10 @@ public final class PureModelContext implements ModelContext {
         this.classifier = new TypeClassifier(model);
         this.functions = new FunctionCompiler(model, classifier);
         this.classes = new ClassCompiler(classifier, functions);
-        // F.b: mapping binding integrity is eager reference safety (Total
-        // Knowledge), validated once at build — there is no lazy TypedMapping
-        // compilation to bundle it with (see MappingCompiler).
-        MappingCompiler.check(model, classifier, functions);
+        // F.a + F.b: THE eager reference-safety pass — every reference every
+        // element makes (types, realizers, mapping bindings, association ends)
+        // is checked once, whole-model, before this context exists.
+        ModelIntegrity.check(model, classifier, this.functions);
     }
 
     /**

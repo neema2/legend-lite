@@ -608,6 +608,11 @@ public final class ModelBuilder {
         return associations.stream().filter(Objects::nonNull);
     }
 
+    /** All function overloads (user + Phase-E lifted) in ingest order. */
+    public Stream<Function> functions() {
+        return functions.stream().filter(Objects::nonNull).flatMap(List::stream);
+    }
+
     /** All {@link DatabaseDefinition}s in ingest order. */
     public Stream<DatabaseDefinition> databases() {
         return databases.stream().filter(Objects::nonNull);
