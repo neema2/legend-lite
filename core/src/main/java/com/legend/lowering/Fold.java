@@ -90,6 +90,16 @@ final class Fold {
         return !s.distinct();
     }
 
+    /**
+     * A window column computes over the CURRENT select's row set: WHERE is fine
+     * (windows evaluate after it), ORDER BY is fine (independent orderings) —
+     * but truncation, dedup, and grouping all change the row set the window
+     * must see, so each forces isolation.
+     */
+    static boolean windowFolds(SqlSelect s) {
+        return !s.distinct() && s.limit() == null && s.offset() == null && s.groupBy().isEmpty();
+    }
+
     /** Sort folds iff ORDER BY is free (a second sort re-orders; last wins only via isolation). */
     static boolean sortFolds(SqlSelect s) {
         return s.orderBy().isEmpty();

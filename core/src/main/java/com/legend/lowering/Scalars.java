@@ -67,6 +67,11 @@ final class Scalars {
         family("upper", "toUpper");
         family("lower", "toLower");
 
+        // toOne erases in SQL (MUST-honor: multiplicity narrowing is a no-op value-wise).
+        for (Function f : Pure.nativeFunctionsAt("toOne")) {
+            RULES.put(f, (n, args) -> args.get(0));
+        }
+
         // Overload-specific overrides — the resolved signature IS the decision.
         RULES.put(Pure.PLUS__STRING_1__STRING_1, (n, args) -> new SqlExpr.Call("concat", args));
         RULES.put(Pure.IN__ANY_1__ANY_MANY, (n, args) -> {

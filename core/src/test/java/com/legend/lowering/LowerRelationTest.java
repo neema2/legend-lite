@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * M2 end-to-end: Pure query text → Phase G typed HIR → {@link Lowerer} →
@@ -310,6 +311,141 @@ class LowerRelationTest {
                 + "->filter(x|$x.AGE > 50)");
         assertEquals(3, count(filtered, "SELECT"), "union wraps once, filter folds on top: " + filtered);
         assertEquals(List.of("Dan|55|null", "Dan|55|null"), exec(filtered));
+    }
+
+    // ---- windows: extend(over(...)) — the QUALIFY slot's end-to-end debut ----
+
+    @Test
+    @DisplayName("window extend folds: ROW_NUMBER with partition+order, ONE SELECT")
+    void windowExtendFlat() throws SQLException {
+        String sql = sqlOf("#>{test::DB.T_PERSON}#"
+                + "->extend(over(~FIRM, ~AGE->descending()), ~rn : {p, w, r | $p->rowNumber($r)})");
+        assertEquals("""
+                SELECT t0.*, ROW_NUMBER() OVER (PARTITION BY t0.FIRM ORDER BY t0.AGE DESC NULLS FIRST) AS rn
+                FROM T_PERSON AS t0""", sql);
+        assertEquals(List.of("Bob|35|ACME|1", "Ann|25|ACME|2", "Cat|45|Widget|1", "Dan|55|null|1"),
+                exec(sql + "\nORDER BY t0.FIRM NULLS LAST, rn"));
+    }
+
+    @Test
+    @DisplayName("QUALIFY goes live: filter on a window column folds, no subquery")
+    void filterOnWindowColumnIsQualify() throws SQLException {
+        String sql = sqlOf("#>{test::DB.T_PERSON}#"
+                + "->extend(over(~FIRM, ~AGE->descending()), ~rn : {p, w, r | $p->rowNumber($r)})"
+                + "->filter(x|$x.rn == 1)");
+        assertEquals(1, count(sql, "SELECT"), "QUALIFY keeps it flat: " + sql);
+        String qualify = sql.lines().filter(l -> l.startsWith("QUALIFY")).findFirst().orElseThrow();
+        assertEquals("QUALIFY ROW_NUMBER() OVER (PARTITION BY t0.FIRM"
+                        + " ORDER BY t0.AGE DESC NULLS FIRST) = 1", qualify,
+                "the window EXPRESSION substitutes into QUALIFY");
+        assertEquals(List.of("Bob|35|ACME|1", "Cat|45|Widget|1", "Dan|55|null|1"),
+                exec(sql + "\nORDER BY t0.AGE"), "oldest per firm");
+    }
+
+    @Test
+    @DisplayName("windowed aggregate with a running frame executes correctly")
+    void windowedAggWithFrame() throws SQLException {
+        String sql = sqlOf("#>{test::DB.T_PERSON}#"
+                + "->extend(over(~FIRM, [asc(~AGE)], rows(unbounded(), 0)),"
+                + " ~running : {p, w, r | $r.AGE} : y|$y->sum())");
+        assertEquals(1, count(sql, "SELECT"));
+        assertTrue(sql.contains("SUM(t0.AGE) OVER (PARTITION BY t0.FIRM ORDER BY t0.AGE NULLS LAST"
+                        + " ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)"),
+                "frame renders: " + sql);
+        assertEquals(List.of("Ann|25|ACME|25", "Bob|35|ACME|60", "Cat|45|Widget|45", "Dan|55|null|55"),
+                exec(sql + "\nORDER BY t0.AGE"), "running total per firm");
+    }
+
+    @Test
+    @DisplayName("lag with property access + toOne wrapper lowers through scalar composition")
+    void lagComposesInScalars() throws SQLException {
+        String sql = sqlOf("#>{test::DB.T_PERSON}#"
+                + "->extend(over([asc(~AGE)]),"
+                + " ~delta : {p, w, r | $r.AGE - $p->lag($r).AGE->toOne()})");
+        assertEquals(1, count(sql, "SELECT"));
+        assertTrue(sql.contains("t0.AGE - LAG(t0.AGE) OVER (ORDER BY t0.AGE NULLS LAST)"),
+                "lag column from the property access; toOne erased: " + sql);
+        assertEquals(List.of("Ann|25|ACME|null", "Bob|35|ACME|10", "Cat|45|Widget|10", "Dan|55|null|10"),
+                exec(sql + "\nORDER BY t0.AGE"), "consecutive age deltas");
+    }
+
+    @Test
+    @DisplayName("whole-relation agg extend: SUM(x) OVER (), flat")
+    void extendAggOverAll() throws SQLException {
+        String sql = sqlOf("#>{test::DB.T_PERSON}#"
+                + "->extend(~total : x|$x.AGE : y|$y->sum())");
+        assertEquals(1, count(sql, "SELECT"));
+        assertTrue(sql.contains("SUM(t0.AGE) OVER ()"), sql);
+        assertEquals(List.of("Ann|25|ACME|160"), exec(sql + "\nORDER BY t0.AGE\nLIMIT 1"));
+    }
+
+    @Test
+    @DisplayName("MATRIX: every over() form renders its OVER clause and executes")
+    void overFormMatrix() throws SQLException {
+        String[][] cases = {
+            // over form fragment                      expected OVER text
+            {"over(~FIRM)",
+             "OVER (PARTITION BY t0.FIRM)"},
+            {"over(~FIRM, [asc(~AGE)])",
+             "OVER (PARTITION BY t0.FIRM ORDER BY t0.AGE NULLS LAST)"},
+            {"over(~[FIRM, NAME])",
+             "OVER (PARTITION BY t0.FIRM, t0.NAME)"},
+            {"over(~[FIRM, NAME], [desc(~AGE)])",
+             "OVER (PARTITION BY t0.FIRM, t0.NAME ORDER BY t0.AGE DESC NULLS FIRST)"},
+            {"over([desc(~AGE)])",
+             "OVER (ORDER BY t0.AGE DESC NULLS FIRST)"},
+            {"over([asc(~NAME), desc(~AGE)])",
+             "OVER (ORDER BY t0.NAME NULLS LAST, t0.AGE DESC NULLS FIRST)"},
+        };
+        for (String[] c : cases) {
+            String sql = sqlOf("#>{test::DB.T_PERSON}#->extend(" + c[0]
+                    + ", ~n : {p, w, r | $p->rowNumber($r)})");
+            assertTrue(sql.contains(c[1]), () -> c[0] + " must render " + c[1] + "; got: " + sql);
+            assertEquals(4, exec(sql).size(), () -> c[0] + " must execute");
+        }
+    }
+
+    @Test
+    @DisplayName("MATRIX: every frame bound combination renders and executes")
+    void frameBoundMatrix() throws SQLException {
+        String[][] cases = {
+            {"rows(-1, 0)", "ROWS BETWEEN 1 PRECEDING AND CURRENT ROW"},
+            {"rows(-2, -1)", "ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING"},
+            {"rows(0, 1)", "ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING"},
+            {"rows(1, 2)", "ROWS BETWEEN 1 FOLLOWING AND 2 FOLLOWING"},
+            {"rows(-1, 1)", "ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING"},
+            {"rows(unbounded(), 0)", "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"},
+            {"rows(0, unbounded())", "ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING"},
+            {"rows(unbounded(), unbounded())",
+             "ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING"},
+            {"_range(-2, 0)", "RANGE BETWEEN 2 PRECEDING AND CURRENT ROW"},
+        };
+        for (String[] c : cases) {
+            String sql = sqlOf("#>{test::DB.T_PERSON}#->extend(over(~FIRM, [asc(~AGE)], " + c[0]
+                    + "), ~s : {p, w, r | $r.AGE} : y|$y->sum())");
+            assertTrue(sql.contains(c[1]), () -> c[0] + " must render " + c[1] + "; got: " + sql);
+            assertEquals(4, exec(sql).size(), () -> c[0] + " must execute on DuckDB");
+        }
+    }
+
+    @Test
+    @DisplayName("frame SEMANTICS: forward-looking frame sums the remaining rows")
+    void forwardFrameSemantics() throws SQLException {
+        String sql = sqlOf("#>{test::DB.T_PERSON}#"
+                + "->extend(over(~FIRM, [asc(~AGE)], rows(0, unbounded())),"
+                + " ~remaining : {p, w, r | $r.AGE} : y|$y->sum())");
+        assertEquals(List.of("Ann|25|ACME|60", "Bob|35|ACME|35", "Cat|45|Widget|45", "Dan|55|null|55"),
+                exec(sql + "\nORDER BY t0.AGE"),
+                "each row sums itself + everything AFTER it in its partition");
+    }
+
+    @Test
+    @DisplayName("window after limit ISOLATES — the window must see the truncated set")
+    void windowAfterLimitIsolates() throws SQLException {
+        String sql = sqlOf("#>{test::DB.T_PERSON}#->sort(~AGE->ascending())->limit(2)"
+                + "->extend(over(~FIRM), ~n : {p, w, r | $p->rowNumber($r)})");
+        assertEquals(2, count(sql, "SELECT"), "boundary: " + sql);
+        assertEquals(2, exec(sql).size(), "window ran over the 2 surviving rows");
     }
 
     @Test

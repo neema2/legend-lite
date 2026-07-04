@@ -11,6 +11,8 @@ import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedConcatenate;
 import com.legend.compiler.spec.typed.TypedDistinct;
 import com.legend.compiler.spec.typed.TypedExtend;
+import com.legend.compiler.spec.typed.TypedExtendAgg;
+import com.legend.compiler.spec.typed.TypedExtendWindow;
 import com.legend.compiler.spec.typed.TypedFuncCol;
 import com.legend.compiler.spec.typed.TypedGroupBy;
 import com.legend.compiler.spec.typed.TypedDrop;
@@ -18,6 +20,7 @@ import com.legend.compiler.spec.typed.TypedFilter;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedLimit;
 import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedOver;
 import com.legend.compiler.spec.typed.TypedProject;
 import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedRename;
@@ -108,6 +111,10 @@ public final class Lowerer {
 
             case TypedConcatenate c -> SqlSelect.starOf(
                     new SqlSource.Subselect(union(c), nextAlias()));
+
+            case TypedExtendWindow w -> extendWindow(w);
+
+            case TypedExtendAgg ea -> extendAgg(ea);
 
             default -> throw new IllegalStateException("lowering not yet implemented for "
                     + spec.getClass().getSimpleName());
@@ -232,12 +239,23 @@ public final class Lowerer {
 
     private SqlSelect filter(TypedFilter f) {
         SqlSelect src = relation(f.source());
+        boolean windowRef = false;
         SqlExpr predicate = tryPredicate(src, f.predicate());
+        if (predicate == null && src.groupBy().isEmpty()) {
+            // Window-aware fallback: refs to window-column aliases substitute
+            // the WindowCall itself — QUALIFY admits window expressions.
+            boolean[] saw = {false};
+            SqlExpr viaProjections = tryWindowPredicate(src, f.predicate(), saw);
+            if (viaProjections != null && saw[0]) {
+                predicate = viaProjections;
+                windowRef = true;
+            }
+        }
         if (predicate == null) {
             src = isolate(src);
             predicate = tryPredicate(src, f.predicate());
         }
-        Fold.FilterSlot slot = Fold.filterSlot(src, false);
+        Fold.FilterSlot slot = Fold.filterSlot(src, windowRef);
         if (slot == Fold.FilterSlot.ISOLATE) {
             src = isolate(src);
             predicate = tryPredicate(src, f.predicate());
@@ -266,6 +284,21 @@ public final class Lowerer {
                     ? name -> resolveOrThrow(select, name)
                     : name -> projectionExprOrThrow(select, name);
             return scalar(last(lambda), columns);
+        } catch (UnfoldableRef e) {
+            return null;
+        }
+    }
+
+    /** Resolve refs via projections, flagging any that substitute a window call. */
+    private SqlExpr tryWindowPredicate(SqlSelect select, TypedLambda lambda, boolean[] sawWindow) {
+        try {
+            return scalar(last(lambda), name -> {
+                SqlExpr e = projectionExprOrThrow(select, name);
+                if (e instanceof SqlExpr.WindowCall) {
+                    sawWindow[0] = true;
+                }
+                return e;
+            });
         } catch (UnfoldableRef e) {
             return null;
         }
@@ -401,6 +434,157 @@ public final class Lowerer {
             rows.add(cells);
         }
         return SqlSelect.starOf(new SqlSource.Values(rows, names, alias, outputsOf(tds.info())));
+    }
+
+    // ==================================================================
+    // Window lowering — extend(over(...), ...) and whole-relation agg extend
+    // ==================================================================
+
+    /** extend(over(~p,[keys],frame), cols/aggs): window columns APPEND like extend. */
+    private SqlSelect extendWindow(TypedExtendWindow w) {
+        SqlSelect src = relation(w.source());
+        SqlSelect base = Fold.windowFolds(src) ? src : isolate(src);
+        Over over = lowerOver(base, w.window());
+        List<SqlSelect.Projection> ps = new ArrayList<>(starProjections(base));
+        for (com.legend.compiler.spec.typed.TypedFuncCol c : w.columns()) {
+            SqlExpr e = windowScalar(last(c.fn()), base, over);
+            ps.add(new SqlSelect.Projection(e, c.name()));
+        }
+        for (TypedAggCol a : w.aggs()) {
+            SqlAgg.Reducer r = aggExpr(base, a);
+            ps.add(new SqlSelect.Projection(
+                    new SqlExpr.WindowCall(r, over.partitionBy(), over.orderBy(), over.frame()),
+                    a.name()));
+        }
+        return base.withProjections(ps, outputsOf(w.info()));
+    }
+
+    /** extend(~total : x|$x.AGE : y|$y->sum()) — whole-relation window: SUM(x) OVER (). */
+    private SqlSelect extendAgg(TypedExtendAgg ea) {
+        SqlSelect src = relation(ea.source());
+        SqlSelect base = Fold.windowFolds(src) ? src : isolate(src);
+        List<SqlSelect.Projection> ps = new ArrayList<>(starProjections(base));
+        for (TypedAggCol a : ea.aggs()) {
+            ps.add(new SqlSelect.Projection(
+                    new SqlExpr.WindowCall(aggExpr(base, a), List.of(), List.of(), null),
+                    a.name()));
+        }
+        return base.withProjections(ps, outputsOf(ea.info()));
+    }
+
+    private List<SqlSelect.Projection> starProjections(SqlSelect base) {
+        return base.projections().isEmpty()
+                ? List.of(new SqlSelect.Projection(new SqlExpr.Star(fromAlias(base)), null))
+                : base.projections();
+    }
+
+    private record Over(List<SqlExpr> partitionBy, List<SqlSelect.SortKey> orderBy,
+                        SqlExpr.WindowCall.Frame frame) {
+    }
+
+    /** Partition/order/frame of an over(...) — DESC→NULLS FIRST, ASC→NULLS LAST (master's pin). */
+    private Over lowerOver(SqlSelect base, TypedOver over) {
+        List<SqlExpr> parts = new ArrayList<>(over.partitions().size());
+        for (String p : over.partitions()) {
+            parts.add(resolveOrThrow(base, p));
+        }
+        List<SqlSelect.SortKey> keys = new ArrayList<>(over.sortKeys().size());
+        for (TypedSort.TypedSortKey k : over.sortKeys()) {
+            keys.add(new SqlSelect.SortKey(resolveOrThrow(base, k.column()), k.ascending(),
+                    k.ascending() ? SqlSelect.SortKey.NullOrder.NULLS_LAST
+                            : SqlSelect.SortKey.NullOrder.NULLS_FIRST));
+        }
+        return new Over(parts, keys, over.frame().map(this::frame).orElse(null));
+    }
+
+    /** rows(a,b) / range(a,b): negative→PRECEDING, 0→CURRENT ROW, positive→FOLLOWING. */
+    private SqlExpr.WindowCall.Frame frame(TypedSpec spec) {
+        if (!(spec instanceof TypedNativeCall call)) {
+            throw new IllegalStateException("window frame lowering expects rows()/range(), got "
+                    + spec.getClass().getSimpleName());
+        }
+        boolean rows = com.legend.builtin.Pure.nativeFunctionsAt("rows")
+                .contains(call.callee().definition());
+        return new SqlExpr.WindowCall.Frame(
+                rows ? SqlExpr.WindowCall.Frame.Kind.ROWS : SqlExpr.WindowCall.Frame.Kind.RANGE,
+                bound(call.args().get(0), true), bound(call.args().get(1), false));
+    }
+
+    private SqlExpr.WindowCall.Frame.Bound bound(TypedSpec arg, boolean fromSide) {
+        // A negative literal arrives as unary minus AROUND the integer — unwrap.
+        if (arg instanceof TypedNativeCall neg
+                && com.legend.builtin.Pure.nativeFunctionsAt("minus").contains(neg.callee().definition())
+                && neg.args().size() == 1 && neg.args().get(0) instanceof TypedCInteger inner) {
+            return new SqlExpr.WindowCall.Frame.Bound.Preceding(inner.value().longValue());
+        }
+        if (arg instanceof TypedCInteger c) {
+            long n = c.value().longValue();
+            if (n < 0) {
+                return new SqlExpr.WindowCall.Frame.Bound.Preceding(-n);
+            }
+            if (n > 0) {
+                return new SqlExpr.WindowCall.Frame.Bound.Following(n);
+            }
+            return new SqlExpr.WindowCall.Frame.Bound.CurrentRow();
+        }
+        if (arg instanceof TypedNativeCall call
+                && com.legend.builtin.Pure.nativeFunctionsAt("unbounded").contains(call.callee().definition())) {
+            return fromSide ? new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding()
+                    : new SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing();
+        }
+        // NO fallback: an unrecognized bound is a loud error, never UNBOUNDED.
+        throw new IllegalStateException("window frame bound must be an integer literal or"
+                + " unbounded(), got " + arg.getClass().getSimpleName());
+    }
+
+    /**
+     * A window column's body, classified AT LOWERING (the deliberate Phase-G
+     * deferral): ranking natives take no column; value natives (lag/lead/...)
+     * get their column from the WRAPPING property access
+     * ({@code $p->lag($r).SALARY}); anything else lowers as an ordinary scalar
+     * whose window-native subterms recurse through this method.
+     */
+    private SqlExpr windowScalar(TypedSpec body, SqlSelect base, Over over) {
+        switch (body) {
+            case TypedPropertyAccess p when p.source() instanceof TypedNativeCall call
+                    && Windows.lookup(call.callee().definition()) != null -> {
+                Windows.WindowFn fn = Windows.lookup(call.callee().definition());
+                List<SqlExpr> args = new ArrayList<>();
+                args.add(new SqlExpr.Column(fromAlias(base), p.property()));
+                trailingIntArgs(call, args);
+                return new SqlExpr.WindowCall(new SqlAgg.ValueFn(fn.sqlName(), args),
+                        over.partitionBy(), over.orderBy(), over.frame());
+            }
+            case TypedNativeCall call when Windows.lookup(call.callee().definition()) != null -> {
+                Windows.WindowFn fn = Windows.lookup(call.callee().definition());
+                if (fn.kind() != Windows.Kind.RANKING) {
+                    throw new IllegalStateException("window value function '"
+                            + call.callee().qualifiedName()
+                            + "' needs a property access naming its column");
+                }
+                List<SqlExpr> args = new ArrayList<>();
+                trailingIntArgs(call, args);
+                return new SqlExpr.WindowCall(new SqlAgg.RankingFn(fn.sqlName(), args),
+                        over.partitionBy(), over.orderBy(), over.frame());
+            }
+            case TypedNativeCall call -> {
+                List<SqlExpr> args = call.args().stream()
+                        .map(a -> windowScalar(a, base, over)).toList();
+                return Scalars.lower(call, args);
+            }
+            default -> {
+                return scalar(body, name -> resolveOrThrow(base, name));
+            }
+        }
+    }
+
+    /** Literal Integer args (ntile n, lag/lead offset) ride along. */
+    private static void trailingIntArgs(TypedNativeCall call, List<SqlExpr> args) {
+        for (TypedSpec a : call.args()) {
+            if (a instanceof TypedCInteger c) {
+                args.add(new SqlExpr.IntLit(c.value().longValue()));
+            }
+        }
     }
 
     // ==================================================================
