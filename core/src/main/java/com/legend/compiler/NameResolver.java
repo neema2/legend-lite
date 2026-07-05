@@ -306,6 +306,26 @@ public final class NameResolver {
                 : new TypeExpression.Column(c.name(), t, c.multiplicity());
     }
 
+    /**
+     * Platform-qualified native calls normalize to the catalog's BARE name at
+     * RESOLUTION time (real Pure writes {@code meta::pure::functions::date::
+     * adjust(...)}; our catalog registers natives bare — an engine-lite
+     * convention). This is the INVERSE of the eventual fix (an FQN-keyed
+     * catalog with prelude function imports, LEGEND_SQL_VISION-adjacent);
+     * until then, ONE normalization here keeps every later stage a dumb
+     * lookup. Only {@code meta::pure::}-prefixed names with a registered bare
+     * native normalize — user FQNs are untouched.
+     */
+    private static String normalizePlatformFunction(String fn) {
+        if (fn.startsWith("meta::pure::")) {
+            String bare = fn.substring(fn.lastIndexOf("::") + 2);
+            if (!Pure.nativeFunctionsAt(bare).isEmpty()) {
+                return bare;
+            }
+        }
+        return fn;
+    }
+
     /** Core lookup. Private; callers go through {@link #resolveType} etc. */
     private static String resolveName(String name, Scope scope) {
         if (name == null || name.isEmpty()) return name;
@@ -1046,7 +1066,7 @@ public final class NameResolver {
                 yield r.equals(ev.fullPath()) ? ev : new EnumValue(r, ev.value());
             }
             case AppliedFunction af -> {
-                String fn = resolveName(af.function(), scope);
+                String fn = normalizePlatformFunction(resolveName(af.function(), scope));
                 List<ValueSpecification> params = resolveVsList(af.parameters(), scope);
                 yield (fn.equals(af.function()) && params == af.parameters()) ? af
                         : new AppliedFunction(fn, params);

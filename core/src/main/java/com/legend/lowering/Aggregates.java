@@ -26,6 +26,8 @@ final class Aggregates {
 
     static {
         family("SUM", "sum");
+        // Pure spells numeric reduction via plus: y|$y->plus() == sum.
+        family("SUM", "plus");
         family("COUNT", "count");
         family("AVG", "average");
         family("MIN", "min");

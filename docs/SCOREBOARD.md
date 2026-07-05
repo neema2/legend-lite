@@ -64,3 +64,48 @@ corpus queries (~150).
 
 All three systemic error families at zero; bare-name errors moved into the
 H bucket where they belong (TypedGetAll 343→412 across rounds).
+
+### Run 2026-07-05 @ 4d0c0ed
+
+| tests | pass | failures | errors | skipped | green classes |
+|---|---|---|---|---|---|
+| 2721 | **1176** | 94 | 1432 | 19 | 169 |
+
+| bucket | exception lines |
+|---|---|
+| H: class sources / property nav / mappings | 578 |
+| CORE: scalar/agg function registrations | 380 |
+| CORE: unlowered constructs | 197 |
+| CORE(parse): query syntax gaps | 117 |
+| FIXTURE: unknown refs (to diagnose) | 73 |
+| OTHER | 45 |
+| CORE(G): overload/typing gaps | 25 |
+
+Top detail:
+```
+  412  lowering not yet implemented for TypedGetAll
+   53  scalar lowering not yet implemented for TypedSerialize
+   40  class test::Person has no property 'firm'
+   28  'test::Person' is not a known class, mapping, runtime, connection, or 
+   24  unknown table 'T_EVENTS' in database 'EventDatabase'
+   22  lowering not yet implemented for TypedSortBy
+   22  unbound type variable T
+   18  scalar lowering not yet implemented for TypedEnumValue
+   16  scalar lowering not yet implemented for TypedNewInstance
+   16  lowering not yet implemented for TypedUserCall
+   14  [1:5] trailing tokens after expression: VALID_STRING ('x')
+   14  class model::Person has no property 'addresses'
+   14  class model::Emp has no property 'dept'
+   13  scalar lowering not yet implemented for TypedMatch
+   12  [1:5] trailing tokens after expression: VALID_STRING ('a')
+   11  class test::Person has no property 'addresses'
+   10  graphFetch tree: class test::Person has no property 'addresses'
+   10  no aggregate lowering registered for resolved overload 'size'
+   10  no scalar lowering registered for resolved overload 'toString' with 1 
+   10  'test::Order' is not a known class, mapping, runtime, connection, or d
+    9  no overload of 'concatenate' matches 2 argument(s) of these shapes
+    9  no compiled mapping function for class fetch: test::Person
+    8  [plangen-c0954a] Not yet ported: TypedPropertyAccess (stage-3-relation
+    8  no aggregate lowering registered for resolved overload 'joinStrings'
+    8  scalar lowering not yet implemented for TypedIf
+```

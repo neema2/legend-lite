@@ -777,6 +777,20 @@ public final class Lowerer {
             case TypedCString c -> new SqlExpr.StringLit(c.value());
             case TypedCBoolean c -> new SqlExpr.BoolLit(c.value());
             case TypedCFloat c -> new SqlExpr.FloatLit(c.value());
+            case com.legend.compiler.spec.typed.TypedCDecimal c ->
+                    new SqlExpr.DecimalLit(c.value());
+            // Date literals: full dates/timestamps render typed; PARTIAL
+            // dates (year / year-month) compare as STRINGS in SQL (master's
+            // pinned semantics) — represented as string literals here.
+            case com.legend.compiler.spec.typed.TypedCDate d -> switch (d.value()) {
+                case com.legend.parser.spec.PureDateLiteral.StrictDate sd ->
+                        new SqlExpr.DateLit(sd.toEngineString());
+                case com.legend.parser.spec.PureDateLiteral.Year y ->
+                        new SqlExpr.StringLit(y.toEngineString());
+                case com.legend.parser.spec.PureDateLiteral.YearMonth ym ->
+                        new SqlExpr.StringLit(ym.toEngineString());
+                default -> new SqlExpr.TimestampLit(d.value().toEngineString());
+            };
             case TypedCollection c -> new SqlExpr.ArrayLit(
                     c.elements().stream().map(e -> scalar(e, columns)).toList());
             case TypedPropertyAccess p when p.source() instanceof TypedVariable v
