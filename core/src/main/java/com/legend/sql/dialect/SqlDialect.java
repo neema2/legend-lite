@@ -13,8 +13,8 @@ public interface SqlDialect {
 
     String render(SqlQuery query);
 
-    /** JDBC cell value → canonical Java value for {@code pureType}. Default: identity. */
-    default Object normalize(Object jdbcValue, com.legend.compiler.element.type.Type pureType) {
+    /** JDBC cell value → canonical Java value for {@code type}. Default: identity. */
+    default Object normalize(Object jdbcValue, com.legend.sql.SqlType type) {
         return jdbcValue;
     }
 }

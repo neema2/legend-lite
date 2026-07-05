@@ -1,6 +1,5 @@
 package com.legend.sql.dialect;
 
-import com.legend.compiler.element.type.Type;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
@@ -434,8 +433,24 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         throw new IllegalStateException("an array literal reached a dialect without array support");
     }
 
-    /** Pure type → this dialect's CAST spelling. Loud when unmapped. */
-    protected abstract String castTypeName(Type t);
+    /** SQL type → this dialect's CAST spelling (ANSI defaults). */
+    protected String castTypeName(com.legend.sql.SqlType t) {
+        return switch (t) {
+            case com.legend.sql.SqlType.Scalar s -> switch (s) {
+                case BOOLEAN -> "BOOLEAN";
+                case BIGINT -> "BIGINT";
+                case DOUBLE -> "DOUBLE PRECISION";
+                case VARCHAR -> "VARCHAR";
+                case DATE -> "DATE";
+                case TIMESTAMP -> "TIMESTAMP";
+                case JSON -> throw new IllegalStateException(
+                        "JSON cast reached a dialect without JSON support");
+            };
+            case com.legend.sql.SqlType.Decimal d ->
+                    "DECIMAL(" + d.precision() + ", " + d.scale() + ")";
+            case com.legend.sql.SqlType.Array a -> castTypeName(a.element()) + "[]";
+        };
+    }
 
     protected String fn(String spelling, List<SqlExpr> args) {
         return spelling + "(" + list(args) + ")";

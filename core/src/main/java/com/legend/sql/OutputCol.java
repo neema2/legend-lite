@@ -1,13 +1,10 @@
 package com.legend.sql;
 
-import com.legend.compiler.element.type.Multiplicity;
-import com.legend.compiler.element.type.Type;
-
 /**
- * One output column of a query node, WITH its Pure type &mdash; the typed-results
- * contract (PHASE_HIJ_LOWERING.md): type information rides the plan so result
- * consumers never inspect SQL/JDBC types. Stamped by the lowering from the
- * HIR's schemas.
+ * One output column of a query node, in the SQL layer's own type vocabulary
+ * (LEGEND_SQL_VISION.md). Frontends stamp these at the lowering boundary;
+ * result layers that need frontend types (Pure) read them from the FRONTEND's
+ * typed root, never from the plan.
  */
-public record OutputCol(String name, Type type, Multiplicity multiplicity) {
+public record OutputCol(String name, SqlType type, boolean nullable) {
 }

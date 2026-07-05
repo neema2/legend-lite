@@ -119,8 +119,7 @@ public sealed interface SqlExpr
      * value through its text-extraction idiom (DuckDB {@code ->>}) — that
      * swap is RENDERING knowledge, not IR content.
      */
-    record Cast(SqlExpr value, com.legend.compiler.element.type.Type target, boolean array)
-            implements SqlExpr {
+    record Cast(SqlExpr value, SqlType target, boolean array) implements SqlExpr {
     }
 
     /**

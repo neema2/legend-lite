@@ -91,7 +91,8 @@ public final class Lowerer {
         return new SqlSelect(
                 List.of(new SqlSelect.Projection(e, "value")), false, null,
                 null, List.of(), null, null, List.of(), null, null,
-                List.of(new OutputCol("value", spec.info().type(), spec.info().multiplicity())));
+                List.of(new OutputCol("value", PureSql.type(spec.info().type()),
+                        PureSql.nullable(spec.info().multiplicity()))));
     }
 
     private String nextAlias() {
@@ -911,11 +912,11 @@ public final class Lowerer {
                     && t.fqn().endsWith("::Variant");
             return variantTarget
                     ? SqlExpr.Call.of(com.legend.sql.SqlFn.VARIANT_ELEMENTS, value)
-                    : new SqlExpr.Cast(value, c.target(), true);
+                    : new SqlExpr.Cast(value, PureSql.type(c.target()), true);
         }
         // The dialect may render this cast through its text-extraction idiom
         // (DuckDB ->>) — that is RENDERING knowledge; the IR keeps the access.
-        return new SqlExpr.Cast(value, c.target(), false);
+        return new SqlExpr.Cast(value, PureSql.type(c.target()), false);
     }
 
     private static java.util.function.BiFunction<String, String, SqlExpr> lambdaResolver(
@@ -1068,8 +1069,10 @@ public final class Lowerer {
         if (!(info.type() instanceof Type.RelationType rt)) {
             return List.of();
         }
+        // THE Pure→SQL type boundary: plans carry SQL types only.
         return rt.columns().stream()
-                .map(c -> new OutputCol(c.name(), c.type(), c.multiplicity()))
+                .map(c -> new OutputCol(c.name(), PureSql.type(c.type()),
+                        PureSql.nullable(c.multiplicity())))
                 .toList();
     }
 }

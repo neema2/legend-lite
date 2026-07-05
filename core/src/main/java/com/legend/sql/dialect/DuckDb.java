@@ -1,6 +1,5 @@
 package com.legend.sql.dialect;
 
-import com.legend.compiler.element.type.Type;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
@@ -183,25 +182,15 @@ public final class DuckDb extends AnsiSqlRenderer {
         return super.variantAwareCast(c);
     }
 
-    /** Pure Integer is 64-bit. */
     @Override
-    protected String castTypeName(Type t) {
-        if (t instanceof Type.Primitive p) {
-            return switch (p) {
-                case STRING -> "VARCHAR";
-                case INTEGER -> "BIGINT";
-                case FLOAT, NUMBER -> "DOUBLE";
-                case BOOLEAN -> "BOOLEAN";
-                case DECIMAL -> "DECIMAL";
-                case STRICT_DATE -> "DATE";
-                case DATE_TIME, DATE -> "TIMESTAMP";
-                default -> throw new IllegalStateException(
-                        "no DuckDB CAST spelling for Pure type " + p);
+    protected String castTypeName(com.legend.sql.SqlType t) {
+        return switch (t) {
+            case com.legend.sql.SqlType.Scalar s -> switch (s) {
+                case DOUBLE -> "DOUBLE";
+                case JSON -> "JSON";
+                default -> super.castTypeName(t);
             };
-        }
-        if (t instanceof Type.ClassType ct && ct.fqn().endsWith("::Variant")) {
-            return "JSON";
-        }
-        throw new IllegalStateException("no DuckDB CAST spelling for " + t.typeName());
+            default -> super.castTypeName(t);
+        };
     }
 }

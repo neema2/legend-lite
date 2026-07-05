@@ -69,6 +69,23 @@ final class ArchitectureTest {
     }
 
     /**
+     * <strong>The legend-sql wall (LEGEND_SQL_VISION.md).</strong> The SQL
+     * layer is built to stand alone: it must not import the Pure compiler.
+     * Frontend types meet SQL types only at the lowering boundary
+     * ({@code com.legend.lowering.PureSql}).
+     */
+    @org.junit.jupiter.api.Test
+    void sqlLayerIsStandalone() {
+        noClasses()
+            .that().resideInAPackage("com.legend.sql..")
+            .should().dependOnClassesThat().resideInAnyPackage(
+                    "com.legend.compiler..", "com.legend.parser..",
+                    "com.legend.normalizer..", "com.legend.builtin..")
+            .as("legend-sql stands alone: no Pure-compiler imports in com.legend.sql..")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
      * <strong>Invariant 3 — Caches must be content-addressed.</strong> The only
      * sanctioned cache is {@code com.legend.cache.ContentStore}, keyed by a
      * {@link com.legend.cache.Hash} of content, which cannot desync. To keep a
