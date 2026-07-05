@@ -83,6 +83,11 @@ public final class Lowerer {
             throw new IllegalStateException("a scalar query has no row scope for $"
                     + var + "." + name);
         });
+        // COLLECTION roots explode to N rows (the result-shape contract:
+        // Executor reads a collection as N rows x 1 column).
+        if (isMany(spec)) {
+            e = SqlExpr.Call.of(com.legend.sql.SqlFn.UNNEST, e);
+        }
         return new SqlSelect(
                 List.of(new SqlSelect.Projection(e, "value")), false, null,
                 null, List.of(), null, null, List.of(), null, null,

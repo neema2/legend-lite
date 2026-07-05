@@ -97,6 +97,20 @@ public final class Compiler {
      * @param query Pure query expression (user elements fully qualified).
      * @return the type-checked query (schema/type on {@link TypedSpec#info()}).
      */
+    /**
+     * The core QUERY SERVICE: frontend + Phase G + lowering + rendering +
+     * EXECUTION over the caller's connection, shaped per the result-type
+     * classification ({@link com.legend.exec.ResultShape}). The corpus
+     * bridge's target (PHASE_K_EXECUTION.md).
+     */
+    public static com.legend.exec.ExecutionResult execute(String model, String query,
+            java.sql.Connection connection) throws java.sql.SQLException {
+        TypedSpec typed = compileQuery(model, query);
+        com.legend.sql.SqlQuery plan = new com.legend.lowering.Lowerer().lower(typed);
+        String sql = new com.legend.sql.dialect.DuckDb().render(plan);
+        return com.legend.exec.Executor.execute(sql, plan, typed.info(), connection);
+    }
+
     public static TypedSpec compileQuery(String model, String query) {
         Objects.requireNonNull(query, "query");
         ModelContext ctx = compileModel(model);
