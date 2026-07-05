@@ -442,7 +442,7 @@ class EnumIntegrationTest {
 
             // WHEN: We query for PENDING tasks through QueryService
             String pureQuery = """
-                    Task.all()
+                    model::Task.all()
                         ->filter({t | $t.status == 'PENDING'})
                         ->project(~[name:t|$t.name])
                     """;
@@ -523,7 +523,7 @@ class EnumIntegrationTest {
 
             // WHEN: Query for HIGH or CRITICAL priority
             String pureQuery = """
-                    Issue.all()
+                    model::Issue.all()
                         ->filter({i | $i.priority == 'HIGH' || $i.priority == 'CRITICAL'})
                         ->project(~[title:i|$i.title, priority:i|$i.priority])
                     """;
@@ -603,7 +603,7 @@ class EnumIntegrationTest {
 
             // WHEN: Query projecting status enum column
             String pureQuery = """
-                    Order.all()
+                    model::Order.all()
                         ->project(~[customer:o|$o.customer, status:o|$o.status])
                     """;
 
@@ -701,7 +701,7 @@ class EnumIntegrationTest {
 
             // WHEN: Query orders
             String pureQuery = """
-                    Order.all()
+                    model::Order.all()
                         ->project(~[customer:o|$o.customer, status:o|$o.status])
                     """;
 
@@ -782,7 +782,7 @@ class EnumIntegrationTest {
                     """;
 
             String pureQuery = """
-                    Task.all()
+                    model::Task.all()
                         ->project(~[name:t|$t.name, status:t|$t.status])
                     """;
 

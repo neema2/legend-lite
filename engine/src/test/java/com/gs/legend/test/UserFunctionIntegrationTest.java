@@ -962,7 +962,7 @@ class UserFunctionIntegrationTest {
         void testWrongClassParamRejected() {
             // Declare param as Person[*], but we'll need a different class to pass
             // Since we only have Person in the model, declare param as String[*]
-            // and pass Person.all() → should fail: "Person" vs "String"
+            // and pass model::Person.all() → should fail: "Person" vs "String"
             String model = modelWith("""
                     function test::badParam(names: String[*]):Any[*]
                     {
@@ -984,7 +984,7 @@ class UserFunctionIntegrationTest {
                         $people->project([p|$p.firstName], ['name'])
                     }
                     """);
-            // Correct type: Person.all() → Person[*] matches Person[*] param
+            // Correct type: model::Person.all() → Person[*] matches Person[*] param
             var result = exec(model, "|test::getNames(model::Person.all())");
             assertEquals(3, result.rowCount());
         }
@@ -1041,8 +1041,8 @@ class UserFunctionIntegrationTest {
                         $people->project([p|$p.firstName], ['name'])
                     }
                     """;
-            // Employee extends Person, so Employee.all() passes Person[*] type check
-            // Then runs E2E: Employee.all() → project firstName → real SQL → real DuckDB data
+            // Employee extends Person, so model::Employee.all() passes Person[*] type check
+            // Then runs E2E: model::Employee.all() → project firstName → real SQL → real DuckDB data
             var result = exec(model, "|test::getNames(model::Employee.all())");
             assertEquals(2, result.rowCount(), "Alice and Charlie");
             var names = column(result, 0, String.class);
@@ -1106,7 +1106,7 @@ class UserFunctionIntegrationTest {
         @Test
         @DisplayName("Return type check: Class[*] return — caller chains Person-specific props E2E")
         void testClassReturnTypeValidated() throws SQLException {
-            // Declares Person[*], body returns Person.all()->filter(...)
+            // Declares Person[*], body returns model::Person.all()->filter(...)
             // Caller chains filter($p.lastName) + project($p.firstName, $p.age) — Person-specific
             String model = modelWith("""
                     function test::youngPeople():model::Person[*]
@@ -1123,10 +1123,10 @@ class UserFunctionIntegrationTest {
         }
 
         @Test
-        @DisplayName("Baseline: graphFetch on Person.all() directly (no user function)")
+        @DisplayName("Baseline: graphFetch on model::Person.all() directly (no user function)")
         void testGraphFetchBaseline() throws SQLException {
             var result = exec(BASE_MODEL,
-                    "|model::Person.all()->graphFetch(#{Person{firstName, age}}#)->serialize(#{Person{firstName, age}}#)");
+                    "|model::Person.all()->graphFetch(#{model::Person{firstName, age}}#)->serialize(#{model::Person{firstName, age}}#)");
             assertInstanceOf(ExecutionResult.GraphResult.class, result);
             String json = result.asGraph().json();
             assertTrue(json.contains("John"), "JSON: " + json);
@@ -1143,7 +1143,7 @@ class UserFunctionIntegrationTest {
                     }
                     """);
             var result = exec(model,
-                    "|test::youngPeople()->graphFetch(#{Person{firstName, age}}#)->serialize(#{Person{firstName, age}}#)");
+                    "|test::youngPeople()->graphFetch(#{model::Person{firstName, age}}#)->serialize(#{model::Person{firstName, age}}#)");
             assertInstanceOf(ExecutionResult.GraphResult.class, result);
             String json = result.asGraph().json();
             assertTrue(json.contains("John"), "JSON: " + json);

@@ -378,10 +378,10 @@ class M2MIntegrationTest {
     // ==================== NEW PIPELINE: graphFetch via execute() ====================
 
     @Test
-    @DisplayName("NEW PIPELINE: Person.all()->graphFetch->serialize via execute()")
+    @DisplayName("NEW PIPELINE: model::Person.all()->graphFetch->serialize via execute()")
     void testNewPipelinePersonTransform() throws SQLException {
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->graphFetch(#{ Person { fullName, upperLastName } }#)
                     ->serialize(#{ Person { fullName, upperLastName } }#)
                 """;
@@ -400,7 +400,7 @@ class M2MIntegrationTest {
     @DisplayName("NEW PIPELINE: Conditional M2M + graphFetch (PersonView)")
     void testNewPipelineConditional() throws SQLException {
         String pureQuery = """
-                PersonView.all()
+                model::PersonView.all()
                     ->graphFetch(#{ PersonView { firstName, ageGroup } }#)
                     ->serialize(#{ PersonView { firstName, ageGroup } }#)
                 """;
@@ -416,7 +416,7 @@ class M2MIntegrationTest {
     @DisplayName("NEW PIPELINE: Filtered mapping + graphFetch (ActivePerson)")
     void testNewPipelineFiltered() throws SQLException {
         String pureQuery = """
-                ActivePerson.all()
+                model::ActivePerson.all()
                     ->graphFetch(#{ ActivePerson { firstName, lastName } }#)
                     ->serialize(#{ ActivePerson { firstName, lastName } }#)
                 """;
@@ -433,7 +433,7 @@ class M2MIntegrationTest {
     @DisplayName("NEW PIPELINE: Salary band conditional (nested if/else)")
     void testNewPipelineSalaryBand() throws SQLException {
         String pureQuery = """
-                PersonWithSalary.all()
+                model::PersonWithSalary.all()
                     ->graphFetch(#{ PersonWithSalary { firstName, salaryBand } }#)
                     ->serialize(#{ PersonWithSalary { firstName, salaryBand } }#)
                 """;
@@ -450,7 +450,7 @@ class M2MIntegrationTest {
     @DisplayName("NEW PIPELINE: Single property projection")
     void testNewPipelineSingleProperty() throws SQLException {
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->graphFetch(#{ Person { upperLastName } }#)
                     ->serialize(#{ Person { upperLastName } }#)
                 """;
@@ -469,7 +469,7 @@ class M2MIntegrationTest {
     @DisplayName("NEW PIPELINE: JSON output is valid array format")
     void testNewPipelineJsonFormat() throws SQLException {
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->graphFetch(#{ Person { fullName } }#)
                     ->serialize(#{ Person { fullName } }#)
                 """;
@@ -491,7 +491,7 @@ class M2MIntegrationTest {
         // PersonSummary.name resolves through Person.fullName → $src.firstName + ' ' + $src.lastName
         // PersonSummary.nameUpper resolves through Person.upperLastName → $src.lastName->toUpper()
         String pureQuery = """
-                PersonSummary.all()
+                model::PersonSummary.all()
                     ->graphFetch(#{ PersonSummary { name, nameUpper } }#)
                     ->serialize(#{ PersonSummary { name, nameUpper } }#)
                 """;
@@ -511,7 +511,7 @@ class M2MIntegrationTest {
         // John (1 addr), Jane (1 addr), Alice (0 addr) — all valid [0..1]
         // Bob is inactive AND has 2 addresses, so he's excluded by the filter.
         String pureQuery = """
-                ActivePersonWithAddress.all()
+                model::ActivePersonWithAddress.all()
                     ->graphFetch(#{ ActivePersonWithAddress { fullName, address { city, street } } }#)
                     ->serialize(#{ ActivePersonWithAddress { fullName, address { city, street } } }#)
                 """;
@@ -536,11 +536,11 @@ class M2MIntegrationTest {
     // ==================== M2M graphFetch Tests (old pipeline) ====================
 
     @Test
-    @DisplayName("M2M: String concatenation and toUpper() - Person.all()->graphFetch")
+    @DisplayName("M2M: String concatenation and toUpper() - model::Person.all()->graphFetch")
     void testPersonTransform() throws SQLException {
         // GIVEN: A graphFetch query for Person (fullName + upperLastName)
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->graphFetch(#{ Person { fullName, upperLastName } }#)
                     ->serialize(#{ Person { fullName, upperLastName } }#)
                 """;
@@ -561,11 +561,11 @@ class M2MIntegrationTest {
     }
 
     @Test
-    @DisplayName("M2M: Conditional age grouping - PersonView.all()->graphFetch")
+    @DisplayName("M2M: Conditional age grouping - model::PersonView.all()->graphFetch")
     void testAgeGroupConditional() throws SQLException {
         // GIVEN: A graphFetch query with conditional ageGroup
         String pureQuery = """
-                PersonView.all()
+                model::PersonView.all()
                     ->graphFetch(#{ PersonView { firstName, ageGroup } }#)
                     ->serialize(#{ PersonView { firstName, ageGroup } }#)
                 """;
@@ -583,11 +583,11 @@ class M2MIntegrationTest {
     }
 
     @Test
-    @DisplayName("M2M: Salary band conditional - PersonWithSalary.all()->graphFetch")
+    @DisplayName("M2M: Salary band conditional - model::PersonWithSalary.all()->graphFetch")
     void testSalaryBandConditional() throws SQLException {
         // GIVEN: A graphFetch query with salary band logic
         String pureQuery = """
-                PersonWithSalary.all()
+                model::PersonWithSalary.all()
                     ->graphFetch(#{ PersonWithSalary { firstName, salaryBand } }#)
                     ->serialize(#{ PersonWithSalary { firstName, salaryBand } }#)
                 """;
@@ -605,11 +605,11 @@ class M2MIntegrationTest {
     }
 
     @Test
-    @DisplayName("M2M: Filter active people - ActivePerson.all()->graphFetch")
+    @DisplayName("M2M: Filter active people - model::ActivePerson.all()->graphFetch")
     void testFilteredMapping() throws SQLException {
         // GIVEN: A graphFetch query with filter (isActive == true)
         String pureQuery = """
-                ActivePerson.all()
+                model::ActivePerson.all()
                     ->graphFetch(#{ ActivePerson { firstName, lastName } }#)
                     ->serialize(#{ ActivePerson { firstName, lastName } }#)
                 """;
@@ -634,7 +634,7 @@ class M2MIntegrationTest {
     void testJsonOutputFormat() throws SQLException {
         // GIVEN: Any graphFetch query
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->graphFetch(#{ Person { fullName } }#)
                     ->serialize(#{ Person { fullName } }#)
                 """;
@@ -653,7 +653,7 @@ class M2MIntegrationTest {
     void testSinglePropertyProjection() throws SQLException {
         // GIVEN: graphFetch with single property
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->graphFetch(#{ Person { upperLastName } }#)
                     ->serialize(#{ Person { upperLastName } }#)
                 """;
@@ -683,7 +683,7 @@ class M2MIntegrationTest {
         // scalar-subquery cardinality error; now the contract is enforced
         // upstream where the user wrote the offending mapping.
         String pureQuery = """
-                PersonWithSingleAddress.all()
+                model::PersonWithSingleAddress.all()
                     ->graphFetch(#{ PersonWithSingleAddress { fullName, address { city, street } } }#)
                     ->serialize(#{ PersonWithSingleAddress { fullName, address { city, street } } }#)
                 """;
@@ -704,7 +704,7 @@ class M2MIntegrationTest {
     void testDeepFetchOneToOne() throws SQLException {
         // GIVEN: A graphFetch query with nested address
         String pureQuery = """
-                PersonWithAddress.all()
+                model::PersonWithAddress.all()
                     ->graphFetch(#{ PersonWithAddress { fullName, address { city, street } } }#)
                     ->serialize(#{ PersonWithAddress { fullName, address { city, street } } }#)
                 """;
@@ -729,7 +729,7 @@ class M2MIntegrationTest {
     void testDeepFetchOneToMany() throws SQLException {
         // GIVEN: A graphFetch query with nested addresses collection
         String pureQuery = """
-                PersonWithAddresses.all()
+                model::PersonWithAddresses.all()
                     ->graphFetch(#{ PersonWithAddresses { fullName, addresses { city, street } } }#)
                     ->serialize(#{ PersonWithAddresses { fullName, addresses { city, street } } }#)
                 """;
@@ -753,7 +753,7 @@ class M2MIntegrationTest {
     void testDeepFetchNullAddress() throws SQLException {
         // GIVEN: Alice has no address in the database
         String pureQuery = """
-                PersonWithAddress.all()
+                model::PersonWithAddress.all()
                     ->graphFetch(#{ PersonWithAddress { fullName, address { city } } }#)
                     ->serialize(#{ PersonWithAddress { fullName, address { city } } }#)
                 """;

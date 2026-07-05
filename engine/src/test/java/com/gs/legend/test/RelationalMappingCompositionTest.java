@@ -148,7 +148,7 @@ class RelationalMappingCompositionTest {
 
         @Test @DisplayName("project local → 0 JOINs")
         void projectLocal() {
-            String sql = planSql(threeHopModel(), "Person.all()->project(~[name:p|$p.name])");
+            String sql = planSql(threeHopModel(), "model::Person.all()->project(~[name:p|$p.name])");
             assertEquals(0, countLeftJoins(sql), "SQL: " + sql);
             assertNoTable(sql, "T_DEPT");
             assertNoTable(sql, "T_ORG");
@@ -157,7 +157,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("filter local → 0 JOINs")
         void filterLocal() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->filter({p|$p.name == 'Alice'})->project(~[name:p|$p.name])");
+                    "model::Person.all()->filter({p|$p.name == 'Alice'})->project(~[name:p|$p.name])");
             assertEquals(0, countLeftJoins(sql), "SQL: " + sql);
             assertNoTable(sql, "T_DEPT");
         }
@@ -165,21 +165,21 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("filter local + sort local → 0 JOINs")
         void filterSortLocal() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->filter({p|$p.name != 'Eve'})->project(~[name:p|$p.name])->sort(~name->ascending())");
+                    "model::Person.all()->filter({p|$p.name != 'Eve'})->project(~[name:p|$p.name])->sort(~name->ascending())");
             assertEquals(0, countLeftJoins(sql), "SQL: " + sql);
         }
 
         @Test @DisplayName("filter local + limit → 0 JOINs")
         void filterLimitLocal() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->filter({p|$p.name == 'Alice'})->project(~[name:p|$p.name])->limit(1)");
+                    "model::Person.all()->filter({p|$p.name == 'Alice'})->project(~[name:p|$p.name])->limit(1)");
             assertEquals(0, countLeftJoins(sql), "SQL: " + sql);
         }
 
         @Test @DisplayName("Data: project local returns correct rows")
         void dataProjectLocal() throws SQLException {
             setupThreeTableData();
-            var r = exec(threeHopModel(), "Person.all()->project(~[name:p|$p.name])");
+            var r = exec(threeHopModel(), "model::Person.all()->project(~[name:p|$p.name])");
             assertEquals(5, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Bob", "Charlie", "Dave", "Eve")));
         }
@@ -194,7 +194,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("project deptName → 1 JOIN, no T_ORG")
         void projectDept() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName])");
+                    "model::Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName])");
             assertEquals(1, countLeftJoins(sql), "SQL: " + sql);
             assertHasTable(sql, "T_DEPT");
             assertNoTable(sql, "T_ORG");
@@ -203,7 +203,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("project deptName + deptBudget (same chain) → 1 JOIN")
         void projectSameChainMultiCol() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->project(~[dept:p|$p.deptName, budget:p|$p.deptBudget])");
+                    "model::Person.all()->project(~[dept:p|$p.deptName, budget:p|$p.deptBudget])");
             assertEquals(1, countLeftJoins(sql), "SQL: " + sql);
             assertHasTable(sql, "T_DEPT");
             assertNoTable(sql, "T_ORG");
@@ -212,7 +212,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("filter deptName → 1 JOIN")
         void filterDept() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name])");
+                    "model::Person.all()->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name])");
             assertEquals(1, countLeftJoins(sql), "SQL: " + sql);
             assertHasTable(sql, "T_DEPT");
             assertNoTable(sql, "T_ORG");
@@ -221,7 +221,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("filter deptName + project deptName → 1 JOIN")
         void filterAndProjectDept() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name, dept:p|$p.deptName])");
+                    "model::Person.all()->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name, dept:p|$p.deptName])");
             assertEquals(1, countLeftJoins(sql), "SQL: " + sql);
         }
 
@@ -229,7 +229,7 @@ class RelationalMappingCompositionTest {
         void dataProjectDept() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName])");
+                    "model::Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName])");
             assertEquals(5, r.rowCount());
             var names = colStr(r, 0);
             var depts = colStr(r, 1);
@@ -243,7 +243,7 @@ class RelationalMappingCompositionTest {
         void dataFilterDept() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name])");
+                    "model::Person.all()->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Dave")));
         }
@@ -252,7 +252,7 @@ class RelationalMappingCompositionTest {
         void dataProjectBudget() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name, budget:p|$p.deptBudget])");
+                    "model::Person.all()->project(~[name:p|$p.name, budget:p|$p.deptBudget])");
             assertEquals(5, r.rowCount());
             var names = colStr(r, 0);
             var budgets = colInt(r, 1);
@@ -270,7 +270,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("project orgName → 2 JOINs")
         void projectOrg() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name, org:p|$p.orgName])");
+                    "model::Person.all()->project(~[name:p|$p.name, org:p|$p.orgName])");
             assertEquals(2, countLeftJoins(sql), "SQL: " + sql);
             assertHasTable(sql, "T_DEPT");
             assertHasTable(sql, "T_ORG");
@@ -279,7 +279,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("project orgName + orgCountry (same chain) → 2 JOINs")
         void projectSameChainMultiCol() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->project(~[org:p|$p.orgName, country:p|$p.orgCountry])");
+                    "model::Person.all()->project(~[org:p|$p.orgName, country:p|$p.orgCountry])");
             assertEquals(2, countLeftJoins(sql), "SQL: " + sql);
             assertHasTable(sql, "T_ORG");
         }
@@ -287,7 +287,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("filter orgName → 2 JOINs")
         void filterOrg() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name])");
+                    "model::Person.all()->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name])");
             assertEquals(2, countLeftJoins(sql), "SQL: " + sql);
             assertHasTable(sql, "T_ORG");
         }
@@ -295,7 +295,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("filter orgCountry → 2 JOINs")
         void filterOrgCountry() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->filter({p|$p.orgCountry == 'USA'})->project(~[name:p|$p.name])");
+                    "model::Person.all()->filter({p|$p.orgCountry == 'USA'})->project(~[name:p|$p.name])");
             assertEquals(2, countLeftJoins(sql), "SQL: " + sql);
         }
 
@@ -303,7 +303,7 @@ class RelationalMappingCompositionTest {
         void dataProjectOrg() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name, org:p|$p.orgName])");
+                    "model::Person.all()->project(~[name:p|$p.name, org:p|$p.orgName])");
             assertEquals(5, r.rowCount());
             var names = colStr(r, 0);
             var orgs = colStr(r, 1);
@@ -317,7 +317,7 @@ class RelationalMappingCompositionTest {
         void dataFilterOrg() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name])");
+                    "model::Person.all()->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name])");
             assertEquals(3, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Bob", "Dave")));
         }
@@ -326,7 +326,7 @@ class RelationalMappingCompositionTest {
         void dataFilterOrgCountry() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->filter({p|$p.orgCountry == 'UK'})->project(~[name:p|$p.name])");
+                    "model::Person.all()->filter({p|$p.orgCountry == 'UK'})->project(~[name:p|$p.name])");
             assertEquals(1, r.rowCount());
             assertEquals("Charlie", colStr(r, 0).get(0));
         }
@@ -341,28 +341,28 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("project dept + org → 3 JOINs (1-hop + 2-hop)")
         void projectBothChains() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName, org:p|$p.orgName])");
+                    "model::Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName, org:p|$p.orgName])");
             assertEquals(3, countLeftJoins(sql), "SQL: " + sql);
         }
 
         @Test @DisplayName("project all 5 properties → 3 JOINs (no duplication)")
         void projectAllProperties() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName, budget:p|$p.deptBudget, org:p|$p.orgName, country:p|$p.orgCountry])");
+                    "model::Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName, budget:p|$p.deptBudget, org:p|$p.orgName, country:p|$p.orgCountry])");
             assertEquals(3, countLeftJoins(sql), "SQL: " + sql);
         }
 
         @Test @DisplayName("filter dept + project org → 3 JOINs")
         void filterDeptProjectOrg() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name, org:p|$p.orgName])");
+                    "model::Person.all()->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name, org:p|$p.orgName])");
             assertEquals(3, countLeftJoins(sql), "SQL: " + sql);
         }
 
         @Test @DisplayName("filter org + project dept → 3 JOINs")
         void filterOrgProjectDept() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name, dept:p|$p.deptName])");
+                    "model::Person.all()->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name, dept:p|$p.deptName])");
             assertEquals(3, countLeftJoins(sql), "SQL: " + sql);
         }
 
@@ -370,7 +370,7 @@ class RelationalMappingCompositionTest {
         void dataProjectAll() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName, org:p|$p.orgName])");
+                    "model::Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName, org:p|$p.orgName])");
             assertEquals(5, r.rowCount());
             var names = colStr(r, 0);
             var depts = colStr(r, 1);
@@ -387,7 +387,7 @@ class RelationalMappingCompositionTest {
         void dataFilterDeptProjectOrg() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name, org:p|$p.orgName])");
+                    "model::Person.all()->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name, org:p|$p.orgName])");
             assertEquals(2, r.rowCount());
             for (var row : r.rows()) assertEquals("Acme Corp", row.get(1).toString());
         }
@@ -402,7 +402,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("sort by local, project local → 0 JOINs")
         void sortLocalProjectLocal() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name])->sort(~name->ascending())");
+                    "model::Person.all()->project(~[name:p|$p.name])->sort(~name->ascending())");
             assertEquals(0, countLeftJoins(sql), "SQL: " + sql);
         }
 
@@ -410,7 +410,7 @@ class RelationalMappingCompositionTest {
         void dataSortLocal() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name])->sort(~name->ascending())");
+                    "model::Person.all()->project(~[name:p|$p.name])->sort(~name->ascending())");
             assertEquals(5, r.rowCount());
             assertEquals("Alice", colStr(r, 0).get(0));
             assertEquals("Eve", colStr(r, 0).get(4));
@@ -419,7 +419,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("sort + limit on local → 0 JOINs")
         void sortLimitLocal() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name])->sort(~name->ascending())->limit(3)");
+                    "model::Person.all()->project(~[name:p|$p.name])->sort(~name->ascending())->limit(3)");
             assertEquals(0, countLeftJoins(sql), "SQL: " + sql);
         }
 
@@ -427,7 +427,7 @@ class RelationalMappingCompositionTest {
         void dataSortLimit() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name])->sort(~name->ascending())->limit(3)");
+                    "model::Person.all()->project(~[name:p|$p.name])->sort(~name->ascending())->limit(3)");
             assertEquals(3, r.rowCount());
             assertEquals(List.of("Alice", "Bob", "Charlie"), colStr(r, 0));
         }
@@ -442,7 +442,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("groupBy deptName → 1 JOIN (no T_ORG)")
         void groupByDept() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName])->groupBy(~dept, ~cnt:x|$x.name:y|$y->count())");
+                    "model::Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName])->groupBy(~dept, ~cnt:x|$x.name:y|$y->count())");
             assertEquals(1, countLeftJoins(sql), "SQL: " + sql);
             assertNoTable(sql, "T_ORG");
         }
@@ -451,7 +451,7 @@ class RelationalMappingCompositionTest {
         void dataGroupByDept() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName])->groupBy(~dept, ~cnt:x|$x.name:y|$y->count())->sort(~dept->ascending())");
+                    "model::Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName])->groupBy(~dept, ~cnt:x|$x.name:y|$y->count())->sort(~dept->ascending())");
             // Engineering=2, Marketing=1, Sales=1, NULL=1
             assertEquals(4, r.rowCount());
         }
@@ -459,7 +459,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("groupBy orgName → 2 JOINs")
         void groupByOrg() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name, org:p|$p.orgName])->groupBy(~org, ~cnt:x|$x.name:y|$y->count())");
+                    "model::Person.all()->project(~[name:p|$p.name, org:p|$p.orgName])->groupBy(~org, ~cnt:x|$x.name:y|$y->count())");
             assertEquals(2, countLeftJoins(sql), "SQL: " + sql);
             assertHasTable(sql, "T_ORG");
         }
@@ -468,7 +468,7 @@ class RelationalMappingCompositionTest {
         void dataGroupByOrg() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name, org:p|$p.orgName])->groupBy(~org, ~cnt:x|$x.name:y|$y->count())->sort(~org->ascending())");
+                    "model::Person.all()->project(~[name:p|$p.name, org:p|$p.orgName])->groupBy(~org, ~cnt:x|$x.name:y|$y->count())->sort(~org->ascending())");
             // Acme Corp=3, Beta Inc=1, NULL=1
             assertEquals(3, r.rowCount());
         }
@@ -476,7 +476,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("groupBy local only → 0 JOINs")
         void groupByLocal() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name])->groupBy(~name, ~cnt:x|$x.name:y|$y->count())");
+                    "model::Person.all()->project(~[name:p|$p.name])->groupBy(~name, ~cnt:x|$x.name:y|$y->count())");
             assertEquals(0, countLeftJoins(sql), "SQL: " + sql);
         }
     }
@@ -490,7 +490,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("filter local + sort local + limit → 0 JOINs")
         void filterSortLimitLocal() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->filter({p|$p.name != 'Eve'})->project(~[name:p|$p.name])->sort(~name->ascending())->limit(2)");
+                    "model::Person.all()->filter({p|$p.name != 'Eve'})->project(~[name:p|$p.name])->sort(~name->ascending())->limit(2)");
             assertEquals(0, countLeftJoins(sql), "SQL: " + sql);
         }
 
@@ -498,7 +498,7 @@ class RelationalMappingCompositionTest {
         void dataFilterSortLimitLocal() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->filter({p|$p.name != 'Eve'})->project(~[name:p|$p.name])->sort(~name->ascending())->limit(2)");
+                    "model::Person.all()->filter({p|$p.name != 'Eve'})->project(~[name:p|$p.name])->sort(~name->ascending())->limit(2)");
             assertEquals(2, r.rowCount());
             assertEquals(List.of("Alice", "Bob"), colStr(r, 0));
         }
@@ -506,7 +506,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("filter dept + sort local + project name+dept → 1 JOIN")
         void filterDeptSortLocalProjectMixed() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name, dept:p|$p.deptName])->sort(~name->ascending())");
+                    "model::Person.all()->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name, dept:p|$p.deptName])->sort(~name->ascending())");
             assertEquals(1, countLeftJoins(sql), "SQL: " + sql);
             assertNoTable(sql, "T_ORG");
         }
@@ -515,7 +515,7 @@ class RelationalMappingCompositionTest {
         void dataFilterDeptSortProject() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name, dept:p|$p.deptName])->sort(~name->ascending())");
+                    "model::Person.all()->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name, dept:p|$p.deptName])->sort(~name->ascending())");
             assertEquals(2, r.rowCount());
             assertEquals(List.of("Alice", "Dave"), colStr(r, 0));
         }
@@ -523,7 +523,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("filter org + project dept + sort → 3 JOINs")
         void filterOrgProjectDeptSort() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name, dept:p|$p.deptName])->sort(~dept->ascending())");
+                    "model::Person.all()->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name, dept:p|$p.deptName])->sort(~dept->ascending())");
             assertEquals(3, countLeftJoins(sql), "SQL: " + sql);
         }
 
@@ -531,7 +531,7 @@ class RelationalMappingCompositionTest {
         void dataFilterOrgProjectDeptSort() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name, dept:p|$p.deptName])->sort(~dept->ascending())");
+                    "model::Person.all()->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name, dept:p|$p.deptName])->sort(~dept->ascending())");
             assertEquals(3, r.rowCount());
             // Engineering (Alice, Dave), Sales (Bob)
             var depts = colStr(r, 1);
@@ -543,7 +543,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("filter + groupBy + sort, all local → 0 JOINs")
         void filterGroupBySortLocal() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->filter({p|$p.name != 'Eve'})->project(~[name:p|$p.name])->groupBy(~name, ~cnt:x|$x.name:y|$y->count())->sort(~name->ascending())");
+                    "model::Person.all()->filter({p|$p.name != 'Eve'})->project(~[name:p|$p.name])->groupBy(~name, ~cnt:x|$x.name:y|$y->count())->sort(~name->ascending())");
             assertEquals(0, countLeftJoins(sql), "SQL: " + sql);
         }
     }
@@ -558,7 +558,7 @@ class RelationalMappingCompositionTest {
         void dataNullFk1Hop() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName])");
+                    "model::Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName])");
             var names = colStr(r, 0);
             var depts = colStr(r, 1);
             assertNull(depts.get(names.indexOf("Eve")),
@@ -569,7 +569,7 @@ class RelationalMappingCompositionTest {
         void dataNullFk2Hop() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name, org:p|$p.orgName])");
+                    "model::Person.all()->project(~[name:p|$p.name, org:p|$p.orgName])");
             var names = colStr(r, 0);
             var orgs = colStr(r, 1);
             assertNull(orgs.get(names.indexOf("Eve")),
@@ -580,7 +580,7 @@ class RelationalMappingCompositionTest {
         void dataFilterExcludesNull() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name])");
+                    "model::Person.all()->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name])");
             assertFalse(colStr(r, 0).contains("Eve"),
                     "Eve has NULL deptName → filter should exclude her");
         }
@@ -588,7 +588,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("Data: all rows present when projecting local (incl NULL FK)")
         void dataAllRowsWithLocalProject() throws SQLException {
             setupThreeTableData();
-            var r = exec(threeHopModel(), "Person.all()->project(~[name:p|$p.name])");
+            var r = exec(threeHopModel(), "model::Person.all()->project(~[name:p|$p.name])");
             assertEquals(5, r.rowCount(), "All 5 persons including Eve (NULL FK) should appear");
             assertTrue(colStr(r, 0).contains("Eve"));
         }
@@ -603,7 +603,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("filter local AND filter dept → 1 JOIN")
         void filterLocalAndDept() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->filter({p|$p.name != 'Eve'})->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name])");
+                    "model::Person.all()->filter({p|$p.name != 'Eve'})->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name])");
             assertEquals(1, countLeftJoins(sql), "SQL: " + sql);
             assertNoTable(sql, "T_ORG");
         }
@@ -611,7 +611,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("filter dept AND filter org → 3 JOINs")
         void filterDeptAndOrg() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->filter({p|$p.deptName == 'Engineering'})->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name])");
+                    "model::Person.all()->filter({p|$p.deptName == 'Engineering'})->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name])");
             assertEquals(3, countLeftJoins(sql), "SQL: " + sql);
         }
 
@@ -619,7 +619,7 @@ class RelationalMappingCompositionTest {
         void dataDoubleFilter() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->filter({p|$p.deptName == 'Engineering'})->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name])");
+                    "model::Person.all()->filter({p|$p.deptName == 'Engineering'})->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Dave")));
         }
@@ -627,14 +627,14 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("filter with OR on local props → 0 JOINs")
         void filterOrLocal() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->filter({p|$p.name == 'Alice' || $p.name == 'Bob'})->project(~[name:p|$p.name])");
+                    "model::Person.all()->filter({p|$p.name == 'Alice' || $p.name == 'Bob'})->project(~[name:p|$p.name])");
             assertEquals(0, countLeftJoins(sql), "SQL: " + sql);
         }
 
         @Test @DisplayName("filter with OR mixing local + chain → JOINs present")
         void filterOrMixed() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->filter({p|$p.name == 'Alice' || $p.deptName == 'Sales'})->project(~[name:p|$p.name])");
+                    "model::Person.all()->filter({p|$p.name == 'Alice' || $p.deptName == 'Sales'})->project(~[name:p|$p.name])");
             assertEquals(1, countLeftJoins(sql), "SQL: " + sql);
         }
     }
@@ -648,14 +648,14 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("project local + limit → 0 JOINs")
         void limitLocal() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name])->limit(3)");
+                    "model::Person.all()->project(~[name:p|$p.name])->limit(3)");
             assertEquals(0, countLeftJoins(sql), "SQL: " + sql);
         }
 
         @Test @DisplayName("project dept + limit → 1 JOIN")
         void limitDept() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName])->limit(3)");
+                    "model::Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName])->limit(3)");
             assertEquals(1, countLeftJoins(sql), "SQL: " + sql);
         }
 
@@ -663,14 +663,14 @@ class RelationalMappingCompositionTest {
         void dataLimit() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name])->sort(~name->ascending())->limit(3)");
+                    "model::Person.all()->project(~[name:p|$p.name])->sort(~name->ascending())->limit(3)");
             assertEquals(3, r.rowCount());
         }
 
         @Test @DisplayName("project local + slice → 0 JOINs")
         void sliceLocal() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name])->sort(~name->ascending())->slice(1, 3)");
+                    "model::Person.all()->project(~[name:p|$p.name])->sort(~name->ascending())->slice(1, 3)");
             assertEquals(0, countLeftJoins(sql), "SQL: " + sql);
         }
 
@@ -678,7 +678,7 @@ class RelationalMappingCompositionTest {
         void dataSlice() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name])->sort(~name->ascending())->slice(1, 3)");
+                    "model::Person.all()->project(~[name:p|$p.name])->sort(~name->ascending())->slice(1, 3)");
             assertEquals(2, r.rowCount());
             assertEquals(List.of("Bob", "Charlie"), colStr(r, 0));
         }
@@ -693,14 +693,14 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("distinct on local → 0 JOINs")
         void distinctLocal() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name])->distinct()");
+                    "model::Person.all()->project(~[name:p|$p.name])->distinct()");
             assertEquals(0, countLeftJoins(sql), "SQL: " + sql);
         }
 
         @Test @DisplayName("distinct on dept → 1 JOIN")
         void distinctDept() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->project(~[dept:p|$p.deptName])->distinct()");
+                    "model::Person.all()->project(~[dept:p|$p.deptName])->distinct()");
             assertEquals(1, countLeftJoins(sql), "SQL: " + sql);
         }
 
@@ -708,7 +708,7 @@ class RelationalMappingCompositionTest {
         void dataDistinctDept() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->project(~[dept:p|$p.deptName])->distinct()->sort(~dept->ascending())");
+                    "model::Person.all()->project(~[dept:p|$p.deptName])->distinct()->sort(~dept->ascending())");
             // Engineering, Marketing, Sales, NULL
             assertEquals(4, r.rowCount());
         }
@@ -723,14 +723,14 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("extend local → 0 JOINs")
         void extendLocal() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name])->extend(~upper:x|$x.name->toUpper())");
+                    "model::Person.all()->project(~[name:p|$p.name])->extend(~upper:x|$x.name->toUpper())");
             assertEquals(0, countLeftJoins(sql), "SQL: " + sql);
         }
 
         @Test @DisplayName("extend on dept column → 1 JOIN")
         void extendOnDept() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName])->extend(~upperDept:x|$x.dept->toUpper())");
+                    "model::Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName])->extend(~upperDept:x|$x.dept->toUpper())");
             assertEquals(1, countLeftJoins(sql), "SQL: " + sql);
         }
 
@@ -738,7 +738,7 @@ class RelationalMappingCompositionTest {
         void dataExtendLocal() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->project(~[name:p|$p.name])->extend(~upper:x|$x.name->toUpper())->sort(~name->ascending())->limit(1)");
+                    "model::Person.all()->project(~[name:p|$p.name])->extend(~upper:x|$x.name->toUpper())->sort(~name->ascending())->limit(1)");
             assertEquals(1, r.rowCount());
             assertEquals("ALICE", r.rows().get(0).get(1).toString());
         }
@@ -753,7 +753,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("Empty result: filter excludes all → still 0 JOINs when local only")
         void emptyResultLocalFilter() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->filter({p|$p.name == 'NONEXISTENT'})->project(~[name:p|$p.name])");
+                    "model::Person.all()->filter({p|$p.name == 'NONEXISTENT'})->project(~[name:p|$p.name])");
             assertEquals(0, countLeftJoins(sql), "SQL: " + sql);
         }
 
@@ -761,7 +761,7 @@ class RelationalMappingCompositionTest {
         void dataEmptyResult() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->filter({p|$p.name == 'NONEXISTENT'})->project(~[name:p|$p.name])");
+                    "model::Person.all()->filter({p|$p.name == 'NONEXISTENT'})->project(~[name:p|$p.name])");
             assertEquals(0, r.rowCount());
         }
 
@@ -769,7 +769,7 @@ class RelationalMappingCompositionTest {
         void singleRowWithChain() throws SQLException {
             setupThreeTableData();
             var r = exec(threeHopModel(),
-                    "Person.all()->filter({p|$p.name == 'Alice'})->project(~[name:p|$p.name, org:p|$p.orgName])");
+                    "model::Person.all()->filter({p|$p.name == 'Alice'})->project(~[name:p|$p.name, org:p|$p.orgName])");
             assertEquals(1, r.rowCount());
             assertEquals("Alice", r.rows().get(0).get(0).toString());
             assertEquals("Acme Corp", r.rows().get(0).get(1).toString());
@@ -778,14 +778,14 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("Same property in filter AND project → single set of JOINs")
         void samePropertyFilterAndProject() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name, org:p|$p.orgName])");
+                    "model::Person.all()->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name, org:p|$p.orgName])");
             assertEquals(2, countLeftJoins(sql), "SQL: " + sql);
         }
 
         @Test @DisplayName("project with lambda referencing multiple chain props → all chains active")
         void lambdaMultipleChainProps() {
             String sql = planSql(threeHopModel(),
-                    "Person.all()->filter({p|$p.deptName == 'Engineering' && $p.orgCountry == 'USA'})->project(~[name:p|$p.name])");
+                    "model::Person.all()->filter({p|$p.deptName == 'Engineering' && $p.orgCountry == 'USA'})->project(~[name:p|$p.name])");
             assertEquals(3, countLeftJoins(sql), "SQL: " + sql);
         }
     }
@@ -827,7 +827,7 @@ class RelationalMappingCompositionTest {
 
         @Test @DisplayName("project local only → no firm JOIN")
         void projectLocalOnly() {
-            String sql = planSql(assocToOneModel(), "Person.all()->project(~[name:p|$p.name])");
+            String sql = planSql(assocToOneModel(), "model::Person.all()->project(~[name:p|$p.name])");
             assertNoTable(sql, "T_FIRM");
         }
 
@@ -835,7 +835,7 @@ class RelationalMappingCompositionTest {
         void projectThroughAssoc() throws SQLException {
             setupAssocData();
             var r = exec(assocToOneModel(),
-                    "Person.all()->project(~[name:p|$p.name, firm:p|$p.firm.legalName])");
+                    "model::Person.all()->project(~[name:p|$p.name, firm:p|$p.firm.legalName])");
             assertEquals(4, r.rowCount());
             var names = colStr(r, 0);
             var firms = colStr(r, 1);
@@ -849,7 +849,7 @@ class RelationalMappingCompositionTest {
         void filterAssocProjectLocal() throws SQLException {
             setupAssocData();
             var r = exec(assocToOneModel(),
-                    "Person.all()->filter({p|$p.firm.legalName == 'Acme Corp'})->project(~[name:p|$p.name])");
+                    "model::Person.all()->filter({p|$p.firm.legalName == 'Acme Corp'})->project(~[name:p|$p.name])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Bob")));
         }
@@ -858,7 +858,7 @@ class RelationalMappingCompositionTest {
         void filterLocalProjectAssoc() throws SQLException {
             setupAssocData();
             var r = exec(assocToOneModel(),
-                    "Person.all()->filter({p|$p.name == 'Alice'})->project(~[name:p|$p.name, firm:p|$p.firm.legalName])");
+                    "model::Person.all()->filter({p|$p.name == 'Alice'})->project(~[name:p|$p.name, firm:p|$p.firm.legalName])");
             assertEquals(1, r.rowCount());
             assertEquals("Acme Corp", r.rows().get(0).get(1).toString());
         }
@@ -867,7 +867,7 @@ class RelationalMappingCompositionTest {
         void filterAndProjectAssoc() throws SQLException {
             setupAssocData();
             var r = exec(assocToOneModel(),
-                    "Person.all()->filter({p|$p.firm.legalName == 'Beta Inc'})->project(~[name:p|$p.name, firm:p|$p.firm.legalName])");
+                    "model::Person.all()->filter({p|$p.firm.legalName == 'Beta Inc'})->project(~[name:p|$p.name, firm:p|$p.firm.legalName])");
             assertEquals(1, r.rowCount());
             assertEquals("Charlie", colStr(r, 0).get(0));
             assertEquals("Beta Inc", colStr(r, 1).get(0));
@@ -911,7 +911,7 @@ class RelationalMappingCompositionTest {
 
         @Test @DisplayName("project local only → no address JOIN")
         void projectLocalOnly() {
-            String sql = planSql(assocToManyModel(), "Person.all()->project(~[name:p|$p.name])");
+            String sql = planSql(assocToManyModel(), "model::Person.all()->project(~[name:p|$p.name])");
             assertNoTable(sql, "T_ADDRESS");
         }
 
@@ -919,7 +919,7 @@ class RelationalMappingCompositionTest {
         void projectThroughToMany() throws SQLException {
             setupToManyData();
             var r = exec(assocToManyModel(),
-                    "Person.all()->project(~[name:p|$p.name, street:p|$p.addresses.street])");
+                    "model::Person.all()->project(~[name:p|$p.name, street:p|$p.addresses.street])");
             // Alice: 2 addresses, Bob: 1, Charlie: 0 (NULL)
             assertTrue(r.rowCount() >= 3);
         }
@@ -928,7 +928,7 @@ class RelationalMappingCompositionTest {
         void filterToManyExists() throws SQLException {
             setupToManyData();
             var r = exec(assocToManyModel(),
-                    "Person.all()->filter({p|$p.addresses.city == 'New York'})->project(~[name:p|$p.name])");
+                    "model::Person.all()->filter({p|$p.addresses.city == 'New York'})->project(~[name:p|$p.name])");
             assertEquals(1, r.rowCount());
             assertEquals("Alice", colStr(r, 0).get(0));
         }
@@ -937,7 +937,7 @@ class RelationalMappingCompositionTest {
         void filterToManyNoExplosion() throws SQLException {
             setupToManyData();
             var r = exec(assocToManyModel(),
-                    "Person.all()->filter({p|$p.addresses.city == 'New York' || $p.addresses.city == 'Boston'})->project(~[name:p|$p.name])");
+                    "model::Person.all()->filter({p|$p.addresses.city == 'New York' || $p.addresses.city == 'Boston'})->project(~[name:p|$p.name])");
             long aliceCount = colStr(r, 0).stream().filter("Alice"::equals).count();
             assertEquals(1, aliceCount, "Alice should appear once despite matching 2 addresses");
         }
@@ -946,7 +946,7 @@ class RelationalMappingCompositionTest {
         void noAddressLeftJoin() throws SQLException {
             setupToManyData();
             var r = exec(assocToManyModel(),
-                    "Person.all()->project(~[name:p|$p.name, street:p|$p.addresses.street])");
+                    "model::Person.all()->project(~[name:p|$p.name, street:p|$p.addresses.street])");
             var names = colStr(r, 0);
             assertTrue(names.contains("Charlie"), "Charlie (no addresses) should appear");
         }
@@ -955,7 +955,7 @@ class RelationalMappingCompositionTest {
         void filterLocalProjectToMany() throws SQLException {
             setupToManyData();
             var r = exec(assocToManyModel(),
-                    "Person.all()->filter({p|$p.name == 'Alice'})->project(~[name:p|$p.name, street:p|$p.addresses.street])");
+                    "model::Person.all()->filter({p|$p.name == 'Alice'})->project(~[name:p|$p.name, street:p|$p.addresses.street])");
             assertEquals(2, r.rowCount()); // Alice has 2 addresses
         }
     }
@@ -1006,7 +1006,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("project local only → 0 JOINs (no dept, no firm)")
         void projectLocalOnly() {
             String sql = planSql(assocPlusChainModel(),
-                    "Employee.all()->project(~[name:e|$e.name])");
+                    "model::Employee.all()->project(~[name:e|$e.name])");
             assertEquals(0, countLeftJoins(sql), "SQL: " + sql);
             assertNoTable(sql, "T_DEPT");
             assertNoTable(sql, "T_FIRM");
@@ -1015,7 +1015,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("project chain prop only → 1 JOIN (dept), no firm")
         void projectChainOnly() {
             String sql = planSql(assocPlusChainModel(),
-                    "Employee.all()->project(~[dept:e|$e.deptName])");
+                    "model::Employee.all()->project(~[dept:e|$e.deptName])");
             assertEquals(1, countLeftJoins(sql), "SQL: " + sql);
             assertHasTable(sql, "T_DEPT");
             assertNoTable(sql, "T_FIRM");
@@ -1025,7 +1025,7 @@ class RelationalMappingCompositionTest {
         void projectAssocOnly() throws SQLException {
             setupData();
             var r = exec(assocPlusChainModel(),
-                    "Employee.all()->project(~[name:e|$e.name, firm:e|$e.firm.legalName])");
+                    "model::Employee.all()->project(~[name:e|$e.name, firm:e|$e.firm.legalName])");
             assertEquals(3, r.rowCount());
             var names = colStr(r, 0);
             var firms = colStr(r, 1);
@@ -1037,7 +1037,7 @@ class RelationalMappingCompositionTest {
         void projectChainAndAssoc() throws SQLException {
             setupData();
             var r = exec(assocPlusChainModel(),
-                    "Employee.all()->project(~[name:e|$e.name, dept:e|$e.deptName, firm:e|$e.firm.legalName])");
+                    "model::Employee.all()->project(~[name:e|$e.name, dept:e|$e.deptName, firm:e|$e.firm.legalName])");
             assertEquals(3, r.rowCount());
             var names = colStr(r, 0);
             assertEquals("Engineering", colStr(r, 1).get(names.indexOf("Alice")));
@@ -1048,7 +1048,7 @@ class RelationalMappingCompositionTest {
         void filterChainProjectAssoc() throws SQLException {
             setupData();
             var r = exec(assocPlusChainModel(),
-                    "Employee.all()->filter({e|$e.deptName == 'Engineering'})->project(~[name:e|$e.name, firm:e|$e.firm.legalName])");
+                    "model::Employee.all()->filter({e|$e.deptName == 'Engineering'})->project(~[name:e|$e.name, firm:e|$e.firm.legalName])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Charlie")));
         }
@@ -1058,7 +1058,7 @@ class RelationalMappingCompositionTest {
         void filterAssocProjectChain() throws SQLException {
             setupData();
             var r = exec(assocPlusChainModel(),
-                    "Employee.all()->filter({e|$e.firm.legalName == 'Acme Corp'})->project(~[name:e|$e.name, dept:e|$e.deptName])");
+                    "model::Employee.all()->filter({e|$e.firm.legalName == 'Acme Corp'})->project(~[name:e|$e.name, dept:e|$e.deptName])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Bob")));
         }
@@ -1067,7 +1067,7 @@ class RelationalMappingCompositionTest {
         void sortByAssocProperty() throws SQLException {
             setupData();
             var r = exec(assocPlusChainModel(),
-                    "Employee.all()->sortBy({e|$e.firm.legalName})->project(~[name:e|$e.name, firm:e|$e.firm.legalName])");
+                    "model::Employee.all()->sortBy({e|$e.firm.legalName})->project(~[name:e|$e.name, firm:e|$e.firm.legalName])");
             assertEquals(3, r.rowCount());
             // Acme Corp < Beta Inc alphabetically → Alice,Bob first, then Charlie
             var firms = colStr(r, 1);
@@ -1081,7 +1081,7 @@ class RelationalMappingCompositionTest {
         void groupByClassSourceWithAssocKey() throws SQLException {
             setupData();
             var r = exec(assocPlusChainModel(),
-                    "Employee.all()->groupBy(~[firm:e|$e.firm.legalName], ~cnt:x|$x.name:y|$y->count())");
+                    "model::Employee.all()->groupBy(~[firm:e|$e.firm.legalName], ~cnt:x|$x.name:y|$y->count())");
             assertEquals(2, r.rowCount());
         }
     }
@@ -1115,7 +1115,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("M2M project all")
         void projectAll() throws SQLException {
             setupM2MData();
-            var r = exec(m2mModel(), "Person.all()->project(~[name:p|$p.fullName, score:p|$p.score])");
+            var r = exec(m2mModel(), "model::Person.all()->project(~[name:p|$p.fullName, score:p|$p.score])");
             assertEquals(3, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice Smith", "Bob Jones", "Charlie Brown")));
         }
@@ -1123,7 +1123,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("M2M project single prop")
         void projectSingle() throws SQLException {
             setupM2MData();
-            var r = exec(m2mModel(), "Person.all()->project(~[name:p|$p.fullName])");
+            var r = exec(m2mModel(), "model::Person.all()->project(~[name:p|$p.fullName])");
             assertEquals(3, r.rowCount());
         }
 
@@ -1131,7 +1131,7 @@ class RelationalMappingCompositionTest {
         void filterProject() throws SQLException {
             setupM2MData();
             var r = exec(m2mModel(),
-                    "Person.all()->filter({p|$p.score > 80})->project(~[name:p|$p.fullName])");
+                    "model::Person.all()->filter({p|$p.score > 80})->project(~[name:p|$p.fullName])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice Smith", "Charlie Brown")));
         }
@@ -1140,7 +1140,7 @@ class RelationalMappingCompositionTest {
         void filterSortLimit() throws SQLException {
             setupM2MData();
             var r = exec(m2mModel(),
-                    "Person.all()->filter({p|$p.score >= 75})->project(~[name:p|$p.fullName, score:p|$p.score])->sort(~score->descending())->limit(2)");
+                    "model::Person.all()->filter({p|$p.score >= 75})->project(~[name:p|$p.fullName, score:p|$p.score])->sort(~score->descending())->limit(2)");
             assertEquals(2, r.rowCount());
             assertEquals("Alice Smith", colStr(r, 0).get(0));
             assertEquals("Charlie Brown", colStr(r, 0).get(1));
@@ -1150,7 +1150,7 @@ class RelationalMappingCompositionTest {
         void groupBy() throws SQLException {
             setupM2MData();
             var r = exec(m2mModel(),
-                    "Person.all()->project(~[name:p|$p.fullName, score:p|$p.score])->groupBy(~[], ~avg:x|$x.score:y|$y->average())");
+                    "model::Person.all()->project(~[name:p|$p.fullName, score:p|$p.score])->groupBy(~[], ~avg:x|$x.score:y|$y->average())");
             assertEquals(1, r.rowCount());
         }
     }
@@ -1195,7 +1195,7 @@ class RelationalMappingCompositionTest {
         void m2mUsesChainProp() throws SQLException {
             setupData();
             var r = exec(m2mJoinChainModel(),
-                    "Employee.all()->project(~[label:e|$e.label])");
+                    "model::Employee.all()->project(~[label:e|$e.label])");
             assertEquals(3, r.rowCount());
             assertTrue(colStr(r, 0).contains("Alice (Engineering)"));
             assertTrue(colStr(r, 0).contains("Bob (Sales)"));
@@ -1206,7 +1206,7 @@ class RelationalMappingCompositionTest {
         void m2mFilterOnChainDerived() throws SQLException {
             setupData();
             var r = exec(m2mJoinChainModel(),
-                    "Employee.all()->filter({e|$e.label->contains('Engineering')})->project(~[label:e|$e.label])");
+                    "model::Employee.all()->filter({e|$e.label->contains('Engineering')})->project(~[label:e|$e.label])");
             assertEquals(2, r.rowCount());
         }
 
@@ -1214,7 +1214,7 @@ class RelationalMappingCompositionTest {
         void m2mSortOnChainDerived() throws SQLException {
             setupData();
             var r = exec(m2mJoinChainModel(),
-                    "Employee.all()->project(~[label:e|$e.label])->sort(~label->ascending())->limit(1)");
+                    "model::Employee.all()->project(~[label:e|$e.label])->sort(~label->ascending())->limit(1)");
             assertEquals(1, r.rowCount());
             assertEquals("Alice (Engineering)", colStr(r, 0).get(0));
         }
@@ -1261,7 +1261,7 @@ class RelationalMappingCompositionTest {
         void m2mLocalOnly() throws SQLException {
             setupData();
             var r = exec(m2mAssocModel(),
-                    "Employee.all()->project(~[name:e|$e.fullName])");
+                    "model::Employee.all()->project(~[name:e|$e.fullName])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice Smith", "Bob Jones")));
         }
@@ -1270,7 +1270,7 @@ class RelationalMappingCompositionTest {
         void m2mFilterSort() throws SQLException {
             setupData();
             var r = exec(m2mAssocModel(),
-                    "Employee.all()->project(~[name:e|$e.fullName])->sort(~name->ascending())->limit(1)");
+                    "model::Employee.all()->project(~[name:e|$e.fullName])->sort(~name->ascending())->limit(1)");
             assertEquals(1, r.rowCount());
             assertEquals("Alice Smith", colStr(r, 0).get(0));
         }
@@ -1309,20 +1309,20 @@ class RelationalMappingCompositionTest {
 
         @Test @DisplayName("Query Person → no product tables")
         void queryPerson() {
-            String sql = planSql(multiClassModel(), "Person.all()->project(~[name:p|$p.name])");
+            String sql = planSql(multiClassModel(), "model::Person.all()->project(~[name:p|$p.name])");
             assertNoTable(sql, "T_PRODUCT");
         }
 
         @Test @DisplayName("Query Product → no person tables")
         void queryProduct() {
-            String sql = planSql(multiClassModel(), "Product.all()->project(~[title:p|$p.title])");
+            String sql = planSql(multiClassModel(), "model::Product.all()->project(~[title:p|$p.title])");
             assertNoTable(sql, "T_PERSON");
         }
 
         @Test @DisplayName("Data: Person query returns persons only")
         void dataQueryPerson() throws SQLException {
             setupData();
-            var r = exec(multiClassModel(), "Person.all()->project(~[name:p|$p.name, age:p|$p.age])");
+            var r = exec(multiClassModel(), "model::Person.all()->project(~[name:p|$p.name, age:p|$p.age])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Bob")));
         }
@@ -1330,7 +1330,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("Data: Product query returns products only")
         void dataQueryProduct() throws SQLException {
             setupData();
-            var r = exec(multiClassModel(), "Product.all()->project(~[title:p|$p.title, price:p|$p.price])");
+            var r = exec(multiClassModel(), "model::Product.all()->project(~[title:p|$p.title, price:p|$p.price])");
             assertEquals(3, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Widget", "Gadget", "Doohickey")));
         }
@@ -1339,7 +1339,7 @@ class RelationalMappingCompositionTest {
         void dataProductFilterSort() throws SQLException {
             setupData();
             var r = exec(multiClassModel(),
-                    "Product.all()->filter({p|$p.price > 75})->project(~[title:p|$p.title])->sort(~title->ascending())");
+                    "model::Product.all()->filter({p|$p.price > 75})->project(~[title:p|$p.title])->sort(~title->ascending())");
             assertEquals(2, r.rowCount());
             assertEquals(List.of("Gadget", "Widget"), colStr(r, 0));
         }
@@ -1348,7 +1348,7 @@ class RelationalMappingCompositionTest {
         void dataPersonGroupBy() throws SQLException {
             setupData();
             var r = exec(multiClassModel(),
-                    "Person.all()->project(~[name:p|$p.name, age:p|$p.age])->groupBy(~age, ~cnt:x|$x.name:y|$y->count())->sort(~age->ascending())");
+                    "model::Person.all()->project(~[name:p|$p.name, age:p|$p.age])->groupBy(~age, ~cnt:x|$x.name:y|$y->count())->sort(~age->ascending())");
             assertEquals(2, r.rowCount());
         }
     }
@@ -1403,7 +1403,7 @@ class RelationalMappingCompositionTest {
 
         @Test @DisplayName("project local only → 0 JOINs, no dept/org/address")
         void projectLocalOnly() {
-            String sql = planSql(fullComboModel(), "Person.all()->project(~[name:p|$p.name])");
+            String sql = planSql(fullComboModel(), "model::Person.all()->project(~[name:p|$p.name])");
             assertEquals(0, countLeftJoins(sql), "SQL: " + sql);
             assertNoTable(sql, "T_DEPT");
             assertNoTable(sql, "T_ORG");
@@ -1413,7 +1413,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("project chain only → dept JOIN, no address")
         void projectChainOnly() {
             String sql = planSql(fullComboModel(),
-                    "Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName])");
+                    "model::Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName])");
             assertEquals(1, countLeftJoins(sql), "SQL: " + sql);
             assertHasTable(sql, "T_DEPT");
             assertNoTable(sql, "T_ORG");
@@ -1424,7 +1424,7 @@ class RelationalMappingCompositionTest {
         void projectAssocOnly() throws SQLException {
             setupData();
             var r = exec(fullComboModel(),
-                    "Person.all()->project(~[name:p|$p.name, city:p|$p.addresses.city])");
+                    "model::Person.all()->project(~[name:p|$p.name, city:p|$p.addresses.city])");
             assertTrue(r.rowCount() >= 3);
             var names = colStr(r, 0);
             assertTrue(names.contains("Alice"));
@@ -1434,7 +1434,7 @@ class RelationalMappingCompositionTest {
         void projectChainAndAssoc() throws SQLException {
             setupData();
             var r = exec(fullComboModel(),
-                    "Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName, city:p|$p.addresses.city])");
+                    "model::Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName, city:p|$p.addresses.city])");
             assertTrue(r.rowCount() >= 3);
         }
 
@@ -1443,7 +1443,7 @@ class RelationalMappingCompositionTest {
         void filterAssocProjectChain() throws SQLException {
             setupData();
             var r = exec(fullComboModel(),
-                    "Person.all()->filter({p|$p.addresses.city == 'New York'})->project(~[name:p|$p.name, dept:p|$p.deptName])");
+                    "model::Person.all()->filter({p|$p.addresses.city == 'New York'})->project(~[name:p|$p.name, dept:p|$p.deptName])");
             assertEquals(1, r.rowCount());
             assertEquals("Alice", colStr(r, 0).get(0));
             assertEquals("Engineering", colStr(r, 1).get(0));
@@ -1452,7 +1452,7 @@ class RelationalMappingCompositionTest {
         @Test @DisplayName("filter on chain + project local (no assoc, no org)")
         void filterChainProjectLocal() {
             String sql = planSql(fullComboModel(),
-                    "Person.all()->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name])");
+                    "model::Person.all()->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name])");
             assertEquals(1, countLeftJoins(sql), "SQL: " + sql);
             assertNoTable(sql, "T_ORG");
             assertNoTable(sql, "T_ADDRESS");
@@ -1462,7 +1462,7 @@ class RelationalMappingCompositionTest {
         void nullFkWithAssoc() throws SQLException {
             setupData();
             var r = exec(fullComboModel(),
-                    "Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName, city:p|$p.addresses.city])");
+                    "model::Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName, city:p|$p.addresses.city])");
             // Charlie has NULL DEPT_ID and no addresses
             var names = colStr(r, 0);
             assertTrue(names.contains("Charlie"));
@@ -1473,7 +1473,7 @@ class RelationalMappingCompositionTest {
         void filterChainAndAssoc() throws SQLException {
             setupData();
             var r = exec(fullComboModel(),
-                    "Person.all()->filter({p|$p.deptName == 'Engineering'})->filter({p|$p.addresses.city == 'New York'})->project(~[name:p|$p.name])");
+                    "model::Person.all()->filter({p|$p.deptName == 'Engineering'})->filter({p|$p.addresses.city == 'New York'})->project(~[name:p|$p.name])");
             assertEquals(1, r.rowCount());
             assertEquals("Alice", colStr(r, 0).get(0));
         }

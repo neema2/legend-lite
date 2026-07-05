@@ -148,6 +148,24 @@ public final class SpecCompiler {
      * (an empty environment, inference mode).
      */
     public TypedSpec typeExpression(ValueSpecification query) {
+        // Corpus/engine convention: queries arrive as zero-param lambdas
+        // ("|expr" — an ad-hoc thunk). Unwrap and type the statement
+        // sequence exactly like a function body (lets bind forward).
+        if (query instanceof com.legend.parser.spec.LambdaFunction lf
+                && lf.parameters().isEmpty()) {
+            Env scope = Env.empty();
+            TypedSpec last = null;
+            for (ValueSpecification stmt : lf.body()) {
+                last = typer.typeBody(stmt, scope, Expected.infer());
+                if (last instanceof TypedLet let) {
+                    scope = scope.with(let.name(), let.value().info());
+                }
+            }
+            if (last == null) {
+                throw new TypeInferenceException("empty query lambda");
+            }
+            return last;
+        }
         return typer.typeBody(query, Env.empty(), Expected.infer());
     }
 

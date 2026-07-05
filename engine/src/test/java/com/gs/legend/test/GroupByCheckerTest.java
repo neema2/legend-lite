@@ -1227,14 +1227,14 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
     // ========================================================================
 
     @Nested
-    @DisplayName("Person.all()->project()->groupBy()")
+    @DisplayName("model::Person.all()->project()->groupBy()")
     class ClassBasedGroupBy {
 
         @Test
         @DisplayName("project→groupBy: group by lastName, sum age")
         void testProjectGroupBySum() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                     ->project(~[lastName:p|$p.lastName, age:p|$p.age])
                     ->groupBy(~lastName, ~totalAge:x|$x.age:y|$y->plus())""");
             assertEquals(2, result.rowCount()); // Smith, Jones
@@ -1247,7 +1247,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
         @DisplayName("project→groupBy: count per group")
         void testProjectGroupByCount() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                     ->project(~[lastName:p|$p.lastName, age:p|$p.age])
                     ->groupBy(~lastName, ~cnt:x|1:y|$y->plus())""");
             assertEquals(2, result.rowCount());
@@ -1260,7 +1260,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
         @DisplayName("project→groupBy→filter: filter grouped results")
         void testProjectGroupByFilter() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                     ->project(~[lastName:p|$p.lastName, age:p|$p.age])
                     ->groupBy(~lastName, ~totalAge:x|$x.age:y|$y->plus())
                     ->filter(x|$x.totalAge > 50)""");
@@ -1271,7 +1271,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
         @DisplayName("filter→project→groupBy: filter people then group")
         void testFilterProjectGroupBy() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                     ->filter(p|$p.age > 25)
                     ->project(~[lastName:p|$p.lastName, age:p|$p.age])
                     ->groupBy(~lastName, ~cnt:x|1:y|$y->plus())""");
@@ -1282,7 +1282,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
         @DisplayName("project→groupBy: average age per lastName")
         void testProjectGroupByAverage() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                     ->project(~[lastName:p|$p.lastName, age:p|$p.age])
                     ->groupBy(~lastName, ~avgAge:x|$x.age:y|$y->average())""");
             assertEquals(2, result.rowCount());
@@ -1295,7 +1295,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
         @DisplayName("project→groupBy: min and max age")
         void testProjectGroupByMinMax() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                     ->project(~[lastName:p|$p.lastName, age:p|$p.age])
                     ->groupBy(~lastName, ~[youngest:x|$x.age:y|$y->min(), oldest:x|$x.age:y|$y->max()])""");
             assertEquals(2, result.rowCount());
@@ -1309,7 +1309,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
         @DisplayName("project→groupBy→sort→limit: top-N pattern from class")
         void testProjectGroupBySortLimit() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                     ->project(~[lastName:p|$p.lastName, age:p|$p.age])
                     ->groupBy(~lastName, ~totalAge:x|$x.age:y|$y->plus())
                     ->sort(~totalAge->descending())
@@ -1323,7 +1323,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
         @DisplayName("project→aggregate: full-table sum from class")
         void testProjectAggregate() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                     ->project(~[age:p|$p.age])
                     ->aggregate(~totalAge:x|$x.age:y|$y->plus())""");
             assertEquals(1, result.rowCount());
@@ -1334,7 +1334,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
         @DisplayName("project many cols→groupBy on one→select subset")
         void testProjectManyGroupBySelect() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                     ->project(~[fn:p|$p.firstName, ln:p|$p.lastName, age:p|$p.age])
                     ->groupBy(~ln, ~cnt:x|1:y|$y->plus())
                     ->select(~cnt)""");
@@ -1346,7 +1346,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
         @DisplayName("project→groupBy→rename→sort: full class pipeline")
         void testProjectGroupByRenameSort() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                     ->project(~[lastName:p|$p.lastName, age:p|$p.age])
                     ->groupBy(~lastName, ~totalAge:x|$x.age:y|$y->plus())
                     ->rename(~totalAge, ~familyAge)

@@ -358,7 +358,7 @@ class JsonM2MChainIntegrationTest {
         @Test
         @DisplayName("project: all properties")
         void testProjectAllProps() throws SQLException {
-            var r = exec("StaffMember.all()->project(~[fullName:x|$x.fullName, firstName:x|$x.firstName, lastName:x|$x.lastName, age:x|$x.age, dept:x|$x.dept])");
+            var r = exec("model::StaffMember.all()->project(~[fullName:x|$x.fullName, firstName:x|$x.firstName, lastName:x|$x.lastName, age:x|$x.age, dept:x|$x.dept])");
             assertEquals(4, r.rowCount());
             var names = col(r, 0);
             assertTrue(names.contains("Alice Smith"));
@@ -370,7 +370,7 @@ class JsonM2MChainIntegrationTest {
         @Test
         @DisplayName("project: single computed column")
         void testProjectSingleComputed() throws SQLException {
-            var r = exec("StaffMember.all()->project(~[fullName:x|$x.fullName])");
+            var r = exec("model::StaffMember.all()->project(~[fullName:x|$x.fullName])");
             assertEquals(4, r.rowCount());
             assertTrue(col(r, 0).contains("Alice Smith"));
         }
@@ -378,7 +378,7 @@ class JsonM2MChainIntegrationTest {
         @Test
         @DisplayName("project: passthrough properties unchanged")
         void testProjectPassthrough() throws SQLException {
-            var r = exec("StaffMember.all()->project(~[firstName:x|$x.firstName, dept:x|$x.dept])");
+            var r = exec("model::StaffMember.all()->project(~[firstName:x|$x.firstName, dept:x|$x.dept])");
             assertEquals(4, r.rowCount());
             assertTrue(col(r, 0).contains("Alice"));
             assertTrue(col(r, 1).contains("Engineering"));
@@ -388,7 +388,7 @@ class JsonM2MChainIntegrationTest {
         @DisplayName("graphFetch: StaffMember with all props")
         void testGraphFetch() throws SQLException {
             var json = execGraph("""
-                    StaffMember.all()
+                    model::StaffMember.all()
                         ->graphFetch(#{ StaffMember { fullName, firstName, lastName, age, dept } }#)
                         ->serialize(#{ StaffMember { fullName, firstName, lastName, age, dept } }#)
                     """);
@@ -403,7 +403,7 @@ class JsonM2MChainIntegrationTest {
         @DisplayName("graphFetch: partial selection (only fullName)")
         void testGraphFetchPartial() throws SQLException {
             var json = execGraph("""
-                    StaffMember.all()
+                    model::StaffMember.all()
                         ->graphFetch(#{ StaffMember { fullName } }#)
                         ->serialize(#{ StaffMember { fullName } }#)
                     """);
@@ -415,7 +415,7 @@ class JsonM2MChainIntegrationTest {
         @Test
         @DisplayName("project: user filter on string equality")
         void testProjectFilterStringEq() throws SQLException {
-            var r = exec("StaffMember.all()->filter({x|$x.dept == 'Engineering'})->project(~[fullName:x|$x.fullName])");
+            var r = exec("model::StaffMember.all()->filter({x|$x.dept == 'Engineering'})->project(~[fullName:x|$x.fullName])");
             assertEquals(2, r.rowCount());
             var names = col(r, 0);
             assertTrue(names.contains("Alice Smith"));
@@ -425,7 +425,7 @@ class JsonM2MChainIntegrationTest {
         @Test
         @DisplayName("project: user filter on numeric comparison")
         void testProjectFilterNumeric() throws SQLException {
-            var r = exec("StaffMember.all()->filter({x|$x.age > 40})->project(~[fullName:x|$x.fullName, age:x|$x.age])");
+            var r = exec("model::StaffMember.all()->filter({x|$x.age > 40})->project(~[fullName:x|$x.fullName, age:x|$x.age])");
             assertEquals(2, r.rowCount());
             var names = col(r, 0);
             assertTrue(names.contains("Bob Jones"));
@@ -435,7 +435,7 @@ class JsonM2MChainIntegrationTest {
         @Test
         @DisplayName("project: mapping filter excludes inactive")
         void testProjectMappingFilter() throws SQLException {
-            var r = exec("ActiveStaff.all()->project(~[fullName:x|$x.fullName, dept:x|$x.dept])");
+            var r = exec("model::ActiveStaff.all()->project(~[fullName:x|$x.fullName, dept:x|$x.dept])");
             assertEquals(3, r.rowCount(), "Carol is inactive");
             var names = col(r, 0);
             assertTrue(names.contains("Alice Smith"));
@@ -447,7 +447,7 @@ class JsonM2MChainIntegrationTest {
         @Test
         @DisplayName("project: mapping filter + user filter compose")
         void testProjectMappingAndUserFilter() throws SQLException {
-            var r = exec("ActiveStaff.all()->filter({x|$x.dept == 'Engineering'})->project(~[fullName:x|$x.fullName])");
+            var r = exec("model::ActiveStaff.all()->filter({x|$x.dept == 'Engineering'})->project(~[fullName:x|$x.fullName])");
             assertEquals(1, r.rowCount(), "Only Alice is active + Engineering");
             assertEquals("Alice Smith", col(r, 0).get(0));
         }
@@ -456,7 +456,7 @@ class JsonM2MChainIntegrationTest {
         @DisplayName("graphFetch: ActiveStaff mapping filter + partial selection")
         void testGraphFetchMappingFilterPartial() throws SQLException {
             var json = execGraph("""
-                    ActiveStaff.all()
+                    model::ActiveStaff.all()
                         ->graphFetch(#{ ActiveStaff { fullName } }#)
                         ->serialize(#{ ActiveStaff { fullName } }#)
                     """);
@@ -470,7 +470,7 @@ class JsonM2MChainIntegrationTest {
         @DisplayName("graphFetch: with mapping filter")
         void testGraphFetchMappingFilter() throws SQLException {
             var json = execGraph("""
-                    ActiveStaff.all()
+                    model::ActiveStaff.all()
                         ->graphFetch(#{ ActiveStaff { fullName, dept } }#)
                         ->serialize(#{ ActiveStaff { fullName, dept } }#)
                     """);
@@ -481,7 +481,7 @@ class JsonM2MChainIntegrationTest {
         @Test
         @DisplayName("project: numeric computation through M2M")
         void testProjectNumericComputation() throws SQLException {
-            var r = exec("NumericView.all()->project(~[name:x|$x.name, ageInMonths:x|$x.ageInMonths, salaryCents:x|$x.salaryCents])");
+            var r = exec("model::NumericView.all()->project(~[name:x|$x.name, ageInMonths:x|$x.ageInMonths, salaryCents:x|$x.salaryCents])");
             assertEquals(4, r.rowCount());
             // Alice: age=30 → 360 months, salary=95000 → 9500000 cents
             var names = col(r, 0);
@@ -500,7 +500,7 @@ class JsonM2MChainIntegrationTest {
         @Test
         @DisplayName("project: StaffCard (toUpper fullName)")
         void testProjectTwoHop() throws SQLException {
-            var r = exec("StaffCard.all()->project(~[displayName:x|$x.displayName, department:x|$x.department])");
+            var r = exec("model::StaffCard.all()->project(~[displayName:x|$x.displayName, department:x|$x.department])");
             assertEquals(4, r.rowCount());
             var names = col(r, 0);
             assertTrue(names.contains("ALICE SMITH"));
@@ -513,7 +513,7 @@ class JsonM2MChainIntegrationTest {
         @DisplayName("graphFetch: StaffCard 2-hop")
         void testGraphFetchTwoHop() throws SQLException {
             var json = execGraph("""
-                    StaffCard.all()
+                    model::StaffCard.all()
                         ->graphFetch(#{ StaffCard { displayName, department } }#)
                         ->serialize(#{ StaffCard { displayName, department } }#)
                     """);
@@ -524,7 +524,7 @@ class JsonM2MChainIntegrationTest {
         @Test
         @DisplayName("project: StaffBadge — 2-hop with mapping filter at L1")
         void testProjectTwoHopWithFilterAtL1() throws SQLException {
-            var r = exec("StaffBadge.all()->project(~[label:x|$x.label])");
+            var r = exec("model::StaffBadge.all()->project(~[label:x|$x.label])");
             assertEquals(3, r.rowCount(), "Carol excluded by ActiveStaff filter");
             var labels = col(r, 0);
             assertTrue(labels.contains("Alice Smith [Engineering]"));
@@ -537,7 +537,7 @@ class JsonM2MChainIntegrationTest {
         @DisplayName("graphFetch: StaffBadge with filter")
         void testGraphFetchTwoHopWithFilter() throws SQLException {
             var json = execGraph("""
-                    StaffBadge.all()
+                    model::StaffBadge.all()
                         ->graphFetch(#{ StaffBadge { label } }#)
                         ->serialize(#{ StaffBadge { label } }#)
                     """);
@@ -548,7 +548,7 @@ class JsonM2MChainIntegrationTest {
         @Test
         @DisplayName("project: 2-hop + user query filter")
         void testProjectTwoHopWithUserFilter() throws SQLException {
-            var r = exec("StaffCard.all()->filter({x|$x.department == 'Engineering'})->project(~[displayName:x|$x.displayName])");
+            var r = exec("model::StaffCard.all()->filter({x|$x.department == 'Engineering'})->project(~[displayName:x|$x.displayName])");
             assertEquals(2, r.rowCount());
             var names = col(r, 0);
             assertTrue(names.contains("ALICE SMITH"));
@@ -558,7 +558,7 @@ class JsonM2MChainIntegrationTest {
         @Test
         @DisplayName("project: 2-hop + user filter on computed column")
         void testProjectTwoHopFilterOnComputed() throws SQLException {
-            var r = exec("StaffCard.all()->filter({x|$x.displayName->contains('BOB')})->project(~[displayName:x|$x.displayName, department:x|$x.department])");
+            var r = exec("model::StaffCard.all()->filter({x|$x.displayName->contains('BOB')})->project(~[displayName:x|$x.displayName, department:x|$x.department])");
             assertEquals(1, r.rowCount());
             assertEquals("BOB JONES", col(r, 0).get(0));
             assertEquals("Sales", col(r, 1).get(0));
@@ -574,7 +574,7 @@ class JsonM2MChainIntegrationTest {
         @Test
         @DisplayName("project: DirectoryEntry 3-hop chain")
         void testProjectThreeHop() throws SQLException {
-            var r = exec("DirectoryEntry.all()->project(~[entry:x|$x.entry])");
+            var r = exec("model::DirectoryEntry.all()->project(~[entry:x|$x.entry])");
             assertEquals(4, r.rowCount());
             var entries = col(r, 0);
             assertTrue(entries.contains("ALICE SMITH - Engineering"));
@@ -587,7 +587,7 @@ class JsonM2MChainIntegrationTest {
         @DisplayName("graphFetch: DirectoryEntry 3-hop")
         void testGraphFetchThreeHop() throws SQLException {
             var json = execGraph("""
-                    DirectoryEntry.all()
+                    model::DirectoryEntry.all()
                         ->graphFetch(#{ DirectoryEntry { entry } }#)
                         ->serialize(#{ DirectoryEntry { entry } }#)
                     """);
@@ -598,7 +598,7 @@ class JsonM2MChainIntegrationTest {
         @Test
         @DisplayName("project: 3-hop + filter on string contains")
         void testProjectThreeHopWithFilter() throws SQLException {
-            var r = exec("DirectoryEntry.all()->filter({x|$x.entry->contains('Sales')})->project(~[entry:x|$x.entry])");
+            var r = exec("model::DirectoryEntry.all()->filter({x|$x.entry->contains('Sales')})->project(~[entry:x|$x.entry])");
             assertEquals(1, r.rowCount());
             assertEquals("BOB JONES - Sales", col(r, 0).get(0));
         }
@@ -606,7 +606,7 @@ class JsonM2MChainIntegrationTest {
         @Test
         @DisplayName("project: 3-hop + filter yields no results")
         void testProjectThreeHopFilterEmpty() throws SQLException {
-            var r = exec("DirectoryEntry.all()->filter({x|$x.entry->contains('NonExistent')})->project(~[entry:x|$x.entry])");
+            var r = exec("model::DirectoryEntry.all()->filter({x|$x.entry->contains('NonExistent')})->project(~[entry:x|$x.entry])");
             assertEquals(0, r.rowCount());
         }
     }
@@ -620,7 +620,7 @@ class JsonM2MChainIntegrationTest {
         @Test
         @DisplayName("project: Badge 4-hop chain")
         void testProjectFourHop() throws SQLException {
-            var r = exec("Badge.all()->project(~[text:x|$x.text])");
+            var r = exec("model::Badge.all()->project(~[text:x|$x.text])");
             assertEquals(4, r.rowCount());
             var texts = col(r, 0);
             assertTrue(texts.contains("[ALICE SMITH - Engineering]"));
@@ -633,7 +633,7 @@ class JsonM2MChainIntegrationTest {
         @DisplayName("graphFetch: Badge 4-hop chain")
         void testGraphFetchFourHop() throws SQLException {
             var json = execGraph("""
-                    Badge.all()
+                    model::Badge.all()
                         ->graphFetch(#{ Badge { text } }#)
                         ->serialize(#{ Badge { text } }#)
                     """);
@@ -644,7 +644,7 @@ class JsonM2MChainIntegrationTest {
         @Test
         @DisplayName("project: 4-hop + filter")
         void testProjectFourHopWithFilter() throws SQLException {
-            var r = exec("Badge.all()->filter({x|$x.text->contains('Marketing')})->project(~[text:x|$x.text])");
+            var r = exec("model::Badge.all()->filter({x|$x.text->contains('Marketing')})->project(~[text:x|$x.text])");
             assertEquals(1, r.rowCount());
             assertEquals("[DAVE BROWN - Marketing]", col(r, 0).get(0));
         }
@@ -660,7 +660,7 @@ class JsonM2MChainIntegrationTest {
         @DisplayName("single-element JSON array")
         void testSingleElement() throws SQLException {
             var r = exec(SINGLE_MODEL, "test::SingleRT",
-                    "StaffMember.all()->project(~[fullName:x|$x.fullName, age:x|$x.age])");
+                    "model::StaffMember.all()->project(~[fullName:x|$x.fullName, age:x|$x.age])");
             assertEquals(1, r.rowCount());
             assertEquals("Solo Person", col(r, 0).get(0));
         }
@@ -669,7 +669,7 @@ class JsonM2MChainIntegrationTest {
         @DisplayName("single-element JSON with graphFetch")
         void testSingleElementGraphFetch() throws SQLException {
             var json = execGraph(SINGLE_MODEL, "test::SingleRT", """
-                    StaffMember.all()
+                    model::StaffMember.all()
                         ->graphFetch(#{ StaffMember { fullName, age } }#)
                         ->serialize(#{ StaffMember { fullName, age } }#)
                     """);
@@ -680,14 +680,14 @@ class JsonM2MChainIntegrationTest {
         @Test
         @DisplayName("filter eliminates all rows")
         void testFilterEliminatesAll() throws SQLException {
-            var r = exec("StaffMember.all()->filter({x|$x.age > 100})->project(~[fullName:x|$x.fullName])");
+            var r = exec("model::StaffMember.all()->filter({x|$x.age > 100})->project(~[fullName:x|$x.fullName])");
             assertEquals(0, r.rowCount());
         }
 
         @Test
         @DisplayName("filter keeps exactly one row")
         void testFilterKeepsOne() throws SQLException {
-            var r = exec("StaffMember.all()->filter({x|$x.firstName == 'Alice'})->project(~[fullName:x|$x.fullName])");
+            var r = exec("model::StaffMember.all()->filter({x|$x.firstName == 'Alice'})->project(~[fullName:x|$x.fullName])");
             assertEquals(1, r.rowCount());
             assertEquals("Alice Smith", col(r, 0).get(0));
         }
@@ -695,7 +695,7 @@ class JsonM2MChainIntegrationTest {
         @Test
         @DisplayName("compound filter with AND")
         void testCompoundFilter() throws SQLException {
-            var r = exec("StaffMember.all()->filter({x|($x.age > 25) && ($x.dept == 'Engineering')})->project(~[fullName:x|$x.fullName])");
+            var r = exec("model::StaffMember.all()->filter({x|($x.age > 25) && ($x.dept == 'Engineering')})->project(~[fullName:x|$x.fullName])");
             assertEquals(2, r.rowCount());
             var names = col(r, 0);
             assertTrue(names.contains("Alice Smith"));
@@ -705,7 +705,7 @@ class JsonM2MChainIntegrationTest {
         @Test
         @DisplayName("sort through M2M chain")
         void testSortThroughChain() throws SQLException {
-            var r = exec("StaffMember.all()->sortBy({x|$x.age})->project(~[fullName:x|$x.fullName, age:x|$x.age])");
+            var r = exec("model::StaffMember.all()->sortBy({x|$x.age})->project(~[fullName:x|$x.fullName, age:x|$x.age])");
             assertEquals(4, r.rowCount());
             // Ages: 28, 30, 45, 55
             assertEquals("Carol White", col(r, 0).get(0));
@@ -715,7 +715,7 @@ class JsonM2MChainIntegrationTest {
         @Test
         @DisplayName("2-hop + sort")
         void testTwoHopSort() throws SQLException {
-            var r = exec("StaffCard.all()->sortBy({x|$x.displayName})->project(~[displayName:x|$x.displayName])");
+            var r = exec("model::StaffCard.all()->sortBy({x|$x.displayName})->project(~[displayName:x|$x.displayName])");
             assertEquals(4, r.rowCount());
             // Alphabetical: ALICE SMITH, BOB JONES, CAROL WHITE, DAVE BROWN
             assertEquals("ALICE SMITH", col(r, 0).get(0));
@@ -834,7 +834,7 @@ class JsonM2MChainIntegrationTest {
         @DisplayName("project: PersonSummary from first JSON source")
         void testPersonFromFirstSource() throws SQLException {
             var r = exec(MULTI_JSON_MODEL, "test::MultiRT",
-                    "PersonSummary.all()->project(~[fullName:x|$x.fullName, dept:x|$x.dept])");
+                    "model::PersonSummary.all()->project(~[fullName:x|$x.fullName, dept:x|$x.dept])");
             assertEquals(4, r.rowCount());
             assertTrue(col(r, 0).contains("Alice Smith"));
         }
@@ -843,7 +843,7 @@ class JsonM2MChainIntegrationTest {
         @DisplayName("project: DeptSummary from second JSON source")
         void testDeptFromSecondSource() throws SQLException {
             var r = exec(MULTI_JSON_MODEL, "test::MultiRT",
-                    "DeptSummary.all()->project(~[name:x|$x.name, location:x|$x.location, headcount:x|$x.headcount])");
+                    "model::DeptSummary.all()->project(~[name:x|$x.name, location:x|$x.location, headcount:x|$x.headcount])");
             assertEquals(3, r.rowCount());
             var names = col(r, 0);
             assertTrue(names.contains("Engineering"));
@@ -857,7 +857,7 @@ class JsonM2MChainIntegrationTest {
         @DisplayName("graphFetch: DeptSummary from second JSON source")
         void testDeptGraphFetch() throws SQLException {
             var json = execGraph(MULTI_JSON_MODEL, "test::MultiRT", """
-                    DeptSummary.all()
+                    model::DeptSummary.all()
                         ->graphFetch(#{ DeptSummary { name, location, headcount } }#)
                         ->serialize(#{ DeptSummary { name, location, headcount } }#)
                     """);
@@ -870,7 +870,7 @@ class JsonM2MChainIntegrationTest {
         @DisplayName("filter: DeptSummary headcount > 100")
         void testDeptFilterNumeric() throws SQLException {
             var r = exec(MULTI_JSON_MODEL, "test::MultiRT",
-                    "DeptSummary.all()->filter({x|$x.headcount > 100})->project(~[name:x|$x.name])");
+                    "model::DeptSummary.all()->filter({x|$x.headcount > 100})->project(~[name:x|$x.name])");
             assertEquals(1, r.rowCount());
             assertEquals("Engineering", col(r, 0).get(0));
         }
@@ -879,9 +879,9 @@ class JsonM2MChainIntegrationTest {
         @DisplayName("both sources in same runtime, each queried independently")
         void testBothSourcesIndependent() throws SQLException {
             var persons = exec(MULTI_JSON_MODEL, "test::MultiRT",
-                    "PersonSummary.all()->project(~[fullName:x|$x.fullName])");
+                    "model::PersonSummary.all()->project(~[fullName:x|$x.fullName])");
             var depts = exec(MULTI_JSON_MODEL, "test::MultiRT",
-                    "DeptSummary.all()->project(~[name:x|$x.name])");
+                    "model::DeptSummary.all()->project(~[name:x|$x.name])");
             assertEquals(4, persons.rowCount());
             assertEquals(3, depts.rowCount());
         }
@@ -997,7 +997,7 @@ class JsonM2MChainIntegrationTest {
 
         private void assertL1Project(String resourcePath) throws SQLException {
             var r = exec(fileModel(resourcePath), "test::FileRT",
-                    "StaffMember.all()->project(~[fullName:x|$x.fullName, age:x|$x.age, dept:x|$x.dept])");
+                    "model::StaffMember.all()->project(~[fullName:x|$x.fullName, age:x|$x.age, dept:x|$x.dept])");
             assertEquals(4, r.rowCount());
             var names = col(r, 0);
             assertTrue(names.contains("Alice Smith"));
@@ -1008,7 +1008,7 @@ class JsonM2MChainIntegrationTest {
 
         private void assertL1GraphFetch(String resourcePath) throws SQLException {
             var json = execGraph(fileModel(resourcePath), "test::FileRT", """
-                    StaffMember.all()
+                    model::StaffMember.all()
                         ->graphFetch(#{ StaffMember { fullName, age, dept } }#)
                         ->serialize(#{ StaffMember { fullName, age, dept } }#)
                     """);
@@ -1019,7 +1019,7 @@ class JsonM2MChainIntegrationTest {
 
         private void assertL1Filter(String resourcePath) throws SQLException {
             var r = exec(fileModel(resourcePath), "test::FileRT",
-                    "StaffMember.all()->filter({x|$x.age > 40})->project(~[fullName:x|$x.fullName])");
+                    "model::StaffMember.all()->filter({x|$x.age > 40})->project(~[fullName:x|$x.fullName])");
             assertEquals(2, r.rowCount());
             var names = col(r, 0);
             assertTrue(names.contains("Bob Jones"));
@@ -1028,7 +1028,7 @@ class JsonM2MChainIntegrationTest {
 
         private void assertL2Chain(String resourcePath) throws SQLException {
             var r = exec(fileModel(resourcePath), "test::FileRT",
-                    "StaffCard.all()->project(~[displayName:x|$x.displayName, department:x|$x.department])");
+                    "model::StaffCard.all()->project(~[displayName:x|$x.displayName, department:x|$x.department])");
             assertEquals(4, r.rowCount());
             var names = col(r, 0);
             assertTrue(names.contains("ALICE SMITH"));
@@ -1037,7 +1037,7 @@ class JsonM2MChainIntegrationTest {
 
         private void assertL2Filter(String resourcePath) throws SQLException {
             var r = exec(fileModel(resourcePath), "test::FileRT",
-                    "StaffCard.all()->filter({x|$x.department == 'Engineering'})->project(~[displayName:x|$x.displayName])");
+                    "model::StaffCard.all()->filter({x|$x.department == 'Engineering'})->project(~[displayName:x|$x.displayName])");
             assertEquals(2, r.rowCount());
             var names = col(r, 0);
             assertTrue(names.contains("ALICE SMITH"));

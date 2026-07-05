@@ -341,7 +341,7 @@ public final class MappingNormalizer {
                 p1.name(), new TypeExpression.NameRef(classB), Multiplicity.Concrete.PURE_ONE);
         return new FunctionDefinition(
                 fnFqn, List.of(), List.of(), List.of(paramA, paramB),
-                new TypeExpression.NameRef("Boolean"),
+                new TypeExpression.NameRef("meta::pure::metamodel::type::Boolean"),
                 Multiplicity.Concrete.PURE_ONE,
                 lam.body(),
                 List.of(), List.of())
@@ -1754,7 +1754,7 @@ public final class MappingNormalizer {
         return new FunctionDefinition(
                 SynthFqn.mappingAssoc(md.qualifiedName(), am.associationName()),
                 List.of(), List.of(), List.of(pA, pB),
-                new TypeExpression.NameRef("Boolean"),
+                new TypeExpression.NameRef("meta::pure::metamodel::type::Boolean"),
                 Multiplicity.Concrete.PURE_ONE,
                 List.of(body),
                 List.of(), List.of())

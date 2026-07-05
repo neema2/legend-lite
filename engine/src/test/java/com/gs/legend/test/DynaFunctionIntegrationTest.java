@@ -107,7 +107,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table NAMES ( ID INTEGER, FIRST VARCHAR(50), LAST VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] NAMES fullName: concat([store::DB] NAMES.FIRST, ' ', [store::DB] NAMES.LAST) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "P.all()->project([x|$x.fullName], ['fullName'])");
+            var result = exec(model, "model::P.all()->project([x|$x.fullName], ['fullName'])");
             assertEquals(2, result.rows().size());
             assertTrue(colStr(result, 0).contains("John Doe"));
             assertTrue(colStr(result, 0).contains("Jane Smith"));
@@ -126,7 +126,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table T1 ( ID INTEGER, NAME VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] T1 lowerName: toLower([store::DB] T1.NAME) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "P.all()->project([x|$x.lowerName], ['lowerName'])");
+            var result = exec(model, "model::P.all()->project([x|$x.lowerName], ['lowerName'])");
             assertTrue(colStr(result, 0).contains("alice"));
             assertTrue(colStr(result, 0).contains("bob"));
         }
@@ -144,7 +144,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table T2 ( ID INTEGER, NAME VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] T2 upperName: toUpper([store::DB] T2.NAME) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "P.all()->project([x|$x.upperName], ['upperName'])");
+            var result = exec(model, "model::P.all()->project([x|$x.upperName], ['upperName'])");
             assertTrue(colStr(result, 0).contains("ALICE"));
             assertTrue(colStr(result, 0).contains("BOB"));
         }
@@ -162,7 +162,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table T3 ( ID INTEGER, NAME VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] T3 trimmed: trim([store::DB] T3.NAME) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "P.all()->project([x|$x.trimmed], ['trimmed'])");
+            var result = exec(model, "model::P.all()->project([x|$x.trimmed], ['trimmed'])");
             assertTrue(colStr(result, 0).contains("hello"));
             assertTrue(colStr(result, 0).contains("world"));
         }
@@ -180,7 +180,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table CODES ( ID INTEGER, CODE VARCHAR(10) ) )
                     Mapping model::M ( C: Relational { ~mainTable [store::DB] CODES country: substring([store::DB] CODES.CODE, 0, 2) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "C.all()->project([x|$x.country], ['country'])");
+            var result = exec(model, "model::C.all()->project([x|$x.country], ['country'])");
             assertTrue(colStr(result, 0).contains("US"));
             assertTrue(colStr(result, 0).contains("UK"));
         }
@@ -198,7 +198,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table T4 ( ID INTEGER, NAME VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] T4 fixed: replace([store::DB] T4.NAME, 'foo', 'qux') } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "P.all()->project([x|$x.fixed], ['fixed'])");
+            var result = exec(model, "model::P.all()->project([x|$x.fixed], ['fixed'])");
             assertTrue(colStr(result, 0).contains("qux-bar"));
             assertTrue(colStr(result, 0).contains("qux-baz"));
         }
@@ -216,7 +216,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table T5 ( ID INTEGER, NAME VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] T5 len: length([store::DB] T5.NAME) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "P.all()->project([x|$x.len], ['len'])");
+            var result = exec(model, "model::P.all()->project([x|$x.len], ['len'])");
             var lens = colInt(result, 0);
             assertTrue(lens.contains(2));
             assertTrue(lens.contains(5));
@@ -235,7 +235,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table T6 ( ID INTEGER, NAME VARCHAR(10) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] T6 repeated: repeatString([store::DB] T6.NAME, 3) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "P.all()->project([x|$x.repeated], ['repeated'])");
+            var result = exec(model, "model::P.all()->project([x|$x.repeated], ['repeated'])");
             assertTrue(colStr(result, 0).contains("ababab"));
             assertTrue(colStr(result, 0).contains("xxx"));
         }
@@ -253,7 +253,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table T7 ( ID INTEGER, NAME VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] T7 hash: md5([store::DB] T7.NAME) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "P.all()->project([x|$x.hash], ['hash'])");
+            var result = exec(model, "model::P.all()->project([x|$x.hash], ['hash'])");
             assertEquals(1, result.rows().size());
             assertEquals("5d41402abc4b2a76b9719d911017c592", scalar(result));
         }
@@ -271,7 +271,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table T8 ( ID INTEGER, NAME VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] T8 hash: sha256([store::DB] T8.NAME) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "P.all()->project([x|$x.hash], ['hash'])");
+            var result = exec(model, "model::P.all()->project([x|$x.hash], ['hash'])");
             assertEquals(1, result.rows().size());
             assertEquals("2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824", scalar(result));
         }
@@ -296,7 +296,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table TN1 ( ID INTEGER, VAL VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] TN1 missing: isNull([store::DB] TN1.VAL) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "P.all()->project([x|$x.missing], ['missing'])");
+            var result = exec(model, "model::P.all()->project([x|$x.missing], ['missing'])");
             var vals = colBool(result, 0);
             assertTrue(vals.contains(true));
             assertTrue(vals.contains(false));
@@ -315,7 +315,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table TN2 ( ID INTEGER, VAL VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] TN2 present: isNotNull([store::DB] TN2.VAL) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "P.all()->project([x|$x.present], ['present'])");
+            var result = exec(model, "model::P.all()->project([x|$x.present], ['present'])");
             var vals = colBool(result, 0);
             assertTrue(vals.contains(true));
             assertTrue(vals.contains(false));
@@ -341,7 +341,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table TB1 ( ID INTEGER ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] TB1 flag: sqlTrue() } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "P.all()->project([x|$x.flag], ['flag'])");
+            var result = exec(model, "model::P.all()->project([x|$x.flag], ['flag'])");
             assertEquals(2, result.rows().size());
             assertTrue(colBool(result, 0).stream().allMatch(b -> b));
         }
@@ -359,7 +359,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table TB2 ( ID INTEGER ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] TB2 flag: sqlFalse() } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "P.all()->project([x|$x.flag], ['flag'])");
+            var result = exec(model, "model::P.all()->project([x|$x.flag], ['flag'])");
             assertEquals(2, result.rows().size());
             assertTrue(colBool(result, 0).stream().noneMatch(b -> b));
         }
@@ -384,7 +384,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table TA1 ( ID INTEGER, A INTEGER, B INTEGER ) )
                     Mapping model::M ( R: Relational { ~mainTable [store::DB] TA1 total: plus([store::DB] TA1.A, [store::DB] TA1.B) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "R.all()->project([x|$x.total], ['total'])");
+            var result = exec(model, "model::R.all()->project([x|$x.total], ['total'])");
             var totals = colInt(result, 0);
             assertTrue(totals.contains(30));
             assertTrue(totals.contains(70));
@@ -403,7 +403,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table TA2 ( ID INTEGER, A INTEGER, B INTEGER ) )
                     Mapping model::M ( R: Relational { ~mainTable [store::DB] TA2 diff: sub([store::DB] TA2.A, [store::DB] TA2.B) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "R.all()->project([x|$x.diff], ['diff'])");
+            var result = exec(model, "model::R.all()->project([x|$x.diff], ['diff'])");
             var diffs = colInt(result, 0);
             assertTrue(diffs.contains(30));
             assertTrue(diffs.contains(70));
@@ -422,7 +422,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table TA3 ( ID INTEGER, A INTEGER, B INTEGER ) )
                     Mapping model::M ( R: Relational { ~mainTable [store::DB] TA3 ratio: divideRound([store::DB] TA3.A, [store::DB] TA3.B, 2) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "R.all()->project([x|$x.ratio], ['ratio'])");
+            var result = exec(model, "model::R.all()->project([x|$x.ratio], ['ratio'])");
             assertEquals(2, result.rows().size());
             // 10/3 = 3.33, 22/7 = 3.14
             var vals = result.rows().stream()
@@ -452,7 +452,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table TC1 ( ID INTEGER, A VARCHAR(10), B VARCHAR(10) ) )
                     Mapping model::M ( R: Relational { ~mainTable [store::DB] TC1 different: notEqualAnsi([store::DB] TC1.A, [store::DB] TC1.B) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "R.all()->project([x|$x.different], ['different'])");
+            var result = exec(model, "model::R.all()->project([x|$x.different], ['different'])");
             var vals = colBool(result, 0);
             assertTrue(vals.contains(true));
             assertTrue(vals.contains(false));
@@ -471,7 +471,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table TC2 ( ID INTEGER, A VARCHAR(10), B VARCHAR(10) ) )
                     Mapping model::M ( R: Relational { ~mainTable [store::DB] TC2 distinct: isDistinct([store::DB] TC2.A, [store::DB] TC2.B) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "R.all()->project([x|$x.distinct], ['distinct'])");
+            var result = exec(model, "model::R.all()->project([x|$x.distinct], ['distinct'])");
             // row 1: 'x' vs 'x' → not distinct (false)
             // row 2: 'x' vs NULL → distinct (true)
             // row 3: NULL vs NULL → not distinct (false)
@@ -500,7 +500,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table STATUS ( ID INTEGER, CODE VARCHAR(10) ) )
                     Mapping model::M ( R: Relational { ~mainTable [store::DB] STATUS label: if(equal([store::DB] STATUS.CODE, 'A'), 'Active', 'Inactive') } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "R.all()->project([x|$x.label], ['label'])");
+            var result = exec(model, "model::R.all()->project([x|$x.label], ['label'])");
             var labels = colStr(result, 0);
             assertTrue(labels.contains("Active"));
             assertTrue(labels.contains("Inactive"));
@@ -526,7 +526,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table TM1 ( ID INTEGER, VAL INTEGER ) )
                     Mapping model::M ( R: Relational { ~mainTable [store::DB] TM1 val: group([store::DB] TM1.VAL) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "R.all()->project([x|$x.val], ['val'])");
+            var result = exec(model, "model::R.all()->project([x|$x.val], ['val'])");
             var vals = colInt(result, 0);
             assertTrue(vals.contains(42));
             assertTrue(vals.contains(99));
@@ -545,7 +545,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table TM2 ( ID INTEGER ) )
                     Mapping model::M ( R: Relational { ~mainTable [store::DB] TM2 userId: currentUserId() } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "R.all()->project([x|$x.userId], ['userId'])");
+            var result = exec(model, "model::R.all()->project([x|$x.userId], ['userId'])");
             assertEquals(1, result.rows().size());
             assertNotNull(scalar(result));
         }
@@ -570,7 +570,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table NAMES ( ID INTEGER, FIRST VARCHAR(50), LAST VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] NAMES email: toLower(concat([store::DB] NAMES.FIRST, [store::DB] NAMES.LAST)) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "P.all()->project([x|$x.email], ['email'])");
+            var result = exec(model, "model::P.all()->project([x|$x.email], ['email'])");
             assertEquals("johndoe", scalar(result));
         }
 
@@ -591,7 +591,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                         upperLast: toUpper([store::DB] EMPS.LAST)
                     } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "E.all()->project([x|$x.fullName, x|$x.totalComp, x|$x.upperLast], ['name', 'comp', 'upper'])");
+            var result = exec(model, "model::E.all()->project([x|$x.fullName, x|$x.totalComp, x|$x.upperLast], ['name', 'comp', 'upper'])");
             assertEquals(2, result.rows().size());
             assertTrue(colStr(result, 0).contains("Alice Wonder"));
             assertTrue(colInt(result, 1).contains(120));
@@ -615,7 +615,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     } )
                     """, "store::DB", "model::M");
             // Filter on total > 20
-            var result = exec(model, "I.all()->filter(x|$x.total > 20)->project([x|$x.lowerName], ['name'])");
+            var result = exec(model, "model::I.all()->filter(x|$x.total > 20)->project([x|$x.lowerName], ['name'])");
             assertEquals(2, result.rows().size());
             var names = colStr(result, 0);
             assertTrue(names.contains("gadget"));   // 20+3=23
@@ -635,7 +635,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table CALC ( ID INTEGER, A INTEGER, B INTEGER, C INTEGER ) )
                     Mapping model::M ( R: Relational { ~mainTable [store::DB] CALC result: sub(plus([store::DB] CALC.A, [store::DB] CALC.B), [store::DB] CALC.C) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "R.all()->project([x|$x.result], ['result'])");
+            var result = exec(model, "model::R.all()->project([x|$x.result], ['result'])");
             var vals = colInt(result, 0);
             assertTrue(vals.contains(25));   // (10+20)-5
             assertTrue(vals.contains(125));  // (100+50)-25
@@ -654,7 +654,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table MIX ( ID INTEGER, CODE VARCHAR(5), NAME VARCHAR(50) ) )
                     Mapping model::M ( R: Relational { ~mainTable [store::DB] MIX display: if(equal([store::DB] MIX.CODE, 'A'), toLower([store::DB] MIX.NAME), toUpper([store::DB] MIX.NAME)) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "R.all()->project([x|$x.display], ['display'])");
+            var result = exec(model, "model::R.all()->project([x|$x.display], ['display'])");
             var vals = colStr(result, 0);
             assertTrue(vals.contains("hello"));  // CODE='A' → toLower
             assertTrue(vals.contains("WORLD"));  // CODE='B' → toUpper
@@ -681,7 +681,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                         label: concat([store::DB] EMP.NAME, ' - ', @EmpDept | [store::DB] DEPT.DEPT_NAME)
                     } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "E.all()->project([x|$x.label], ['label'])");
+            var result = exec(model, "model::E.all()->project([x|$x.label], ['label'])");
             var labels = colStr(result, 0);
             assertTrue(labels.contains("Alice - Engineering"));
             assertTrue(labels.contains("Bob - Sales"));
@@ -700,7 +700,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                     Database store::DB ( Table WORDS ( ID INTEGER, WORD VARCHAR(50) ) )
                     Mapping model::M ( W: Relational { ~mainTable [store::DB] WORDS upper: toUpper([store::DB] WORDS.WORD) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "W.all()->sortBy(x|$x.upper)->limit(2)->project([x|$x.upper], ['upper'])");
+            var result = exec(model, "model::W.all()->sortBy(x|$x.upper)->limit(2)->project([x|$x.upper], ['upper'])");
             assertEquals(2, result.rows().size());
             assertEquals("APPLE", result.rows().get(0).get(0));
             assertEquals("BANANA", result.rows().get(1).get(0));
@@ -722,7 +722,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                         age: [store::DB] PEOPLE.AGE
                     } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "P.all()->project([x|$x.fullName, x|$x.age], ['name', 'age'])");
+            var result = exec(model, "model::P.all()->project([x|$x.fullName, x|$x.age], ['name', 'age'])");
             assertEquals(2, result.rows().size());
             assertTrue(colStr(result, 0).contains("John Doe"));
             assertTrue(colInt(result, 1).contains(30));

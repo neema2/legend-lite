@@ -89,12 +89,12 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     // ==================== Pure Language Query Tests ====================
 
     @Test
-    @DisplayName("Pure: Person.all()->filter({p | $p.lastName == 'Smith'})->project(...)")
+    @DisplayName("Pure: model::Person.all()->filter({p | $p.lastName == 'Smith'})->project(...)")
     void testPureFindSmithsQuery() throws SQLException {
         // GIVEN: A Pure query to find all Smiths
         // Note: Pure lambdas use curly braces: {param | body}
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->filter({p | $p.lastName == 'Smith'})
                     ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName])
                 """;
@@ -113,7 +113,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testPureComplexFilterWithAnd() throws SQLException {
         // GIVEN: A Pure query with AND condition
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->filter({p | $p.lastName == 'Smith' && $p.age > 25})
                     ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName, age:p|$p.age])
                 """;
@@ -134,7 +134,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testPureFilterByAgeOnly() throws SQLException {
         // GIVEN: A Pure query filtering by age
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->filter({p | $p.age >= 30})
                     ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName, age:p|$p.age])
                 """;
@@ -153,7 +153,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testPureGetAllPeople() throws SQLException {
         // GIVEN: A Pure query to get all people
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName, age:p|$p.age])
                 """;
 
@@ -169,7 +169,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testPureFilterWithOr() throws SQLException {
         // GIVEN: A Pure query with OR condition
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->filter({p | $p.lastName == 'Smith' || $p.lastName == 'Jones'})
                     ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName])
                 """;
@@ -186,7 +186,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testPureFilterByFirstName() throws SQLException {
         // GIVEN: A Pure query filtering by firstName
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->filter({p | $p.firstName == 'John'})
                     ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName, age:p|$p.age])
                 """;
@@ -206,7 +206,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testPureFilterLessThan() throws SQLException {
         // GIVEN: A Pure query with < comparison
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->filter({p | $p.age < 30})
                     ->project(~[firstName:p|$p.firstName, age:p|$p.age])
                 """;
@@ -226,7 +226,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("Verify generated SQL format")
     void testGeneratedSqlFormat() {
         // GIVEN: A Pure query
-        String pureQuery = "Person.all()->filter({p | $p.lastName == 'Smith'})->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName])";
+        String pureQuery = "model::Person.all()->filter({p | $p.lastName == 'Smith'})->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName])";
 
         // WHEN: We compile to SQL
         String sql = generateSql(pureQuery);
@@ -337,18 +337,18 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     /**
      * THE KEY TEST: Starting from a real Pure query with association navigation.
      * 
-     * Pure query: Person.all()->filter({p | $p.addresses.street == '123 Main St'})
+     * Pure query: model::Person.all()->filter({p | $p.addresses.street == '123 Main St'})
      * 
      * This navigates through the to-many 'addresses' association.
      * The compiler should automatically generate EXISTS to prevent row explosion.
      */
     @Test
-    @DisplayName("Pure: Person.all()->filter({p | $p.addresses.street == '...'})")
+    @DisplayName("Pure: model::Person.all()->filter({p | $p.addresses.street == '...'})")
     void testPureAssociationNavigationInFilter() throws SQLException {
         // GIVEN: A Pure query that filters through a to-many association
         // This is the EXACT Pure syntax a user would write
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->filter({p | $p.addresses.street == '123 Main St'})
                     ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName])
                 """;
@@ -376,12 +376,12 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
-    @DisplayName("Pure: Project through association - Person.all()->project(~[firstName:p|$p.firstName, street:p|$p.addresses.street])")
+    @DisplayName("Pure: Project through association - model::Person.all()->project(~[firstName:p|$p.firstName, street:p|$p.addresses.street])")
     void testPureProjectThroughAssociation() throws SQLException {
         // GIVEN: A Pure query that PROJECTS through a to-many association
         // This uses LEFT JOIN (not EXISTS) because we want the actual data
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->project(~[firstName:p|$p.firstName, street:p|$p.addresses.street])
                 """;
 
@@ -421,7 +421,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testPureProjectMultiplePropertiesThroughAssociation() throws SQLException {
         // GIVEN: A Pure query that projects MULTIPLE properties from the association
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->project(~[firstName:p|$p.firstName, street:p|$p.addresses.street, city:p|$p.addresses.city])
                 """;
 
@@ -458,7 +458,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testPureMixLocalAndAssociationProjections() throws SQLException {
         // GIVEN: A Pure query mixing local properties and association navigation
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName, age:p|$p.age, city:p|$p.addresses.city])
                 """;
 
@@ -508,7 +508,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Result: Only John (has NY address), but show BOTH his addresses
 
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->filter({p | $p.addresses.city == 'New York'})
                     ->project(~[firstName:p|$p.firstName, street:p|$p.addresses.street, city:p|$p.addresses.city])
                 """;
@@ -548,7 +548,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testPureFilterAndProjectDifferentAssociationProperties() throws SQLException {
         // Filter by city, project street - shows the pattern clearly
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->filter({p | $p.addresses.city == 'Chicago'})
                     ->project(~[firstName:p|$p.firstName, street:p|$p.addresses.street])
                 """;
@@ -584,7 +584,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // This is a simpler case: no EXISTS needed for filter, just LEFT JOIN for
         // projection
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->filter({p | $p.lastName == 'Smith'})
                     ->project(~[firstName:p|$p.firstName, street:p|$p.addresses.street])
                 """;
@@ -635,7 +635,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // GIVEN: A Pure query filtering on addresses.city
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->filter({p | $p.addresses.city == 'New York'})
                     ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName])
                 """;
@@ -672,7 +672,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // GIVEN: John now has TWO addresses containing 'Main'
         // Query for all people with an address on 'Main'
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->filter({p | $p.addresses.street == '123 Main St'})
                     ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName])
                 """;
@@ -703,7 +703,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("Pure: Verify EXISTS SQL structure for association filter")
     void testPureAssociationExistsSqlStructure() {
         // GIVEN: A Pure query with association navigation
-        String pureQuery = "Person.all()->filter({p | $p.addresses.street == 'Test St'})->project(~[firstName:p|$p.firstName])";
+        String pureQuery = "model::Person.all()->filter({p | $p.addresses.street == 'Test St'})->project(~[firstName:p|$p.firstName])";
 
         // WHEN: We compile
         String sql = generateSql(pureQuery);
@@ -766,7 +766,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // Filter through to-one association → EXISTS with compound ON
-        String pureQuery = "EmpMC.all()->filter({e | $e.dept.deptName == 'US Engineering'})->project(~[name:e|$e.name])";
+        String pureQuery = "model::EmpMC.all()->filter({e | $e.dept.deptName == 'US Engineering'})->project(~[name:e|$e.name])";
         var result = queryService.execute(pureSource, pureQuery, "test::McRT", connection);
 
         assertEquals(1, result.rows().size(), "Only Alice is in US Engineering");
@@ -819,7 +819,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // Project through association → LEFT JOIN with compound ON
-        String pureQuery = "EmpMC2.all()->project(~[name:e|$e.name, dept:e|$e.dept.deptName])";
+        String pureQuery = "model::EmpMC2.all()->project(~[name:e|$e.name, dept:e|$e.dept.deptName])";
         var result = queryService.execute(pureSource, pureQuery, "test::McRT2", connection);
 
         assertEquals(2, result.rows().size());
@@ -949,7 +949,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // Pure query
-        String pureQuery = "Emp.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->sum()})], ['dept', 'totalSal'])";
+        String pureQuery = "model::Emp.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->sum()})], ['dept', 'totalSal'])";
 
         // Execute via QueryService
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
@@ -982,7 +982,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // The query parses fine syntactically (groupBy is just a function call in the chain),
         // but should fail at compile/execute time because groupBy requires a tabular source,
         // not a class-based getAll result.
-        String invalidQuery = "Emp.all()->groupBy([{e | $e.dept}], [agg({e | $e.sal}, {y | $y->sum()})], ['dept', 'totalSal'])";
+        String invalidQuery = "model::Emp.all()->groupBy([{e | $e.dept}], [agg({e | $e.sal}, {y | $y->sum()})], ['dept', 'totalSal'])";
 
         // THEN: Should fail somewhere in the compile/execute pipeline
         assertThrows(Exception.class,
@@ -1040,7 +1040,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         // Execute via QueryService
-        String pureQuery = "Emp.all()->sortByReversed({e | $e.sal})->limit(3)";
+        String pureQuery = "model::Emp.all()->sortByReversed({e | $e.sal})->limit(3)";
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
 
         // Bare class query: JSON-wrapped GraphResult with top 3 salaries
@@ -1099,7 +1099,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         // Execute via QueryService
-        String pureQuery = "Emp.all()->project([{e | $e.name}, {e | $e.sal}], ['name', 'sal'])->sort('sal', SortDirection.ASC)->slice(0, 5)";
+        String pureQuery = "model::Emp.all()->project([{e | $e.name}, {e | $e.sal}], ['name', 'sal'])->sort('sal', SortDirection.ASC)->slice(0, 5)";
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
 
         // Should get first 5 of 6 rows, sorted by salary ascending
@@ -1123,7 +1123,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
                 function query::getAdults(): model::Adult[*]
                 {
-                    Adult.all()->filter({p | $p.age >= 18})
+                    model::Adult.all()->filter({p | $p.age >= 18})
                 }
 
                 RelationalDatabaseConnection store::TestConnection
@@ -1156,7 +1156,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 "INSERT INTO T_ADULT VALUES (1, 'Alice', 25), (2, 'Bob', 15), (3, 'Charlie', 30)");
 
         // Execute the function body via QueryService
-        String functionBody = "Adult.all()->filter({p | $p.age >= 18})";
+        String functionBody = "model::Adult.all()->filter({p | $p.age >= 18})";
         var result = queryService.execute(pureSource, functionBody, "test::TestRuntime", connection);
 
         // THEN: Bare class query → JSON-wrapped GraphResult
@@ -1183,7 +1183,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
                 function query::getWorkerInfo(): Any[*]
                 {
-                    Worker.all()->project([{w | $w.dept}, {w | $w.salary}], ['department', 'sal'])
+                    model::Worker.all()->project([{w | $w.dept}, {w | $w.salary}], ['department', 'sal'])
                 }
 
                 RelationalDatabaseConnection store::TestConnection
@@ -1216,7 +1216,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 "INSERT INTO T_WORKER VALUES (1, 'Engineering', 100000), (2, 'Engineering', 120000), (3, 'Sales', 80000)");
 
         // Execute the function body via QueryService
-        String functionBody = "Worker.all()->project([{w | $w.dept}, {w | $w.salary}], ['department', 'sal'])";
+        String functionBody = "model::Worker.all()->project([{w | $w.dept}, {w | $w.salary}], ['department', 'sal'])";
         var result = queryService.execute(pureSource, functionBody, "test::TestRuntime", connection);
 
         // THEN: Should return 3 rows with projected columns
@@ -1419,7 +1419,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // Pure query using stdDev() aggregate
-        String pureQuery = "Stats.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->stdDev()})], ['dept', 'stdDevSal'])";
+        String pureQuery = "model::Stats.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->stdDev()})], ['dept', 'stdDevSal'])";
 
         // Execute via QueryService
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
@@ -1466,7 +1466,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime { mappings: [ model::VarMap ]; connections: [ store::VarDb: [ environment: store::TestConn ] ]; }
                 """;
 
-        String pureQuery = "Var.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->variance()})], ['dept', 'varSal'])";
+        String pureQuery = "model::Var.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->variance()})], ['dept', 'varSal'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
 
@@ -1502,7 +1502,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime { mappings: [ model::MedMap ]; connections: [ store::MedDb: [ environment: store::TestConn ] ]; }
                 """;
 
-        String pureQuery = "Med.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->median()})], ['dept', 'medianSal'])";
+        String pureQuery = "model::Med.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->median()})], ['dept', 'medianSal'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
 
@@ -1536,7 +1536,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime { mappings: [ model::StdSampMap ]; connections: [ store::StdSampDb: [ environment: store::TestConn ] ]; }
                 """;
 
-        String pureQuery = "StdSamp.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->stdDevSample()})], ['dept', 'result'])";
+        String pureQuery = "model::StdSamp.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->stdDevSample()})], ['dept', 'result'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         assertEquals(1, result.rows().size());
@@ -1568,7 +1568,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime { mappings: [ model::StdPopMap ]; connections: [ store::StdPopDb: [ environment: store::TestConn ] ]; }
                 """;
 
-        String pureQuery = "StdPop.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->stdDevPopulation()})], ['dept', 'result'])";
+        String pureQuery = "model::StdPop.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->stdDevPopulation()})], ['dept', 'result'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         assertEquals(1, result.rows().size());
@@ -1601,7 +1601,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime { mappings: [ model::VarSampMap ]; connections: [ store::VarSampDb: [ environment: store::TestConn ] ]; }
                 """;
 
-        String pureQuery = "VarSamp.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->varianceSample()})], ['dept', 'result'])";
+        String pureQuery = "model::VarSamp.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->varianceSample()})], ['dept', 'result'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         assertEquals(1, result.rows().size());
@@ -1633,7 +1633,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime { mappings: [ model::VarPopMap ]; connections: [ store::VarPopDb: [ environment: store::TestConn ] ]; }
                 """;
 
-        String pureQuery = "VarPop.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->variancePopulation()})], ['dept', 'result'])";
+        String pureQuery = "model::VarPop.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->variancePopulation()})], ['dept', 'result'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         assertEquals(1, result.rows().size());
@@ -1668,7 +1668,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // Bi-variate syntax: $r.sal->corr($r.years) produces CORR(sal, years)
-        String pureQuery = "Corr.all()->project(~[dept:e|$e.dept, sal:e|$e.sal, years:e|$e.years])->groupBy(~dept, ~correlation:r|rowMapper($r.sal, $r.years):y|$y->corr())";
+        String pureQuery = "model::Corr.all()->project(~[dept:e|$e.dept, sal:e|$e.sal, years:e|$e.years])->groupBy(~dept, ~correlation:r|rowMapper($r.sal, $r.years):y|$y->corr())";
 
         System.out.println("Pure Query: " + pureQuery);
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
@@ -1707,7 +1707,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Bi-variate syntax: $r.sal->covarSample($r.years) produces COVAR_SAMP(sal,
         // years)
-        String pureQuery = "CovarSamp.all()->project(~[dept:e|$e.dept, sal:e|$e.sal, years:e|$e.years])->groupBy(~dept, ~covariance:r|rowMapper($r.sal, $r.years):y|$y->covarSample())";
+        String pureQuery = "model::CovarSamp.all()->project(~[dept:e|$e.dept, sal:e|$e.sal, years:e|$e.years])->groupBy(~dept, ~covariance:r|rowMapper($r.sal, $r.years):y|$y->covarSample())";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("covarSample result: " + result.rows());
@@ -1744,7 +1744,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Bi-variate syntax: $r.sal->covarPopulation($r.years) produces COVAR_POP(sal,
         // years)
-        String pureQuery = "CovarPop.all()->project(~[dept:e|$e.dept, sal:e|$e.sal, years:e|$e.years])->groupBy(~dept, ~covariance:r|rowMapper($r.sal, $r.years):y|$y->covarPopulation())";
+        String pureQuery = "model::CovarPop.all()->project(~[dept:e|$e.dept, sal:e|$e.sal, years:e|$e.years])->groupBy(~dept, ~covariance:r|rowMapper($r.sal, $r.years):y|$y->covarPopulation())";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("covarPopulation result: " + result.rows());
@@ -1783,7 +1783,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // percentileCont(0.5) = median with interpolation
-        String pureQuery = "PctEmployee.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->percentileCont(0.5)})], ['dept', 'medianSal'])";
+        String pureQuery = "model::PctEmployee.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->percentileCont(0.5)})], ['dept', 'medianSal'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("percentileCont result: " + result.rows());
@@ -1828,7 +1828,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // percentileDisc(0.75) = 75th percentile (discrete, actual value from dataset)
-        String pureQuery = "DiscEmployee.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->percentileDisc(0.75)})], ['dept', 'q3Sal'])";
+        String pureQuery = "model::DiscEmployee.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->percentileDisc(0.75)})], ['dept', 'q3Sal'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("percentileDisc result: " + result.rows());
@@ -1866,7 +1866,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // Test year(), month(), dayOfMonth() extraction
-        String pureQuery = "DatePerson.all()->project([{e | $e.name}, {e | $e.birthDate->year()}, {e | $e.birthDate->month()}, {e | $e.birthDate->dayOfMonth()}], ['name', 'birthYear', 'birthMonth', 'birthDay'])";
+        String pureQuery = "model::DatePerson.all()->project([{e | $e.name}, {e | $e.birthDate->year()}, {e | $e.birthDate->month()}, {e | $e.birthDate->dayOfMonth()}], ['name', 'birthYear', 'birthMonth', 'birthDay'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("Date extraction result: " + result.rows());
@@ -1919,7 +1919,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // Test hour(), minute(), second() extraction
-        String pureQuery = "TimeEvent.all()->project([{e | $e.name}, {e | $e.eventTime->hour()}, {e | $e.eventTime->minute()}, {e | $e.eventTime->second()}], ['name', 'hour', 'minute', 'second'])";
+        String pureQuery = "model::TimeEvent.all()->project([{e | $e.name}, {e | $e.eventTime->hour()}, {e | $e.eventTime->minute()}, {e | $e.eventTime->second()}], ['name', 'hour', 'minute', 'second'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("Time extraction result: " + result.rows());
@@ -1969,7 +1969,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime { mappings: [ model::QuarterMap ]; connections: [ store::QuarterDb: [ environment: store::TestConn ] ]; }
                 """;
 
-        String pureQuery = "Sale.all()->project([{e | $e.saleDate->quarter()}, {e | $e.amount}], ['quarter', 'amount'])";
+        String pureQuery = "model::Sale.all()->project([{e | $e.saleDate->quarter()}, {e | $e.amount}], ['quarter', 'amount'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("Quarter extraction result: " + result.rows());
@@ -2010,7 +2010,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime { mappings: [ model::DowMap ]; connections: [ store::DowDb: [ environment: store::TestConn ] ]; }
                 """;
 
-        String pureQuery = "Event.all()->project([{e | $e.eventDate->dayOfWeek()}, {e | $e.eventDate->dayOfYear()}], ['dow', 'doy'])";
+        String pureQuery = "model::Event.all()->project([{e | $e.eventDate->dayOfWeek()}, {e | $e.eventDate->dayOfYear()}], ['dow', 'doy'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("DayOfWeek/DayOfYear result: " + result.rows());
@@ -2052,7 +2052,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime { mappings: [ model::WeekMap ]; connections: [ store::WeekDb: [ environment: store::TestConn ] ]; }
                 """;
 
-        String pureQuery = "WeekEvent.all()->project([{e | $e.eventDate->weekOfYear()}], ['week'])";
+        String pureQuery = "model::WeekEvent.all()->project([{e | $e.eventDate->weekOfYear()}], ['week'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("WeekOfYear result: " + result.rows());
@@ -2091,7 +2091,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // Test extraction from StrictDate and DateTime
-        String pureQuery = "User.all()->project([{e | $e.name}, {e | $e.birthDate->year()}, {e | $e.lastLogin->hour()}], ['name', 'birthYear', 'loginHour'])";
+        String pureQuery = "model::User.all()->project([{e | $e.name}, {e | $e.birthDate->year()}, {e | $e.lastLogin->hour()}], ['name', 'birthYear', 'loginHour'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("StrictDate/DateTime result: " + result.rows());
@@ -2136,7 +2136,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // Test now() - returns current timestamp
-        String pureQueryNow = "TestRecord.all()->project([{e | now()}], ['currentTimestamp'])";
+        String pureQueryNow = "model::TestRecord.all()->project([{e | now()}], ['currentTimestamp'])";
         var resultNow = queryService.execute(pureSource, pureQueryNow, "test::TestRuntime", connection);
         System.out.println("now() SQL generates: CURRENT_TIMESTAMP");
         assertEquals(1, resultNow.rows().size());
@@ -2144,7 +2144,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertNotNull(resultNow.rows().get(0).get(0), "now() should return a value");
 
         // Test today() - returns current date
-        String pureQueryToday = "TestRecord.all()->project([{e | today()}], ['currentDate'])";
+        String pureQueryToday = "model::TestRecord.all()->project([{e | today()}], ['currentDate'])";
         var resultToday = queryService.execute(pureSource, pureQueryToday, "test::TestRuntime", connection);
         System.out.println("today() SQL generates: CURRENT_DATE");
         assertEquals(1, resultToday.rows().size());
@@ -2174,7 +2174,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // Test firstDayOfMonth()
-        String pureQuery = "EventRecord.all()->project([{e | $e.eventDate}, {e | $e.eventDate->firstDayOfMonth()}], ['eventDate', 'firstOfMonth'])";
+        String pureQuery = "model::EventRecord.all()->project([{e | $e.eventDate}, {e | $e.eventDate->firstDayOfMonth()}], ['eventDate', 'firstOfMonth'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("firstDayOfMonth result: " + result.rows());
@@ -2211,7 +2211,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // Test firstDayOfYear and firstDayOfQuarter
-        String pureQuery = "TruncRecord.all()->project([{e | $e.eventDate}, {e | $e.eventDate->firstDayOfYear()}, {e | $e.eventDate->firstDayOfQuarter()}], ['eventDate', 'firstOfYear', 'firstOfQuarter'])";
+        String pureQuery = "model::TruncRecord.all()->project([{e | $e.eventDate}, {e | $e.eventDate->firstDayOfYear()}, {e | $e.eventDate->firstDayOfQuarter()}], ['eventDate', 'firstOfYear', 'firstOfQuarter'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("firstDayOfYear/Quarter result: " + result.rows());
@@ -2248,7 +2248,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // Test dateDiff with DAYS unit
-        String pureQuery = "DateRange.all()->project([{e | dateDiff($e.startDate, $e.endDate, meta::pure::functions::date::DurationUnit.DAYS)}], ['daysDiff'])";
+        String pureQuery = "model::DateRange.all()->project([{e | dateDiff($e.startDate, $e.endDate, meta::pure::functions::date::DurationUnit.DAYS)}], ['daysDiff'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("dateDiff result: " + result.rows());
@@ -2284,7 +2284,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // Test adjust - add 10 days
-        String pureQuery = "AdjustRecord.all()->project([{e | $e.baseDate}, {e | adjust($e.baseDate, 10, meta::pure::functions::date::DurationUnit.DAYS)}], ['baseDate', 'adjustedDate'])";
+        String pureQuery = "model::AdjustRecord.all()->project([{e | $e.baseDate}, {e | adjust($e.baseDate, 10, meta::pure::functions::date::DurationUnit.DAYS)}], ['baseDate', 'adjustedDate'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("adjust result: " + result.rows());
@@ -2321,7 +2321,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // Test method call syntax: date->adjust(amount, unit) with 2 args
-        String pureQuery = "AdjustMethodRecord.all()->project([{e | $e.baseDate->meta::pure::functions::date::adjust(10, meta::pure::functions::date::DurationUnit.DAYS)}], ['adjustedDate'])";
+        String pureQuery = "model::AdjustMethodRecord.all()->project([{e | $e.baseDate->meta::pure::functions::date::adjust(10, meta::pure::functions::date::DurationUnit.DAYS)}], ['adjustedDate'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("adjust method call result: " + result.rows());
@@ -2480,7 +2480,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime { mappings: [ model::EpochMap ]; connections: [ store::EpochDb: [ environment: store::TestConn ] ]; }
                 """;
 
-        String pureQuery = "EpochRecord.all()->project([{e | toEpochValue($e.eventDate)}], ['epochSeconds'])";
+        String pureQuery = "model::EpochRecord.all()->project([{e | toEpochValue($e.eventDate)}], ['epochSeconds'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("toEpochValue result: " + result.rows());
@@ -2513,7 +2513,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime { mappings: [ model::FromEpochMap ]; connections: [ store::FromEpochDb: [ environment: store::TestConn ] ]; }
                 """;
 
-        String pureQuery = "FromEpochRecord.all()->project([{e | fromEpochValue($e.epochSeconds)}], ['dateTime'])";
+        String pureQuery = "model::FromEpochRecord.all()->project([{e | fromEpochValue($e.epochSeconds)}], ['dateTime'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("fromEpochValue result: " + result.rows());
@@ -2548,7 +2548,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime { mappings: [ model::DateCompareMap ]; connections: [ store::DateCompareDb: [ environment: store::TestConn ] ]; }
                 """;
 
-        String pureQuery = "DateCompareRecord.all()->project([{e | isOnDay($e.date1, $e.date2)}], ['sameDay'])";
+        String pureQuery = "model::DateCompareRecord.all()->project([{e | isOnDay($e.date1, $e.date2)}], ['sameDay'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("isOnDay result: " + result.rows());
@@ -2585,14 +2585,14 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // Test isAfterDay
-        String afterQuery = "AfterBeforeRecord.all()->project([{e | isAfterDay($e.date1, $e.date2)}], ['isAfter'])";
+        String afterQuery = "model::AfterBeforeRecord.all()->project([{e | isAfterDay($e.date1, $e.date2)}], ['isAfter'])";
         var afterResult = queryService.execute(pureSource, afterQuery, "test::TestRuntime", connection);
         Boolean isAfter = (Boolean) afterResult.rows().get(0).get(0);
         System.out.printf("  isAfterDay(Jan 20, Jan 15): %s%n", isAfter);
         assertTrue(isAfter, "Jan 20 is after Jan 15");
 
         // Test isBeforeDay
-        String beforeQuery = "AfterBeforeRecord.all()->project([{e | isBeforeDay($e.date1, $e.date2)}], ['isBefore'])";
+        String beforeQuery = "model::AfterBeforeRecord.all()->project([{e | isBeforeDay($e.date1, $e.date2)}], ['isBefore'])";
         var beforeResult = queryService.execute(pureSource, beforeQuery, "test::TestRuntime", connection);
         Boolean isBefore = (Boolean) beforeResult.rows().get(0).get(0);
         System.out.printf("  isBeforeDay(Jan 20, Jan 15): %s%n", isBefore);
@@ -2624,7 +2624,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // Test isOnOrAfterDay (both should be true)
-        String query = "OnOrRecord.all()->project([{e | isOnOrAfterDay($e.date1, $e.date2)}], ['isOnOrAfter'])";
+        String query = "model::OnOrRecord.all()->project([{e | isOnOrAfterDay($e.date1, $e.date2)}], ['isOnOrAfter'])";
         var result = queryService.execute(pureSource, query, "test::TestRuntime", connection);
         System.out.println("isOnOrAfterDay result: " + result.rows());
         assertEquals(2, result.rows().size());
@@ -2657,7 +2657,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime { mappings: [ model::DatePartMap ]; connections: [ store::DatePartDb: [ environment: store::TestConn ] ]; }
                 """;
 
-        String pureQuery = "DatePartRecord.all()->project([{e | $e.eventTime->datePart()}], ['dateOnly'])";
+        String pureQuery = "model::DatePartRecord.all()->project([{e | $e.eventTime->datePart()}], ['dateOnly'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("datePart result: " + result.rows());
@@ -2690,7 +2690,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime { mappings: [ model::FirstHourMap ]; connections: [ store::FirstHourDb: [ environment: store::TestConn ] ]; }
                 """;
 
-        String pureQuery = "FirstHourRecord.all()->project([{e | $e.eventTime->firstHourOfDay()}], ['midnight'])";
+        String pureQuery = "model::FirstHourRecord.all()->project([{e | $e.eventTime->firstHourOfDay()}], ['midnight'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("firstHourOfDay result: " + result.rows());
@@ -2726,7 +2726,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // Test with 5-hour buckets
-        String pureQuery = "TimeBucketRecord.all()->project([{e | $e.eventTime->timeBucket(5, meta::pure::functions::date::DurationUnit.HOURS)}], ['bucket'])";
+        String pureQuery = "model::TimeBucketRecord.all()->project([{e | $e.eventTime->timeBucket(5, meta::pure::functions::date::DurationUnit.HOURS)}], ['bucket'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("timeBucket (5 hours) result: " + result.rows());
@@ -2766,7 +2766,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // Test with 7-day (weekly) buckets
-        String pureQuery = "DayBucketRecord.all()->project([{e | $e.eventDate->timeBucket(7, meta::pure::functions::date::DurationUnit.DAYS)}], ['weekBucket'])";
+        String pureQuery = "model::DayBucketRecord.all()->project([{e | $e.eventDate->timeBucket(7, meta::pure::functions::date::DurationUnit.DAYS)}], ['weekBucket'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("timeBucket (7 days) result: " + result.rows());
@@ -2802,7 +2802,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime { mappings: [ model::MonthMap ]; connections: [ store::MonthDb: [ environment: store::TestConn ] ]; }
                 """;
 
-        String pureQuery = "MonthRecord.all()->project([{e | $e.eventDate->monthNumber()}], ['month'])";
+        String pureQuery = "model::MonthRecord.all()->project([{e | $e.eventDate->monthNumber()}], ['month'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("monthNumber result: " + result.rows());
@@ -2838,7 +2838,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime { mappings: [ model::QuarterMap ]; connections: [ store::QuarterDb: [ environment: store::TestConn ] ]; }
                 """;
 
-        String pureQuery = "QuarterRecord.all()->project([{e | $e.eventDate->quarterNumber()}], ['quarter'])";
+        String pureQuery = "model::QuarterRecord.all()->project([{e | $e.eventDate->quarterNumber()}], ['quarter'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("quarterNumber result: " + result.rows());
@@ -2874,13 +2874,13 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // Test min
-        String minQuery = "MinMaxRecord.all()->project([{e | min($e.date1, $e.date2)}], ['minDate'])";
+        String minQuery = "model::MinMaxRecord.all()->project([{e | min($e.date1, $e.date2)}], ['minDate'])";
         var minResult = queryService.execute(pureSource, minQuery, "test::TestRuntime", connection);
         System.out.println("min result: " + minResult.rows());
         assertEquals(2, minResult.rows().size());
 
         // Test max
-        String maxQuery = "MinMaxRecord.all()->project([{e | max($e.date1, $e.date2)}], ['maxDate'])";
+        String maxQuery = "model::MinMaxRecord.all()->project([{e | max($e.date1, $e.date2)}], ['maxDate'])";
         var maxResult = queryService.execute(pureSource, maxQuery, "test::TestRuntime", connection);
         System.out.println("max result: " + maxResult.rows());
         assertEquals(2, maxResult.rows().size());
@@ -2936,7 +2936,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime { mappings: [ model::DowMap ]; connections: [ store::DowDb: [ environment: store::TestConn ] ]; }
                 """;
 
-        String pureQuery = "DowRecord.all()->project([{e | $e.eventDate->dayOfWeekNumber()}], ['dow'])";
+        String pureQuery = "model::DowRecord.all()->project([{e | $e.eventDate->dayOfWeekNumber()}], ['dow'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("dayOfWeekNumber result: " + result.rows());
@@ -2972,7 +2972,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime { mappings: [ model::DoyMap ]; connections: [ store::DoyDb: [ environment: store::TestConn ] ]; }
                 """;
 
-        String pureQuery = "DoyRecord.all()->project([{e | $e.eventDate->dayOfYear()}], ['doy'])";
+        String pureQuery = "model::DoyRecord.all()->project([{e | $e.eventDate->dayOfYear()}], ['doy'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("dayOfYear result: " + result.rows());
@@ -3334,7 +3334,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // WHEN: Query for employees hired on a specific date using Pure date literal
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->filter({e | $e.hireDate == %2024-01-15})
                     ->project(~[name:e|$e.name])
                 """;
@@ -3385,7 +3385,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // WHEN: Query for employees hired after 2024-01-01
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->filter({e | $e.hireDate > %2024-01-01})
                     ->project(~[name:e|$e.name, hireDate:e|$e.hireDate])
                 """;
@@ -3476,7 +3476,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // WHEN: Query with DateTime literal (includes time)
         String pureQuery = """
-                Appointment.all()
+                model::Appointment.all()
                     ->filter({a | $a.scheduledAt == %2024-01-15T10:30:00})
                     ->project(~[title:a|$a.title])
                 """;
@@ -3528,7 +3528,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // WHEN: Query for appointments after noon on Jan 15
         String pureQuery = """
-                Appointment.all()
+                model::Appointment.all()
                     ->filter({a | $a.scheduledAt > %2024-01-15T12:00:00})
                     ->project(~[title:a|$a.title, scheduledAt:a|$a.scheduledAt])
                 """;

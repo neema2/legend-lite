@@ -368,7 +368,7 @@ class VariantIntegrationTest {
 
         // Query using mapped properties - price and qty are mapped to JSON extraction
         String pureQuery = """
-                Event.all()
+                model::Event.all()
                     ->filter(e | $e.eventType == 'purchase')
                     ->project([e | $e.id, e | $e.price, e | $e.qty], ['id', 'price', 'qty'])
                 """;

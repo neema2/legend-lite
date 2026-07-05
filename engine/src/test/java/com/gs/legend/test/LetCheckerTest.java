@@ -251,7 +251,7 @@ public class LetCheckerTest extends AbstractDatabaseTest {
         void testLetClassFilter() throws SQLException {
             var result = executeRelation("""
                     |let threshold = 30;
-                    Person.all()->filter(p|$p.age > $threshold)->project(~[name:p|$p.firstName, age:p|$p.age]);""");
+                    model::Person.all()->filter(p|$p.age > $threshold)->project(~[name:p|$p.firstName, age:p|$p.age]);""");
             assertEquals(1, result.rows().size(), "Only Bob (45) > 30");
             assertEquals("Bob", result.rows().get(0).values().get(0));
             assertEquals(45, result.rows().get(0).values().get(1));

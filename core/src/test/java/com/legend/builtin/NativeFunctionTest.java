@@ -374,7 +374,7 @@ class NativeFunctionTest {
     void nativeClassCatalogSizeIsPinned() {
         // Update this deliberately when adding or removing native classes.
         // 37: +StrictTime (real legend-pure meta::pure::metamodel::type::StrictTime).
-        assertEquals(37, Pure.allNativeClasses().size(),
+        assertEquals(38, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -490,7 +490,10 @@ class NativeFunctionTest {
         List<String> expected = List.of(
                 Pure.TYPE_PKG, Pure.RELATION_PKG, Pure.FUNCTION_PKG,
                 Pure.RELATION_FUNCTIONS_PKG, Pure.COLLECTION_PKG,
-                Pure.MATH_UTILITY_PKG, Pure.VARIANT_PKG, Pure.GRAPH_FETCH_PKG);
+                Pure.MATH_UTILITY_PKG, Pure.VARIANT_PKG, Pure.GRAPH_FETCH_PKG,
+                // ModelElement lives directly under meta::pure::metamodel
+                // (real M3's package tree root element).
+                "meta::pure::metamodel");
         for (ClassDefinition c : Pure.allNativeClasses()) {
             String fqn = c.qualifiedName();
             boolean ok = expected.stream().anyMatch(p -> fqn.startsWith(p + "::"));

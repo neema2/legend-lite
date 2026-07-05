@@ -526,7 +526,7 @@ class M2MChainIntegrationTest {
         @Test
         @DisplayName("project(): StaffMember computed fullName + passthrough props")
         void testProjectSimple() throws SQLException {
-            var r = exec("StaffMember.all()->project(~[fullName:x|$x.fullName, dept:x|$x.dept])");
+            var r = exec("model::StaffMember.all()->project(~[fullName:x|$x.fullName, dept:x|$x.dept])");
             assertEquals(4, r.rowCount());
             var names = col(r, 0);
             assertTrue(names.contains("Alice Smith"));
@@ -538,7 +538,7 @@ class M2MChainIntegrationTest {
         @Test
         @DisplayName("project(): StaffMember all properties")
         void testProjectAllProps() throws SQLException {
-            var r = exec("StaffMember.all()->project(~[fullName:x|$x.fullName, firstName:x|$x.firstName, lastName:x|$x.lastName, age:x|$x.age, dept:x|$x.dept])");
+            var r = exec("model::StaffMember.all()->project(~[fullName:x|$x.fullName, firstName:x|$x.firstName, lastName:x|$x.lastName, age:x|$x.age, dept:x|$x.dept])");
             assertEquals(4, r.rowCount());
             var firstNames = col(r, 1);
             assertTrue(firstNames.contains("Alice"));
@@ -549,7 +549,7 @@ class M2MChainIntegrationTest {
         @DisplayName("graphFetch(): StaffMember")
         void testGraphFetch() throws SQLException {
             var json = execGraph("""
-                    StaffMember.all()
+                    model::StaffMember.all()
                         ->graphFetch(#{ StaffMember { fullName, dept } }#)
                         ->serialize(#{ StaffMember { fullName, dept } }#)
                     """);
@@ -561,7 +561,7 @@ class M2MChainIntegrationTest {
         @Test
         @DisplayName("project() with mapping filter: ActiveStaff excludes inactive")
         void testProjectWithFilter() throws SQLException {
-            var r = exec("ActiveStaff.all()->project(~[fullName:x|$x.fullName, dept:x|$x.dept])");
+            var r = exec("model::ActiveStaff.all()->project(~[fullName:x|$x.fullName, dept:x|$x.dept])");
             assertEquals(3, r.rowCount(), "Carol is inactive, should be excluded");
             var names = col(r, 0);
             assertTrue(names.contains("Alice Smith"));
@@ -574,7 +574,7 @@ class M2MChainIntegrationTest {
         @DisplayName("graphFetch() with mapping filter: ActiveStaff")
         void testGraphFetchWithFilter() throws SQLException {
             var json = execGraph("""
-                    ActiveStaff.all()
+                    model::ActiveStaff.all()
                         ->graphFetch(#{ ActiveStaff { fullName, dept } }#)
                         ->serialize(#{ ActiveStaff { fullName, dept } }#)
                     """);
@@ -585,7 +585,7 @@ class M2MChainIntegrationTest {
         @Test
         @DisplayName("project() with user query filter on top of M2M")
         void testProjectWithUserFilter() throws SQLException {
-            var r = exec("StaffMember.all()->filter({x|$x.dept == 'Engineering'})->project(~[fullName:x|$x.fullName])");
+            var r = exec("model::StaffMember.all()->filter({x|$x.dept == 'Engineering'})->project(~[fullName:x|$x.fullName])");
             assertEquals(2, r.rowCount(), "Only Engineering staff");
             var names = col(r, 0);
             assertTrue(names.contains("Alice Smith"));
@@ -595,7 +595,7 @@ class M2MChainIntegrationTest {
         @Test
         @DisplayName("project() with user filter + mapping filter (both compose)")
         void testProjectUserFilterPlusMappingFilter() throws SQLException {
-            var r = exec("ActiveStaff.all()->filter({x|$x.dept == 'Engineering'})->project(~[fullName:x|$x.fullName])");
+            var r = exec("model::ActiveStaff.all()->filter({x|$x.dept == 'Engineering'})->project(~[fullName:x|$x.fullName])");
             assertEquals(1, r.rowCount(), "Only active Engineering staff");
             assertEquals("Alice Smith", col(r, 0).get(0));
         }
@@ -610,7 +610,7 @@ class M2MChainIntegrationTest {
         @Test
         @DisplayName("project(): StaffCard through StaffMember → Employee → Table")
         void testProjectTwoHop() throws SQLException {
-            var r = exec("StaffCard.all()->project(~[displayName:x|$x.displayName, department:x|$x.department])");
+            var r = exec("model::StaffCard.all()->project(~[displayName:x|$x.displayName, department:x|$x.department])");
             assertEquals(4, r.rowCount());
             var names = col(r, 0);
             // displayName is fullName->toUpper()
@@ -624,7 +624,7 @@ class M2MChainIntegrationTest {
         @DisplayName("graphFetch(): StaffCard 2-hop")
         void testGraphFetchTwoHop() throws SQLException {
             var json = execGraph("""
-                    StaffCard.all()
+                    model::StaffCard.all()
                         ->graphFetch(#{ StaffCard { displayName, department } }#)
                         ->serialize(#{ StaffCard { displayName, department } }#)
                     """);
@@ -636,7 +636,7 @@ class M2MChainIntegrationTest {
         @DisplayName("project(): StaffBadge — 2-hop with mapping filter at L1")
         void testProjectTwoHopWithFilterAtL1() throws SQLException {
             // StaffBadge ~src ActiveStaff (which has ~filter isActive)
-            var r = exec("StaffBadge.all()->project(~[label:x|$x.label])");
+            var r = exec("model::StaffBadge.all()->project(~[label:x|$x.label])");
             assertEquals(3, r.rowCount(), "Carol is excluded by ActiveStaff filter");
             var labels = col(r, 0);
             assertTrue(labels.contains("Alice Smith [Engineering]"));
@@ -649,7 +649,7 @@ class M2MChainIntegrationTest {
         @DisplayName("graphFetch(): StaffBadge — 2-hop with filter")
         void testGraphFetchTwoHopWithFilter() throws SQLException {
             var json = execGraph("""
-                    StaffBadge.all()
+                    model::StaffBadge.all()
                         ->graphFetch(#{ StaffBadge { label } }#)
                         ->serialize(#{ StaffBadge { label } }#)
                     """);
@@ -660,7 +660,7 @@ class M2MChainIntegrationTest {
         @Test
         @DisplayName("project(): 2-hop + user query filter")
         void testProjectTwoHopWithUserFilter() throws SQLException {
-            var r = exec("StaffCard.all()->filter({x|$x.department == 'Engineering'})->project(~[displayName:x|$x.displayName])");
+            var r = exec("model::StaffCard.all()->filter({x|$x.department == 'Engineering'})->project(~[displayName:x|$x.displayName])");
             assertEquals(2, r.rowCount());
             var names = col(r, 0);
             assertTrue(names.contains("ALICE SMITH"));
@@ -677,7 +677,7 @@ class M2MChainIntegrationTest {
         @Test
         @DisplayName("project(): DirectoryEntry through StaffCard → StaffMember → Employee → Table")
         void testProjectThreeHop() throws SQLException {
-            var r = exec("DirectoryEntry.all()->project(~[entry:x|$x.entry])");
+            var r = exec("model::DirectoryEntry.all()->project(~[entry:x|$x.entry])");
             assertEquals(4, r.rowCount());
             var entries = col(r, 0);
             // entry = displayName + ' - ' + department
@@ -692,7 +692,7 @@ class M2MChainIntegrationTest {
         @DisplayName("graphFetch(): DirectoryEntry 3-hop")
         void testGraphFetchThreeHop() throws SQLException {
             var json = execGraph("""
-                    DirectoryEntry.all()
+                    model::DirectoryEntry.all()
                         ->graphFetch(#{ DirectoryEntry { entry } }#)
                         ->serialize(#{ DirectoryEntry { entry } }#)
                     """);
@@ -703,7 +703,7 @@ class M2MChainIntegrationTest {
         @Test
         @DisplayName("project(): 3-hop + user query filter")
         void testProjectThreeHopWithUserFilter() throws SQLException {
-            var r = exec("DirectoryEntry.all()->filter({x|$x.entry->contains('Sales')})->project(~[entry:x|$x.entry])");
+            var r = exec("model::DirectoryEntry.all()->filter({x|$x.entry->contains('Sales')})->project(~[entry:x|$x.entry])");
             assertEquals(1, r.rowCount());
             assertEquals("BOB JONES - Sales", col(r, 0).get(0));
         }
@@ -718,7 +718,7 @@ class M2MChainIntegrationTest {
         @Test
         @DisplayName("project(): Badge through DirectoryEntry → StaffCard → StaffMember → Employee → Table")
         void testProjectFourHop() throws SQLException {
-            var r = exec("Badge.all()->project(~[text:x|$x.text])");
+            var r = exec("model::Badge.all()->project(~[text:x|$x.text])");
             assertEquals(4, r.rowCount());
             var texts = col(r, 0);
             assertTrue(texts.contains("[ALICE SMITH - Engineering]"));
@@ -731,7 +731,7 @@ class M2MChainIntegrationTest {
         @DisplayName("graphFetch(): Badge 4-hop")
         void testGraphFetchFourHop() throws SQLException {
             var json = execGraph("""
-                    Badge.all()
+                    model::Badge.all()
                         ->graphFetch(#{ Badge { text } }#)
                         ->serialize(#{ Badge { text } }#)
                     """);
@@ -742,7 +742,7 @@ class M2MChainIntegrationTest {
         @Test
         @DisplayName("project(): 4-hop + user query filter")
         void testProjectFourHopWithFilter() throws SQLException {
-            var r = exec("Badge.all()->filter({x|$x.text->contains('Marketing')})->project(~[text:x|$x.text])");
+            var r = exec("model::Badge.all()->filter({x|$x.text->contains('Marketing')})->project(~[text:x|$x.text])");
             assertEquals(1, r.rowCount());
             assertEquals("[DAVE BROWN - Marketing]", col(r, 0).get(0));
         }
@@ -757,14 +757,14 @@ class M2MChainIntegrationTest {
         @Test
         @DisplayName("filter eliminates all rows")
         void testFilterEliminatesAll() throws SQLException {
-            var r = exec("StaffMember.all()->filter({x|$x.age > 100})->project(~[fullName:x|$x.fullName])");
+            var r = exec("model::StaffMember.all()->filter({x|$x.age > 100})->project(~[fullName:x|$x.fullName])");
             assertEquals(0, r.rowCount());
         }
 
         @Test
         @DisplayName("filter keeps exactly one row")
         void testFilterKeepsOne() throws SQLException {
-            var r = exec("StaffMember.all()->filter({x|$x.firstName == 'Alice'})->project(~[fullName:x|$x.fullName])");
+            var r = exec("model::StaffMember.all()->filter({x|$x.firstName == 'Alice'})->project(~[fullName:x|$x.fullName])");
             assertEquals(1, r.rowCount());
             assertEquals("Alice Smith", col(r, 0).get(0));
         }
@@ -772,7 +772,7 @@ class M2MChainIntegrationTest {
         @Test
         @DisplayName("compound filter with AND")
         void testCompoundFilter() throws SQLException {
-            var r = exec("StaffMember.all()->filter({x|($x.age > 25) && ($x.dept == 'Engineering')})->project(~[fullName:x|$x.fullName])");
+            var r = exec("model::StaffMember.all()->filter({x|($x.age > 25) && ($x.dept == 'Engineering')})->project(~[fullName:x|$x.fullName])");
             assertEquals(2, r.rowCount());
             var names = col(r, 0);
             assertTrue(names.contains("Alice Smith"));
@@ -782,7 +782,7 @@ class M2MChainIntegrationTest {
         @Test
         @DisplayName("sort through M2M chain")
         void testSortThroughChain() throws SQLException {
-            var r = exec("StaffMember.all()->sortBy({x|$x.age})->project(~[fullName:x|$x.fullName, age:x|$x.age])");
+            var r = exec("model::StaffMember.all()->sortBy({x|$x.age})->project(~[fullName:x|$x.fullName, age:x|$x.age])");
             assertEquals(4, r.rowCount());
             assertEquals("Carol White", col(r, 0).get(0));
             assertEquals("Dave Brown", col(r, 0).get(3));
@@ -791,7 +791,7 @@ class M2MChainIntegrationTest {
         @Test
         @DisplayName("2-hop + sort")
         void testTwoHopSort() throws SQLException {
-            var r = exec("StaffCard.all()->sortBy({x|$x.displayName})->project(~[displayName:x|$x.displayName])");
+            var r = exec("model::StaffCard.all()->sortBy({x|$x.displayName})->project(~[displayName:x|$x.displayName])");
             assertEquals(4, r.rowCount());
             assertEquals("ALICE SMITH", col(r, 0).get(0));
             assertEquals("BOB JONES", col(r, 0).get(1));
@@ -807,7 +807,7 @@ class M2MChainIntegrationTest {
         @Test
         @DisplayName("project(): single-hop traverse columns through M2M")
         void testProjectSingleHopTraverse() throws SQLException {
-            var r = exec("StaffDetail.all()->project(~[fullName:x|$x.fullName, deptName:x|$x.deptName, deptLocation:x|$x.deptLocation])");
+            var r = exec("model::StaffDetail.all()->project(~[fullName:x|$x.fullName, deptName:x|$x.deptName, deptLocation:x|$x.deptLocation])");
             assertEquals(4, r.rowCount());
             var names = col(r, 0);
             var depts = col(r, 1);
@@ -823,7 +823,7 @@ class M2MChainIntegrationTest {
         @DisplayName("graphFetch(): single-hop traverse columns through M2M")
         void testGraphFetchSingleHopTraverse() throws SQLException {
             var json = execGraph("""
-                    StaffDetail.all()
+                    model::StaffDetail.all()
                         ->graphFetch(#{ StaffDetail { fullName, deptName, deptLocation } }#)
                         ->serialize(#{ StaffDetail { fullName, deptName, deptLocation } }#)
                     """);
@@ -837,7 +837,7 @@ class M2MChainIntegrationTest {
         @Test
         @DisplayName("project(): filter on traverse column through M2M")
         void testProjectTraverseWithFilter() throws SQLException {
-            var r = exec("StaffDetail.all()->filter({x|$x.deptLocation == 'San Francisco'})->project(~[fullName:x|$x.fullName, deptName:x|$x.deptName])");
+            var r = exec("model::StaffDetail.all()->filter({x|$x.deptLocation == 'San Francisco'})->project(~[fullName:x|$x.fullName, deptName:x|$x.deptName])");
             assertEquals(2, r.rowCount(), "Alice and Carol are in Engineering (San Francisco)");
             var names = col(r, 0);
             assertTrue(names.contains("Alice Smith"));
@@ -847,7 +847,7 @@ class M2MChainIntegrationTest {
         @Test
         @DisplayName("project(): multi-hop traverse column through M2M")
         void testProjectMultiHopTraverse() throws SQLException {
-            var r = exec("StaffProfile.all()->project(~[fullName:x|$x.fullName, orgName:x|$x.orgName])");
+            var r = exec("model::StaffProfile.all()->project(~[fullName:x|$x.fullName, orgName:x|$x.orgName])");
             assertEquals(4, r.rowCount());
             var orgs = col(r, 1);
             // Eng & Sales → Acme Corp (org 1), Marketing → Globex Inc (org 2)
@@ -859,7 +859,7 @@ class M2MChainIntegrationTest {
         @DisplayName("graphFetch(): mixed scalar traverse + association in same M2M")
         void testGraphFetchMixedTraverseAndAssociation() throws SQLException {
             var json = execGraph("""
-                    StaffFull.all()
+                    model::StaffFull.all()
                         ->graphFetch(#{ StaffFull { fullName, deptName, department { name, location } } }#)
                         ->serialize(#{ StaffFull { fullName, deptName, department { name, location } } }#)
                     """);
@@ -883,7 +883,7 @@ class M2MChainIntegrationTest {
         @DisplayName("graphFetch(): StaffWithDept — correlated subquery JOIN")
         void testDeepFetchViaAssociation() throws SQLException {
             var json = execGraph("""
-                    StaffWithDept.all()
+                    model::StaffWithDept.all()
                         ->graphFetch(#{ StaffWithDept { fullName, department { name, location } } }#)
                         ->serialize(#{ StaffWithDept { fullName, department { name, location } } }#)
                     """);
@@ -899,7 +899,7 @@ class M2MChainIntegrationTest {
         @DisplayName("graphFetch(): deep fetch with only root props (no join triggered)")
         void testDeepFetchRootOnlyNoJoin() throws SQLException {
             var json = execGraph("""
-                    StaffWithDept.all()
+                    model::StaffWithDept.all()
                         ->graphFetch(#{ StaffWithDept { fullName } }#)
                         ->serialize(#{ StaffWithDept { fullName } }#)
                     """);
@@ -913,7 +913,7 @@ class M2MChainIntegrationTest {
         @DisplayName("graphFetch(): deep fetch all 4 employees have correct departments")
         void testDeepFetchAllEmployeesDepts() throws SQLException {
             var json = execGraph("""
-                    StaffWithDept.all()
+                    model::StaffWithDept.all()
                         ->graphFetch(#{ StaffWithDept { fullName, department { name } } }#)
                         ->serialize(#{ StaffWithDept { fullName, department { name } } }#)
                     """);
@@ -931,7 +931,7 @@ class M2MChainIntegrationTest {
         @DisplayName("graphFetch(): deep fetch only location (partial nested selection)")
         void testDeepFetchPartialNestedSelection() throws SQLException {
             var json = execGraph("""
-                    StaffWithDept.all()
+                    model::StaffWithDept.all()
                         ->graphFetch(#{ StaffWithDept { fullName, department { location } } }#)
                         ->serialize(#{ StaffWithDept { fullName, department { location } } }#)
                     """);
@@ -946,7 +946,7 @@ class M2MChainIntegrationTest {
         @DisplayName("graphFetch(): 2 disjoint 1-to-many — department + projects")
         void testDisjointOneToMany() throws SQLException {
             var json = execGraph("""
-                    StaffComplete.all()
+                    model::StaffComplete.all()
                         ->graphFetch(#{ StaffComplete { fullName, department { name }, projects { name, budget } } }#)
                         ->serialize(#{ StaffComplete { fullName, department { name }, projects { name, budget } } }#)
                     """);
@@ -969,7 +969,7 @@ class M2MChainIntegrationTest {
         @DisplayName("graphFetch(): disjoint 1-to-many — only dept (no project subquery)")
         void testDisjointOnlyDept() throws SQLException {
             var json = execGraph("""
-                    StaffComplete.all()
+                    model::StaffComplete.all()
                         ->graphFetch(#{ StaffComplete { fullName, department { name, location } } }#)
                         ->serialize(#{ StaffComplete { fullName, department { name, location } } }#)
                     """);
@@ -982,7 +982,7 @@ class M2MChainIntegrationTest {
         @DisplayName("graphFetch(): disjoint 1-to-many — only projects (no dept subquery)")
         void testDisjointOnlyProjects() throws SQLException {
             var json = execGraph("""
-                    StaffComplete.all()
+                    model::StaffComplete.all()
                         ->graphFetch(#{ StaffComplete { fullName, projects { name, budget } } }#)
                         ->serialize(#{ StaffComplete { fullName, projects { name, budget } } }#)
                     """);
@@ -995,7 +995,7 @@ class M2MChainIntegrationTest {
         @DisplayName("graphFetch(): disjoint 1-to-many — root only (0 subqueries)")
         void testDisjointRootOnly() throws SQLException {
             var json = execGraph("""
-                    StaffComplete.all()
+                    model::StaffComplete.all()
                         ->graphFetch(#{ StaffComplete { fullName } }#)
                         ->serialize(#{ StaffComplete { fullName } }#)
                     """);
@@ -1009,7 +1009,7 @@ class M2MChainIntegrationTest {
         @DisplayName("graphFetch(): disjoint 1-to-many — employee with 0 projects")
         void testDisjointZeroProjects() throws SQLException {
             var json = execGraph("""
-                    StaffComplete.all()
+                    model::StaffComplete.all()
                         ->graphFetch(#{ StaffComplete { fullName, projects { name } } }#)
                         ->serialize(#{ StaffComplete { fullName, projects { name } } }#)
                     """);
@@ -1021,7 +1021,7 @@ class M2MChainIntegrationTest {
         @DisplayName("graphFetch(): disjoint 1-to-many — Alice has 2 projects")
         void testDisjointMultipleProjects() throws SQLException {
             var json = execGraph("""
-                    StaffComplete.all()
+                    model::StaffComplete.all()
                         ->filter({x|$x.fullName == 'Alice Smith'})
                         ->graphFetch(#{ StaffComplete { fullName, projects { name, budget } } }#)
                         ->serialize(#{ StaffComplete { fullName, projects { name, budget } } }#)

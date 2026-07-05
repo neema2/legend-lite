@@ -71,7 +71,7 @@ public class FromCheckerTest extends AbstractDatabaseTest {
         @DisplayName("from() on class-based source preserves schema through project")
         void testFromClassSource() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->project(~[name:p|$p.firstName, age:p|$p.age])
                       ->from(test::TestRuntime)""");
             assertEquals(3, result.rows().size(), "All 3 persons");
@@ -84,7 +84,7 @@ public class FromCheckerTest extends AbstractDatabaseTest {
         @DisplayName("from() preserves exact values through passthrough")
         void testFromPreservesValues() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->sortBy({p|$p.firstName})
                       ->project(~[name:p|$p.firstName, age:p|$p.age])
                       ->from(test::TestRuntime)""");
@@ -109,7 +109,7 @@ public class FromCheckerTest extends AbstractDatabaseTest {
         @DisplayName("filter→project→from() — type preserved through chain")
         void testFilterProjectFrom() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->filter(p|$p.age > 30)
                       ->project(~[name:p|$p.firstName, age:p|$p.age])
                       ->from(test::TestRuntime)""");
@@ -122,7 +122,7 @@ public class FromCheckerTest extends AbstractDatabaseTest {
         @DisplayName("filter→from() preserves filtering")
         void testFilterFrom() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->filter(p|$p.lastName == 'Smith')
                       ->project(~[fn:p|$p.firstName, ln:p|$p.lastName])
                       ->from(test::TestRuntime)""");
@@ -143,7 +143,7 @@ public class FromCheckerTest extends AbstractDatabaseTest {
         @DisplayName("sort→project→from() — ordering preserved")
         void testSortProjectFrom() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->sortBy({p|$p.age})
                       ->project(~[name:p|$p.firstName, age:p|$p.age])
                       ->from(test::TestRuntime)""");
@@ -168,7 +168,7 @@ public class FromCheckerTest extends AbstractDatabaseTest {
         @DisplayName("sort→limit→project→from() — limit preserved")
         void testSortLimitProjectFrom() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->sortBy({p|$p.age})
                       ->limit(2)
                       ->project(~[name:p|$p.firstName, age:p|$p.age])

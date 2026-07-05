@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>Covers:
  * <ul>
  *   <li>TDS: limit, drop, slice on inline TDS</li>
- *   <li>Class-based: take, drop, first, last on Person.all()</li>
+ *   <li>Class-based: take, drop, first, last on model::Person.all()</li>
  *   <li>Chains: filter→limit, sort→limit, project→slice</li>
  *   <li>Edge cases: limit(0), drop all, slice beyond bounds</li>
  *   <li>Error cases: wrong argument types</li>
@@ -129,7 +129,7 @@ public class SlicingCheckerTest extends AbstractDatabaseTest {
         @DisplayName("take on class-based source")
         void testClassTake() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->sortBy({p|$p.firstName})
                       ->take(2)
                       ->project(~[name:p|$p.firstName, age:p|$p.age])""");
@@ -144,7 +144,7 @@ public class SlicingCheckerTest extends AbstractDatabaseTest {
         @DisplayName("drop on class-based source")
         void testClassDrop() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->sortBy({p|$p.firstName})
                       ->drop(2)
                       ->project(~[name:p|$p.firstName, age:p|$p.age])""");
@@ -173,7 +173,7 @@ public class SlicingCheckerTest extends AbstractDatabaseTest {
         @DisplayName("limit on class-based source")
         void testClassLimit() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->sortBy({p|$p.age})
                       ->limit(1)
                       ->project(~[name:p|$p.firstName, age:p|$p.age])""");
@@ -193,7 +193,7 @@ public class SlicingCheckerTest extends AbstractDatabaseTest {
         @DisplayName("filter→sort→limit")
         void testFilterSortLimit() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->filter(p|$p.age > 25)
                       ->sortBy({p|$p.age})
                       ->limit(2)
@@ -209,7 +209,7 @@ public class SlicingCheckerTest extends AbstractDatabaseTest {
         @DisplayName("project→sort→slice")
         void testProjectSortSlice() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->project(~[name:p|$p.firstName, age:p|$p.age])
                       ->sort(ascending(~age))
                       ->slice(0,2)""");
@@ -264,7 +264,7 @@ public class SlicingCheckerTest extends AbstractDatabaseTest {
             // first(T[*]):T[0..1] matches class-based sources (isRelational=false)
             // project() works because class mapping is preserved in TypeInfo
             var result = executeRelation("""
-                            Person.all()
+                            model::Person.all()
                               ->sortBy({p|$p.age})
                               ->first()
                               ->project(~[name:p|$p.firstName])""");

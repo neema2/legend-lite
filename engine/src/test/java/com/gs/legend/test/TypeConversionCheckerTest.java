@@ -237,7 +237,7 @@ public class TypeConversionCheckerTest extends AbstractDatabaseTest {
         void testClassProjectCastAggregate() throws SQLException {
             // Test data: John(30), Jane(28), Bob(45) — two Smiths, one Jones
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                         ->project(~[last:p|$p.lastName, age:p|$p.age])
                         ->cast(@Relation<(last:String, age:Integer)>)
                         ->groupBy(~[last], ~[maxAge:x|$x.age:y|$y->max()])
@@ -261,7 +261,7 @@ public class TypeConversionCheckerTest extends AbstractDatabaseTest {
         @DisplayName("project → cast schema subset — drops columns, verify remaining data")
         void testClassProjectCastDropColumns() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                         ->project(~[name:p|$p.firstName, age:p|$p.age])
                         ->cast(@Relation<(name:String)>)
                         ->sort(~name->ascending())

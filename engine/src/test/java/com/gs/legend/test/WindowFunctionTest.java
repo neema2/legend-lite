@@ -148,7 +148,7 @@ class WindowFunctionTest {
     @DisplayName("Execute ROW_NUMBER via Pure → QueryService → DuckDB")
     void testExecuteRowNumberViaPure() throws Exception {
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->desc()), ~rowNum:{p,w,r|$p->rowNumber($r)})
                 """;
@@ -186,7 +186,7 @@ class WindowFunctionTest {
         }
 
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->desc()), ~salaryRank:{p,w,r|$p->rank($w,$r)})
                 """;
@@ -224,7 +224,7 @@ class WindowFunctionTest {
     @DisplayName("Execute SUM running total via Pure → QueryService → DuckDB")
     void testExecuteRunningSumViaPure() throws Exception {
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->ascending()), ~runningTotal:{p,w,r|$r.salary}:y|$y->plus())
                 """;
@@ -260,7 +260,7 @@ class WindowFunctionTest {
         }
 
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->desc()), ~denseRank:{p,w,r|$p->denseRank($w,$r)})
                 """;
@@ -288,7 +288,7 @@ class WindowFunctionTest {
     @DisplayName("Execute SUM with ROWS frame via Pure → QueryService → DuckDB")
     void testExecuteSumWithRowsFrameViaPure() throws Exception {
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->ascending(), rows(unbounded(), 0)), ~runningSum:{p,w,r|$r.salary}:y|$y->plus())
                 """;
@@ -309,7 +309,7 @@ class WindowFunctionTest {
     @DisplayName("Execute LAG via Pure → QueryService → DuckDB")
     void testExecuteLagViaPure() throws Exception {
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->descending()), ~prevSalary:{p,w,r|$p->lag($r).salary})
                 """;
@@ -337,7 +337,7 @@ class WindowFunctionTest {
     @DisplayName("Execute LEAD via Pure → QueryService → DuckDB")
     void testExecuteLeadViaPure() throws Exception {
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->descending()), ~nextSalary:{p,w,r|$p->lead($r).salary})
                 """;
@@ -365,7 +365,7 @@ class WindowFunctionTest {
     @DisplayName("Execute FIRST_VALUE via Pure → QueryService → DuckDB")
     void testExecuteFirstValueViaPure() throws Exception {
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->descending()), ~topSalary:{p,w,r|$p->first($w,$r).salary})
                 """;
@@ -390,7 +390,7 @@ class WindowFunctionTest {
     @DisplayName("Execute LAST_VALUE via Pure → QueryService → DuckDB")
     void testExecuteLastValueViaPure() throws Exception {
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->descending()), ~bottomSalary:{p,w,r|$p->last($w,$r).salary})
                 """;
@@ -416,7 +416,7 @@ class WindowFunctionTest {
     @DisplayName("Execute NTILE via Pure → QueryService → DuckDB")
     void testExecuteNtileViaPure() throws Exception {
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->descending()), ~bucket:{p,w,r|$p->ntile($r,2)})
                 """;
@@ -441,7 +441,7 @@ class WindowFunctionTest {
     @DisplayName("Execute FIRST_VALUE with unbounded frame via Pure → QueryService → DuckDB")
     void testExecuteFirstValueWithUnboundedFrameViaPure() throws Exception {
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->descending(), rows(unbounded(), unbounded())), ~topSalary:{p,w,r|$p->first($w,$r).salary})
                 """;
@@ -472,7 +472,7 @@ class WindowFunctionTest {
     @DisplayName("Execute LAST_VALUE with unbounded frame via Pure → QueryService → DuckDB")
     void testExecuteLastValueWithUnboundedFrameViaPure() throws Exception {
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->descending(), rows(unbounded(), unbounded())), ~bottomSalary:{p,w,r|$p->last($w,$r).salary})
                 """;
@@ -503,7 +503,7 @@ class WindowFunctionTest {
     @DisplayName("Execute SUM with running total frame (unbounded preceding to current row)")
     void testExecuteSumWithRunningTotalFrame() throws Exception {
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->ascending(), rows(unbounded(), 0)), ~runningTotal:{p,w,r|$p->sum($w,$r).salary})
                 """;
@@ -532,7 +532,7 @@ class WindowFunctionTest {
     @DisplayName("Execute AVG with sliding window frame (previous 1 row to next 1 row)")
     void testExecuteAvgWithSlidingWindowFrame() throws Exception {
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->ascending(), rows(-1, 1)), ~movingAvg:{p,w,r|$p->avg($w,$r).salary})
                 """;
@@ -561,7 +561,7 @@ class WindowFunctionTest {
     @DisplayName("Execute SUM with trailing window frame (previous 2 rows to current)")
     void testExecuteSumWithTrailingWindowFrame() throws Exception {
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->ascending(), rows(-2, 0)), ~trailing3Sum:{p,w,r|$p->sum($w,$r).salary})
                 """;
@@ -589,7 +589,7 @@ class WindowFunctionTest {
     @DisplayName("Execute SUM with current row to end frame (0 to unbounded)")
     void testExecuteSumWithCurrentToEndFrame() throws Exception {
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->ascending(), rows(0, unbounded())), ~remainingSum:{p,w,r|$p->sum($w,$r).salary})
                 """;
@@ -617,7 +617,7 @@ class WindowFunctionTest {
     @DisplayName("Execute COUNT with sliding window frame")
     void testExecuteCountWithSlidingWindowFrame() throws Exception {
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->ascending(), rows(-1, 1)), ~neighborCount:{p,w,r|$p->count($w,$r)})
                 """;
@@ -695,7 +695,7 @@ class WindowFunctionTest {
     @DisplayName("Execute STDDEV window aggregate via Pure → QueryService → DuckDB")
     void testExecuteStdDevWindowViaPure() throws Exception {
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department), ~deptStdDev:{p,w,r|$p->stdDev($w,$r).salary})
                 """;
@@ -717,7 +717,7 @@ class WindowFunctionTest {
     @DisplayName("Execute VARIANCE window aggregate via Pure → QueryService → DuckDB")
     void testExecuteVarianceWindowViaPure() throws Exception {
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department), ~deptVar:{p,w,r|$p->variance($w,$r).salary})
                 """;
@@ -735,7 +735,7 @@ class WindowFunctionTest {
     @DisplayName("Execute PERCENT_RANK via Pure → QueryService → DuckDB")
     void testExecutePercentRankViaPure() throws Exception {
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->desc()), ~pctRank:{p,w,r| $p->percentRank($w,$r)})
                 """;
@@ -766,7 +766,7 @@ class WindowFunctionTest {
     @DisplayName("Execute CUME_DIST via Pure → QueryService → DuckDB")
     void testExecuteCumeDistViaPure() throws Exception {
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->desc()), ~cumeDist:{p,w,r| $p->cumulativeDistribution($w,$r)})
                 """;
@@ -797,7 +797,7 @@ class WindowFunctionTest {
     @DisplayName("Execute CUME_DIST with chained round() post-processor")
     void testExecuteCumeDistWithRound() throws Exception {
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
                     ->extend(over(~department, ~salary->desc()), ~cumeDist:{p,w,r| $p->cumulativeDistribution($w,$r)->round(2)})
                 """;
@@ -830,7 +830,7 @@ class WindowFunctionTest {
     @DisplayName("Execute aggregate extend without over() - SUM over entire relation")
     void testAggregateExtendNoOver() throws Exception {
         String pureQuery = """
-                Employee.all()
+                model::Employee.all()
                     ->project(~[name:e|$e.name, salary:e|$e.salary])
                     ->extend(~totalSalary:c|$c.salary:y|$y->plus())
                 """;

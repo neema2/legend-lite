@@ -90,7 +90,7 @@ public class WriteCheckerTest extends AbstractDatabaseTest {
             // The write function's return type is Integer[1] per the signature.
             // We can verify this through the SQL compilation path.
             String sql = generateSql("""
-                    Person.all()
+                    model::Person.all()
                       ->project(~[fn:p|$p.firstName, age:p|$p.age])""");
             assertNotNull(sql, "SQL generated successfully — type checker accepted the query");
             assertFalse(sql.isEmpty());
@@ -121,7 +121,7 @@ public class WriteCheckerTest extends AbstractDatabaseTest {
         @DisplayName("write() source after filter — relational type preserved")
         void testWriteFilteredSource() throws SQLException {
             String sql = generateSql("""
-                    Person.all()
+                    model::Person.all()
                       ->filter(p|$p.age > 30)
                       ->project(~[name:p|$p.firstName, age:p|$p.age])""");
             assertNotNull(sql);
@@ -132,7 +132,7 @@ public class WriteCheckerTest extends AbstractDatabaseTest {
         @DisplayName("write() source after sort+limit — relational type preserved")
         void testWriteSortedLimitedSource() throws SQLException {
             String sql = generateSql("""
-                    Person.all()
+                    model::Person.all()
                       ->sortBy({p|$p.age})
                       ->limit(2)
                       ->project(~[name:p|$p.firstName, age:p|$p.age])""");
@@ -151,7 +151,7 @@ public class WriteCheckerTest extends AbstractDatabaseTest {
         @DisplayName("project→from compiles — schema propagated correctly for write target")
         void testProjectFromForWrite() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->project(~[fn:p|$p.firstName, ln:p|$p.lastName])
                       ->from(test::TestRuntime)""");
             assertEquals(3, result.rows().size(), "All persons projected");
@@ -164,7 +164,7 @@ public class WriteCheckerTest extends AbstractDatabaseTest {
         @DisplayName("filter→project→from compiles — filtered schema for write")
         void testFilterProjectFromForWrite() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->filter(p|$p.age > 30)
                       ->project(~[name:p|$p.firstName, age:p|$p.age])
                       ->from(test::TestRuntime)""");
@@ -177,7 +177,7 @@ public class WriteCheckerTest extends AbstractDatabaseTest {
         @DisplayName("extend→from compiles — extended schema for write target")
         void testExtendFromForWrite() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->project(~[fn:p|$p.firstName, age:p|$p.age])
                       ->extend(~ageGroup:x|$x.age > 30)
                       ->from(test::TestRuntime)""");

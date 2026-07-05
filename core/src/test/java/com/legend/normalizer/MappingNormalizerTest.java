@@ -292,7 +292,7 @@ class MappingNormalizerTest {
         assertEquals("model::Person",
                 ((TypeExpression.NameRef) fn.parameters().get(1).type()).name(),
                 "param type from association end2 (Person)");
-        assertEquals("Boolean", ((TypeExpression.NameRef) fn.returnType()).name());
+        assertEquals("meta::pure::metamodel::type::Boolean", ((TypeExpression.NameRef) fn.returnType()).name());
         assertEquals(SynthHat.ASSOC, fn.synthesizedFrom().hat());
 
         var md = canonicalMapping(normalized, "acme::M");
@@ -3832,7 +3832,7 @@ class MappingNormalizerTest {
         assertEquals("b", assocFn.parameters().get(1).name());
         assertEquals("model::Person",
                 ((com.legend.parser.TypeExpression.NameRef) assocFn.parameters().get(1).type()).name());
-        assertEquals("Boolean",
+        assertEquals("meta::pure::metamodel::type::Boolean",
                 ((com.legend.parser.TypeExpression.NameRef) assocFn.returnType()).name());
 
         // Body: legacyAssocPredicate($a, $b, {srcRow, tgtRow | cond}).

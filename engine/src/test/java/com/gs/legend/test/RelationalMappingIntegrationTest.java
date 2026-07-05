@@ -116,7 +116,7 @@ class RelationalMappingIntegrationTest {
                     "Class model::P { name: String[1]; }",
                     "ID INTEGER, NAME VARCHAR(100)",
                     "name: [store::DB] T1.NAME");
-            var r = exec(m, "P.all()->project(~[name:x|$x.name])");
+            var r = exec(m, "model::P.all()->project(~[name:x|$x.name])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Bob")));
         }
@@ -130,7 +130,7 @@ class RelationalMappingIntegrationTest {
                     "Class model::P { age: Integer[1]; }",
                     "ID INTEGER, AGE INTEGER",
                     "age: [store::DB] T1.AGE");
-            var r = exec(m, "P.all()->project(~[age:x|$x.age])");
+            var r = exec(m, "model::P.all()->project(~[age:x|$x.age])");
             assertEquals(2, r.rowCount());
             assertTrue(colInt(r, 0).containsAll(List.of(25, 30)));
         }
@@ -144,7 +144,7 @@ class RelationalMappingIntegrationTest {
                     "Class model::P { price: Float[1]; }",
                     "ID INTEGER, PRICE DOUBLE",
                     "price: [store::DB] T1.PRICE");
-            var r = exec(m, "P.all()->project(~[price:x|$x.price])");
+            var r = exec(m, "model::P.all()->project(~[price:x|$x.price])");
             assertEquals(2, r.rowCount());
         }
 
@@ -157,7 +157,7 @@ class RelationalMappingIntegrationTest {
                     "Class model::P { active: Boolean[1]; }",
                     "ID INTEGER, ACTIVE BOOLEAN",
                     "active: [store::DB] T1.ACTIVE");
-            var r = exec(m, "P.all()->project(~[active:x|$x.active])");
+            var r = exec(m, "model::P.all()->project(~[active:x|$x.active])");
             assertEquals(2, r.rowCount());
         }
 
@@ -170,7 +170,7 @@ class RelationalMappingIntegrationTest {
                     "Class model::P { dob: Date[1]; }",
                     "ID INTEGER, DOB DATE",
                     "dob: [store::DB] T1.DOB");
-            var r = exec(m, "P.all()->project(~[dob:x|$x.dob])");
+            var r = exec(m, "model::P.all()->project(~[dob:x|$x.dob])");
             assertEquals(2, r.rowCount());
             assertNotNull(r.rows().get(0).get(0));
         }
@@ -184,7 +184,7 @@ class RelationalMappingIntegrationTest {
                     "Class model::Emp { name: String[1]; dept: String[1]; sal: Integer[1]; }",
                     "ID INTEGER, NAME VARCHAR(100), DEPT VARCHAR(50), SAL INTEGER",
                     "name: [store::DB] EMP.NAME, dept: [store::DB] EMP.DEPT, sal: [store::DB] EMP.SAL");
-            var r = exec(m, "Emp.all()->project(~[name:x|$x.name, dept:x|$x.dept, sal:x|$x.sal])");
+            var r = exec(m, "model::Emp.all()->project(~[name:x|$x.name, dept:x|$x.dept, sal:x|$x.sal])");
             assertEquals(2, r.rowCount());
             assertEquals(3, r.columnCount());
         }
@@ -198,7 +198,7 @@ class RelationalMappingIntegrationTest {
                     "Class model::Firm { legalName: String[1]; }",
                     "ID INTEGER, LEGAL_NAME VARCHAR(200)",
                     "legalName: [store::DB] T1.LEGAL_NAME");
-            var r = exec(m, "Firm.all()->project(~[legalName:x|$x.legalName])");
+            var r = exec(m, "test::Firm.all()->project(~[legalName:x|$x.legalName])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).contains("Acme Corp"));
         }
@@ -212,7 +212,7 @@ class RelationalMappingIntegrationTest {
                     "Class model::R { s: String[1]; i: Integer[1]; f: Float[1]; b: Boolean[1]; d: Date[1]; }",
                     "ID INTEGER, S VARCHAR(100), I BIGINT, F DOUBLE, B BOOLEAN, D DATE",
                     "s: [store::DB] MIXED.S, i: [store::DB] MIXED.I, f: [store::DB] MIXED.F, b: [store::DB] MIXED.B, d: [store::DB] MIXED.D");
-            var r = exec(m, "R.all()->project(~[s:x|$x.s, i:x|$x.i, f:x|$x.f, b:x|$x.b, d:x|$x.d])");
+            var r = exec(m, "model::R.all()->project(~[s:x|$x.s, i:x|$x.i, f:x|$x.f, b:x|$x.b, d:x|$x.d])");
             assertEquals(1, r.rowCount());
             assertEquals(5, r.columnCount());
             assertEquals("hello", r.rows().get(0).get(0).toString());
@@ -226,7 +226,7 @@ class RelationalMappingIntegrationTest {
                     "Class model::P { name: String[1]; }",
                     "ID INTEGER, NAME VARCHAR(100)",
                     "name: [store::DB] EMPTY_T.NAME");
-            var r = exec(m, "P.all()->project(~[name:x|$x.name])");
+            var r = exec(m, "model::P.all()->project(~[name:x|$x.name])");
             assertEquals(0, r.rowCount());
         }
 
@@ -244,7 +244,7 @@ class RelationalMappingIntegrationTest {
                     "Class model::R { val: Integer[1]; }",
                     "ID INTEGER, VAL INTEGER",
                     "val: [store::DB] BIG.VAL");
-            var r = exec(m, "R.all()->project(~[val:x|$x.val])");
+            var r = exec(m, "model::R.all()->project(~[val:x|$x.val])");
             assertEquals(1000, r.rowCount());
         }
 
@@ -270,11 +270,11 @@ class RelationalMappingIntegrationTest {
                         Firm: Relational { ~mainTable [store::DB] T_FIRM legal: [store::DB] T_FIRM.LEGAL }
                     )
                     """, "store::DB", "model::M");
-            var r1 = exec(model, "Person.all()->project(~[name:x|$x.name])");
+            var r1 = exec(model, "test::Person.all()->project(~[name:x|$x.name])");
             assertEquals(1, r1.rowCount());
             assertEquals("Alice", r1.rows().get(0).get(0).toString());
 
-            var r2 = exec(model, "Firm.all()->project(~[legal:x|$x.legal])");
+            var r2 = exec(model, "test::Firm.all()->project(~[legal:x|$x.legal])");
             assertEquals(1, r2.rowCount());
             assertEquals("Acme", r2.rows().get(0).get(0).toString());
         }
@@ -304,14 +304,14 @@ class RelationalMappingIntegrationTest {
 
         @Test @DisplayName("Filter: equality (==)")
         void testEquality() throws SQLException {
-            var r = exec(empModel, "Emp.all()->filter({e|$e.dept == 'Engineering'})->project(~[name:e|$e.name])");
+            var r = exec(empModel, "model::Emp.all()->filter({e|$e.dept == 'Engineering'})->project(~[name:e|$e.name])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Charlie")));
         }
 
         @Test @DisplayName("Filter: inequality (!=)")
         void testInequality() throws SQLException {
-            var r = exec(empModel, "Emp.all()->filter({e|$e.dept != 'Engineering'})->project(~[name:e|$e.name])");
+            var r = exec(empModel, "model::Emp.all()->filter({e|$e.dept != 'Engineering'})->project(~[name:e|$e.name])");
             assertEquals(3, r.rowCount());
             assertFalse(colStr(r, 0).contains("Alice"));
             assertFalse(colStr(r, 0).contains("Charlie"));
@@ -319,93 +319,93 @@ class RelationalMappingIntegrationTest {
 
         @Test @DisplayName("Filter: greater than (>)")
         void testGreaterThan() throws SQLException {
-            var r = exec(empModel, "Emp.all()->filter({e|$e.sal > 85000})->project(~[name:e|$e.name])");
+            var r = exec(empModel, "model::Emp.all()->filter({e|$e.sal > 85000})->project(~[name:e|$e.name])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Charlie")));
         }
 
         @Test @DisplayName("Filter: greater or equal (>=)")
         void testGreaterOrEqual() throws SQLException {
-            var r = exec(empModel, "Emp.all()->filter({e|$e.sal >= 90000})->project(~[name:e|$e.name])");
+            var r = exec(empModel, "model::Emp.all()->filter({e|$e.sal >= 90000})->project(~[name:e|$e.name])");
             assertEquals(2, r.rowCount());
         }
 
         @Test @DisplayName("Filter: less than (<)")
         void testLessThan() throws SQLException {
-            var r = exec(empModel, "Emp.all()->filter({e|$e.sal < 85000})->project(~[name:e|$e.name])");
+            var r = exec(empModel, "model::Emp.all()->filter({e|$e.sal < 85000})->project(~[name:e|$e.name])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Bob", "Diana")));
         }
 
         @Test @DisplayName("Filter: less or equal (<=)")
         void testLessOrEqual() throws SQLException {
-            var r = exec(empModel, "Emp.all()->filter({e|$e.sal <= 80000})->project(~[name:e|$e.name])");
+            var r = exec(empModel, "model::Emp.all()->filter({e|$e.sal <= 80000})->project(~[name:e|$e.name])");
             assertEquals(2, r.rowCount());
         }
 
         @Test @DisplayName("Filter: boolean AND (&&)")
         void testBooleanAnd() throws SQLException {
-            var r = exec(empModel, "Emp.all()->filter({e|$e.dept == 'Engineering' && $e.sal > 95000})->project(~[name:e|$e.name])");
+            var r = exec(empModel, "model::Emp.all()->filter({e|$e.dept == 'Engineering' && $e.sal > 95000})->project(~[name:e|$e.name])");
             assertEquals(1, r.rowCount());
             assertEquals("Alice", r.rows().get(0).get(0).toString());
         }
 
         @Test @DisplayName("Filter: boolean OR (||)")
         void testBooleanOr() throws SQLException {
-            var r = exec(empModel, "Emp.all()->filter({e|$e.dept == 'Marketing' || $e.dept == 'Sales'})->project(~[name:e|$e.name])");
+            var r = exec(empModel, "model::Emp.all()->filter({e|$e.dept == 'Marketing' || $e.dept == 'Sales'})->project(~[name:e|$e.name])");
             assertEquals(3, r.rowCount());
         }
 
         @Test @DisplayName("Filter: boolean NOT (!)")
         void testBooleanNot() throws SQLException {
-            var r = exec(empModel, "Emp.all()->filter({e|!($e.dept == 'Engineering')})->project(~[name:e|$e.name])");
+            var r = exec(empModel, "model::Emp.all()->filter({e|!($e.dept == 'Engineering')})->project(~[name:e|$e.name])");
             assertEquals(3, r.rowCount());
         }
 
         @Test @DisplayName("Filter: boolean column directly")
         void testBooleanColumnFilter() throws SQLException {
-            var r = exec(empModel, "Emp.all()->filter({e|$e.active == true})->project(~[name:e|$e.name])");
+            var r = exec(empModel, "model::Emp.all()->filter({e|$e.active == true})->project(~[name:e|$e.name])");
             assertEquals(3, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Bob", "Diana")));
         }
 
         @Test @DisplayName("Filter: string contains")
         void testStringContains() throws SQLException {
-            var r = exec(empModel, "Emp.all()->filter({e|$e.name->contains('li')})->project(~[name:e|$e.name])");
+            var r = exec(empModel, "model::Emp.all()->filter({e|$e.name->contains('li')})->project(~[name:e|$e.name])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Charlie")));
         }
 
         @Test @DisplayName("Filter: string startsWith")
         void testStringStartsWith() throws SQLException {
-            var r = exec(empModel, "Emp.all()->filter({e|$e.name->startsWith('A')})->project(~[name:e|$e.name])");
+            var r = exec(empModel, "model::Emp.all()->filter({e|$e.name->startsWith('A')})->project(~[name:e|$e.name])");
             assertEquals(1, r.rowCount());
             assertEquals("Alice", r.rows().get(0).get(0).toString());
         }
 
         @Test @DisplayName("Filter: string endsWith")
         void testStringEndsWith() throws SQLException {
-            var r = exec(empModel, "Emp.all()->filter({e|$e.name->endsWith('e')})->project(~[name:e|$e.name])");
+            var r = exec(empModel, "model::Emp.all()->filter({e|$e.name->endsWith('e')})->project(~[name:e|$e.name])");
             assertEquals(3, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Charlie", "Eve")));
         }
 
         @Test @DisplayName("Filter: complex compound predicate")
         void testComplexCompound() throws SQLException {
-            var r = exec(empModel, "Emp.all()->filter({e|($e.dept == 'Engineering' && $e.sal > 95000) || ($e.dept == 'Sales' && $e.active == true)})->project(~[name:e|$e.name])");
+            var r = exec(empModel, "model::Emp.all()->filter({e|($e.dept == 'Engineering' && $e.sal > 95000) || ($e.dept == 'Sales' && $e.active == true)})->project(~[name:e|$e.name])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Bob")));
         }
 
         @Test @DisplayName("Filter returns zero rows")
         void testFilterNoMatch() throws SQLException {
-            var r = exec(empModel, "Emp.all()->filter({e|$e.sal > 999999})->project(~[name:e|$e.name])");
+            var r = exec(empModel, "model::Emp.all()->filter({e|$e.sal > 999999})->project(~[name:e|$e.name])");
             assertEquals(0, r.rowCount());
         }
 
         @Test @DisplayName("Filter: chained filters")
         void testChainedFilters() throws SQLException {
-            var r = exec(empModel, "Emp.all()->filter({e|$e.dept == 'Engineering'})->filter({e|$e.sal > 95000})->project(~[name:e|$e.name])");
+            var r = exec(empModel, "model::Emp.all()->filter({e|$e.dept == 'Engineering'})->filter({e|$e.sal > 95000})->project(~[name:e|$e.name])");
             assertEquals(1, r.rowCount());
             assertEquals("Alice", r.rows().get(0).get(0).toString());
         }
@@ -432,35 +432,35 @@ class RelationalMappingIntegrationTest {
 
         @Test @DisplayName("Project single column")
         void testSingleColumn() throws SQLException {
-            var r = exec(projModel(), "P.all()->project(~[first:x|$x.first])");
+            var r = exec(projModel(), "model::P.all()->project(~[first:x|$x.first])");
             assertEquals(2, r.rowCount());
             assertEquals(1, r.columnCount());
         }
 
         @Test @DisplayName("Project multiple columns")
         void testMultipleColumns() throws SQLException {
-            var r = exec(projModel(), "P.all()->project(~[first:x|$x.first, last:x|$x.last, sal:x|$x.sal])");
+            var r = exec(projModel(), "model::P.all()->project(~[first:x|$x.first, last:x|$x.last, sal:x|$x.sal])");
             assertEquals(2, r.rowCount());
             assertEquals(3, r.columnCount());
         }
 
         @Test @DisplayName("Project with filter")
         void testProjectWithFilter() throws SQLException {
-            var r = exec(projModel(), "P.all()->filter({x|$x.sal > 90000})->project(~[first:x|$x.first])");
+            var r = exec(projModel(), "model::P.all()->filter({x|$x.sal > 90000})->project(~[first:x|$x.first])");
             assertEquals(1, r.rowCount());
             assertEquals("Alice", r.rows().get(0).get(0).toString());
         }
 
         @Test @DisplayName("Project preserves column names from tilde syntax")
         void testColumnNames() throws SQLException {
-            var r = exec(projModel(), "P.all()->project(~[firstName:x|$x.first, lastName:x|$x.last])");
+            var r = exec(projModel(), "model::P.all()->project(~[firstName:x|$x.first, lastName:x|$x.last])");
             assertEquals("firstName", r.columns().get(0).name());
             assertEquals("lastName", r.columns().get(1).name());
         }
 
         @Test @DisplayName("Legacy project syntax with lambda list")
         void testLegacyProjectSyntax() throws SQLException {
-            var r = exec(projModel(), "P.all()->project([{x|$x.first}, {x|$x.last}], ['first_name', 'last_name'])");
+            var r = exec(projModel(), "model::P.all()->project([{x|$x.first}, {x|$x.last}], ['first_name', 'last_name'])");
             assertEquals(2, r.rowCount());
             assertEquals("first_name", r.columns().get(0).name());
         }
@@ -486,33 +486,33 @@ class RelationalMappingIntegrationTest {
 
         @Test @DisplayName("sortBy ascending")
         void testSortByAsc() throws SQLException {
-            var r = exec(model, "N.all()->sortBy({x|$x.val})->project(~[val:x|$x.val])");
+            var r = exec(model, "model::N.all()->sortBy({x|$x.val})->project(~[val:x|$x.val])");
             var vals = colInt(r, 0);
             assertEquals(List.of(10, 20, 30, 40, 50), vals);
         }
 
         @Test @DisplayName("sortByReversed descending")
         void testSortByDesc() throws SQLException {
-            var r = exec(model, "N.all()->sortByReversed({x|$x.val})->project(~[val:x|$x.val])");
+            var r = exec(model, "model::N.all()->sortByReversed({x|$x.val})->project(~[val:x|$x.val])");
             var vals = colInt(r, 0);
             assertEquals(List.of(50, 40, 30, 20, 10), vals);
         }
 
         @Test @DisplayName("limit(3)")
         void testLimit() throws SQLException {
-            var r = exec(model, "N.all()->sortBy({x|$x.val})->limit(3)->project(~[val:x|$x.val])");
+            var r = exec(model, "model::N.all()->sortBy({x|$x.val})->limit(3)->project(~[val:x|$x.val])");
             assertEquals(3, r.rowCount());
         }
 
         @Test @DisplayName("limit(0) returns empty")
         void testLimitZero() throws SQLException {
-            var r = exec(model, "N.all()->limit(0)->project(~[val:x|$x.val])");
+            var r = exec(model, "model::N.all()->limit(0)->project(~[val:x|$x.val])");
             assertEquals(0, r.rowCount());
         }
 
         @Test @DisplayName("sort + filter + limit combo")
         void testSortFilterLimit() throws SQLException {
-            var r = exec(model, "N.all()->filter({x|$x.val > 15})->sortBy({x|$x.val})->limit(2)->project(~[val:x|$x.val])");
+            var r = exec(model, "model::N.all()->filter({x|$x.val > 15})->sortBy({x|$x.val})->limit(2)->project(~[val:x|$x.val])");
             assertEquals(2, r.rowCount());
             assertEquals(List.of(20, 30), colInt(r, 0));
         }
@@ -520,7 +520,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Relation sort + slice")
         void testRelationSortSlice() throws SQLException {
             var r = exec(model,
-                    "N.all()->project([{x|$x.val}], ['val'])->sort('val', SortDirection.ASC)->slice(1, 3)");
+                    "model::N.all()->project([{x|$x.val}], ['val'])->sort('val', SortDirection.ASC)->slice(1, 3)");
             assertEquals(2, r.rowCount());
             // Rows 1-2 (0-indexed skip 1, take 2): val=20, val=30
         }
@@ -551,7 +551,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("GroupBy single column with sum")
         void testGroupBySum() throws SQLException {
             var r = exec(model,
-                    "S.all()->project(~[region:x|$x.region, amount:x|$x.amount])->groupBy([{r|$r.region}], [agg({r|$r.amount}, {y|$y->sum()})], ['region', 'totalAmount'])");
+                    "model::S.all()->project(~[region:x|$x.region, amount:x|$x.amount])->groupBy([{r|$r.region}], [agg({r|$r.amount}, {y|$y->sum()})], ['region', 'totalAmount'])");
             assertEquals(2, r.rowCount());
             Map<String, Integer> results = new HashMap<>();
             for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
@@ -562,7 +562,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("GroupBy with count")
         void testGroupByCount() throws SQLException {
             var r = exec(model,
-                    "S.all()->project(~[region:x|$x.region, amount:x|$x.amount])->groupBy([{r|$r.region}], [agg({r|$r.amount}, {y|$y->count()})], ['region', 'cnt'])");
+                    "model::S.all()->project(~[region:x|$x.region, amount:x|$x.amount])->groupBy([{r|$r.region}], [agg({r|$r.amount}, {y|$y->count()})], ['region', 'cnt'])");
             assertEquals(2, r.rowCount());
             Map<String, Integer> results = new HashMap<>();
             for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
@@ -573,14 +573,14 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("GroupBy with average")
         void testGroupByAvg() throws SQLException {
             var r = exec(model,
-                    "S.all()->project(~[region:x|$x.region, amount:x|$x.amount])->groupBy([{r|$r.region}], [agg({r|$r.amount}, {y|$y->average()})], ['region', 'avgAmt'])");
+                    "model::S.all()->project(~[region:x|$x.region, amount:x|$x.amount])->groupBy([{r|$r.region}], [agg({r|$r.amount}, {y|$y->average()})], ['region', 'avgAmt'])");
             assertEquals(2, r.rowCount());
         }
 
         @Test @DisplayName("GroupBy with min and max")
         void testGroupByMinMax() throws SQLException {
             var r = exec(model,
-                    "S.all()->project(~[region:x|$x.region, amount:x|$x.amount])->groupBy([{r|$r.region}], [agg({r|$r.amount}, {y|$y->min()})], ['region', 'minAmt'])");
+                    "model::S.all()->project(~[region:x|$x.region, amount:x|$x.amount])->groupBy([{r|$r.region}], [agg({r|$r.amount}, {y|$y->min()})], ['region', 'minAmt'])");
             Map<String, Integer> results = new HashMap<>();
             for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
             assertEquals(100, results.get("East"));
@@ -590,14 +590,14 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("GroupBy multiple columns")
         void testGroupByMultipleColumns() throws SQLException {
             var r = exec(model,
-                    "S.all()->project(~[region:x|$x.region, product:x|$x.product, amount:x|$x.amount])->groupBy([{r|$r.region}, {r|$r.product}], [agg({r|$r.amount}, {y|$y->sum()})], ['region', 'product', 'total'])");
+                    "model::S.all()->project(~[region:x|$x.region, product:x|$x.product, amount:x|$x.amount])->groupBy([{r|$r.region}, {r|$r.product}], [agg({r|$r.amount}, {y|$y->sum()})], ['region', 'product', 'total'])");
             assertEquals(4, r.rowCount()); // East-Widget, East-Gadget, West-Widget, West-Gadget
         }
 
         @Test @DisplayName("GroupBy directly on class source (arity-4, no intermediate project)")
         void testGroupByClassSource() throws SQLException {
             var r = exec(model,
-                    "S.all()->groupBy([{r|$r.region}], [agg({r|$r.amount}, {y|$y->sum()})], ['region', 'totalAmount'])");
+                    "model::S.all()->groupBy([{r|$r.region}], [agg({r|$r.amount}, {y|$y->sum()})], ['region', 'totalAmount'])");
             assertEquals(2, r.rowCount());
             Map<String, Integer> results = new HashMap<>();
             for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
@@ -608,7 +608,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Class-source groupBy with count aggregation")
         void testClassSourceGroupByCount() throws SQLException {
             var r = exec(model,
-                    "S.all()->groupBy([{r|$r.region}], [agg({r|$r.amount}, {y|$y->count()})], ['region', 'cnt'])");
+                    "model::S.all()->groupBy([{r|$r.region}], [agg({r|$r.amount}, {y|$y->count()})], ['region', 'cnt'])");
             assertEquals(2, r.rowCount());
             Map<String, Integer> results = new HashMap<>();
             for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
@@ -619,7 +619,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Class-source groupBy with average aggregation")
         void testClassSourceGroupByAvg() throws SQLException {
             var r = exec(model,
-                    "S.all()->groupBy([{r|$r.region}], [agg({r|$r.amount}, {y|$y->average()})], ['region', 'avgAmt'])");
+                    "model::S.all()->groupBy([{r|$r.region}], [agg({r|$r.amount}, {y|$y->average()})], ['region', 'avgAmt'])");
             assertEquals(2, r.rowCount());
             Map<String, Double> results = new HashMap<>();
             for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).doubleValue());
@@ -630,7 +630,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Class-source groupBy with min/max aggregation")
         void testClassSourceGroupByMinMax() throws SQLException {
             var r = exec(model,
-                    "S.all()->groupBy([{r|$r.region}], [agg({r|$r.amount}, {y|$y->min()}), agg({r|$r.amount}, {y|$y->max()})], ['region', 'minAmt', 'maxAmt'])");
+                    "model::S.all()->groupBy([{r|$r.region}], [agg({r|$r.amount}, {y|$y->min()}), agg({r|$r.amount}, {y|$y->max()})], ['region', 'minAmt', 'maxAmt'])");
             assertEquals(2, r.rowCount());
             Map<String, List<Integer>> results = new HashMap<>();
             for (var row : r.rows()) results.put(row.get(0).toString(),
@@ -642,7 +642,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Class-source groupBy with multiple key columns")
         void testClassSourceGroupByMultiKey() throws SQLException {
             var r = exec(model,
-                    "S.all()->groupBy([{r|$r.region}, {r|$r.product}], [agg({r|$r.amount}, {y|$y->sum()})], ['region', 'product', 'total'])");
+                    "model::S.all()->groupBy([{r|$r.region}, {r|$r.product}], [agg({r|$r.amount}, {y|$y->sum()})], ['region', 'product', 'total'])");
             assertEquals(4, r.rowCount());
         }
 
@@ -668,7 +668,7 @@ class RelationalMappingIntegrationTest {
                     )
                     """, "store::DB", "model::M");
             var r = exec(m,
-                    "P.all()->groupBy([{p|$p.lastName}], [agg({p|$p.salary}, {y|$y->sum()})], ['lastName', 'totalSalary'])");
+                    "model::P.all()->groupBy([{p|$p.lastName}], [agg({p|$p.salary}, {y|$y->sum()})], ['lastName', 'totalSalary'])");
             assertEquals(2, r.rowCount());
             Map<String, Integer> results = new HashMap<>();
             for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
@@ -697,7 +697,7 @@ class RelationalMappingIntegrationTest {
                     )
                     """, "store::DB", "model::M");
             var r = exec(m,
-                    "I.all()->groupBy([{i|$i.categoryLower}], [agg({i|$i.price}, {y|$y->sum()})], ['category', 'totalPrice'])");
+                    "model::I.all()->groupBy([{i|$i.categoryLower}], [agg({i|$i.price}, {y|$y->sum()})], ['category', 'totalPrice'])");
             assertEquals(2, r.rowCount());
             Map<String, Integer> results = new HashMap<>();
             for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
@@ -730,7 +730,7 @@ class RelationalMappingIntegrationTest {
                     )
                     """, "store::DB", "model::M");
             var r = exec(m,
-                    "Ord.all()->groupBy([{o|$o.custName}], [agg({o|$o.amount}, {y|$y->sum()})], ['customer', 'totalAmount'])");
+                    "model::Ord.all()->groupBy([{o|$o.custName}], [agg({o|$o.amount}, {y|$y->sum()})], ['customer', 'totalAmount'])");
             assertEquals(2, r.rowCount());
             Map<String, Integer> results = new HashMap<>();
             for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
@@ -750,7 +750,7 @@ class RelationalMappingIntegrationTest {
                     Database store::DB ( Table DUPS (ID INTEGER, VAL VARCHAR(20)) )
                     Mapping model::M ( D: Relational { ~mainTable [store::DB] DUPS val: [store::DB] DUPS.VAL } )
                     """, "store::DB", "model::M");
-            var r = exec(m, "D.all()->project(~[val:x|$x.val])->distinct()");
+            var r = exec(m, "model::D.all()->project(~[val:x|$x.val])->distinct()");
             assertEquals(3, r.rowCount());
         }
     }
@@ -800,21 +800,21 @@ class RelationalMappingIntegrationTest {
 
         @Test @DisplayName("Project through to-one association (firm.legalName)")
         void testToOneProjection() throws SQLException {
-            var r = exec(model, "Person.all()->project(~[name:p|$p.name, firm:p|$p.firm.legalName])");
+            var r = exec(model, "test::Person.all()->project(~[name:p|$p.name, firm:p|$p.firm.legalName])");
             assertEquals(3, r.rowCount());
             // Alice and Bob → Acme Corp, Charlie → Beta Inc
         }
 
         @Test @DisplayName("Filter on to-one association")
         void testFilterToOne() throws SQLException {
-            var r = exec(model, "Person.all()->filter({p|$p.firm.legalName == 'Acme Corp'})->project(~[name:p|$p.name])");
+            var r = exec(model, "test::Person.all()->filter({p|$p.firm.legalName == 'Acme Corp'})->project(~[name:p|$p.name])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Bob")));
         }
 
         @Test @DisplayName("Filter on to-many association uses EXISTS (no row explosion)")
         void testFilterToManyExists() throws SQLException {
-            var r = exec(model, "Person.all()->filter({p|$p.addresses.city == 'New York'})->project(~[name:p|$p.name])");
+            var r = exec(model, "test::Person.all()->filter({p|$p.addresses.city == 'New York'})->project(~[name:p|$p.name])");
             assertEquals(1, r.rowCount());
             assertEquals("Alice", r.rows().get(0).get(0).toString());
         }
@@ -822,27 +822,27 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("To-many: person with multiple addresses appears once in filter")
         void testNoRowExplosion() throws SQLException {
             // Alice has 2 addresses. Filtering by either city should return Alice ONCE
-            var r = exec(model, "Person.all()->filter({p|$p.addresses.city == 'New York' || $p.addresses.city == 'Boston'})->project(~[name:p|$p.name])");
+            var r = exec(model, "test::Person.all()->filter({p|$p.addresses.city == 'New York' || $p.addresses.city == 'Boston'})->project(~[name:p|$p.name])");
             long aliceCount = colStr(r, 0).stream().filter("Alice"::equals).count();
             assertEquals(1, aliceCount, "Alice should appear exactly once despite matching 2 addresses");
         }
 
         @Test @DisplayName("Project through to-many (LEFT JOIN)")
         void testToManyProjection() throws SQLException {
-            var r = exec(model, "Person.all()->project(~[name:p|$p.name, street:p|$p.addresses.street])");
+            var r = exec(model, "test::Person.all()->project(~[name:p|$p.name, street:p|$p.addresses.street])");
             // Alice has 2 addresses → 2 rows, Bob has 1, Charlie has 0
             assertTrue(r.rowCount() >= 3, "Should have at least 3 rows from LEFT JOIN");
         }
 
         @Test @DisplayName("Filter local, project through association")
         void testFilterLocalProjectAssoc() throws SQLException {
-            var r = exec(model, "Person.all()->filter({p|$p.name == 'Alice'})->project(~[name:p|$p.name, street:p|$p.addresses.street])");
+            var r = exec(model, "test::Person.all()->filter({p|$p.name == 'Alice'})->project(~[name:p|$p.name, street:p|$p.addresses.street])");
             assertEquals(2, r.rowCount()); // Alice has 2 addresses
         }
 
         @Test @DisplayName("Person with no addresses still appears (LEFT JOIN)")
         void testPersonNoAddressLeftJoin() throws SQLException {
-            var r = exec(model, "Person.all()->project(~[name:p|$p.name, street:p|$p.addresses.street])");
+            var r = exec(model, "test::Person.all()->project(~[name:p|$p.name, street:p|$p.addresses.street])");
             // Charlie has no addresses → should still appear with NULL street
             boolean charlieFound = false;
             for (var row : r.rows()) {
@@ -877,7 +877,7 @@ class RelationalMappingIntegrationTest {
                         TaskStatus: EnumerationMapping TaskStatusMap { PENDING: 'PENDING', IN_PROGRESS: 'IN_PROGRESS', DONE: 'DONE' }
                     )
                     """, "store::DB", "model::M");
-            var r = exec(m, "Task.all()->filter({t|$t.status == 'PENDING'})->project(~[name:t|$t.name])");
+            var r = exec(m, "model::Task.all()->filter({t|$t.status == 'PENDING'})->project(~[name:t|$t.name])");
             assertEquals(2, r.rowCount());
         }
 
@@ -897,7 +897,7 @@ class RelationalMappingIntegrationTest {
                         OrderStatus: EnumerationMapping StatusMap { ACTIVE: 'A', INACTIVE: 'I', CANCELLED: 'C' }
                     )
                     """, "store::DB", "model::M");
-            var r = exec(m, "Order.all()->filter({o|$o.status == 'ACTIVE'})->project(~[status:o|$o.status])");
+            var r = exec(m, "test::Order.all()->filter({o|$o.status == 'ACTIVE'})->project(~[status:o|$o.status])");
             assertEquals(2, r.rowCount());
         }
 
@@ -917,7 +917,7 @@ class RelationalMappingIntegrationTest {
                         Priority: EnumerationMapping PriorityMap { LOW: 1, MEDIUM: 2, HIGH: 3 }
                     )
                     """, "store::DB", "model::M");
-            var r = exec(m, "Flag.all()->project(~[priority:f|$f.priority])");
+            var r = exec(m, "model::Flag.all()->project(~[priority:f|$f.priority])");
             assertEquals(4, r.rowCount());
         }
 
@@ -937,7 +937,7 @@ class RelationalMappingIntegrationTest {
                         Status: EnumerationMapping SM { ACTIVE: ['A', 'ACT', 'ACTIVE'], INACTIVE: 'I' }
                     )
                     """, "store::DB", "model::M");
-            var r = exec(m, "Item.all()->filter({i|$i.status == 'ACTIVE'})->project(~[status:i|$i.status])");
+            var r = exec(m, "model::Item.all()->filter({i|$i.status == 'ACTIVE'})->project(~[status:i|$i.status])");
             assertEquals(3, r.rowCount());
         }
     }
@@ -964,7 +964,7 @@ class RelationalMappingIntegrationTest {
                         Person: Pure { ~src RawPerson fullName: $src.firstName + ' ' + $src.lastName }
                     )
                     """, "store::DB", "model::M");
-            var r = exec(m, "Person.all()->project(~[fullName:p|$p.fullName])");
+            var r = exec(m, "test::Person.all()->project(~[fullName:p|$p.fullName])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("John Doe", "Jane Smith")));
         }
@@ -985,7 +985,7 @@ class RelationalMappingIntegrationTest {
                         Target: Pure { ~src Source combined: $src.a + '-' + $src.b, doubled: $src.c * 2 }
                     )
                     """, "store::DB", "model::M");
-            var r = exec(m, "Target.all()->project(~[combined:t|$t.combined, doubled:t|$t.doubled])");
+            var r = exec(m, "model::Target.all()->project(~[combined:t|$t.combined, doubled:t|$t.doubled])");
             assertEquals(1, r.rowCount());
             assertEquals("hello-world", r.rows().get(0).get(0).toString());
             assertEquals(84, ((Number) r.rows().get(0).get(1)).intValue());
@@ -1538,7 +1538,7 @@ class RelationalMappingIntegrationTest {
                     """, "store::DB", "model::M");
 
             // Query employees with their department
-            var r = exec(m, "Emp.all()->project(~[name:e|$e.name, dept:e|$e.dept.name])");
+            var r = exec(m, "model::Emp.all()->project(~[name:e|$e.name, dept:e|$e.dept.name])");
             assertEquals(2, r.rowCount());
             Map<String, String> empDept = new HashMap<>();
             for (var row : r.rows()) empDept.put(row.get(0).toString(), row.get(1).toString());
@@ -1567,9 +1567,9 @@ class RelationalMappingIntegrationTest {
                         Product: Relational { ~mainTable [store::DB] PRODUCTS title: [store::DB] PRODUCTS.TITLE, price: [store::DB] PRODUCTS.PRICE }
                     )
                     """, "store::DB", "model::M");
-            var r1 = exec(m, "Customer.all()->project(~[name:c|$c.name])");
+            var r1 = exec(m, "model::Customer.all()->project(~[name:c|$c.name])");
             assertEquals(2, r1.rowCount());
-            var r2 = exec(m, "Product.all()->filter({p|$p.price > 15})->project(~[title:p|$p.title])");
+            var r2 = exec(m, "model::Product.all()->filter({p|$p.price > 15})->project(~[title:p|$p.title])");
             assertEquals(2, r2.rowCount());
         }
     }
@@ -1588,7 +1588,7 @@ class RelationalMappingIntegrationTest {
                     "Class model::P { name: String[0..1]; age: Integer[0..1]; }",
                     "ID INTEGER, NAME VARCHAR(100), AGE INTEGER",
                     "name: [store::DB] NULLS.NAME, age: [store::DB] NULLS.AGE");
-            var r = exec(m, "P.all()->project(~[name:x|$x.name, age:x|$x.age])");
+            var r = exec(m, "model::P.all()->project(~[name:x|$x.name, age:x|$x.age])");
             assertEquals(3, r.rowCount());
         }
 
@@ -1600,7 +1600,7 @@ class RelationalMappingIntegrationTest {
                     "Class model::P { name: String[1]; }",
                     "ID INTEGER, NAME VARCHAR(200)",
                     "name: [store::DB] SPECIAL.NAME");
-            var r = exec(m, "P.all()->project(~[name:x|$x.name])");
+            var r = exec(m, "model::P.all()->project(~[name:x|$x.name])");
             assertEquals(2, r.rowCount());
         }
 
@@ -1612,7 +1612,7 @@ class RelationalMappingIntegrationTest {
                     "Class model::P { name: String[1]; }",
                     "ID INTEGER, NAME VARCHAR(200)",
                     "name: [store::DB] UNICODE.NAME");
-            var r = exec(m, "P.all()->project(~[name:x|$x.name])");
+            var r = exec(m, "model::P.all()->project(~[name:x|$x.name])");
             assertEquals(3, r.rowCount());
             assertTrue(colStr(r, 0).contains("日本語"));
         }
@@ -1626,7 +1626,7 @@ class RelationalMappingIntegrationTest {
                     "Class model::P { data: String[1]; }",
                     "ID INTEGER, DATA VARCHAR",
                     "data: [store::DB] LONG_STR.DATA");
-            var r = exec(m, "P.all()->project(~[data:x|$x.data])");
+            var r = exec(m, "model::P.all()->project(~[data:x|$x.data])");
             assertEquals(1, r.rowCount());
             assertEquals(10000, r.rows().get(0).get(0).toString().length());
         }
@@ -1639,7 +1639,7 @@ class RelationalMappingIntegrationTest {
                     "Class model::N { val: Integer[1]; }",
                     "ID INTEGER, VAL INTEGER",
                     "val: [store::DB] NEGS.VAL");
-            var r = exec(m, "N.all()->filter({x|$x.val < 0})->project(~[val:x|$x.val])");
+            var r = exec(m, "model::N.all()->filter({x|$x.val < 0})->project(~[val:x|$x.val])");
             assertEquals(2, r.rowCount());
         }
 
@@ -1651,7 +1651,7 @@ class RelationalMappingIntegrationTest {
                     "Class model::S { name: String[1]; }",
                     "ID INTEGER, NAME VARCHAR(50)",
                     "name: [store::DB] SIMPLE.NAME");
-            var r = exec(m, "S.all()");
+            var r = exec(m, "model::S.all()");
             assertEquals(1, r.rowCount());
         }
     }
@@ -1676,31 +1676,31 @@ class RelationalMappingIntegrationTest {
 
         @Test @DisplayName("toUpper")
         void testToUpper() throws SQLException {
-            var r = exec(model, "R.all()->filter({x|$x.s == 'foo bar'})->project(~[u:x|$x.s->toUpper()])");
+            var r = exec(model, "model::R.all()->filter({x|$x.s == 'foo bar'})->project(~[u:x|$x.s->toUpper()])");
             assertEquals("FOO BAR", r.rows().get(0).get(0).toString());
         }
 
         @Test @DisplayName("toLower")
         void testToLower() throws SQLException {
-            var r = exec(model, "R.all()->filter({x|$x.s == 'UPPERCASE'})->project(~[l:x|$x.s->toLower()])");
+            var r = exec(model, "model::R.all()->filter({x|$x.s == 'UPPERCASE'})->project(~[l:x|$x.s->toLower()])");
             assertEquals("uppercase", r.rows().get(0).get(0).toString());
         }
 
         @Test @DisplayName("length")
         void testLength() throws SQLException {
-            var r = exec(model, "R.all()->filter({x|$x.s == 'Hello World'})->project(~[len:x|$x.s->length()])");
+            var r = exec(model, "model::R.all()->filter({x|$x.s == 'Hello World'})->project(~[len:x|$x.s->length()])");
             assertEquals(11, ((Number) r.rows().get(0).get(0)).intValue());
         }
 
         @Test @DisplayName("trim")
         void testTrim() throws SQLException {
-            var r = exec(model, "R.all()->filter({x|$x.s->contains('trimme')})->project(~[t:x|$x.s->trim()])");
+            var r = exec(model, "model::R.all()->filter({x|$x.s->contains('trimme')})->project(~[t:x|$x.s->trim()])");
             assertEquals("trimme", r.rows().get(0).get(0).toString());
         }
 
         @Test @DisplayName("substring")
         void testSubstring() throws SQLException {
-            var r = exec(model, "R.all()->filter({x|$x.s == 'Hello World'})->project(~[sub:x|$x.s->substring(0, 5)])");
+            var r = exec(model, "model::R.all()->filter({x|$x.s == 'Hello World'})->project(~[sub:x|$x.s->substring(0, 5)])");
             assertEquals("Hello", r.rows().get(0).get(0).toString());
         }
     }
@@ -1725,19 +1725,19 @@ class RelationalMappingIntegrationTest {
 
         @Test @DisplayName("abs()")
         void testAbs() throws SQLException {
-            var r = exec(model, "N.all()->filter({x|$x.a == -5})->project(~[v:x|$x.a->abs()])");
+            var r = exec(model, "model::N.all()->filter({x|$x.a == -5})->project(~[v:x|$x.a->abs()])");
             assertEquals(5, ((Number) r.rows().get(0).get(0)).intValue());
         }
 
         @Test @DisplayName("Arithmetic: addition")
         void testAddition() throws SQLException {
-            var r = exec(model, "N.all()->filter({x|$x.a == 10})->project(~[v:x|$x.a + 5])");
+            var r = exec(model, "model::N.all()->filter({x|$x.a == 10})->project(~[v:x|$x.a + 5])");
             assertEquals(15, ((Number) r.rows().get(0).get(0)).intValue());
         }
 
         @Test @DisplayName("Arithmetic: multiplication")
         void testMultiplication() throws SQLException {
-            var r = exec(model, "N.all()->filter({x|$x.a == 10})->project(~[v:x|$x.a * 3])");
+            var r = exec(model, "model::N.all()->filter({x|$x.a == 10})->project(~[v:x|$x.a * 3])");
             assertEquals(30, ((Number) r.rows().get(0).get(0)).intValue());
         }
     }
@@ -1766,7 +1766,7 @@ class RelationalMappingIntegrationTest {
 
         @Test @DisplayName("filter → project → sort → limit")
         void testFilterProjectSortLimit() throws SQLException {
-            var r = exec(model, "I.all()->filter({i|$i.category == 'Tools'})->sortByReversed({i|$i.price})->limit(2)->project(~[name:i|$i.name, price:i|$i.price])");
+            var r = exec(model, "model::I.all()->filter({i|$i.category == 'Tools'})->sortByReversed({i|$i.price})->limit(2)->project(~[name:i|$i.name, price:i|$i.price])");
             assertEquals(2, r.rowCount());
             // Top 2 most expensive tools: Widget B (200), Widget C (150)
         }
@@ -1774,7 +1774,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("project → groupBy → sort")
         void testProjectGroupBySort() throws SQLException {
             var r = exec(model,
-                    "I.all()->project(~[category:i|$i.category, price:i|$i.price])->groupBy([{r|$r.category}], [agg({r|$r.price}, {y|$y->sum()})], ['category', 'totalPrice'])->sort('totalPrice', SortDirection.DESC)");
+                    "model::I.all()->project(~[category:i|$i.category, price:i|$i.price])->groupBy([{r|$r.category}], [agg({r|$r.price}, {y|$y->sum()})], ['category', 'totalPrice'])->sort('totalPrice', SortDirection.DESC)");
             assertEquals(2, r.rowCount());
             // Electronics: 700, Tools: 450
             assertEquals("Electronics", r.rows().get(0).get(0).toString());
@@ -1783,7 +1783,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Multiple filters then project")
         void testMultipleFilters() throws SQLException {
             var r = exec(model,
-                    "I.all()->filter({i|$i.category == 'Tools'})->filter({i|$i.price >= 150})->project(~[name:i|$i.name])");
+                    "model::I.all()->filter({i|$i.category == 'Tools'})->filter({i|$i.price >= 150})->project(~[name:i|$i.name])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Widget B", "Widget C")));
         }
@@ -1835,7 +1835,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("No JOINs when only main-table property projected")
         void testNoJoinWhenOnlyLocalProperty() {
             String sql = planSql(joinChainModel(),
-                    "Person.all()->project(~[name:p|$p.name])");
+                    "test::Person.all()->project(~[name:p|$p.name])");
             assertEquals(0, countJoins(sql),
                     "Expected 0 LEFT JOINs when only local property projected. SQL: " + sql);
             assertFalse(sql.toUpperCase().contains("T_DEPT"),
@@ -1849,7 +1849,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("1 JOIN when only 1-hop chain property projected")
         void testOneJoinWhenSingleHopUsed() {
             String sql = planSql(joinChainModel(),
-                    "Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName])");
+                    "test::Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName])");
             assertEquals(1, countJoins(sql),
                     "Expected 1 LEFT JOIN for deptName (1-hop). SQL: " + sql);
             assertTrue(sql.toUpperCase().contains("T_DEPT"),
@@ -1861,7 +1861,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("2 JOINs when 2-hop chain property projected")
         void testTwoJoinsWhenTwoHopUsed() {
             String sql = planSql(joinChainModel(),
-                    "Person.all()->project(~[name:p|$p.name, org:p|$p.orgName])");
+                    "test::Person.all()->project(~[name:p|$p.name, org:p|$p.orgName])");
             assertEquals(2, countJoins(sql),
                     "Expected 2 LEFT JOINs for orgName (2-hop chain). SQL: " + sql);
             assertTrue(sql.toUpperCase().contains("T_DEPT"),
@@ -1875,7 +1875,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("3 JOINs when all chain properties projected")
         void testAllJoinsWhenAllUsed() {
             String sql = planSql(joinChainModel(),
-                    "Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName, org:p|$p.orgName])");
+                    "test::Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName, org:p|$p.orgName])");
             assertEquals(3, countJoins(sql),
                     "Expected 3 LEFT JOINs (1 for deptName, 2 for orgName). SQL: " + sql);
         }
@@ -1885,7 +1885,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("JOINs appear when chain property used in filter only")
         void testJoinWhenFilterUsesChainProperty() {
             String sql = planSql(joinChainModel(),
-                    "Person.all()->filter({p|$p.orgName == 'Acme'})->project(~[name:p|$p.name])");
+                    "test::Person.all()->filter({p|$p.orgName == 'Acme'})->project(~[name:p|$p.name])");
             assertEquals(2, countJoins(sql),
                     "Expected 2 LEFT JOINs for orgName used in filter. SQL: " + sql);
         }
@@ -1893,7 +1893,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("No JOINs when filter uses only local property")
         void testNoJoinWhenFilterUsesLocalProperty() {
             String sql = planSql(joinChainModel(),
-                    "Person.all()->filter({p|$p.name == 'Alice'})->project(~[name:p|$p.name])");
+                    "test::Person.all()->filter({p|$p.name == 'Alice'})->project(~[name:p|$p.name])");
             assertEquals(0, countJoins(sql),
                     "Expected 0 LEFT JOINs when only local properties used. SQL: " + sql);
         }
@@ -1910,12 +1910,12 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO T_PERSON VALUES (1, 'Alice', 1), (2, 'Bob', 2), (3, 'Charlie', 1)");
 
             // Project only name — no joins needed
-            var r1 = exec(joinChainModel(), "Person.all()->project(~[name:p|$p.name])");
+            var r1 = exec(joinChainModel(), "test::Person.all()->project(~[name:p|$p.name])");
             assertEquals(3, r1.rowCount());
             assertTrue(colStr(r1, 0).containsAll(List.of("Alice", "Bob", "Charlie")));
 
             // Project name + orgName — 2 joins needed
-            var r2 = exec(joinChainModel(), "Person.all()->project(~[name:p|$p.name, org:p|$p.orgName])");
+            var r2 = exec(joinChainModel(), "test::Person.all()->project(~[name:p|$p.name, org:p|$p.orgName])");
             assertEquals(3, r2.rowCount());
             for (var row : r2.rows()) assertEquals("Acme Corp", row.get(1).toString());
         }
@@ -1930,7 +1930,7 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO T_PERSON VALUES (1, 'Alice', 1), (2, 'Bob', 2), (3, 'Charlie', 1)");
 
             var r = exec(joinChainModel(),
-                    "Person.all()->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name])");
+                    "test::Person.all()->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Charlie")));
         }
@@ -1942,7 +1942,7 @@ class RelationalMappingIntegrationTest {
             // deptName and orgName share different chains. When only deptName is used,
             // the orgName chain should be cancelled.
             String sql = planSql(joinChainModel(),
-                    "Person.all()->project(~[dept:p|$p.deptName])");
+                    "test::Person.all()->project(~[dept:p|$p.deptName])");
             assertEquals(1, countJoins(sql),
                     "Expected 1 LEFT JOIN for deptName only. SQL: " + sql);
             assertFalse(sql.toUpperCase().contains("T_ORG"),
@@ -1952,7 +1952,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Partial: filter on deptName, project name — only 1-hop join")
         void testPartialFilterDeptProjectName() {
             String sql = planSql(joinChainModel(),
-                    "Person.all()->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name])");
+                    "test::Person.all()->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name])");
             assertEquals(1, countJoins(sql),
                     "Expected 1 LEFT JOIN for deptName in filter. SQL: " + sql);
             assertFalse(sql.toUpperCase().contains("T_ORG"),
@@ -2008,7 +2008,7 @@ class RelationalMappingIntegrationTest {
 )
                     """, "store::DB", "model::M");
             // Navigate Person → dept → org (2 hops)
-            var r = exec(m, "Person.all()->project(~[name:p|$p.name, org:p|$p.dept.org.name])");
+            var r = exec(m, "test::Person.all()->project(~[name:p|$p.name, org:p|$p.dept.org.name])");
             assertEquals(3, r.rowCount());
             for (var row : r.rows()) assertEquals("Acme Corp", row.get(1).toString());
         }
@@ -2039,7 +2039,7 @@ class RelationalMappingIntegrationTest {
                         }
                     )
                     """, "store::DB", "model::M");
-            var r = exec(m, "Person.all()->project(~[name:p|$p.name, org:p|$p.orgName])");
+            var r = exec(m, "test::Person.all()->project(~[name:p|$p.name, org:p|$p.orgName])");
             assertEquals(3, r.rowCount());
             for (var row : r.rows()) assertEquals("Acme Corp", row.get(1).toString());
         }
@@ -2068,7 +2068,7 @@ class RelationalMappingIntegrationTest {
                         }
                     )
                     """, "store::DB", "model::M");
-            var r = exec(m, "Person.all()->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name])");
+            var r = exec(m, "test::Person.all()->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name])");
             assertEquals(3, r.rowCount());
         }
 
@@ -2101,7 +2101,7 @@ class RelationalMappingIntegrationTest {
 )
                     """, "store::DB", "test::M");
 
-            var r = exec(model, "Employee.all()->filter(e|$e.managerName == 'Alice')->project(~[name:e|$e.name])");
+            var r = exec(model, "test::Employee.all()->filter(e|$e.managerName == 'Alice')->project(~[name:e|$e.name])");
             var names = colStr(r, 0);
             assertEquals(2, names.size());
             assertTrue(names.contains("Bob"));
@@ -2139,7 +2139,7 @@ class RelationalMappingIntegrationTest {
                     """, "test::DB", "test::M");
 
             // All 3 rows in table, but filter should only return ACTIVE = 1
-            var result = exec(model, "Person.all()->project([x|$x.name], ['name'])");
+            var result = exec(model, "test::Person.all()->project([x|$x.name], ['name'])");
             var names = colStr(result, 0);
             assertEquals(2, names.size());
             assertTrue(names.contains("Alice"));
@@ -2176,7 +2176,7 @@ class RelationalMappingIntegrationTest {
                     """, "test::DB", "test::M");
 
             // 5 rows with duplicates on tag — ~distinct means DISTINCT on all generated SELECTs
-            var result = exec(model, "Tag.all()->project([x|$x.tag], ['tag'])");
+            var result = exec(model, "test::Tag.all()->project([x|$x.tag], ['tag'])");
             var tags = colStr(result, 0);
             // DISTINCT collapses to 3 unique tag values: java, sql, rust
             assertEquals(3, tags.size());
@@ -2222,8 +2222,8 @@ class RelationalMappingIntegrationTest {
                     )
                     """, "store::DB", "test::M");
 
-            // Root mapping (emp) should be used for Person.all()
-            var result = exec(model, "Person.all()->project([x|$x.name], ['name'])");
+            // Root mapping (emp) should be used for test::Person.all()
+            var result = exec(model, "test::Person.all()->project([x|$x.name], ['name'])");
             var names = colStr(result, 0);
             assertEquals(2, names.size());
             assertTrue(names.contains("Alice"));
@@ -2269,7 +2269,7 @@ class RelationalMappingIntegrationTest {
                     """, "store::DB", "test::M");
 
             // Person mapping comes from included base::BaseMapping
-            var result = exec(model, "Person.all()->project([x|$x.name], ['name'])");
+            var result = exec(model, "test::Person.all()->project([x|$x.name], ['name'])");
             var names = colStr(result, 0);
             assertEquals(2, names.size());
             assertTrue(names.contains("Alice"));
@@ -2324,7 +2324,7 @@ class RelationalMappingIntegrationTest {
 )
                     """, "store::DB", "test::M");
 
-            var r = exec(model, "Order.all()->project(~[qty:o|$o.qty, price:o|$o.price])");
+            var r = exec(model, "test::Order.all()->project(~[qty:o|$o.qty, price:o|$o.price])");
             assertEquals(3, r.rowCount());
             // US/product1: qty=10, price=9.99
             // US/product2: qty=5,  price=4.99
@@ -2360,7 +2360,7 @@ class RelationalMappingIntegrationTest {
                     )
                     """, "store::DB", "test::M");
 
-            var r = exec(model, "Item.all()->project(~[code:i|$i.code, label:i|$i.label])");
+            var r = exec(model, "model::Item.all()->project(~[code:i|$i.code, label:i|$i.label])");
             assertEquals(2, r.rowCount());
             var labels = colStr(r, 1);
             assertTrue(labels.contains("Alpha One"));
@@ -2876,7 +2876,7 @@ class RelationalMappingIntegrationTest {
                     """, "store::ExtDB", "test::M");
 
             // BASE_PERSON is from included BaseDB, accessible via ExtDB
-            var result = exec(model, "Person.all()->project([x|$x.name], ['name'])");
+            var result = exec(model, "test::Person.all()->project([x|$x.name], ['name'])");
             var names = colStr(result, 0);
             assertEquals(2, names.size());
             assertTrue(names.contains("Alice"));
@@ -2906,7 +2906,7 @@ class RelationalMappingIntegrationTest {
                     Database store::DB ( Table NAMES ( ID INTEGER, FIRST VARCHAR(50), LAST VARCHAR(50) ) )
                     Mapping model::M ( Person: Relational { ~mainTable [store::DB] NAMES fullName: concat([store::DB] NAMES.FIRST, ' ', [store::DB] NAMES.LAST) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "Person.all()->project([x|$x.fullName], ['fullName'])");
+            var result = exec(model, "test::Person.all()->project([x|$x.fullName], ['fullName'])");
             assertEquals(2, result.rows().size());
             var names = colStr(result, 0);
             assertTrue(names.contains("John Doe"));
@@ -2926,7 +2926,7 @@ class RelationalMappingIntegrationTest {
                     Database store::DB ( Table CODES ( ID INTEGER, CODE VARCHAR(10) ) )
                     Mapping model::M ( Code: Relational { ~mainTable [store::DB] CODES country: substring([store::DB] CODES.CODE, 0, 2) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "Code.all()->project([x|$x.country], ['country'])");
+            var result = exec(model, "model::Code.all()->project([x|$x.country], ['country'])");
             assertEquals(2, result.rows().size());
             var countries = colStr(result, 0);
             assertTrue(countries.contains("US"));
@@ -2946,7 +2946,7 @@ class RelationalMappingIntegrationTest {
                     Database store::DB ( Table STATUS ( ID INTEGER, CODE VARCHAR(10) ) )
                     Mapping model::M ( Rec: Relational { ~mainTable [store::DB] STATUS label: if(equal([store::DB] STATUS.CODE, 'A'), 'Active', 'Inactive') } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "Rec.all()->project([x|$x.label], ['label'])");
+            var result = exec(model, "model::Rec.all()->project([x|$x.label], ['label'])");
             assertEquals(2, result.rows().size());
             var labels = colStr(result, 0);
             assertTrue(labels.contains("Active"));
@@ -2966,7 +2966,7 @@ class RelationalMappingIntegrationTest {
                     Database store::DB ( Table NUMS ( ID INTEGER, A INTEGER, B INTEGER ) )
                     Mapping model::M ( Rec: Relational { ~mainTable [store::DB] NUMS total: plus([store::DB] NUMS.A, [store::DB] NUMS.B) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "Rec.all()->project([x|$x.total], ['total'])");
+            var result = exec(model, "model::Rec.all()->project([x|$x.total], ['total'])");
             assertEquals(2, result.rows().size());
         }
 
@@ -2983,7 +2983,7 @@ class RelationalMappingIntegrationTest {
                     Database store::DB ( Table T1 ( ID INTEGER, NAME VARCHAR(50) ) )
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] T1 lowerName: toLower([store::DB] T1.NAME) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "P.all()->project([x|$x.lowerName], ['lowerName'])");
+            var result = exec(model, "model::P.all()->project([x|$x.lowerName], ['lowerName'])");
             assertEquals(2, result.rows().size());
             var names = colStr(result, 0);
             assertTrue(names.contains("alice"));
@@ -3003,7 +3003,7 @@ class RelationalMappingIntegrationTest {
                     Database store::DB ( Table NAMES ( ID INTEGER, FIRST VARCHAR(50), LAST VARCHAR(50) ) )
                     Mapping model::M ( Person: Relational { ~mainTable [store::DB] NAMES email: toLower(concat([store::DB] NAMES.FIRST, [store::DB] NAMES.LAST)) } )
                     """, "store::DB", "model::M");
-            var result = exec(model, "Person.all()->project([x|$x.email], ['email'])");
+            var result = exec(model, "test::Person.all()->project([x|$x.email], ['email'])");
             assertEquals(1, result.rows().size());
             assertEquals("johndoe", result.rows().get(0).get(0));
         }
@@ -3053,7 +3053,7 @@ class RelationalMappingIntegrationTest {
                     """, "store::DB", "test::M");
 
             // Navigate Person -> firm via explicit association mapping
-            var result = exec(model, "Person.all()->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
+            var result = exec(model, "test::Person.all()->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
             assertEquals(3, result.rows().size());
             var names = colStr(result, 0);
             var firms = colStr(result, 1);
@@ -3114,65 +3114,65 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Filter: deeply nested boolean logic")
         void testDeepNestedBoolean() throws SQLException {
             // (category == 'Tools' AND price > 10) OR (category == 'Electronics' AND stock > 20)
-            var r = exec(model, "P.all()->filter({p|($p.category == 'Tools' && $p.price > 10.0) || ($p.category == 'Electronics' && $p.stock > 20)})->project(~[name:p|$p.name])");
+            var r = exec(model, "model::P.all()->filter({p|($p.category == 'Tools' && $p.price > 10.0) || ($p.category == 'Electronics' && $p.stock > 20)})->project(~[name:p|$p.name])");
             assertEquals(4, r.rowCount()); // Widget B, Widget C, Gadget X, Gadget Y
         }
 
         @Test @DisplayName("Filter: triple AND")
         void testTripleAnd() throws SQLException {
-            var r = exec(model, "P.all()->filter({p|$p.category == 'Tools' && $p.active == true && $p.stock > 50})->project(~[name:p|$p.name])");
+            var r = exec(model, "model::P.all()->filter({p|$p.category == 'Tools' && $p.active == true && $p.stock > 50})->project(~[name:p|$p.name])");
             assertEquals(2, r.rowCount()); // Widget A (100), Widget C (200)
         }
 
         @Test @DisplayName("Filter: triple OR")
         void testTripleOr() throws SQLException {
-            var r = exec(model, "P.all()->filter({p|$p.category == 'Tools' || $p.category == 'Electronics' || $p.category == 'Misc'})->project(~[name:p|$p.name])");
+            var r = exec(model, "model::P.all()->filter({p|$p.category == 'Tools' || $p.category == 'Electronics' || $p.category == 'Misc'})->project(~[name:p|$p.name])");
             assertEquals(8, r.rowCount()); // all products
         }
 
         @Test @DisplayName("Filter: NOT with compound")
         void testNotCompound() throws SQLException {
-            var r = exec(model, "P.all()->filter({p|!($p.category == 'Tools' || $p.category == 'Misc')})->project(~[name:p|$p.name])");
+            var r = exec(model, "model::P.all()->filter({p|!($p.category == 'Tools' || $p.category == 'Misc')})->project(~[name:p|$p.name])");
             assertEquals(3, r.rowCount()); // Electronics only
         }
 
         @Test @DisplayName("Filter: price range (between equivalent)")
         void testPriceRange() throws SQLException {
-            var r = exec(model, "P.all()->filter({p|$p.price >= 10.0 && $p.price <= 50.0})->project(~[name:p|$p.name])");
+            var r = exec(model, "model::P.all()->filter({p|$p.price >= 10.0 && $p.price <= 50.0})->project(~[name:p|$p.name])");
             assertEquals(3, r.rowCount()); // Widget B (19.99), Widget C (14.99), Gadget X (49.99)
         }
 
         @Test @DisplayName("Filter: stock == 0 (out of stock)")
         void testZeroStock() throws SQLException {
-            var r = exec(model, "P.all()->filter({p|$p.stock == 0})->project(~[name:p|$p.name])");
+            var r = exec(model, "model::P.all()->filter({p|$p.stock == 0})->project(~[name:p|$p.name])");
             assertEquals(1, r.rowCount());
             assertEquals("Widget B", r.rows().get(0).get(0).toString());
         }
 
         @Test @DisplayName("Filter: active false products")
         void testInactiveProducts() throws SQLException {
-            var r = exec(model, "P.all()->filter({p|$p.active == false})->project(~[name:p|$p.name])");
+            var r = exec(model, "model::P.all()->filter({p|$p.active == false})->project(~[name:p|$p.name])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Widget B", "Doohickey")));
         }
 
         @Test @DisplayName("Filter then filter then filter (3 chained)")
         void testTripleChainedFilter() throws SQLException {
-            var r = exec(model, "P.all()->filter({p|$p.active == true})->filter({p|$p.category == 'Electronics'})->filter({p|$p.price < 100.0})->project(~[name:p|$p.name])");
+            var r = exec(model, "model::P.all()->filter({p|$p.active == true})->filter({p|$p.category == 'Electronics'})->filter({p|$p.price < 100.0})->project(~[name:p|$p.name])");
             assertEquals(2, r.rowCount()); // Gadget X (49.99), Gadget Y (99.99) — both < 100
             assertTrue(colStr(r, 0).containsAll(List.of("Gadget X", "Gadget Y")));
         }
 
         @Test @DisplayName("Filter: string length comparison")
         void testStringLengthFilter() throws SQLException {
-            var r = exec(model, "P.all()->filter({p|$p.name->length() > 8})->project(~[name:p|$p.name])");
+            var r = exec(model, "model::P.all()->filter({p|$p.name->length() > 8})->project(~[name:p|$p.name])");
             assertTrue(r.rowCount() > 0);
             for (var row : r.rows()) assertTrue(row.get(0).toString().length() > 8);
         }
 
         @Test @DisplayName("Filter: contains with toLower (case-insensitive search)")
         void testCaseInsensitiveSearch() throws SQLException {
-            var r = exec(model, "P.all()->filter({p|$p.name->toLower()->contains('widget')})->project(~[name:p|$p.name])");
+            var r = exec(model, "model::P.all()->filter({p|$p.name->toLower()->contains('widget')})->project(~[name:p|$p.name])");
             assertEquals(3, r.rowCount());
         }
     }
@@ -3205,7 +3205,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("GroupBy: total quantity per customer")
         void testTotalQtyPerCustomer() throws SQLException {
             var r = exec(model,
-                    "O.all()->project(~[customer:o|$o.customer, qty:o|$o.qty])->groupBy([{r|$r.customer}], [agg({r|$r.qty}, {y|$y->sum()})], ['customer', 'totalQty'])");
+                    "model::O.all()->project(~[customer:o|$o.customer, qty:o|$o.qty])->groupBy([{r|$r.customer}], [agg({r|$r.qty}, {y|$y->sum()})], ['customer', 'totalQty'])");
             Map<String, Integer> results = new HashMap<>();
             for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
             assertEquals(17, results.get("Alice"));  // 5 + 2 + 10
@@ -3216,7 +3216,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("GroupBy: count orders per product")
         void testCountOrdersPerProduct() throws SQLException {
             var r = exec(model,
-                    "O.all()->project(~[product:o|$o.product, qty:o|$o.qty])->groupBy([{r|$r.product}], [agg({r|$r.qty}, {y|$y->count()})], ['product', 'orderCount'])");
+                    "model::O.all()->project(~[product:o|$o.product, qty:o|$o.qty])->groupBy([{r|$r.product}], [agg({r|$r.qty}, {y|$y->count()})], ['product', 'orderCount'])");
             Map<String, Integer> results = new HashMap<>();
             for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
             assertEquals(4, results.get("Widget"));
@@ -3227,14 +3227,14 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("GroupBy: average qty per customer")
         void testAvgQtyPerCustomer() throws SQLException {
             var r = exec(model,
-                    "O.all()->project(~[customer:o|$o.customer, qty:o|$o.qty])->groupBy([{r|$r.customer}], [agg({r|$r.qty}, {y|$y->average()})], ['customer', 'avgQty'])");
+                    "model::O.all()->project(~[customer:o|$o.customer, qty:o|$o.qty])->groupBy([{r|$r.customer}], [agg({r|$r.qty}, {y|$y->average()})], ['customer', 'avgQty'])");
             assertEquals(3, r.rowCount());
         }
 
         @Test @DisplayName("GroupBy: max qty in single order per customer")
         void testMaxQtyPerCustomer() throws SQLException {
             var r = exec(model,
-                    "O.all()->project(~[customer:o|$o.customer, qty:o|$o.qty])->groupBy([{r|$r.customer}], [agg({r|$r.qty}, {y|$y->max()})], ['customer', 'maxQty'])");
+                    "model::O.all()->project(~[customer:o|$o.customer, qty:o|$o.qty])->groupBy([{r|$r.customer}], [agg({r|$r.qty}, {y|$y->max()})], ['customer', 'maxQty'])");
             Map<String, Integer> results = new HashMap<>();
             for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
             assertEquals(10, results.get("Alice"));
@@ -3245,7 +3245,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("GroupBy: min qty per product")
         void testMinQtyPerProduct() throws SQLException {
             var r = exec(model,
-                    "O.all()->project(~[product:o|$o.product, qty:o|$o.qty])->groupBy([{r|$r.product}], [agg({r|$r.qty}, {y|$y->min()})], ['product', 'minQty'])");
+                    "model::O.all()->project(~[product:o|$o.product, qty:o|$o.qty])->groupBy([{r|$r.product}], [agg({r|$r.qty}, {y|$y->min()})], ['product', 'minQty'])");
             Map<String, Integer> results = new HashMap<>();
             for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
             assertEquals(3, results.get("Widget")); // min(5,3,7,10)
@@ -3256,14 +3256,14 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("GroupBy: customer+product (two-key groupBy)")
         void testTwoKeyGroupBy() throws SQLException {
             var r = exec(model,
-                    "O.all()->project(~[customer:o|$o.customer, product:o|$o.product, qty:o|$o.qty])->groupBy([{r|$r.customer}, {r|$r.product}], [agg({r|$r.qty}, {y|$y->sum()})], ['customer', 'product', 'totalQty'])");
+                    "model::O.all()->project(~[customer:o|$o.customer, product:o|$o.product, qty:o|$o.qty])->groupBy([{r|$r.customer}, {r|$r.product}], [agg({r|$r.qty}, {y|$y->sum()})], ['customer', 'product', 'totalQty'])");
             assertTrue(r.rowCount() >= 5); // Alice-Widget, Alice-Gadget, Bob-Widget, Bob-Gizmo, Charlie-Gadget, Charlie-Gizmo
         }
 
         @Test @DisplayName("GroupBy + sort: top customers by total quantity")
         void testGroupBySortTopCustomers() throws SQLException {
             var r = exec(model,
-                    "O.all()->project(~[customer:o|$o.customer, qty:o|$o.qty])->groupBy([{r|$r.customer}], [agg({r|$r.qty}, {y|$y->sum()})], ['customer', 'totalQty'])->sort('totalQty', SortDirection.DESC)");
+                    "model::O.all()->project(~[customer:o|$o.customer, qty:o|$o.qty])->groupBy([{r|$r.customer}], [agg({r|$r.qty}, {y|$y->sum()})], ['customer', 'totalQty'])->sort('totalQty', SortDirection.DESC)");
             assertEquals(3, r.rowCount());
             assertEquals("Alice", r.rows().get(0).get(0).toString()); // 17
             assertEquals("Bob", r.rows().get(1).get(0).toString());    // 12
@@ -3272,7 +3272,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Filter → project → groupBy (filtered aggregation)")
         void testFilteredAggregation() throws SQLException {
             var r = exec(model,
-                    "O.all()->filter({o|$o.product == 'Widget'})->project(~[customer:o|$o.customer, qty:o|$o.qty])->groupBy([{r|$r.customer}], [agg({r|$r.qty}, {y|$y->sum()})], ['customer', 'widgetQty'])");
+                    "model::O.all()->filter({o|$o.product == 'Widget'})->project(~[customer:o|$o.customer, qty:o|$o.qty])->groupBy([{r|$r.customer}], [agg({r|$r.qty}, {y|$y->sum()})], ['customer', 'widgetQty'])");
             Map<String, Integer> results = new HashMap<>();
             for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
             assertEquals(15, results.get("Alice")); // 5 + 10
@@ -3282,7 +3282,7 @@ class RelationalMappingIntegrationTest {
 
         @Test @DisplayName("Distinct on multi-column projection")
         void testDistinctMultiColumn() throws SQLException {
-            var r = exec(model, "O.all()->project(~[customer:o|$o.customer, product:o|$o.product])->distinct()");
+            var r = exec(model, "model::O.all()->project(~[customer:o|$o.customer, product:o|$o.product])->distinct()");
             assertTrue(r.rowCount() >= 5); // unique customer-product pairs
         }
     }
@@ -3318,7 +3318,7 @@ class RelationalMappingIntegrationTest {
                         model::Emp_Dept: Relational { AssociationMapping ( employees: [store::DB]@Emp_Dept, dept: [store::DB]@Emp_Dept ) }
 )
                     """, "store::DB", "model::M");
-            var r = exec(m, "Employee.all()->filter({e|$e.dept.name == 'Engineering'})->project(~[name:e|$e.name])");
+            var r = exec(m, "test::Employee.all()->filter({e|$e.dept.name == 'Engineering'})->project(~[name:e|$e.name])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Charlie")));
         }
@@ -3348,7 +3348,7 @@ class RelationalMappingIntegrationTest {
                         model::Student_School: Relational { AssociationMapping ( students: [store::DB]@Student_School, school: [store::DB]@Student_School ) }
 )
                     """, "store::DB", "model::M");
-            var r = exec(m, "Student.all()->project(~[student:s|$s.name, school:s|$s.school.name])");
+            var r = exec(m, "model::Student.all()->project(~[student:s|$s.name, school:s|$s.school.name])");
             assertEquals(3, r.rowCount());
             Map<String, String> studentSchool = new HashMap<>();
             for (var row : r.rows()) studentSchool.put(row.get(0).toString(), row.get(1).toString());
@@ -3382,7 +3382,7 @@ class RelationalMappingIntegrationTest {
 )
                     """, "store::DB", "model::M");
             // Project person name and address city (LEFT JOIN, rows expand)
-            var r = exec(m, "Person.all()->project(~[name:p|$p.name, city:p|$p.addrs.city])");
+            var r = exec(m, "test::Person.all()->project(~[name:p|$p.name, city:p|$p.addrs.city])");
             // Alice→3 rows, Bob→1 row, Charlie→1 row (null city)
             assertTrue(r.rowCount() >= 4);
         }
@@ -3412,7 +3412,7 @@ class RelationalMappingIntegrationTest {
                         model::Person_Addr: Relational { AssociationMapping ( person: [store::DB]@Person_Addr, addrs: [store::DB]@Person_Addr ) }
 )
                     """, "store::DB", "model::M");
-            var r = exec(m, "Person.all()->filter({p|$p.addrs.city == 'NYC'})->project(~[name:p|$p.name])");
+            var r = exec(m, "test::Person.all()->filter({p|$p.addrs.city == 'NYC'})->project(~[name:p|$p.name])");
             assertEquals(2, r.rowCount()); // Alice and Bob have NYC addresses
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Bob")));
         }
@@ -3450,7 +3450,7 @@ class RelationalMappingIntegrationTest {
                         model::Order_Product: Relational { AssociationMapping ( orders: [store::DB]@Order_Product, product: [store::DB]@Order_Product ) }
 )
                     """, "store::DB", "model::M");
-            var r = exec(m, "Order.all()->project(~[customer:o|$o.customer.name, product:o|$o.product.name, qty:o|$o.qty])");
+            var r = exec(m, "test::Order.all()->project(~[customer:o|$o.customer.name, product:o|$o.product.name, qty:o|$o.qty])");
             assertEquals(3, r.rowCount());
         }
 
@@ -3480,7 +3480,7 @@ class RelationalMappingIntegrationTest {
 )
                     """, "store::DB", "model::M");
             // Get all UK authors' book titles
-            var r = exec(m, "Author.all()->filter({a|$a.country == 'UK'})->project(~[author:a|$a.name, book:a|$a.books.title])");
+            var r = exec(m, "model::Author.all()->filter({a|$a.country == 'UK'})->project(~[author:a|$a.name, book:a|$a.books.title])");
             // Tolkien has 2 books, Clarke has 1 = 3 rows
             assertEquals(3, r.rowCount());
         }
@@ -3508,7 +3508,7 @@ class RelationalMappingIntegrationTest {
 
         @Test @DisplayName("Computed: multiplication in projection")
         void testMultiplication() throws SQLException {
-            var r = exec(model, "I.all()->project(~[item:i|$i.item, totalCost:i|$i.qty * $i.unitCost])");
+            var r = exec(model, "model::I.all()->project(~[item:i|$i.item, totalCost:i|$i.qty * $i.unitCost])");
             assertEquals(3, r.rowCount());
             Map<String, Double> costs = new HashMap<>();
             for (var row : r.rows()) costs.put(row.get(0).toString(), ((Number) row.get(1)).doubleValue());
@@ -3519,25 +3519,25 @@ class RelationalMappingIntegrationTest {
 
         @Test @DisplayName("Computed: addition in projection")
         void testAddition() throws SQLException {
-            var r = exec(model, "I.all()->filter({i|$i.item == 'Widget'})->project(~[extra:i|$i.qty + 50])");
+            var r = exec(model, "model::I.all()->filter({i|$i.item == 'Widget'})->project(~[extra:i|$i.qty + 50])");
             assertEquals(150, ((Number) r.rows().get(0).get(0)).intValue());
         }
 
         @Test @DisplayName("Computed: subtraction in projection")
         void testSubtraction() throws SQLException {
-            var r = exec(model, "I.all()->filter({i|$i.item == 'Widget'})->project(~[remaining:i|$i.qty - 10])");
+            var r = exec(model, "model::I.all()->filter({i|$i.item == 'Widget'})->project(~[remaining:i|$i.qty - 10])");
             assertEquals(90, ((Number) r.rows().get(0).get(0)).intValue());
         }
 
         @Test @DisplayName("Computed: string concatenation in projection")
         void testStringConcat() throws SQLException {
-            var r = exec(model, "I.all()->filter({i|$i.item == 'Widget'})->project(~[label:i|'Item: ' + $i.item])");
+            var r = exec(model, "model::I.all()->filter({i|$i.item == 'Widget'})->project(~[label:i|'Item: ' + $i.item])");
             assertEquals("Item: Widget", r.rows().get(0).get(0).toString());
         }
 
         @Test @DisplayName("Computed: conditional expression (if)")
         void testConditionalIf() throws SQLException {
-            var r = exec(model, "I.all()->project(~[item:i|$i.item, status:i|if($i.qty > 30, |'In Stock', |'Low Stock')])");
+            var r = exec(model, "model::I.all()->project(~[item:i|$i.item, status:i|if($i.qty > 30, |'In Stock', |'Low Stock')])");
             assertEquals(3, r.rowCount());
             Map<String, String> statuses = new HashMap<>();
             for (var row : r.rows()) statuses.put(row.get(0).toString(), row.get(1).toString());
@@ -3571,25 +3571,25 @@ class RelationalMappingIntegrationTest {
 
         @Test @DisplayName("Filter: date comparison (after)")
         void testDateAfter() throws SQLException {
-            var r = exec(model, "E.all()->filter({e|$e.eventDate > %2024-06-01})->project(~[name:e|$e.name])");
+            var r = exec(model, "model::E.all()->filter({e|$e.eventDate > %2024-06-01})->project(~[name:e|$e.name])");
             assertEquals(3, r.rowCount()); // Summer, Halloween, Christmas
         }
 
         @Test @DisplayName("Filter: date comparison (before)")
         void testDateBefore() throws SQLException {
-            var r = exec(model, "E.all()->filter({e|$e.eventDate < %2024-03-01})->project(~[name:e|$e.name])");
+            var r = exec(model, "model::E.all()->filter({e|$e.eventDate < %2024-03-01})->project(~[name:e|$e.name])");
             assertEquals(2, r.rowCount()); // New Year, Valentine
         }
 
         @Test @DisplayName("Filter: date range")
         void testDateRange() throws SQLException {
-            var r = exec(model, "E.all()->filter({e|$e.eventDate >= %2024-02-01 && $e.eventDate <= %2024-07-01})->project(~[name:e|$e.name])");
+            var r = exec(model, "model::E.all()->filter({e|$e.eventDate >= %2024-02-01 && $e.eventDate <= %2024-07-01})->project(~[name:e|$e.name])");
             assertEquals(2, r.rowCount()); // Valentine, Summer
         }
 
         @Test @DisplayName("Sort by date ascending")
         void testSortByDate() throws SQLException {
-            var r = exec(model, "E.all()->sortBy({e|$e.eventDate})->project(~[name:e|$e.name])");
+            var r = exec(model, "model::E.all()->sortBy({e|$e.eventDate})->project(~[name:e|$e.name])");
             assertEquals("New Year", r.rows().get(0).get(0).toString());
             assertEquals("Christmas", r.rows().get(r.rowCount() - 1).get(0).toString());
         }
@@ -3616,7 +3616,7 @@ class RelationalMappingIntegrationTest {
                     "product: [store::DB] LINE_ITEMS.PRODUCT, qty: [store::DB] LINE_ITEMS.QTY, price: [store::DB] LINE_ITEMS.PRICE");
             // Get total revenue per product, sorted desc, top 3
             var r = exec(m,
-                    "LI.all()->project(~[product:l|$l.product, revenue:l|$l.qty * $l.price])->groupBy([{r|$r.product}], [agg({r|$r.revenue}, {y|$y->sum()})], ['product', 'totalRevenue'])->sort('totalRevenue', SortDirection.DESC)->slice(0, 3)");
+                    "model::LI.all()->project(~[product:l|$l.product, revenue:l|$l.qty * $l.price])->groupBy([{r|$r.product}], [agg({r|$r.revenue}, {y|$y->sum()})], ['product', 'totalRevenue'])->sort('totalRevenue', SortDirection.DESC)->slice(0, 3)");
             assertEquals(3, r.rowCount());
             assertEquals("Laptop", r.rows().get(0).get(0).toString()); // 2999.97
         }
@@ -3647,7 +3647,7 @@ class RelationalMappingIntegrationTest {
 )
                     """, "store::DB", "model::M");
             // High earners (>100k) with their department
-            var r = exec(m, "Emp.all()->filter({e|$e.sal > 100000})->project(~[name:e|$e.name, dept:e|$e.dept.name, sal:e|$e.sal])");
+            var r = exec(m, "model::Emp.all()->filter({e|$e.sal > 100000})->project(~[name:e|$e.name, dept:e|$e.dept.name, sal:e|$e.sal])");
             assertEquals(2, r.rowCount()); // Alice (Eng, 120k), Diana (Sales, 110k)
         }
 
@@ -3677,7 +3677,7 @@ class RelationalMappingIntegrationTest {
 )
                     """, "store::DB", "model::M");
             // Low stock (< 10) items with their supplier
-            var r = exec(m, "Item.all()->filter({i|$i.stock < 10})->project(~[item:i|$i.name, stock:i|$i.stock, supplier:i|$i.supplier.name])");
+            var r = exec(m, "model::Item.all()->filter({i|$i.stock < 10})->project(~[item:i|$i.name, stock:i|$i.stock, supplier:i|$i.supplier.name])");
             assertEquals(2, r.rowCount()); // Nut M5 (5, Acme), Washer M5 (3, Global)
         }
 
@@ -3696,7 +3696,7 @@ class RelationalMappingIntegrationTest {
                     "category: [store::DB] SALES_DATA.CATEGORY, amount: [store::DB] SALES_DATA.AMOUNT, units: [store::DB] SALES_DATA.UNITS");
             // Sum of amount per category
             var r = exec(m,
-                    "S.all()->project(~[category:s|$s.category, amount:s|$s.amount])->groupBy([{r|$r.category}], [agg({r|$r.amount}, {y|$y->sum()})], ['category', 'totalAmount'])->sort('totalAmount', SortDirection.DESC)");
+                    "model::S.all()->project(~[category:s|$s.category, amount:s|$s.amount])->groupBy([{r|$r.category}], [agg({r|$r.amount}, {y|$y->sum()})], ['category', 'totalAmount'])->sort('totalAmount', SortDirection.DESC)");
             assertEquals(3, r.rowCount());
             assertEquals("Electronics", r.rows().get(0).get(0).toString()); // 800
             assertEquals("Clothing", r.rows().get(1).get(0).toString());    // 450
@@ -3759,7 +3759,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Filter on local AND to-one association together")
         void testFilterLocalAndToOne() throws SQLException {
             // sal > 100000 AND dept == 'Engineering' → Alice(120k) and Frank(105k)
-            var r = exec(model, "Emp.all()->filter({e|$e.sal > 100000 && $e.dept.name == 'Engineering'})->project(~[name:e|$e.name])");
+            var r = exec(model, "model::Emp.all()->filter({e|$e.sal > 100000 && $e.dept.name == 'Engineering'})->project(~[name:e|$e.name])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Frank")));
         }
@@ -3767,7 +3767,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Filter on local OR to-one association")
         void testFilterLocalOrToOne() throws SQLException {
             // sal > 110000 OR dept == 'Marketing'
-            var r = exec(model, "Emp.all()->filter({e|$e.sal > 110000 || $e.dept.name == 'Marketing'})->project(~[name:e|$e.name])");
+            var r = exec(model, "model::Emp.all()->filter({e|$e.sal > 110000 || $e.dept.name == 'Marketing'})->project(~[name:e|$e.name])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Diana")));
         }
@@ -3775,28 +3775,28 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Filter on to-one + filter on to-many in same query")
         void testFilterToOneAndToMany() throws SQLException {
             // dept == 'Engineering' AND has address in 'NYC'
-            var r = exec(model, "Emp.all()->filter({e|$e.dept.name == 'Engineering' && $e.addrs.city == 'NYC'})->project(~[name:e|$e.name])");
+            var r = exec(model, "model::Emp.all()->filter({e|$e.dept.name == 'Engineering' && $e.addrs.city == 'NYC'})->project(~[name:e|$e.name])");
             assertEquals(1, r.rowCount());
             assertEquals("Alice", r.rows().get(0).get(0).toString());
         }
 
         @Test @DisplayName("Chained filter: local then association")
         void testChainedFilterLocalThenAssoc() throws SQLException {
-            var r = exec(model, "Emp.all()->filter({e|$e.active == true})->filter({e|$e.dept.name == 'Engineering'})->project(~[name:e|$e.name])");
+            var r = exec(model, "model::Emp.all()->filter({e|$e.active == true})->filter({e|$e.dept.name == 'Engineering'})->project(~[name:e|$e.name])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Bob")));
         }
 
         @Test @DisplayName("Filter on association property, project both local + association")
         void testFilterAssocProjectBoth() throws SQLException {
-            var r = exec(model, "Emp.all()->filter({e|$e.dept.name == 'Engineering'})->project(~[name:e|$e.name, sal:e|$e.sal, dept:e|$e.dept.name])");
+            var r = exec(model, "model::Emp.all()->filter({e|$e.dept.name == 'Engineering'})->project(~[name:e|$e.name, sal:e|$e.sal, dept:e|$e.dept.name])");
             assertEquals(3, r.rowCount()); // Alice, Bob, Frank
             for (var row : r.rows()) assertEquals("Engineering", row.get(2).toString());
         }
 
         @Test @DisplayName("Boolean filter + association filter + sort + limit")
         void testBoolFilterAssocSortLimit() throws SQLException {
-            var r = exec(model, "Emp.all()->filter({e|$e.active == true && $e.dept.name != 'Marketing'})->sortByReversed({e|$e.sal})->limit(2)->project(~[name:e|$e.name, sal:e|$e.sal])");
+            var r = exec(model, "model::Emp.all()->filter({e|$e.active == true && $e.dept.name != 'Marketing'})->sortByReversed({e|$e.sal})->limit(2)->project(~[name:e|$e.name, sal:e|$e.sal])");
             assertEquals(2, r.rowCount());
             // Top 2 active non-Marketing by salary: Alice (120k), Eve (95k) -- Bob (90k) is 3rd
         }
@@ -3804,7 +3804,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Same association in filter AND projection")
         void testSameAssocFilterAndProject() throws SQLException {
             // Filter by addr.city == 'NYC', project addr.state
-            var r = exec(model, "Emp.all()->filter({e|$e.addrs.city == 'NYC'})->project(~[name:e|$e.name, city:e|$e.addrs.city, state:e|$e.addrs.state])");
+            var r = exec(model, "model::Emp.all()->filter({e|$e.addrs.city == 'NYC'})->project(~[name:e|$e.name, city:e|$e.addrs.city, state:e|$e.addrs.state])");
             // Alice has 2 addresses (NYC, LA) — filter narrows to person but projection shows all
             assertTrue(r.rowCount() >= 1);
         }
@@ -3812,14 +3812,14 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Filter on to-one budget, project to-many addresses")
         void testFilterToOneProjectToMany() throws SQLException {
             // dept.budget > 400000 → only Engineering; then project addresses (to-many)
-            var r = exec(model, "Emp.all()->filter({e|$e.dept.budget > 400000})->project(~[name:e|$e.name, city:e|$e.addrs.city])");
+            var r = exec(model, "model::Emp.all()->filter({e|$e.dept.budget > 400000})->project(~[name:e|$e.name, city:e|$e.addrs.city])");
             // Engineering employees: Alice (2 addrs), Bob (1 addr), Frank (0 addrs)
             assertTrue(r.rowCount() >= 3);
         }
 
         @Test @DisplayName("String function on association column in filter")
         void testStringFuncOnAssocFilter() throws SQLException {
-            var r = exec(model, "Emp.all()->filter({e|$e.dept.name->startsWith('Eng')})->project(~[name:e|$e.name])");
+            var r = exec(model, "model::Emp.all()->filter({e|$e.dept.name->startsWith('Eng')})->project(~[name:e|$e.name])");
             assertEquals(3, r.rowCount()); // Alice, Bob, Frank
         }
     }
@@ -3862,7 +3862,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("GroupBy on joined column (total sales per rep)")
         void testGroupByJoinedColumn() throws SQLException {
             var r = exec(model,
-                    "Sale.all()->project(~[rep:s|$s.rep.name, amount:s|$s.amount])->groupBy([{r|$r.rep}], [agg({r|$r.amount}, {y|$y->sum()})], ['rep', 'total'])");
+                    "test::Sale.all()->project(~[rep:s|$s.rep.name, amount:s|$s.amount])->groupBy([{r|$r.rep}], [agg({r|$r.amount}, {y|$y->sum()})], ['rep', 'total'])");
             Map<String, Integer> results = new HashMap<>();
             for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
             assertEquals(900, results.get("Alice"));   // 500+300+100
@@ -3873,7 +3873,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("GroupBy on 2nd-level joined column (total sales per region)")
         void testGroupByRegion() throws SQLException {
             var r = exec(model,
-                    "Sale.all()->project(~[region:s|$s.rep.region, amount:s|$s.amount])->groupBy([{r|$r.region}], [agg({r|$r.amount}, {y|$y->sum()})], ['region', 'total'])");
+                    "test::Sale.all()->project(~[region:s|$s.rep.region, amount:s|$s.amount])->groupBy([{r|$r.region}], [agg({r|$r.amount}, {y|$y->sum()})], ['region', 'total'])");
             Map<String, Integer> results = new HashMap<>();
             for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
             assertEquals(1600, results.get("East"));  // Alice(900) + Bob(700)
@@ -3884,14 +3884,14 @@ class RelationalMappingIntegrationTest {
         void testFilterJoinedThenAggregate() throws SQLException {
             // Only East region sales, then total per rep
             var r = exec(model,
-                    "Sale.all()->filter({s|$s.rep.region == 'East'})->project(~[rep:s|$s.rep.name, amount:s|$s.amount])->groupBy([{r|$r.rep}], [agg({r|$r.amount}, {y|$y->sum()})], ['rep', 'total'])");
+                    "test::Sale.all()->filter({s|$s.rep.region == 'East'})->project(~[rep:s|$s.rep.name, amount:s|$s.amount])->groupBy([{r|$r.rep}], [agg({r|$r.amount}, {y|$y->sum()})], ['rep', 'total'])");
             assertEquals(2, r.rowCount()); // Alice and Bob only
         }
 
         @Test @DisplayName("Count per joined column")
         void testCountPerJoinedColumn() throws SQLException {
             var r = exec(model,
-                    "Sale.all()->project(~[rep:s|$s.rep.name, amount:s|$s.amount])->groupBy([{r|$r.rep}], [agg({r|$r.amount}, {y|$y->count()})], ['rep', 'cnt'])");
+                    "test::Sale.all()->project(~[rep:s|$s.rep.name, amount:s|$s.amount])->groupBy([{r|$r.rep}], [agg({r|$r.amount}, {y|$y->count()})], ['rep', 'cnt'])");
             Map<String, Integer> results = new HashMap<>();
             for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
             assertEquals(3, results.get("Alice"));
@@ -3902,7 +3902,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Aggregate + sort + slice (top rep by total sales)")
         void testAggSortSlice() throws SQLException {
             var r = exec(model,
-                    "Sale.all()->project(~[rep:s|$s.rep.name, amount:s|$s.amount])->groupBy([{r|$r.rep}], [agg({r|$r.amount}, {y|$y->sum()})], ['rep', 'total'])->sort('total', SortDirection.DESC)->slice(0, 1)");
+                    "test::Sale.all()->project(~[rep:s|$s.rep.name, amount:s|$s.amount])->groupBy([{r|$r.rep}], [agg({r|$r.amount}, {y|$y->sum()})], ['rep', 'total'])->sort('total', SortDirection.DESC)->slice(0, 1)");
             assertEquals(1, r.rowCount());
             assertEquals("Alice", r.rows().get(0).get(0).toString()); // 900
         }
@@ -3954,21 +3954,21 @@ class RelationalMappingIntegrationTest {
 
         @Test @DisplayName("Project from 3 tables simultaneously")
         void testProjectThreeTables() throws SQLException {
-            var r = exec(model, "Order.all()->project(~[customer:o|$o.customer.name, product:o|$o.product.name, qty:o|$o.qty])");
+            var r = exec(model, "test::Order.all()->project(~[customer:o|$o.customer.name, product:o|$o.product.name, qty:o|$o.qty])");
             assertEquals(6, r.rowCount());
         }
 
         @Test @DisplayName("Filter on one join, project through another")
         void testFilterOneJoinProjectAnother() throws SQLException {
             // Gold customers only, show their product names
-            var r = exec(model, "Order.all()->filter({o|$o.customer.tier == 'Gold'})->project(~[customer:o|$o.customer.name, product:o|$o.product.name, qty:o|$o.qty])");
+            var r = exec(model, "test::Order.all()->filter({o|$o.customer.tier == 'Gold'})->project(~[customer:o|$o.customer.name, product:o|$o.product.name, qty:o|$o.qty])");
             assertEquals(4, r.rowCount()); // Alice(2 orders) + Charlie(2 orders)
         }
 
         @Test @DisplayName("Filter on both joins simultaneously")
         void testFilterBothJoins() throws SQLException {
             // Gold customers buying Hardware products
-            var r = exec(model, "Order.all()->filter({o|$o.customer.tier == 'Gold' && $o.product.category == 'Hardware'})->project(~[customer:o|$o.customer.name, product:o|$o.product.name])");
+            var r = exec(model, "test::Order.all()->filter({o|$o.customer.tier == 'Gold' && $o.product.category == 'Hardware'})->project(~[customer:o|$o.customer.name, product:o|$o.product.name])");
             assertEquals(2, r.rowCount()); // Alice-Widget, Charlie-Widget
         }
 
@@ -3976,7 +3976,7 @@ class RelationalMappingIntegrationTest {
         void testGroupByOneJoinFilterAnother() throws SQLException {
             // Only Hardware products, groupBy customer
             var r = exec(model,
-                    "Order.all()->filter({o|$o.product.category == 'Hardware'})->project(~[customer:o|$o.customer.name, qty:o|$o.qty])->groupBy([{r|$r.customer}], [agg({r|$r.qty}, {y|$y->sum()})], ['customer', 'totalQty'])");
+                    "test::Order.all()->filter({o|$o.product.category == 'Hardware'})->project(~[customer:o|$o.customer.name, qty:o|$o.qty])->groupBy([{r|$r.customer}], [agg({r|$r.qty}, {y|$y->sum()})], ['customer', 'totalQty'])");
             Map<String, Integer> results = new HashMap<>();
             for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
             assertEquals(5, results.get("Alice"));    // Widget x5
@@ -3988,21 +3988,21 @@ class RelationalMappingIntegrationTest {
         void testGroupByTwoDifferentJoins() throws SQLException {
             // GroupBy customer tier AND product category
             var r = exec(model,
-                    "Order.all()->project(~[tier:o|$o.customer.tier, category:o|$o.product.category, qty:o|$o.qty])->groupBy([{r|$r.tier}, {r|$r.category}], [agg({r|$r.qty}, {y|$y->sum()})], ['tier', 'category', 'totalQty'])");
+                    "test::Order.all()->project(~[tier:o|$o.customer.tier, category:o|$o.product.category, qty:o|$o.qty])->groupBy([{r|$r.tier}, {r|$r.category}], [agg({r|$r.qty}, {y|$y->sum()})], ['tier', 'category', 'totalQty'])");
             assertTrue(r.rowCount() >= 3); // Gold-Hardware, Gold-Software, Silver-Hardware
         }
 
         @Test
         @DisplayName("Computed projection using columns from two joins")
         void testComputedFromTwoJoins() throws SQLException {
-            var r = exec(model, "Order.all()->project(~[label:o|$o.customer.name + ' bought ' + $o.product.name, qty:o|$o.qty])");
+            var r = exec(model, "test::Order.all()->project(~[label:o|$o.customer.name + ' bought ' + $o.product.name, qty:o|$o.qty])");
             assertEquals(6, r.rowCount());
             assertTrue(colStr(r, 0).stream().anyMatch(s -> s.contains("Alice") && s.contains("Widget")));
         }
 
         @Test @DisplayName("Sort by joined column, limit")
         void testSortByJoinedLimit() throws SQLException {
-            var r = exec(model, "Order.all()->sortByReversed({o|$o.qty})->limit(3)->project(~[customer:o|$o.customer.name, product:o|$o.product.name, qty:o|$o.qty])");
+            var r = exec(model, "test::Order.all()->sortByReversed({o|$o.qty})->limit(3)->project(~[customer:o|$o.customer.name, product:o|$o.product.name, qty:o|$o.qty])");
             assertEquals(3, r.rowCount());
             // Top 3 by qty: Charlie-Widget(10), Alice-Widget(5), Charlie-Service(4)
         }
@@ -4042,7 +4042,7 @@ class RelationalMappingIntegrationTest {
 )
                     """, "store::DB", "model::M");
             // Filter by HIGH priority, project assignee name
-            var r = exec(m, "Ticket.all()->filter({t|$t.priority == 'HIGH'})->project(~[title:t|$t.title, assignee:t|$t.assignee.name])");
+            var r = exec(m, "model::Ticket.all()->filter({t|$t.priority == 'HIGH'})->project(~[title:t|$t.title, assignee:t|$t.assignee.name])");
             assertEquals(2, r.rowCount());
             for (var row : r.rows()) assertEquals("Alice", row.get(1).toString());
         }
@@ -4076,7 +4076,7 @@ class RelationalMappingIntegrationTest {
                     """, "store::DB", "model::M");
             // Active orders only, total per customer
             var r = exec(m,
-                    "Order.all()->filter({o|$o.status == 'ACTIVE'})->project(~[customer:o|$o.customer.name, amount:o|$o.amount])->groupBy([{r|$r.customer}], [agg({r|$r.amount}, {y|$y->sum()})], ['customer', 'total'])");
+                    "test::Order.all()->filter({o|$o.status == 'ACTIVE'})->project(~[customer:o|$o.customer.name, amount:o|$o.amount])->groupBy([{r|$r.customer}], [agg({r|$r.amount}, {y|$y->sum()})], ['customer', 'total'])");
             Map<String, Integer> results = new HashMap<>();
             for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
             assertEquals(300, results.get("Alice")); // 100+200
@@ -4117,7 +4117,7 @@ class RelationalMappingIntegrationTest {
                         model::RawEmp_Dept: Relational { AssociationMapping ( emps: [store::DB]@RawEmp_Dept, dept: [store::DB]@RawEmp_Dept ) }
 )
                     """, "store::DB", "model::M");
-            var r = exec(m, "Employee.all()->project(~[fullName:e|$e.fullName])");
+            var r = exec(m, "test::Employee.all()->project(~[fullName:e|$e.fullName])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice Smith", "Bob Jones")));
         }
@@ -4138,7 +4138,7 @@ class RelationalMappingIntegrationTest {
                         View: Pure { ~src Raw label: $src.a + '-' + $src.b, score: $src.score }
                     )
                     """, "store::DB", "model::M");
-            var r = exec(m, "View.all()->filter({v|$v.score > 75})->sortByReversed({v|$v.score})->project(~[label:v|$v.label, score:v|$v.score])");
+            var r = exec(m, "model::View.all()->filter({v|$v.score > 75})->sortByReversed({v|$v.score})->project(~[label:v|$v.label, score:v|$v.score])");
             assertEquals(2, r.rowCount());
             assertEquals("Beta-Two", r.rows().get(0).get(0).toString());   // 95
             assertEquals("Alpha-One", r.rows().get(1).get(0).toString());  // 80
@@ -4207,7 +4207,7 @@ class RelationalMappingIntegrationTest {
         @Test // was @Disabled — testing 2-hop chain
         @DisplayName("Employee with department and company (2 joins)")
         void testEmpDeptCompany() throws SQLException {
-            var r = exec(model, "Emp.all()->project(~[name:e|$e.name, dept:e|$e.dept.name, company:e|$e.dept.company.name])");
+            var r = exec(model, "model::Emp.all()->project(~[name:e|$e.name, dept:e|$e.dept.name, company:e|$e.dept.company.name])");
             assertEquals(4, r.rowCount());
             Map<String, String> empCompany = new HashMap<>();
             for (var row : r.rows()) empCompany.put(row.get(0).toString(), row.get(2).toString());
@@ -4218,13 +4218,13 @@ class RelationalMappingIntegrationTest {
         @Test // was @Disabled — 2-hop filter fixed with multi-hop EXISTS
         @DisplayName("Filter on company country, project employee name")
         void testFilterCompanyProjectEmp() throws SQLException {
-            var r = exec(model, "Emp.all()->filter({e|$e.dept.company.country == 'USA'})->project(~[name:e|$e.name])");
+            var r = exec(model, "model::Emp.all()->filter({e|$e.dept.company.country == 'USA'})->project(~[name:e|$e.name])");
             assertEquals(3, r.rowCount()); // Alice, Bob, Diana (all in Acme USA)
         }
 
         @Test @DisplayName("Employee with to-many skills (LEFT JOIN)")
         void testEmpSkills() throws SQLException {
-            var r = exec(model, "Emp.all()->project(~[name:e|$e.name, skill:e|$e.skills.name])");
+            var r = exec(model, "model::Emp.all()->project(~[name:e|$e.name, skill:e|$e.skills.name])");
             // Alice: 2 skills, Bob: 1, Charlie: 1, Diana: 1 = 5 rows
             assertEquals(5, r.rowCount());
         }
@@ -4232,7 +4232,7 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Filter emp by skill, project dept")
         void testFilterSkillProjectDept() throws SQLException {
             // Employees who know Java
-            var r = exec(model, "Emp.all()->filter({e|$e.skills.name == 'Java'})->project(~[name:e|$e.name, dept:e|$e.dept.name])");
+            var r = exec(model, "model::Emp.all()->filter({e|$e.skills.name == 'Java'})->project(~[name:e|$e.name, dept:e|$e.dept.name])");
             assertEquals(2, r.rowCount()); // Alice and Diana
         }
 
@@ -4240,7 +4240,7 @@ class RelationalMappingIntegrationTest {
         @DisplayName("Total salary per company")
         void testTotalSalPerCompany() throws SQLException {
             var r = exec(model,
-                    "Emp.all()->project(~[company:e|$e.dept.company.name, sal:e|$e.sal])->groupBy([{r|$r.company}], [agg({r|$r.sal}, {y|$y->sum()})], ['company', 'totalSal'])");
+                    "model::Emp.all()->project(~[company:e|$e.dept.company.name, sal:e|$e.sal])->groupBy([{r|$r.company}], [agg({r|$r.sal}, {y|$y->sum()})], ['company', 'totalSal'])");
             Map<String, Integer> results = new HashMap<>();
             for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
             assertEquals(305000, results.get("Acme Corp")); // 120k+90k+95k
@@ -4249,14 +4249,14 @@ class RelationalMappingIntegrationTest {
 
         @Test @DisplayName("Filter by skill + sort by salary + limit (top Java devs)")
         void testFilterSkillSortSalLimit() throws SQLException {
-            var r = exec(model, "Emp.all()->filter({e|$e.skills.name == 'Java'})->sortByReversed({e|$e.sal})->limit(1)->project(~[name:e|$e.name, sal:e|$e.sal])");
+            var r = exec(model, "model::Emp.all()->filter({e|$e.skills.name == 'Java'})->sortByReversed({e|$e.sal})->limit(1)->project(~[name:e|$e.name, sal:e|$e.sal])");
             assertEquals(1, r.rowCount());
             assertEquals("Alice", r.rows().get(0).get(0).toString()); // 120k
         }
 
         @Test @DisplayName("Project dept and its projects (to-many)")
         void testDeptProjects() throws SQLException {
-            var r = exec(model, "Dept.all()->project(~[dept:d|$d.name, project:d|$d.projects.name, budget:d|$d.projects.budget])");
+            var r = exec(model, "model::Dept.all()->project(~[dept:d|$d.name, project:d|$d.projects.name, budget:d|$d.projects.budget])");
             assertEquals(3, r.rowCount()); // One project per dept
         }
     }
@@ -4276,13 +4276,13 @@ class RelationalMappingIntegrationTest {
                     "ID INTEGER, NAME VARCHAR(50), VAL INTEGER",
                     "name: [store::DB] ST.NAME, val: [store::DB] ST.VAL");
 
-            var r1 = exec(m, "S.all()->filter({s|$s.val > 15})->project(~[name:s|$s.name])");
+            var r1 = exec(m, "model::S.all()->filter({s|$s.val > 15})->project(~[name:s|$s.name])");
             assertEquals(2, r1.rowCount());
 
-            var r2 = exec(m, "S.all()->filter({s|$s.val < 25})->project(~[name:s|$s.name])");
+            var r2 = exec(m, "model::S.all()->filter({s|$s.val < 25})->project(~[name:s|$s.name])");
             assertEquals(2, r2.rowCount());
 
-            var r3 = exec(m, "S.all()->project(~[name:s|$s.name])");
+            var r3 = exec(m, "model::S.all()->project(~[name:s|$s.name])");
             assertEquals(3, r3.rowCount());
         }
 
@@ -4295,15 +4295,15 @@ class RelationalMappingIntegrationTest {
                     "ID INTEGER, NAME VARCHAR(50)",
                     "name: [store::DB] MUT.NAME");
 
-            var r1 = exec(m, "M.all()->project(~[name:x|$x.name])");
+            var r1 = exec(m, "model::M.all()->project(~[name:x|$x.name])");
             assertEquals(1, r1.rowCount());
 
             sql("INSERT INTO MUT VALUES (2, 'second')");
-            var r2 = exec(m, "M.all()->project(~[name:x|$x.name])");
+            var r2 = exec(m, "model::M.all()->project(~[name:x|$x.name])");
             assertEquals(2, r2.rowCount());
 
             sql("DELETE FROM MUT WHERE ID = 1");
-            var r3 = exec(m, "M.all()->project(~[name:x|$x.name])");
+            var r3 = exec(m, "model::M.all()->project(~[name:x|$x.name])");
             assertEquals(1, r3.rowCount());
             assertEquals("second", r3.rows().get(0).get(0).toString());
         }
@@ -4347,7 +4347,7 @@ class RelationalMappingIntegrationTest {
         @Test
         @DisplayName("Project single embedded property")
         void testEmbeddedSingleProperty() throws SQLException {
-            var query = "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])";
+            var query = "test::Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])";
             var r = exec(model, query);
             assertEquals(3, r.rowCount());
             assertTrue(colStr(r, 1).contains("Acme Corp"));
@@ -4358,7 +4358,7 @@ class RelationalMappingIntegrationTest {
         @Test
         @DisplayName("Project multiple embedded properties")
         void testEmbeddedMultiProperty() throws SQLException {
-            var query = "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName, rev:p|$p.firm.revenue])";
+            var query = "test::Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName, rev:p|$p.firm.revenue])";
             var r = exec(model, query);
             assertEquals(3, r.rowCount());
             // Alice → Acme Corp, 1000000
@@ -4374,7 +4374,7 @@ class RelationalMappingIntegrationTest {
         @Test
         @DisplayName("Filter on embedded property")
         void testEmbeddedFilter() throws SQLException {
-            var query = "Person.all()->filter({p|$p.firm.legalName == 'Acme Corp'})->project(~[name:p|$p.name])";
+            var query = "test::Person.all()->filter({p|$p.firm.legalName == 'Acme Corp'})->project(~[name:p|$p.name])";
             var r = exec(model, query);
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Charlie")));
@@ -4384,7 +4384,7 @@ class RelationalMappingIntegrationTest {
         @Test
         @DisplayName("SQL has no JOIN for embedded — columns from parent table")
         void testEmbeddedNoJoinSql() {
-            String sql = planSql(model, "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])");
+            String sql = planSql(model, "test::Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])");
             assertFalse(sql.toUpperCase().contains("JOIN"), "Embedded should produce no JOIN: " + sql);
             assertTrue(sql.contains("FIRM_NAME"), "Should reference FIRM_NAME column directly: " + sql);
         }
@@ -4392,7 +4392,7 @@ class RelationalMappingIntegrationTest {
         @Test
         @DisplayName("Embedded + flat column coexistence")
         void testEmbeddedWithFlatColumn() throws SQLException {
-            var query = "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])->sort(~name->ascending())";
+            var query = "test::Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])->sort(~name->ascending())";
             var r = exec(model, query);
             assertEquals(3, r.rowCount());
             assertEquals("Alice", colStr(r, 0).get(0));
@@ -4447,7 +4447,7 @@ class RelationalMappingIntegrationTest {
                     """, "store::DB", "model::M");
 
             // Project embedded firm + association address
-            var query = "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName, city:p|$p.address.city])";
+            var query = "test::Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName, city:p|$p.address.city])";
             var r = exec(model, query);
             assertEquals(2, r.rowCount());
             var names = colStr(r, 0);
@@ -4497,7 +4497,7 @@ class RelationalMappingIntegrationTest {
 )
                     """, "store::DB", "model::M");
 
-            String sql = planSql(model, "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName, city:p|$p.address.city])");
+            String sql = planSql(model, "test::Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName, city:p|$p.address.city])");
             String upper = sql.toUpperCase();
             // Exactly one JOIN (for address association); firm embedded = no JOIN
             assertEquals(1, upper.split("JOIN").length - 1, "Expected exactly 1 JOIN (address): " + sql);
@@ -4546,7 +4546,7 @@ class RelationalMappingIntegrationTest {
         @Test
         @DisplayName("Project single inline property")
         void testInlineSingleProperty() throws SQLException {
-            var query = "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])";
+            var query = "test::Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])";
             var r = exec(model, query);
             assertEquals(3, r.rowCount());
             assertTrue(colStr(r, 1).contains("Acme Corp"));
@@ -4557,7 +4557,7 @@ class RelationalMappingIntegrationTest {
         @Test
         @DisplayName("Project multiple inline properties")
         void testInlineMultiProperty() throws SQLException {
-            var query = "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName, rev:p|$p.firm.revenue])";
+            var query = "test::Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName, rev:p|$p.firm.revenue])";
             var r = exec(model, query);
             assertEquals(3, r.rowCount());
             var names = colStr(r, 0);
@@ -4570,7 +4570,7 @@ class RelationalMappingIntegrationTest {
         @Test
         @DisplayName("Filter on inline property")
         void testInlineFilter() throws SQLException {
-            var query = "Person.all()->filter({p|$p.firm.legalName == 'Acme Corp'})->project(~[name:p|$p.name])";
+            var query = "test::Person.all()->filter({p|$p.firm.legalName == 'Acme Corp'})->project(~[name:p|$p.name])";
             var r = exec(model, query);
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Charlie")));
@@ -4580,7 +4580,7 @@ class RelationalMappingIntegrationTest {
         @Test
         @DisplayName("SQL has no JOIN for inline — columns from referenced mapping's table")
         void testInlineNoJoinSql() {
-            var query = "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])";
+            var query = "test::Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])";
             String sql = planSql(model, query);
             assertFalse(sql.toUpperCase().contains("JOIN"), "Inline should produce no JOIN: " + sql);
             assertTrue(sql.contains("FIRM_NAME"), "Should reference FIRM_NAME column directly: " + sql);
@@ -4635,7 +4635,7 @@ class RelationalMappingIntegrationTest {
         @Test
         @DisplayName("Embedded property from parent table (no JOIN needed)")
         void testOtherwiseEmbeddedProperty() throws SQLException {
-            var query = "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])";
+            var query = "test::Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])";
             var r = exec(model, query);
             assertEquals(3, r.rowCount());
             assertTrue(colStr(r, 1).contains("Acme Corp"));
@@ -4647,7 +4647,7 @@ class RelationalMappingIntegrationTest {
         @Test
         @DisplayName("Fallback property via join (JOIN required)")
         void testOtherwiseFallbackProperty() throws SQLException {
-            var query = "Person.all()->project(~[name:p|$p.name, rev:p|$p.firm.revenue])";
+            var query = "test::Person.all()->project(~[name:p|$p.name, rev:p|$p.firm.revenue])";
             var r = exec(model, query);
             assertEquals(3, r.rowCount());
             var names = colStr(r, 0);
@@ -4662,7 +4662,7 @@ class RelationalMappingIntegrationTest {
         @Test
         @DisplayName("Mixed: embedded from parent + fallback from join")
         void testOtherwiseMixed() throws SQLException {
-            var query = "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName, rev:p|$p.firm.revenue])";
+            var query = "test::Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName, rev:p|$p.firm.revenue])";
             var r = exec(model, query);
             assertEquals(3, r.rowCount());
             var names = colStr(r, 0);
@@ -4679,7 +4679,7 @@ class RelationalMappingIntegrationTest {
         @Test
         @DisplayName("Filter on embedded property (no JOIN needed)")
         void testOtherwiseFilterOnEmbedded() throws SQLException {
-            var query = "Person.all()->filter({p|$p.firm.legalName == 'Acme Corp'})->project(~[name:p|$p.name])";
+            var query = "test::Person.all()->filter({p|$p.firm.legalName == 'Acme Corp'})->project(~[name:p|$p.name])";
             var r = exec(model, query);
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Charlie")));
@@ -4696,7 +4696,7 @@ class RelationalMappingIntegrationTest {
         @DisplayName("Pruning: no firm access → 0 JOINs, no T_FIRM")
         void testOtherwisePruningNoFirmAccess() {
             String sql = planSql(model,
-                    "Person.all()->project(~[name:p|$p.name])");
+                    "test::Person.all()->project(~[name:p|$p.name])");
             assertFalse(sql.toUpperCase().contains("JOIN"),
                     "No firm access → no JOIN. SQL: " + sql);
             assertFalse(sql.toUpperCase().contains("T_FIRM"),
@@ -4707,7 +4707,7 @@ class RelationalMappingIntegrationTest {
         @DisplayName("Pruning: only embedded firm.legalName → 0 JOINs")
         void testOtherwisePruningEmbeddedOnly() {
             String sql = planSql(model,
-                    "Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])");
+                    "test::Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])");
             assertFalse(sql.toUpperCase().contains("JOIN"),
                     "Embedded-only access → no JOIN. SQL: " + sql);
             assertTrue(sql.toUpperCase().contains("FIRM_NAME"),
@@ -4718,7 +4718,7 @@ class RelationalMappingIntegrationTest {
         @DisplayName("Pruning: only fallback firm.revenue → 1 JOIN to T_FIRM")
         void testOtherwisePruningFallbackOnly() {
             String sql = planSql(model,
-                    "Person.all()->project(~[name:p|$p.name, rev:p|$p.firm.revenue])");
+                    "test::Person.all()->project(~[name:p|$p.name, rev:p|$p.firm.revenue])");
             assertEquals(1, sql.toUpperCase().split("JOIN").length - 1,
                     "Fallback-only access → 1 JOIN. SQL: " + sql);
             assertTrue(sql.toUpperCase().contains("T_FIRM"),
@@ -4729,7 +4729,7 @@ class RelationalMappingIntegrationTest {
         @DisplayName("Pruning: mixed embedded + fallback → 1 JOIN, both columns present")
         void testOtherwisePruningMixed() {
             String sql = planSql(model,
-                    "Person.all()->project(~[firmName:p|$p.firm.legalName, rev:p|$p.firm.revenue])");
+                    "test::Person.all()->project(~[firmName:p|$p.firm.legalName, rev:p|$p.firm.revenue])");
             assertEquals(1, sql.toUpperCase().split("JOIN").length - 1,
                     "Mixed access → 1 JOIN for fallback. SQL: " + sql);
             assertTrue(sql.toUpperCase().contains("FIRM_NAME"),
@@ -4788,7 +4788,7 @@ class RelationalMappingIntegrationTest {
 )
                     """, "store::DB", "model::M");
             // Navigate Emp → dept → company → country (3 hops)
-            var r = exec(m, "Emp.all()->project(~[name:e|$e.name, country:e|$e.dept.company.country.name])");
+            var r = exec(m, "model::Emp.all()->project(~[name:e|$e.name, country:e|$e.dept.company.country.name])");
             assertEquals(3, r.rowCount());
             // Alice & Charlie → Engineering → Acme Corp → USA
             // Bob → Sales → Brit Ltd → UK
@@ -4839,7 +4839,7 @@ class RelationalMappingIntegrationTest {
 )
                     """, "store::DB", "model::M");
             // GroupBy country (2 hops from Emp), sum salary
-            var r = exec(m, "E2.all()->project(~[country:e|$e.dept.company.country, salary:e|$e.salary])->groupBy([{r|$r.country}], [agg({r|$r.salary}, {y|$y->sum()})], ['country', 'totalSalary'])");
+            var r = exec(m, "model::E2.all()->project(~[country:e|$e.dept.company.country, salary:e|$e.salary])->groupBy([{r|$r.country}], [agg({r|$r.salary}, {y|$y->sum()})], ['country', 'totalSalary'])");
             assertEquals(2, r.rowCount());
         }
 
@@ -4902,7 +4902,7 @@ class RelationalMappingIntegrationTest {
                         fullName: concat([store::DB] PEOPLE.FIRST, ' ', [store::DB] PEOPLE.LAST)
                     } )
                     """, "store::DB", "model::M");
-            var r = exec(model, "P.all()->filter(p|$p.fullName->contains('Smith'))->project(~[name:p|$p.fullName])");
+            var r = exec(model, "model::P.all()->filter(p|$p.fullName->contains('Smith'))->project(~[name:p|$p.fullName])");
             var names = colStr(r, 0);
             assertEquals(2, names.size());
             assertTrue(names.contains("Alice Smith"));
@@ -4949,7 +4949,7 @@ class RelationalMappingIntegrationTest {
                     )
                     """, "store::DB", "test::M");
             // Navigate Person -> Firm (association) -> Country (join chain on Firm)
-            var r = exec(model, "Person.all()->project(~[name:p|$p.name, firm:p|$p.firm.legalName, country:p|$p.firm.country])->sort(~name->ascending())");
+            var r = exec(model, "test::Person.all()->project(~[name:p|$p.name, firm:p|$p.firm.legalName, country:p|$p.firm.country])->sort(~name->ascending())");
             assertEquals(3, r.rowCount());
             assertEquals(List.of("Alice", "Bob", "Charlie"), colStr(r, 0));
             assertEquals("Acme", colStr(r, 1).get(0));
@@ -4997,7 +4997,7 @@ class RelationalMappingIntegrationTest {
                         ) }
                     )
                     """, "store::DB", "test::M");
-            var r = exec(model, "Person.all()->filter({p|$p.firm.country == 'USA'})->project(~[name:p|$p.name])->sort(~name->ascending())");
+            var r = exec(model, "test::Person.all()->filter({p|$p.firm.country == 'USA'})->project(~[name:p|$p.name])->sort(~name->ascending())");
             assertEquals(2, r.rowCount());
             assertEquals(List.of("Alice", "Charlie"), colStr(r, 0));
         }
@@ -5042,7 +5042,7 @@ class RelationalMappingIntegrationTest {
                     )
                     """, "store::DB", "test::M");
             // Sort by country — UK before USA alphabetically
-            var r = exec(model, "Person.all()->sortBy({p|$p.firm.country})->project(~[name:p|$p.name])");
+            var r = exec(model, "test::Person.all()->sortBy({p|$p.firm.country})->project(~[name:p|$p.name])");
             assertEquals(3, r.rowCount());
             // UK sorts before USA
             assertEquals("Bob", colStr(r, 0).get(0));
@@ -5071,7 +5071,7 @@ class RelationalMappingIntegrationTest {
                         }
                     )
                     """, "store::DB", "test::M");
-            var r = exec(model, "Position.all()->project(~[gsn:p|$p.gsn, qty:p|$p.quantity])->sort(~gsn->ascending())");
+            var r = exec(model, "test::Position.all()->project(~[gsn:p|$p.gsn, qty:p|$p.quantity])->sort(~gsn->ascending())");
             assertEquals(2, r.rowCount());
             // EA4GNY: sum(100,200)=300, YU2EF5: sum(3,5)=8
             assertEquals("EA4GNY", colStr(r, 0).get(0));
@@ -5116,7 +5116,7 @@ class RelationalMappingIntegrationTest {
                     )
                     """, "store::DB", "test::M");
             // Filter: only employees managed by Alice, sort by name
-            var r = exec(model, "Employee.all()->filter(e|$e.managerName == 'Alice')->project(~[name:e|$e.name])->sort(~name->ascending())");
+            var r = exec(model, "test::Employee.all()->filter(e|$e.managerName == 'Alice')->project(~[name:e|$e.name])->sort(~name->ascending())");
             assertEquals(2, r.rowCount());
             assertEquals(List.of("Bob", "Charlie"), colStr(r, 0));
         }
@@ -5147,7 +5147,7 @@ class RelationalMappingIntegrationTest {
                     )
                     """, "store::DB", "test::M");
             // GroupBy product name, sum qty
-            var r = exec(model, "Sale.all()->project(~[product:s|$s.productName, qty:s|$s.qty])->groupBy([{r|$r.product}], [agg({r|$r.qty}, {y|$y->sum()})], ['product', 'totalQty'])->sort(~product->ascending())");
+            var r = exec(model, "test::Sale.all()->project(~[product:s|$s.productName, qty:s|$s.qty])->groupBy([{r|$r.product}], [agg({r|$r.qty}, {y|$y->sum()})], ['product', 'totalQty'])->sort(~product->ascending())");
             assertEquals(3, r.rowCount());
             // Gadget: 5, Widget: 13 (10+3), Widget-EU: 20
             assertEquals("Gadget", colStr(r, 0).get(0));
@@ -5188,7 +5188,7 @@ class RelationalMappingIntegrationTest {
                         }
                     )
                     """, "store::DB", "test::M");
-            var r = exec(model, "Order.all()->project(~[s:o|$o.summary])->sort(~s->ascending())");
+            var r = exec(model, "test::Order.all()->project(~[s:o|$o.summary])->sort(~s->ascending())");
             assertEquals(3, r.rowCount());
             assertEquals("Alice bought Gadget", colStr(r, 0).get(0));
             assertEquals("Alice bought Widget", colStr(r, 0).get(1));
@@ -5212,10 +5212,10 @@ class RelationalMappingIntegrationTest {
         }
 
         @Test
-        @DisplayName("P.all()->filter() returns GraphResult with filtered JSON")
+        @DisplayName("model::P.all()->filter() returns GraphResult with filtered JSON")
         void testBareFilter() throws SQLException {
             String m = personModel();
-            var result = exec(m, "|P.all()->filter(x|$x.age > 20)");
+            var result = exec(m, "|model::P.all()->filter(x|$x.age > 20)");
             assertInstanceOf(ExecutionResult.GraphResult.class, result);
             String json = result.asGraph().json();
             assertNotNull(json);
@@ -5227,10 +5227,10 @@ class RelationalMappingIntegrationTest {
         }
 
         @Test
-        @DisplayName("P.all()->sortBy() returns GraphResult with sorted JSON")
+        @DisplayName("model::P.all()->sortBy() returns GraphResult with sorted JSON")
         void testBareSort() throws SQLException {
             String m = personModel();
-            var result = exec(m, "|P.all()->sortBy({p|$p.name})");
+            var result = exec(m, "|model::P.all()->sortBy({p|$p.name})");
             assertInstanceOf(ExecutionResult.GraphResult.class, result);
             String json = result.asGraph().json();
             assertNotNull(json);
@@ -5242,10 +5242,10 @@ class RelationalMappingIntegrationTest {
         }
 
         @Test
-        @DisplayName("P.all()->limit() returns GraphResult with limited JSON")
+        @DisplayName("model::P.all()->limit() returns GraphResult with limited JSON")
         void testBareLimit() throws SQLException {
             String m = personModel();
-            var result = exec(m, "|P.all()->limit(1)");
+            var result = exec(m, "|model::P.all()->limit(1)");
             assertInstanceOf(ExecutionResult.GraphResult.class, result);
             String json = result.asGraph().json();
             assertNotNull(json);
@@ -5262,7 +5262,7 @@ class RelationalMappingIntegrationTest {
             // elaboration must propagate the last stmt's store onto the block
             // so the JSON envelope is built correctly.
             String m = personModel();
-            var result = exec(m, "|let unused = 1; P.all()->filter(x|$x.age > 20);");
+            var result = exec(m, "|let unused = 1; model::P.all()->filter(x|$x.age > 20);");
             assertInstanceOf(ExecutionResult.GraphResult.class, result);
             String json = result.asGraph().json();
             assertNotNull(json);
@@ -5278,7 +5278,7 @@ class RelationalMappingIntegrationTest {
             // Last stmt is a bare {@code TypedGetAll}, simpler shape than the
             // operator-chain case above. Both should JSON-wrap identically.
             String m = personModel();
-            var result = exec(m, "|let unused = 'x'; P.all();");
+            var result = exec(m, "|let unused = 'x'; model::P.all();");
             assertInstanceOf(ExecutionResult.GraphResult.class, result);
             String json = result.asGraph().json();
             assertNotNull(json);
@@ -5294,7 +5294,7 @@ class RelationalMappingIntegrationTest {
             // age > 20 — both Alice (25) and Bob (30) pass, so JSON contains
             // both.
             String m = personModel();
-            var result = exec(m, "|if(true, |P.all()->filter(x|$x.age > 20), |P.all());");
+            var result = exec(m, "|if(true, |model::P.all()->filter(x|$x.age > 20), |model::P.all());");
             assertInstanceOf(ExecutionResult.GraphResult.class, result);
             String json = result.asGraph().json();
             assertNotNull(json);
@@ -5306,9 +5306,9 @@ class RelationalMappingIntegrationTest {
         @Test
         @DisplayName("if(false, ...) constant-fold to else-branch — TypedIf root JSON-wraps")
         void testBareIfConstantFalse() throws SQLException {
-            // Else-branch is bare {@code P.all()} — both Alice and Bob.
+            // Else-branch is bare {@code model::P.all()} — both Alice and Bob.
             String m = personModel();
-            var result = exec(m, "|if(false, |P.all()->filter(x|$x.age > 99), |P.all());");
+            var result = exec(m, "|if(false, |model::P.all()->filter(x|$x.age > 99), |model::P.all());");
             assertInstanceOf(ExecutionResult.GraphResult.class, result);
             String json = result.asGraph().json();
             assertNotNull(json);
@@ -5324,7 +5324,7 @@ class RelationalMappingIntegrationTest {
             // condition {@code 1 == 1} evaluates true in SQL, so the then-branch
             // contributes both rows and the else-branch contributes none.
             String m = personModel();
-            var result = exec(m, "|if(1 == 1, |P.all()->filter(x|$x.age > 20), |P.all()->filter(x|$x.age > 99));");
+            var result = exec(m, "|if(1 == 1, |model::P.all()->filter(x|$x.age > 20), |model::P.all()->filter(x|$x.age > 99));");
             assertInstanceOf(ExecutionResult.GraphResult.class, result);
             String json = result.asGraph().json();
             assertNotNull(json);
@@ -5333,7 +5333,7 @@ class RelationalMappingIntegrationTest {
         }
 
         @Test
-        @DisplayName("P.all()->groupBy() returns GraphResult with aggregated JSON")
+        @DisplayName("model::P.all()->groupBy() returns GraphResult with aggregated JSON")
         void testBareGroupBy() throws SQLException {
             sql("CREATE TABLE T2 (ID INT, NAME VARCHAR(100), AGE INT)",
                 "INSERT INTO T2 VALUES (1, 'Alice', 25), (2, 'Alice', 30), (3, 'Bob', 20)");
@@ -5341,7 +5341,7 @@ class RelationalMappingIntegrationTest {
                     "Class model::Q { name: String[1]; age: Integer[1]; }",
                     "ID INTEGER, NAME VARCHAR(100), AGE INTEGER",
                     "name: [store::DB2] T2.NAME, age: [store::DB2] T2.AGE");
-            var result = exec(m, "|Q.all()->groupBy(~[grp:x|$x.name], ~[cnt:x|$x.name:y|$y->count()])");
+            var result = exec(m, "|model::Q.all()->groupBy(~[grp:x|$x.name], ~[cnt:x|$x.name:y|$y->count()])");
             // groupBy returns Relation (not ClassType) → TabularResult
             assertInstanceOf(ExecutionResult.TabularResult.class, result);
             assertEquals(2, result.rows().size(), "Should have 2 groups (Alice, Bob)");

@@ -55,7 +55,7 @@ public class FilterCheckerTest extends AbstractDatabaseTest {
         @DisplayName("filter by integer property")
         void testFilterByAge() throws SQLException {
             var result = executeRelation(
-                    "Person.all()->filter(p|$p.age > 30)->project(~[firstName:p|$p.firstName, age:p|$p.age])");
+                    "model::Person.all()->filter(p|$p.age > 30)->project(~[firstName:p|$p.firstName, age:p|$p.age])");
             assertNotNull(result);
             assertEquals(1, result.rows().size(), "Only Bob (45) has age > 30");
         }
@@ -64,7 +64,7 @@ public class FilterCheckerTest extends AbstractDatabaseTest {
         @DisplayName("filter by string property")
         void testFilterByString() throws SQLException {
             var result = executeRelation(
-                    "Person.all()->filter(p|$p.lastName == 'Smith')->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName])");
+                    "model::Person.all()->filter(p|$p.lastName == 'Smith')->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName])");
             assertNotNull(result);
             assertEquals(2, result.rows().size(), "John and Jane Smith");
         }
@@ -73,7 +73,7 @@ public class FilterCheckerTest extends AbstractDatabaseTest {
         @DisplayName("filter with AND")
         void testFilterWithAnd() throws SQLException {
             var result = executeRelation(
-                    "Person.all()->filter(p|($p.lastName == 'Smith') && ($p.age > 28))->project(~[firstName:p|$p.firstName, age:p|$p.age])");
+                    "model::Person.all()->filter(p|($p.lastName == 'Smith') && ($p.age > 28))->project(~[firstName:p|$p.firstName, age:p|$p.age])");
             assertNotNull(result);
             assertEquals(1, result.rows().size(), "Only John Smith (30)");
         }
@@ -82,7 +82,7 @@ public class FilterCheckerTest extends AbstractDatabaseTest {
         @DisplayName("filter with OR")
         void testFilterWithOr() throws SQLException {
             var result = executeRelation(
-                    "Person.all()->filter(p|($p.firstName == 'John') || ($p.firstName == 'Bob'))->project(~[firstName:p|$p.firstName])");
+                    "model::Person.all()->filter(p|($p.firstName == 'John') || ($p.firstName == 'Bob'))->project(~[firstName:p|$p.firstName])");
             assertNotNull(result);
             assertEquals(2, result.rows().size());
         }
@@ -91,7 +91,7 @@ public class FilterCheckerTest extends AbstractDatabaseTest {
         @DisplayName("filter no match")
         void testFilterNoMatch() throws SQLException {
             var result = executeRelation(
-                    "Person.all()->filter(p|$p.age > 100)->project(~[firstName:p|$p.firstName])");
+                    "model::Person.all()->filter(p|$p.age > 100)->project(~[firstName:p|$p.firstName])");
             assertNotNull(result);
             assertTrue(result.rows().isEmpty());
         }
@@ -100,7 +100,7 @@ public class FilterCheckerTest extends AbstractDatabaseTest {
         @DisplayName("chained filters")
         void testChainedFilters() throws SQLException {
             var result = executeRelation(
-                    "Person.all()->filter(p|$p.age > 25)->filter(p|$p.lastName == 'Smith')->project(~[firstName:p|$p.firstName, age:p|$p.age])");
+                    "model::Person.all()->filter(p|$p.age > 25)->filter(p|$p.lastName == 'Smith')->project(~[firstName:p|$p.firstName, age:p|$p.age])");
             assertNotNull(result);
             assertEquals(2, result.rows().size(), "John(30) and Jane(28) Smith");
         }
@@ -109,7 +109,7 @@ public class FilterCheckerTest extends AbstractDatabaseTest {
         @DisplayName("filter with less-than")
         void testFilterLessThan() throws SQLException {
             var result = executeRelation(
-                    "Person.all()->filter(p|$p.age < 30)->project(~[firstName:p|$p.firstName, age:p|$p.age])");
+                    "model::Person.all()->filter(p|$p.age < 30)->project(~[firstName:p|$p.firstName, age:p|$p.age])");
             assertNotNull(result);
             assertEquals(1, result.rows().size(), "Only Jane (28)");
         }
@@ -118,7 +118,7 @@ public class FilterCheckerTest extends AbstractDatabaseTest {
         @DisplayName("filter with less-than-or-equal")
         void testFilterLte() throws SQLException {
             var result = executeRelation(
-                    "Person.all()->filter(p|$p.age <= 28)->project(~[firstName:p|$p.firstName, age:p|$p.age])");
+                    "model::Person.all()->filter(p|$p.age <= 28)->project(~[firstName:p|$p.firstName, age:p|$p.age])");
             assertNotNull(result);
             assertEquals(1, result.rows().size(), "Only Jane (28)");
         }
@@ -127,7 +127,7 @@ public class FilterCheckerTest extends AbstractDatabaseTest {
         @DisplayName("filter with greater-than-or-equal")
         void testFilterGte() throws SQLException {
             var result = executeRelation(
-                    "Person.all()->filter(p|$p.age >= 30)->project(~[firstName:p|$p.firstName, age:p|$p.age])");
+                    "model::Person.all()->filter(p|$p.age >= 30)->project(~[firstName:p|$p.firstName, age:p|$p.age])");
             assertNotNull(result);
             assertEquals(2, result.rows().size(), "John (30) and Bob (45)");
         }
@@ -143,7 +143,7 @@ public class FilterCheckerTest extends AbstractDatabaseTest {
         @DisplayName("project single column")
         void testProjectSingleColumn() throws SQLException {
             var result = executeRelation(
-                    "Person.all()->project(~[name:p|$p.firstName])");
+                    "model::Person.all()->project(~[name:p|$p.firstName])");
             assertNotNull(result);
             assertEquals(3, result.rows().size(), "All 3 persons");
             assertEquals(1, result.columns().size(), "Single column");
@@ -154,7 +154,7 @@ public class FilterCheckerTest extends AbstractDatabaseTest {
         @DisplayName("project multiple columns")
         void testProjectMultipleColumns() throws SQLException {
             var result = executeRelation(
-                    "Person.all()->project(~[fn:p|$p.firstName, ln:p|$p.lastName, age:p|$p.age])");
+                    "model::Person.all()->project(~[fn:p|$p.firstName, ln:p|$p.lastName, age:p|$p.age])");
             assertNotNull(result);
             assertEquals(3, result.rows().size());
             assertEquals(3, result.columns().size());
@@ -167,7 +167,7 @@ public class FilterCheckerTest extends AbstractDatabaseTest {
         @DisplayName("project with custom aliases")
         void testProjectAliases() throws SQLException {
             var result = executeRelation(
-                    "Person.all()->project(~[givenName:p|$p.firstName, familyName:p|$p.lastName])");
+                    "model::Person.all()->project(~[givenName:p|$p.firstName, familyName:p|$p.lastName])");
             assertNotNull(result);
             assertEquals("givenName", result.columns().get(0).name());
             assertEquals("familyName", result.columns().get(1).name());
@@ -184,7 +184,7 @@ public class FilterCheckerTest extends AbstractDatabaseTest {
         @DisplayName("filter then project (standard pattern)")
         void testFilterThenProject() throws SQLException {
             var result = executeRelation(
-                    "Person.all()->filter(p|$p.age > 28)->project(~[name:p|$p.firstName, age:p|$p.age])");
+                    "model::Person.all()->filter(p|$p.age > 28)->project(~[name:p|$p.firstName, age:p|$p.age])");
             assertNotNull(result);
             assertEquals(2, result.rows().size(), "John(30) and Bob(45)");
         }
@@ -193,7 +193,7 @@ public class FilterCheckerTest extends AbstractDatabaseTest {
         @DisplayName("filter-project-filter chain")
         void testFilterProjectFilter() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->filter(p|$p.age > 25)
                       ->project(~[name:p|$p.firstName, age:p|$p.age])
                       ->filter(x|$x.age < 35)""");
@@ -205,7 +205,7 @@ public class FilterCheckerTest extends AbstractDatabaseTest {
         @DisplayName("chained filter-filter-project")
         void testFilterFilterProject() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->filter(p|$p.lastName == 'Smith')
                       ->filter(p|$p.age >= 30)
                       ->project(~[fn:p|$p.firstName])""");
@@ -225,7 +225,7 @@ public class FilterCheckerTest extends AbstractDatabaseTest {
         void testFilterViaAssociation() throws SQLException {
             // $p.addresses.city navigates through association → EXISTS subquery
             var result = executeRelation(
-                    "Person.all()->filter(p|$p.addresses.city == 'New York')->project(~[name:p|$p.firstName])");
+                    "model::Person.all()->filter(p|$p.addresses.city == 'New York')->project(~[name:p|$p.firstName])");
             assertNotNull(result);
             assertEquals(1, result.rows().size(), "Only John has a New York address");
         }
@@ -235,7 +235,7 @@ public class FilterCheckerTest extends AbstractDatabaseTest {
         void testFilterViaAssociationContains() throws SQLException {
             // Navigate through association, apply string contains on target column
             var result = executeRelation(
-                    "Person.all()->filter(p|$p.addresses.street->contains('Main'))->project(~[name:p|$p.firstName])");
+                    "model::Person.all()->filter(p|$p.addresses.street->contains('Main'))->project(~[name:p|$p.firstName])");
             assertNotNull(result);
             assertEquals(2, result.rows().size(), "John (123 Main St) and Jane (789 Main Rd)");
         }

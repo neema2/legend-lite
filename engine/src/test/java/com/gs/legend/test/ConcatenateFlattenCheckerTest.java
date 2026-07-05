@@ -194,11 +194,11 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
         @DisplayName("concat two class queries with same type")
         void testConcatSameClass() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->filter(p|$p.age > 30)
                       ->project(~[name:p|$p.firstName, age:p|$p.age])
                       ->concatenate(
-                        Person.all()
+                        model::Person.all()
                           ->filter(p|$p.age <= 30)
                           ->project(~[name:p|$p.firstName, age:p|$p.age])
                       )

@@ -138,7 +138,7 @@ class StreamingIntegrationTest {
     @Test
     @DisplayName("execute JSON: full result set")
     void testExecuteJsonFull() throws Exception {
-        String query = "Employee.all()->project(~[name:e|$e.name, salary:e|$e.salary])";
+        String query = "model::Employee.all()->project(~[name:e|$e.name, salary:e|$e.salary])";
 
         var out = new ByteArrayOutputStream();
         queryService.execute(PURE_MODEL, query, "test::TestRuntime", connection, out, OutputFormat.JSON);
@@ -153,7 +153,7 @@ class StreamingIntegrationTest {
     @Test
     @DisplayName("execute JSON: filtered query")
     void testExecuteJsonFiltered() throws Exception {
-        String query = "Employee.all()->filter({e | $e.department == 'Sales'})->project(~[name:e|$e.name, salary:e|$e.salary])";
+        String query = "model::Employee.all()->filter({e | $e.department == 'Sales'})->project(~[name:e|$e.name, salary:e|$e.salary])";
 
         var out = new ByteArrayOutputStream();
         queryService.execute(PURE_MODEL, query, "test::TestRuntime", connection, out, OutputFormat.JSON);
@@ -167,7 +167,7 @@ class StreamingIntegrationTest {
     @Test
     @DisplayName("execute JSON: with limit")
     void testExecuteJsonLimit() throws Exception {
-        String query = "Employee.all()->project(~[name:e|$e.name])->limit(3)";
+        String query = "model::Employee.all()->project(~[name:e|$e.name])->limit(3)";
 
         var out = new ByteArrayOutputStream();
         queryService.execute(PURE_MODEL, query, "test::TestRuntime", connection, out, OutputFormat.JSON);
@@ -180,7 +180,7 @@ class StreamingIntegrationTest {
     @Test
     @DisplayName("execute JSON: empty result set")
     void testExecuteJsonEmpty() throws Exception {
-        String query = "Employee.all()->filter({e | $e.salary > 999999})->project(~[name:e|$e.name])";
+        String query = "model::Employee.all()->filter({e | $e.salary > 999999})->project(~[name:e|$e.name])";
 
         var out = new ByteArrayOutputStream();
         queryService.execute(PURE_MODEL, query, "test::TestRuntime", connection, out, OutputFormat.JSON);
@@ -192,7 +192,7 @@ class StreamingIntegrationTest {
     @Test
     @DisplayName("execute CSV: header + data rows")
     void testExecuteCsvFull() throws Exception {
-        String query = "Employee.all()->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])->limit(5)";
+        String query = "model::Employee.all()->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])->limit(5)";
 
         var out = new ByteArrayOutputStream();
         queryService.execute(PURE_MODEL, query, "test::TestRuntime", connection, out, OutputFormat.CSV);
@@ -208,7 +208,7 @@ class StreamingIntegrationTest {
     @Test
     @DisplayName("execute CSV: all 100 rows")
     void testExecuteCsvAllRows() throws Exception {
-        String query = "Employee.all()->project(~[name:e|$e.name])";
+        String query = "model::Employee.all()->project(~[name:e|$e.name])";
 
         var out = new ByteArrayOutputStream();
         queryService.execute(PURE_MODEL, query, "test::TestRuntime", connection, out, OutputFormat.CSV);
@@ -221,7 +221,7 @@ class StreamingIntegrationTest {
     @Test
     @DisplayName("execute CSV: multiple columns with filter")
     void testExecuteCsvFiltered() throws Exception {
-        String query = "Employee.all()->filter({e | $e.department == 'Engineering'})->project(~[name:e|$e.name, salary:e|$e.salary])";
+        String query = "model::Employee.all()->filter({e | $e.department == 'Engineering'})->project(~[name:e|$e.name, salary:e|$e.salary])";
 
         var out = new ByteArrayOutputStream();
         queryService.execute(PURE_MODEL, query, "test::TestRuntime", connection, out, OutputFormat.CSV);
@@ -284,7 +284,7 @@ class StreamingIntegrationTest {
     @Test
     @DisplayName("stream: produces valid JSON matching the materialized path")
     void testStreamValidityAndParity() throws Exception {
-        String query = "Employee.all()->project(~[name:e|$e.name, salary:e|$e.salary])->limit(5)";
+        String query = "model::Employee.all()->project(~[name:e|$e.name, salary:e|$e.salary])->limit(5)";
 
         var baos = new ByteArrayOutputStream();
         queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, baos);
@@ -306,7 +306,7 @@ class StreamingIntegrationTest {
         // OutputStream should see roughly 100 write() calls. A materialized
         // impl would have OutputStreamWriter buffer everything and see 1
         // write at close() time.
-        String query = "Employee.all()->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])";
+        String query = "model::Employee.all()->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])";
 
         CountingOutputStream cos = new CountingOutputStream();
         queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, cos);
@@ -346,7 +346,7 @@ class StreamingIntegrationTest {
         // in a single write at the end and the observer still sees no
         // intermediate growth.
 
-        String query = "Employee.all()->project(~[name:e|$e.name, dept:e|$e.department, salary:e|$e.salary])";
+        String query = "model::Employee.all()->project(~[name:e|$e.name, dept:e|$e.department, salary:e|$e.salary])";
 
         ByteArrayOutputStream sharedBuffer = new ByteArrayOutputStream();
         List<Integer> observedSizes = Collections.synchronizedList(new ArrayList<>());
@@ -413,7 +413,7 @@ class StreamingIntegrationTest {
     @Test
     @DisplayName("stream: empty result emits valid '[]'")
     void testStreamEmptyResultSet() throws Exception {
-        String query = "Employee.all()->filter({e | $e.salary > 9999999})->project(~[name:e|$e.name])";
+        String query = "model::Employee.all()->filter({e | $e.salary > 9999999})->project(~[name:e|$e.name])";
 
         var baos = new ByteArrayOutputStream();
         queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, baos);
@@ -439,7 +439,7 @@ class StreamingIntegrationTest {
     @DisplayName("stream graphFetch: produces valid JSON matching the materialized path")
     void testStreamGraphFetchValidityAndParity() throws Exception {
         String query = """
-                Employee.all()
+                model::Employee.all()
                     ->graphFetch(#{ Employee { name, department, salary } }#)
                     ->serialize(#{ Employee { name, department, salary } }#)
                 """;
@@ -469,7 +469,7 @@ class StreamingIntegrationTest {
         // 100 rows, the underlying OutputStream should see ~100 writes. A
         // materialized fallback (toJsonArray() then one write()) produces 1.
         String query = """
-                Employee.all()
+                model::Employee.all()
                     ->graphFetch(#{ Employee { name, department, salary } }#)
                     ->serialize(#{ Employee { name, department, salary } }#)
                 """;
@@ -498,7 +498,7 @@ class StreamingIntegrationTest {
         // rows are fetched and flushed. Materialized fallback: observer sees
         // only {0, finalSize}.
         String query = """
-                Employee.all()
+                model::Employee.all()
                     ->graphFetch(#{ Employee { name, department, salary } }#)
                     ->serialize(#{ Employee { name, department, salary } }#)
                 """;
@@ -563,7 +563,7 @@ class StreamingIntegrationTest {
     @DisplayName("stream graphFetch: empty result emits valid '[]'")
     void testStreamGraphFetchEmpty() throws Exception {
         String query = """
-                Employee.all()
+                model::Employee.all()
                     ->filter({e | $e.salary > 9999999})
                     ->graphFetch(#{ Employee { name } }#)
                     ->serialize(#{ Employee { name } }#)
@@ -586,7 +586,7 @@ class StreamingIntegrationTest {
             stmt.execute("INSERT INTO T_EMPLOYEE VALUES (9001, 'tab\there\t\"quote\\bk\nline\u0001ctl', 'Engineering', 42)");
         }
 
-        String query = "Employee.all()->filter({e | $e.name->startsWith('tab')})->project(~[name:e|$e.name])";
+        String query = "model::Employee.all()->filter({e | $e.name->startsWith('tab')})->project(~[name:e|$e.name])";
 
         var baos = new ByteArrayOutputStream();
         queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, baos);

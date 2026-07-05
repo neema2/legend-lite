@@ -157,12 +157,12 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
     // ==================== Pure Language Query Tests ====================
 
     @Test
-    @DisplayName("Pure: Person.all()->filter({p | $p.lastName == 'Smith'})->project(...)")
+    @DisplayName("Pure: model::Person.all()->filter({p | $p.lastName == 'Smith'})->project(...)")
     void testPureFindSmithsQuery() throws SQLException {
         // GIVEN: A Pure query to find all Smiths
         // Note: Pure lambdas use curly braces: {param | body}
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->filter({p | $p.lastName == 'Smith'})
                     ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName])
                 """;
@@ -181,7 +181,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
     void testPureComplexFilterWithAnd() throws SQLException {
         // GIVEN: A Pure query with AND condition
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->filter({p | $p.lastName == 'Smith' && $p.age > 25})
                     ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName, age:p|$p.age])
                 """;
@@ -202,7 +202,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
     void testPureFilterWithOr() throws SQLException {
         // GIVEN: A Pure query with OR condition
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->filter({p | $p.lastName == 'Smith' || $p.lastName == 'Jones'})
                     ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName])
                 """;
@@ -219,7 +219,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
     void testPureGetAllWithAllFields() throws SQLException {
         // GIVEN: A Pure query to get all people
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName, age:p|$p.age])
                 """;
 
@@ -244,19 +244,19 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
         // GIVEN: Various integer comparison queries
 
         // age < 30
-        String queryLessThan = "Person.all()->filter({p | $p.age < 30})->project(~[firstName:p|$p.firstName])";
+        String queryLessThan = "model::Person.all()->filter({p | $p.age < 30})->project(~[firstName:p|$p.firstName])";
         assertEquals(1, executePureQuery(queryLessThan).size()); // Jane only
 
         // age <= 30
-        String queryLessOrEqual = "Person.all()->filter({p | $p.age <= 30})->project(~[firstName:p|$p.firstName])";
+        String queryLessOrEqual = "model::Person.all()->filter({p | $p.age <= 30})->project(~[firstName:p|$p.firstName])";
         assertEquals(2, executePureQuery(queryLessOrEqual).size()); // Jane and John
 
         // age > 30
-        String queryGreaterThan = "Person.all()->filter({p | $p.age > 30})->project(~[firstName:p|$p.firstName])";
+        String queryGreaterThan = "model::Person.all()->filter({p | $p.age > 30})->project(~[firstName:p|$p.firstName])";
         assertEquals(1, executePureQuery(queryGreaterThan).size()); // Bob only
 
         // age >= 30
-        String queryGreaterOrEqual = "Person.all()->filter({p | $p.age >= 30})->project(~[firstName:p|$p.firstName])";
+        String queryGreaterOrEqual = "model::Person.all()->filter({p | $p.age >= 30})->project(~[firstName:p|$p.firstName])";
         assertEquals(2, executePureQuery(queryGreaterOrEqual).size()); // John and Bob
     }
 
@@ -279,7 +279,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
     void testPureNotEquals() throws SQLException {
         // GIVEN: A Pure query with != operator
         String pureQuery = """
-                Person.all()
+                model::Person.all()
                     ->filter({p | $p.lastName != 'Smith'})
                     ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName])
                 """;
@@ -310,7 +310,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
 
                 function query::getAdults(): model::Adult[*]
                 {
-                    Adult.all()->filter({p | $p.age >= 18})
+                    model::Adult.all()->filter({p | $p.age >= 18})
                 }
 
                 RelationalDatabaseConnection store::TestConnection
@@ -343,7 +343,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
                 "INSERT INTO T_ADULT VALUES (1, 'Alice', 25), (2, 'Bob', 15), (3, 'Charlie', 30)");
 
         // Execute the function body via QueryService
-        String functionBody = "Adult.all()->filter({p | $p.age >= 18})";
+        String functionBody = "model::Adult.all()->filter({p | $p.age >= 18})";
         var result = queryService.execute(pureSource, functionBody, "test::TestRuntime", connection);
 
         // THEN: Bare class query → JSON-wrapped GraphResult
@@ -370,7 +370,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
 
                 function query::getWorkerInfo(): Any[*]
                 {
-                    Worker.all()->project([{w | $w.dept}, {w | $w.salary}], ['department', 'sal'])
+                    model::Worker.all()->project([{w | $w.dept}, {w | $w.salary}], ['department', 'sal'])
                 }
 
                 RelationalDatabaseConnection store::TestConnection
@@ -403,7 +403,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
                 "INSERT INTO T_WORKER VALUES (1, 'Engineering', 100000), (2, 'Engineering', 120000), (3, 'Sales', 80000)");
 
         // Execute the function body via QueryService
-        String functionBody = "Worker.all()->project([{w | $w.dept}, {w | $w.salary}], ['department', 'sal'])";
+        String functionBody = "model::Worker.all()->project([{w | $w.dept}, {w | $w.salary}], ['department', 'sal'])";
         var result = queryService.execute(pureSource, functionBody, "test::TestRuntime", connection);
 
         // THEN: Should return 3 rows with projected columns

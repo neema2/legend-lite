@@ -195,7 +195,7 @@ class JsonMappingIntegrationTest {
                     )
                     """ + CONNECTION + RUNTIME;
 
-            String query = "Order.all()->project([o | $o.id, o | $o.customerName], ['id', 'name'])";
+            String query = "model::Order.all()->project([o | $o.id, o | $o.customerName], ['id', 'name'])";
             var result = queryService.execute(pureModel, query, "test::TestRuntime", connection);
 
             assertEquals(2, result.rows().size());
@@ -233,7 +233,7 @@ class JsonMappingIntegrationTest {
                     )
                     """ + CONNECTION + RUNTIME;
 
-            String query = "OrderItem.all()->project([i | $i.productName, i | $i.quantity], ['product', 'qty'])";
+            String query = "model::OrderItem.all()->project([i | $i.productName, i | $i.quantity], ['product', 'qty'])";
             var result = queryService.execute(pureModel, query, "test::TestRuntime", connection);
 
             assertEquals(3, result.rows().size());
@@ -297,7 +297,7 @@ class JsonMappingIntegrationTest {
                     )
                     """ + CONNECTION + RUNTIME;
 
-            String query = "Order.all()->project([o | $o.id, o | $o.customerName, o | $o.total], ['id', 'name', 'total'])";
+            String query = "model::Order.all()->project([o | $o.id, o | $o.customerName, o | $o.total], ['id', 'name', 'total'])";
 
             var plan = PlanGenerator.generate(pureModel, query, "test::TestRuntime");
             String sql = plan.sql();
@@ -338,7 +338,7 @@ class JsonMappingIntegrationTest {
                     )
                     """ + CONNECTION + RUNTIME;
 
-            String query = "Order.all()->filter(o | $o.id == 2)->project([o | $o.customerName], ['name'])";
+            String query = "model::Order.all()->filter(o | $o.id == 2)->project([o | $o.customerName], ['name'])";
             var result = queryService.execute(pureModel, query, "test::TestRuntime", connection);
 
             assertEquals(1, result.rows().size());
@@ -407,7 +407,7 @@ class JsonMappingIntegrationTest {
                     )
                     """ + CONNECTION + RUNTIME;
 
-            String query = "OrderItem.all()->project([i | $i.productName, i | $i.quantity, i | $i.price], ['product', 'qty', 'price'])";
+            String query = "model::OrderItem.all()->project([i | $i.productName, i | $i.quantity, i | $i.price], ['product', 'qty', 'price'])";
 
             var plan = PlanGenerator.generate(pureModel, query, "test::TestRuntime");
             String sql = plan.sql();
@@ -449,7 +449,7 @@ class JsonMappingIntegrationTest {
                     """ + CONNECTION + RUNTIME;
 
             // Filter on scalar orderId, project JSON quantity
-            String query = "OrderItem.all()->filter(i | $i.orderId == 1)->project([i | $i.id, i | $i.quantity], ['id', 'qty'])";
+            String query = "model::OrderItem.all()->filter(i | $i.orderId == 1)->project([i | $i.id, i | $i.quantity], ['id', 'qty'])";
             var result = queryService.execute(pureModel, query, "test::TestRuntime", connection);
 
             assertEquals(2, result.rows().size());
@@ -527,14 +527,14 @@ class JsonMappingIntegrationTest {
                     """ + CONNECTION + RUNTIME;
 
             // Query orders
-            String orderQuery = "Order.all()->project([o | $o.customerName, o | $o.status], ['name', 'status'])";
+            String orderQuery = "model::Order.all()->project([o | $o.customerName, o | $o.status], ['name', 'status'])";
             var orderResult = queryService.execute(pureModel, orderQuery, "test::TestRuntime", connection);
             assertEquals(1, orderResult.rows().size());
             assertEquals("Alice", orderResult.rows().get(0).get(0));
             assertEquals("shipped", orderResult.rows().get(0).get(1));
 
             // Query items
-            String itemQuery = "OrderItem.all()->project([i | $i.productName, i | $i.quantity], ['product', 'qty'])";
+            String itemQuery = "model::OrderItem.all()->project([i | $i.productName, i | $i.quantity], ['product', 'qty'])";
             var itemResult = queryService.execute(pureModel, itemQuery, "test::TestRuntime", connection);
             assertEquals(2, itemResult.rows().size());
         }
@@ -579,7 +579,7 @@ class JsonMappingIntegrationTest {
         }
 
         @Test
-        @DisplayName("Project through association: Order.all()->project([o | $o.items.productName])")
+        @DisplayName("Project through association: model::Order.all()->project([o | $o.items.productName])")
         void testProjectThroughAssociation() throws SQLException {
             String pureModel = """
                     import model::*;
@@ -628,7 +628,7 @@ class JsonMappingIntegrationTest {
                     """ + CONNECTION + RUNTIME;
 
             // Project order's customer name and item's product name (via association)
-            String query = "Order.all()->project([o | $o.customerName, o | $o.items.productName], ['customer', 'product'])";
+            String query = "model::Order.all()->project([o | $o.customerName, o | $o.items.productName], ['customer', 'product'])";
 
             var plan = PlanGenerator.generate(pureModel, query, "test::TestRuntime");
             String sql = plan.sql();
@@ -709,7 +709,7 @@ class JsonMappingIntegrationTest {
 
             // Filter on scalar orderId through association, project JSON-extracted
             // properties
-            String query = "Order.all()->filter(o | $o.items.orderId == 1)->project([o | $o.customerName, o | $o.items.productName], ['customer', 'product'])";
+            String query = "model::Order.all()->filter(o | $o.items.orderId == 1)->project([o | $o.customerName, o | $o.items.productName], ['customer', 'product'])";
 
             var plan = PlanGenerator.generate(pureModel, query, "test::TestRuntime");
             String sql = plan.sql();
@@ -780,7 +780,7 @@ class JsonMappingIntegrationTest {
                     """ + CONNECTION + RUNTIME;
 
             // Filter by scalar id, project JSON via association
-            String query = "Order.all()->filter(o | $o.id == 1)->project([o | $o.customerName, o | $o.items.productName, o | $o.items.quantity], ['customer', 'product', 'qty'])";
+            String query = "model::Order.all()->filter(o | $o.id == 1)->project([o | $o.customerName, o | $o.items.productName, o | $o.items.quantity], ['customer', 'product', 'qty'])";
 
             var plan = PlanGenerator.generate(pureModel, query, "test::TestRuntime");
             String sql = plan.sql();

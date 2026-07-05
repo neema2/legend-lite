@@ -1892,8 +1892,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
         @Test
         void testConcatenateHeterogeneousStructs() throws SQLException {
-                // PCT: concatenate([^CO_Address(name='Hoboken'), ^CO_Address(name='Jersey City')],
-                //                  [^CO_Location(place='Hoboken, NJ'), ^CO_Location(place='Jersey City, NJ')])
+                // PCT: concatenate([^meta::pure::functions::collection::tests::model::CO_Address(name='Hoboken'), ^meta::pure::functions::collection::tests::model::CO_Address(name='Jersey City')],
+                //                  [^meta::pure::functions::collection::tests::model::CO_Location(place='Hoboken, NJ'), ^meta::pure::functions::collection::tests::model::CO_Location(place='Jersey City, NJ')])
                 // Expected: result type should be CO_GeographicEntity (their common supertype)
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
@@ -2224,7 +2224,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
         @Test
         void testInstanceArrayWithMap() throws SQLException {
-                // [^Person(firstName='A', lastName='B'), ...].map(p|$p.lastName) -> list of
+                // [^model::Person(firstName='A', lastName='B'), ...].map(p|$p.lastName) -> list of
                 // lastNames
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
@@ -2235,7 +2235,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
         @Test
         void testInstanceEquality() throws SQLException {
-                // ^SideClass(stringId='a', intId=1)->eq(^SideClass(stringId='a', intId=1)) =
+                // ^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='a', intId=1)->eq(^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='a', intId=1)) =
                 // true
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
@@ -2267,7 +2267,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
         @Test
         void testLetInstancePropertyAccess() throws SQLException {
-                // let person = ^Person(firstName='John', lastName='Doe'); $person.firstName
+                // let person = ^model::Person(firstName='John', lastName='Doe'); $person.firstName
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|let person = ^meta::pure::functions::lang::tests::model::LA_Person(firstName='John', lastName='Doe'); $person.firstName;",
@@ -2549,7 +2549,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         @Test
         void anyAudit_T5_instancePropertyVarRef() throws SQLException {
                 // T5: inferInstancePropertyType with PureExpression (variable ref)
-                // let name = 'John'; ^Person(firstName=$name) — $name is a var ref
+                // let name = 'John'; ^model::Person(firstName=$name) — $name is a var ref
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|let name = 'John'; ^meta::pure::functions::collection::tests::model::CO_Person(firstName=$name, lastName='Doe').firstName;",

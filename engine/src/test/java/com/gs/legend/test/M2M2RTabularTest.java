@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * Pipeline: PureParser → TypeChecker → PlanGenerator → SQL → DuckDB → ExecutionResult
  *
- * This validates that Person.all()->project(~[fullName]) works when Person
+ * This validates that model::Person.all()->project(~[fullName]) works when Person
  * has a Pure (M2M) mapping like:  fullName: $src.firstName + ' ' + $src.lastName
  */
 @DisplayName("M2M2R Tabular Tests - Clean Pipeline")
@@ -213,7 +213,7 @@ class M2M2RTabularTest {
     @Test
     @DisplayName("String concat: project(~[fullName])")
     void testProjectFullName() throws SQLException {
-        String query = "Person.all()->project(~[fullName:x|$x.fullName])";
+        String query = "model::Person.all()->project(~[fullName:x|$x.fullName])";
 
         ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
 
@@ -234,7 +234,7 @@ class M2M2RTabularTest {
     @Test
     @DisplayName("Multi-column: project(~[fullName, upperLastName])")
     void testProjectMultipleColumns() throws SQLException {
-        String query = "Person.all()->project(~[fullName:x|$x.fullName, upper:x|$x.upperLastName])";
+        String query = "model::Person.all()->project(~[fullName:x|$x.fullName, upper:x|$x.upperLastName])";
 
         ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
 
@@ -254,7 +254,7 @@ class M2M2RTabularTest {
     @Test
     @DisplayName("toUpper only: project(~[upper])")
     void testProjectUpperOnly() throws SQLException {
-        String query = "Person.all()->project(~[upper:x|$x.upperLastName])";
+        String query = "model::Person.all()->project(~[upper:x|$x.upperLastName])";
 
         ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
 
@@ -276,7 +276,7 @@ class M2M2RTabularTest {
     @Test
     @DisplayName("Filter on concat: project(~[fullName])->filter(startsWith('J'))")
     void testProjectWithFilter() throws SQLException {
-        String query = "Person.all()->project(~[fullName:x|$x.fullName])->filter(x|$x.fullName->startsWith('J'))";
+        String query = "model::Person.all()->project(~[fullName:x|$x.fullName])->filter(x|$x.fullName->startsWith('J'))";
 
         ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
 
@@ -293,7 +293,7 @@ class M2M2RTabularTest {
     @Test
     @DisplayName("Filter on toUpper: project(~[upper])->filter(contains('SM'))")
     void testFilterOnUpperColumn() throws SQLException {
-        String query = "Person.all()->project(~[upper:x|$x.upperLastName])->filter(x|$x.upper->contains('SM'))";
+        String query = "model::Person.all()->project(~[upper:x|$x.upperLastName])->filter(x|$x.upper->contains('SM'))";
 
         ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
 
@@ -307,7 +307,7 @@ class M2M2RTabularTest {
     @Test
     @DisplayName("Conditional: ageGroup via if/else")
     void testConditionalAgeGroup() throws SQLException {
-        String query = "PersonView.all()->project(~[name:x|$x.firstName, group:x|$x.ageGroup])";
+        String query = "model::PersonView.all()->project(~[name:x|$x.firstName, group:x|$x.ageGroup])";
 
         ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
 
@@ -328,7 +328,7 @@ class M2M2RTabularTest {
     @Test
     @DisplayName("Conditional: salaryBand via if/else")
     void testConditionalSalaryBand() throws SQLException {
-        String query = "PersonWithSalary.all()->project(~[name:x|$x.firstName, band:x|$x.salaryBand])";
+        String query = "model::PersonWithSalary.all()->project(~[name:x|$x.firstName, band:x|$x.salaryBand])";
 
         ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
 
@@ -351,7 +351,7 @@ class M2M2RTabularTest {
     @Test
     @DisplayName("Passthrough: $src.firstName (no transform, just pass-through)")
     void testPassthroughProperty() throws SQLException {
-        String query = "PersonView.all()->project(~[name:x|$x.firstName])";
+        String query = "model::PersonView.all()->project(~[name:x|$x.firstName])";
 
         ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
 
@@ -373,7 +373,7 @@ class M2M2RTabularTest {
     @Test
     @DisplayName("Sort: project(~[fullName])->sort(asc(fullName))")
     void testSortOnM2MColumn() throws SQLException {
-        String query = "Person.all()->project(~[fullName:x|$x.fullName])->sort(asc(~fullName))";
+        String query = "model::Person.all()->project(~[fullName:x|$x.fullName])->sort(asc(~fullName))";
 
         ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
 
@@ -389,7 +389,7 @@ class M2M2RTabularTest {
     @Test
     @DisplayName("GroupBy: count per ageGroup")
     void testGroupByOnConditional() throws SQLException {
-        String query = "PersonView.all()->project(~[group:x|$x.ageGroup, name:x|$x.firstName])->groupBy(~[group], ~cnt:x|$x.name:y|$y->count())";
+        String query = "model::PersonView.all()->project(~[group:x|$x.ageGroup, name:x|$x.firstName])->groupBy(~[group], ~cnt:x|$x.name:y|$y->count())";
 
         ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
 
@@ -409,7 +409,7 @@ class M2M2RTabularTest {
     @Test
     @DisplayName("GroupBy: count per salaryBand")
     void testGroupByOnSalaryBand() throws SQLException {
-        String query = "PersonWithSalary.all()->project(~[band:x|$x.salaryBand, name:x|$x.firstName])->groupBy(~[band], ~cnt:x|$x.name:y|$y->count())";
+        String query = "model::PersonWithSalary.all()->project(~[band:x|$x.salaryBand, name:x|$x.firstName])->groupBy(~[band], ~cnt:x|$x.name:y|$y->count())";
 
         ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
 
@@ -432,7 +432,7 @@ class M2M2RTabularTest {
     @Test
     @DisplayName("Distinct: unique ageGroups")
     void testDistinctOnM2M() throws SQLException {
-        String query = "PersonView.all()->project(~[group:x|$x.ageGroup])->distinct()";
+        String query = "model::PersonView.all()->project(~[group:x|$x.ageGroup])->distinct()";
 
         ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
 
@@ -451,7 +451,7 @@ class M2M2RTabularTest {
     @Test
     @DisplayName("Sort + take: top 2 fullNames alphabetically")
     void testSortAndTake() throws SQLException {
-        String query = "Person.all()->project(~[fullName:x|$x.fullName])->sort(asc(~fullName))->take(2)";
+        String query = "model::Person.all()->project(~[fullName:x|$x.fullName])->sort(asc(~fullName))->take(2)";
 
         ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
 
@@ -463,7 +463,7 @@ class M2M2RTabularTest {
     @Test
     @DisplayName("Sort desc + take: top 2 fullNames reverse")
     void testSortDescAndTake() throws SQLException {
-        String query = "Person.all()->project(~[fullName:x|$x.fullName])->sort(desc(~fullName))->take(2)";
+        String query = "model::Person.all()->project(~[fullName:x|$x.fullName])->sort(desc(~fullName))->take(2)";
 
         ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
 
@@ -478,7 +478,7 @@ class M2M2RTabularTest {
     @DisplayName("Extend: add computed column on M2M output")
     void testExtendOnM2MOutput() throws SQLException {
         // Extend M2M projected output with a new computed column
-        String query = "PersonView.all()->project(~[name:x|$x.firstName, group:x|$x.ageGroup])->extend(~label:x|$x.name->toOne() + '_' + $x.group->toOne())";
+        String query = "model::PersonView.all()->project(~[name:x|$x.firstName, group:x|$x.ageGroup])->extend(~label:x|$x.name->toOne() + '_' + $x.group->toOne())";
 
         ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
 
@@ -500,7 +500,7 @@ class M2M2RTabularTest {
     @DisplayName("Full chain: project → filter → sort → take")
     void testFullPipelineChain() throws SQLException {
         // PersonView: project ageGroup → filter only Adults → sort by name → take top 2
-        String query = "PersonView.all()" +
+        String query = "model::PersonView.all()" +
                 "->project(~[name:x|$x.firstName, group:x|$x.ageGroup])" +
                 "->filter(x|$x.group == 'Adult')" +
                 "->sort(asc(~name))" +
@@ -524,7 +524,7 @@ class M2M2RTabularTest {
     void testChainedM2M() throws SQLException {
         // PersonSummary.name resolves through Person.fullName → $src.firstName + ' ' + $src.lastName
         // PersonSummary.nameUpper resolves through Person.upperLastName → $src.lastName->toUpper()
-        String query = "PersonSummary.all()->project(~[n:x|$x.name, u:x|$x.nameUpper])";
+        String query = "model::PersonSummary.all()->project(~[n:x|$x.name, u:x|$x.nameUpper])";
 
         ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
 
@@ -555,7 +555,7 @@ class M2M2RTabularTest {
     @Test
     @DisplayName("Chained M2M + filter: PersonSummary filtered by name")
     void testChainedM2MWithFilter() throws SQLException {
-        String query = "PersonSummary.all()" +
+        String query = "model::PersonSummary.all()" +
                 "->project(~[n:x|$x.name])" +
                 "->filter(x|$x.n->startsWith('J'))" +
                 "->sort(asc(~n))";

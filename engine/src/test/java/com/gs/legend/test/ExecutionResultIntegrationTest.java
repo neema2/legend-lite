@@ -108,7 +108,7 @@ public class ExecutionResultIntegrationTest extends AbstractDatabaseTest {
     // ==================== Tabular Results ====================
 
     @Test
-    @DisplayName("executeTyped: Person.all()->project returns TabularResult")
+    @DisplayName("executeTyped: model::Person.all()->project returns TabularResult")
     void tabularGetAllProject() throws SQLException {
         ExecutionResult result = queryService.execute(
                 getCompletePureModelWithRuntime(),
@@ -126,7 +126,7 @@ public class ExecutionResultIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
-    @DisplayName("executeTyped: Person.all()->filter->project returns TabularResult")
+    @DisplayName("executeTyped: model::Person.all()->filter->project returns TabularResult")
     void tabularFilterProject() throws SQLException {
         ExecutionResult result = queryService.execute(
                 getCompletePureModelWithRuntime(),

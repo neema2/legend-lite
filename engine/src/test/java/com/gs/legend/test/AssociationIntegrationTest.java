@@ -208,7 +208,7 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("Project through to-one: Person -> Firm")
         void testProjectToOne() throws SQLException {
-            var r = exec(fullModel(), "Person.all()->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
+            var r = exec(fullModel(), "test::Person.all()->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
             assertEquals(4, r.rows().size());
             Map<String, String> map = new HashMap<>();
             for (var row : r.rows()) map.put(row.get(0).toString(), row.get(1) != null ? row.get(1).toString() : null);
@@ -221,7 +221,7 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("Filter on to-one: firm.legalName == 'Acme'")
         void testFilterToOne() throws SQLException {
-            var r = exec(fullModel(), "Person.all()->filter({p|$p.firm.legalName == 'Acme'})->project(~[name:p|$p.name])");
+            var r = exec(fullModel(), "test::Person.all()->filter({p|$p.firm.legalName == 'Acme'})->project(~[name:p|$p.name])");
             assertEquals(2, r.rowCount());
             var names = colStr(r, 0);
             assertTrue(names.contains("Alice"));
@@ -233,7 +233,7 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("Project local + association in same projection")
         void testProjectLocalAndAssoc() throws SQLException {
-            var r = exec(fullModel(), "Person.all()->project([x|$x.name, x|$x.id, x|$x.firm.legalName], ['name', 'id', 'firm'])");
+            var r = exec(fullModel(), "test::Person.all()->project([x|$x.name, x|$x.id, x|$x.firm.legalName], ['name', 'id', 'firm'])");
             assertEquals(4, r.rows().size());
             Map<String, String> nameFirm = new HashMap<>();
             Map<String, Integer> nameId = new HashMap<>();
@@ -250,7 +250,7 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("Multiple to-one from same class: Person -> Firm AND Person -> Dept")
         void testMultipleToOne() throws SQLException {
-            var r = exec(fullModel(), "Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.dept.name], ['name', 'firm', 'dept'])");
+            var r = exec(fullModel(), "test::Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.dept.name], ['name', 'firm', 'dept'])");
             assertEquals(4, r.rows().size());
             Map<String, String> firms = new HashMap<>();
             Map<String, String> depts = new HashMap<>();
@@ -282,7 +282,7 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("Project through to-many: Person -> Address (LEFT JOIN row expansion)")
         void testProjectToMany() throws SQLException {
-            var r = exec(fullModel(), "Person.all()->project([x|$x.name, x|$x.addresses.city], ['name', 'city'])");
+            var r = exec(fullModel(), "test::Person.all()->project([x|$x.name, x|$x.addresses.city], ['name', 'city'])");
             // Alice: 2 addresses (NYC, LA), Bob: 1 (Chicago), Charlie: 0 (NULL), Diana: 0 (NULL)
             assertEquals(5, r.rows().size());
             Map<String, List<String>> nameCity = new HashMap<>();
@@ -302,7 +302,7 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("Filter to-many EXISTS: no row explosion")
         void testFilterToManyExists() throws SQLException {
-            var r = exec(fullModel(), "Person.all()->filter({p|$p.addresses.city == 'NYC'})->project(~[name:p|$p.name])");
+            var r = exec(fullModel(), "test::Person.all()->filter({p|$p.addresses.city == 'NYC'})->project(~[name:p|$p.name])");
             // Alice has NYC address — should appear exactly ONCE (EXISTS, not JOIN)
             assertEquals(1, r.rowCount());
             assertEquals("Alice", colStr(r, 0).get(0));
@@ -311,7 +311,7 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("No-match LEFT JOIN produces NULL")
         void testToManyNoMatch() throws SQLException {
-            var r = exec(fullModel(), "Person.all()->filter({p|$p.name == 'Charlie'})->project([x|$x.name, x|$x.addresses.city], ['name', 'city'])");
+            var r = exec(fullModel(), "test::Person.all()->filter({p|$p.name == 'Charlie'})->project([x|$x.name, x|$x.addresses.city], ['name', 'city'])");
             assertEquals(1, r.rows().size());
             assertEquals("Charlie", r.rows().get(0).get(0).toString());
             assertNull(r.rows().get(0).get(1));
@@ -356,7 +356,7 @@ class AssociationIntegrationTest {
 
             // Project both to-many associations — potential cartesian product
             // Alice: 2 addr x 1 phone, Bob: 1 addr x 2 phones, Charlie: 0 addr x 0 phones
-            var r = exec(model, "Person.all()->project([x|$x.name, x|$x.addresses.city, x|$x.phones.number], ['name', 'city', 'phone'])");
+            var r = exec(model, "test::Person.all()->project([x|$x.name, x|$x.addresses.city, x|$x.phones.number], ['name', 'city', 'phone'])");
 
             // Collect per-person data
             Map<String, Set<String>> cities = new HashMap<>();
@@ -395,7 +395,7 @@ class AssociationIntegrationTest {
             // Filter: person has an address in Chicago → only Bob.
             // Project Bob's addresses.city → should be exactly Chicago (1 row, no explosion).
             var r = exec(fullModel(),
-                "Person.all()->filter({p|$p.addresses.city == 'Chicago'})->project([x|$x.name, x|$x.addresses.city], ['name', 'city'])");
+                "test::Person.all()->filter({p|$p.addresses.city == 'Chicago'})->project([x|$x.name, x|$x.addresses.city], ['name', 'city'])");
             // Bob has only 1 address (Chicago), and filter used EXISTS → 1 row for Bob
             assertEquals(1, r.rows().size());
             assertEquals("Bob", r.rows().get(0).get(0).toString());
@@ -409,7 +409,7 @@ class AssociationIntegrationTest {
             // Then project addresses — Alice should still show BOTH addresses (2 rows).
             // The filter is on a DIFFERENT association (firm), not on addresses.
             var r = exec(fullModel(),
-                "Person.all()->filter({p|$p.firm.legalName == 'Acme'})->project([x|$x.name, x|$x.addresses.city], ['name', 'city'])");
+                "test::Person.all()->filter({p|$p.firm.legalName == 'Acme'})->project([x|$x.name, x|$x.addresses.city], ['name', 'city'])");
             // Acme people: Alice (2 addresses) and Bob (1 address) = 3 rows
             assertEquals(3, r.rows().size());
             Map<String, List<String>> nameCity = new HashMap<>();
@@ -428,7 +428,7 @@ class AssociationIntegrationTest {
         @DisplayName("Filter to-many: multiple matches still returns person once")
         void testFilterToManyMultipleMatchesOnePerson() throws SQLException {
             // Alice has addresses in NYC and LA — filter city in ('NYC', 'LA') should return Alice once
-            var r = exec(fullModel(), "Person.all()->filter({p|$p.addresses.city == 'NYC' || $p.addresses.city == 'LA'})->project(~[name:p|$p.name])");
+            var r = exec(fullModel(), "test::Person.all()->filter({p|$p.addresses.city == 'NYC' || $p.addresses.city == 'LA'})->project(~[name:p|$p.name])");
             var names = colStr(r, 0);
             assertEquals(1, Collections.frequency(names, "Alice"), "Alice should appear exactly once");
         }
@@ -446,7 +446,7 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("Two-hop to-one: Person -> Dept -> Org")
         void testTwoHopToOne() throws SQLException {
-            var r = exec(fullModel(), "Person.all()->project([x|$x.name, x|$x.dept.org.name], ['name', 'org'])");
+            var r = exec(fullModel(), "test::Person.all()->project([x|$x.name, x|$x.dept.org.name], ['name', 'org'])");
             assertEquals(4, r.rows().size());
             Map<String, String> map = new HashMap<>();
             for (var row : r.rows()) map.put(row.get(0).toString(), row.get(1) != null ? row.get(1).toString() : null);
@@ -459,7 +459,7 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("Two-hop with filter: dept.org.name == 'Acme Corp'")
         void testTwoHopFilter() throws SQLException {
-            var r = exec(fullModel(), "Person.all()->filter({p|$p.dept.org.name == 'Acme Corp'})->project(~[name:p|$p.name])");
+            var r = exec(fullModel(), "test::Person.all()->filter({p|$p.dept.org.name == 'Acme Corp'})->project(~[name:p|$p.name])");
             assertEquals(3, r.rowCount());
             var names = colStr(r, 0);
             assertTrue(names.contains("Alice"));
@@ -472,7 +472,7 @@ class AssociationIntegrationTest {
         @DisplayName("To-one then to-many: Person -> Dept, then Dept -> members (reverse)")
         void testToOneThenToMany() throws SQLException {
             // Navigate to dept, then navigate dept's properties
-            var r = exec(fullModel(), "Person.all()->project([x|$x.name, x|$x.dept.name], ['name', 'deptName'])");
+            var r = exec(fullModel(), "test::Person.all()->project([x|$x.name, x|$x.dept.name], ['name', 'deptName'])");
             assertEquals(4, r.rows().size());
             Map<String, String> map = new HashMap<>();
             for (var row : r.rows()) map.put(row.get(0).toString(), row.get(1) != null ? row.get(1).toString() : null);
@@ -485,7 +485,7 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("Filter on two-hop, project local")
         void testFilterTwoHopProjectLocal() throws SQLException {
-            var r = exec(fullModel(), "Person.all()->filter({p|$p.dept.org.name == 'Acme Corp'})->project(~[name:p|$p.name, id:p|$p.id])");
+            var r = exec(fullModel(), "test::Person.all()->filter({p|$p.dept.org.name == 'Acme Corp'})->project(~[name:p|$p.name, id:p|$p.id])");
             assertEquals(3, r.rowCount());
             Map<String, Integer> nameId = new HashMap<>();
             for (var row : r.rows()) nameId.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
@@ -507,7 +507,7 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("To-one + to-many: project firm AND addresses")
         void testToOneAndToMany() throws SQLException {
-            var r = exec(fullModel(), "Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.addresses.city], ['name', 'firm', 'city'])");
+            var r = exec(fullModel(), "test::Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.addresses.city], ['name', 'firm', 'city'])");
             // Alice: 2 address rows, Bob: 1, Charlie: 1 (NULL city), Diana: 1 (NULL both)
             assertEquals(5, r.rows().size());
             Map<String, Set<String>> firmsByName = new HashMap<>();
@@ -523,7 +523,7 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("Filter on one assoc, project through another")
         void testFilterOneProjectAnother() throws SQLException {
-            var r = exec(fullModel(), "Person.all()->filter({p|$p.firm.legalName == 'Acme'})->project([x|$x.name, x|$x.addresses.city], ['name', 'city'])");
+            var r = exec(fullModel(), "test::Person.all()->filter({p|$p.firm.legalName == 'Acme'})->project([x|$x.name, x|$x.addresses.city], ['name', 'city'])");
             // Acme people: Alice (2 addresses) and Bob (1 address) = 3 rows
             assertEquals(3, r.rows().size());
             var names = colStr(r, 0);
@@ -535,7 +535,7 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("Two to-one filters ANDed: firm AND dept")
         void testTwoToOneFilters() throws SQLException {
-            var r = exec(fullModel(), "Person.all()->filter({p|$p.firm.legalName == 'Acme' && $p.dept.name == 'Engineering'})->project(~[name:p|$p.name])");
+            var r = exec(fullModel(), "test::Person.all()->filter({p|$p.firm.legalName == 'Acme' && $p.dept.name == 'Engineering'})->project(~[name:p|$p.name])");
             assertEquals(1, r.rowCount());
             assertEquals("Alice", colStr(r, 0).get(0));
         }
@@ -553,7 +553,7 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("Filter local + project association")
         void testFilterLocalProjectAssoc() throws SQLException {
-            var r = exec(fullModel(), "Person.all()->filter({p|$p.name == 'Alice'})->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
+            var r = exec(fullModel(), "test::Person.all()->filter({p|$p.name == 'Alice'})->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
             assertEquals(1, r.rows().size());
             assertEquals("Alice", r.rows().get(0).get(0).toString());
             assertEquals("Acme", r.rows().get(0).get(1).toString());
@@ -562,7 +562,7 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("Sort by association property")
         void testSortByAssociation() throws SQLException {
-            var r = exec(fullModel(), "Person.all()->project(~[firm:x|$x.firm.legalName, name:x|$x.name])->sort(~firm->ascending())");
+            var r = exec(fullModel(), "test::Person.all()->project(~[firm:x|$x.firm.legalName, name:x|$x.name])->sort(~firm->ascending())");
             assertEquals(4, r.rowCount());
             var firms = colStr(r, 0);
             // Acme (Alice, Bob), Globex (Charlie), NULL (Diana) — sorted ASC NULLS LAST
@@ -575,7 +575,7 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("GroupBy association property with count")
         void testGroupByAssociation() throws SQLException {
-            var r = exec(fullModel(), "Person.all()->project(~[firm:x|$x.firm.legalName, name:x|$x.name])->groupBy(~firm, ~cnt:x|$x.name:y|$y->count())->sort(~firm->ascending())");
+            var r = exec(fullModel(), "test::Person.all()->project(~[firm:x|$x.firm.legalName, name:x|$x.name])->groupBy(~firm, ~cnt:x|$x.name:y|$y->count())->sort(~firm->ascending())");
             assertEquals(3, r.rowCount());
             Map<String, Integer> firmCount = new HashMap<>();
             for (var row : r.rows()) firmCount.put(
@@ -589,7 +589,7 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("Distinct on association projection")
         void testDistinctAssociation() throws SQLException {
-            var r = exec(fullModel(), "Person.all()->project(~[firm:x|$x.firm.legalName])->distinct()");
+            var r = exec(fullModel(), "test::Person.all()->project(~[firm:x|$x.firm.legalName])->distinct()");
             // 3 distinct values: Acme, Globex, NULL
             assertEquals(3, r.rowCount());
             var firms = colStr(r, 0);
@@ -601,7 +601,7 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("Limit after association project")
         void testLimitAssociation() throws SQLException {
-            var r = exec(fullModel(), "Person.all()->project(~[name:x|$x.name, firm:x|$x.firm.legalName])->sort(~name->ascending())->limit(2)");
+            var r = exec(fullModel(), "test::Person.all()->project(~[name:x|$x.name, firm:x|$x.firm.legalName])->sort(~name->ascending())->limit(2)");
             assertEquals(2, r.rowCount());
             assertEquals("Alice", colStr(r, 0).get(0));
             assertEquals("Bob", colStr(r, 0).get(1));
@@ -610,7 +610,7 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("Extend with computed from association")
         void testExtendFromAssociation() throws SQLException {
-            var r = exec(fullModel(), "Person.all()->project(~[name:x|$x.name, firm:x|$x.firm.legalName])->extend(~upper:x|$x.firm->toUpper())->sort(~name->ascending())->limit(2)");
+            var r = exec(fullModel(), "test::Person.all()->project(~[name:x|$x.name, firm:x|$x.firm.legalName])->extend(~upper:x|$x.firm->toUpper())->sort(~name->ascending())->limit(2)");
             assertEquals(2, r.rowCount());
             assertEquals("ACME", colStr(r, 2).get(0));
             assertEquals("ACME", colStr(r, 2).get(1));
@@ -619,7 +619,7 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("Full pipeline: filter -> sort -> limit through association")
         void testFullPipeline() throws SQLException {
-            var r = exec(fullModel(), "Person.all()->filter({p|$p.firm.legalName == 'Acme'})->project(~[name:x|$x.name, dept:x|$x.dept.name])->sort(~name->ascending())->limit(1)");
+            var r = exec(fullModel(), "test::Person.all()->filter({p|$p.firm.legalName == 'Acme'})->project(~[name:x|$x.name, dept:x|$x.dept.name])->sort(~name->ascending())->limit(1)");
             assertEquals(1, r.rowCount());
             assertEquals("Alice", colStr(r, 0).get(0));
             assertEquals("Engineering", colStr(r, 1).get(0));
@@ -674,7 +674,7 @@ class AssociationIntegrationTest {
                     )
                     """, "store::DB", "test::M");
 
-            var r = exec(model, "Person.all()->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
+            var r = exec(model, "test::Person.all()->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
             // ~filter excludes Diana (ID=4), so 3 rows
             assertEquals(3, r.rows().size());
             var names = colStr(r, 0);
@@ -719,7 +719,7 @@ class AssociationIntegrationTest {
                     )
                     """, "store::DB", "test::M");
 
-            var r = exec(model, "Person.all()->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
+            var r = exec(model, "test::Person.all()->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
             assertEquals(4, r.rows().size());
         }
 
@@ -765,7 +765,7 @@ class AssociationIntegrationTest {
                     )
                     """, "store::DB", "test::M");
 
-            var r = exec(model, "Person.all()->project([x|$x.name, x|$x.orgName, x|$x.firm.legalName], ['name', 'org', 'firm'])");
+            var r = exec(model, "test::Person.all()->project([x|$x.name, x|$x.orgName, x|$x.firm.legalName], ['name', 'org', 'firm'])");
             assertEquals(4, r.rows().size());
             Map<String, String> orgs = new HashMap<>();
             Map<String, String> firms = new HashMap<>();
@@ -784,12 +784,12 @@ class AssociationIntegrationTest {
         @DisplayName("Explicit AssociationMapping: navigate both directions")
         void testExplicitAssocMappingBothDirections() throws SQLException {
             // Person -> Firm (to-one)
-            var r1 = exec(fullModel(), "Person.all()->filter({p|$p.name == 'Alice'})->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
+            var r1 = exec(fullModel(), "test::Person.all()->filter({p|$p.name == 'Alice'})->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
             assertEquals(1, r1.rows().size());
             assertEquals("Acme", r1.rows().get(0).get(1).toString());
 
             // Firm -> employees (to-many, EXISTS filter)
-            var r2 = exec(fullModel(), "Firm.all()->filter({f|$f.employees.name == 'Alice'})->project(~[legalName:f|$f.legalName])");
+            var r2 = exec(fullModel(), "test::Firm.all()->filter({f|$f.employees.name == 'Alice'})->project(~[legalName:f|$f.legalName])");
             assertEquals(1, r2.rowCount());
             assertEquals("Acme", colStr(r2, 0).get(0));
         }
@@ -841,7 +841,7 @@ class AssociationIntegrationTest {
                     )
                     """, "store::DB", "test::M");
 
-            var r = exec(model, "Emp.all()->project([x|$x.name, x|$x.team.teamName], ['name', 'team'])");
+            var r = exec(model, "test::Emp.all()->project([x|$x.name, x|$x.team.teamName], ['name', 'team'])");
             assertEquals(4, r.rows().size());
             Map<String, String> map = new HashMap<>();
             for (var row : r.rows()) map.put(row.get(0).toString(), row.get(1) != null ? row.get(1).toString() : null);
@@ -892,7 +892,7 @@ class AssociationIntegrationTest {
                     """, "store::DB", "test::M");
 
             // Filter: only parents with active children
-            var r = exec(model, "Parent.all()->filter({p|$p.activeChildren.name == 'ActiveChild'})->project(~[name:p|$p.name])");
+            var r = exec(model, "test::Parent.all()->filter({p|$p.activeChildren.name == 'ActiveChild'})->project(~[name:p|$p.name])");
             assertEquals(1, r.rowCount());
             assertEquals("Parent1", colStr(r, 0).get(0));
         }
@@ -933,7 +933,7 @@ class AssociationIntegrationTest {
                     )
                     """, "store::DB", "test::M");
 
-            var r = exec(model, "Person.all()->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
+            var r = exec(model, "test::Person.all()->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
             assertEquals(2, r.rows().size());
             assertNull(r.rows().get(0).get(1));
             assertNull(r.rows().get(1).get(1));
@@ -944,7 +944,7 @@ class AssociationIntegrationTest {
         void testNullForeignKey() throws SQLException {
             setupTables();
             // Diana has NULL firm_id
-            var r = exec(fullModel(), "Person.all()->filter({p|$p.name == 'Diana'})->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
+            var r = exec(fullModel(), "test::Person.all()->filter({p|$p.name == 'Diana'})->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
             assertEquals(1, r.rows().size());
             assertEquals("Diana", r.rows().get(0).get(0).toString());
             assertNull(r.rows().get(0).get(1));
@@ -979,7 +979,7 @@ class AssociationIntegrationTest {
                     )
                     """, "store::DB", "test::M");
 
-            var r = exec(model, "Person.all()->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
+            var r = exec(model, "test::Person.all()->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
             assertEquals(2, r.rows().size());
             assertNull(r.rows().get(0).get(1));
             assertNull(r.rows().get(1).get(1));
@@ -991,7 +991,7 @@ class AssociationIntegrationTest {
             setupTables();
             // Person->Firm (to-one) and Firm->employees (to-many) form a cycle
             // Navigate Person->Firm only — no infinite loop
-            var r = exec(fullModel(), "Person.all()->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
+            var r = exec(fullModel(), "test::Person.all()->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
             assertEquals(4, r.rows().size());
         }
 
@@ -1000,11 +1000,11 @@ class AssociationIntegrationTest {
         void testSameJoinBothDirections() throws SQLException {
             setupTables();
             // Person->Firm uses @PersonFirm, Firm->employees uses same @PersonFirm
-            var r1 = exec(fullModel(), "Person.all()->filter({p|$p.name == 'Alice'})->project([x|$x.firm.legalName], ['firm'])");
+            var r1 = exec(fullModel(), "test::Person.all()->filter({p|$p.name == 'Alice'})->project([x|$x.firm.legalName], ['firm'])");
             assertEquals(1, r1.rows().size());
             assertEquals("Acme", r1.rows().get(0).get(0).toString());
 
-            var r2 = exec(fullModel(), "Firm.all()->filter({f|$f.legalName == 'Acme'})->project([x|$x.legalName], ['firm'])");
+            var r2 = exec(fullModel(), "test::Firm.all()->filter({f|$f.legalName == 'Acme'})->project([x|$x.legalName], ['firm'])");
             assertEquals(1, r2.rows().size());
             assertEquals("Acme", r2.rows().get(0).get(0).toString());
         }
@@ -1022,7 +1022,7 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("No association access -> correct row count (no unnecessary JOIN)")
         void testNoAssociationAccess() throws SQLException {
-            var r = exec(fullModel(), "Person.all()->project(~[name:p|$p.name])");
+            var r = exec(fullModel(), "test::Person.all()->project(~[name:p|$p.name])");
             // 4 persons — no JOIN should mean exactly 4 rows
             assertEquals(4, r.rowCount());
         }
@@ -1030,7 +1030,7 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("One association access -> correct data from one JOIN")
         void testOneAssociationAccess() throws SQLException {
-            var r = exec(fullModel(), "Person.all()->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
+            var r = exec(fullModel(), "test::Person.all()->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
             assertEquals(4, r.rows().size());
             Map<String, String> map = new HashMap<>();
             for (var row : r.rows()) map.put(row.get(0).toString(), row.get(1) != null ? row.get(1).toString() : null);
@@ -1040,7 +1040,7 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("Two association accesses -> both resolved correctly")
         void testTwoAssociationAccesses() throws SQLException {
-            var r = exec(fullModel(), "Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.dept.name], ['name', 'firm', 'dept'])");
+            var r = exec(fullModel(), "test::Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.dept.name], ['name', 'firm', 'dept'])");
             assertEquals(4, r.rows().size());
             Map<String, String> firms = new HashMap<>();
             Map<String, String> depts = new HashMap<>();
@@ -1066,10 +1066,10 @@ class AssociationIntegrationTest {
         void setup() throws SQLException { setupTables(); }
 
         @Test
-        @DisplayName("Reverse to-many as root: Firm.all() projecting employees")
+        @DisplayName("Reverse to-many as root: test::Firm.all() projecting employees")
         void testReverseToManyAsRoot() throws SQLException {
             // Start from Firm, navigate to employees (to-many)
-            var r = exec(fullModel(), "Firm.all()->filter({f|$f.employees.name == 'Alice'})->project(~[legalName:f|$f.legalName])");
+            var r = exec(fullModel(), "test::Firm.all()->filter({f|$f.employees.name == 'Alice'})->project(~[legalName:f|$f.legalName])");
             assertEquals(1, r.rowCount());
             assertEquals("Acme", colStr(r, 0).get(0));
         }
@@ -1079,7 +1079,7 @@ class AssociationIntegrationTest {
         void testCrossAssociationFilter() throws SQLException {
             // Filter: has address in NYC (EXISTS) AND firm is Acme (equi-join)
             // Only Alice has NYC address AND works at Acme
-            var r = exec(fullModel(), "Person.all()->filter({p|$p.addresses.city == 'NYC' && $p.firm.legalName == 'Acme'})->project(~[name:p|$p.name])");
+            var r = exec(fullModel(), "test::Person.all()->filter({p|$p.addresses.city == 'NYC' && $p.firm.legalName == 'Acme'})->project(~[name:p|$p.name])");
             assertEquals(1, r.rowCount());
             assertEquals("Alice", colStr(r, 0).get(0));
         }
@@ -1088,7 +1088,7 @@ class AssociationIntegrationTest {
         @DisplayName("Filter on deep path + project on different deep path")
         void testFilterDeepProjectDifferent() throws SQLException {
             // Filter on dept.org.name, project firm.legalName — two completely independent association paths
-            var r = exec(fullModel(), "Person.all()->filter({p|$p.dept.org.name == 'Acme Corp'})->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
+            var r = exec(fullModel(), "test::Person.all()->filter({p|$p.dept.org.name == 'Acme Corp'})->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
             assertEquals(3, r.rows().size());
             Map<String, String> map = new HashMap<>();
             for (var row : r.rows()) map.put(row.get(0).toString(), row.get(1) != null ? row.get(1).toString() : null);
@@ -1103,7 +1103,7 @@ class AssociationIntegrationTest {
             // Person->addresses produces 5 rows (Alice x2, Bob x1, Charlie NULL, Diana NULL)
             // Sort by name ASC then limit 2 — should get Alice's first 2 rows
             var r = exec(fullModel(),
-                "Person.all()->project(~[name:x|$x.name, city:x|$x.addresses.city])->sort(~name->ascending())->limit(2)");
+                "test::Person.all()->project(~[name:x|$x.name, city:x|$x.addresses.city])->sort(~name->ascending())->limit(2)");
             assertEquals(2, r.rowCount());
             // Both rows are Alice (she has 2 addresses and sorts first)
             assertEquals("Alice", colStr(r, 0).get(0));
@@ -1116,7 +1116,7 @@ class AssociationIntegrationTest {
             // Project just the person name through addresses — Alice appears twice (2 addresses)
             // Distinct should collapse Alice back to 1
             var r = exec(fullModel(),
-                "Person.all()->project(~[name:x|$x.name, city:x|$x.addresses.city])->select(~[name])->distinct()");
+                "test::Person.all()->project(~[name:x|$x.name, city:x|$x.addresses.city])->select(~[name])->distinct()");
             assertEquals(4, r.rowCount());
             var names = colStr(r, 0);
             assertEquals(1, Collections.frequency(names, "Alice"));
@@ -1151,7 +1151,7 @@ class AssociationIntegrationTest {
                     )
                     """, "store::DB", "test::M");
 
-            var r = exec(model, "Person.all()->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
+            var r = exec(model, "test::Person.all()->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
             assertEquals(0, r.rows().size());
         }
 
@@ -1161,7 +1161,7 @@ class AssociationIntegrationTest {
             // Person->dept.org.name AND Person->dept.name — both through dept but different depths
             // Verify both resolve independently with correct values
             var r = exec(fullModel(),
-                "Person.all()->project([x|$x.name, x|$x.dept.name, x|$x.dept.org.name], ['name', 'dept', 'org'])");
+                "test::Person.all()->project([x|$x.name, x|$x.dept.name, x|$x.dept.org.name], ['name', 'dept', 'org'])");
             assertEquals(4, r.rows().size());
             Map<String, String> depts = new HashMap<>();
             Map<String, String> orgs = new HashMap<>();
@@ -1182,7 +1182,7 @@ class AssociationIntegrationTest {
         @DisplayName("Sort by to-many association property: addresses.city with row expansion")
         void testSortByToManyProperty() throws SQLException {
             var r = exec(fullModel(),
-                "Person.all()->project(~[name:x|$x.name, city:x|$x.addresses.city])->sort(~city->ascending())");
+                "test::Person.all()->project(~[name:x|$x.name, city:x|$x.addresses.city])->sort(~city->ascending())");
             assertEquals(5, r.rowCount());
             var cities = colStr(r, 1);
             // ASC NULLS LAST: Chicago, LA, NYC, NULL, NULL
@@ -1197,7 +1197,7 @@ class AssociationIntegrationTest {
         @DisplayName("Three associations in one projection: firm + dept + addresses")
         void testThreeAssociationsOneProjection() throws SQLException {
             var r = exec(fullModel(),
-                "Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.dept.name, x|$x.addresses.city], ['name', 'firm', 'dept', 'city'])");
+                "test::Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.dept.name, x|$x.addresses.city], ['name', 'firm', 'dept', 'city'])");
             // Alice: 2 address rows, Bob: 1, Charlie: 1 (NULL city), Diana: 1 (NULL all)
             assertEquals(5, r.rows().size());
             // Verify Alice's rows have consistent firm/dept across her 2 address rows
@@ -1222,7 +1222,7 @@ class AssociationIntegrationTest {
             // GroupBy firm, count — only Acme people (Alice, Bob) survive the filter.
             // Globex (Charlie) excluded. Diana (NULL firm) excluded.
             var r = exec(fullModel(),
-                "Person.all()->filter({p|$p.addresses.city != ''})->project(~[firm:p|$p.firm.legalName, name:p|$p.name])->groupBy(~firm, ~cnt:x|$x.name:y|$y->count())->sort(~firm->ascending())");
+                "test::Person.all()->filter({p|$p.addresses.city != ''})->project(~[firm:p|$p.firm.legalName, name:p|$p.name])->groupBy(~firm, ~cnt:x|$x.name:y|$y->count())->sort(~firm->ascending())");
             // Only Acme people have addresses — 1 group
             assertEquals(1, r.rowCount());
             assertEquals("Acme", colStr(r, 0).get(0));
@@ -1233,7 +1233,7 @@ class AssociationIntegrationTest {
         @DisplayName("Association property in string computation: extend with toUpper on firm name")
         void testAssociationInComputation() throws SQLException {
             var r = exec(fullModel(),
-                "Person.all()->filter({p|$p.name == 'Alice'})->project(~[name:x|$x.name, firm:x|$x.firm.legalName])->extend(~upper:x|$x.firm->toUpper())");
+                "test::Person.all()->filter({p|$p.name == 'Alice'})->project(~[name:x|$x.name, firm:x|$x.firm.legalName])->extend(~upper:x|$x.firm->toUpper())");
             assertEquals(1, r.rowCount());
             assertEquals("Alice", colStr(r, 0).get(0));
             assertEquals("Acme", colStr(r, 1).get(0));
@@ -1265,7 +1265,7 @@ class AssociationIntegrationTest {
                     """, "store::DB", "test::M");
 
             // Navigate TWO hops: emp -> manager -> manager (skip-level reporting)
-            var r = exec(model, "Emp.all()->project([x|$x.name, x|$x.manager.manager.name], ['name', 'grandmanager'])");
+            var r = exec(model, "test::Emp.all()->project([x|$x.name, x|$x.manager.manager.name], ['name', 'grandmanager'])");
             assertEquals(4, r.rows().size());
             Map<String, String> map = new HashMap<>();
             for (var row : r.rows()) map.put(row.get(0).toString(), row.get(1) != null ? row.get(1).toString() : null);
@@ -1300,7 +1300,7 @@ class AssociationIntegrationTest {
                     """, "store::DB", "test::M");
 
             // Who reports directly to the CEO?
-            var r = exec(model, "Emp.all()->filter({e|$e.manager.name == 'CEO'})->project(~[name:e|$e.name])->sort(~name->ascending())");
+            var r = exec(model, "test::Emp.all()->filter({e|$e.manager.name == 'CEO'})->project(~[name:e|$e.name])->sort(~name->ascending())");
             assertEquals(2, r.rowCount());
             assertEquals(List.of("Director", "VP"), colStr(r, 0));
         }
@@ -1365,7 +1365,7 @@ class AssociationIntegrationTest {
             // User-written: extend(traverse(T_DEPT), ~deptName) (explicit Relation API traverse)
             // Project includes deptId so traverse can use it as FK
             var r = exec(combinedModel(),
-                "Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.deptId], ['name', 'firm', 'deptId'])" +
+                "test::Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.deptId], ['name', 'firm', 'deptId'])" +
                 "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.deptId == $hop.ID}), ~deptName:{src,tgt|$tgt.NAME})" +
                 "->select(~[name, firm, deptName])");
             assertEquals(4, r.rowCount());
@@ -1391,7 +1391,7 @@ class AssociationIntegrationTest {
         void testFilterAssocThenExtendTraverse() throws SQLException {
             // Filter via classic association (firm='Acme'), then add dept via extend(traverse())
             var r = exec(combinedModel(),
-                "Person.all()->filter({p|$p.firm.legalName == 'Acme'})" +
+                "test::Person.all()->filter({p|$p.firm.legalName == 'Acme'})" +
                 "->project(~[name:x|$x.name, deptId:x|$x.deptId])" +
                 "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.deptId == $hop.ID}), ~deptName:{src,tgt|$tgt.NAME})" +
                 "->select(~[name, deptName])->sort(~name->ascending())");
@@ -1408,7 +1408,7 @@ class AssociationIntegrationTest {
             // Classic association: Person -> firm.legalName
             // Both in same query
             var r = exec(combinedModel(),
-                "Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.deptId], ['name', 'firm', 'deptId'])" +
+                "test::Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.deptId], ['name', 'firm', 'deptId'])" +
                 "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.deptId == $hop.ID})" +
                 "->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:{src,tgt|$tgt.NAME})" +
                 "->select(~[name, firm, orgName])->sort(~name->ascending())");
@@ -1429,7 +1429,7 @@ class AssociationIntegrationTest {
         void testExtendTraverseThenFilterOnBoth() throws SQLException {
             // Add dept via extend(traverse()), then filter on traversed col AND association col
             var r = exec(combinedModel(),
-                "Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.deptId], ['name', 'firm', 'deptId'])" +
+                "test::Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.deptId], ['name', 'firm', 'deptId'])" +
                 "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.deptId == $hop.ID}), ~deptName:{src,tgt|$tgt.NAME})" +
                 "->filter(x|$x.firm == 'Acme' && $x.deptName == 'Engineering')");
             assertEquals(1, r.rowCount());
@@ -1522,7 +1522,7 @@ class AssociationIntegrationTest {
         @DisplayName("Project all: name + firm (assoc) + dept (1-hop) + org (2-hop) + country (3-hop) + city (1-hop)")
         void testProjectAll() throws SQLException {
             var r = exec(bossModel(),
-                "Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.deptName, x|$x.orgName, x|$x.countryName, x|$x.city], " +
+                "test::Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.deptName, x|$x.orgName, x|$x.countryName, x|$x.city], " +
                 "['name', 'firm', 'dept', 'org', 'country', 'city'])->sort(~name->ascending())");
             assertEquals(4, r.rowCount());
             // Alice: Acme, Engineering, Acme Corp, USA, New York
@@ -1560,7 +1560,7 @@ class AssociationIntegrationTest {
         void testFilterChainProjectAssoc() throws SQLException {
             // Filter: USA (3-hop chain) + Engineering (1-hop chain). Project: firm (association nav)
             var r = exec(bossModel(),
-                "Person.all()->filter({p|$p.countryName == 'USA' && $p.deptName == 'Engineering'})" +
+                "test::Person.all()->filter({p|$p.countryName == 'USA' && $p.deptName == 'Engineering'})" +
                 "->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm'])");
             assertEquals(1, r.rowCount());
             assertEquals("Alice", colStr(r, 0).get(0));
@@ -1572,7 +1572,7 @@ class AssociationIntegrationTest {
         void testFilterOneHopProjectThreeHop() throws SQLException {
             // Filter by dept, project country + firm
             var r = exec(bossModel(),
-                "Person.all()->filter({p|$p.deptName == 'Engineering'})" +
+                "test::Person.all()->filter({p|$p.deptName == 'Engineering'})" +
                 "->project([x|$x.name, x|$x.countryName, x|$x.firm.legalName], ['name', 'country', 'firm'])");
             assertEquals(1, r.rowCount());
             assertEquals("Alice", colStr(r, 0).get(0));
@@ -1585,7 +1585,7 @@ class AssociationIntegrationTest {
         void testGroupByChainColumn() throws SQLException {
             // Count employees per org
             var r = exec(bossModel(),
-                "Person.all()->filter({p|$p.orgName->isNotEmpty()})" +
+                "test::Person.all()->filter({p|$p.orgName->isNotEmpty()})" +
                 "->project([x|$x.orgName], ['org'])" +
                 "->groupBy(~org, ~cnt:x|$x.org:y|$y->count())->sort(~org->ascending())");
             assertEquals(2, r.rowCount());
@@ -1634,7 +1634,7 @@ class AssociationIntegrationTest {
                     """, "store::DB", "test::M");
 
             // Navigate to manager (to-one self-join)
-            var r = exec(model, "Emp.all()->project([x|$x.name, x|$x.manager.name], ['name', 'manager'])");
+            var r = exec(model, "test::Emp.all()->project([x|$x.name, x|$x.manager.name], ['name', 'manager'])");
             assertEquals(3, r.rows().size());
             Map<String, String> map = new HashMap<>();
             for (var row : r.rows()) map.put(row.get(0).toString(), row.get(1) != null ? row.get(1).toString() : null);
@@ -1657,7 +1657,7 @@ class AssociationIntegrationTest {
         @DisplayName("graphFetch: to-many addresses as nested JSON array")
         void testGraphFetchToManyAddresses() throws SQLException {
             var json = execGraph(fullModel(), """
-                    Person.all()->sortBy({p|$p.name})
+                    test::Person.all()->sortBy({p|$p.name})
                         ->graphFetch(#{ Person { name, addresses { city } } }#)
                         ->serialize(#{ Person { name, addresses { city } } }#)
                     """);
@@ -1675,7 +1675,7 @@ class AssociationIntegrationTest {
         @DisplayName("graphFetch: to-one firm as nested JSON object")
         void testGraphFetchToOneFirm() throws SQLException {
             var json = execGraph(fullModel(), """
-                    Person.all()->sortBy({p|$p.name})
+                    test::Person.all()->sortBy({p|$p.name})
                         ->graphFetch(#{ Person { name, firm { legalName } } }#)
                         ->serialize(#{ Person { name, firm { legalName } } }#)
                     """);
@@ -1689,7 +1689,7 @@ class AssociationIntegrationTest {
         @DisplayName("graphFetch: mixed to-one + to-many in same fetch")
         void testGraphFetchMixedToOneAndToMany() throws SQLException {
             var json = execGraph(fullModel(), """
-                    Person.all()->sortBy({p|$p.name})
+                    test::Person.all()->sortBy({p|$p.name})
                         ->graphFetch(#{ Person { name, firm { legalName }, addresses { city } } }#)
                         ->serialize(#{ Person { name, firm { legalName }, addresses { city } } }#)
                     """);
@@ -1707,7 +1707,7 @@ class AssociationIntegrationTest {
         @DisplayName("graphFetch: person with no addresses gets empty array")
         void testGraphFetchToManyEmpty() throws SQLException {
             var json = execGraph(fullModel(), """
-                    Person.all()->filter({p|$p.name == 'Charlie'})
+                    test::Person.all()->filter({p|$p.name == 'Charlie'})
                         ->graphFetch(#{ Person { name, addresses { city } } }#)
                         ->serialize(#{ Person { name, addresses { city } } }#)
                     """);
@@ -1722,7 +1722,7 @@ class AssociationIntegrationTest {
         @DisplayName("graphFetch: filter then to-many — only Alice's addresses")
         void testGraphFetchFilterThenToMany() throws SQLException {
             var json = execGraph(fullModel(), """
-                    Person.all()->filter({p|$p.name == 'Alice'})
+                    test::Person.all()->filter({p|$p.name == 'Alice'})
                         ->graphFetch(#{ Person { name, addresses { city } } }#)
                         ->serialize(#{ Person { name, addresses { city } } }#)
                     """);
@@ -1738,7 +1738,7 @@ class AssociationIntegrationTest {
         void testGraphFetchToManyMultipleChildProps() throws SQLException {
             // Address has id and city — fetch both
             var json = execGraph(fullModel(), """
-                    Person.all()->filter({p|$p.name == 'Alice'})
+                    test::Person.all()->filter({p|$p.name == 'Alice'})
                         ->graphFetch(#{ Person { name, addresses { id, city } } }#)
                         ->serialize(#{ Person { name, addresses { id, city } } }#)
                     """);
@@ -1751,7 +1751,7 @@ class AssociationIntegrationTest {
         @DisplayName("graphFetch: NULL FK person gets null nested object for to-one")
         void testGraphFetchNullFkToOne() throws SQLException {
             var json = execGraph(fullModel(), """
-                    Person.all()->filter({p|$p.name == 'Diana'})
+                    test::Person.all()->filter({p|$p.name == 'Diana'})
                         ->graphFetch(#{ Person { name, firm { legalName } } }#)
                         ->serialize(#{ Person { name, firm { legalName } } }#)
                     """);
@@ -1765,7 +1765,7 @@ class AssociationIntegrationTest {
         @DisplayName("graphFetch: scalar props only — no association overhead")
         void testGraphFetchScalarOnly() throws SQLException {
             var json = execGraph(fullModel(), """
-                    Person.all()->sortBy({p|$p.name})
+                    test::Person.all()->sortBy({p|$p.name})
                         ->graphFetch(#{ Person { name, id } }#)
                         ->serialize(#{ Person { name, id } }#)
                     """);
@@ -1884,7 +1884,7 @@ class AssociationIntegrationTest {
         @DisplayName("2-level to-one: Person → Dept → Org")
         void testDeepNestingToOneToOne() throws SQLException {
             var json = execGraph(deepModel(), """
-                    Person.all()->filter({p|$p.name == 'Alice'})
+                    test::Person.all()->filter({p|$p.name == 'Alice'})
                         ->graphFetch(#{ Person { name, dept { name, org { name } } } }#)
                         ->serialize(#{ Person { name, dept { name, org { name } } } }#)
                     """);
@@ -1898,7 +1898,7 @@ class AssociationIntegrationTest {
         void testDeepNestingToManyThenToOne() throws SQLException {
             // Alice has 2 addresses: NYC (USA), London (UK)
             var json = execGraph(deepModel(), """
-                    Person.all()->filter({p|$p.name == 'Alice'})
+                    test::Person.all()->filter({p|$p.name == 'Alice'})
                         ->graphFetch(#{ Person { name, addresses { city, country { name } } } }#)
                         ->serialize(#{ Person { name, addresses { city, country { name } } } }#)
                     """);
@@ -1913,7 +1913,7 @@ class AssociationIntegrationTest {
         @DisplayName("Multiple disjoint nesting: Person { firm {}, dept {}, addresses {} }")
         void testMultipleDisjointNesting() throws SQLException {
             var json = execGraph(deepModel(), """
-                    Person.all()->filter({p|$p.name == 'Alice'})
+                    test::Person.all()->filter({p|$p.name == 'Alice'})
                         ->graphFetch(#{ Person { name, firm { legalName }, dept { name, org { name } }, addresses { city, country { name } } } }#)
                         ->serialize(#{ Person { name, firm { legalName }, dept { name, org { name } }, addresses { city, country { name } } } }#)
                     """);
@@ -1933,7 +1933,7 @@ class AssociationIntegrationTest {
         void testDeepNestingNullFkAtDepth2() throws SQLException {
             // Bob is in Sales dept which has ORG_ID=NULL
             var json = execGraph(deepModel(), """
-                    Person.all()->filter({p|$p.name == 'Bob'})
+                    test::Person.all()->filter({p|$p.name == 'Bob'})
                         ->graphFetch(#{ Person { name, dept { name, org { name } } } }#)
                         ->serialize(#{ Person { name, dept { name, org { name } } } }#)
                     """);
@@ -1947,7 +1947,7 @@ class AssociationIntegrationTest {
         void testDeepNestingNullFkToManyAtDepth2() throws SQLException {
             // Charlie has 1 address (Paris) with COUNTRY_ID=NULL
             var json = execGraph(deepModel(), """
-                    Person.all()->filter({p|$p.name == 'Charlie'})
+                    test::Person.all()->filter({p|$p.name == 'Charlie'})
                         ->graphFetch(#{ Person { name, addresses { city, country { name } } } }#)
                         ->serialize(#{ Person { name, addresses { city, country { name } } } }#)
                     """);
@@ -1962,7 +1962,7 @@ class AssociationIntegrationTest {
         void testNestedToManyInToMany() throws SQLException {
             // Alice: NYC has tags [home, work], London has tag [vacation]
             var json = execGraph(deepModel(), """
-                    Person.all()->filter({p|$p.name == 'Alice'})
+                    test::Person.all()->filter({p|$p.name == 'Alice'})
                         ->graphFetch(#{ Person { name, addresses { city, tags { label } } } }#)
                         ->serialize(#{ Person { name, addresses { city, tags { label } } } }#)
                     """);
@@ -1979,7 +1979,7 @@ class AssociationIntegrationTest {
         void testNestedToManyEmpty() throws SQLException {
             // Bob: Chicago address has no tags
             var json = execGraph(deepModel(), """
-                    Person.all()->filter({p|$p.name == 'Bob'})
+                    test::Person.all()->filter({p|$p.name == 'Bob'})
                         ->graphFetch(#{ Person { name, addresses { city, tags { label } } } }#)
                         ->serialize(#{ Person { name, addresses { city, tags { label } } } }#)
                     """);
@@ -1994,7 +1994,7 @@ class AssociationIntegrationTest {
         void testDisjointToMany() throws SQLException {
             // Alice: addresses=[NYC, London], phones=[555-1111, 555-2222]
             var json = execGraph(deepModel(), """
-                    Person.all()->filter({p|$p.name == 'Alice'})
+                    test::Person.all()->filter({p|$p.name == 'Alice'})
                         ->graphFetch(#{ Person { name, addresses { city }, phones { number } } }#)
                         ->serialize(#{ Person { name, addresses { city }, phones { number } } }#)
                     """);
@@ -2010,7 +2010,7 @@ class AssociationIntegrationTest {
         void testDisjointToManyPlusToOne() throws SQLException {
             // Alice: firm=Acme, addresses=[NYC, London], phones=[555-1111, 555-2222]
             var json = execGraph(deepModel(), """
-                    Person.all()->filter({p|$p.name == 'Alice'})
+                    test::Person.all()->filter({p|$p.name == 'Alice'})
                         ->graphFetch(#{ Person { name, firm { legalName }, addresses { city }, phones { number } } }#)
                         ->serialize(#{ Person { name, firm { legalName }, addresses { city }, phones { number } } }#)
                     """);
@@ -2026,7 +2026,7 @@ class AssociationIntegrationTest {
         @DisplayName("Disjoint to-many with empty: Diana has no addresses and no phones")
         void testDisjointToManyBothEmpty() throws SQLException {
             var json = execGraph(deepModel(), """
-                    Person.all()->filter({p|$p.name == 'Diana'})
+                    test::Person.all()->filter({p|$p.name == 'Diana'})
                         ->graphFetch(#{ Person { name, addresses { city }, phones { number } } }#)
                         ->serialize(#{ Person { name, addresses { city }, phones { number } } }#)
                     """);

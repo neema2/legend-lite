@@ -88,7 +88,7 @@ public class RenameCheckerTest extends AbstractDatabaseTest {
         @DisplayName("rename on class-based source after project")
         void testRenameAfterProject() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->project(~[name:p|$p.firstName, age:p|$p.age])
                       ->rename(~name, ~fullName)
                       ->sort(ascending(~fullName))""");
@@ -127,7 +127,7 @@ public class RenameCheckerTest extends AbstractDatabaseTest {
         @DisplayName("batch rename on class-based source")
         void testRenameBatchClassBased() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->project(~[name:p|$p.firstName, years:p|$p.age])
                       ->rename(~[name, years], ~[fullName, ageInYears])
                       ->sort(ascending(~fullName))""");

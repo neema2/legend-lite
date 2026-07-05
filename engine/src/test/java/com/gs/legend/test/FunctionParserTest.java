@@ -86,7 +86,7 @@ public class FunctionParserTest {
         String pure = """
                 function query::getAllNames(): String[*]
                 {
-                    Person.all()->map({p | $p.name})
+                    model::Person.all()->map({p | $p.name})
                 }
                 """;
 
@@ -166,7 +166,7 @@ public class FunctionParserTest {
 
                 function query::getPersons(): model::Person[*]
                 {
-                    Person.all()
+                    model::Person.all()
                 }
                 """;
 

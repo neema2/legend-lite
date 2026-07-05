@@ -182,7 +182,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
         @DisplayName("sort class by property ascending (default)")
         void testClassSortAsc() throws SQLException {
             var result = executeRelation(
-                    "Person.all()->sortBy({p|$p.age})->project(~[name:p|$p.firstName, age:p|$p.age])");
+                    "model::Person.all()->sortBy({p|$p.age})->project(~[name:p|$p.firstName, age:p|$p.age])");
             assertNotNull(result);
             assertEquals(3, result.rows().size());
             // Jane(28), John(30), Bob(45)
@@ -194,7 +194,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
         @DisplayName("sort class by property descending (compare lambda)")
         void testClassSortDesc() throws SQLException {
             var result = executeRelation(
-                    "Person.all()->sort({p|$p.age}, {x,y|$y->compare($x)})->project(~[name:p|$p.firstName, age:p|$p.age])");
+                    "model::Person.all()->sort({p|$p.age}, {x,y|$y->compare($x)})->project(~[name:p|$p.firstName, age:p|$p.age])");
             assertNotNull(result);
             assertEquals(3, result.rows().size());
             // Bob(45), John(30), Jane(28)
@@ -206,7 +206,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
         @DisplayName("sortBy class shorthand")
         void testClassSortBy() throws SQLException {
             var result = executeRelation(
-                    "Person.all()->sortBy({p|$p.firstName})->project(~[name:p|$p.firstName, age:p|$p.age])");
+                    "model::Person.all()->sortBy({p|$p.firstName})->project(~[name:p|$p.firstName, age:p|$p.age])");
             assertNotNull(result);
             assertEquals(3, result.rows().size());
             // Bob, Jane, John (alphabetical)
@@ -219,7 +219,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
         void testClassSortByAssociation() throws SQLException {
             // sort by primaryAddress.city (to-one): Chicago(Jane), Detroit(Bob), New York(John)
             var result = executeRelation("""
-                    Person.all()->sortBy({p|$p.primaryAddress.city})
+                    model::Person.all()->sortBy({p|$p.primaryAddress.city})
                       ->project(~[name:p|$p.firstName, age:p|$p.age])""");
             assertNotNull(result);
             assertEquals(3, result.rows().size());
@@ -238,7 +238,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
         @DisplayName("filter then sort (class-based — key lambda)")
         void testFilterThenSort() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->filter(p|$p.age > 25)
                       ->sortBy({p|$p.age})
                       ->project(~[name:p|$p.firstName, age:p|$p.age])""");
@@ -271,7 +271,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
         @DisplayName("project then sort by projected column")
         void testProjectThenSort() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->project(~[name:p|$p.firstName, age:p|$p.age])
                       ->sort(ascending(~age))""");
             assertNotNull(result);
@@ -285,7 +285,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
         @DisplayName("project then sort descending")
         void testProjectThenSortDesc() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->project(~[name:p|$p.firstName, age:p|$p.age])
                       ->sort(descending(~age))""");
             assertNotNull(result);
@@ -299,7 +299,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
         @DisplayName("filter→project→sort (full pipeline)")
         void testFilterProjectSort() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->filter(p|$p.age > 25)
                       ->project(~[name:p|$p.firstName, age:p|$p.age])
                       ->sort(ascending(~name))""");
@@ -314,7 +314,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
         @DisplayName("project→sort→filter (sort then narrow)")
         void testProjectSortFilter() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->project(~[name:p|$p.firstName, age:p|$p.age])
                       ->sort(ascending(~age))
                       ->filter(x|$x.age > 28)""");
@@ -329,7 +329,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
         @DisplayName("sort→project (class-based — key lambda desc)")
         void testSortThenProject() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->sort({p|$p.age}, {x,y|$y->compare($x)})
                       ->project(~[name:p|$p.firstName, age:p|$p.age])""");
             assertNotNull(result);
@@ -343,7 +343,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
         @DisplayName("filter→sort→filter (double filter with sort)")
         void testFilterSortFilter() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->filter(p|$p.age > 25)
                       ->sortBy({p|$p.firstName})
                       ->filter(p|$p.lastName == 'Smith')
@@ -359,7 +359,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
         @DisplayName("project→sort multi-column")
         void testProjectThenSortMultiColumn() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->project(~[ln:p|$p.lastName, fn:p|$p.firstName, age:p|$p.age])
                       ->sort([ascending(~ln), descending(~age)])""");
             assertNotNull(result);
@@ -492,7 +492,7 @@ public class SortCheckerTest extends AbstractDatabaseTest {
             // {p|$p.addresses.city} returns String[*], but sort key requires U[1]
             assertThrows(Exception.class, () ->
                     executeRelation("""
-                            Person.all()->sort({p|$p.addresses.city})
+                            model::Person.all()->sort({p|$p.addresses.city})
                               ->project(~[name:p|$p.firstName])"""));
         }
     }

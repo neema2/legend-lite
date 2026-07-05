@@ -172,7 +172,7 @@ class MappingResolverV2Test {
                 """, "store::DB", "model::M");
 
         TypedSpec out = resolveWithV2(model,
-                "Person.all()->filter({p|$p.age > 18})");
+                "model::Person.all()->filter({p|$p.age > 18})");
 
         var getAlls = collect(out, n -> n instanceof TypedGetAll);
         assertTrue(getAlls.isEmpty(),
@@ -197,7 +197,7 @@ class MappingResolverV2Test {
                 """, "store::DB", "model::M");
 
         TypedSpec out = resolveWithV2(model,
-                "Person.all()->filter({p|$p.age > 18})");
+                "model::Person.all()->filter({p|$p.age > 18})");
 
         var ageAccesses = collect(out, n ->
                 n instanceof TypedPropertyAccess pa && pa.property().equals("age")
@@ -227,7 +227,7 @@ class MappingResolverV2Test {
                 """, "store::DB", "model::M");
 
         TypedSpec out = resolveWithV2(model,
-                "Person.all()->project(~[name:p|$p.name, age:p|$p.age])");
+                "model::Person.all()->project(~[name:p|$p.name, age:p|$p.age])");
 
         var nameAccesses = collect(out, n ->
                 n instanceof TypedPropertyAccess pa && pa.property().equals("name")
@@ -289,7 +289,7 @@ class MappingResolverV2Test {
     @DisplayName("E2E: project a single mapped column")
     void e2e_simpleProject() {
         String sql = generateV2Sql(simplePersonModel(),
-                "Person.all()->project(~[name:p|$p.name])");
+                "model::Person.all()->project(~[name:p|$p.name])");
         System.out.println("e2e_simpleProject: " + sql);
         assertTrue(sql.toUpperCase().contains("NAME"), sql);
         assertTrue(sql.toUpperCase().contains("T_PERSON"), sql);
@@ -299,7 +299,7 @@ class MappingResolverV2Test {
     @DisplayName("E2E: filter on local column then project")
     void e2e_filterLocal() {
         String sql = generateV2Sql(simplePersonModel(),
-                "Person.all()->filter({p|$p.age > 18})->project(~[name:p|$p.name, age:p|$p.age])");
+                "model::Person.all()->filter({p|$p.age > 18})->project(~[name:p|$p.name, age:p|$p.age])");
         System.out.println("e2e_filterLocal: " + sql);
         assertTrue(sql.toUpperCase().contains("WHERE"), sql);
     }
@@ -308,7 +308,7 @@ class MappingResolverV2Test {
     @DisplayName("E2E: project + sort + limit")
     void e2e_sortLimit() {
         String sql = generateV2Sql(simplePersonModel(),
-                "Person.all()->project(~[name:p|$p.name])->sort(~name->ascending())->limit(5)");
+                "model::Person.all()->project(~[name:p|$p.name])->sort(~name->ascending())->limit(5)");
         System.out.println("e2e_sortLimit: " + sql);
         assertTrue(sql.toUpperCase().contains("ORDER BY"), sql);
         assertTrue(sql.toUpperCase().contains("LIMIT"), sql);
@@ -318,7 +318,7 @@ class MappingResolverV2Test {
     @DisplayName("E2E: distinct")
     void e2e_distinct() {
         String sql = generateV2Sql(simplePersonModel(),
-                "Person.all()->project(~[name:p|$p.name])->distinct()");
+                "model::Person.all()->project(~[name:p|$p.name])->distinct()");
         System.out.println("e2e_distinct: " + sql);
         assertTrue(sql.toUpperCase().contains("DISTINCT"), sql);
     }
@@ -342,7 +342,7 @@ class MappingResolverV2Test {
                 )
                 """, "store::DB", "model::M");
         String sql = generateV2Sql(model,
-                "Person.all()->project(~[name:p|$p.name, deptName:p|$p.deptName])");
+                "model::Person.all()->project(~[name:p|$p.name, deptName:p|$p.deptName])");
         System.out.println("e2e_associationOneHop: " + sql);
         assertTrue(sql.toUpperCase().contains("JOIN"), "expected a JOIN: " + sql);
     }
@@ -351,7 +351,7 @@ class MappingResolverV2Test {
     @DisplayName("E2E: extend with computed column")
     void e2e_extendScalar() {
         String sql = generateV2Sql(simplePersonModel(),
-                "Person.all()->project(~[name:p|$p.name])->extend(~upper:x|$x.name->toUpper())");
+                "model::Person.all()->project(~[name:p|$p.name])->extend(~upper:x|$x.name->toUpper())");
         System.out.println("e2e_extendScalar: " + sql);
         assertNotNull(sql);
     }
@@ -360,7 +360,7 @@ class MappingResolverV2Test {
     @DisplayName("E2E parity: simpleProject byte-identical to V1 snapshot")
     void e2e_parity_simpleProject() throws java.io.IOException {
         String v2 = generateV2Sql(simplePersonModel(),
-                "Person.all()->project(~[name:p|$p.name])");
+                "model::Person.all()->project(~[name:p|$p.name])");
         String v1 = java.nio.file.Files.readString(
                 java.nio.file.Paths.get("src/test/resources/parity/simple_relational.sql"));
         System.out.println("V1: " + v1);
@@ -386,7 +386,7 @@ class MappingResolverV2Test {
                 )
                 """, "store::DB", "model::M");
         String v2 = generateV2Sql(model,
-                "Person.all()->project(~[name:p|$p.name, deptName:p|$p.deptName])");
+                "model::Person.all()->project(~[name:p|$p.name, deptName:p|$p.deptName])");
         String v1 = java.nio.file.Files.readString(
                 java.nio.file.Paths.get("src/test/resources/parity/association_one_hop.sql"));
         assertEquals(v1, v2, "byte-parity divergence");
@@ -413,7 +413,7 @@ class MappingResolverV2Test {
                 )
                 """, "store::DB", "model::M");
         String sql = generateV2Sql(model,
-                "Person.all()->project(~[name:p|$p.name, orgName:p|$p.orgName])");
+                "model::Person.all()->project(~[name:p|$p.name, orgName:p|$p.orgName])");
         System.out.println("e2e_associationTwoHop: " + sql);
         // Expect 2 LEFT JOINs.
         long joinCount = sql.toUpperCase().split("LEFT OUTER JOIN", -1).length - 1;
@@ -442,20 +442,20 @@ class MappingResolverV2Test {
                 )
                 """, "store::DB", "model::M");
         String sql = generateV2Sql(model,
-                "Person.all()->project(~[fullName:p|$p.fullName])");
+                "model::Person.all()->project(~[fullName:p|$p.fullName])");
         System.out.println("e2e_m2m: " + sql);
         assertTrue(sql.toUpperCase().contains("FIRST"), sql);
         assertTrue(sql.toUpperCase().contains("LAST"), sql);
     }
 
     @Test
-    @DisplayName("E2E: class-typed root (Person.all() without project) lowers without error")
+    @DisplayName("E2E: class-typed root (model::Person.all() without project) lowers without error")
     void e2e_classTypedRoot() {
-        // Person.all() at the root, no project — produces the synth body's
+        // model::Person.all() at the root, no project — produces the synth body's
         // raw SQL. Today there is no implicit-serialize wrap (Rule 4 TODO);
         // the lowerer currently accepts the bare class-typed AST and emits
         // a SELECT *, which is a valid TDS-shaped result.
-        String sql = generateV2Sql(simplePersonModel(), "Person.all()");
+        String sql = generateV2Sql(simplePersonModel(), "model::Person.all()");
         System.out.println("e2e_classTypedRoot: " + sql);
         assertTrue(sql.toUpperCase().contains("T_PERSON"), sql);
     }
@@ -478,7 +478,7 @@ class MappingResolverV2Test {
                 """, "store::DB", "model::M");
 
         TypedSpec out = resolveWithV2(model,
-                "Person.all()->filter({p|$p.age > 18})");
+                "model::Person.all()->filter({p|$p.age > 18})");
 
         // Every TypedPropertyAccess in the rewritten tree should now have
         // physicalColumn populated — the user query's $p.age via the
@@ -499,7 +499,7 @@ class MappingResolverV2Test {
     // pipeline produces byte-identical SQL to V1's MappingResolver.
 
     /**
-     * Phase B (Rule 4): a class-typed root (Person.all() with no project)
+     * Phase B (Rule 4): a class-typed root (model::Person.all() with no project)
      * is wrapped in TypedSerializeImplicit by both V1
      * (MappingResolver.elaborateImplicitSerialize) and V2
      * (wrapImplicitSerializeIfNeeded). The wrap is what triggers the JSON
@@ -509,7 +509,7 @@ class MappingResolverV2Test {
     @Test
     @DisplayName("Parity: class-typed root gets implicit-serialize wrap (Rule 4)")
     void parity_classTypedRoot_implicitSerialize() {
-        assertV1V2Parity(simplePersonModel(), "Person.all()", "classTypedRoot");
+        assertV1V2Parity(simplePersonModel(), "model::Person.all()", "classTypedRoot");
     }
 
     /**
@@ -526,7 +526,7 @@ class MappingResolverV2Test {
     @DisplayName("Parity: rename's output column accessible by new name")
     void parity_renameAfterProject() {
         assertV1V2Parity(simplePersonModel(),
-                "Person.all()->project(~[name:p|$p.name])"
+                "model::Person.all()->project(~[name:p|$p.name])"
                         + "->rename(~name, ~personName)"
                         + "->sort(~personName->ascending())",
                 "renameAfterProject");
@@ -577,7 +577,7 @@ class MappingResolverV2Test {
     @DisplayName("Parity: multi-column rename")
     void parity_renameMultiple() {
         assertV1V2Parity(simplePersonModel(),
-                "Person.all()->project(~[name:p|$p.name, age:p|$p.age])"
+                "model::Person.all()->project(~[name:p|$p.name, age:p|$p.age])"
                         + "->rename(~[name, age], ~[fullName, years])"
                         + "->sort(~fullName->ascending())",
                 "renameMultiple");
@@ -592,7 +592,7 @@ class MappingResolverV2Test {
     @DisplayName("Parity: select restricts column visibility")
     void parity_selectRestrict() {
         assertV1V2Parity(simplePersonModel(),
-                "Person.all()->project(~[name:p|$p.name, age:p|$p.age])"
+                "model::Person.all()->project(~[name:p|$p.name, age:p|$p.age])"
                         + "->select(~[name])"
                         + "->sort(~name->ascending())",
                 "selectRestrict");

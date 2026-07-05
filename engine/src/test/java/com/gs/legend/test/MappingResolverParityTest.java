@@ -130,7 +130,7 @@ class MappingResolverParityTest {
         return new Case("simple_relational",
                 "Bare relational mapping: project a mapped column.",
                 model,
-                "Person.all()->project(~[name:p|$p.name])");
+                "model::Person.all()->project(~[name:p|$p.name])");
     }
 
     /** Filter on a local column then project. Should produce no joins. */
@@ -149,7 +149,7 @@ class MappingResolverParityTest {
         return new Case("filter_local",
                 "Filter + project on local mapped columns. No joins expected.",
                 model,
-                "Person.all()->filter({p|$p.age > 18})->project(~[name:p|$p.name, age:p|$p.age])");
+                "model::Person.all()->filter({p|$p.age > 18})->project(~[name:p|$p.name, age:p|$p.age])");
     }
 
     /** Project + sort on local columns. */
@@ -168,7 +168,7 @@ class MappingResolverParityTest {
         return new Case("project_and_sort",
                 "Project then sort by a mapped column.",
                 model,
-                "Person.all()->project(~[name:p|$p.name])->sort(~name->ascending())");
+                "model::Person.all()->project(~[name:p|$p.name])->sort(~name->ascending())");
     }
 
     /** 1-hop association: Person.dept.name. Expect a single LEFT JOIN. */
@@ -191,7 +191,7 @@ class MappingResolverParityTest {
         return new Case("association_one_hop",
                 "1-hop association: project a join-chain property — emits one LEFT JOIN.",
                 model,
-                "Person.all()->project(~[name:p|$p.name, deptName:p|$p.deptName])");
+                "model::Person.all()->project(~[name:p|$p.name, deptName:p|$p.deptName])");
     }
 
     /** 2-hop association: Person.dept.org.name. Expect 2 chained LEFT JOINs. */
@@ -216,7 +216,7 @@ class MappingResolverParityTest {
         return new Case("association_two_hop",
                 "2-hop association chain: emits 2 LEFT JOINs.",
                 model,
-                "Person.all()->project(~[name:p|$p.name, orgName:p|$p.orgName])");
+                "model::Person.all()->project(~[name:p|$p.name, orgName:p|$p.orgName])");
     }
 
     /** M2M: Pure mapping that wraps a relational source. */
@@ -242,7 +242,7 @@ class MappingResolverParityTest {
         return new Case("m2m_chain",
                 "M2M (Pure) mapping wrapping a relational source.",
                 model,
-                "Person.all()->project(~[fullName:p|$p.fullName])");
+                "model::Person.all()->project(~[fullName:p|$p.fullName])");
     }
 
     /** Extend with a computed scalar column. */
@@ -261,7 +261,7 @@ class MappingResolverParityTest {
         return new Case("extend_scalar",
                 "Project then extend with a computed scalar column on the TDS.",
                 model,
-                "Person.all()->project(~[name:p|$p.name])->extend(~upper:x|$x.name->toUpper())");
+                "model::Person.all()->project(~[name:p|$p.name])->extend(~upper:x|$x.name->toUpper())");
     }
 
     /** Limit clause. */
@@ -279,7 +279,7 @@ class MappingResolverParityTest {
         return new Case("limit_only",
                 "Project then limit. Tests slice lowering.",
                 model,
-                "Person.all()->project(~[name:p|$p.name])->limit(10)");
+                "model::Person.all()->project(~[name:p|$p.name])->limit(10)");
     }
 
     /** Multi-operation chain: filter + sort + limit + project. */
@@ -298,6 +298,6 @@ class MappingResolverParityTest {
         return new Case("multi_op_chain",
                 "Filter + project + sort + limit. Tests operator composition.",
                 model,
-                "Person.all()->filter({p|$p.age > 18})->project(~[name:p|$p.name, age:p|$p.age])->sort(~name->ascending())->limit(5)");
+                "model::Person.all()->filter({p|$p.age > 18})->project(~[name:p|$p.name, age:p|$p.age])->sort(~name->ascending())->limit(5)");
     }
 }

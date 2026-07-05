@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Integration test reproducing the real PCT testSimpleProjectList failure.
  *
- * The source is a Collection of struct instances (^TypeForProjectTest(...)),
+ * The source is a Collection of struct instances (^meta::pure::functions::relation::tests::project::TypeForProjectTest(...)),
  * and compileCollection must propagate the struct's Type.Schema so that
  * compileProject can resolve columns.
  *

@@ -32,7 +32,7 @@ class MappingTestSuiteParserTest {
                     [
                         PersonSuite:
                         {
-                            function: |Person.all()->graphFetch(#{Person{firstName}}#)->serialize(#{Person{firstName}}#);
+                            function: |model::Person.all()->graphFetch(#{model::Person{firstName}}#)->serialize(#{model::Person{firstName}}#);
                             tests:
                             [
                                 JohnTest:

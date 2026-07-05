@@ -26,7 +26,7 @@ class ServiceTestSuiteParserTest {
                     documentation: 'Get persons by last name';
                     execution: Single
                     {
-                        query: |Person.all()->filter({p | $p.lastName == $lastName});
+                        query: |model::Person.all()->filter({p | $p.lastName == $lastName});
                     }
                 }
                 """;
@@ -40,7 +40,7 @@ class ServiceTestSuiteParserTest {
         assertEquals("lastName", service.pathParams().get(0));
 
         // Verify function body is extracted
-        assertTrue(service.functionBody().contains("Person.all()"));
+        assertTrue(service.functionBody().contains("model::Person.all()"));
     }
 
     @Test
@@ -54,7 +54,7 @@ class ServiceTestSuiteParserTest {
                     pattern: '/api/simple';
                     execution: Single
                     {
-                        query: |Person.all();
+                        query: |model::Person.all();
                     }
                 }
                 """;
@@ -76,7 +76,7 @@ class ServiceTestSuiteParserTest {
                     pattern: '/api/persons/{personId}/addresses/{addressId}';
                     execution: Single
                     {
-                        query: |Address.all()->filter({a | $a.personId == $personId && $a.id == $addressId});
+                        query: |model::Address.all()->filter({a | $a.personId == $personId && $a.id == $addressId});
                     }
                 }
                 """;

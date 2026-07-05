@@ -82,7 +82,7 @@ public class SelectDistinctCheckerTest extends AbstractDatabaseTest {
         @DisplayName("select after project on class-based source")
         void testSelectAfterProject() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->project(~[name:p|$p.firstName, age:p|$p.age])
                       ->select(~name)
                       ->sort(ascending(~name))""");
@@ -150,7 +150,7 @@ public class SelectDistinctCheckerTest extends AbstractDatabaseTest {
         @DisplayName("distinct on class-based source after project")
         void testDistinctClassBased() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->project(~[age:p|$p.age])
                       ->distinct()
                       ->sort(ascending(~age))""");
@@ -173,7 +173,7 @@ public class SelectDistinctCheckerTest extends AbstractDatabaseTest {
         @DisplayName("project→select→distinct→sort")
         void testProjectSelectDistinctSort() throws SQLException {
             var result = executeRelation("""
-                    Person.all()
+                    model::Person.all()
                       ->project(~[name:p|$p.firstName, age:p|$p.age])
                       ->select(~age)
                       ->distinct()

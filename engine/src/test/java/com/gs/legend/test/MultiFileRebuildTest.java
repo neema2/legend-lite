@@ -478,7 +478,7 @@ class MultiFileRebuildTest {
         // Instrument class removed
         assertThrows(Exception.class, () ->
                         execute(v2Builder, "trade::Instrument.all()->project(~[ticker:i|$i.ticker])"),
-                "V2 should fail on Instrument.all() — class was removed");
+                "V2 should fail on trade::Instrument.all() — class was removed");
 
         // Trade_Instrument association removed — instrument navigation should fail
         assertThrows(Exception.class, () ->

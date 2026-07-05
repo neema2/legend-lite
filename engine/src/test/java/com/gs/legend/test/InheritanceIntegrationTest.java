@@ -170,7 +170,7 @@ class InheritanceIntegrationTest {
         void testFilterOnInheritedProperty() throws Exception {
             // Use curly brace lambda syntax: {p | $p.firstName == 'John'}
             String pureQuery = """
-                    Employee.all()
+                    model::Employee.all()
                         ->filter({e | $e.firstName == 'John'})
                         ->project(~[firstName:e|$e.firstName, lastName:e|$e.lastName, employeeId:e|$e.employeeId])
                     """;
@@ -190,7 +190,7 @@ class InheritanceIntegrationTest {
         @DisplayName("Filter on grandparent inherited property (id from Entity)")
         void testFilterOnGrandparentProperty() throws Exception {
             String pureQuery = """
-                    Employee.all()
+                    model::Employee.all()
                         ->filter({e | $e.id == 'E001'})
                         ->project(~[id:e|$e.id, firstName:e|$e.firstName, employeeId:e|$e.employeeId])
                     """;
@@ -212,7 +212,7 @@ class InheritanceIntegrationTest {
         @DisplayName("Project mix of own and inherited properties")
         void testProjectMixedProperties() throws Exception {
             String pureQuery = """
-                    Employee.all()
+                    model::Employee.all()
                         ->project(~[id:e|$e.id, firstName:e|$e.firstName, lastName:e|$e.lastName, employeeId:e|$e.employeeId, department:e|$e.department])
                     """;
 
@@ -236,7 +236,7 @@ class InheritanceIntegrationTest {
         void testFilterAndSortOnInheritedProperties() throws Exception {
             // Filter before project for class-based filtering
             String pureQuery = """
-                    Employee.all()
+                    model::Employee.all()
                         ->filter({e | $e.salary > 82000})
                         ->project(~[firstName:e|$e.firstName, lastName:e|$e.lastName, salary:e|$e.salary])
                         ->sort('lastName', SortDirection.ASC)
@@ -261,7 +261,7 @@ class InheritanceIntegrationTest {
         @DisplayName("Generated SQL contains correct column mappings for inherited properties")
         void testSqlGenerationForInheritedProperties() {
             String pureQuery = """
-                    Employee.all()
+                    model::Employee.all()
                         ->filter({e | $e.firstName == 'John'})
                         ->project(~[firstName:e|$e.firstName, employeeId:e|$e.employeeId])
                     """;

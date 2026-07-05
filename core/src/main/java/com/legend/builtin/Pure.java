@@ -163,6 +163,8 @@ public final class Pure {
     public static final ClassDefinition ANY  = nativeClass("native Class meta::pure::metamodel::type::Any {}");
     public static final ClassDefinition NIL  = nativeClass("native Class meta::pure::metamodel::type::Nil  extends meta::pure::metamodel::type::Any {}");
     public static final ClassDefinition TYPE = nativeClass("native Class meta::pure::metamodel::type::Type extends meta::pure::metamodel::type::Any {}");
+    /** Real M3's element root (meta::pure::metamodel::ModelElement) — corpus fixtures pass these around. */
+    public static final ClassDefinition MODEL_ELEMENT = nativeClass("native Class meta::pure::metamodel::ModelElement extends meta::pure::metamodel::type::Any {}");
 
     // ---- Numeric tower ----
     public static final ClassDefinition NUMBER  = nativeClass("native Class meta::pure::metamodel::type::Number  extends meta::pure::metamodel::type::Any {}");

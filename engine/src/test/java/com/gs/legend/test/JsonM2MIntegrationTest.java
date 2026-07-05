@@ -132,10 +132,10 @@ class JsonM2MIntegrationTest {
     // ==================== Tests ====================
 
     @Test
-    @DisplayName("project: Person.all()->project(~[fullName, age])")
+    @DisplayName("project: model::Person.all()->project(~[fullName, age])")
     void testProjectFromJson() throws SQLException {
         var result = executeProject("""
-                Person.all()->project(~[fullName:x|$x.fullName, age:x|$x.age])
+                model::Person.all()->project(~[fullName:x|$x.fullName, age:x|$x.age])
                 """);
         var tabular = result.asTabular();
         assertEquals(3, tabular.rows().size(), "Should have 3 persons from JSON");
@@ -154,7 +154,7 @@ class JsonM2MIntegrationTest {
     @DisplayName("graphFetch: Person with fullName + age")
     void testGraphFetchFromJson() throws SQLException {
         String json = executeGraphFetch("""
-                Person.all()
+                model::Person.all()
                     ->graphFetch(#{ Person { fullName, age } }#)
                     ->serialize(#{ Person { fullName, age } }#)
                 """);
@@ -166,10 +166,10 @@ class JsonM2MIntegrationTest {
     }
 
     @Test
-    @DisplayName("project with filter: Person.all()->filter(x|$x.age > 26)->project(...)")
+    @DisplayName("project with filter: model::Person.all()->filter(x|$x.age > 26)->project(...)")
     void testProjectWithFilter() throws SQLException {
         var result = executeProject("""
-                Person.all()->filter(x|$x.age > 26)->project(~[fullName:x|$x.fullName])
+                model::Person.all()->filter(x|$x.age > 26)->project(~[fullName:x|$x.fullName])
                 """);
         var tabular = result.asTabular();
         assertEquals(2, tabular.rows().size(), "Should have 2 persons with age > 26");
