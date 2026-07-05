@@ -105,11 +105,14 @@ public final class Compiler {
      */
     public static com.legend.exec.ExecutionResult execute(String model, String query,
             java.sql.Connection connection) throws java.sql.SQLException {
-        TypedSpec typed = compileQuery(model, query);
-        com.legend.sql.SqlQuery plan = new com.legend.lowering.Lowerer().lower(typed);
+        ModelContext ctx = compileModel(model);
+        java.util.List<TypedSpec> body = new SpecCompiler(ctx).typeQueryBody(
+                NameResolver.resolveQuery(SpecParser.parse(query)));
+        TypedSpec root = body.get(body.size() - 1);
+        com.legend.sql.SqlQuery plan = new com.legend.lowering.Lowerer().lower(body);
         com.legend.sql.dialect.SqlDialect dialect = new com.legend.sql.dialect.DuckDb();
         return com.legend.exec.Executor.execute(
-                dialect.render(plan), plan, typed.info(), connection, dialect);
+                dialect.render(plan), plan, root.info(), connection, dialect);
     }
 
     public static TypedSpec compileQuery(String model, String query) {

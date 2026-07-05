@@ -62,6 +62,28 @@ public final class Lowerer {
     private final java.util.ArrayDeque<java.util.function.BiFunction<String, String, SqlExpr>>
             enclosing = new java.util.ArrayDeque<>();
 
+    /** Query-level let bindings ({@code |let a = ...; ...$a...}), lowered once. */
+    private final java.util.Map<String, SqlExpr> letBindings = new java.util.HashMap<>();
+
+    /**
+     * Lower a typed QUERY BODY: leading {@code let} statements bind their
+     * lowered values into query scope (substitution — the lean output has no
+     * trace of the lets); the final statement is the query.
+     */
+    public SqlQuery lower(List<com.legend.compiler.spec.typed.TypedSpec> body) {
+        for (int i = 0; i < body.size() - 1; i++) {
+            if (!(body.get(i) instanceof com.legend.compiler.spec.typed.TypedLet let)) {
+                throw new IllegalStateException(
+                        "only let statements may precede the query expression");
+            }
+            letBindings.put(let.name(), scalar(let.value(), (var, name) -> {
+                throw new IllegalStateException(
+                        "a query-level let has no row scope for $" + var);
+            }));
+        }
+        return lower(body.get(body.size() - 1));
+    }
+
     /** Lower a typed query to SQL: relation pipelines and scalar roots. */
     public SqlQuery lower(TypedSpec spec) {
         // A terminal concatenate is a BARE set operation — no wrapping SELECT *.
@@ -795,8 +817,11 @@ public final class Lowerer {
                     c.elements().stream().map(e -> scalar(e, columns)).toList());
             case TypedPropertyAccess p when p.source() instanceof TypedVariable v
                     -> columns.apply(v.name(), p.property());
-            // A bare lambda variable (a list element inside exists/forAll etc.).
-            case TypedVariable v -> columns.apply(v.name(), null);
+            // A bare variable: a query-level let binding substitutes; else a
+            // lambda variable (a list element inside exists/forAll etc.).
+            case TypedVariable v -> letBindings.containsKey(v.name())
+                    ? letBindings.get(v.name())
+                    : columns.apply(v.name(), null);
             // An inner lambda: ALL its parameters shadow; everything else
             // resolves outward through the enclosing resolver.
             case TypedLambda l -> new SqlExpr.Lambda(l.parameters(),

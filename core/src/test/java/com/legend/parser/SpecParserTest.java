@@ -639,6 +639,18 @@ final class SpecParserTest {
     }
 
     @Test
+    void pipeLambdaStatementSequenceMatchesRealGrammar() {
+        // M3ParserGrammar.g4: codeBlock: programLine (';' (programLine ';')*)?
+        // First statement's ';' optional; SUBSEQUENT statements REQUIRE it.
+        assertEquals(1, ((LambdaFunction) SpecParser.parse("|1 + 1")).body().size());
+        assertEquals(1, ((LambdaFunction) SpecParser.parse("|1 + 1;")).body().size());
+        assertEquals(3, ((LambdaFunction) SpecParser.parse(
+                "|let a = 1; let b = 2; $a + $b;")).body().size());
+        // Missing the required trailing ';' on a subsequent statement: invalid.
+        assertThrows(ParseException.class, () -> SpecParser.parse("|let a = 1; $a"));
+    }
+
+    @Test
     void booleanPrecedenceMatchesRealPure() {
         // && binds tighter than || (engine DomainParseTreeWalker
         // isLowerPrecedenceBoolean): 'a || b && c' is or(a, and(b, c)).

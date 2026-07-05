@@ -73,6 +73,15 @@ class LowerRelationTest {
         return new DuckDb().render(q);
     }
 
+    /** The statement-sequence path (query-level lets). */
+    private String sqlOfBody(String query) {
+        var ctx = Compiler.compileModel(MODEL);
+        var body = new com.legend.compiler.spec.SpecCompiler(ctx).typeQueryBody(
+                com.legend.compiler.NameResolver.resolveQuery(
+                        com.legend.parser.SpecParser.parse(query)));
+        return new DuckDb().render(new Lowerer().lower(body));
+    }
+
     /** Execute; return rows as "cell|cell" strings. */
     private List<String> exec(String sql) throws SQLException {
         List<String> rows = new ArrayList<>();
@@ -537,6 +546,16 @@ class LowerRelationTest {
     }
 
     // ---- scalar roots, from(), flatten ----
+
+    @Test
+    @DisplayName("multi-statement lambda query: let-chains bind forward, last statement is the value")
+    void letChainQuery() throws SQLException {
+        String sql = sqlOfBody("|let first = 'John'; let last = 'Smith';"
+                + " let full = $first + ' ' + $last; $full;");
+        assertEquals("SELECT 'John' || ' ' || 'Smith' AS value", sql,
+                "lets substitute through; ONE flat scalar select");
+        assertEquals(List.of("John Smith"), exec(sql));
+    }
 
     @Test
     @DisplayName("SCALAR result shape: bare scalar query is a FROM-less SELECT")

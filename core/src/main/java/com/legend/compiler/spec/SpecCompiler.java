@@ -148,25 +148,35 @@ public final class SpecCompiler {
      * (an empty environment, inference mode).
      */
     public TypedSpec typeExpression(ValueSpecification query) {
-        // Corpus/engine convention: queries arrive as zero-param lambdas
-        // ("|expr" — an ad-hoc thunk). Unwrap and type the statement
-        // sequence exactly like a function body (lets bind forward).
+        List<TypedSpec> body = typeQueryBody(query);
+        return body.get(body.size() - 1);
+    }
+
+    /**
+     * Type a standalone query as a STATEMENT SEQUENCE (the corpus/engine
+     * convention: queries arrive as zero-param lambdas — "|let a = ...; $a;"
+     * — with lets binding forward). The full typed sequence is returned so
+     * the lowering can thread let bindings; the query's value is the last
+     * statement.
+     */
+    public List<TypedSpec> typeQueryBody(ValueSpecification query) {
         if (query instanceof com.legend.parser.spec.LambdaFunction lf
                 && lf.parameters().isEmpty()) {
             Env scope = Env.empty();
-            TypedSpec last = null;
+            List<TypedSpec> body = new ArrayList<>();
             for (ValueSpecification stmt : lf.body()) {
-                last = typer.typeBody(stmt, scope, Expected.infer());
-                if (last instanceof TypedLet let) {
+                TypedSpec typed = typer.typeBody(stmt, scope, Expected.infer());
+                body.add(typed);
+                if (typed instanceof TypedLet let) {
                     scope = scope.with(let.name(), let.value().info());
                 }
             }
-            if (last == null) {
+            if (body.isEmpty()) {
                 throw new TypeInferenceException("empty query lambda");
             }
-            return last;
+            return body;
         }
-        return typer.typeBody(query, Env.empty(), Expected.infer());
+        return List.of(typer.typeBody(query, Env.empty(), Expected.infer()));
     }
 
     /**

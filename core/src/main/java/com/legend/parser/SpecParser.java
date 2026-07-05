@@ -1613,8 +1613,29 @@ public final class SpecParser implements TokenStreamCursor {
      */
     private LambdaFunction parseLambdaPipe() {
         pos++; // consume '|'
-        ValueSpecification body = parseCombinedExpression();
-        return new LambdaFunction(List.of(), List.of(body));
+        // The body is a STATEMENT SEQUENCE per REAL Pure's grammar
+        // (M3ParserGrammar.g4): codeBlock: programLine (';' (programLine ';')*)?
+        // — the FIRST statement's ';' is optional; every SUBSEQUENT statement
+        // REQUIRES its trailing ';'. "|let a = 1; $a" is invalid Pure.
+        List<ValueSpecification> body = new java.util.ArrayList<>();
+        body.add(parseProgramLine());
+        if (pos < tokens.count() && tokens.type(pos) == TokenType.SEMI_COLON) {
+            pos++; // the first statement's optional ';'
+            while (pos < tokens.count() && !isLambdaBodyTerminator(tokens.type(pos))) {
+                body.add(parseProgramLine());
+                if (pos >= tokens.count() || tokens.type(pos) != TokenType.SEMI_COLON) {
+                    throw error("expected ';' after statement in a multi-statement"
+                            + " lambda body (real Pure requires it)");
+                }
+                pos++; // the REQUIRED trailing ';'
+            }
+        }
+        return new LambdaFunction(List.of(), body);
+    }
+
+    private static boolean isLambdaBodyTerminator(TokenType t) {
+        return t == TokenType.PAREN_CLOSE || t == TokenType.COMMA
+                || t == TokenType.BRACKET_CLOSE || t == TokenType.BRACE_CLOSE;
     }
 
     // -------------------------------------------------------------------
