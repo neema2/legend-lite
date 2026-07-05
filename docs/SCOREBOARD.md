@@ -1,0 +1,66 @@
+# The Corpus Scoreboard
+
+The engine test corpus (2721 tests, 94+ classes) runs AS-IS against core via
+the QueryService bridge (docs/PHASE_K_EXECUTION.md). This file is the run
+history and bucket ledger; `tools/scoreboard.py --record` appends a run after:
+
+    mvn -pl engine test -Dmaven.test.failure.ignore=true
+
+**THE LOOP RULE:** fix → engine suite → scoreboard --record → verify deltas →
+commit code AND scoreboard row together. Never commit a "fix" the scoreboard
+has not confirmed.
+
+Bucket meanings:
+- **H: class sources / property nav / mappings** — Phase H's parity meter
+  (TypedGetAll, association navigation, mapping resolution, legacyNavigate's
+  unbound T). Burns down when Phase H lands, not before.
+- **CORE: scalar/agg function registrations** — the Scalars/Aggregates long
+  tail; each item is a small identity-keyed registration with corpus-verified
+  expected outputs.
+- **CORE: unlowered constructs** — real lowering work (serialize/GRAPH,
+  TypedUserCall = user-function inlining [design moment, not a hack],
+  sortBy, match, scalar literals).
+- **CORE(G): overload/typing gaps** — catalog signatures the corpus
+  exercises that G lacks (fold/extend 3-arg shapes, JoinKind values).
+- **CORE(parse): query syntax gaps** — concretely: trailing-token cases and
+  FQN references inside collection literals ([a::b::C.VAL]).
+- **FIXTURE: unknown refs** — model shapes to diagnose (test::Person in
+  RelationalMappingIntegrationTest inner fixtures; T_EVENTS/EventDatabase).
+- **OTHER** — incl. one suspected G bug (ColSpecArray<X⊆T> vs ColSpec).
+
+Governance tail (decisions, not code): ~86 assertion FAILURES are mostly
+tests that bypass the bridge and pin ENGINE internals (FlatSql suites
+asserting engine's own SQL text; PureCompileException type expectations) —
+they need re-pin-to-core or exclude decisions. The asOfJoin prefix failures
+are our DOCUMENTED deliberate divergence behaving as expected.
+
+## History
+
+### Run 2026-07-05 @ baseline (pre-fix, commit 026ef9d era)
+
+| tests | pass | failures | errors | skipped | green classes |
+|---|---|---|---|---|---|
+| 2721 | **804** | 80 | 1838 | 19 | 130 |
+
+Dominated by four systemic causes: ModelElement missing from the catalog
+(1093), synthesized bare Boolean (202), lambda-root queries (69), bare-name
+corpus queries (~150).
+
+### Run 2026-07-05 @ ce63bf7 (post systemic fixes)
+
+| tests | pass | failures | errors | skipped | green classes |
+|---|---|---|---|---|---|
+| 2721 | **1027** | 86 | 1589 | 19 | 152 |
+
+| bucket | exception lines |
+|---|---|
+| H: class sources / property nav / mappings | 577 |
+| CORE: scalar/agg function registrations | 487 |
+| CORE: unlowered constructs | 186 |
+| CORE(G): overload/typing gaps | 121 |
+| CORE(parse): query syntax gaps | 108 |
+| FIXTURE: unknown refs (to diagnose) | 77 |
+| OTHER | 37 |
+
+All three systemic error families at zero; bare-name errors moved into the
+H bucket where they belong (TypedGetAll 343→412 across rounds).
