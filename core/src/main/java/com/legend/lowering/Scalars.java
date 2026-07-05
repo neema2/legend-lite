@@ -5,6 +5,7 @@ import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.parser.element.Function;
 import com.legend.sql.SqlExpr;
+import com.legend.sql.SqlFn;
 
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -33,39 +34,39 @@ final class Scalars {
     private Scalars() {
     }
 
-    /** Register every catalog overload of {@code pureName} under one semantic name. */
-    private static void family(String semanticName, String pureName) {
+    /** Register every catalog overload of {@code pureName} under one semantic entry. */
+    private static void family(com.legend.sql.SqlFn semantic, String pureName) {
         List<? extends Function> overloads = Pure.nativeFunctionsAt(pureName);
         if (overloads.isEmpty()) {
             throw new IllegalStateException("no catalog overloads for '" + pureName + "'");
         }
         for (Function f : overloads) {
-            RULES.put(f, (n, args) -> new SqlExpr.Call(semanticName, args));
+            RULES.put(f, (n, args) -> new SqlExpr.Call(semantic, args));
         }
     }
 
     static {
-        family("equal", "equal");
-        family("notEqual", "notEqual");
-        family("less", "lessThan");
-        family("lessEqual", "lessThanEqual");
-        family("greater", "greaterThan");
-        family("greaterEqual", "greaterThanEqual");
-        family("and", "and");
-        family("or", "or");
-        family("not", "not");
-        family("plus", "plus");
-        family("minus", "minus");
-        family("times", "times");
-        family("divide", "divide");
-        family("mod", "mod");
-        family("rem", "rem");
-        family("abs", "abs");
-        family("isNull", "isEmpty");
-        family("isNotNull", "isNotEmpty");
-        family("length", "length");
-        family("upper", "toUpper");
-        family("lower", "toLower");
+        family(com.legend.sql.SqlFn.EQUAL, "equal");
+        family(com.legend.sql.SqlFn.NOT_EQUAL, "notEqual");
+        family(com.legend.sql.SqlFn.LESS, "lessThan");
+        family(com.legend.sql.SqlFn.LESS_EQUAL, "lessThanEqual");
+        family(com.legend.sql.SqlFn.GREATER, "greaterThan");
+        family(com.legend.sql.SqlFn.GREATER_EQUAL, "greaterThanEqual");
+        family(com.legend.sql.SqlFn.AND, "and");
+        family(com.legend.sql.SqlFn.OR, "or");
+        family(com.legend.sql.SqlFn.NOT, "not");
+        family(com.legend.sql.SqlFn.PLUS, "plus");
+        family(com.legend.sql.SqlFn.MINUS, "minus");
+        family(com.legend.sql.SqlFn.TIMES, "times");
+        family(com.legend.sql.SqlFn.DIVIDE, "divide");
+        family(com.legend.sql.SqlFn.MOD, "mod");
+        family(com.legend.sql.SqlFn.REM, "rem");
+        family(com.legend.sql.SqlFn.ABS, "abs");
+        family(com.legend.sql.SqlFn.IS_NULL, "isEmpty");
+        family(com.legend.sql.SqlFn.IS_NOT_NULL, "isNotEmpty");
+        family(com.legend.sql.SqlFn.LENGTH, "length");
+        family(com.legend.sql.SqlFn.UPPER, "toUpper");
+        family(com.legend.sql.SqlFn.LOWER, "toLower");
 
         // toOne erases in SQL (MUST-honor: multiplicity narrowing is a no-op value-wise).
         for (Function f : Pure.nativeFunctionsAt("toOne")) {
@@ -77,20 +78,20 @@ final class Scalars {
         // forAll([]) = TRUE — hence the COALESCE defaults (list_bool_* on an
         // empty list yields NULL).
         for (Function f : Pure.nativeFunctionsAt("exists")) {
-            RULES.put(f, (n, args) -> new SqlExpr.Call("coalesce", List.of(
-                    new SqlExpr.Call("list_bool_or", List.of(
-                            new SqlExpr.Call("list_transform", args))),
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.COALESCE, List.of(
+                    new SqlExpr.Call(SqlFn.LIST_BOOL_OR, List.of(
+                            new SqlExpr.Call(SqlFn.LIST_TRANSFORM, args))),
                     new SqlExpr.BoolLit(false))));
         }
         for (Function f : Pure.nativeFunctionsAt("forAll")) {
-            RULES.put(f, (n, args) -> new SqlExpr.Call("coalesce", List.of(
-                    new SqlExpr.Call("list_bool_and", List.of(
-                            new SqlExpr.Call("list_transform", args))),
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.COALESCE, List.of(
+                    new SqlExpr.Call(SqlFn.LIST_BOOL_AND, List.of(
+                            new SqlExpr.Call(SqlFn.LIST_TRANSFORM, args))),
                     new SqlExpr.BoolLit(true))));
         }
 
         // Overload-specific overrides — the resolved signature IS the decision.
-        RULES.put(Pure.PLUS__STRING_1__STRING_1, (n, args) -> new SqlExpr.Call("concat", args));
+        RULES.put(Pure.PLUS__STRING_1__STRING_1, (n, args) -> new SqlExpr.Call(SqlFn.CONCAT, args));
         RULES.put(Pure.IN__ANY_1__ANY_MANY, (n, args) -> {
             List<SqlExpr> flat = new ArrayList<>();
             flat.add(args.get(0));
@@ -99,7 +100,7 @@ final class Scalars {
             } else {
                 flat.add(args.get(1));
             }
-            return new SqlExpr.Call("in", flat);
+            return new SqlExpr.Call(SqlFn.IN, flat);
         });
     }
 

@@ -1,6 +1,7 @@
 package com.legend.lowering;
 
 import com.legend.sql.SqlExpr;
+import com.legend.sql.SqlFn;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 import org.junit.jupiter.api.DisplayName;
@@ -109,7 +110,7 @@ class FoldTest {
     void resolveThroughStar() {
         SqlSelect extended = BARE.withProjections(List.of(
                 new SqlSelect.Projection(new SqlExpr.Star("t0"), null),
-                new SqlSelect.Projection(SqlExpr.Call.of("plus", col("A"), col("B")), "computed")),
+                new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.PLUS, col("A"), col("B")), "computed")),
                 List.of());
         assertEquals(col("AGE"), Fold.resolveInto(extended, "AGE"),
                 "unclaimed names pass through the star to the source");
@@ -124,7 +125,7 @@ class FoldTest {
         SqlSelect projected = BARE.withProjections(List.of(
                 new SqlSelect.Projection(col("AGE"), "YEARS"),
                 new SqlSelect.Projection(col("NAME"), null),
-                new SqlSelect.Projection(SqlExpr.Call.of("plus", col("A"), col("B")), "SUM_AB")),
+                new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.PLUS, col("A"), col("B")), "SUM_AB")),
                 List.of());
         assertEquals(col("AGE"), Fold.resolveInto(projected, "YEARS"),
                 "renamed column substitutes to its source");

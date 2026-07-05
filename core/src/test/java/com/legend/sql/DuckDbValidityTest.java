@@ -78,9 +78,9 @@ class DuckDbValidityTest {
                         new SqlSelect.Projection(col("FIRM_ID"), null),
                         new SqlSelect.Projection(SqlAgg.Reducer.of("SUM", col("AGE")), "total")),
                         List.of())
-                .withWhere(SqlExpr.Call.of("greater", col("AGE"), new SqlExpr.IntLit(20)))
+                .withWhere(SqlExpr.Call.of(SqlFn.GREATER, col("AGE"), new SqlExpr.IntLit(20)))
                 .withGroupBy(List.of(col("FIRM_ID")))
-                .withHaving(SqlExpr.Call.of("greaterEqual",
+                .withHaving(SqlExpr.Call.of(SqlFn.GREATER_EQUAL,
                         SqlAgg.Reducer.of("COUNT"), new SqlExpr.IntLit(1)))
                 .withOrderBy(List.of(SqlSelect.SortKey.desc(col("FIRM_ID"))))
                 .withLimit(10L).withOffset(0L);
@@ -90,13 +90,13 @@ class DuckDbValidityTest {
     @Test
     @DisplayName("semantics: positive mod, float division, banker's-independent rem")
     void pinnedSemantics() throws SQLException {
-        assertEquals(2L, ((Number) execExpr(SqlExpr.Call.of("mod",
+        assertEquals(2L, ((Number) execExpr(SqlExpr.Call.of(SqlFn.MOD,
                 new SqlExpr.IntLit(-7), new SqlExpr.IntLit(3)))).longValue(),
                 "mod(-7,3) must be POSITIVE 2 (Pure semantics)");
-        assertEquals(-1L, ((Number) execExpr(SqlExpr.Call.of("rem",
+        assertEquals(-1L, ((Number) execExpr(SqlExpr.Call.of(SqlFn.REM,
                 new SqlExpr.IntLit(-7), new SqlExpr.IntLit(3)))).longValue(),
                 "rem(-7,3) keeps sign: -1");
-        assertEquals(3.5, ((Number) execExpr(SqlExpr.Call.of("divide",
+        assertEquals(3.5, ((Number) execExpr(SqlExpr.Call.of(SqlFn.DIVIDE,
                 new SqlExpr.IntLit(7), new SqlExpr.IntLit(2)))).doubleValue(),
                 "integer/integer must NOT truncate");
     }
@@ -121,7 +121,7 @@ class DuckDbValidityTest {
                         new SqlSelect.Projection(col("NAME"), null),
                         new SqlSelect.Projection(rank, "rn"),
                         new SqlSelect.Projection(running, "running")), List.of())
-                .withQualify(SqlExpr.Call.of("equal",
+                .withQualify(SqlExpr.Call.of(SqlFn.EQUAL,
                         new SqlExpr.Column(null, "rn"), new SqlExpr.IntLit(1)));
         exec(s);
     }
@@ -132,7 +132,7 @@ class DuckDbValidityTest {
         SqlSource j = new SqlSource.Join(T_PERSON,
                 new SqlSource.Table("T_FIRM", "t1", List.of()),
                 SqlSource.Join.Kind.ASOF_LEFT,
-                SqlExpr.Call.of("greaterEqual", col("TS"), new SqlExpr.Column("t1", "TS")));
+                SqlExpr.Call.of(SqlFn.GREATER_EQUAL, col("TS"), new SqlExpr.Column("t1", "TS")));
         exec(SqlSelect.starOf(j));
     }
 
@@ -142,29 +142,29 @@ class DuckDbValidityTest {
         SqlSource joined = new SqlSource.Join(T_PERSON,
                 new SqlSource.Table("T_FIRM", "t1", List.of()),
                 SqlSource.Join.Kind.LEFT,
-                SqlExpr.Call.of("equal", col("FIRM_ID"), new SqlExpr.Column("t1", "ID")));
+                SqlExpr.Call.of(SqlFn.EQUAL, col("FIRM_ID"), new SqlExpr.Column("t1", "ID")));
         exec(SqlSelect.starOf(joined));
 
         exec(SqlSelect.starOf(T_PERSON).withWhere(new SqlExpr.Exists(
                 SqlSelect.starOf(new SqlSource.Table("T_FIRM", "t1", List.of()))
-                        .withWhere(SqlExpr.Call.of("equal",
+                        .withWhere(SqlExpr.Call.of(SqlFn.EQUAL,
                                 new SqlExpr.Column("t1", "ID"), col("FIRM_ID"))))));
 
-        assertEquals(true, execExpr(SqlExpr.Call.of("in",
+        assertEquals(true, execExpr(SqlExpr.Call.of(SqlFn.IN,
                 new SqlExpr.IntLit(1), new SqlExpr.IntLit(1), new SqlExpr.IntLit(2))));
 
         assertEquals("adult", execExpr(new SqlExpr.Case(List.of(
-                new SqlExpr.Case.When(SqlExpr.Call.of("greater",
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.GREATER,
                         new SqlExpr.IntLit(20), new SqlExpr.IntLit(18)),
                         new SqlExpr.StringLit("adult"))),
                 new SqlExpr.StringLit("minor"))));
 
         // [1,2,3] filtered to elements > 1 → list of size 2
-        Object filtered = execExpr(new SqlExpr.Call("list_filter", List.of(
+        Object filtered = execExpr(new SqlExpr.Call(SqlFn.LIST_FILTER, List.of(
                 new SqlExpr.ArrayLit(List.of(new SqlExpr.IntLit(1),
                         new SqlExpr.IntLit(2), new SqlExpr.IntLit(3))),
                 new SqlExpr.Lambda(List.of("x"),
-                        SqlExpr.Call.of("greater", new SqlExpr.Column(null, "x"),
+                        SqlExpr.Call.of(SqlFn.GREATER, new SqlExpr.Column(null, "x"),
                                 new SqlExpr.IntLit(1))))));
         assertEquals("[2, 3]", String.valueOf(filtered));
     }
@@ -214,9 +214,9 @@ class DuckDbValidityTest {
     @Test
     @DisplayName("date/timestamp literals compare correctly")
     void dateLiterals() throws SQLException {
-        assertEquals(true, execExpr(SqlExpr.Call.of("less",
+        assertEquals(true, execExpr(SqlExpr.Call.of(SqlFn.LESS,
                 new SqlExpr.DateLit("2024-01-01"), new SqlExpr.DateLit("2024-06-01"))));
-        assertTrue((Boolean) execExpr(SqlExpr.Call.of("equal",
+        assertTrue((Boolean) execExpr(SqlExpr.Call.of(SqlFn.EQUAL,
                 new SqlExpr.TimestampLit("2024-01-01 10:00:00"),
                 new SqlExpr.TimestampLit("2024-01-01 10:00:00"))));
     }

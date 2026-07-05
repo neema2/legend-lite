@@ -13,6 +13,17 @@ public sealed interface SqlSource {
 
     List<OutputCol> outputs();
 
+    /**
+     * DuckDB {@code PIVOT <source> ON <col> USING <agg> AS <alias>} — a
+     * structural source; output columns are DYNAMIC (one per pivot value),
+     * so {@code outputs} carries only what Phase G could type statically.
+     */
+    record Pivot(SqlSource source, List<SqlExpr> on, List<Using> usings, String alias,
+                 List<OutputCol> outputs) implements SqlSource {
+        public record Using(SqlAgg.Reducer agg, String alias) {
+        }
+    }
+
     record Table(String name, String alias, List<OutputCol> outputs) implements SqlSource {
     }
 

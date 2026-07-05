@@ -34,6 +34,7 @@ import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
+import com.legend.sql.SqlFn;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
@@ -154,6 +155,8 @@ public final class Lowerer {
             case com.legend.compiler.spec.typed.TypedFrom fr -> relation(fr.source());
 
             case com.legend.compiler.spec.typed.TypedFlatten fl -> flatten(fl);
+
+            case com.legend.compiler.spec.typed.TypedPivot pv -> pivot(pv);
 
             default -> throw new IllegalStateException("lowering not yet implemented for "
                     + spec.getClass().getSimpleName());
@@ -302,11 +305,11 @@ public final class Lowerer {
         }
         return switch (slot) {
             case WHERE -> src.withWhere(src.where() == null ? predicate
-                    : SqlExpr.Call.of("and", src.where(), predicate));
+                    : SqlExpr.Call.of(SqlFn.AND, src.where(), predicate));
             case HAVING -> src.withHaving(src.having() == null ? predicate
-                    : SqlExpr.Call.of("and", src.having(), predicate));
+                    : SqlExpr.Call.of(SqlFn.AND, src.having(), predicate));
             case QUALIFY -> src.withQualify(src.qualify() == null ? predicate
-                    : SqlExpr.Call.of("and", src.qualify(), predicate));
+                    : SqlExpr.Call.of(SqlFn.AND, src.qualify(), predicate));
             case ISOLATE -> throw new IllegalStateException("unreachable: isolated above");
         };
     }
@@ -483,7 +486,7 @@ public final class Lowerer {
         if (tds.rows().isEmpty()) {
             List<SqlExpr> nulls = names.stream().map(n -> (SqlExpr) new SqlExpr.NullLit()).toList();
             SqlSource.Values v = new SqlSource.Values(List.of(nulls), names, alias, outputsOf(tds.info()));
-            return SqlSelect.starOf(v).withWhere(SqlExpr.Call.of("equal",
+            return SqlSelect.starOf(v).withWhere(SqlExpr.Call.of(SqlFn.EQUAL,
                     new SqlExpr.IntLit(1), new SqlExpr.IntLit(0)));
         }
         List<List<SqlExpr>> rows = new ArrayList<>(tds.rows().size());
@@ -521,7 +524,7 @@ public final class Lowerer {
         SqlSource right = asSource(relation(aj.right()), false);
         SqlExpr on = sideCondition(aj.match(), left, right);
         if (aj.condition().isPresent()) {
-            on = SqlExpr.Call.of("and", sideCondition(aj.condition().get(), left, right), on);
+            on = SqlExpr.Call.of(SqlFn.AND, sideCondition(aj.condition().get(), left, right), on);
         }
         return joined(new SqlSource.Join(left, right, SqlSource.Join.Kind.ASOF_LEFT, on),
                 aj.prefix(), aj.right(), aj.info());
@@ -591,6 +594,7 @@ public final class Lowerer {
             case SqlSource.Table t -> t.alias();
             case SqlSource.Subselect sub -> sub.alias();
             case SqlSource.Values v -> v.alias();
+            case SqlSource.Pivot p -> p.alias();
             case SqlSource.Join j -> throw new IllegalStateException(
                     "a nested join has no single alias");
         };
@@ -767,15 +771,10 @@ public final class Lowerer {
                     -> columns.apply(v.name(), p.property());
             // A bare lambda variable (a list element inside exists/forAll etc.).
             case TypedVariable v -> columns.apply(v.name(), null);
-            // An inner lambda: its parameter shadows; everything else resolves outward.
-            case TypedLambda l -> {
-                String param = l.parameters().isEmpty() ? null : l.parameters().get(0);
-                yield new SqlExpr.Lambda(l.parameters(),
-                        scalar(last(l), (var, prop) -> var.equals(param)
-                                ? (prop == null ? new SqlExpr.Column(null, var)
-                                        : new SqlExpr.Column(var, prop))
-                                : columns.apply(var, prop)));
-            }
+            // An inner lambda: ALL its parameters shadow; everything else
+            // resolves outward through the enclosing resolver.
+            case TypedLambda l -> new SqlExpr.Lambda(l.parameters(),
+                    scalar(last(l), lambdaResolver(l.parameters(), columns)));
             // RELATION-level predicates — the true-SQL-EXISTS family. The
             // collection natives accept a Relation argument (T binds the
             // relation; the lambda is row-shaped via relation column access);
@@ -795,11 +794,47 @@ public final class Lowerer {
                     enclosing.pop();
                 }
             }
+            case com.legend.compiler.spec.typed.TypedFold f -> fold(f, columns);
+
             case TypedNativeCall n -> Scalars.lower(n,
                     n.args().stream().map(a -> scalar(a, columns)).toList());
             default -> throw new IllegalStateException("scalar lowering not yet implemented for "
                     + spec.getClass().getSimpleName());
         };
+    }
+
+    /**
+     * pivot(~col, ~agg:...): DuckDB native PIVOT source. Single pivot column
+     * (multi-column key synthesis is a later slice); aggregates via the same
+     * reduce-overload dispatch as groupBy.
+     */
+    private SqlSelect pivot(com.legend.compiler.spec.typed.TypedPivot pv) {
+        if (pv.pivotColumns().size() != 1) {
+            throw new IllegalStateException("multi-column pivot is not lowered yet");
+        }
+        SqlSelect src = relation(pv.source());
+        SqlSource inner = asSource(src, false);
+        List<SqlExpr> on = List.of(Fold.sourceColumn(inner, pv.pivotColumns().get(0)));
+        List<SqlSource.Pivot.Using> usings = new ArrayList<>();
+        SqlSelect forAgg = SqlSelect.starOf(inner);
+        for (TypedAggCol a : pv.aggs()) {
+            usings.add(new SqlSource.Pivot.Using(aggExpr(forAgg, a), a.name()));
+        }
+        // DuckDB forbids qualified column refs inside USING — strip qualifiers.
+        List<SqlSource.Pivot.Using> unq = usings.stream()
+                .map(u -> new SqlSource.Pivot.Using(
+                        new SqlAgg.Reducer(u.agg().fn(),
+                                u.agg().args().stream().map(Lowerer::unqualify).toList(),
+                                u.agg().distinct()),
+                        u.alias()))
+                .toList();
+        List<SqlExpr> onUnq = on.stream().map(Lowerer::unqualify).toList();
+        return SqlSelect.starOf(new SqlSource.Pivot(inner, onUnq, unq, nextAlias(),
+                outputsOf(pv.info())));
+    }
+
+    private static SqlExpr unqualify(SqlExpr e) {
+        return e instanceof SqlExpr.Column c ? new SqlExpr.Column(null, c.name()) : e;
     }
 
     /**
@@ -822,10 +857,10 @@ public final class Lowerer {
             }
             if (c.name().equals(fl.column())) {
                 SqlExpr list = c.type() instanceof Type.ClassType
-                        ? new SqlExpr.Call("cast_json_array", List.of(col))
+                        ? new SqlExpr.Call(SqlFn.VARIANT_ELEMENTS, List.of(col))
                         : col;
                 ps.add(new SqlSelect.Projection(
-                        new SqlExpr.Call("unnest", List.of(list)), c.name()));
+                        new SqlExpr.Call(SqlFn.UNNEST, List.of(list)), c.name()));
             } else {
                 ps.add(new SqlSelect.Projection(col, null));
             }
@@ -835,6 +870,82 @@ public final class Lowerer {
 
     private TypedSpec isolatedCopySource(com.legend.compiler.spec.typed.TypedFlatten fl) {
         throw new IllegalStateException("flatten over an unresolvable projection");
+    }
+
+    private static java.util.function.BiFunction<String, String, SqlExpr> lambdaResolver(
+            List<String> params, java.util.function.BiFunction<String, String, SqlExpr> outer) {
+        return (var, prop) -> params.contains(var)
+                ? (prop == null ? new SqlExpr.Column(null, var) : new SqlExpr.Column(var, prop))
+                : outer.apply(var, prop);
+    }
+
+    private static boolean isMany(TypedSpec spec) {
+        return spec.info().multiplicity() instanceof
+                com.legend.compiler.element.type.Multiplicity.Bounded b
+                ? b.upper() == null || b.upper() > 1 : true;
+    }
+
+    /**
+     * fold: the Phase-G {@link FoldStrategy} decides the DuckDB list shape
+     * (master's behavioral rules). Pure's reducer is {@code {elem, acc|...}};
+     * DuckDB's list_reduce lambda is {@code (acc, elem)} — parameters swap.
+     */
+    private SqlExpr fold(com.legend.compiler.spec.typed.TypedFold f,
+                         java.util.function.BiFunction<String, String, SqlExpr> columns) {
+        SqlExpr source = scalar(f.source(), columns);
+        SqlExpr init = scalar(f.init(), columns);
+        return switch (f.strategy()) {
+            case com.legend.compiler.spec.typed.FoldStrategy.Concatenation c ->
+                    new SqlExpr.Call(SqlFn.LIST_CONCAT, List.of(init, source));
+            case com.legend.compiler.spec.typed.FoldStrategy.SameType st -> {
+                List<String> ps = f.reducer().parameters();
+                SqlExpr.Lambda swapped = new SqlExpr.Lambda(List.of(ps.get(1), ps.get(0)),
+                        scalar(last(f.reducer()), lambdaResolver(ps, columns)));
+                yield new SqlExpr.Call(SqlFn.LIST_REDUCE,
+                        List.of(source, swapped, init));
+            }
+            case com.legend.compiler.spec.typed.FoldStrategy.MapReduce mr -> {
+                String elem = f.reducer().parameters().get(0);
+                SqlExpr.Lambda transform = new SqlExpr.Lambda(List.of(elem),
+                        scalar(mr.transform(), lambdaResolver(List.of(elem), columns)));
+                SqlExpr.Lambda reduce = new SqlExpr.Lambda(
+                        List.of(mr.accParam(), mr.freshParam()),
+                        scalar(mr.reducer(), lambdaResolver(
+                                List.of(mr.accParam(), mr.freshParam()), columns)));
+                yield new SqlExpr.Call(SqlFn.LIST_REDUCE, List.of(
+                        new SqlExpr.Call(SqlFn.LIST_TRANSFORM, List.of(source, transform)),
+                        reduce, init));
+            }
+            // CollectionBuild (master's Path 4, for LIST-typed accumulators):
+            // list_reduce demands init type == list child type, so each element
+            // wraps as a single-item list (listTransform(src, e -> wrapList(e)))
+            // and every element ref in the body unwraps via listExtract(e, 1).
+            // A SCALAR accumulator with a non-decomposable body has no sound
+            // list_reduce lowering — loud error, with the rewrite hint.
+            case com.legend.compiler.spec.typed.FoldStrategy.CollectionBuild cb -> {
+                if (!isMany(f.init())) {
+                    throw new IllegalStateException("fold body is not decomposable and the"
+                            + " accumulator is scalar — rewrite accumulator-first"
+                            + " ({e, a | $a <op> ...}) so the reduction can decompose");
+                }
+                List<String> ps = f.reducer().parameters();
+                String elem = ps.get(0);
+                SqlExpr wrapped = new SqlExpr.Call(SqlFn.LIST_TRANSFORM, List.of(source,
+                        new SqlExpr.Lambda(List.of(elem),
+                                new SqlExpr.Call(SqlFn.WRAP_LIST,
+                                        List.of(new SqlExpr.Column(null, elem))))));
+                // Body lowered with the element ref UNWRAPPED at every use.
+                SqlExpr body = scalar(last(f.reducer()), (var, prop) -> {
+                    if (var.equals(elem) && prop == null) {
+                        return new SqlExpr.Call(SqlFn.LIST_EXTRACT,
+                                List.of(new SqlExpr.Column(null, elem), new SqlExpr.IntLit(1)));
+                    }
+                    return lambdaResolver(ps, columns).apply(var, prop);
+                });
+                SqlExpr.Lambda lambda = new SqlExpr.Lambda(List.of(ps.get(1), elem), body);
+                yield new SqlExpr.Call(SqlFn.LIST_REDUCE, List.of(wrapped, lambda, init));
+            }
+        };
     }
 
     // ==================================================================
@@ -861,11 +972,11 @@ public final class Lowerer {
                     lw.whereLambda(call.args().get(0), call.args().get(1), false));
         }
         if (isFamily(n, "forAll")) {
-            return (lw, call) -> SqlExpr.Call.of("not", new SqlExpr.Exists(
+            return (lw, call) -> SqlExpr.Call.of(SqlFn.NOT, new SqlExpr.Exists(
                     lw.whereLambda(call.args().get(0), call.args().get(1), true)));
         }
         if (isFamily(n, "isEmpty")) {
-            return (lw, call) -> SqlExpr.Call.of("not",
+            return (lw, call) -> SqlExpr.Call.of(SqlFn.NOT,
                     new SqlExpr.Exists(lw.relation(call.args().get(0))));
         }
         if (isFamily(n, "isNotEmpty")) {
@@ -886,10 +997,10 @@ public final class Lowerer {
             pred = tryPredicate(sub, lambda);
         }
         if (negate) {
-            pred = SqlExpr.Call.of("not", pred);
+            pred = SqlExpr.Call.of(SqlFn.NOT, pred);
         }
         return sub.withWhere(sub.where() == null ? pred
-                : SqlExpr.Call.of("and", sub.where(), pred));
+                : SqlExpr.Call.of(SqlFn.AND, sub.where(), pred));
     }
 
     // ==================================================================
@@ -906,6 +1017,7 @@ public final class Lowerer {
             case SqlSource.Table t -> t.alias();
             case SqlSource.Subselect sub -> sub.alias();
             case SqlSource.Values v -> v.alias();
+            case SqlSource.Pivot p -> p.alias();
             case SqlSource.Join j -> throw new IllegalStateException(
                     "join sources resolve per-side (M4)");
         };

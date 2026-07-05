@@ -583,6 +583,32 @@ class LowerRelationTest {
     }
 
     @Test
+    @DisplayName("fold strategies: concat, same-type reduce, map-reduce — executed")
+    void foldStrategies() throws SQLException {
+        // SameType: running sum with init.
+        assertEquals(List.of("7"), exec(sqlOf("[1, 2, 4]->fold({e, a | $e + $a}, 0)")));
+        // CollectionBuild (G can't decompose the mixed-type body): sum of lengths.
+        assertEquals(List.of("6"), exec(sqlOf(
+                "['ab', 'cdef']->fold({e, a | $e->length() + $a}, 0)")));
+        // Concatenation: accumulate the source onto init.
+        assertEquals(List.of("[9, 1, 2]"), exec(sqlOf(
+                "[1, 2]->fold({e, a | $a->add($e)}, [9])")).stream()
+                .map(String::valueOf).toList());
+    }
+
+    @Test
+    @DisplayName("pivot: DuckDB native PIVOT ... ON ... USING, executed")
+    void pivotNative() throws SQLException {
+        String sql = sqlOf("#>{test::DB.T_PERSON}#"
+                + "->pivot(~FIRM, ~total : x|$x.AGE : y|$y->sum())");
+        assertTrue(sql.contains("PIVOT") && sql.contains("ON FIRM")
+                && sql.contains("USING SUM(AGE) AS total"), sql);
+        // Columns: NAME + one per firm value (ACME, Widget, NULL bucket).
+        List<String> rows = exec(sql + "\nORDER BY NAME");
+        assertEquals(4, rows.size(), "one row per person name: " + rows);
+    }
+
+    @Test
     @DisplayName("TDS literal → VALUES; filter folds onto it")
     void tdsLiterals() throws SQLException {
         String sql = sqlOf("#TDS\n  id, name\n  1, a\n  2, b\n#->filter(x|$x.id > 1)");

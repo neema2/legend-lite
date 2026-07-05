@@ -48,9 +48,9 @@ class DuckDbRenderTest {
                         new SqlSelect.Projection(col("FIRM"), null),
                         new SqlSelect.Projection(SqlAgg.Reducer.of("SUM", col("AGE")), "totalAge")),
                         List.of())
-                .withWhere(SqlExpr.Call.of("greater", col("AGE"), new SqlExpr.IntLit(30)))
+                .withWhere(SqlExpr.Call.of(SqlFn.GREATER, col("AGE"), new SqlExpr.IntLit(30)))
                 .withGroupBy(List.of(col("FIRM")))
-                .withHaving(SqlExpr.Call.of("greater",
+                .withHaving(SqlExpr.Call.of(SqlFn.GREATER,
                         SqlAgg.Reducer.of("COUNT"), new SqlExpr.IntLit(2)))
                 .withOrderBy(List.of(SqlSelect.SortKey.desc(col("FIRM"))))
                 .withLimit(10L)
@@ -88,12 +88,12 @@ class DuckDbRenderTest {
     @DisplayName("minimal parens: precedence drives grouping")
     void minimalParens() {
         // (a OR b) AND NOT c — OR needs parens under AND; comparisons never do.
-        SqlExpr pred = SqlExpr.Call.of("and",
-                SqlExpr.Call.of("or",
-                        SqlExpr.Call.of("equal", col("A"), new SqlExpr.IntLit(1)),
-                        SqlExpr.Call.of("equal", col("B"), new SqlExpr.IntLit(2))),
-                SqlExpr.Call.of("not",
-                        SqlExpr.Call.of("less", col("C"), new SqlExpr.IntLit(3))));
+        SqlExpr pred = SqlExpr.Call.of(SqlFn.AND,
+                SqlExpr.Call.of(SqlFn.OR,
+                        SqlExpr.Call.of(SqlFn.EQUAL, col("A"), new SqlExpr.IntLit(1)),
+                        SqlExpr.Call.of(SqlFn.EQUAL, col("B"), new SqlExpr.IntLit(2))),
+                SqlExpr.Call.of(SqlFn.NOT,
+                        SqlExpr.Call.of(SqlFn.LESS, col("C"), new SqlExpr.IntLit(3))));
         assertEquals("(t0.A = 1 OR t0.B = 2) AND NOT t0.C < 3",
                 duck.render(SqlSelect.starOf(T_PERSON).withWhere(pred)).lines()
                         .filter(l -> l.startsWith("WHERE")).findFirst().orElseThrow()
@@ -122,20 +122,18 @@ class DuckDbRenderTest {
     @DisplayName("MUST-honor semantics: float division, positive mod, rem")
     void semanticContract() {
         assertEquals("((1.0 * t0.A) / t0.B)",
-                renderExpr(SqlExpr.Call.of("divide", col("A"), col("B"))));
+                renderExpr(SqlExpr.Call.of(SqlFn.DIVIDE, col("A"), col("B"))));
         assertEquals("MOD(MOD(t0.A, t0.B) + t0.B, t0.B)",
-                renderExpr(SqlExpr.Call.of("mod", col("A"), col("B"))));
+                renderExpr(SqlExpr.Call.of(SqlFn.MOD, col("A"), col("B"))));
         assertEquals("MOD(t0.A, t0.B)",
-                renderExpr(SqlExpr.Call.of("rem", col("A"), col("B"))));
-        assertEquals("t0.A IS NULL", renderExpr(SqlExpr.Call.of("isNull", col("A"))));
+                renderExpr(SqlExpr.Call.of(SqlFn.REM, col("A"), col("B"))));
+        assertEquals("t0.A IS NULL", renderExpr(SqlExpr.Call.of(SqlFn.IS_NULL, col("A"))));
     }
 
-    @Test
-    @DisplayName("unknown semantic name throws — no silent pass-through")
-    void unknownSemanticNameThrows() {
-        assertThrows(IllegalStateException.class,
-                () -> renderExpr(SqlExpr.Call.of("frobnicate", col("A"))));
-    }
+    // "Unknown semantic name throws" retired with honors: SqlExpr.Call now
+    // takes the sealed SqlFn vocabulary, so an unknown function is a COMPILE
+    // error and the dialect's switch is javac-exhaustive — the failure mode
+    // this test guarded no longer exists.
 
     @Test
     @DisplayName("join tree renders FLAT: one SELECT, joins inlined")
@@ -144,10 +142,10 @@ class DuckDbRenderTest {
                 new SqlSource.Join(T_PERSON,
                         new SqlSource.Table("T_FIRM", "t1", List.of()),
                         SqlSource.Join.Kind.LEFT,
-                        SqlExpr.Call.of("equal", col("FIRM_ID"), new SqlExpr.Column("t1", "ID"))),
+                        SqlExpr.Call.of(SqlFn.EQUAL, col("FIRM_ID"), new SqlExpr.Column("t1", "ID"))),
                 new SqlSource.Table("T_CITY", "t2", List.of()),
                 SqlSource.Join.Kind.LEFT,
-                SqlExpr.Call.of("equal", new SqlExpr.Column("t1", "CITY_ID"),
+                SqlExpr.Call.of(SqlFn.EQUAL, new SqlExpr.Column("t1", "CITY_ID"),
                         new SqlExpr.Column("t2", "ID")));
         String sql = duck.render(SqlSelect.starOf(joined));
         assertEquals("""
@@ -164,7 +162,7 @@ class DuckDbRenderTest {
     @DisplayName("subselect: the ONLY nesting construct, indented")
     void subselectIndents() {
         SqlSelect inner = SqlSelect.starOf(T_PERSON)
-                .withWhere(SqlExpr.Call.of("greater", col("AGE"), new SqlExpr.IntLit(30)));
+                .withWhere(SqlExpr.Call.of(SqlFn.GREATER, col("AGE"), new SqlExpr.IntLit(30)));
         SqlSelect outer = SqlSelect.starOf(new SqlSource.Subselect(inner, "t1"))
                 .withLimit(5L);
         assertEquals("""
@@ -183,10 +181,10 @@ class DuckDbRenderTest {
     void existsInline() {
         SqlExpr exists = new SqlExpr.Exists(SqlSelect.starOf(
                 new SqlSource.Table("T_FIRM", "t1", List.of()))
-                .withWhere(SqlExpr.Call.of("equal",
+                .withWhere(SqlExpr.Call.of(SqlFn.EQUAL,
                         new SqlExpr.Column("t1", "ID"), col("FIRM_ID"))));
-        SqlExpr pred = SqlExpr.Call.of("or", exists,
-                SqlExpr.Call.of("isNull", col("FIRM_ID")));
+        SqlExpr pred = SqlExpr.Call.of(SqlFn.OR, exists,
+                SqlExpr.Call.of(SqlFn.IS_NULL, col("FIRM_ID")));
         String where = duck.render(SqlSelect.starOf(T_PERSON).withWhere(pred)).lines()
                 .filter(l -> l.startsWith("WHERE")).findFirst().orElseThrow();
         assertEquals("WHERE EXISTS (SELECT * FROM T_FIRM AS t1 WHERE t1.ID = t0.FIRM_ID)"
@@ -213,7 +211,7 @@ class DuckDbRenderTest {
                         new SqlSelect.Projection(rank, "rn"),
                         new SqlSelect.Projection(running, "running")),
                         List.of())
-                .withQualify(SqlExpr.Call.of("equal", new SqlExpr.Column(null, "rn"),
+                .withQualify(SqlExpr.Call.of(SqlFn.EQUAL, new SqlExpr.Column(null, "rn"),
                         new SqlExpr.IntLit(1)));
         assertEquals("""
                 SELECT ROW_NUMBER() OVER (PARTITION BY t0.FIRM ORDER BY t0.AGE DESC NULLS FIRST) AS rn,\
@@ -259,7 +257,7 @@ class DuckDbRenderTest {
     void caseAndDistinctAgg() {
         SqlExpr c = new SqlExpr.Case(List.of(
                 new SqlExpr.Case.When(
-                        SqlExpr.Call.of("greater", col("AGE"), new SqlExpr.IntLit(18)),
+                        SqlExpr.Call.of(SqlFn.GREATER, col("AGE"), new SqlExpr.IntLit(18)),
                         new SqlExpr.StringLit("adult"))),
                 new SqlExpr.StringLit("minor"));
         assertEquals("CASE WHEN t0.AGE > 18 THEN 'adult' ELSE 'minor' END", renderExpr(c));
@@ -274,7 +272,7 @@ class DuckDbRenderTest {
             SqlSource j = new SqlSource.Join(T_PERSON,
                     new SqlSource.Table("T_FIRM", "t1", List.of()), k,
                     k == SqlSource.Join.Kind.CROSS ? null
-                            : SqlExpr.Call.of("greaterEqual", col("ID"),
+                            : SqlExpr.Call.of(SqlFn.GREATER_EQUAL, col("ID"),
                                     new SqlExpr.Column("t1", "ID")));
             String sql = duck.render(SqlSelect.starOf(j));
             org.junit.jupiter.api.Assertions.assertTrue(sql.contains(k.sql),
@@ -289,20 +287,20 @@ class DuckDbRenderTest {
                 renderExpr(new SqlExpr.ScalarSubquery(SqlSelect.starOf(
                         new SqlSource.Table("T_FIRM", "t1", List.of())))));
         assertEquals("list_filter(t0.XS, x -> x > 1)",
-                renderExpr(new SqlExpr.Call("list_filter", List.of(col("XS"),
+                renderExpr(new SqlExpr.Call(SqlFn.LIST_FILTER, List.of(col("XS"),
                         new SqlExpr.Lambda(List.of("x"),
-                                SqlExpr.Call.of("greater",
+                                SqlExpr.Call.of(SqlFn.GREATER,
                                         new SqlExpr.Column(null, "x"),
                                         new SqlExpr.IntLit(1)))))));
         assertEquals("t0.*", renderExpr(new SqlExpr.Star("t0")));
         assertEquals("2.5", renderExpr(new SqlExpr.FloatLit(2.5)));
         assertEquals("1.50", renderExpr(new SqlExpr.DecimalLit(new java.math.BigDecimal("1.50"))));
-        assertEquals("-t0.A", renderExpr(SqlExpr.Call.of("negate", col("A"))));
-        assertEquals("t0.A IN (1, 2)", renderExpr(SqlExpr.Call.of("in",
+        assertEquals("-t0.A", renderExpr(SqlExpr.Call.of(SqlFn.NEGATE, col("A"))));
+        assertEquals("t0.A IN (1, 2)", renderExpr(SqlExpr.Call.of(SqlFn.IN,
                 col("A"), new SqlExpr.IntLit(1), new SqlExpr.IntLit(2))));
         assertEquals("CASE WHEN t0.A = 1 THEN 'x' END",
                 renderExpr(new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                        SqlExpr.Call.of("equal", col("A"), new SqlExpr.IntLit(1)),
+                        SqlExpr.Call.of(SqlFn.EQUAL, col("A"), new SqlExpr.IntLit(1)),
                         new SqlExpr.StringLit("x"))), null)));
     }
 
@@ -310,7 +308,7 @@ class DuckDbRenderTest {
     @DisplayName("depth-2 subselect indentation stays consistent")
     void depthTwoIndent() {
         SqlSelect inner = SqlSelect.starOf(T_PERSON)
-                .withWhere(SqlExpr.Call.of("greater", col("AGE"), new SqlExpr.IntLit(30)));
+                .withWhere(SqlExpr.Call.of(SqlFn.GREATER, col("AGE"), new SqlExpr.IntLit(30)));
         SqlSelect mid = SqlSelect.starOf(new SqlSource.Subselect(inner, "t1")).withLimit(5L);
         SqlSelect outer = SqlSelect.starOf(new SqlSource.Subselect(mid, "t2")).withLimit(3L);
         assertEquals("""

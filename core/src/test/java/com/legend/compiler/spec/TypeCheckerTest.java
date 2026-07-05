@@ -973,11 +973,23 @@ class TypeCheckerTest {
     }
 
     @Test
-    void foldCollectionBuildStrategy() {
-        // T=String ≠ V=Integer and plus(length(e), acc) has the accumulator on the
-        // RIGHT — not decomposable along the left spine.
+    void foldCommutativeAccOnRightDecomposesToMapReduce() {
+        // plus(length(e), acc) has the accumulator on the RIGHT — the left
+        // spine can't strip it, but numeric plus is COMMUTATIVE, so the
+        // checker decomposes anyway (engine's left-spine-only rule left this
+        // an un-lowerable scalar-acc CollectionBuild; found by an executed
+        // fold test hitting DuckDB's list_reduce type binder).
         TypedFold fold = assertInstanceOf(TypedFold.class,
                 typeQuery("['a', 'bb']->fold({e, a | length($e) + $a}, 0)"));
+        assertInstanceOf(FoldStrategy.MapReduce.class, fold.strategy());
+    }
+
+    @Test
+    void foldCollectionBuildStrategy() {
+        // minus is NOT commutative: acc on the right cannot decompose —
+        // genuinely element-by-element.
+        TypedFold fold = assertInstanceOf(TypedFold.class,
+                typeQuery("['a', 'bb']->fold({e, a | $e->length() - $a}, 0)"));
         assertInstanceOf(FoldStrategy.CollectionBuild.class, fold.strategy());
     }
 

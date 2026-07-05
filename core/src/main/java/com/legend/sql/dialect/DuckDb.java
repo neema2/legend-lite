@@ -2,6 +2,7 @@ package com.legend.sql.dialect;
 
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
+import com.legend.sql.SqlFn;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
@@ -47,28 +48,23 @@ public final class DuckDb implements SqlDialect {
      * An EXPLICIT allowlist: anything else still throws — the list grows with
      * execution-pinned tests, never by fallback.
      */
-    private static final Set<String> PLAIN_FNS = Set.of(
-            "abs", "length", "upper", "lower", "coalesce", "greatest", "least",
-            "list_filter", "list_transform", "list_reduce", "list_concat", "list_contains",
-            "list_bool_or", "list_bool_and", "len", "unnest");
-
-    /** Infix operators: semantic name → (sql, precedence). Higher binds tighter. */
+    /** Infix operators: semantic entry → (sql, precedence). Higher binds tighter. */
     private record Infix(String sql, int prec) {
     }
 
-    private static final Map<String, Infix> INFIX = Map.ofEntries(
-            Map.entry("or", new Infix("OR", 1)),
-            Map.entry("and", new Infix("AND", 2)),
-            Map.entry("equal", new Infix("=", 4)),
-            Map.entry("notEqual", new Infix("<>", 4)),
-            Map.entry("less", new Infix("<", 4)),
-            Map.entry("lessEqual", new Infix("<=", 4)),
-            Map.entry("greater", new Infix(">", 4)),
-            Map.entry("greaterEqual", new Infix(">=", 4)),
-            Map.entry("plus", new Infix("+", 5)),
-            Map.entry("minus", new Infix("-", 5)),
-            Map.entry("concat", new Infix("||", 5)),
-            Map.entry("times", new Infix("*", 6)));
+    private static final Map<SqlFn, Infix> INFIX = Map.ofEntries(
+            Map.entry(SqlFn.OR, new Infix("OR", 1)),
+            Map.entry(SqlFn.AND, new Infix("AND", 2)),
+            Map.entry(SqlFn.EQUAL, new Infix("=", 4)),
+            Map.entry(SqlFn.NOT_EQUAL, new Infix("<>", 4)),
+            Map.entry(SqlFn.LESS, new Infix("<", 4)),
+            Map.entry(SqlFn.LESS_EQUAL, new Infix("<=", 4)),
+            Map.entry(SqlFn.GREATER, new Infix(">", 4)),
+            Map.entry(SqlFn.GREATER_EQUAL, new Infix(">=", 4)),
+            Map.entry(SqlFn.PLUS, new Infix("+", 5)),
+            Map.entry(SqlFn.MINUS, new Infix("-", 5)),
+            Map.entry(SqlFn.CONCAT, new Infix("||", 5)),
+            Map.entry(SqlFn.TIMES, new Infix("*", 6)));
 
     @Override
     public String render(SqlQuery query) {
@@ -173,6 +169,15 @@ public final class DuckDb implements SqlDialect {
                         .append(v.columns().stream().map(this::ident).collect(Collectors.joining(", ")))
                         .append(")");
             }
+            case SqlSource.Pivot p -> {
+                sb.append("(PIVOT ");
+                source(sb, p.source(), depth);
+                sb.append(" ON ").append(list(p.on()));
+                sb.append(" USING ").append(p.usings().stream()
+                        .map(u -> reducer(u.agg()) + " AS " + ident(u.alias()))
+                        .collect(Collectors.joining(", ")));
+                sb.append(") AS ").append(ident(p.alias()));
+            }
             case SqlSource.Join j -> {
                 source(sb, j.left(), depth);
                 nl(sb, depth).append(j.kind().sql).append(" ");
@@ -212,39 +217,59 @@ public final class DuckDb implements SqlDialect {
         };
     }
 
+    /**
+     * ONE exhaustive switch over the {@link SqlFn} vocabulary — javac fails
+     * this dialect the moment a semantic function exists without a spelling.
+     */
     private String call(SqlExpr.Call c, int parentPrec) {
         Infix infix = INFIX.get(c.fn());
         if (infix != null) {
-            String s = c.args().stream()
-                    .map(a -> expr(a, infix.prec()))
+            String joined = c.args().stream()
+                    .map(x -> expr(x, infix.prec()))
                     .collect(Collectors.joining(" " + infix.sql() + " "));
-            return infix.prec() < parentPrec ? "(" + s + ")" : s;
+            return infix.prec() < parentPrec ? "(" + joined + ")" : joined;
         }
         List<SqlExpr> a = c.args();
         return switch (c.fn()) {
-            case "not" -> {
-                String s = "NOT " + expr(a.get(0), 3);
-                yield 3 < parentPrec ? "(" + s + ")" : s;
+            case AND, OR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL,
+                 PLUS, MINUS, TIMES, CONCAT ->
+                    throw new IllegalStateException("infix operator fell through: " + c.fn());
+            case NOT -> {
+                String inner = "NOT " + expr(a.get(0), 3);
+                yield 3 < parentPrec ? "(" + inner + ")" : inner;
             }
-            case "negate" -> "-" + expr(a.get(0), 7);
-            case "isNull" -> expr(a.get(0), 4) + " IS NULL";
-            case "isNotNull" -> expr(a.get(0), 4) + " IS NOT NULL";
-            case "in" -> expr(a.get(0), 4) + " IN ("
-                    + list(a.subList(1, a.size())) + ")";
+            case NEGATE -> "-" + expr(a.get(0), 7);
+            case IS_NULL -> expr(a.get(0), 4) + " IS NULL";
+            case IS_NOT_NULL -> expr(a.get(0), 4) + " IS NOT NULL";
+            case IN -> expr(a.get(0), 4) + " IN (" + list(a.subList(1, a.size())) + ")";
             // MUST-honor semantics (PHASE_HIJ_LOWERING.md):
-            case "divide" -> "((1.0 * " + expr(a.get(0), 0) + ") / " + expr(a.get(1), 0) + ")";
-            case "mod" -> "MOD(MOD(" + expr(a.get(0), 0) + ", " + expr(a.get(1), 0) + ") + "
+            case DIVIDE -> "((1.0 * " + expr(a.get(0), 0) + ") / " + expr(a.get(1), 0) + ")";
+            case MOD -> "MOD(MOD(" + expr(a.get(0), 0) + ", " + expr(a.get(1), 0) + ") + "
                     + expr(a.get(1), 0) + ", " + expr(a.get(1), 0) + ")";
-            case "rem" -> "MOD(" + expr(a.get(0), 0) + ", " + expr(a.get(1), 0) + ")";
-            case "cast_json_array" -> "CAST(" + expr(a.get(0), 0) + " AS JSON[])";
-            default -> {
-                if (!PLAIN_FNS.contains(c.fn())) {
-                    throw new IllegalStateException(
-                            "no DuckDB rendering registered for semantic function '" + c.fn() + "'");
-                }
-                yield c.fn() + "(" + list(a) + ")";
-            }
+            case REM -> "MOD(" + expr(a.get(0), 0) + ", " + expr(a.get(1), 0) + ")";
+            case VARIANT_ELEMENTS -> "CAST(" + expr(a.get(0), 0) + " AS JSON[])";
+            case ABS -> fn("abs", a);
+            case LENGTH -> fn("length", a);
+            case UPPER -> fn("upper", a);
+            case LOWER -> fn("lower", a);
+            case COALESCE -> fn("coalesce", a);
+            case GREATEST -> fn("greatest", a);
+            case LEAST -> fn("least", a);
+            case UNNEST -> fn("unnest", a);
+            case LIST_FILTER -> fn("list_filter", a);
+            case LIST_TRANSFORM -> fn("list_transform", a);
+            case LIST_REDUCE -> fn("list_reduce", a);
+            case LIST_CONCAT -> fn("list_concat", a);
+            case LIST_CONTAINS -> fn("list_contains", a);
+            case LIST_BOOL_OR -> fn("list_bool_or", a);
+            case LIST_BOOL_AND -> fn("list_bool_and", a);
+            case LIST_EXTRACT -> fn("list_extract", a);
+            case WRAP_LIST -> fn("list_value", a);
         };
+    }
+
+    private String fn(String spelling, List<SqlExpr> args) {
+        return spelling + "(" + list(args) + ")";
     }
 
     private String caseExpr(SqlExpr.Case c) {

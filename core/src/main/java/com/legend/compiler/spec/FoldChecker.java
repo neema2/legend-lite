@@ -54,6 +54,9 @@ final class FoldChecker {
         String elemParam = lambda.parameters().get(0).name();
         String accParam = lambda.parameters().size() >= 2 ? lambda.parameters().get(1).name() : "y";
         ValueSpecification transform = elementTransform(lambda.body().get(0), accParam);
+        if (transform == null) {
+            transform = commutativeElementTransform(lambda.body().get(0), accParam, init);
+        }
         if (transform != null) {
             TypedSpec typedTransform = t.synth(transform,
                     env.with(elemParam, new ExprType(elementType, Multiplicity.Bounded.ONE)));
@@ -102,6 +105,33 @@ final class FoldChecker {
             if (stripped != null) {
                 return new AppliedFunction(af.function(), List.of(stripped, right));
             }
+        }
+        return null;
+    }
+
+    /**
+     * The commutative retry: {@code op(elemExpr, acc)} decomposes exactly like
+     * {@code op(acc, elemExpr)} when {@code op} is commutative FOR THE
+     * ACCUMULATOR'S TYPE — {@code plus}/{@code times} on numbers,
+     * {@code and}/{@code or} on booleans. {@code plus} on Strings is
+     * concatenation (order-sensitive) and is excluded. Engine's checker only
+     * strips the left spine, leaving {@code $e->length() + $a} an
+     * UN-LOWERABLE CollectionBuild (scalar accumulator) — a gap, not a
+     * behavior; the executed fold tests pin the improvement.
+     */
+    private static ValueSpecification commutativeElementTransform(
+            ValueSpecification body, String accParam, ExprType init) {
+        if (!(body instanceof AppliedFunction af) || af.parameters().size() != 2) {
+            return null;
+        }
+        boolean commutative = switch (af.function()) {
+            case "plus", "times" -> !Type.Primitive.STRING.equals(init.type());
+            case "and", "or" -> true;
+            default -> false;
+        };
+        if (commutative
+                && af.parameters().get(1) instanceof Variable v && v.name().equals(accParam)) {
+            return af.parameters().get(0);
         }
         return null;
     }

@@ -116,8 +116,16 @@ class PipelineStageFailureTest {
     @DisplayName("lowering: an unimplemented construct fails loudly naming the node")
     void unimplementedConstruct() {
         Exception ex = failsWith(IllegalStateException.class, MODEL,
-                "#>{test::DB.T_PERSON}#->pivot(~NAME, ~s : x|$x.AGE : y|$y->sum())");
-        messageNames(ex, "not yet implemented");
+                "#>{test::DB.T_PERSON}#->write(test::DB)");
+        messageNames(ex, "not yet implemented", "TypedWrite");
+    }
+
+    @Test
+    @DisplayName("lowering: non-decomposable scalar-acc fold fails loudly with the rewrite hint")
+    void scalarAccCollectionBuildFold() {
+        Exception ex = failsWith(IllegalStateException.class, MODEL,
+                "['a', 'bb']->fold({e, a | $e->length() - $a}, 0)");
+        messageNames(ex, "not decomposable", "accumulator-first");
     }
 
     @Test

@@ -56,9 +56,9 @@ public sealed interface SqlExpr
     record ArrayLit(List<SqlExpr> elements) implements SqlExpr {
     }
 
-    /** A function application by SEMANTIC name ({@code "divide"}, {@code "isNull"}, ...). */
-    record Call(String fn, List<SqlExpr> args) implements SqlExpr {
-        public static Call of(String fn, SqlExpr... args) {
+    /** A function application by SEMANTIC vocabulary entry (see {@link SqlFn}). */
+    record Call(SqlFn fn, List<SqlExpr> args) implements SqlExpr {
+        public static Call of(SqlFn fn, SqlExpr... args) {
             return new Call(fn, List.of(args));
         }
     }
