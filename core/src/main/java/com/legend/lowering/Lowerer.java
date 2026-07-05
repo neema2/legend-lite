@@ -154,6 +154,12 @@ public final class Lowerer {
             // concern; the relation flows through unchanged.
             case com.legend.compiler.spec.typed.TypedFrom fr -> relation(fr.source());
 
+            // cast(@Relation<(…)>) re-TYPES the schema (the pivot idiom);
+            // values are untouched — zero SQL footprint.
+            case com.legend.compiler.spec.typed.TypedCast c
+                    when c.source().info().type() instanceof Type.RelationType ->
+                    relation(c.source());
+
             case com.legend.compiler.spec.typed.TypedFlatten fl -> flatten(fl);
 
             case com.legend.compiler.spec.typed.TypedPivot pv -> pivot(pv);
@@ -796,6 +802,19 @@ public final class Lowerer {
             }
             case com.legend.compiler.spec.typed.TypedFold f -> fold(f, columns);
 
+            // map over a COLLECTION value -> listTransform (relation map is H).
+            case com.legend.compiler.spec.typed.TypedMap m
+                    when !(m.source().info().type() instanceof Type.RelationType) ->
+                    SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_TRANSFORM,
+                            scalar(m.source(), columns), scalar(m.mapper(), columns));
+
+            // Variant navigation: get(v, key) -> JSON access.
+            case TypedNativeCall n when isFamily(n, "get") ->
+                    SqlExpr.Call.of(com.legend.sql.SqlFn.VARIANT_GET,
+                            scalar(n.args().get(0), columns), scalar(n.args().get(1), columns));
+
+            case com.legend.compiler.spec.typed.TypedCast c -> cast(c, columns);
+
             case TypedNativeCall n -> Scalars.lower(n,
                     n.args().stream().map(a -> scalar(a, columns)).toList());
             default -> throw new IllegalStateException("scalar lowering not yet implemented for "
@@ -870,6 +889,42 @@ public final class Lowerer {
 
     private TypedSpec isolatedCopySource(com.legend.compiler.spec.typed.TypedFlatten fl) {
         throw new IllegalStateException("flatten over an unresolvable projection");
+    }
+
+    /**
+     * to(@T) / toMany(@T) / cast(@T) in scalar position (all arrive as
+     * {@code TypedCast}; multiplicity separates them):
+     * <ul>
+     *   <li>Variant source, scalar target: master's rule — a {@code ->} access
+     *       becomes {@code ->>} (text extraction strips JSON quoting) before
+     *       {@code CAST(... AS T)}.</li>
+     *   <li>Variant source, many target ({@code toMany}): {@code CAST} to an
+     *       array of the target; {@code @Variant} keeps JSON elements.</li>
+     *   <li>Non-variant source: multiplicity/type erasure — identity.</li>
+     * </ul>
+     */
+    private SqlExpr cast(com.legend.compiler.spec.typed.TypedCast c,
+                         java.util.function.BiFunction<String, String, SqlExpr> columns) {
+        SqlExpr value = scalar(c.source(), columns);
+        boolean variantSource = c.source().info().type()
+                instanceof Type.ClassType ct && ct.fqn().endsWith("::Variant");
+        if (!variantSource) {
+            return value;
+        }
+        boolean many = isMany(c);
+        if (many) {
+            boolean variantTarget = c.target() instanceof Type.ClassType t
+                    && t.fqn().endsWith("::Variant");
+            return variantTarget
+                    ? SqlExpr.Call.of(com.legend.sql.SqlFn.VARIANT_ELEMENTS, value)
+                    : new SqlExpr.Cast(value, c.target(), true);
+        }
+        // ->  becomes  ->>  under a scalar conversion (text extraction).
+        if (value instanceof SqlExpr.Call call
+                && call.fn() == com.legend.sql.SqlFn.VARIANT_GET) {
+            value = new SqlExpr.Call(com.legend.sql.SqlFn.VARIANT_GET_TEXT, call.args());
+        }
+        return new SqlExpr.Cast(value, c.target(), false);
     }
 
     private static java.util.function.BiFunction<String, String, SqlExpr> lambdaResolver(

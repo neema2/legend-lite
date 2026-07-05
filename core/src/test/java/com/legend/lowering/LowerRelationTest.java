@@ -608,6 +608,91 @@ class LowerRelationTest {
         assertEquals(4, rows.size(), "one row per person name: " + rows);
     }
 
+    // ---- variant navigation: get / to(@T) / toMany(@T) ----
+
+    @Test
+    @DisplayName("variant get chain + to(@T): -> hops, ->> under the scalar cast")
+    void variantGetChain() throws SQLException {
+        try (var st = conn.createStatement()) {
+            st.execute("CREATE TABLE T_DOCS (ID INTEGER NOT NULL, PAYLOAD VARCHAR)");
+            st.execute("INSERT INTO T_DOCS VALUES"
+                    + " (1, '{\"items\": [{\"sku\": \"A-7\"}], \"qty\": 3}'),"
+                    + " (2, '{\"items\": [{\"sku\": \"B-2\"}], \"qty\": 5}')");
+        }
+        String model = """
+                Database test::DB
+                (
+                  Table T_DOCS (ID INTEGER NOT NULL, PAYLOAD SEMISTRUCTURED)
+                )
+                """;
+        SqlQuery q = new Lowerer().lower(Compiler.compileQuery(model,
+                "#>{test::DB.T_DOCS}#->extend(~sku : x |"
+                        + " $x.PAYLOAD->get('items')->get(0)->get('sku')->to(@String))"));
+        String sql = new DuckDb().render(q);
+        assertTrue(sql.contains(
+                "CAST(t0.PAYLOAD -> 'items' -> 0 ->> 'sku' AS VARCHAR) AS sku"),
+                "-> hops, ->> at the conversion: " + sql);
+        assertEquals(List.of("1|A-7", "2|B-2"),
+                exec("SELECT ID, sku FROM (" + sql + ")\nORDER BY ID"));
+    }
+
+    @Test
+    @DisplayName("toMany(@Variant)->map->fold: the engine aggregation idiom, executed")
+    void variantToManyMapFold() throws SQLException {
+        try (var st = conn.createStatement()) {
+            st.execute("CREATE TABLE T_CARTS (ID INTEGER NOT NULL, NUMS VARCHAR)");
+            st.execute("INSERT INTO T_CARTS VALUES (1, '[1, 2, 3]'), (2, '[10]')");
+        }
+        String model = """
+                Database test::DB
+                (
+                  Table T_CARTS (ID INTEGER NOT NULL, NUMS SEMISTRUCTURED)
+                )
+                """;
+        SqlQuery q = new Lowerer().lower(Compiler.compileQuery(model,
+                "#>{test::DB.T_CARTS}#->extend(~total : x | $x.NUMS->toMany(@Variant)"
+                        + "->map(i | $i->to(@Integer)->toOne())"
+                        + "->fold({e, a | $e + $a}, 0))"));
+        String sql = new DuckDb().render(q);
+        // The composition's SHAPE is pinned, not just its results: elements
+        // via JSON[] cast, per-element CAST inside list_transform, reduced
+        // with the swapped (acc, elem) lambda — all in ONE flat SELECT.
+        assertEquals(1, count(sql, "SELECT"), sql);
+        assertTrue(sql.contains("list_reduce(list_transform("
+                        + "CAST(t0.NUMS AS JSON[]), i -> CAST(i AS BIGINT)), "),
+                "composition shape: " + sql);
+        assertEquals(List.of("1|6", "2|10"),
+                exec("SELECT ID, total FROM (" + sql + ")\nORDER BY ID"),
+                "sum of each row's JSON array");
+
+        // toMany(@Integer): the TYPED-array cast branch.
+        String typed = new DuckDb().render(new Lowerer().lower(Compiler.compileQuery(model,
+                "#>{test::DB.T_CARTS}#->extend(~first : x |"
+                        + " $x.NUMS->toMany(@Integer)->fold({e, a | $e + $a}, 0))")));
+        assertTrue(typed.contains("CAST(t0.NUMS AS BIGINT[])"),
+                "typed array cast: " + typed);
+        assertEquals(List.of("1|6", "2|10"),
+                exec("SELECT ID, first FROM (" + typed + ")\nORDER BY ID"));
+
+        // to(@String) on a BARE variant column (no get to swap): plain CAST.
+        String bare = new DuckDb().render(new Lowerer().lower(Compiler.compileQuery(model,
+                "#>{test::DB.T_CARTS}#->extend(~txt : x | $x.NUMS->to(@String))")));
+        assertTrue(bare.contains("CAST(t0.NUMS AS VARCHAR) AS txt"), bare);
+        assertEquals(List.of("1|[1, 2, 3]", "2|[10]"),
+                exec("SELECT ID, txt FROM (" + bare + ")\nORDER BY ID"),
+                "whole-value text rendering");
+    }
+
+    @Test
+    @DisplayName("cast erases on non-variant scalars; relation cast is a pass-through")
+    void castErasure() throws SQLException {
+        assertEquals(List.of("42"), exec(sqlOf("42->cast(@Number)")), "identity");
+        String relCast = sqlOf("#>{test::DB.T_PERSON}#"
+                + "->cast(@Relation<(NAME:String, AGE:Integer, FIRM:String)>)");
+        assertEquals(sqlOf("#>{test::DB.T_PERSON}#"), relCast,
+                "schema re-typing has zero SQL footprint");
+    }
+
     @Test
     @DisplayName("TDS literal → VALUES; filter folds onto it")
     void tdsLiterals() throws SQLException {

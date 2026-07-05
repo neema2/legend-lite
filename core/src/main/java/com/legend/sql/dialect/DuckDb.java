@@ -210,6 +210,8 @@ public final class DuckDb implements SqlDialect {
             case SqlExpr.Exists ex -> "EXISTS (" + inline(ex.subquery()) + ")";
             case SqlExpr.ScalarSubquery sq -> "(" + inline(sq.subquery()) + ")";
             case SqlExpr.WindowCall w -> windowCall(w);
+            case SqlExpr.Cast c -> "CAST(" + expr(c.value(), 0) + " AS "
+                    + sqlTypeName(c.target()) + (c.array() ? "[]" : "") + ")";
             case SqlExpr.Lambda l -> (l.params().size() == 1
                     ? l.params().get(0)
                     : "(" + String.join(", ", l.params()) + ")") + " -> " + expr(l.body(), 0);
@@ -265,11 +267,35 @@ public final class DuckDb implements SqlDialect {
             case LIST_BOOL_AND -> fn("list_bool_and", a);
             case LIST_EXTRACT -> fn("list_extract", a);
             case WRAP_LIST -> fn("list_value", a);
+            case VARIANT_GET -> expr(a.get(0), 7) + " -> " + expr(a.get(1), 8);
+            case VARIANT_GET_TEXT -> expr(a.get(0), 7) + " ->> " + expr(a.get(1), 8);
         };
     }
 
     private String fn(String spelling, List<SqlExpr> args) {
         return spelling + "(" + list(args) + ")";
+    }
+
+    /** Pure type → this dialect's CAST spelling (Pure Integer is 64-bit). */
+    private static String sqlTypeName(com.legend.compiler.element.type.Type t) {
+        if (t instanceof com.legend.compiler.element.type.Type.Primitive p) {
+            return switch (p) {
+                case STRING -> "VARCHAR";
+                case INTEGER -> "BIGINT";
+                case FLOAT, NUMBER -> "DOUBLE";
+                case BOOLEAN -> "BOOLEAN";
+                case DECIMAL -> "DECIMAL";
+                case STRICT_DATE -> "DATE";
+                case DATE_TIME, DATE -> "TIMESTAMP";
+                default -> throw new IllegalStateException(
+                        "no DuckDB CAST spelling for Pure type " + p);
+            };
+        }
+        if (t instanceof com.legend.compiler.element.type.Type.ClassType ct
+                && ct.fqn().endsWith("::Variant")) {
+            return "JSON";
+        }
+        throw new IllegalStateException("no DuckDB CAST spelling for " + t.typeName());
     }
 
     private String caseExpr(SqlExpr.Case c) {

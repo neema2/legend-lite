@@ -13,7 +13,7 @@ public sealed interface SqlExpr
                 SqlExpr.FloatLit, SqlExpr.DecimalLit, SqlExpr.BoolLit, SqlExpr.NullLit,
                 SqlExpr.DateLit, SqlExpr.TimestampLit, SqlExpr.ArrayLit, SqlExpr.Call,
                 SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.WindowCall,
-                SqlExpr.Lambda, SqlAgg.Reducer {
+                SqlExpr.Lambda, SqlExpr.Cast, SqlAgg.Reducer {
 
     /** A column reference, optionally qualified by a source alias. */
     record Column(String table, String name) implements SqlExpr {
@@ -110,5 +110,14 @@ public sealed interface SqlExpr
 
     /** A lambda for DuckDB list functions: {@code x -> body} / {@code (a, x) -> body}. */
     record Lambda(List<String> params, SqlExpr body) implements SqlExpr {
+    }
+
+    /**
+     * {@code CAST(value AS <type>[])} — the target rides as a PURE type; the
+     * SQL type name is the dialect's business. {@code array} casts to a list
+     * of the target ({@code toMany}).
+     */
+    record Cast(SqlExpr value, com.legend.compiler.element.type.Type target, boolean array)
+            implements SqlExpr {
     }
 }

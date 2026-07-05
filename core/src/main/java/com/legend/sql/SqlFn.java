@@ -21,6 +21,6 @@ public enum SqlFn {
     // Lists
     LIST_FILTER, LIST_TRANSFORM, LIST_REDUCE, LIST_CONCAT, LIST_CONTAINS,
     LIST_BOOL_OR, LIST_BOOL_AND, LIST_EXTRACT, WRAP_LIST, UNNEST,
-    // Variant navigation
-    VARIANT_ELEMENTS
+    // Variant navigation: -> (JSON access) and ->> (text extraction, pre-CAST)
+    VARIANT_ELEMENTS, VARIANT_GET, VARIANT_GET_TEXT
 }
