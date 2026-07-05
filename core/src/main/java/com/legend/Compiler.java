@@ -107,8 +107,9 @@ public final class Compiler {
             java.sql.Connection connection) throws java.sql.SQLException {
         TypedSpec typed = compileQuery(model, query);
         com.legend.sql.SqlQuery plan = new com.legend.lowering.Lowerer().lower(typed);
-        String sql = new com.legend.sql.dialect.DuckDb().render(plan);
-        return com.legend.exec.Executor.execute(sql, plan, typed.info(), connection);
+        com.legend.sql.dialect.SqlDialect dialect = new com.legend.sql.dialect.DuckDb();
+        return com.legend.exec.Executor.execute(
+                dialect.render(plan), plan, typed.info(), connection, dialect);
     }
 
     public static TypedSpec compileQuery(String model, String query) {

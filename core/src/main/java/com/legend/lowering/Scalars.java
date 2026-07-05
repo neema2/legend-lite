@@ -73,22 +73,12 @@ final class Scalars {
             RULES.put(f, (n, args) -> args.get(0));
         }
 
-        // exists/forAll over collections: DuckDB list lambdas. Pure's
-        // empty-collection semantics are LOAD-BEARING: exists([]) = false,
-        // forAll([]) = TRUE — hence the COALESCE defaults (list_bool_* on an
-        // empty list yields NULL).
-        for (Function f : Pure.nativeFunctionsAt("exists")) {
-            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.COALESCE, List.of(
-                    new SqlExpr.Call(SqlFn.LIST_BOOL_OR, List.of(
-                            new SqlExpr.Call(SqlFn.LIST_TRANSFORM, args))),
-                    new SqlExpr.BoolLit(false))));
-        }
-        for (Function f : Pure.nativeFunctionsAt("forAll")) {
-            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.COALESCE, List.of(
-                    new SqlExpr.Call(SqlFn.LIST_BOOL_AND, List.of(
-                            new SqlExpr.Call(SqlFn.LIST_TRANSFORM, args))),
-                    new SqlExpr.BoolLit(true))));
-        }
+        // exists/forAll over collections: SEMANTIC vocabulary entries whose
+        // CONTRACT includes Pure's empty-collection semantics (exists([]) =
+        // false, forAll([]) = true) — every dialect's expansion must honor
+        // them (DuckDB: coalesce over list_bool_* lambdas).
+        family(com.legend.sql.SqlFn.LIST_EXISTS, "exists");
+        family(com.legend.sql.SqlFn.LIST_FOR_ALL, "forAll");
 
         // Overload-specific overrides — the resolved signature IS the decision.
         RULES.put(Pure.PLUS__STRING_1__STRING_1, (n, args) -> new SqlExpr.Call(SqlFn.CONCAT, args));

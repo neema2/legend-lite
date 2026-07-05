@@ -22,18 +22,21 @@ public final class Executor {
     }
 
     public static ExecutionResult execute(String sql, SqlQuery plan, ExprType rootType,
-                                          Connection connection) throws SQLException {
+                                          Connection connection,
+                                          com.legend.sql.dialect.SqlDialect dialect)
+            throws SQLException {
         ResultShape shape = ResultShape.of(rootType);
         try (Statement st = connection.createStatement();
              ResultSet rs = st.executeQuery(sql)) {
             return switch (shape) {
-                case TABULAR -> tabular(rs, plan, rootType);
+                case TABULAR -> tabular(rs, plan, rootType, dialect);
                 case SCALAR -> new ExecutionResult.Scalar(
-                        rs.next() ? rs.getObject(1) : null, rootType.type());
+                        rs.next() ? dialect.normalize(rs.getObject(1), rootType.type()) : null,
+                        rootType.type());
                 case COLLECTION -> {
                     List<Object> values = new ArrayList<>();
                     while (rs.next()) {
-                        values.add(rs.getObject(1));
+                        values.add(dialect.normalize(rs.getObject(1), rootType.type()));
                     }
                     yield new ExecutionResult.Collection(values, rootType.type());
                 }
@@ -44,22 +47,25 @@ public final class Executor {
     }
 
     /** Columns from the plan's TYPED outputs; JDBC supplies only the informational sqlType. */
-    private static ExecutionResult.Tabular tabular(ResultSet rs, SqlQuery plan, ExprType rootType)
+    private static ExecutionResult.Tabular tabular(ResultSet rs, SqlQuery plan, ExprType rootType,
+                                                    com.legend.sql.dialect.SqlDialect dialect)
             throws SQLException {
         List<OutputCol> outputs = plan.outputs();
         List<Column> columns = new ArrayList<>();
         int n = rs.getMetaData().getColumnCount();
         for (int i = 1; i <= n; i++) {
             String name = rs.getMetaData().getColumnName(i);
-            String pure = outputs.stream().filter(o -> o.name().equals(name)).findFirst()
-                    .map(o -> o.type().typeName()).orElse(null);
+            com.legend.compiler.element.type.Type pure = outputs.stream()
+                    .filter(o -> o.name().equals(name)).findFirst()
+                    .map(com.legend.sql.OutputCol::type).orElse(null);
             columns.add(new Column(name, rs.getMetaData().getColumnTypeName(i), pure));
         }
         List<Row> rows = new ArrayList<>();
         while (rs.next()) {
             List<Object> cells = new ArrayList<>(n);
             for (int i = 1; i <= n; i++) {
-                cells.add(rs.getObject(i));
+                com.legend.compiler.element.type.Type pure = columns.get(i - 1).pureType();
+                cells.add(dialect.normalize(rs.getObject(i), pure));
             }
             rows.add(new Row(cells));
         }

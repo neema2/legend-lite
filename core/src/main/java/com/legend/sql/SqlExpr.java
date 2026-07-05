@@ -13,7 +13,7 @@ public sealed interface SqlExpr
                 SqlExpr.FloatLit, SqlExpr.DecimalLit, SqlExpr.BoolLit, SqlExpr.NullLit,
                 SqlExpr.DateLit, SqlExpr.TimestampLit, SqlExpr.ArrayLit, SqlExpr.Call,
                 SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.WindowCall,
-                SqlExpr.Lambda, SqlExpr.Cast, SqlAgg.Reducer {
+                SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlAgg.Reducer {
 
     /** A column reference, optionally qualified by a source alias. */
     record Column(String table, String name) implements SqlExpr {
@@ -115,9 +115,22 @@ public sealed interface SqlExpr
     /**
      * {@code CAST(value AS <type>[])} — the target rides as a PURE type; the
      * SQL type name is the dialect's business. {@code array} casts to a list
-     * of the target ({@code toMany}).
+     * of the target ({@code toMany}). A dialect may render a variant-access
+     * value through its text-extraction idiom (DuckDB {@code ->>}) — that
+     * swap is RENDERING knowledge, not IR content.
      */
     record Cast(SqlExpr value, com.legend.compiler.element.type.Type target, boolean array)
             implements SqlExpr {
+    }
+
+    /**
+     * A FOLD over a collection value, in PURE conventions: the lambda's
+     * parameters are {@code (element, accumulator)} — Pure's order — and the
+     * dialect owns the encoding (DuckDB: {@code list_reduce} with swapped
+     * params, single-item-list wrap/unwrap when {@code accIsList}; a
+     * lambda-less backend: recursive CTE or a loud error).
+     */
+    record FoldCall(SqlExpr source, Lambda lambda, SqlExpr init, boolean accIsList,
+                    boolean homogeneous) implements SqlExpr {
     }
 }

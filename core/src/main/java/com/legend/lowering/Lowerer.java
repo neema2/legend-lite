@@ -844,21 +844,10 @@ public final class Lowerer {
         for (TypedAggCol a : pv.aggs()) {
             usings.add(new SqlSource.Pivot.Using(aggExpr(forAgg, a), a.name()));
         }
-        // DuckDB forbids qualified column refs inside USING — strip qualifiers.
-        List<SqlSource.Pivot.Using> unq = usings.stream()
-                .map(u -> new SqlSource.Pivot.Using(
-                        new SqlAgg.Reducer(u.agg().fn(),
-                                u.agg().args().stream().map(Lowerer::unqualify).toList(),
-                                u.agg().distinct()),
-                        u.alias()))
-                .toList();
-        List<SqlExpr> onUnq = on.stream().map(Lowerer::unqualify).toList();
-        return SqlSelect.starOf(new SqlSource.Pivot(inner, onUnq, unq, nextAlias(),
+        // Fully-qualified refs; a dialect whose PIVOT forbids qualifiers in
+        // USING (DuckDB) strips them AT RENDER TIME.
+        return SqlSelect.starOf(new SqlSource.Pivot(inner, on, usings, nextAlias(),
                 outputsOf(pv.info())));
-    }
-
-    private static SqlExpr unqualify(SqlExpr e) {
-        return e instanceof SqlExpr.Column c ? new SqlExpr.Column(null, c.name()) : e;
     }
 
     /**
@@ -924,11 +913,8 @@ public final class Lowerer {
                     ? SqlExpr.Call.of(com.legend.sql.SqlFn.VARIANT_ELEMENTS, value)
                     : new SqlExpr.Cast(value, c.target(), true);
         }
-        // ->  becomes  ->>  under a scalar conversion (text extraction).
-        if (value instanceof SqlExpr.Call call
-                && call.fn() == com.legend.sql.SqlFn.VARIANT_GET) {
-            value = new SqlExpr.Call(com.legend.sql.SqlFn.VARIANT_GET_TEXT, call.args());
-        }
+        // The dialect may render this cast through its text-extraction idiom
+        // (DuckDB ->>) — that is RENDERING knowledge; the IR keeps the access.
         return new SqlExpr.Cast(value, c.target(), false);
     }
 
@@ -946,65 +932,43 @@ public final class Lowerer {
     }
 
     /**
-     * fold: the Phase-G {@link FoldStrategy} decides the DuckDB list shape
-     * (master's behavioral rules). Pure's reducer is {@code {elem, acc|...}};
-     * DuckDB's list_reduce lambda is {@code (acc, elem)} — parameters swap.
+     * fold: emitted in PURE conventions — {@link SqlExpr.FoldCall} with the
+     * {@code (element, accumulator)} lambda exactly as written. The Phase-G
+     * strategy collapses to logical facts (Concatenation is a list concat;
+     * MapReduce pre-transforms; {@code accIsList} rides for the dialect's
+     * encoding decisions). NOTHING here knows how any backend folds.
      */
     private SqlExpr fold(com.legend.compiler.spec.typed.TypedFold f,
                          java.util.function.BiFunction<String, String, SqlExpr> columns) {
         SqlExpr source = scalar(f.source(), columns);
         SqlExpr init = scalar(f.init(), columns);
+        List<String> ps = f.reducer().parameters();
         return switch (f.strategy()) {
             case com.legend.compiler.spec.typed.FoldStrategy.Concatenation c ->
                     new SqlExpr.Call(SqlFn.LIST_CONCAT, List.of(init, source));
-            case com.legend.compiler.spec.typed.FoldStrategy.SameType st -> {
-                List<String> ps = f.reducer().parameters();
-                SqlExpr.Lambda swapped = new SqlExpr.Lambda(List.of(ps.get(1), ps.get(0)),
-                        scalar(last(f.reducer()), lambdaResolver(ps, columns)));
-                yield new SqlExpr.Call(SqlFn.LIST_REDUCE,
-                        List.of(source, swapped, init));
-            }
+            case com.legend.compiler.spec.typed.FoldStrategy.SameType st ->
+                    new SqlExpr.FoldCall(source,
+                            new SqlExpr.Lambda(ps,
+                                    scalar(last(f.reducer()), lambdaResolver(ps, columns))),
+                            init, isMany(f.init()), true);
             case com.legend.compiler.spec.typed.FoldStrategy.MapReduce mr -> {
-                String elem = f.reducer().parameters().get(0);
+                String elem = ps.get(0);
                 SqlExpr.Lambda transform = new SqlExpr.Lambda(List.of(elem),
                         scalar(mr.transform(), lambdaResolver(List.of(elem), columns)));
-                SqlExpr.Lambda reduce = new SqlExpr.Lambda(
-                        List.of(mr.accParam(), mr.freshParam()),
-                        scalar(mr.reducer(), lambdaResolver(
-                                List.of(mr.accParam(), mr.freshParam()), columns)));
-                yield new SqlExpr.Call(SqlFn.LIST_REDUCE, List.of(
-                        new SqlExpr.Call(SqlFn.LIST_TRANSFORM, List.of(source, transform)),
-                        reduce, init));
+                SqlExpr transformed = new SqlExpr.Call(
+                        SqlFn.LIST_TRANSFORM, List.of(source, transform));
+                // The transform makes source elements accumulator-typed.
+                yield new SqlExpr.FoldCall(transformed,
+                        new SqlExpr.Lambda(List.of(mr.freshParam(), mr.accParam()),
+                                scalar(mr.reducer(), lambdaResolver(
+                                        List.of(mr.accParam(), mr.freshParam()), columns))),
+                        init, isMany(f.init()), true);
             }
-            // CollectionBuild (master's Path 4, for LIST-typed accumulators):
-            // list_reduce demands init type == list child type, so each element
-            // wraps as a single-item list (listTransform(src, e -> wrapList(e)))
-            // and every element ref in the body unwraps via listExtract(e, 1).
-            // A SCALAR accumulator with a non-decomposable body has no sound
-            // list_reduce lowering — loud error, with the rewrite hint.
-            case com.legend.compiler.spec.typed.FoldStrategy.CollectionBuild cb -> {
-                if (!isMany(f.init())) {
-                    throw new IllegalStateException("fold body is not decomposable and the"
-                            + " accumulator is scalar — rewrite accumulator-first"
-                            + " ({e, a | $a <op> ...}) so the reduction can decompose");
-                }
-                List<String> ps = f.reducer().parameters();
-                String elem = ps.get(0);
-                SqlExpr wrapped = new SqlExpr.Call(SqlFn.LIST_TRANSFORM, List.of(source,
-                        new SqlExpr.Lambda(List.of(elem),
-                                new SqlExpr.Call(SqlFn.WRAP_LIST,
-                                        List.of(new SqlExpr.Column(null, elem))))));
-                // Body lowered with the element ref UNWRAPPED at every use.
-                SqlExpr body = scalar(last(f.reducer()), (var, prop) -> {
-                    if (var.equals(elem) && prop == null) {
-                        return new SqlExpr.Call(SqlFn.LIST_EXTRACT,
-                                List.of(new SqlExpr.Column(null, elem), new SqlExpr.IntLit(1)));
-                    }
-                    return lambdaResolver(ps, columns).apply(var, prop);
-                });
-                SqlExpr.Lambda lambda = new SqlExpr.Lambda(List.of(ps.get(1), elem), body);
-                yield new SqlExpr.Call(SqlFn.LIST_REDUCE, List.of(wrapped, lambda, init));
-            }
+            case com.legend.compiler.spec.typed.FoldStrategy.CollectionBuild cb ->
+                    new SqlExpr.FoldCall(source,
+                            new SqlExpr.Lambda(ps,
+                                    scalar(last(f.reducer()), lambdaResolver(ps, columns))),
+                            init, isMany(f.init()), false);
         };
     }
 

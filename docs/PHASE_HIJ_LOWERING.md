@@ -186,3 +186,47 @@ Land lowering against STABLE inputs; mapping resolution comes after, separately:
    association navigation joins, `navigate`/`legacyNavigate` (its deferred typing
    design lands here), `from` runtime binding, write/serialize envelopes.
 6. Facade: `Compiler.compile(model, query, runtime)` becomes real.
+
+## Dialect architecture (added 2026-07-05 — "plug in any SQL backend")
+
+**The flub it corrects:** the first Lowerer honored the semantic-name rule for
+SPELLINGS but made SHAPE decisions unilaterally (DuckDB's list-lambda fold
+encoding + (acc,elem) swap + wrap/unwrap, the ->> swap, pivot USING
+unqualification, select-list UNNEST placement, QUALIFY assumed to exist).
+
+**The rule, completed:** IR + Lowerer carry MEANING with PURE conventions;
+every dialect owns spelling AND shape AND value normalization.
+
+Abstraction points (SQLite/Postgres as forcing functions):
+- A. Lexical: identifier quoting (char, when-needed rule, reserved words,
+  CASE-FOLDING semantics), literals (bools 1/0, dates, arrays, escapes),
+  CAST type names, fn/operator spellings, LIMIT dialects.
+- B. Idioms (compound renders): JSON access family, LIST operations (DuckDB
+  is the ONLY lambda backend; PG = unnest-subqueries; SQLite = json_each),
+  null-aware equality, mod/rounding emulations.
+- C. Structural capabilities (render-time query rewrites; LOUD error where
+  impossible): QUALIFY→native or self-wrap; PIVOT→native or CASE-WHEN agg
+  (real legend's fallback pair); ASOF→native or LATERAL/window emulation;
+  UNNEST placement (select-list vs LATERAL FROM); VALUES-with-column-alias
+  (SQLite: UNION ALL rewrite); FULL/RIGHT JOIN; recursive CTEs (fold
+  fallback for lambda-less backends).
+- D. Execution: VALUE NORMALIZATION — JDBC object → canonical Java per PURE
+  type (SQLite returns dates as STRINGS, booleans as INTS; the typed-result
+  contract requires the executor, keyed by dialect, to normalize).
+  GRAPH envelope construction (json_group_array vs json_agg).
+
+Realization:
+- Semantic IR nodes with Pure conventions: SqlExpr.FoldCall(source,
+  lambda{elem,acc}, init, accIsList) replaces raw list_reduce emission;
+  SqlFn.LIST_EXISTS/LIST_FOR_ALL replace the coalesce/list_bool_* encoding;
+  Cast(VariantGet...) carries NO ->> swap (the idiom is rendering);
+  UNNEST is a semantic call whose PLACEMENT is dialect assembly.
+- One abstract AnsiSqlRenderer with grouped protected extension points
+  (A/B/C above); DuckDb overrides ~10; unsupported constructs throw loudly
+  per dialect (no-fallback at dialect level).
+- Executor takes the dialect for normalization (seam D).
+- A DIALECT CONFORMANCE KIT: the execution suites parameterized by
+  (dialect, connectionFactory) — a new backend = implement the dialect,
+  run the kit. SQLite is the second backend (driver already a core dep).
+
+Proof of re-homing: DuckDB goldens stay byte-identical through the refactor.

@@ -78,9 +78,9 @@ class ExecutorTest {
         ExecutionResult.Tabular t = assertInstanceOf(ExecutionResult.Tabular.class, r);
         assertEquals(List.of("NAME", "AGE"),
                 t.columns().stream().map(Column::name).toList());
-        assertEquals("String", t.columns().get(0).pureType(),
-                "Pure type from the TYPED plan outputs, not JDBC sniffing");
-        assertEquals("Integer", t.columns().get(1).pureType());
+        assertEquals(Type.Primitive.STRING, t.columns().get(0).pureType(),
+                "the Pure Type OBJECT from the typed plan outputs, not JDBC sniffing");
+        assertEquals(Type.Primitive.INTEGER, t.columns().get(1).pureType());
         assertEquals(1, t.rowCount());
         assertEquals("Bob", t.rows().get(0).get(0));
         assertEquals(35, ((Number) t.rows().get(0).get(1)).intValue());

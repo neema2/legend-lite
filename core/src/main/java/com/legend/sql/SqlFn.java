@@ -18,9 +18,16 @@ public enum SqlFn {
     IS_NULL, IS_NOT_NULL, IN, COALESCE,
     // Strings
     CONCAT, LENGTH, UPPER, LOWER, GREATEST, LEAST,
-    // Lists
-    LIST_FILTER, LIST_TRANSFORM, LIST_REDUCE, LIST_CONCAT, LIST_CONTAINS,
-    LIST_BOOL_OR, LIST_BOOL_AND, LIST_EXTRACT, WRAP_LIST, UNNEST,
-    // Variant navigation: -> (JSON access) and ->> (text extraction, pre-CAST)
-    VARIANT_ELEMENTS, VARIANT_GET, VARIANT_GET_TEXT
+    // Lists — SEMANTIC operations (encodings are the dialect's: DuckDB uses
+    // list lambdas; Postgres would use unnest subqueries; SQLite json_each).
+    // LIST_EXISTS/LIST_FOR_ALL carry (collection, predicate-lambda) and
+    // include Pure's empty-collection semantics (exists([])=false,
+    // forAll([])=true) — the dialect's expansion must honor them.
+    LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_CONTAINS, LIST_GET,
+    LIST_EXISTS, LIST_FOR_ALL,
+    // UNNEST: explode a collection into rows; PLACEMENT (select-list vs
+    // LATERAL FROM) is dialect assembly.
+    UNNEST,
+    // Variant navigation: logical JSON access; text-extraction idioms are rendering
+    VARIANT_ELEMENTS, VARIANT_GET
 }
