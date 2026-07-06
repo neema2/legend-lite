@@ -231,9 +231,9 @@ class LowerRelationTest {
     void unregisteredOverloadThrows() {
         IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 IllegalStateException.class,
-                () -> sqlOf("#>{test::DB.T_PERSON}#->filter(x|$x.NAME->startsWith('A'))"));
+                () -> sqlOf("#>{test::DB.T_PERSON}#->filter(x|$x.NAME->decodeBase64() == 'x')"));
         org.junit.jupiter.api.Assertions.assertTrue(
-                ex.getMessage().contains("startsWith"),
+                ex.getMessage().contains("decodeBase64"),
                 "error names the overload; got: " + ex.getMessage());
     }
 

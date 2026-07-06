@@ -21,10 +21,12 @@ import java.util.Objects;
  * compile-element (F) → compile-spec (G) → resolve-mapping (H) →
  * build-sql (I) → render-sql (J) → execute (K).
  *
- * <p><strong>Status.</strong> The FRONT half is real: {@link #compileModel}
- * runs lex→F and {@link #compileQuery} carries a query through Phase G to its
- * typed HIR ({@link TypedSpec}). The BACK half (H–K, lowering to a SQL plan)
- * is not built; {@link #compile(String, String, String)} says so loudly.
+ * <p><strong>Status.</strong> {@link #compileModel} runs lex→F;
+ * {@link #compileQuery} carries a query through Phase G to its typed HIR;
+ * {@link #execute} is the FULL pipeline — lower (I), render (J), execute (K)
+ * over the caller's connection with a typed result. Phase H (class sources /
+ * mappings) is the remaining gap; {@link #compile(String, String, String)}
+ * throws until a runtime-resolved plan-string form is worth having.
  *
  * <p>This is the single orchestration point: it owns step <em>ordering</em>
  * only. Each step is the same method its own unit tests exercise &mdash; there
@@ -77,26 +79,11 @@ public final class Compiler {
      */
     public static String compile(String model, String query, String runtime) {
         throw new UnsupportedOperationException(
-            "lowering (phases H-J, typed HIR -> SQL plan) is not built yet;"
-                + " compileQuery(model, query) yields the typed HIR the lowering will consume");
+            "runtime-name execution is Phase H (runtime->connection resolution);"
+                + " use execute(model, query, connection) — the full pipeline —"
+                + " or compileQuery(model, query) for the typed HIR");
     }
 
-    /**
-     * Frontend + Phase G for a standalone query: Pure model source + query
-     * expression &rarr; the query's typed HIR. This is the pipeline's current
-     * end-to-end &mdash; everything up to (not including) lowering.
-     *
-     * <p>The query is parsed by {@link SpecParser}, name-resolved under real
-     * legend-engine's <em>sectionless-lambda</em> scope
-     * ({@link NameResolver#resolveQuery}: the platform prelude is always in
-     * scope &mdash; {@code JoinKind.INNER} works bare &mdash; while user
-     * elements require full paths, e.g. {@code test::Person.all()}), then
-     * type-checked against the compiled model snapshot.
-     *
-     * @param model Pure model source.
-     * @param query Pure query expression (user elements fully qualified).
-     * @return the type-checked query (schema/type on {@link TypedSpec#info()}).
-     */
     /**
      * The core QUERY SERVICE: frontend + Phase G + lowering + rendering +
      * EXECUTION over the caller's connection, shaped per the result-type
@@ -115,6 +102,22 @@ public final class Compiler {
                 dialect.render(plan), plan, root.info(), connection, dialect);
     }
 
+    /**
+     * Frontend + Phase G for a standalone query: Pure model source + query
+     * expression &rarr; the query's typed HIR (the FRONT half only; use
+     * {@link #execute} for the full pipeline).
+     *
+     * <p>The query is parsed by {@link SpecParser}, name-resolved under real
+     * legend-engine's <em>sectionless-lambda</em> scope
+     * ({@link NameResolver#resolveQuery}: the platform prelude is always in
+     * scope &mdash; {@code JoinKind.INNER} works bare &mdash; while user
+     * elements require full paths, e.g. {@code test::Person.all()}), then
+     * type-checked against the compiled model snapshot.
+     *
+     * @param model Pure model source.
+     * @param query Pure query expression (user elements fully qualified).
+     * @return the type-checked query (schema/type on {@link TypedSpec#info()}).
+     */
     public static TypedSpec compileQuery(String model, String query) {
         Objects.requireNonNull(query, "query");
         ModelContext ctx = compileModel(model);

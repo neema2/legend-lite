@@ -21,8 +21,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class FoldTest {
 
+    // Outputs are STAMPED — claims() is strict by design (an unstamped
+    // source is a construction bug; see the audit's H5).
     private static final SqlSelect BARE = SqlSelect.starOf(
-            new SqlSource.Table("T", "t0", List.of()));
+            new SqlSource.Table("T", "t0", List.of(
+                    new com.legend.sql.OutputCol("A", com.legend.sql.SqlType.Scalar.BIGINT, false),
+                    new com.legend.sql.OutputCol("B", com.legend.sql.SqlType.Scalar.BIGINT, false),
+                    new com.legend.sql.OutputCol("AGE", com.legend.sql.SqlType.Scalar.BIGINT, false),
+                    new com.legend.sql.OutputCol("NAME", com.legend.sql.SqlType.Scalar.VARCHAR, false),
+                    new com.legend.sql.OutputCol("C", com.legend.sql.SqlType.Scalar.BIGINT, false))));
 
     private static SqlExpr col(String n) {
         return new SqlExpr.Column("t0", n);

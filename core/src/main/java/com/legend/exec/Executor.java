@@ -55,15 +55,40 @@ public final class Executor {
     private static ExecutionResult.Tabular tabular(ResultSet rs, SqlQuery plan, ExprType rootType,
                                                     com.legend.sql.dialect.SqlDialect dialect)
             throws SQLException {
-        Type.RelationType schema = rootType.type() instanceof Type.RelationType rt ? rt : null;
-        List<Column> columns = new ArrayList<>();
+        if (!(rootType.type() instanceof Type.RelationType schema)) {
+            throw new IllegalStateException("TABULAR result without a relation root type: "
+                    + rootType.type().typeName());
+        }
         int n = rs.getMetaData().getColumnCount();
-        for (int i = 1; i <= n; i++) {
-            String name = rs.getMetaData().getColumnName(i);
-            Type pure = schema == null ? null : schema.columns().stream()
-                    .filter(c -> c.name().equals(name)).findFirst()
-                    .map(Type.Column::type).orElse(null);
-            columns.add(new Column(name, rs.getMetaData().getColumnTypeName(i), pure));
+        List<Column> columns = new ArrayList<>();
+        if (n == schema.columns().size()) {
+            // POSITIONAL on both sides (schemas are ordered); no null types.
+            for (int i = 1; i <= n; i++) {
+                Type.Column sc = schema.columns().get(i - 1);
+                columns.add(new Column(sc.name(),
+                        rs.getMetaData().getColumnTypeName(i), sc.type()));
+            }
+        } else if (hasPivot(plan)) {
+            // DYNAMIC PIVOT: one result column per pivoted VALUE — the static
+            // schema cannot enumerate them (engine's DynamicPivotColumn
+            // concept). Statically-known names match by NAME; every other
+            // column is a pivot-generated value column and carries the
+            // schema's single aggregate type (multi-agg pivots suffix-match).
+            Type dynamicType = schema.columns().get(schema.columns().size() - 1).type();
+            for (int i = 1; i <= n; i++) {
+                String name = rs.getMetaData().getColumnName(i);
+                Type pure = schema.columns().stream()
+                        .filter(c -> c.name().equals(name)).findFirst()
+                        .map(Type.Column::type)
+                        .orElseGet(() -> schema.columns().stream()
+                                .filter(c -> name.endsWith("_" + c.name()))
+                                .findFirst().map(Type.Column::type)
+                                .orElse(dynamicType));
+                columns.add(new Column(name, rs.getMetaData().getColumnTypeName(i), pure));
+            }
+        } else {
+            throw new IllegalStateException("result has " + n + " columns but the typed"
+                    + " schema has " + schema.columns().size() + " — plan/schema mismatch");
         }
         List<Row> rows = new ArrayList<>();
         while (rs.next()) {
@@ -78,6 +103,28 @@ public final class Executor {
 
     private static com.legend.sql.SqlType sqlTypeOf(SqlQuery plan, int index) {
         List<OutputCol> outputs = plan.outputs();
-        return index < outputs.size() ? outputs.get(index).type() : null;
+        if (index >= outputs.size()) {
+            if (hasPivot(plan)) {
+                return null; // dynamic pivot column: no static SQL type exists
+            }
+            throw new IllegalStateException("result column " + index
+                    + " has no plan output — plan/result mismatch");
+        }
+        return outputs.get(index).type();
+    }
+
+    /** Whether the plan's source tree contains a (dynamic-columned) PIVOT. */
+    private static boolean hasPivot(SqlQuery plan) {
+        return plan instanceof com.legend.sql.SqlSelect s && hasPivot(s.from());
+    }
+
+    private static boolean hasPivot(com.legend.sql.SqlSource src) {
+        return switch (src) {
+            case null -> false;
+            case com.legend.sql.SqlSource.Pivot p -> true;
+            case com.legend.sql.SqlSource.Subselect sub -> hasPivot(sub.inner());
+            case com.legend.sql.SqlSource.Join j -> hasPivot(j.left()) || hasPivot(j.right());
+            default -> false;
+        };
     }
 }

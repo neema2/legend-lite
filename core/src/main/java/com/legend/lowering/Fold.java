@@ -184,13 +184,19 @@ final class Fold {
     }
 
     /**
-     * Schema-AWARE claim check: with outputs stamped (the real pipeline), a
-     * source claims only columns it actually has — load-bearing for
-     * CORRELATED scopes, where an unclaimed name must fall through to the
-     * enclosing lambda instead of being blindly alias-qualified. Sources with
-     * no stamped outputs (hand-built test IR) stay schema-blind.
+     * Schema-AWARE claim check: a source claims only columns its stamped
+     * outputs actually contain — load-bearing for CORRELATED scopes, where an
+     * unclaimed name must fall through to the enclosing lambda instead of
+     * being blindly alias-qualified. The real pipeline stamps outputs on
+     * every source; an UNSTAMPED source is a construction bug and fails
+     * loudly rather than silently claiming everything.
      */
     private static boolean claims(java.util.List<com.legend.sql.OutputCol> outputs, String column) {
-        return outputs.isEmpty() || outputs.stream().anyMatch(c -> c.name().equals(column));
+        if (outputs.isEmpty()) {
+            throw new IllegalStateException(
+                    "source has no stamped output schema — cannot resolve column '"
+                            + column + "' (stamp outputs at construction)");
+        }
+        return outputs.stream().anyMatch(c -> c.name().equals(column));
     }
 }

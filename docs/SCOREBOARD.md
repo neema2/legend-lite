@@ -154,3 +154,48 @@ Top detail:
     8  [plangen-c0954a] Not yet ported: TypedPropertyAccess (stage-3-relation
     8  no aggregate lowering registered for resolved overload 'joinStrings'
 ```
+
+### Run 2026-07-05 @ 00f0b33
+
+| tests | pass | failures | errors | skipped | green classes |
+|---|---|---|---|---|---|
+| 2721 | **1400** | 106 | 1196 | 19 | 188 |
+
+| bucket | exception lines |
+|---|---|
+| H: class sources / property nav / mappings | 580 |
+| CORE: unlowered constructs | 211 |
+| CORE: scalar/agg function registrations | 98 |
+| OTHER | 85 |
+| CORE(parse): query syntax gaps | 76 |
+| FIXTURE: unknown refs (to diagnose) | 73 |
+| CORE(G): overload/typing gaps | 25 |
+
+Top detail:
+```
+  413  lowering not yet implemented for TypedGetAll
+   53  scalar lowering not yet implemented for TypedSerialize
+   40  class test::Person has no property 'firm'
+   31  no SQL type for Pure type meta::pure::metamodel::type::Any at the lowe
+   28  'test::Person' is not a known class, mapping, runtime, connection, or 
+   24  unknown table 'T_EVENTS' in database 'EventDatabase'
+   22  lowering not yet implemented for TypedSortBy
+   22  unbound type variable T
+   18  scalar lowering not yet implemented for TypedEnumValue
+   18  scalar lowering not yet implemented for TypedNewInstance
+   16  lowering not yet implemented for TypedUserCall
+   14  class model::Person has no property 'addresses'
+   14  class model::Emp has no property 'dept'
+   13  scalar lowering not yet implemented for TypedMatch
+   11  class test::Person has no property 'addresses'
+   11  scalar lowering not yet implemented for TypedIf
+   10  graphFetch tree: class test::Person has no property 'addresses'
+   10  scalar lowering not yet implemented for TypedFilter
+   10  'test::Order' is not a known class, mapping, runtime, connection, or d
+    9  no overload of 'concatenate' matches 2 argument(s) of these shapes
+    9  no compiled mapping function for class fetch: test::Person
+    8  [plangen-c0954a] Not yet ported: TypedPropertyAccess (stage-3-relation
+    7  [plangen-c0954a] Not yet ported: TypedProject (stage-3-relation). Vari
+    7  scalar lowering not yet implemented for TypedUserCall
+    6  class test::Person has no property 'dept'
+```

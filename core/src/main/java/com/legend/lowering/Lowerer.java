@@ -163,9 +163,11 @@ public final class Lowerer {
 
             case TypedAggregate a -> aggregate(a);
 
-            case TypedExtend e -> extendWith(relation(e.source()), e.columns(), e.info(), true);
+            case TypedExtend e -> extendWith(relation(e.source()), e.columns(), e.info(),
+                    true, false);
 
-            case TypedProject p -> extendWith(relation(p.source()), p.columns(), p.info(), false);
+            case TypedProject p -> extendWith(relation(p.source()), p.columns(), p.info(),
+                    false, false);
 
             case TypedConcatenate c -> SqlSelect.starOf(
                     new SqlSource.Subselect(union(c), nextAlias()));
@@ -244,6 +246,10 @@ public final class Lowerer {
         List<SqlSelect.Projection> ps = new ArrayList<>();
         for (TypedGroupBy.GroupKey k : g.keys()) {
             SqlExpr e = Fold.sourceColumn(base.from(), k.column());
+            if (e == null) {
+                throw new IllegalStateException("groupBy key '" + k.column()
+                        + "' cannot be resolved after isolation");
+            }
             keys.add(e);
             ps.add(new SqlSelect.Projection(e, null));
         }
@@ -277,11 +283,28 @@ public final class Lowerer {
         }
         String fn = Aggregates.reducerFor(call.callee().definition(), call.callee().qualifiedName());
         TypedSpec mapBody = last(a.map());
-        if (mapBody instanceof TypedVariable) {
+        // Reducer EXTRA arguments (joinStrings('_') carries its separator):
+        // literal args ride along after the value; variable refs are the
+        // reducer's own collection params; anything ELSE is unsupported and
+        // must be LOUD, not dropped.
+        List<SqlExpr> extra = new ArrayList<>();
+        for (TypedSpec argSpec : call.args()) {
+            if (argSpec instanceof com.legend.compiler.spec.typed.TypedCString
+                    || argSpec instanceof TypedCInteger) {
+                extra.add(scalar(argSpec, (v, name) -> resolveOrThrow(base, name)));
+            } else if (!(argSpec instanceof TypedVariable)) {
+                throw new IllegalStateException("aggregate reducer argument of kind "
+                        + argSpec.getClass().getSimpleName()
+                        + " is not supported (literals only)");
+            }
+        }
+        if (mapBody instanceof TypedVariable && extra.isEmpty()) {
             return new SqlAgg.Reducer(fn, List.of(), false);
         }
-        return new SqlAgg.Reducer(fn,
-                List.of(scalar(mapBody, (v, name) -> resolveOrThrow(base, name))), false);
+        List<SqlExpr> args = new ArrayList<>();
+        args.add(scalar(mapBody, (v, name) -> resolveOrThrow(base, name)));
+        args.addAll(extra);
+        return new SqlAgg.Reducer(fn, args, false);
     }
 
     /**
@@ -290,7 +313,8 @@ public final class Lowerer {
      * a plain-projection or star select stays flat.
      */
     private SqlSelect extendWith(SqlSelect src, List<TypedFuncCol> columns,
-                                 com.legend.compiler.spec.ExprType info, boolean append) {
+                                 com.legend.compiler.spec.ExprType info, boolean append,
+                                 boolean isolated) {
         SqlSelect base = (append ? Fold.extendFolds(src) : Fold.projectionFolds(src))
                 ? src : isolate(src);
         List<SqlSelect.Projection> ps = new ArrayList<>();
@@ -306,7 +330,12 @@ public final class Lowerer {
             try {
                 e = scalar(last(c.fn()), (v, name) -> resolveOrThrow(base, name));
             } catch (UnfoldableRef ref) {
-                return extendWith(isolate(base), columns, info, append);
+                if (isolated) {
+                    throw new IllegalStateException("extend/project column '" + c.name()
+                            + "' references '" + ref.getMessage()
+                            + "', unresolvable even after isolation");
+                }
+                return extendWith(isolate(base), columns, info, append, true);
             }
             ps.add(new SqlSelect.Projection(e, c.name()));
         }
@@ -318,18 +347,23 @@ public final class Lowerer {
         boolean windowRef = false;
         SqlExpr predicate = tryPredicate(src, f.predicate());
         if (predicate == null && src.groupBy().isEmpty()) {
-            // Window-aware fallback: refs to window-column aliases substitute
-            // the WindowCall itself — QUALIFY admits window expressions.
-            boolean[] saw = {false};
-            SqlExpr viaProjections = tryWindowPredicate(src, f.predicate(), saw);
-            if (viaProjections != null && saw[0]) {
-                predicate = viaProjections;
+            // Window-aware path: refs to window-column aliases substitute the
+            // WindowCall itself — QUALIFY admits window expressions.
+            WindowPredicate viaProjections = tryWindowPredicate(src, f.predicate());
+            if (viaProjections != null && viaProjections.sawWindow()) {
+                predicate = viaProjections.expr();
                 windowRef = true;
             }
         }
         if (predicate == null) {
             src = isolate(src);
             predicate = tryPredicate(src, f.predicate());
+        }
+        if (predicate == null) {
+            // Isolation is idempotent for resolution — a second failure will
+            // never succeed. LOUD, never a silently dropped filter.
+            throw new IllegalStateException("filter predicate references a column"
+                    + " that cannot be resolved even after isolation");
         }
         Fold.FilterSlot slot = Fold.filterSlot(src, windowRef);
         if (slot == Fold.FilterSlot.ISOLATE) {
@@ -365,16 +399,21 @@ public final class Lowerer {
         }
     }
 
-    /** Resolve refs via projections, flagging any that substitute a window call. */
-    private SqlExpr tryWindowPredicate(SqlSelect select, TypedLambda lambda, boolean[] sawWindow) {
+    private record WindowPredicate(SqlExpr expr, boolean sawWindow) {
+    }
+
+    /** Resolve refs via projections, noting whether any substituted a window call. */
+    private WindowPredicate tryWindowPredicate(SqlSelect select, TypedLambda lambda) {
+        var saw = new java.util.concurrent.atomic.AtomicBoolean();
         try {
-            return scalar(last(lambda), (v, name) -> {
-                SqlExpr e = projectionExprOrThrow(select, name);
-                if (e instanceof SqlExpr.WindowCall) {
-                    sawWindow[0] = true;
+            SqlExpr e = scalar(last(lambda), (v, name) -> {
+                SqlExpr resolved = projectionExprOrThrow(select, name);
+                if (resolved instanceof SqlExpr.WindowCall) {
+                    saw.set(true);
                 }
-                return e;
+                return resolved;
             });
+            return new WindowPredicate(e, saw.get());
         } catch (UnfoldableRef e) {
             return null;
         }
@@ -422,9 +461,21 @@ public final class Lowerer {
         };
     }
 
+    /**
+     * The resolve-or-fold SIGNAL (not an error): thrown per unresolvable
+     * reference and caught at exactly three sites, each of which either
+     * isolates ONCE or fails loudly. Stack traces are suppressed — this is
+     * control flow in a hot path, pending the sealed-Resolution redesign
+     * (docs/DESIGN_DEBT.md).
+     */
     private static final class UnfoldableRef extends RuntimeException {
         UnfoldableRef(String column) {
             super(column);
+        }
+
+        @Override
+        public synchronized Throwable fillInStackTrace() {
+            return this;
         }
     }
 
@@ -436,11 +487,21 @@ public final class Lowerer {
             base = isolate(base);
         }
         List<SqlSelect.Projection> ps = new ArrayList<>(columns.size());
-        for (String c : columns) {
+        boolean isolatedOnce = false;
+        for (int i = 0; i < columns.size(); i++) {
+            String c = columns.get(i);
             SqlExpr e = Fold.resolveInto(base, c);
             if (e == null) {
+                if (isolatedOnce) {
+                    // Isolation is idempotent for resolution: fail LOUDLY.
+                    throw new IllegalStateException("column '" + c
+                            + "' cannot be resolved even after isolation");
+                }
                 base = isolate(base);
-                return narrowTo(base, columns, distinct, info);
+                isolatedOnce = true;
+                ps.clear();
+                i = -1; // restart against the isolated select
+                continue;
             }
             ps.add(new SqlSelect.Projection(e,
                     e instanceof SqlExpr.Column col && col.name().equals(c) ? null : c));
@@ -482,6 +543,10 @@ public final class Lowerer {
                 }
             }
             SqlExpr e = Fold.resolveInto(base, c.name());
+            if (e == null) {
+                throw new IllegalStateException("rename source column '" + c.name()
+                        + "' cannot be resolved after isolation");
+            }
             ps.add(new SqlSelect.Projection(e, target.equals(
                     e instanceof SqlExpr.Column col ? col.name() : null) ? null : target));
         }
@@ -506,8 +571,12 @@ public final class Lowerer {
     private SqlSelect sortOnto(SqlSelect base, TypedSort s) {
         List<SqlSelect.SortKey> keys = new ArrayList<>(s.keys().size());
         for (TypedSort.TypedSortKey k : s.keys()) {
-            keys.add(new SqlSelect.SortKey(
-                    Fold.sourceColumn(base.from(), k.column()), k.ascending(), null));
+            SqlExpr.Column e = Fold.sourceColumn(base.from(), k.column());
+            if (e == null) {
+                throw new IllegalStateException("sort key '" + k.column()
+                        + "' cannot be resolved after isolation");
+            }
+            keys.add(new SqlSelect.SortKey(e, k.ascending(), null));
         }
         return base.withOrderBy(keys);
     }
@@ -779,11 +848,17 @@ public final class Lowerer {
         }
     }
 
-    /** Literal Integer args (ntile n, lag/lead offset) ride along. */
+    /**
+     * Literal Integer args (ntile n, lag/lead offset) ride along; variable
+     * refs are the window params; anything else is LOUD, never dropped.
+     */
     private static void trailingIntArgs(TypedNativeCall call, List<SqlExpr> args) {
         for (TypedSpec a : call.args()) {
             if (a instanceof TypedCInteger c) {
                 args.add(new SqlExpr.IntLit(c.value().longValue()));
+            } else if (!(a instanceof TypedVariable)) {
+                throw new IllegalStateException("window function argument of kind "
+                        + a.getClass().getSimpleName() + " is not supported (literals only)");
             }
         }
     }
@@ -905,8 +980,8 @@ public final class Lowerer {
         for (Type.Column c : schema.columns()) {
             SqlExpr col = Fold.resolveInto(base, c.name());
             if (col == null) {
-                return flatten(new com.legend.compiler.spec.typed.TypedFlatten(
-                        isolatedCopySource(fl), fl.column(), fl.info()));
+                throw new IllegalStateException("flatten source column '" + c.name()
+                        + "' cannot be resolved (unresolvable projection)");
             }
             if (c.name().equals(fl.column())) {
                 SqlExpr list = c.type() instanceof Type.ClassType
@@ -919,10 +994,6 @@ public final class Lowerer {
             }
         }
         return base.withProjections(ps, outputsOf(fl.info()));
-    }
-
-    private TypedSpec isolatedCopySource(com.legend.compiler.spec.typed.TypedFlatten fl) {
-        throw new IllegalStateException("flatten over an unresolvable projection");
     }
 
     /**
