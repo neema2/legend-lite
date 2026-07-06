@@ -33,6 +33,11 @@ final class Aggregates {
         family("MIN", "min");
         family("MAX", "max");
         family("STDDEV_SAMP", "stdDevSample");
+        family("STDDEV_SAMP", "stdDev");
+        family("COUNT", "size");
+        // joinStrings carries its separator as an EXTRA reduce-call argument
+        // (handled in the lowering's aggExpr).
+        family("STRING_AGG", "joinStrings");
         family("STDDEV_POP", "stdDevPopulation");
         family("VAR_SAMP", "varianceSample");
         family("VAR_POP", "variancePopulation");

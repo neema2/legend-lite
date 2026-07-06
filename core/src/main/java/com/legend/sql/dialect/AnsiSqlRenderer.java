@@ -287,6 +287,74 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case COALESCE -> fn("coalesce", a);
             case GREATEST -> fn("greatest", a);
             case LEAST -> fn("least", a);
+            // Math — ANSI/portable spellings; ROUND is banker's (dialect maps).
+            case SQRT -> fn("sqrt", a);
+            case CBRT -> fn("cbrt", a);
+            case EXP -> fn("exp", a);
+            case LN -> fn("ln", a);
+            case LOG10 -> fn("log10", a);
+            case POW -> fn("power", a);
+            case PI -> "pi()";
+            case SIN -> fn("sin", a);
+            case COS -> fn("cos", a);
+            case TAN -> fn("tan", a);
+            case ASIN -> fn("asin", a);
+            case ACOS -> fn("acos", a);
+            case ATAN -> fn("atan", a);
+            case ATAN2 -> fn("atan2", a);
+            case SINH -> fn("sinh", a);
+            case COSH -> fn("cosh", a);
+            case TANH -> fn("tanh", a);
+            case CEILING -> "CAST(ceil(" + expr(a.get(0), 0) + ") AS BIGINT)";
+            case FLOOR -> "CAST(floor(" + expr(a.get(0), 0) + ") AS BIGINT)";
+            case ROUND -> roundHalfEven(a);
+            case SIGN -> "CAST(sign(" + expr(a.get(0), 0) + ") AS BIGINT)";
+            case XOR -> {
+                String x = expr(a.get(0), 3);
+                String y = expr(a.get(1), 3);
+                yield "(" + x + " AND NOT " + y + ") OR (NOT " + x + " AND " + y + ")";
+            }
+            case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(c.fn(), a);
+            // Strings
+            case SUBSTRING -> fn("substr", a);
+            case STRPOS -> fn("strpos", a);
+            case STARTS_WITH -> fn("starts_with", a);
+            case ENDS_WITH -> fn("ends_with", a);
+            case MATCHES -> fn("regexp_matches", a);
+            case LEFT -> fn("left", a);
+            case RIGHT -> fn("right", a);
+            case LPAD -> fn("lpad", a);
+            case RPAD -> fn("rpad", a);
+            case TRIM -> fn("trim", a);
+            case LTRIM -> fn("ltrim", a);
+            case RTRIM -> fn("rtrim", a);
+            case REPLACE -> fn("replace", a);
+            case SPLIT -> fn("string_split", a);
+            case SPLIT_PART -> fn("split_part", a);
+            case REVERSE_STRING -> fn("reverse", a);
+            case ASCII_CODE -> fn("ascii", a);
+            case CHR -> fn("chr", a);
+            case UC_FIRST -> "upper(substr(" + expr(a.get(0), 0) + ", 1, 1)) || substr("
+                    + expr(a.get(0), 0) + ", 2)";
+            case LC_FIRST -> "lower(substr(" + expr(a.get(0), 0) + ", 1, 1)) || substr("
+                    + expr(a.get(0), 0) + ", 2)";
+            case ENCODE_BASE64 -> fn("to_base64", a);
+            case LEVENSHTEIN -> fn("levenshtein", a);
+            case GUID -> "uuid()";
+            case FORMAT -> fn("printf", a);
+            case HASH -> fn("hash", a);
+            // Temporal
+            case EXTRACT -> fn("date_part", a);
+            case TODAY -> "current_date";
+            case NOW -> "now()";
+            case DATE_TRUNC_DAY -> "CAST(" + expr(a.get(0), 0) + " AS DATE)";
+            case MAKE_DATE -> fn("make_date", a);
+            case MAKE_TIMESTAMP -> fn("make_timestamp", a);
+            // Lists (dialect-owned; base throws like the lambda family)
+            case LIST_ZIP, LIST_DISTINCT, LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX,
+                 LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_TAIL, LIST_INIT, RANGE_FN ->
+                    listCall(c.fn(), a);
+            case TO_VARIANT -> variantConstruct(a);
             // Idiom points — no ANSI spelling; the dialect decides or dies.
             case UNNEST -> unnestProjection(a);
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_CONTAINS, LIST_GET ->
@@ -299,6 +367,20 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     }
 
     // ---- idiom extension points (base = capability statement, loud) ----
+
+    /** Pure ROUND is HALF-EVEN (banker's) — every dialect must honor it. */
+    protected String roundHalfEven(List<SqlExpr> a) {
+        throw new IllegalStateException("banker's ROUND reached a dialect without a spelling");
+    }
+
+    protected String bitOp(SqlFn fnName, List<SqlExpr> a) {
+        throw new IllegalStateException(fnName + " reached a dialect without bit-op support");
+    }
+
+    /** Construct a variant (JSON) value from any value. */
+    protected String variantConstruct(List<SqlExpr> a) {
+        throw new IllegalStateException("toVariant reached a dialect without JSON support");
+    }
 
     /** Fold with PURE (element, accumulator) lambda; the encoding is the dialect's. */
     protected String foldCall(SqlExpr.FoldCall f) {
@@ -460,12 +542,26 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return es.stream().map(e -> expr(e, 0)).collect(Collectors.joining(", "));
     }
 
-    /** A subquery rendered inline (EXISTS / scalar position): single line. */
+    /**
+     * A subquery rendered inline (EXISTS / scalar position): SINGLE-LINE mode
+     * — {@link #nl} emits a space instead of a newline while set. Structural,
+     * never text post-processing (collapsing rendered text would corrupt
+     * whitespace inside string LITERALS).
+     */
     protected String inline(SqlQuery q) {
-        StringBuilder sb = new StringBuilder();
-        query(sb, q, 0);
-        return sb.toString().replace("\n", " ").replaceAll(" +", " ");
+        boolean previous = inlineMode;
+        inlineMode = true;
+        try {
+            StringBuilder sb = new StringBuilder();
+            query(sb, q, 0);
+            return sb.toString();
+        } finally {
+            inlineMode = previous;
+        }
     }
+
+    /** When set, clause separators render as single spaces (see {@link #inline}). */
+    private boolean inlineMode;
 
     /** Quote ONLY when necessary (the lean tenet), per this dialect's rules. */
     protected String ident(String name) {
@@ -476,7 +572,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return q + name.replace(String.valueOf(q), String.valueOf(q) + q) + q;
     }
 
-    protected static StringBuilder nl(StringBuilder sb, int depth) {
-        return sb.append("\n").append("  ".repeat(depth));
+    protected StringBuilder nl(StringBuilder sb, int depth) {
+        return inlineMode ? sb.append(" ")
+                : sb.append("\n").append("  ".repeat(depth));
     }
 }

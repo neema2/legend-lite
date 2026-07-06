@@ -28,6 +28,23 @@ public enum SqlFn {
     // UNNEST: explode a collection into rows; PLACEMENT (select-list vs
     // LATERAL FROM) is dialect assembly.
     UNNEST,
+    // Math (ROUND is HALF-EVEN — Pure's banker's rounding — per the contract)
+    SQRT, CBRT, EXP, LN, LOG10, POW, PI,
+    SIN, COS, TAN, ASIN, ACOS, ATAN, ATAN2, SINH, COSH, TANH,
+    CEILING, FLOOR, ROUND, SIGN, XOR,
+    BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT,
+    // Strings (SUBSTRING/STRPOS are 1-based SQL; frontends shift at lowering)
+    SUBSTRING, STRPOS, STARTS_WITH, ENDS_WITH, MATCHES, LEFT, RIGHT,
+    LPAD, RPAD, TRIM, LTRIM, RTRIM, REPLACE, SPLIT, SPLIT_PART,
+    REVERSE_STRING, ASCII_CODE, CHR, UC_FIRST, LC_FIRST,
+    ENCODE_BASE64, LEVENSHTEIN, GUID, FORMAT, HASH,
+    // Temporal: EXTRACT takes a part-name literal first (one entry, all parts)
+    EXTRACT, TODAY, NOW, DATE_TRUNC_DAY, MAKE_DATE, MAKE_TIMESTAMP,
+    // Lists (beyond the lambda family)
+    LIST_ZIP, LIST_DISTINCT, LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX,
+    LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_TAIL, LIST_INIT, RANGE_FN,
+    // Variant construction
+    TO_VARIANT,
     // Variant navigation: logical JSON access; text-extraction idioms are rendering
     VARIANT_ELEMENTS, VARIANT_GET
 }

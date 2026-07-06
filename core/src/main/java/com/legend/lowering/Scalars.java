@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 
 /**
@@ -35,7 +36,7 @@ final class Scalars {
     }
 
     /** Register every catalog overload of {@code pureName} under one semantic entry. */
-    private static void family(com.legend.sql.SqlFn semantic, String pureName) {
+    private static void family(SqlFn semantic, String pureName) {
         List<? extends Function> overloads = Pure.nativeFunctionsAt(pureName);
         if (overloads.isEmpty()) {
             throw new IllegalStateException("no catalog overloads for '" + pureName + "'");
@@ -46,27 +47,27 @@ final class Scalars {
     }
 
     static {
-        family(com.legend.sql.SqlFn.EQUAL, "equal");
-        family(com.legend.sql.SqlFn.NOT_EQUAL, "notEqual");
-        family(com.legend.sql.SqlFn.LESS, "lessThan");
-        family(com.legend.sql.SqlFn.LESS_EQUAL, "lessThanEqual");
-        family(com.legend.sql.SqlFn.GREATER, "greaterThan");
-        family(com.legend.sql.SqlFn.GREATER_EQUAL, "greaterThanEqual");
-        family(com.legend.sql.SqlFn.AND, "and");
-        family(com.legend.sql.SqlFn.OR, "or");
-        family(com.legend.sql.SqlFn.NOT, "not");
-        family(com.legend.sql.SqlFn.PLUS, "plus");
-        family(com.legend.sql.SqlFn.MINUS, "minus");
-        family(com.legend.sql.SqlFn.TIMES, "times");
-        family(com.legend.sql.SqlFn.DIVIDE, "divide");
-        family(com.legend.sql.SqlFn.MOD, "mod");
-        family(com.legend.sql.SqlFn.REM, "rem");
-        family(com.legend.sql.SqlFn.ABS, "abs");
-        family(com.legend.sql.SqlFn.IS_NULL, "isEmpty");
-        family(com.legend.sql.SqlFn.IS_NOT_NULL, "isNotEmpty");
-        family(com.legend.sql.SqlFn.LENGTH, "length");
-        family(com.legend.sql.SqlFn.UPPER, "toUpper");
-        family(com.legend.sql.SqlFn.LOWER, "toLower");
+        family(SqlFn.EQUAL, "equal");
+        family(SqlFn.NOT_EQUAL, "notEqual");
+        family(SqlFn.LESS, "lessThan");
+        family(SqlFn.LESS_EQUAL, "lessThanEqual");
+        family(SqlFn.GREATER, "greaterThan");
+        family(SqlFn.GREATER_EQUAL, "greaterThanEqual");
+        family(SqlFn.AND, "and");
+        family(SqlFn.OR, "or");
+        family(SqlFn.NOT, "not");
+        family(SqlFn.PLUS, "plus");
+        family(SqlFn.MINUS, "minus");
+        family(SqlFn.TIMES, "times");
+        family(SqlFn.DIVIDE, "divide");
+        family(SqlFn.MOD, "mod");
+        family(SqlFn.REM, "rem");
+        family(SqlFn.ABS, "abs");
+        family(SqlFn.IS_NULL, "isEmpty");
+        family(SqlFn.IS_NOT_NULL, "isNotEmpty");
+        family(SqlFn.LENGTH, "length");
+        family(SqlFn.UPPER, "toUpper");
+        family(SqlFn.LOWER, "toLower");
 
         // toOne erases in SQL (MUST-honor: multiplicity narrowing is a no-op value-wise).
         for (Function f : Pure.nativeFunctionsAt("toOne")) {
@@ -77,8 +78,156 @@ final class Scalars {
         // CONTRACT includes Pure's empty-collection semantics (exists([]) =
         // false, forAll([]) = true) — every dialect's expansion must honor
         // them (DuckDB: coalesce over list_bool_* lambdas).
-        family(com.legend.sql.SqlFn.LIST_EXISTS, "exists");
-        family(com.legend.sql.SqlFn.LIST_FOR_ALL, "forAll");
+        family(SqlFn.LIST_EXISTS, "exists");
+        family(SqlFn.LIST_FOR_ALL, "forAll");
+
+        // ---- the registration grind (corpus-driven; MUST-honor templates) ----
+        // Math (ROUND is banker's per the semantics contract).
+        for (var e : Map.ofEntries(
+                Map.entry("sqrt", SqlFn.SQRT), Map.entry("cbrt", SqlFn.CBRT),
+                Map.entry("exp", SqlFn.EXP), Map.entry("log", SqlFn.LN),
+                Map.entry("log10", SqlFn.LOG10), Map.entry("pow", SqlFn.POW),
+                Map.entry("pi", SqlFn.PI),
+                Map.entry("sin", SqlFn.SIN), Map.entry("cos", SqlFn.COS),
+                Map.entry("tan", SqlFn.TAN), Map.entry("asin", SqlFn.ASIN),
+                Map.entry("acos", SqlFn.ACOS), Map.entry("atan", SqlFn.ATAN),
+                Map.entry("atan2", SqlFn.ATAN2), Map.entry("sinh", SqlFn.SINH),
+                Map.entry("cosh", SqlFn.COSH), Map.entry("tanh", SqlFn.TANH),
+                Map.entry("ceiling", SqlFn.CEILING), Map.entry("floor", SqlFn.FLOOR),
+                Map.entry("round", SqlFn.ROUND), Map.entry("sign", SqlFn.SIGN),
+                Map.entry("xor", SqlFn.XOR),
+                Map.entry("bitAnd", SqlFn.BIT_AND), Map.entry("bitOr", SqlFn.BIT_OR),
+                Map.entry("bitXor", SqlFn.BIT_XOR),
+                Map.entry("bitShiftLeft", SqlFn.BIT_SHIFT_LEFT),
+                Map.entry("bitShiftRight", SqlFn.BIT_SHIFT_RIGHT),
+                // Strings — plain families first; index-shifted below.
+                Map.entry("startsWith", SqlFn.STARTS_WITH),
+                Map.entry("endsWith", SqlFn.ENDS_WITH),
+                Map.entry("matches", SqlFn.MATCHES),
+                Map.entry("left", SqlFn.LEFT), Map.entry("right", SqlFn.RIGHT),
+                Map.entry("lpad", SqlFn.LPAD), Map.entry("rpad", SqlFn.RPAD),
+                Map.entry("trim", SqlFn.TRIM), Map.entry("ltrim", SqlFn.LTRIM),
+                Map.entry("rtrim", SqlFn.RTRIM), Map.entry("replace", SqlFn.REPLACE),
+                Map.entry("split", SqlFn.SPLIT),
+                Map.entry("reverseString", SqlFn.REVERSE_STRING),
+                Map.entry("ascii", SqlFn.ASCII_CODE), Map.entry("char", SqlFn.CHR),
+                Map.entry("toUpperFirstCharacter", SqlFn.UC_FIRST),
+                Map.entry("toLowerFirstCharacter", SqlFn.LC_FIRST),
+                Map.entry("encodeBase64", SqlFn.ENCODE_BASE64),
+                Map.entry("levenshteinDistance", SqlFn.LEVENSHTEIN),
+                Map.entry("generateGuid", SqlFn.GUID),
+                Map.entry("hash", SqlFn.HASH), Map.entry("hashCode", SqlFn.HASH),
+                Map.entry("coalesce", SqlFn.COALESCE),
+                Map.entry("greatest", SqlFn.GREATEST),
+                Map.entry("least", SqlFn.LEAST),
+                // Temporal
+                Map.entry("today", SqlFn.TODAY), Map.entry("now", SqlFn.NOW),
+                Map.entry("datePart", SqlFn.DATE_TRUNC_DAY),
+                // Lists / collections
+                Map.entry("zip", SqlFn.LIST_ZIP),
+                Map.entry("removeDuplicates", SqlFn.LIST_DISTINCT),
+                Map.entry("add", SqlFn.LIST_APPEND),
+                Map.entry("mean", SqlFn.LIST_AVG),
+                Map.entry("average", SqlFn.LIST_AVG),
+                Map.entry("median", SqlFn.LIST_MEDIAN),
+                Map.entry("mode", SqlFn.LIST_MODE),
+                Map.entry("tail", SqlFn.LIST_TAIL),
+                Map.entry("init", SqlFn.LIST_INIT),
+                Map.entry("range", SqlFn.RANGE_FN),
+                Map.entry("toVariant", SqlFn.TO_VARIANT)).entrySet()) {
+            familyIfPresent(e.getValue(), e.getKey());
+        }
+        // Temporal EXTRACT parts: one SqlFn entry, part-name literal first.
+        for (var e : Map.of(
+                "year", "year", "monthNumber", "month", "dayOfMonth", "day",
+                "hour", "hour", "minute", "minute", "second", "second").entrySet()) {
+            for (Function f : Pure.nativeFunctionsAt(e.getKey())) {
+                RULES.put(f, (n, args) -> {
+                    List<SqlExpr> withPart = new ArrayList<>();
+                    withPart.add(new SqlExpr.StringLit(e.getValue()));
+                    withPart.addAll(args);
+                    return new SqlExpr.Call(SqlFn.EXTRACT, withPart);
+                });
+            }
+        }
+        // Collection min/max/sum: 1-arg = over a LIST; 2-arg = least/greatest.
+        for (Function f : Pure.nativeFunctionsAt("min")) {
+            RULES.put(f, (n, args) -> args.size() == 1
+                    ? new SqlExpr.Call(SqlFn.LIST_MIN, args) : new SqlExpr.Call(SqlFn.LEAST, args));
+        }
+        for (Function f : Pure.nativeFunctionsAt("max")) {
+            RULES.put(f, (n, args) -> args.size() == 1
+                    ? new SqlExpr.Call(SqlFn.LIST_MAX, args) : new SqlExpr.Call(SqlFn.GREATEST, args));
+        }
+        for (Function f : Pure.nativeFunctionsAt("sum")) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_SUM, args));
+        }
+        for (Function f : Pure.nativeFunctionsAt("first")) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_GET,
+                    List.of(args.get(0), new SqlExpr.IntLit(1))));
+        }
+        for (Function f : Pure.nativeFunctionsAt("head")) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_GET,
+                    List.of(args.get(0), new SqlExpr.IntLit(1))));
+        }
+        // 0-based Pure -> 1-based SQL shifts (the semantics contract).
+        for (Function f : Pure.nativeFunctionsAt("substring")) {
+            RULES.put(f, (n, args) -> {
+                List<SqlExpr> shifted = new ArrayList<>(args);
+                shifted.set(1, plusOne(args.get(1)));
+                return new SqlExpr.Call(SqlFn.SUBSTRING, shifted);
+            });
+        }
+        for (Function f : Pure.nativeFunctionsAt("indexOf")) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.MINUS, List.of(
+                    new SqlExpr.Call(SqlFn.STRPOS, args), new SqlExpr.IntLit(1))));
+        }
+        for (Function f : Pure.nativeFunctionsAt("at")) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_GET,
+                    List.of(args.get(0), plusOne(args.get(1)))));
+        }
+        for (Function f : Pure.nativeFunctionsAt("splitPart")) {
+            RULES.put(f, (n, args) -> {
+                List<SqlExpr> shifted = new ArrayList<>(args);
+                shifted.set(2, plusOne(args.get(2)));
+                return new SqlExpr.Call(SqlFn.SPLIT_PART, shifted);
+            });
+        }
+        // contains on STRINGS: strpos > 0 (list contains stays LIST_CONTAINS
+        // by overload identity — register string overloads specifically).
+        for (Function f : Pure.nativeFunctionsAt("contains")) {
+            RULES.put(f, (n, args) ->
+                    n.args().get(0).info().type() == Type.Primitive.STRING
+                            ? new SqlExpr.Call(SqlFn.GREATER, List.of(
+                                    new SqlExpr.Call(SqlFn.STRPOS, args), new SqlExpr.IntLit(0)))
+                            : new SqlExpr.Call(SqlFn.LIST_CONTAINS, args));
+        }
+        // format('%s...', [args]) -> printf(fmt, args...): the array spreads.
+        for (Function f : Pure.nativeFunctionsAt("format")) {
+            RULES.put(f, (n, args) -> {
+                List<SqlExpr> spread = new ArrayList<>();
+                spread.add(args.get(0));
+                if (args.get(1) instanceof SqlExpr.ArrayLit arr) {
+                    spread.addAll(arr.elements());
+                } else {
+                    spread.add(args.get(1));
+                }
+                return new SqlExpr.Call(SqlFn.FORMAT, spread);
+            });
+        }
+        // Parses and toString are CASTS (the Type rides the IR).
+        castFamily("toString", Type.Primitive.STRING);
+        castFamily("parseInteger", Type.Primitive.INTEGER);
+        castFamily("parseFloat", Type.Primitive.FLOAT);
+        castFamily("toFloat", Type.Primitive.FLOAT);
+        castFamily("parseDecimal", Type.Primitive.DECIMAL);
+        castFamily("parseBoolean", Type.Primitive.BOOLEAN);
+        castFamily("parseDate", Type.Primitive.DATE_TIME);
+        // date(y,m,d[,h,mi,s]) constructors.
+        for (Function f : Pure.nativeFunctionsAt("date")) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(
+                    args.size() <= 3 ? SqlFn.MAKE_DATE : SqlFn.MAKE_TIMESTAMP, args));
+        }
 
         // Overload-specific overrides — the resolved signature IS the decision.
         RULES.put(Pure.PLUS__STRING_1__STRING_1, (n, args) -> new SqlExpr.Call(SqlFn.CONCAT, args));
@@ -92,6 +241,41 @@ final class Scalars {
             }
             return new SqlExpr.Call(SqlFn.IN, flat);
         });
+    }
+
+    /**
+     * Names known to be ABSENT from our catalog (engine-only or not yet
+     * signed). Anything else missing at registration is a TYPO and dies.
+     */
+    private static final Set<String> KNOWN_ABSENT = Set.of(
+            "cbrt", "log10", "atan2", "sinh", "cosh", "tanh", "ascii", "char",
+            "encodeBase64", "levenshteinDistance", "generateGuid", "hashCode",
+            "toUpperFirstCharacter", "toLowerFirstCharacter", "matches",
+            "lpad", "rpad", "ltrim", "rtrim", "reverseString", "splitPart",
+            "left", "right", "mode", "median", "mean", "datePart", "today",
+            "now", "hash", "zip", "toVariant", "split", "xor",
+            "bitAnd", "bitOr", "bitXor", "bitShiftLeft", "bitShiftRight");
+
+    private static void familyIfPresent(SqlFn semantic, String pureName) {
+        if (!Pure.nativeFunctionsAt(pureName).isEmpty()) {
+            family(semantic, pureName);
+        } else if (!KNOWN_ABSENT.contains(pureName)) {
+            throw new IllegalStateException("registration typo: no catalog overloads for '"
+                    + pureName + "' and it is not in KNOWN_ABSENT");
+        }
+    }
+
+    private static void castFamily(String pureName, Type target) {
+        for (Function f : Pure.nativeFunctionsAt(pureName)) {
+            RULES.put(f, (n, args) -> new SqlExpr.Cast(args.get(0), PureSql.type(target), false));
+        }
+    }
+
+    /** {@code i + 1} — constant-folded for literals (the common case). */
+    private static SqlExpr plusOne(SqlExpr e) {
+        return e instanceof SqlExpr.IntLit i
+                ? new SqlExpr.IntLit(i.value() + 1)
+                : new SqlExpr.Call(SqlFn.PLUS, List.of(e, new SqlExpr.IntLit(1)));
     }
 
     /** The lowering for {@code call}'s resolved overload; loud error when unregistered. */
@@ -126,6 +310,10 @@ final class Scalars {
         if (type == Type.Primitive.DATE_TIME || type == Type.Primitive.DATE) {
             return new SqlExpr.TimestampLit(cell.startsWith("%") ? cell.substring(1) : cell);
         }
-        return new SqlExpr.StringLit(cell);
+        if (type == Type.Primitive.STRING) {
+            return new SqlExpr.StringLit(cell);
+        }
+        throw new IllegalStateException(
+                "no TDS cell rendering for Pure type " + type.typeName());
     }
 }

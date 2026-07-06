@@ -112,17 +112,52 @@ public final class DuckDb extends AnsiSqlRenderer {
         return fn("list_reduce", List.of(wrapped, swapped, f.init()));
     }
 
-    /** Replace bare refs to {@code elem} with {@code LIST_GET(elem, 1)}. */
+    /**
+     * Replace bare refs to {@code elem} with {@code LIST_GET(elem, 1)} —
+     * EXHAUSTIVE over the expression tree (a ref nested under a cast, case,
+     * array, or inner lambda must unwrap too; javac keeps this honest).
+     */
     private SqlExpr unwrapElemRefs(SqlExpr e, String elem) {
-        if (e instanceof SqlExpr.Column c && c.table() == null && elem.equals(c.name())) {
-            return SqlExpr.Call.of(SqlFn.LIST_GET,
-                    new SqlExpr.Column(null, elem), new SqlExpr.IntLit(1));
-        }
-        if (e instanceof SqlExpr.Call call) {
-            return new SqlExpr.Call(call.fn(),
+        return switch (e) {
+            case SqlExpr.Column c when c.table() == null && elem.equals(c.name()) ->
+                    SqlExpr.Call.of(SqlFn.LIST_GET,
+                            new SqlExpr.Column(null, elem), new SqlExpr.IntLit(1));
+            case SqlExpr.Column c -> c;
+            case SqlExpr.Call call -> new SqlExpr.Call(call.fn(),
                     call.args().stream().map(x -> unwrapElemRefs(x, elem)).toList());
-        }
-        return e;
+            case SqlExpr.Cast c -> new SqlExpr.Cast(unwrapElemRefs(c.value(), elem),
+                    c.target(), c.array());
+            case SqlExpr.ArrayLit a -> new SqlExpr.ArrayLit(
+                    a.elements().stream().map(x -> unwrapElemRefs(x, elem)).toList());
+            case SqlExpr.Case cs -> new SqlExpr.Case(
+                    cs.whens().stream().map(w -> new SqlExpr.Case.When(
+                            unwrapElemRefs(w.condition(), elem),
+                            unwrapElemRefs(w.then(), elem))).toList(),
+                    cs.otherwise() == null ? null : unwrapElemRefs(cs.otherwise(), elem));
+            case SqlExpr.Lambda l -> l.params().contains(elem)
+                    ? l   // inner lambda shadows the element name
+                    : new SqlExpr.Lambda(l.params(), unwrapElemRefs(l.body(), elem));
+            case SqlExpr.FoldCall f -> new SqlExpr.FoldCall(
+                    unwrapElemRefs(f.source(), elem),
+                    f.lambda().params().contains(elem) ? f.lambda()
+                            : new SqlExpr.Lambda(f.lambda().params(),
+                                    unwrapElemRefs(f.lambda().body(), elem)),
+                    unwrapElemRefs(f.init(), elem), f.accIsList(), f.homogeneous());
+            // Leaves and structures that cannot contain the element ref:
+            case SqlExpr.Star st -> st;
+            case SqlExpr.StringLit v -> v;
+            case SqlExpr.IntLit v -> v;
+            case SqlExpr.FloatLit v -> v;
+            case SqlExpr.DecimalLit v -> v;
+            case SqlExpr.BoolLit v -> v;
+            case SqlExpr.NullLit v -> v;
+            case SqlExpr.DateLit v -> v;
+            case SqlExpr.TimestampLit v -> v;
+            case SqlExpr.Exists x -> x;
+            case SqlExpr.ScalarSubquery x -> x;
+            case SqlExpr.WindowCall w -> w;
+            case com.legend.sql.SqlAgg.Reducer r -> r;
+        };
     }
 
     /** Pure semantics ride the expansion: exists([])=false, forAll([])=true. */
@@ -141,8 +176,44 @@ public final class DuckDb extends AnsiSqlRenderer {
             case LIST_CONCAT -> fn("list_concat", args);
             case LIST_CONTAINS -> fn("list_contains", args);
             case LIST_GET -> fn("list_extract", args);
+            case LIST_ZIP -> fn("list_zip", args);
+            case LIST_DISTINCT -> fn("list_distinct", args);
+            case LIST_APPEND -> fn("list_append", args);
+            case LIST_SUM -> fn("list_sum", args);
+            case LIST_MIN -> fn("list_min", args);
+            case LIST_MAX -> fn("list_max", args);
+            case LIST_AVG -> fn("list_avg", args);
+            case LIST_MEDIAN -> fn("list_median", args);
+            case LIST_MODE -> "list_aggregate(" + expr(args.get(0), 0) + ", 'mode')";
+            case LIST_TAIL -> expr(args.get(0), 8) + "[2:]";
+            case LIST_INIT -> expr(args.get(0), 8) + "[:-2]";
+            case RANGE_FN -> fn("range", args);
             default -> throw new IllegalStateException("not a list call: " + fnName);
         };
+    }
+
+    @Override
+    protected String roundHalfEven(List<SqlExpr> a) {
+        return fn("round_even", a);
+    }
+
+    @Override
+    protected String bitOp(SqlFn fnName, List<SqlExpr> a) {
+        String x = expr(a.get(0), 6);
+        String y = expr(a.get(1), 6);
+        return switch (fnName) {
+            case BIT_AND -> "(" + x + " & " + y + ")";
+            case BIT_OR -> "(" + x + " | " + y + ")";
+            case BIT_XOR -> fn("xor", a);
+            case BIT_SHIFT_LEFT -> "(" + x + " << " + y + ")";
+            case BIT_SHIFT_RIGHT -> "(" + x + " >> " + y + ")";
+            default -> throw new IllegalStateException("not a bit op: " + fnName);
+        };
+    }
+
+    @Override
+    protected String variantConstruct(List<SqlExpr> a) {
+        return fn("to_json", a);
     }
 
     /** DuckDB explodes select-list unnest into rows — placement idiom. */
