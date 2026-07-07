@@ -110,7 +110,7 @@ public interface TokenStreamCursor {
      * {@link SpecParser}, the IDE shallow scanner, and the inherited
      * type-expression / identifier defaults on this interface.
      */
-    Set<TokenType> IDENTIFIER_TOKENS = EnumSet.of(
+    Set<TokenType> IDENTIFIER_TOKENS = java.util.Collections.unmodifiableSet(EnumSet.of(
             TokenType.VALID_STRING, TokenType.STRING,
             // M3
             TokenType.ALL, TokenType.LET, TokenType.ALL_VERSIONS, TokenType.ALL_VERSIONS_IN_RANGE,
@@ -158,7 +158,7 @@ public interface TokenStreamCursor {
             // Additional
             TokenType.RELATIONAL_DATABASE_CONNECTION,
             TokenType.RELATIONAL_POST_PROCESSORS, TokenType.QUERY_TIMEOUT
-    );
+    ));
 
     // -----------------------------------------------------------------
     // Required accessors. Implementers expose their cursor state.
@@ -391,9 +391,56 @@ public interface TokenStreamCursor {
         if (!isIdentifierToken(peek())) {
             throw error("expected identifier, got " + peek());
         }
-        String name = text();
+        // A QUOTED identifier ('my prop') is admitted by IDENTIFIER_TOKENS;
+        // its NAME is the unquoted, unescaped text — the declared name and
+        // every use site must agree (audit M10: they previously disagreed,
+        // e.g. let 'my var' vs $'my var').
+        String name = peek() == TokenType.STRING
+                ? unquoteAndUnescape(text(), this)
+                : text();
         advance();
         return name;
+    }
+
+    /**
+     * THE quoted-name decoder: strip surrounding single quotes and resolve
+     * escapes. One implementation for every identifier-ish position across
+     * both parsers (audit M11 found EIGHT copies, half of which forgot the
+     * escapes).
+     */
+    static String unquoteAndUnescape(String raw, TokenStreamCursor at) {
+        if (raw.length() < 2 || raw.charAt(0) != '\'' || raw.charAt(raw.length() - 1) != '\'') {
+            throw at.error("malformed quoted name: missing surrounding quotes");
+        }
+        String body = raw.substring(1, raw.length() - 1);
+        if (body.indexOf('\\') < 0) {
+            return body;
+        }
+        StringBuilder sb = new StringBuilder(body.length());
+        int i = 0;
+        while (i < body.length()) {
+            char c = body.charAt(i);
+            if (c != '\\') {
+                sb.append(c);
+                i++;
+                continue;
+            }
+            if (i + 1 >= body.length()) {
+                throw at.error("malformed quoted name: trailing backslash");
+            }
+            char esc = body.charAt(i + 1);
+            switch (esc) {
+                case '\\' -> sb.append('\\');
+                case '\'' -> sb.append('\'');
+                case 'n' -> sb.append('\n');
+                case 't' -> sb.append('\t');
+                case 'r' -> sb.append('\r');
+                default -> throw at.error(
+                        "malformed quoted name: unsupported escape '\\" + esc + "'");
+            }
+            i += 2;
+        }
+        return sb.toString();
     }
 
     // -----------------------------------------------------------------

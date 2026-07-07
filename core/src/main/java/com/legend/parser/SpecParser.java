@@ -843,7 +843,11 @@ public final class SpecParser implements TokenStreamCursor {
         if (!isIdentifierToken(peek())) {
             throw error("expected identifier after '$' to form a variable reference");
         }
-        String name = tokens.text(pos);
+        // $'my var' must reference the SAME name `let 'my var' = ...` bound
+        // (audit M10: the quoted forms previously disagreed).
+        String name = peek() == TokenType.STRING
+                ? TokenStreamCursor.unquoteAndUnescape(tokens.text(pos), this)
+                : tokens.text(pos);
         pos++;
         return new Variable(name);
     }
@@ -2105,18 +2109,24 @@ public final class SpecParser implements TokenStreamCursor {
 
         StringBuilder content = new StringBuilder();
         boolean arrowExit = false;
+        int depth = 0;   // NESTED #{...}# islands stay inside the outer one (audit M8a)
         while (pos < tokens.count()) {
             TokenType t = tokens.type(pos);
-            if (t == TokenType.ISLAND_END) {
-                pos++;
-                break;
-            }
-            if (t == TokenType.ISLAND_ARROW_EXIT) {
+            if (t == TokenType.ISLAND_OPEN) {
+                depth++;
+                content.append(tokens.text(pos));
+            } else if (t == TokenType.ISLAND_END) {
+                if (depth == 0) {
+                    pos++;
+                    break;
+                }
+                depth--;
+                content.append(tokens.text(pos));
+            } else if (t == TokenType.ISLAND_ARROW_EXIT && depth == 0) {
                 pos++;
                 arrowExit = true;
                 break;
-            }
-            if (t == TokenType.ISLAND_BRACE_OPEN) {
+            } else if (t == TokenType.ISLAND_BRACE_OPEN) {
                 content.append('{');
             } else if (t == TokenType.ISLAND_BRACE_CLOSE) {
                 content.append('}');
@@ -2187,13 +2197,20 @@ public final class SpecParser implements TokenStreamCursor {
      * downstream layer dispatch structurally.
      */
     private AppliedFunction parseTableReference(String content) {
-        int lastDot = content.lastIndexOf('.');
-        if (lastDot < 0) {
+        // Split at the FIRST dot after the ::-path: "db::DB.schema.TABLE"
+        // is (db::DB, "schema.TABLE") — lastIndexOf('.') mis-split it into
+        // an FQN with an embedded dot (audit M7). The db part is the
+        // ::-qualified prefix; everything after its first dot is the
+        // (possibly schema-qualified) table name, matching the element
+        // parser's SCHEMA.TABLE folding.
+        int pathEnd = content.lastIndexOf("::");
+        int dot = content.indexOf('.', pathEnd < 0 ? 0 : pathEnd + 2);
+        if (dot < 0) {
             throw error(
                     "table reference must be db.TABLE, got: '" + content + "'");
         }
-        String db = content.substring(0, lastDot);
-        String tableName = content.substring(lastDot + 1);
+        String db = content.substring(0, dot);
+        String tableName = content.substring(dot + 1);
         return new AppliedFunction("tableReference",
                 List.of(new PackageableElementPtr(db), new CString(tableName)));
     }

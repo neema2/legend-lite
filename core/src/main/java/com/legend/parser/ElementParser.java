@@ -967,8 +967,10 @@ public final class ElementParser implements TokenStreamCursor {
                     while (peek() != TokenType.ISLAND_END && !atEnd()) advance();
                     String embText = reconstructText(embStart, pos);
                     if (peek() == TokenType.ISLAND_END) advance();
-                    JsonModelConnection jmc = parseEmbeddedJsonModelConnection(embText);
-                    if (jmc != null) jsonConnections.add(jmc);
+                    // LOUD: an unrecognized embedded connection island was
+                    // silently consumed and DISCARDED (audit H1). Strict
+                    // mode names what it cannot parse.
+                    jsonConnections.add(parseEmbeddedJsonModelConnection(embText));
                 } else {
                     bindings.put(storeName, parseQualifiedName());
                 }
@@ -989,15 +991,23 @@ public final class ElementParser implements TokenStreamCursor {
 
     /**
      * Parse an embedded {@code JsonModelConnection { class: ...; url: '...'; }}
-     * block via regex against its raw source text. Returns {@code null} if the
-     * block doesn't match (engine parity).
+     * block via regex against its raw source text. LOUD on anything else —
+     * only JsonModelConnection islands are supported, and a typo'd one must
+     * not vanish (audit H1; the old null-return silently dropped it).
      */
     private JsonModelConnection parseEmbeddedJsonModelConnection(String raw) {
         raw = raw.trim();
-        if (!raw.startsWith("JsonModelConnection")) return null;
+        if (!raw.startsWith("JsonModelConnection")) {
+            throw error("unsupported embedded connection flavor (only"
+                    + " JsonModelConnection is supported): "
+                    + raw.substring(0, Math.min(40, raw.length())));
+        }
         Matcher cm = JMC_CLASS_PATTERN.matcher(raw);
         Matcher um = JMC_URL_PATTERN.matcher(raw);
-        if (!cm.find() || !um.find()) return null;
+        if (!cm.find() || !um.find()) {
+            throw error("malformed JsonModelConnection (expected class: ...;"
+                    + " url: '...';): " + raw.substring(0, Math.min(60, raw.length())));
+        }
         return new JsonModelConnection(cm.group(1), um.group(1));
     }
 
@@ -1134,7 +1144,16 @@ public final class ElementParser implements TokenStreamCursor {
     }
 
     /** Strip the leading and trailing {@code '} from a {@code STRING} token's raw text. */
-    private static String unquoteString(String raw) {
+    private String unquoteString(String raw) {
+        // Routes through THE shared decoder — this copy previously stripped
+        // quotes but FORGOT escapes (audit M11).
+        if (raw.length() >= 2 && raw.charAt(0) == '\'' && raw.charAt(raw.length() - 1) == '\'') {
+            return TokenStreamCursor.unquoteAndUnescape(raw, this);
+        }
+        return legacyUnquote(raw);
+    }
+
+    private static String legacyUnquote(String raw) {
         if (raw == null || raw.length() < 2) return raw;
         if (raw.charAt(0) == '\'' && raw.charAt(raw.length() - 1) == '\'') {
             return raw.substring(1, raw.length() - 1);

@@ -414,16 +414,19 @@ public final class Lexer {
                 if (sc == ':') { hasColon = true; scanPos++; continue; }
                 if (sc == 'T' || sc == '.') { scanPos++; continue; }
                 if ((sc == '+') && scanPos > pos) { scanPos++; continue; }
+                // 'Z' (UTC suffix) TERMINATES the literal — grammar
+                // TimeZone: 'Z' | (+|-)DDDD. It was previously unlexable
+                // (audit M5) though the date parser fully supports it.
+                if (sc == 'Z' && (scanPos + 1 >= length
+                        || !Character.isLetterOrDigit(source.charAt(scanPos + 1)))) {
+                    scanPos++;
+                    break;
+                }
                 break;
             }
             pos = scanPos;
-            // Timezone: +/- followed by 4 digits
-            if (pos < length && (source.charAt(pos) == '+' || source.charAt(pos) == '-')) {
-                int tzStart = pos; pos++;
-                int d = 0;
-                while (pos < length && source.charAt(pos) >= '0' && source.charAt(pos) <= '9' && d < 4) { pos++; d++; }
-                if (d != 4) pos = tzStart;
-            }
+            // (+/-)DDDD timezones are consumed by the scan loop above; the
+            // old post-loop rescan was dead code (audit M5) and is gone.
             // StrictTime only if colons present but no dashes (e.g. %10:30:00)
             // Everything else (dates, datetimes, year-only, year-month) is DATE
             emit(hasColon && !hasDash ? TokenType.STRICTTIME : TokenType.DATE, start, pos);

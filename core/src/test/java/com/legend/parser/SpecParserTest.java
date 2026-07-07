@@ -639,6 +639,38 @@ final class SpecParserTest {
     }
 
     @Test
+    void quotedNamesDecodeIdenticallyAtBindAndUse() {
+        // audit M10: let 'my var' = ... and $'my var' previously decoded
+        // DIFFERENTLY (one kept its quotes) so the reference could never
+        // resolve. Both route through THE shared decoder now.
+        LambdaFunction lf = (LambdaFunction) SpecParser.parse("|let 'my var' = 5; $'my var';");
+        AppliedFunction let = (AppliedFunction) lf.body().get(0);
+        String bound = ((CString) let.parameters().get(0)).value();
+        String used = ((Variable) lf.body().get(1)).name();
+        assertEquals("my var", bound);
+        assertEquals(bound, used, "bind-site and use-site must decode identically");
+    }
+
+    @Test
+    void utcSuffixDateLiteralLexes() {
+        // audit M5: %2024-01-15T10:30Z was unlexable ('Z' fell out of the
+        // date scan) though the literal parser fully supports it.
+        ValueSpecification vs = SpecParser.parse("%2024-01-15T10:30Z");
+        assertInstanceOf(CDate.class, vs);
+    }
+
+    @Test
+    void schemaQualifiedTableReferenceSplitsAtTheFqnBoundary() {
+        // audit M7: #>{db::DB.schema.T}# mis-split at the LAST dot, yielding
+        // the structurally invalid FQN "db::DB.schema".
+        AppliedFunction tr = (AppliedFunction) SpecParser.parse("#>{db::DB.schema.T}#");
+        assertEquals("tableReference", tr.function());
+        assertEquals("db::DB",
+                ((PackageableElementPtr) tr.parameters().get(0)).fullPath());
+        assertEquals("schema.T", ((CString) tr.parameters().get(1)).value());
+    }
+
+    @Test
     void pipeLambdaStatementSequenceMatchesRealGrammar() {
         // M3ParserGrammar.g4: codeBlock: programLine (';' (programLine ';')*)?
         // First statement's ';' optional; SUBSEQUENT statements REQUIRE it.

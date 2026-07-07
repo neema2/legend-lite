@@ -72,6 +72,13 @@ public record ImportScope(List<String> wildcards, Map<String, String> typeImport
                 int lastSep = path.lastIndexOf("::");
                 String simple = path.substring(lastSep + 2);
                 typeImports.put(simple, path);
+            } else {
+                // LOUD: "import Foo;" (no package) resolved to NOTHING and
+                // silently vanished (audit M9). Real Pure imports packages
+                // or package-qualified names.
+                throw new IllegalArgumentException(
+                        "malformed import '" + path + "': an import must be a"
+                                + " package wildcard (a::b::*) or a qualified name (a::b::C)");
             }
             return this;
         }
