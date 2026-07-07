@@ -4118,6 +4118,52 @@ class MappingNormalizerTest {
     }
 
     @Test
+    @DisplayName("viewFilterAndMappingFilterAndDistinct_allThreeSurvive")
+    void viewFilterAndMappingFilterAndDistinct_allThreeSurvive() {
+        // AUDIT_2026_07 §16 probe — REFUTED and pinned: ~distinct wraps the
+        // SOURCE pipeline (pre-map row dedup), not the map terminal, so the
+        // both-filters layering composes with it. Sequencing: view filter ->
+        // distinct (the view's contract) -> mapping filter -> map.
+        ParsedModel parsed = ElementParser.parse(
+                "Class model::Person { name: String[1]; age: Integer[1]; } "
+                        + "Database db::DB ( "
+                        + "  Table T_PERSON (NAME VARCHAR(50), AGE INTEGER, ACTIVE INTEGER) "
+                        + "  Filter ActiveFilter ( T_PERSON.ACTIVE = 1 ) "
+                        + "  Filter AdultFilter  ( T_PERSON.AGE > 18 ) "
+                        + "  View V_PERSON ( "
+                        + "    ~filter ActiveFilter "
+                        + "    ~distinct "
+                        + "    pname: T_PERSON.NAME, "
+                        + "    page:  T_PERSON.AGE "
+                        + "  ) "
+                        + ") "
+                        + "Mapping my::M ( "
+                        + "  *model::Person: Relational { "
+                        + "    ~filter AdultFilter "
+                        + "    ~mainTable [db::DB] V_PERSON "
+                        + "    name: V_PERSON.pname, "
+                        + "    age:  V_PERSON.page "
+                        + "  } "
+                        + ")");
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
+
+        // Pipeline: map(filter(distinct(filter(tableReference, view)), mapping)).
+        AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
+        assertEquals("map", mapCall.function());
+        AppliedFunction mappingFilter = (AppliedFunction) mapCall.parameters().get(0);
+        assertEquals("filter", mappingFilter.function(),
+                "the mapping ~filter applies over the deduped view rows");
+        AppliedFunction distinct = (AppliedFunction) mappingFilter.parameters().get(0);
+        assertEquals("distinct", distinct.function(),
+                "~distinct must survive the filter layering (the view's contract)");
+        AppliedFunction viewFilter = (AppliedFunction) distinct.parameters().get(0);
+        assertEquals("filter", viewFilter.function(),
+                "the view ~filter applies before the dedup");
+        assertEquals("tableReference",
+                ((AppliedFunction) viewFilter.parameters().get(0)).function());
+    }
+
+    @Test
     @DisplayName("viewFilterAndMappingFilter_layerBothFilters")
     void viewFilterAndMappingFilter_layerBothFilters() {
         // A view carries its own ~filter AND the class mapping adds another

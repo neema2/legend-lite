@@ -40,13 +40,16 @@ final class GraphFetchChecker {
         Checked c = checkTree(t, af, env, "serialize");
         Optional<TypedSpec> config = af.parameters().size() > 2
                 ? Optional.of(t.synth(af.parameters().get(2), env)) : Optional.empty();
-        // String[1] — sourced from the registered signature's return, never hardcoded.
-        var sig = t.model().findFunction("serialize");
-        if (sig.isEmpty()) {
-            throw new TypeInferenceException("no registered signature for 'serialize'");
-        }
+        // String[1] — from the registered signature's return, never hardcoded.
+        // ARITY-resolved (two serialize overloads are registered) via CoreFn,
+        // not a magic string + blind get(0) (audit finding).
+        var sigs = t.model().findFunction(CoreFn.SERIALIZE.parseName());
+        int arity = af.parameters().size();
+        var sig = sigs.stream().filter(f -> f.parameters().size() == arity).findFirst()
+                .orElseThrow(() -> new TypeInferenceException(
+                        "no registered 'serialize' overload accepts " + arity + " argument(s)"));
         return new TypedSerialize(c.source(), c.tree(), config,
-                new ExprType(sig.get(0).returnType(), sig.get(0).returnMultiplicity()));
+                new ExprType(sig.returnType(), sig.returnMultiplicity()));
     }
 
     private record Checked(TypedSpec source, List<TypedGraphTree> tree) {

@@ -35,8 +35,14 @@ final class MatchChecker {
 
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
         List<ValueSpecification> params = af.parameters();
-        if (params.size() < 2 || params.size() > 3) {
-            throw new TypeInferenceException("match expects (value, [branches] [, extra])");
+        // Arity is governed by the REGISTERED overloads (the class doc's
+        // claim, previously hardcoded — audit finding): match(Any[*],
+        // Function[*]) and match(Any[*], Function[*], Any[*]).
+        boolean arityRegistered = t.model().findFunction(CoreFn.MATCH.parseName()).stream()
+                .anyMatch(f -> f.parameters().size() == params.size());
+        if (!arityRegistered) {
+            throw new TypeInferenceException("no registered 'match' overload accepts "
+                    + params.size() + " argument(s)");
         }
         TypedSpec input = t.synth(params.get(0), env);
         Optional<TypedSpec> extra = params.size() == 3

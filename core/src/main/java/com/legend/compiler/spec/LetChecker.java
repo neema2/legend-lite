@@ -23,6 +23,12 @@ final class LetChecker {
 
     static TypedLet check(Typer t, AppliedFunction af, Env env) {
         List<ValueSpecification> params = af.parameters();
+        if (params.size() != 2) {
+            // Guard BEFORE indexing (audit: params.get(1) could IOOBE). The
+            // registered 1-arg letFunction form is not wired to this checker.
+            throw new TypeInferenceException(
+                    "malformed let: expected (name, value), got " + params.size() + " argument(s)");
+        }
         if (!(params.get(0) instanceof CString nameLit)) {
             throw new TypeInferenceException("malformed let: the variable name must be a string literal");
         }
