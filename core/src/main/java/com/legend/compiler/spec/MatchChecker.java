@@ -93,8 +93,7 @@ final class MatchChecker {
         if (param.multiplicity() == null) {
             return true;
         }
-        return Multiplicity.from(param.multiplicity()) instanceof Multiplicity.Bounded b
-                && (b.upper() == null || b.upper() > 1);
+        return Multiplicity.from(param.multiplicity()).isMany();
     }
 
     /** Branches: a collection of lambdas, or one bare lambda. */

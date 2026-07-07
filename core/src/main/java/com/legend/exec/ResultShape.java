@@ -24,6 +24,6 @@ public enum ResultShape {
     }
 
     private static boolean isMany(Multiplicity m) {
-        return !(m instanceof Multiplicity.Bounded b) || b.upper() == null || b.upper() > 1;
+        return m.requireBounded("ResultShape").isMany();
     }
 }

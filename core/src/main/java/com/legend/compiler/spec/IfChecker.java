@@ -36,6 +36,13 @@ final class IfChecker {
         }
         Type expectedCond = ifSigs.get(0).parameters().get(0).type();   // Boolean, from the signature
         t.kernel().unify(expectedCond, cond.info().type(), new Bindings());   // condition must conform
+        // Real Pure: if(test:Boolean[1], ...) — the condition's MULTIPLICITY
+        // is part of the signature too; Boolean[0..1]/[*] must not slip by.
+        if (!(cond.info().multiplicity() instanceof Multiplicity.Bounded b)
+                || b.lower() != 1 || b.upper() == null || b.upper() != 1) {
+            throw new TypeInferenceException("if condition must be Boolean[1], got multiplicity "
+                    + cond.info().multiplicity());
+        }
         TypedSpec thenBranch = thunkBody(t, args.get(1), env);
         Optional<TypedSpec> elseBranch = args.size() > 2
                 ? Optional.of(thunkBody(t, args.get(2), env)) : Optional.empty();

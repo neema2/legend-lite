@@ -1,4 +1,8 @@
-# Design-debt ledger (from the 2026-07-05 smell audit)
+# Design-debt ledger (lowering/sql/exec — 2026-07-05 smell audit)
+
+> The MODULE-WIDE audit ledger (parser, F, G, architecture — four parallel
+> auditors) lives in AUDIT_2026_07.md. This file remains the
+> lowering/sql/exec deferred list.
 
 The audit report's HIGH findings are FIXED (see the cleanup commit). This
 ledger tracks the deliberately deferred MEDIUM/LOW items so they are owed,

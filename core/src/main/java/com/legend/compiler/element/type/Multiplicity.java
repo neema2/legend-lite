@@ -23,6 +23,35 @@ public sealed interface Multiplicity permits Multiplicity.Bounded, Multiplicity.
      * parser&rarr;type-model conversion point (shared by element compilation and
      * type-annotation resolution).
      */
+    /**
+     * Whether this multiplicity admits more than one value. THE single
+     * implementation (an audit found five divergent copies).
+     *
+     * <p><strong>The {@code Var} decision, written down:</strong> an unbound
+     * multiplicity variable is NOT "many" — checkers ask this question about
+     * UNRESOLVED signatures, where treating {@code m} as many would
+     * misclassify {@code T[m]} parameters (fold's accumulator, match's
+     * branches). Post-G layers (lowering, exec) must never see a {@code Var}
+     * at all — a resolved expression's multiplicity is always bounded — so
+     * they guard with {@link #requireBounded} rather than silently treating
+     * vars as many (which two of the five copies did).
+     */
+    default boolean isMany() {
+        return this instanceof Bounded b && (b.upper() == null || b.upper() > 1);
+    }
+
+    /**
+     * Post-G invariant guard: resolved expressions carry only {@link Bounded}
+     * multiplicities; a surviving {@link Var} is a type-checker bug.
+     */
+    default Bounded requireBounded(String where) {
+        if (this instanceof Bounded b) {
+            return b;
+        }
+        throw new IllegalStateException(
+                "unresolved multiplicity variable reached " + where + ": " + this);
+    }
+
     static Multiplicity from(com.legend.parser.Multiplicity m) {
         return switch (m) {
             case com.legend.parser.Multiplicity.Concrete c -> new Bounded(c.lowerBound(), c.upperBound());

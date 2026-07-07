@@ -115,6 +115,17 @@ final class EvalChecker {
         for (int i = 0; i < rawArgs.size(); i++) {
             TypedSpec arg = t.synth(rawArgs.get(i), env);
             t.kernel().unify(ft.params().get(i).type(), arg.info().type(), new Bindings());
+            // Multiplicity conformance (audit finding): [*] into [1] must not
+            // slip by. Vars (unresolved signature mults) conform trivially.
+            if (ft.params().get(i).multiplicity() instanceof Multiplicity.Bounded want
+                    && arg.info().multiplicity() instanceof Multiplicity.Bounded got
+                    && (got.lower() < want.lower()
+                        || (want.upper() != null
+                            && (got.upper() == null || got.upper() > want.upper())))) {
+                throw new TypeInferenceException("eval: argument " + (i + 1)
+                        + " has multiplicity " + got + " but the function type declares "
+                        + want);
+            }
             args.add(arg);
         }
         return new TypedEval(fnTyped, args, new ExprType(ft.result().type(), ft.result().multiplicity()));

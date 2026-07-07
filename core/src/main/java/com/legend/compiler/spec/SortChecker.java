@@ -49,7 +49,16 @@ final class SortChecker {
     private static AppliedFunction legacyStringSortToModern(AppliedFunction af) {
         List<ValueSpecification> ps = af.parameters();
         if (ps.size() == 3 && ps.get(1) instanceof CString col && ps.get(2) instanceof EnumValue dir) {
-            String fn = dir.value().equals("DESC") ? CoreFn.DESC.parseName() : CoreFn.ASC.parseName();
+            // LOUD direction mapping: only ASC/DESC of a sort-direction enum
+            // are meaningful — anything else silently sorting ascending was
+            // an audit finding, not a feature.
+            String fn = switch (dir.value()) {
+                case "DESC" -> CoreFn.DESC.parseName();
+                case "ASC" -> CoreFn.ASC.parseName();
+                default -> throw new TypeInferenceException(
+                        "sort direction must be ASC or DESC, got '"
+                                + dir.value() + "' of " + dir.fullPath());
+            };
             return new AppliedFunction(af.function(), List.of(ps.get(0),
                     new AppliedFunction(fn, List.of(new ColSpec(col.value())))));
         }

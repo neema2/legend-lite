@@ -448,6 +448,10 @@ public final class InferenceKernel {
      * arrive with the bidirectional body checker.
      */
     public Resolution resolveOverload(List<TypedFunction> candidates, List<ExprType> args) {
+        // Diagnostics carry the FUNCTION NAME (from the candidates — every
+        // caller has homogeneous candidates); "no overload accepts 2
+        // argument(s)" with no callee was an audit finding.
+        String name = candidates.isEmpty() ? "?" : candidates.get(0).qualifiedName();
         List<TypedFunction> arityMatches = new ArrayList<>();
         for (TypedFunction c : candidates) {
             if (c.parameters().size() == args.size()) {
@@ -455,10 +459,11 @@ public final class InferenceKernel {
             }
         }
         if (arityMatches.isEmpty()) {
-            throw new TypeInferenceException("no overload accepts " + args.size() + " argument(s)");
+            throw new TypeInferenceException("no overload of '" + name + "' accepts "
+                    + args.size() + " argument(s)");
         }
         if (arityMatches.size() == 1) {
-            return resolveChosen(arityMatches.get(0), args);
+            return resolveChosen(arityMatches.get(0), args, name);
         }
 
         long best = Long.MIN_VALUE;
@@ -477,13 +482,14 @@ public final class InferenceKernel {
             }
         }
         if (winners.isEmpty()) {
-            throw new TypeInferenceException("no overload structurally matches the argument types");
+            throw new TypeInferenceException("no overload of '" + name
+                    + "' structurally matches the argument types");
         }
         if (winners.size() > 1) {
-            throw new TypeInferenceException(
-                    "ambiguous overload: " + winners.size() + " candidates tie for the argument types");
+            throw new TypeInferenceException("ambiguous overload of '" + name + "': "
+                    + winners.size() + " candidates tie for the argument types");
         }
-        return resolveChosen(winners.get(0), args);
+        return resolveChosen(winners.get(0), args, name);
     }
 
     /**
@@ -535,12 +541,19 @@ public final class InferenceKernel {
     }
 
     /** Unify the chosen overload's parameters against the args, then resolve its output. */
-    private Resolution resolveChosen(TypedFunction c, List<ExprType> args) {
+    private Resolution resolveChosen(TypedFunction c, List<ExprType> args, String name) {
         Bindings b = new Bindings();
         for (int i = 0; i < args.size(); i++) {
             TypedParameter p = c.parameters().get(i);
-            unify(p.type(), args.get(i).type(), b);
-            unifyMult(p.multiplicity(), args.get(i).multiplicity(), args.get(i).type(), b);
+            try {
+                unify(p.type(), args.get(i).type(), b);
+                unifyMult(p.multiplicity(), args.get(i).multiplicity(), args.get(i).type(), b);
+            } catch (TypeInferenceException e) {
+                // Re-raise with CALL CONTEXT — a bare "expected X, got Y"
+                // reached corpus users with zero callee info (audit finding).
+                throw new TypeInferenceException("in call to '" + name + "', argument "
+                        + (i + 1) + ": " + e.getMessage());
+            }
         }
         return new Resolution(c, resolveOutput(c.returnType(), c.returnMultiplicity(), b));
     }
@@ -635,7 +648,7 @@ public final class InferenceKernel {
     }
 
     private static boolean isManyMult(Multiplicity m) {
-        return m instanceof Multiplicity.Bounded b && (b.upper() == null || b.upper() > 1);
+        return m.isMany();
     }
 
     // =====================================================================

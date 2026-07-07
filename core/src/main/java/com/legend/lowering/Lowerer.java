@@ -1037,9 +1037,7 @@ public final class Lowerer {
     }
 
     private static boolean isMany(TypedSpec spec) {
-        return spec.info().multiplicity() instanceof
-                com.legend.compiler.element.type.Multiplicity.Bounded b
-                ? b.upper() == null || b.upper() > 1 : true;
+        return spec.info().multiplicity().requireBounded("lowering").isMany();
     }
 
     /**

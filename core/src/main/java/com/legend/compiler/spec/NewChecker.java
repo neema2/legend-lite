@@ -30,6 +30,23 @@ final class NewChecker {
                     new TypeInferenceException("class '" + ni.className() + "' has no property '" + name + "'"));
             TypedSpec value = t.synth(key.value(), env);
             t.kernel().unify(prop.type(), value.info().type(), new Bindings());   // value must conform
+            // Multiplicity conformance too: a [2] collection into a [1]
+            // property must not slip by (audit finding). EXCEPTION: navigate()
+            // values — the mapping DSL's navigate is statically T[*] by
+            // design (its predicate narrows the cardinality at Phase H), so
+            // conformance for it is the mapping resolver's question.
+            if (!(value instanceof com.legend.compiler.spec.typed.TypedNavigate)
+                    && prop.multiplicity() instanceof Multiplicity.Bounded declared
+                    && value.info().multiplicity() instanceof Multiplicity.Bounded actual) {
+                boolean lowOk = actual.lower() >= declared.lower();
+                boolean highOk = declared.upper() == null
+                        || (actual.upper() != null && actual.upper() <= declared.upper());
+                if (!lowOk || !highOk) {
+                    throw new TypeInferenceException("property '" + name + "' of '"
+                            + ni.className() + "' declares multiplicity " + declared
+                            + " but the value has " + actual);
+                }
+            }
             properties.put(name, value);
         });
         return new TypedNewInstance(ni.className(), properties,

@@ -129,7 +129,14 @@ public final class PureModelContext implements ModelContext {
                 return inherited;
             }
         }
-        return Optional.empty();
+        // The contract's third leg: ASSOCIATION-INJECTED navigation properties
+        // resolve at lookup time from the association index — never stored on
+        // TypedClass (Property doc §5 discipline 3). Superclass-declared
+        // associations are found through the recursion above.
+        return model.findAssociationEnd(classFqn, name).map(end ->
+                new Property.Stored(end.propertyName(),
+                        classifier.classify(end.targetClass(), java.util.List.of()),
+                        TypeClassifier.multiplicity(end.multiplicity())));
     }
 
     @Override

@@ -1203,6 +1203,42 @@ class TypeCheckerTest {
     }
 
     @Test
+    void associationNavigationTypesFromTheAssociationIndex() {
+        // findProperty's contract THIRD LEG (Property doc §5 discipline 3):
+        // association-injected navigation properties resolve at LOOKUP time,
+        // never stored on the class. $p.employer walks the Association.
+        String model = """
+                Class test::P { name: String[1]; }
+                Class test::F { legal: String[1]; }
+                Association test::Emp
+                {
+                    employer: test::F[1];
+                    staff: test::P[*];
+                }
+                """;
+        ModelContext ctx = Compiler.compileModel(model);
+        TypedSpec t = new SpecCompiler(ctx).typeBody(
+                SpecParser.parse("test::P.all()->map(p | $p.employer.legal)"),
+                Env.empty(), Expected.infer());
+        assertEquals(Type.Primitive.STRING, t.info().type());
+        // And the reverse end, with the association's declared multiplicity:
+        TypedSpec back = new SpecCompiler(ctx).typeBody(
+                SpecParser.parse("test::F.all()->map(f | $f.staff)"),
+                Env.empty(), Expected.infer());
+        assertEquals("test::P", ((Type.ClassType) back.info().type()).fqn());
+    }
+
+    @Test
+    void distinctBareColSpecDesugarsToArray() {
+        // Real Pure registers ONLY distinct(rel, ColSpecArray) — the bare
+        // ~col form is sugar (engine-accepted); DistinctChecker desugars.
+        TypedSpec t = typeQuery(T_PERSON + "->distinct(~FIRST_NAME)");
+        Type.RelationType rt = schemaOf(t);
+        assertEquals(1, rt.columns().size());
+        assertEquals("FIRST_NAME", rt.columns().get(0).name());
+    }
+
+    @Test
     void navigateInlineSlotForm() {
         // §3.2: navigate(T.all(), {t|pred}) : T[*] — the constructor-slot form,
         // standalone and inside ^Class(…) with the predicate capturing the outer row.

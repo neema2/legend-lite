@@ -101,6 +101,16 @@ public final class ModelBuilder {
     // One slot per id; null where the kind doesn't apply to that id.
     private final ArrayList<ClassDefinition>       classes       = new ArrayList<>();
     private final ArrayList<AssociationDefinition> associations  = new ArrayList<>();
+    /**
+     * Association ends indexed by {@code ownerFqn -> propName -> end} —
+     * association navigation is on the type-checker's HOT PATH (every class
+     * property lookup that isn't declared falls through to here), so the
+     * lookup must be O(1), not a scan. Built lazily on first use (all
+     * associations are interned by then; the builder is read-only after
+     * construction).
+     */
+    private Map<String, Map<String, AssociationDefinition.AssociationEndDefinition>>
+            associationEndsByOwner;
     private final ArrayList<EnumDefinition>        enums         = new ArrayList<>();
     private final ArrayList<ProfileDefinition>     profiles      = new ArrayList<>();
     private final ArrayList<DatabaseDefinition>    databases     = new ArrayList<>();
@@ -459,18 +469,40 @@ public final class ModelBuilder {
      */
     public Optional<TypeExpression> findAssociationProperty(String ownerClassFqn,
                                                             String propName) {
-        for (AssociationDefinition ad : associations) {
-            if (ad == null) continue;
-            AssociationDefinition.AssociationEndDefinition p1 = ad.property1();
-            AssociationDefinition.AssociationEndDefinition p2 = ad.property2();
-            if (p1.propertyName().equals(propName) && isNameRef(p2.targetClass(), ownerClassFqn)) {
-                return Optional.of(p1.targetClass());
+        return findAssociationEnd(ownerClassFqn, propName)
+                .map(AssociationDefinition.AssociationEndDefinition::targetClass);
+    }
+
+    /**
+     * The full association END injecting {@code propName} onto
+     * {@code ownerClassFqn} (name + target class + multiplicity) — Phase F's
+     * lookup-time resolution of association navigation properties
+     * (never stored on the class; Property doc §5 discipline 3).
+     */
+    public Optional<AssociationDefinition.AssociationEndDefinition> findAssociationEnd(
+            String ownerClassFqn, String propName) {
+        if (associationEndsByOwner == null) {
+            Map<String, Map<String, AssociationDefinition.AssociationEndDefinition>> idx =
+                    new HashMap<>();
+            for (AssociationDefinition ad : associations) {
+                if (ad == null) continue;
+                indexEnd(idx, ad.property2().targetClass(), ad.property1());
+                indexEnd(idx, ad.property1().targetClass(), ad.property2());
             }
-            if (p2.propertyName().equals(propName) && isNameRef(p1.targetClass(), ownerClassFqn)) {
-                return Optional.of(p2.targetClass());
-            }
+            associationEndsByOwner = idx;
         }
-        return Optional.empty();
+        return Optional.ofNullable(associationEndsByOwner
+                .getOrDefault(ownerClassFqn, Map.of()).get(propName));
+    }
+
+    /** {@code end} injects onto the class named by {@code ownerRef} (opposite end's target). */
+    private static void indexEnd(
+            Map<String, Map<String, AssociationDefinition.AssociationEndDefinition>> idx,
+            TypeExpression ownerRef,
+            AssociationDefinition.AssociationEndDefinition end) {
+        if (ownerRef instanceof TypeExpression.NameRef n) {
+            idx.computeIfAbsent(n.name(), k -> new HashMap<>()).put(end.propertyName(), end);
+        }
     }
 
     private static boolean isNameRef(TypeExpression t, String fqn) {
