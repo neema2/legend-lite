@@ -797,22 +797,32 @@ public final class ElementParser implements TokenStreamCursor {
         String testSuitesSource = null;
 
         while (peek() != TokenType.BRACE_CLOSE && !atEnd()) {
-            String key = parseIdentifier();
+            // Dispatch on the MINTED TOKEN TYPES — the lexer keyword-izes
+            // every service body key; re-reading them as identifier strings
+            // was the audit's H2 (two sources of truth for one keyword).
+            TokenType key = peek();
+            String keyText = safeText();
+            advance();
             expect(TokenType.COLON);
             switch (key) {
-                case "pattern" -> {
+                case SERVICE_PATTERN -> {
                     pattern = unquoteString(consume(TokenType.STRING));
                     expect(TokenType.SEMI_COLON);
                 }
-                case "documentation" -> {
+                case SERVICE_DOCUMENTATION -> {
                     documentation = unquoteString(consume(TokenType.STRING));
                     expect(TokenType.SEMI_COLON);
                 }
-                case "autoActivateUpdates" -> {
-                    advance(); // boolean literal
+                case SERVICE_AUTO_ACTIVATE_UPDATES -> {
+                    // A BOOLEAN, not any token (audit M13b).
+                    if (!"true".equals(text()) && !"false".equals(text())) {
+                        throw error("autoActivateUpdates expects true or false, got '"
+                                + safeText() + "'");
+                    }
+                    advance();
                     expect(TokenType.SEMI_COLON);
                 }
-                case "owners" -> {
+                case SERVICE_OWNERS -> {
                     expect(TokenType.BRACKET_OPEN);
                     if (peek() != TokenType.BRACKET_CLOSE) {
                         consume(TokenType.STRING);
@@ -821,14 +831,17 @@ public final class ElementParser implements TokenStreamCursor {
                     expect(TokenType.BRACKET_CLOSE);
                     expect(TokenType.SEMI_COLON);
                 }
-                case "execution" -> {
-                    parseIdentifier(); // "Single" (only flavor supported in B.3)
+                case SERVICE_EXEC -> {
+                    // Only the Single flavor is wired; anything else (Multi,
+                    // typos) previously parsed AS Single silently (audit M13a).
+                    expect(TokenType.SERVICE_SINGLE);
                     expect(TokenType.BRACE_OPEN);
                     while (peek() != TokenType.BRACE_CLOSE && !atEnd()) {
-                        String execKey = parseIdentifier();
+                        TokenType execKey = peek();
+                        advance();
                         expect(TokenType.COLON);
                         switch (execKey) {
-                            case "query" -> {
+                            case MAPPING_TESTS_QUERY -> {
                                 match(TokenType.PIPE); // optional leading '|'
                                 int bs = pos;
                                 int d = 0;
@@ -846,21 +859,21 @@ public final class ElementParser implements TokenStreamCursor {
                                 functionBody = SpecParser.parse(tokens.slice(bs, pos));
                                 expect(TokenType.SEMI_COLON);
                             }
-                            case "mapping" -> {
+                            case SERVICE_MAPPING -> {
                                 mappingRef = parseQualifiedName();
                                 expect(TokenType.SEMI_COLON);
                             }
-                            case "runtime" -> {
+                            case SERVICE_RUNTIME -> {
                                 runtimeRef = parseQualifiedName();
                                 expect(TokenType.SEMI_COLON);
                             }
-                            default -> error("unknown key '" + execKey
+                            default -> throw error("unknown key '" + execKey
                                     + "' inside Service.execution (Phase B.3 strict mode; see D-2)");
                         }
                     }
                     expect(TokenType.BRACE_CLOSE);
                 }
-                case "testSuites" -> {
+                case MAPPING_TESTABLE_SUITES -> {
                     // Capture the entire balanced block as raw text — D-3.
                     // testSuites may be followed by '{' or '['; both balance the same way.
                     TokenType opener = peek();
@@ -873,7 +886,7 @@ public final class ElementParser implements TokenStreamCursor {
                     testSuitesSource = reconstructText(bs, pos);
                     match(TokenType.SEMI_COLON);
                 }
-                default -> error("unknown key '" + key + "' inside Service '"
+                default -> throw error("unknown key '" + keyText + "' inside Service '"
                         + qualifiedName + "' (Phase B.3 strict mode; see D-2)");
             }
         }
@@ -930,10 +943,12 @@ public final class ElementParser implements TokenStreamCursor {
         List<JsonModelConnection> jsonConnections = new ArrayList<>();
 
         while (peek() != TokenType.BRACE_CLOSE && !atEnd()) {
-            String key = parseIdentifier();
+            TokenType key = peek();   // minted token, not a re-read string (audit H2)
+            String keyText = safeText();
+            advance();
             expect(TokenType.COLON);
             switch (key) {
-                case "mappings" -> {
+                case MAPPINGS -> {
                     expect(TokenType.BRACKET_OPEN);
                     if (peek() != TokenType.BRACKET_CLOSE) {
                         mappings.add(parseQualifiedName());
@@ -942,8 +957,8 @@ public final class ElementParser implements TokenStreamCursor {
                     expect(TokenType.BRACKET_CLOSE);
                     match(TokenType.SEMI_COLON);
                 }
-                case "connections" -> parseRuntimeConnections(connectionBindings, jsonConnections);
-                default -> error("unknown key '" + key + "' inside Runtime '"
+                case CONNECTIONS -> parseRuntimeConnections(connectionBindings, jsonConnections);
+                default -> throw error("unknown key '" + keyText + "' inside Runtime '"
                         + qualifiedName + "' (Phase B.3 strict mode; see D-2)");
             }
         }
@@ -1031,14 +1046,16 @@ public final class ElementParser implements TokenStreamCursor {
         AuthenticationSpec authentication = null;
 
         while (peek() != TokenType.BRACE_CLOSE && !atEnd()) {
-            String key = parseIdentifier();
+            TokenType key = peek();   // minted token, not a re-read string (audit H2)
+            String keyText = safeText();
+            advance();
             expect(TokenType.COLON);
             switch (key) {
-                case "store" -> {
+                case STORE -> {
                     storeName = parseQualifiedName();
                     expect(TokenType.SEMI_COLON);
                 }
-                case "type" -> {
+                case TYPE -> {
                     String typeStr = parseIdentifier();
                     try {
                         dbType = ConnectionDefinition.DatabaseType.valueOf(typeStr);
@@ -1048,7 +1065,7 @@ public final class ElementParser implements TokenStreamCursor {
                     }
                     expect(TokenType.SEMI_COLON);
                 }
-                case "specification" -> {
+                case RELATIONAL_DATASOURCE_SPEC -> {
                     String specType = parseIdentifier();
                     expect(TokenType.BRACE_OPEN);
                     Map<String, String> props = parseKeyValueBlock();
@@ -1065,7 +1082,7 @@ public final class ElementParser implements TokenStreamCursor {
                     };
                     expect(TokenType.SEMI_COLON);
                 }
-                case "auth" -> {
+                case RELATIONAL_AUTH_STRATEGY -> {
                     String authType = parseIdentifier();
                     Map<String, String> props = Map.of();
                     if (match(TokenType.BRACE_OPEN)) {
@@ -1081,7 +1098,7 @@ public final class ElementParser implements TokenStreamCursor {
                     };
                     expect(TokenType.SEMI_COLON);
                 }
-                default -> error("unknown key '" + key
+                default -> throw error("unknown key '" + keyText
                         + "' inside RelationalDatabaseConnection '" + qualifiedName
                         + "' (Phase B.3 strict mode; see D-2)");
             }
@@ -1185,20 +1202,20 @@ public final class ElementParser implements TokenStreamCursor {
         List<DatabaseDefinition.FilterDefinition> multiGrainFilters = new ArrayList<>();
 
         while (peek() != TokenType.PAREN_CLOSE && !atEnd()) {
-            if (textEquals("include")) {
+            if (peek() == TokenType.INCLUDE) {
                 advance();
                 includes.add(parseQualifiedName());
-            } else if (textEquals("Schema")) {
+            } else if (peek() == TokenType.SCHEMA) {
                 schemas.add(parseDbSchema(dbScope, tables, views));
-            } else if (textEquals("Table")) {
+            } else if (peek() == TokenType.TABLE) {
                 tables.add(parseDbTable());
-            } else if (textEquals("View")) {
+            } else if (peek() == TokenType.VIEW) {
                 views.add(parseDbView(dbScope));
-            } else if (textEquals("Join")) {
+            } else if (peek() == TokenType.JOIN) {
                 joins.add(parseDbJoin(dbScope));
-            } else if (textEquals("Filter")) {
+            } else if (peek() == TokenType.FILTER) {
                 filters.add(parseDbFilter(dbScope));
-            } else if (textEquals("MultiGrainFilter")) {
+            } else if (peek() == TokenType.MULTIGRAIN_FILTER) {
                 multiGrainFilters.add(parseDbMultiGrainFilter(dbScope));
             } else {
                 error("unknown Database element '" + safeText()
@@ -1225,11 +1242,11 @@ public final class ElementParser implements TokenStreamCursor {
         List<DatabaseDefinition.TableDefinition> schemaTables = new ArrayList<>();
         List<DatabaseDefinition.ViewDefinition> schemaViews = new ArrayList<>();
         while (peek() != TokenType.PAREN_CLOSE && !atEnd()) {
-            if (textEquals("Table")) {
+            if (peek() == TokenType.TABLE) {
                 DatabaseDefinition.TableDefinition t = parseDbTable();
                 schemaTables.add(t);
                 flatTables.add(t);
-            } else if (textEquals("View")) {
+            } else if (peek() == TokenType.VIEW) {
                 DatabaseDefinition.ViewDefinition v = parseDbView(dbScope);
                 schemaViews.add(v);
                 flatViews.add(v);
@@ -1502,7 +1519,7 @@ public final class ElementParser implements TokenStreamCursor {
                 includes.add(parseMappingInclude());
                 continue;
             }
-            if (isIdentifierToken(peek()) && textEquals("testSuites")) {
+            if (isIdentifierToken(peek()) && peek() == TokenType.MAPPING_TESTABLE_SUITES) {
                 // B.4f / D-3: capture the testSuites block verbatim and
                 // hand it to Phase C for lazy parsing. Engine grammar
                 // wraps suites in '[ ... ]'.
@@ -2417,7 +2434,7 @@ public final class ElementParser implements TokenStreamCursor {
     private RelationalOperation parseDbBooleanOperation(String dbScope) {
         RelationalOperation left = parseDbAtomicOperation(dbScope);
         if (!atEnd() && isIdentifierToken(peek())
-                && (textEquals("and") || textEquals("or"))) {
+                && (peek() == TokenType.RELATIONAL_AND || peek() == TokenType.RELATIONAL_OR)) {
             LogicalOp op = LogicalOp.fromKeyword(text());
             advance();
             RelationalOperation right = parseDbOperation(dbScope);

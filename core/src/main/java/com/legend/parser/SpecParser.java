@@ -2238,7 +2238,14 @@ public final class SpecParser implements TokenStreamCursor {
         TokenStream innerTokens = Lexer.tokenize(content);
         SpecParser inner = new SpecParser(innerTokens);
         inner.parseQualifiedName();          // skip root class name
-        return inner.parseGraphDefinition(0);
+        ValueSpecification tree = inner.parseGraphDefinition(0);
+        if (!inner.atEnd()) {
+            // LOUD: #{Person {name} GARBAGE}# previously dropped GARBAGE
+            // silently (audit M8c).
+            throw inner.error("trailing content after graph-fetch tree: '"
+                    + inner.safeText() + "'");
+        }
+        return tree;
     }
 
     /**
