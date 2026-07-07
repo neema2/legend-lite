@@ -110,8 +110,14 @@ final class TypeClassifier {
         return switch (te) {
             case TypeExpression.NameRef nr -> nr.name();
             case TypeExpression.Generic g -> g.name();
-            default -> throw new IllegalStateException(
-                    "Unsupported supertype expression: " + te.getClass().getSimpleName());
+            // EXHAUSTIVE (no default): a head reference is nominal by
+            // construction; the structural forms each say why they cannot be.
+            case TypeExpression.FunctionType f -> throw new IllegalStateException(
+                    "a function type cannot head a supertype/generic reference");
+            case TypeExpression.RelationType r -> throw new IllegalStateException(
+                    "a relation type cannot head a supertype/generic reference");
+            case TypeExpression.SchemaAlgebra a -> throw new IllegalStateException(
+                    "a schema-algebra expression cannot head a supertype/generic reference");
         };
     }
 

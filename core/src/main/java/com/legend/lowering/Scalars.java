@@ -3,12 +3,10 @@ package com.legend.lowering;
 import com.legend.builtin.Pure;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedNativeCall;
-import com.legend.parser.element.Function;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
 
 import java.util.ArrayList;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -30,18 +28,18 @@ final class Scalars {
     interface Rule extends BiFunction<TypedNativeCall, List<SqlExpr>, SqlExpr> {
     }
 
-    private static final Map<Function, Rule> RULES = new IdentityHashMap<>();
+    private static final Map<String, Rule> RULES = new java.util.HashMap<>();
 
     private Scalars() {
     }
 
     /** Register every catalog overload of {@code pureName} under one semantic entry. */
     private static void family(SqlFn semantic, String pureName) {
-        List<? extends Function> overloads = Pure.nativeFunctionsAt(pureName);
+        var overloads = Pure.nativeKeysAt(pureName);
         if (overloads.isEmpty()) {
             throw new IllegalStateException("no catalog overloads for '" + pureName + "'");
         }
-        for (Function f : overloads) {
+        for (var f : overloads) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(semantic, args));
         }
     }
@@ -70,7 +68,7 @@ final class Scalars {
         family(SqlFn.LOWER, "toLower");
 
         // toOne erases in SQL (MUST-honor: multiplicity narrowing is a no-op value-wise).
-        for (Function f : Pure.nativeFunctionsAt("toOne")) {
+        for (String f : Pure.nativeKeysAt("toOne")) {
             RULES.put(f, (n, args) -> args.get(0));
         }
 
@@ -141,7 +139,7 @@ final class Scalars {
         for (var e : Map.of(
                 "year", "year", "monthNumber", "month", "dayOfMonth", "day",
                 "hour", "hour", "minute", "minute", "second", "second").entrySet()) {
-            for (Function f : Pure.nativeFunctionsAt(e.getKey())) {
+            for (String f : Pure.nativeKeysAt(e.getKey())) {
                 RULES.put(f, (n, args) -> {
                     List<SqlExpr> withPart = new ArrayList<>();
                     withPart.add(new SqlExpr.StringLit(e.getValue()));
@@ -151,42 +149,42 @@ final class Scalars {
             }
         }
         // Collection min/max/sum: 1-arg = over a LIST; 2-arg = least/greatest.
-        for (Function f : Pure.nativeFunctionsAt("min")) {
+        for (String f : Pure.nativeKeysAt("min")) {
             RULES.put(f, (n, args) -> args.size() == 1
                     ? new SqlExpr.Call(SqlFn.LIST_MIN, args) : new SqlExpr.Call(SqlFn.LEAST, args));
         }
-        for (Function f : Pure.nativeFunctionsAt("max")) {
+        for (String f : Pure.nativeKeysAt("max")) {
             RULES.put(f, (n, args) -> args.size() == 1
                     ? new SqlExpr.Call(SqlFn.LIST_MAX, args) : new SqlExpr.Call(SqlFn.GREATEST, args));
         }
-        for (Function f : Pure.nativeFunctionsAt("sum")) {
+        for (String f : Pure.nativeKeysAt("sum")) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_SUM, args));
         }
-        for (Function f : Pure.nativeFunctionsAt("first")) {
+        for (String f : Pure.nativeKeysAt("first")) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_GET,
                     List.of(args.get(0), new SqlExpr.IntLit(1))));
         }
-        for (Function f : Pure.nativeFunctionsAt("head")) {
+        for (String f : Pure.nativeKeysAt("head")) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_GET,
                     List.of(args.get(0), new SqlExpr.IntLit(1))));
         }
         // 0-based Pure -> 1-based SQL shifts (the semantics contract).
-        for (Function f : Pure.nativeFunctionsAt("substring")) {
+        for (String f : Pure.nativeKeysAt("substring")) {
             RULES.put(f, (n, args) -> {
                 List<SqlExpr> shifted = new ArrayList<>(args);
                 shifted.set(1, plusOne(args.get(1)));
                 return new SqlExpr.Call(SqlFn.SUBSTRING, shifted);
             });
         }
-        for (Function f : Pure.nativeFunctionsAt("indexOf")) {
+        for (String f : Pure.nativeKeysAt("indexOf")) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.MINUS, List.of(
                     new SqlExpr.Call(SqlFn.STRPOS, args), new SqlExpr.IntLit(1))));
         }
-        for (Function f : Pure.nativeFunctionsAt("at")) {
+        for (String f : Pure.nativeKeysAt("at")) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_GET,
                     List.of(args.get(0), plusOne(args.get(1)))));
         }
-        for (Function f : Pure.nativeFunctionsAt("splitPart")) {
+        for (String f : Pure.nativeKeysAt("splitPart")) {
             RULES.put(f, (n, args) -> {
                 List<SqlExpr> shifted = new ArrayList<>(args);
                 shifted.set(2, plusOne(args.get(2)));
@@ -195,7 +193,7 @@ final class Scalars {
         }
         // contains on STRINGS: strpos > 0 (list contains stays LIST_CONTAINS
         // by overload identity — register string overloads specifically).
-        for (Function f : Pure.nativeFunctionsAt("contains")) {
+        for (String f : Pure.nativeKeysAt("contains")) {
             RULES.put(f, (n, args) ->
                     n.args().get(0).info().type() == Type.Primitive.STRING
                             ? new SqlExpr.Call(SqlFn.GREATER, List.of(
@@ -203,7 +201,7 @@ final class Scalars {
                             : new SqlExpr.Call(SqlFn.LIST_CONTAINS, args));
         }
         // format('%s...', [args]) -> printf(fmt, args...): the array spreads.
-        for (Function f : Pure.nativeFunctionsAt("format")) {
+        for (String f : Pure.nativeKeysAt("format")) {
             RULES.put(f, (n, args) -> {
                 List<SqlExpr> spread = new ArrayList<>();
                 spread.add(args.get(0));
@@ -224,14 +222,14 @@ final class Scalars {
         castFamily("parseBoolean", Type.Primitive.BOOLEAN);
         castFamily("parseDate", Type.Primitive.DATE_TIME);
         // date(y,m,d[,h,mi,s]) constructors.
-        for (Function f : Pure.nativeFunctionsAt("date")) {
+        for (String f : Pure.nativeKeysAt("date")) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(
                     args.size() <= 3 ? SqlFn.MAKE_DATE : SqlFn.MAKE_TIMESTAMP, args));
         }
 
         // Overload-specific overrides — the resolved signature IS the decision.
-        RULES.put(Pure.PLUS__STRING_1__STRING_1, (n, args) -> new SqlExpr.Call(SqlFn.CONCAT, args));
-        RULES.put(Pure.IN__ANY_1__ANY_MANY, (n, args) -> {
+        RULES.put(Pure.keyPlusString(), (n, args) -> new SqlExpr.Call(SqlFn.CONCAT, args));
+        RULES.put(Pure.keyIn(), (n, args) -> {
             List<SqlExpr> flat = new ArrayList<>();
             flat.add(args.get(0));
             if (args.get(1) instanceof SqlExpr.ArrayLit arr) {
@@ -266,7 +264,7 @@ final class Scalars {
     }
 
     private static void castFamily(String pureName, Type target) {
-        for (Function f : Pure.nativeFunctionsAt(pureName)) {
+        for (String f : Pure.nativeKeysAt(pureName)) {
             RULES.put(f, (n, args) -> new SqlExpr.Cast(args.get(0), PureSql.type(target), false));
         }
     }
@@ -280,7 +278,7 @@ final class Scalars {
 
     /** The lowering for {@code call}'s resolved overload; loud error when unregistered. */
     static SqlExpr lower(TypedNativeCall call, List<SqlExpr> loweredArgs) {
-        Rule rule = RULES.get(call.callee().definition());
+        Rule rule = RULES.get(call.callee().signatureKey());
         if (rule == null) {
             throw new IllegalStateException("no scalar lowering registered for resolved overload '"
                     + call.callee().qualifiedName() + "' with " + call.callee().parameters().size()

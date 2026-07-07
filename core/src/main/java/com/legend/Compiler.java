@@ -7,7 +7,7 @@ import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.normalizer.ModelNormalizer;
 import com.legend.parser.SpecParser;
-import com.legend.normalizer.NormalizedModel;
+import com.legend.parser.NormalizedModel;
 import com.legend.parser.ElementParser;
 import com.legend.parser.ParsedModel;
 

@@ -41,6 +41,21 @@ public sealed interface Function
     /** Declared multiplicity parameter names, in source order (may be empty). */
     List<String> multiplicityParameters();
 
+    /**
+     * THE stable overload identity: qualified name + canonical parameter
+     * spellings. Unique across the native catalog (pinned by
+     * NativeFunctionTest's collapse test) and stable across parses — the
+     * dispatch key for identity-keyed consumers (lowering rule tables),
+     * which must not hold parser NODES (AUDIT_2026_07 §1c).
+     */
+    default String signatureKey() {
+        StringBuilder key = new StringBuilder(qualifiedName()).append('(');
+        for (var p : parameters()) {
+            key.append(p.type()).append(':').append(p.multiplicity()).append(',');
+        }
+        return key.append(')').toString();
+    }
+
     /** Declared parameters, in source order. */
     List<FunctionDefinition.ParameterDefinition> parameters();
 

@@ -58,13 +58,18 @@ public final class PureModelContext implements ModelContext {
     }
 
     /**
-     * Build from a Phase-E {@link com.legend.normalizer.NormalizedModel}. The
+     * Build from a Phase-E {@link com.legend.parser.NormalizedModel}. The
      * parameter type is the phase gate ({@code docs/CLEAN_SHEET_INVERSION.md}
      * &sect;4): Phase F demands a normalized model at the signature level, so
      * an un-normalized {@code ParsedModel} cannot reach element compilation.
      */
-    public static PureModelContext from(com.legend.normalizer.NormalizedModel normalized) {
-        return new PureModelContext(ModelBuilder.from(normalized));
+    public static PureModelContext from(com.legend.parser.NormalizedModel normalized) {
+        // THE Phase-E -> Phase-F gate: element compilation demands a
+        // normalized model AT THE SIGNATURE LEVEL. (ModelBuilder itself is
+        // phase-agnostic indexing and must not depend on the normalizer —
+        // that was the compiler<->normalizer package cycle.)
+        return new PureModelContext(ModelBuilder.from(new com.legend.parser.ParsedModel(
+                normalized.elements(), normalized.imports())));
     }
 
     @Override

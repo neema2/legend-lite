@@ -1007,10 +1007,13 @@ public final class NameResolver {
                 yield els == al.elements() ? al : new RelationalOperation.ArrayLiteral(els);
             }
             case RelationalOperation.JoinNavigation jn -> {
-                String db = resolveName(jn.databaseName(), scope);
+                // databaseName is NULL for the LOCAL form (no [DB] prefix —
+                // the contextual database binds later, in the normalizer).
+                String db = jn.databaseName() == null ? null
+                        : resolveName(jn.databaseName(), scope);
                 List<JoinChainElement> chain = resolveJoinChain(jn.chain(), scope);
                 RelationalOperation term = resolveRelOp(jn.terminal(), scope);
-                if (db.equals(jn.databaseName()) && chain == jn.chain()
+                if (java.util.Objects.equals(db, jn.databaseName()) && chain == jn.chain()
                         && term == jn.terminal()) yield jn;
                 yield new RelationalOperation.JoinNavigation(db, chain, term);
             }

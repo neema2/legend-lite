@@ -1,5 +1,6 @@
 package com.legend.compiler.spec;
 
+import com.legend.compiler.element.type.ExprType;
 import com.legend.builtin.Pure;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
@@ -34,6 +35,19 @@ final class FlattenChecker {
             throw new TypeInferenceException("flatten requires a relation source, got "
                     + source.info().type().typeName());
         }
+        // Validate the CALL against the registered native signature — never
+        // bypassed (the tableReference lesson: an unexercised registration
+        // goes vestigial). flatten<T,Z>(T[*], ColSpec<Z=(?:T)>): the source
+        // unifies against parameter 0 and the result multiplicity comes from
+        // the signature; the colspec parameter and the OUTPUT SCHEMA are the
+        // documented divergences (engine-lite widens in place; real Pure
+        // yields the single flattened column).
+        var flattenSigs = t.model().findFunction(CoreFn.FLATTEN.parseName());
+        if (flattenSigs.isEmpty()) {
+            throw new TypeInferenceException("flatten is not registered in the catalog");
+        }
+        var sig = flattenSigs.get(0);
+        t.kernel().unify(sig.parameters().get(0).type(), source.info().type(), new Bindings());
         boolean known = schema.columns().stream().anyMatch(c -> c.name().equals(cs.name()));
         if (!known) {
             throw new TypeInferenceException("unknown column '" + cs.name() + "' in " + schema.typeName());
@@ -45,6 +59,6 @@ final class FlattenChecker {
                     : c);
         }
         return new TypedFlatten(source, cs.name(),
-                new ExprType(new Type.RelationType(cols), Multiplicity.Bounded.ONE));
+                new ExprType(new Type.RelationType(cols), sig.returnMultiplicity()));
     }
 }

@@ -97,6 +97,56 @@ final class ArchitectureTest {
      * the behavioral guarantee lives in {@code ContentStoreTest}. This rule is
      * the structural funnel that backs it.
      */
+    /**
+     * <strong>Invariant 4 — package layering is acyclic.</strong> Two cycles
+     * (compiler&lt;-&gt;normalizer via a convenience overload; spec&lt;-&gt;spec.typed via
+     * ExprType's location) shipped invisibly because one direction used
+     * fully-qualified names no import-based review sees. This rule makes any
+     * package cycle a test failure. The 2026-07 audit's fix; do not exclude
+     * packages from it.
+     */
+    @Test
+    void packageDependenciesAreAcyclic() {
+        // Slices group by TOP segment: parser.* is one deliberate layer (its
+        // parent<->child mutuality is sanctioned, audit §1e); everything else
+        // must be acyclic ACROSS top-level packages.
+        com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices()
+            .matching("com.legend.(*)..")
+            .should().beFreeOfCycles()
+            .as("Invariant 4: no cycles across com.legend top-level packages — AUDIT_2026_07.md")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * Sub-rule of Invariant 4 the top-level slices can't see: the typed HIR
+     * package must not reach back into the checker package (the old
+     * spec&lt;-&gt;spec.typed cycle existed solely because ExprType lived in spec).
+     */
+    @Test
+    void typedHirDoesNotDependOnCheckers() {
+        noClasses()
+            .that().resideInAPackage("com.legend.compiler.spec.typed")
+            .should().dependOnClassesThat().resideInAPackage("com.legend.compiler.spec")
+            .as("Invariant 4b: compiler.spec.typed is below compiler.spec — AUDIT_2026_07.md")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>Invariant 5 — the lowering consumes the TYPED HIR, not the
+     * parser AST.</strong> Dispatch keys on {@code signatureKey()} strings and
+     * date/time values live in {@code com.legend.values}; a parser import in
+     * the lowering means types are being stapled onto syntax again
+     * (AUDIT_2026_07 §1c).
+     */
+    @Test
+    void loweringDoesNotTouchTheParserAst() {
+        noClasses()
+            .that().resideInAPackage("com.legend.lowering")
+            .should().dependOnClassesThat().resideInAnyPackage("com.legend.parser..")
+            .as("Invariant 5: lowering is parser-free — AUDIT_2026_07 §1c")
+            .check(CORE_PROD_CLASSES);
+    }
+
     @Test
     void cachesAreFunneledToContentAddressedStore() {
         noClasses()

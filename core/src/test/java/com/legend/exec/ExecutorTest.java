@@ -3,7 +3,7 @@ package com.legend.exec;
 import com.legend.Compiler;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
-import com.legend.compiler.spec.ExprType;
+import com.legend.compiler.element.type.ExprType;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;

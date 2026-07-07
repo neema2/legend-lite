@@ -375,6 +375,45 @@ public final class Pure {
     }
 
     /** Every native overload registered at {@code fqn} (empty when none). */
+    /**
+     * Whether {@code signatureKey} identifies one of the native overloads
+     * registered at {@code name} — the parser-node-free membership test for
+     * identity-keyed consumers (AUDIT_2026_07 §1c).
+     */
+    /**
+     * The signature KEYS of every native overload registered at {@code name}
+     * — the parser-node-free registration surface for the lowering's rule
+     * tables (AUDIT_2026_07 §1c: dispatch identity crosses as STRINGS).
+     */
+    public static List<String> nativeKeysAt(String name) {
+        List<String> keys = new ArrayList<>();
+        for (var f : nativeFunctionsAt(name)) {
+            keys.add(f.signatureKey());
+        }
+        return keys;
+    }
+
+    /**
+     * Signature keys of specific overloads the lowering must single out
+     * (string CONCAT-plus; IN) — parser records stay behind this wall.
+     */
+    public static String keyPlusString() {
+        return PLUS__STRING_1__STRING_1.signatureKey();
+    }
+
+    public static String keyIn() {
+        return IN__ANY_1__ANY_MANY.signatureKey();
+    }
+
+    public static boolean nativeNamed(String name, String signatureKey) {
+        for (var f : nativeFunctionsAt(name)) {
+            if (f.signatureKey().equals(signatureKey)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static List<NativeFunctionDefinition> nativeFunctionsAt(String fqn) {
         return Index.FN_BY_FQN.getOrDefault(fqn, List.of());
     }
@@ -496,7 +535,10 @@ public final class Pure {
     public static final NativeFunctionDefinition DROP__T_MANY__INTEGER_1 = signature("native function drop<T>(set:T[*], count:meta::pure::metamodel::type::Integer[1]):T[*];");
     public static final NativeFunctionDefinition ENCODE_BASE64__STRING_1 = signature("native function encodeBase64(str:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition ENDS_WITH__STRING_1__STRING_1 = signature("native function endsWith(source:meta::pure::metamodel::type::String[1], val:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
-    public static final NativeFunctionDefinition EQUAL__ANY_1__ANY_1 = signature("native function equal(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
+    // VERIFIED vs real legend-pure grammar/functions/boolean/equality/equal.pure:
+    // equal(left:Any[*], right:Any[*]):Boolean[1] — collection equality is part
+    // of the contract (identity/primitive/collection/model-defined equality).
+    public static final NativeFunctionDefinition EQUAL__ANY_MANY__ANY_MANY = signature("native function equal(left:meta::pure::metamodel::type::Any[*], right:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition EQ__ANY_1__ANY_1 = signature("native function eq(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition EVAL__FUNCTION_1 = signature("native function eval(func:meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[1]):meta::pure::metamodel::type::Any[*];");
     public static final NativeFunctionDefinition EVAL__FUNCTION_1__T_MANY = signature("native function eval<T>(func:meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[1], param:T[*]):meta::pure::metamodel::type::Any[*];");
@@ -760,7 +802,9 @@ public final class Pure {
     public static final NativeFunctionDefinition MONTH__DATE_1 = signature("native function month(d:meta::pure::metamodel::type::Date[1]):meta::pure::functions::date::Month[1];");
     public static final NativeFunctionDefinition NEW_TDS_RELATION_ACCESSOR__RELATION_1 = signature("native function newTDSRelationAccessor<T>(tds:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
     public static final NativeFunctionDefinition NOT_EQUAL_ANSI__ANY_1__ANY_1 = signature("native function notEqualAnsi(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
-    public static final NativeFunctionDefinition NOT_EQUAL__ANY_1__ANY_1 = signature("native function notEqual(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
+    // VERIFIED vs real legend-pure (notEqual == !equal, same params): Any[*], Any[*].
+    // The constant name already said MANY while the signature said [1] — fixed.
+    public static final NativeFunctionDefinition NOT_EQUAL__ANY_MANY__ANY_MANY = signature("native function notEqual(left:meta::pure::metamodel::type::Any[*], right:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition NOT__BOOLEAN_1 = signature("native function not(value:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition NOW = signature("native function now():meta::pure::metamodel::type::DateTime[1];");
     public static final NativeFunctionDefinition NTH__RELATION_1__WINDOW_1__T_1__INTEGER_1 = signature("native function nth<T>(w:meta::pure::metamodel::relation::Relation<T>[1], f:meta::pure::functions::relation::_Window<T>[1], r:T[1], offset:meta::pure::metamodel::type::Integer[1]):T[0..1];");

@@ -1,5 +1,6 @@
 package com.legend.normalizer;
 
+import com.legend.parser.NormalizedModel;
 import com.legend.compiler.ModelBuilder;
 import com.legend.compiler.NameResolver;
 import com.legend.parser.ElementParser;
@@ -390,7 +391,7 @@ class ModelNormalizerTest {
               + "Service my::S { pattern: '/x'; "
               + "  execution: Single { query: |model::Person.all(); mapping: my::M; runtime: my::R; } }");
 
-        ModelBuilder mb = ModelBuilder.from(m);
+        ModelBuilder mb = ModelBuilder.from(new com.legend.parser.ParsedModel(m.elements(), m.imports()));
         assertEquals(1, mb.findFunction("model::Person$prop$next").size(),
                 "derived-property fn reachable through findFunction");
         assertEquals(1, mb.findFunction("model::Person$constraint$adult").size(),

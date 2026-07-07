@@ -11,7 +11,7 @@ import com.legend.parser.element.EnumDefinition;
 import com.legend.parser.element.Function;
 import com.legend.parser.element.LegacyMappingDefinition;
 import com.legend.normalizer.MappingNormalizer;
-import com.legend.normalizer.NormalizedModel;
+import com.legend.parser.NormalizedModel;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -304,8 +304,8 @@ class ModelBuilderTest {
               + "Mapping my::M ( "
               + "  *model::Person: Pure { ~src model::RawPerson name: $src.name } "
               + ")");
-        NormalizedModel normalized = MappingNormalizer.normalize(raw, ModelBuilder.from(raw));
-        ModelBuilder mb = ModelBuilder.from(normalized);
+        NormalizedModel normalized = MappingNormalizer.normalize(raw, ModelBuilder.from(new com.legend.parser.ParsedModel(raw.elements(), raw.imports())));
+        ModelBuilder mb = ModelBuilder.from(new com.legend.parser.ParsedModel(normalized.elements(), normalized.imports()));
         // The lifted realizing function resolves through the ONE findFunction
         // path, identical to a user-written function: it is an ordinary
         // top-level FunctionDefinition element ingested by the same function
@@ -327,13 +327,13 @@ class ModelBuilderTest {
               + ")");
         // Pre-normalize: no lifted function exists yet, so findFunction is
         // empty for the lifted FQN.
-        assertTrue(ModelBuilder.from(raw).findFunction("my::M$class$model::Person").isEmpty(),
+        assertTrue(ModelBuilder.from(new com.legend.parser.ParsedModel(raw.elements(), raw.imports())).findFunction("my::M$class$model::Person").isEmpty(),
                 "before normalization there is no lifted fn to index");
         // Post-normalize: rebuilding from the normalized model re-derives the
         // index and surfaces the lifted fn. Invalidation is implicit — there is
         // no cache; the index is a pure function of the (normalized) input.
-        NormalizedModel normalized = MappingNormalizer.normalize(raw, ModelBuilder.from(raw));
-        assertFalse(ModelBuilder.from(normalized).findFunction("my::M$class$model::Person").isEmpty(),
+        NormalizedModel normalized = MappingNormalizer.normalize(raw, ModelBuilder.from(new com.legend.parser.ParsedModel(raw.elements(), raw.imports())));
+        assertFalse(ModelBuilder.from(new com.legend.parser.ParsedModel(normalized.elements(), normalized.imports())).findFunction("my::M$class$model::Person").isEmpty(),
                 "after normalization the rebuilt index includes the synth fn");
     }
 

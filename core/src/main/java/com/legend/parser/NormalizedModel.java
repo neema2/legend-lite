@@ -1,6 +1,5 @@
-package com.legend.normalizer;
+package com.legend.parser;
 
-import com.legend.parser.ImportScope;
 import com.legend.parser.element.FunctionDefinition;
 import com.legend.parser.element.PackageableElement;
 

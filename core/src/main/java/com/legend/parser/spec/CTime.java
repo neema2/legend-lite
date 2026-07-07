@@ -1,5 +1,6 @@
 package com.legend.parser.spec;
 
+import com.legend.values.PureTimeLiteral;
 import java.util.Objects;
 
 /**

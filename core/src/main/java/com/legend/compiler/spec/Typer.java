@@ -1,5 +1,6 @@
 package com.legend.compiler.spec;
 
+import com.legend.compiler.element.type.ExprType;
 import com.legend.builtin.Pure;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.Property;
@@ -48,9 +49,10 @@ import com.legend.parser.spec.ColSpecArray;
 import com.legend.parser.spec.EnumValue;
 import com.legend.parser.spec.LambdaFunction;
 import com.legend.parser.spec.NewInstance;
+import com.legend.parser.spec.NewInstanceCast;
 import com.legend.parser.spec.PackageableElementPtr;
 import com.legend.parser.spec.PureCollection;
-import com.legend.parser.spec.PureDateLiteral;
+import com.legend.values.PureDateLiteral;
 import com.legend.parser.spec.TypeAnnotation;
 import com.legend.parser.spec.ValueSpecification;
 import com.legend.parser.spec.Variable;
@@ -135,8 +137,15 @@ final class Typer {
             case ColSpec cs -> typedColSpec(cs);
             case ColSpecArray arr -> typedColSpecArray(arr);
             case EnumValue ev -> enumValue(ev);
-            default -> throw new TypeInferenceException(
-                    "Phase-G compilation of " + vs.getClass().getSimpleName() + " is not implemented yet");
+            // EXHAUSTIVE over sealed ValueSpecification — no default arm
+            // (root package-info invariant): a new AST variant is a COMPILE
+            // error here, not a runtime surprise. The two arms below are the
+            // deliberate not-yet-implemented forms.
+            case LambdaFunction lf -> throw new TypeInferenceException(
+                    "a bare lambda has no type outside a call position"
+                            + " (lambdas type against their call's signature)");
+            case NewInstanceCast nc -> throw new TypeInferenceException(
+                    "Phase-G compilation of NewInstanceCast is not implemented yet");
         };
     }
 

@@ -1,7 +1,5 @@
-package com.legend.compiler.spec;
+package com.legend.compiler.element.type;
 
-import com.legend.compiler.element.type.Multiplicity;
-import com.legend.compiler.element.type.Type;
 
 import java.util.Objects;
 

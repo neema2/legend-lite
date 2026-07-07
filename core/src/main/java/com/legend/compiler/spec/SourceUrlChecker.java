@@ -1,5 +1,6 @@
 package com.legend.compiler.spec;
 
+import com.legend.compiler.element.type.ExprType;
 import com.legend.builtin.Pure;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;

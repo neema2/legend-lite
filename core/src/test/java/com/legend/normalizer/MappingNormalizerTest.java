@@ -1,5 +1,6 @@
 package com.legend.normalizer;
 
+import com.legend.parser.NormalizedModel;
 import com.legend.parser.ElementParser;
 import com.legend.parser.Multiplicity;
 import com.legend.parser.ParsedModel;
@@ -2413,13 +2414,13 @@ class MappingNormalizerTest {
     /**
      * Run Phase E.1 exactly as production does: invoke the single
      * {@link MappingNormalizer#normalize(ParsedModel, ModelBuilder)} method with
-     * a real {@code ModelBuilder.from(parsed)} resolution index &mdash; the same
+     * a real {@code ModelBuilder.from(new com.legend.parser.ParsedModel(parsed.elements(), parsed.imports()))} resolution index &mdash; the same
      * two calls the {@code ModelNormalizer} / {@code Compiler} orchestrator makes.
      * This is call-site glue, not a second implementation: there is exactly one
      * {@code normalize} code path, and tests and prod both go through it.
      */
     private static NormalizedModel normalizeViaPipeline(ParsedModel parsed) {
-        return MappingNormalizer.normalize(parsed, ModelBuilder.from(parsed));
+        return MappingNormalizer.normalize(parsed, ModelBuilder.from(new com.legend.parser.ParsedModel(parsed.elements(), parsed.imports())));
     }
 
     /**
@@ -3782,7 +3783,7 @@ class MappingNormalizerTest {
                         .collect(Collectors.toSet()),
                 "two same-simple-name classes must lift to distinct, non-colliding FQNs");
         // Both resolve independently through the one findFunction index.
-        ModelBuilder mb = ModelBuilder.from(normalized);
+        ModelBuilder mb = ModelBuilder.from(new com.legend.parser.ParsedModel(normalized.elements(), normalized.imports()));
         assertEquals(1, mb.findFunction("my::M$class$a::Person").size());
         assertEquals(1, mb.findFunction("my::M$class$b::Person").size());
     }

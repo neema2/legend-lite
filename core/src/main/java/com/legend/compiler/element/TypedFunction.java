@@ -59,6 +59,16 @@ public record TypedFunction(
         boolean isNative,
         com.legend.parser.element.Function definition) implements TypedElement {
 
+    /** The stable overload identity (see {@code Function.signatureKey}). */
+    public String signatureKey() {
+        if (definition == null) {
+            throw new IllegalStateException("TypedFunction '" + qualifiedName
+                    + "' has no source definition (test-convenience ctor) —"
+                    + " it cannot be dispatched by the lowering");
+        }
+        return definition.signatureKey();
+    }
+
     /**
      * Test convenience: a signature with no source definition. Real
      * compilation always threads the parser definition &mdash; it is the

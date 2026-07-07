@@ -1,5 +1,6 @@
 package com.legend.parser.spec;
 
+import com.legend.values.PureDateLiteral;
 import com.legend.parser.Multiplicity;
 import com.legend.parser.TypeExpression;
 

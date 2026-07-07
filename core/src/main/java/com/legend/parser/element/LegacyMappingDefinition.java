@@ -9,7 +9,7 @@ import java.util.Objects;
  * {@code prop: [db]T.COL}, {@code @Join}, &hellip;). This is a Phase-B record
  * with a <strong>B&rarr;E lifetime only</strong>: the parser produces it,
  * {@code MappingNormalizer} (Phase E) is its sole consumer, and it never
- * appears in a {@link com.legend.normalizer.NormalizedModel}. After Phase E
+ * appears in a {@link com.legend.parser.NormalizedModel}. After Phase E
  * the canonical {@link MappingDefinition} binding table carries the mapping
  * forward (docs/CLEAN_SHEET_INVERSION.md §1.5.1).
  *

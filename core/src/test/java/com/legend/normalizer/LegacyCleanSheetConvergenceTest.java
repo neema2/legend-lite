@@ -1,5 +1,6 @@
 package com.legend.normalizer;
 
+import com.legend.parser.NormalizedModel;
 import com.legend.compiler.NameResolver;
 import com.legend.parser.ElementParser;
 import com.legend.parser.element.FunctionDefinition;

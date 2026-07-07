@@ -260,19 +260,6 @@ public final class ModelBuilder {
         return mb;
     }
 
-    /**
-     * Build from a Phase-E {@link com.legend.normalizer.NormalizedModel} &mdash;
-     * the Phase-F entry. The parameter type is the phase gate
-     * ({@code docs/CLEAN_SHEET_INVERSION.md} &sect;4): element compilation
-     * demands a normalized model at the signature level. Lifted behavior
-     * functions are ordinary elements in the normalized list and are ingested
-     * by the same function arm as user-written functions.
-     */
-    public static ModelBuilder from(com.legend.normalizer.NormalizedModel normalized) {
-        Objects.requireNonNull(normalized, "normalized");
-        return from(new ParsedModel(normalized.elements(), normalized.imports()));
-    }
-
     private void ingestDatabase(DatabaseDefinition db) {
         int id = intern(db.qualifiedName());
         putAtId(databases, id, db);

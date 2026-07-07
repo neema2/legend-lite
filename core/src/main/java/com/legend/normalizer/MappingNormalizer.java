@@ -1,5 +1,6 @@
 package com.legend.normalizer;
 
+import com.legend.parser.NormalizedModel;
 import com.legend.compiler.ModelBuilder;
 import com.legend.compiler.SynthFqn;
 import com.legend.parser.Multiplicity;

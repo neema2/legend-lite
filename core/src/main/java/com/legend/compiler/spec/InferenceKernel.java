@@ -1,5 +1,6 @@
 package com.legend.compiler.spec;
 
+import com.legend.compiler.element.type.ExprType;
 import com.legend.builtin.Pure;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.TypedClass;
@@ -76,8 +77,14 @@ public final class InferenceKernel {
                     throw fail(formal, actual);
                 }
             }
-            case Type.ClassType c -> {   // identity only (engine convention)
-                if (!(actual instanceof Type.ClassType ac && ac.fqn().equals(c.fqn()))) {
+            case Type.ClassType c -> {
+                // SUBTYPE conformance (a Person flows into an Employee-typed
+                // param's superclass) — matching what overload SCORING already
+                // accepts (paramTypeScore scores subtypes as matches); the two
+                // halves of one kernel must agree, or resolution selects a
+                // winner unification then rejects (audit finding).
+                if (!(actual instanceof Type.ClassType ac
+                        && (ac.fqn().equals(c.fqn()) || ctx.isSubtype(ac.fqn(), c.fqn())))) {
                     throw fail(formal, actual);
                 }
             }

@@ -1,5 +1,6 @@
 package com.legend.compiler.spec;
 
+import com.legend.compiler.element.type.ExprType;
 import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.TypedFunction;
@@ -18,8 +19,8 @@ import com.legend.compiler.spec.typed.TypedRename;
 import com.legend.compiler.spec.typed.TypedSort;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedVariable;
-import com.legend.parser.spec.PureDateLiteral;
-import com.legend.parser.spec.PureTimeLiteral;
+import com.legend.values.PureDateLiteral;
+import com.legend.values.PureTimeLiteral;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Constructor;

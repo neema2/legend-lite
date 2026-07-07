@@ -194,6 +194,9 @@ public final class Lowerer {
 
             case com.legend.compiler.spec.typed.TypedPivot pv -> pivot(pv);
 
+            // SANCTIONED frontier default (root package-info invariant is
+            // scoped to hiding-prone switches): the not-yet-lowered TypedSpec
+            // variants churn every milestone; each throws LOUD and NAMED.
             default -> throw new IllegalStateException("lowering not yet implemented for "
                     + spec.getClass().getSimpleName());
         };
@@ -281,7 +284,7 @@ public final class Lowerer {
             throw new IllegalStateException("aggregate reduce must be a native reducer call, got "
                     + reduceBody.getClass().getSimpleName());
         }
-        String fn = Aggregates.reducerFor(call.callee().definition(), call.callee().qualifiedName());
+        String fn = Aggregates.reducerFor(call.callee());
         TypedSpec mapBody = last(a.map());
         // Reducer EXTRA arguments (joinStrings('_') carries its separator):
         // literal args ride along after the value; variable refs are the
@@ -313,7 +316,7 @@ public final class Lowerer {
      * a plain-projection or star select stays flat.
      */
     private SqlSelect extendWith(SqlSelect src, List<TypedFuncCol> columns,
-                                 com.legend.compiler.spec.ExprType info, boolean append,
+                                 com.legend.compiler.element.type.ExprType info, boolean append,
                                  boolean isolated) {
         SqlSelect base = (append ? Fold.extendFolds(src) : Fold.projectionFolds(src))
                 ? src : isolate(src);
@@ -481,7 +484,7 @@ public final class Lowerer {
 
     /** select(~cols) / distinct(~cols): narrow the projection list. */
     private SqlSelect narrowTo(SqlSelect src, List<String> columns, boolean distinct,
-                               com.legend.compiler.spec.ExprType info) {
+                               com.legend.compiler.element.type.ExprType info) {
         SqlSelect base = Fold.projectionFolds(src) ? src : isolate(src);
         if (distinct && !Fold.distinctNarrowFolds(base, columns)) {
             base = isolate(base);
@@ -639,7 +642,7 @@ public final class Lowerer {
      * prefix renames EVERY right column.
      */
     private SqlSelect joined(SqlSource.Join source, java.util.Optional<String> prefix,
-                             TypedSpec rightNode, com.legend.compiler.spec.ExprType info) {
+                             TypedSpec rightNode, com.legend.compiler.element.type.ExprType info) {
         SqlSelect out = SqlSelect.starOf(source);
         if (prefix.isEmpty()) {
             return out.withProjections(List.of(), outputsOf(info));
@@ -773,8 +776,7 @@ public final class Lowerer {
             throw new IllegalStateException("window frame lowering expects rows()/range(), got "
                     + spec.getClass().getSimpleName());
         }
-        boolean rows = com.legend.builtin.Pure.nativeFunctionsAt("rows")
-                .contains(call.callee().definition());
+        boolean rows = com.legend.builtin.Pure.nativeNamed("rows", call.callee().signatureKey());
         return new SqlExpr.WindowCall.Frame(
                 rows ? SqlExpr.WindowCall.Frame.Kind.ROWS : SqlExpr.WindowCall.Frame.Kind.RANGE,
                 bound(call.args().get(0), true), bound(call.args().get(1), false));
@@ -783,7 +785,7 @@ public final class Lowerer {
     private SqlExpr.WindowCall.Frame.Bound bound(TypedSpec arg, boolean fromSide) {
         // A negative literal arrives as unary minus AROUND the integer — unwrap.
         if (arg instanceof TypedNativeCall neg
-                && com.legend.builtin.Pure.nativeFunctionsAt("minus").contains(neg.callee().definition())
+                && com.legend.builtin.Pure.nativeNamed("minus", neg.callee().signatureKey())
                 && neg.args().size() == 1 && neg.args().get(0) instanceof TypedCInteger inner) {
             return new SqlExpr.WindowCall.Frame.Bound.Preceding(inner.value().longValue());
         }
@@ -798,7 +800,7 @@ public final class Lowerer {
             return new SqlExpr.WindowCall.Frame.Bound.CurrentRow();
         }
         if (arg instanceof TypedNativeCall call
-                && com.legend.builtin.Pure.nativeFunctionsAt("unbounded").contains(call.callee().definition())) {
+                && com.legend.builtin.Pure.nativeNamed("unbounded", call.callee().signatureKey())) {
             return fromSide ? new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding()
                     : new SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing();
         }
@@ -817,16 +819,16 @@ public final class Lowerer {
     private SqlExpr windowScalar(TypedSpec body, SqlSelect base, Over over) {
         switch (body) {
             case TypedPropertyAccess p when p.source() instanceof TypedNativeCall call
-                    && Windows.lookup(call.callee().definition()) != null -> {
-                Windows.WindowFn fn = Windows.lookup(call.callee().definition());
+                    && Windows.lookup(call.callee()) != null -> {
+                Windows.WindowFn fn = Windows.lookup(call.callee());
                 List<SqlExpr> args = new ArrayList<>();
                 args.add(new SqlExpr.Column(fromAlias(base), p.property()));
                 trailingIntArgs(call, args);
                 return new SqlExpr.WindowCall(new SqlAgg.ValueFn(fn.sqlName(), args),
                         over.partitionBy(), over.orderBy(), over.frame());
             }
-            case TypedNativeCall call when Windows.lookup(call.callee().definition()) != null -> {
-                Windows.WindowFn fn = Windows.lookup(call.callee().definition());
+            case TypedNativeCall call when Windows.lookup(call.callee()) != null -> {
+                Windows.WindowFn fn = Windows.lookup(call.callee());
                 if (fn.kind() != Windows.Kind.RANKING) {
                     throw new IllegalStateException("window value function '"
                             + call.callee().qualifiedName()
@@ -880,13 +882,22 @@ public final class Lowerer {
             // dates (year / year-month) compare as STRINGS in SQL (master's
             // pinned semantics) — represented as string literals here.
             case com.legend.compiler.spec.typed.TypedCDate d -> switch (d.value()) {
-                case com.legend.parser.spec.PureDateLiteral.StrictDate sd ->
+                case com.legend.values.PureDateLiteral.StrictDate sd ->
                         new SqlExpr.DateLit(sd.toEngineString());
-                case com.legend.parser.spec.PureDateLiteral.Year y ->
+                case com.legend.values.PureDateLiteral.Year y ->
                         new SqlExpr.StringLit(y.toEngineString());
-                case com.legend.parser.spec.PureDateLiteral.YearMonth ym ->
+                case com.legend.values.PureDateLiteral.YearMonth ym ->
                         new SqlExpr.StringLit(ym.toEngineString());
-                default -> new SqlExpr.TimestampLit(d.value().toEngineString());
+                // Every time-bearing precision is a TIMESTAMP — exhaustive,
+                // so a new precision variant demands a decision here.
+                case com.legend.values.PureDateLiteral.DateWithHour h ->
+                        new SqlExpr.TimestampLit(h.toEngineString());
+                case com.legend.values.PureDateLiteral.DateWithMinute mi ->
+                        new SqlExpr.TimestampLit(mi.toEngineString());
+                case com.legend.values.PureDateLiteral.DateWithSecond se ->
+                        new SqlExpr.TimestampLit(se.toEngineString());
+                case com.legend.values.PureDateLiteral.DateWithSubsecond su ->
+                        new SqlExpr.TimestampLit(su.toEngineString());
             };
             case TypedCollection c -> new SqlExpr.ArrayLit(
                     c.elements().stream().map(e -> scalar(e, columns)).toList());
@@ -937,6 +948,7 @@ public final class Lowerer {
 
             case TypedNativeCall n -> Scalars.lower(n,
                     n.args().stream().map(a -> scalar(a, columns)).toList());
+            // SANCTIONED frontier default — see relation() above.
             default -> throw new IllegalStateException("scalar lowering not yet implemented for "
                     + spec.getClass().getSimpleName());
         };
@@ -1173,7 +1185,7 @@ public final class Lowerer {
         return (Type.RelationType) spec.info().type();
     }
 
-    private static List<OutputCol> outputsOf(com.legend.compiler.spec.ExprType info) {
+    private static List<OutputCol> outputsOf(com.legend.compiler.element.type.ExprType info) {
         if (!(info.type() instanceof Type.RelationType rt)) {
             return List.of();
         }

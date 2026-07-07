@@ -1,9 +1,7 @@
 package com.legend.lowering;
 
 import com.legend.builtin.Pure;
-import com.legend.parser.element.Function;
 
-import java.util.IdentityHashMap;
 import java.util.Map;
 
 /**
@@ -21,13 +19,13 @@ final class Windows {
     record WindowFn(String sqlName, Kind kind) {
     }
 
-    private static final Map<Function, WindowFn> FNS = new IdentityHashMap<>();
+    private static final Map<String, WindowFn> FNS = new java.util.HashMap<>();
 
     private Windows() {
     }
 
     private static void family(String sqlName, Kind kind, String pureName) {
-        for (Function f : Pure.nativeFunctionsAt(pureName)) {
+        for (String f : Pure.nativeKeysAt(pureName)) {
             FNS.put(f, new WindowFn(sqlName, kind));
         }
     }
@@ -47,7 +45,7 @@ final class Windows {
     }
 
     /** The window fn for a resolved overload, or null when it is not a window native. */
-    static WindowFn lookup(Function definition) {
-        return FNS.get(definition);
+    static WindowFn lookup(com.legend.compiler.element.TypedFunction callee) {
+        return FNS.get(callee.signatureKey());
     }
 }

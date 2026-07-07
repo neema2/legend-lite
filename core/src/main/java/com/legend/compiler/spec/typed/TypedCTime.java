@@ -1,7 +1,7 @@
 package com.legend.compiler.spec.typed;
 
-import com.legend.compiler.spec.ExprType;
-import com.legend.parser.spec.PureTimeLiteral;
+import com.legend.compiler.element.type.ExprType;
+import com.legend.values.PureTimeLiteral;
 
 import java.util.List;
 

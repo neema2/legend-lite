@@ -1,4 +1,4 @@
-package com.legend.parser.spec;
+package com.legend.values;
 
 import java.time.LocalDateTime;
 import java.util.Objects;

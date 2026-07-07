@@ -2,7 +2,7 @@ package com.legend.exec;
 
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
-import com.legend.compiler.spec.ExprType;
+import com.legend.compiler.element.type.ExprType;
 
 /**
  * THE result-shape classification (PHASE_HIJ_LOWERING.md, "a first-class

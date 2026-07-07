@@ -1,7 +1,7 @@
 package com.legend.exec;
 
 import com.legend.compiler.element.type.Type;
-import com.legend.compiler.spec.ExprType;
+import com.legend.compiler.element.type.ExprType;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlQuery;
 

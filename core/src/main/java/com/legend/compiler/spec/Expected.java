@@ -1,5 +1,6 @@
 package com.legend.compiler.spec;
 
+import com.legend.compiler.element.type.ExprType;
 /**
  * The bidirectional-typing mode passed down into body type-checking
  * (PHASE_G_SPEC_COMPILER.md §2; GHC's {@code Expected}). Either we are

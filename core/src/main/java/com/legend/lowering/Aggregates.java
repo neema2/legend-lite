@@ -1,9 +1,7 @@
 package com.legend.lowering;
 
 import com.legend.builtin.Pure;
-import com.legend.parser.element.Function;
 
-import java.util.IdentityHashMap;
 import java.util.Map;
 
 /**
@@ -13,13 +11,13 @@ import java.util.Map;
  */
 final class Aggregates {
 
-    private static final Map<Function, String> REDUCERS = new IdentityHashMap<>();
+    private static final Map<String, String> REDUCERS = new java.util.HashMap<>();
 
     private Aggregates() {
     }
 
     private static void family(String sqlName, String pureName) {
-        for (Function f : Pure.nativeFunctionsAt(pureName)) {
+        for (String f : Pure.nativeKeysAt(pureName)) {
             REDUCERS.put(f, sqlName);
         }
     }
@@ -43,12 +41,18 @@ final class Aggregates {
         family("VAR_POP", "variancePopulation");
     }
 
-    /** SQL reducer for the resolved reduce overload; loud error when unregistered. */
-    static String reducerFor(Function definition, String qualifiedName) {
-        String name = REDUCERS.get(definition);
+    /**
+     * SQL reducer for the resolved reduce overload; loud error when
+     * unregistered. Takes the TYPED callee — the parser node never crosses
+     * into the lowering (AUDIT_2026_07 §1c; also retires the redundant
+     * second parameter, audit L7).
+     */
+    static String reducerFor(com.legend.compiler.element.TypedFunction callee) {
+        String name = REDUCERS.get(callee.signatureKey());
         if (name == null) {
             throw new IllegalStateException(
-                    "no aggregate lowering registered for resolved overload '" + qualifiedName + "'");
+                    "no aggregate lowering registered for resolved overload '"
+                            + callee.qualifiedName() + "'");
         }
         return name;
     }
