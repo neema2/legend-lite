@@ -137,7 +137,7 @@ class NativeFunctionTest {
                 List.of(tp(nr("T"), Multiplicity.exactly(1))),
                 tp(nr(Pure.BOOLEAN), Multiplicity.exactly(1))));
         var expected = new NativeFunctionDefinition(
-                "filter",
+                "meta::pure::functions::relation::filter",
                 List.of("T"),
                 List.of(),
                 List.of(
@@ -155,7 +155,7 @@ class NativeFunctionTest {
         // cast<T|m>(Any[m], T[1]): T[m]
         // The motivating case for Multiplicity.Parameter capture.
         var expected = new NativeFunctionDefinition(
-                "cast",
+                "meta::pure::functions::lang::cast",
                 List.of("T"),
                 List.of("m"),
                 List.of(
@@ -190,7 +190,7 @@ class NativeFunctionTest {
                 sa(nr("T"), Op.DIFFERENCE, nr("Z")),
                 Op.UNION, nr("V"));
         var expected = new NativeFunctionDefinition(
-                "rename",
+                "meta::pure::functions::relation::rename",
                 List.of("T", "Z", "K", "V"),
                 List.of(),
                 List.of(
@@ -218,7 +218,7 @@ class NativeFunctionTest {
                 List.of(),
                 tp(nr("T"), Multiplicity.parameter("m"))));
         var expected = new NativeFunctionDefinition(
-                "if",
+                "meta::pure::functions::lang::if",
                 List.of("T"),
                 List.of("m"),
                 List.of(
@@ -247,7 +247,7 @@ class NativeFunctionTest {
         //   - schema algebra return type T+R
         NativeFunctionDefinition def =
                 Pure.EXTEND__RELATION_1__WINDOW_1__FUNC_COL_SPEC_1;
-        assertEquals("extend", def.qualifiedName());
+        assertEquals("meta::pure::functions::relation::extend", def.qualifiedName());
         assertEquals(List.of("T", "Z", "W", "R"), def.typeParameters());
         assertEquals(List.of(), def.multiplicityParameters());
         assertEquals(3, def.parameters().size());
@@ -274,7 +274,7 @@ class NativeFunctionTest {
         TypeExpression sortInfoXsubT = tg(Pure.SORT_INFO,
                 sa(nr("X"), Op.SUBSET, nr("T")));
         var expected = new NativeFunctionDefinition(
-                "sort",
+                "meta::pure::functions::relation::sort",
                 List.of("X", "T"),
                 List.of(),
                 List.of(
@@ -291,7 +291,7 @@ class NativeFunctionTest {
     void zeroArityNative_pinShape() {
         // generateGuid(): String[1]
         var expected = new NativeFunctionDefinition(
-                "generateGuid",
+                "meta::pure::functions::string::generation::generateGuid",
                 List.of(),
                 List.of(),
                 List.of(),
@@ -369,8 +369,7 @@ class NativeFunctionTest {
                 "getAll", "type", "letFunction",
                 "plus", "minus", "times", "divide", "equal", "lessThan",
                 "and", "or", "not",
-                "graphFetch", "serialize",
-                "generateGuid")) {
+                "graphFetch", "serialize", "generateGuid")) {
             assertTrue(simpleNames.contains(required),
                     () -> "required native '" + required
                             + "' missing from Pure catalog");

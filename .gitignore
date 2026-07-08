@@ -19,3 +19,4 @@ dependency-reduced-pom.xml
 # DuckDB artifacts
 null
 null.wal
+runs/

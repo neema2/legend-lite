@@ -33,6 +33,12 @@ STEP 2 — resolution flip (separate slice):
   e. NameResolver prelude gains FUNCTION imports (the platform packages
      as wildcards, mirroring class/enum handling); bare user calls
      resolve to FQNs at RESOLUTION; normalizePlatformFunction retires.
+     ! THE IMPLICIT IMPORT SET MUST INCLUDE meta::legend::lite (the 23
+     invented natives / 30 overloads live there as of step 1) alongside
+     the real platform packages — else every bare lite call (isNull,
+     notEqual, navigate, tds, ...) breaks. Today bare calls resolve via
+     the package-agnostic FN_BY_BARE union index, so no import set
+     exists yet.
   f. CoreFn.of maps FQNs (parse-names stay for parser desugar).
 STEP 3 — emission-site migration (separate slice):
   g. MappingNormalizer's ~20 emitted names, SpecParser's tds desugar,

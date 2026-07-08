@@ -317,12 +317,12 @@ public final class NameResolver {
      * native normalize — user FQNs are untouched.
      */
     private static String normalizePlatformFunction(String fn) {
-        if (fn.startsWith("meta::pure::")) {
-            String bare = fn.substring(fn.lastIndexOf("::") + 2);
-            if (!Pure.nativeFunctionsAt(bare).isEmpty()) {
-                return bare;
-            }
-        }
+        // FQN-keyed catalog era (FQN_MIGRATION step 1c): both spellings
+        // resolve DIRECTLY against the catalog (FQN via the primary index,
+        // bare via the bare-name union index) — the old blind prefix-strip
+        // silently CAPTURED user functions whose last segment collided with
+        // a native (meta::pure::custom::map -> native map). A non-catalog
+        // platform FQN now resolves (or fails loudly) as a user function.
         return fn;
     }
 

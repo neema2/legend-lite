@@ -6,6 +6,12 @@ Parses engine/target/surefire-reports after a full engine-suite run:
     rm -rf engine/target/surefire-reports   # REQUIRED: the scan sums every
                                             # report file; targeted -Dtest runs
                                             # leave stale contaminants
+    mvn -pl core install -DskipTests        # VERIFY "BUILD SUCCESS" before the
+                                            # suite: a failed install leaves the
+                                            # engine compiling against a missing
+                                            # core jar and 1800+ tests die on
+                                            # embedded compile errors (seen
+                                            # 2026-07-08: topline 764 artifact)
     mvn -pl engine test -Dmaven.test.failure.ignore=true
     python3 tools/scoreboard.py            # print the report
     python3 tools/scoreboard.py --record   # append a run row to docs/SCOREBOARD.md
@@ -109,6 +115,15 @@ def main():
         with open(SCOREBOARD, "a") as f:
             f.write("\n" + report + "\n")
         print(f"\n[recorded to {SCOREBOARD}]")
+        # BASELINE ARCHIVE: keep every recorded run's per-test reports so
+        # future regressions diff against history instead of re-running it
+        # (runs/ is local; see .gitignore).
+        import shutil
+        dest = os.path.join(os.path.dirname(SCOREBOARD), "..", "runs",
+                            f"{datetime.date.today()}-{commit}")
+        if not os.path.exists(dest):
+            shutil.copytree(REPORTS, dest)
+            print(f"[reports archived to {dest}]")
 
 
 if __name__ == "__main__":

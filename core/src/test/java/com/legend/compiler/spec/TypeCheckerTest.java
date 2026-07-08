@@ -1203,6 +1203,21 @@ class TypeCheckerTest {
     }
 
     @Test
+    void platformPackageUserFunctionIsNotSilentlyCaptured() {
+        // FQN_MIGRATION step 1c: the old resolver blind-stripped
+        // meta::pure::* prefixes, so a USER function whose last segment
+        // collided with a native (here: 'map') silently rebound to the
+        // native's overloads. Now the FQN resolves against the catalog —
+        // absent there, it resolves as the USER function it is.
+        String model = "function meta::pure::custom::map(x: Integer[1]): Integer[1] { $x + 1 }";
+        ModelContext ctx = Compiler.compileModel(model);
+        TypedSpec t = new SpecCompiler(ctx).typeBody(
+                SpecParser.parse("meta::pure::custom::map(41)"),
+                Env.empty(), Expected.infer());
+        assertEquals(Type.Primitive.INTEGER, t.info().type());
+    }
+
+    @Test
     void evalOfFunctionValueTypesThroughTheVerbatimSignature() {
         // eval<T,V|m,n>(Function<{T[n]->V[m]}>[1], param:T[n]):V[m] — a
         // function-typed PARAMETER's own type solves V[m] via the kernel's

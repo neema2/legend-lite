@@ -141,6 +141,20 @@ public enum CoreFn {
      * (which rides the generic path).
      */
     public static Optional<CoreFn> of(String parseName) {
-        return Optional.ofNullable(BY_NAME.get(parseName));
+        CoreFn direct = BY_NAME.get(parseName);
+        if (direct != null) {
+            return Optional.of(direct);
+        }
+        // FQN-keyed catalog era (FQN_MIGRATION step 1): a platform-qualified
+        // call dispatches to the same core checker as its bare spelling —
+        // ONLY when the FQN is an actual CATALOG NATIVE (a USER function
+        // living under meta::pure::* — perfectly legal — must not hijack a
+        // checker; the pin that caught this: meta::pure::custom::map).
+        if (parseName.contains("::")
+                && !com.legend.builtin.Pure.nativeFunctionsAt(parseName).isEmpty()) {
+            int sep = parseName.lastIndexOf("::");
+            return Optional.ofNullable(BY_NAME.get(parseName.substring(sep + 2)));
+        }
+        return Optional.empty();
     }
 }

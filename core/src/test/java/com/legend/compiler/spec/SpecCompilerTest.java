@@ -167,7 +167,7 @@ class SpecCompilerTest {
         // length(String[1]):Integer[1]
         TypedSpec n = infer("length('hello')");
         assertInstanceOf(TypedNativeCall.class, n);
-        assertEquals("length", ((TypedNativeCall) n).function());
+        assertEquals("meta::pure::functions::string::length", ((TypedNativeCall) n).function());
         assertEquals(one(Type.Primitive.INTEGER), n.info());
     }
 
