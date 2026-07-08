@@ -207,8 +207,10 @@ public interface TokenStreamCursor {
     /** Require the next token to be {@code type} and advance past it;
      *  fail with a source-located {@link ParseException} otherwise. */
     default void expect(TokenType type) {
-        rejectInvalid();
+        // INVALID rejection lives in the FAILURE branch only — the happy
+        // path pays nothing extra (advance() below carries the real trap).
         if (peek() != type) {
+            rejectInvalid();
             throw error("expected " + type + " but found " + peek()
                     + " ('" + safeText() + "')");
         }
@@ -233,8 +235,8 @@ public interface TokenStreamCursor {
     /** Require the next token to be {@code type}, advance past it, and
      *  return its source text. */
     default String consume(TokenType type) {
-        rejectInvalid();
         if (peek() != type) {
+            rejectInvalid();   // failure branch only — see expect()
             throw error("expected " + type + " but found " + peek()
                     + " ('" + safeText() + "')");
         }

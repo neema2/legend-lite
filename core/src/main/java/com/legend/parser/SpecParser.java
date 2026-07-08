@@ -272,7 +272,7 @@ public final class SpecParser implements TokenStreamCursor {
      * restriction in its {@code parseProgramLine}.
      */
     private ValueSpecification parseProgramLine() {
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.LET) {
+        if (!atEnd() && peek() == TokenType.LET) {
             return parseLetExpression();
         }
         return parseCombinedExpression();
@@ -335,12 +335,12 @@ public final class SpecParser implements TokenStreamCursor {
         // keyword collisions). Engine-lite's parseIdentifierText
         // unquotes transparently; we match.
         String varName;
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.STRING) {
+        if (!atEnd() && peek() == TokenType.STRING) {
             // CString's own parseString handles escape resolution; we
             // reuse it so escape handling is one place.
             varName = ((CString) parseString()).value();
-        } else if (pos < tokens.count() && isFqnSegmentToken(tokens.type(pos))) {
-            varName = tokens.text(pos);
+        } else if (!atEnd() && isFqnSegmentToken(peek())) {
+            varName = text();
             pos++;
         } else {
             throw error("expected variable name after 'let'");
@@ -369,7 +369,7 @@ public final class SpecParser implements TokenStreamCursor {
             return stmts;
         }
         stmts.add(parseProgramLine());
-        while (pos < tokens.count() && tokens.type(pos) == TokenType.SEMI_COLON) {
+        while (!atEnd() && peek() == TokenType.SEMI_COLON) {
             pos++; // consume ';'
             if (atTerminator(terminator)) {
                 break;
@@ -380,10 +380,10 @@ public final class SpecParser implements TokenStreamCursor {
     }
 
     private boolean atTerminator(TokenType terminator) {
-        if (pos >= tokens.count()) {
+        if (atEnd()) {
             return true; // EOF terminates
         }
-        return terminator != null && tokens.type(pos) == terminator;
+        return terminator != null && peek() == terminator;
     }
 
     // -------------------------------------------------------------------
@@ -398,8 +398,8 @@ public final class SpecParser implements TokenStreamCursor {
      */
     private ValueSpecification parseCombinedExpression() {
         ValueSpecification expr = parseExpression();
-        while (pos < tokens.count()) {
-            TokenType t = tokens.type(pos);
+        while (!atEnd()) {
+            TokenType t = peek();
             if (t == TokenType.AND || t == TokenType.OR) {
                 expr = parseBooleanPart(expr);
             } else if (isArithmeticOp(t)) {
@@ -422,8 +422,8 @@ public final class SpecParser implements TokenStreamCursor {
      */
     private ValueSpecification parseExpression() {
         ValueSpecification expr = parseUnaryAndPrimary();
-        while (pos < tokens.count()) {
-            TokenType t = tokens.type(pos);
+        while (!atEnd()) {
+            TokenType t = peek();
             if (t == TokenType.DOT) {
                 expr = parseDotPostfix(expr);
             } else if (t == TokenType.ARROW) {
@@ -440,8 +440,8 @@ public final class SpecParser implements TokenStreamCursor {
                 break;
             }
         }
-        if (pos < tokens.count()) {
-            TokenType t = tokens.type(pos);
+        if (!atEnd()) {
+            TokenType t = peek();
             // Pure spells inequality two ways: '!=' (lexed as
             // TEST_NOT_EQUAL) and '<>' (lexed as NOT_EQUAL). Both
             // desugar to the same 'notEqual' AppliedFunction so the
@@ -466,8 +466,8 @@ public final class SpecParser implements TokenStreamCursor {
      * entire property chain, not just the variable.
      */
     private ValueSpecification parseUnaryAndPrimary() {
-        if (pos < tokens.count()) {
-            TokenType t = tokens.type(pos);
+        if (!atEnd()) {
+            TokenType t = peek();
             if (t == TokenType.NOT) {
                 pos++;
                 return new AppliedFunction("not", List.of(parseExpression()));
@@ -493,7 +493,7 @@ public final class SpecParser implements TokenStreamCursor {
      */
     private ValueSpecification parseCombinedArithmeticOnly() {
         ValueSpecification expr = parseExpression();
-        while (pos < tokens.count() && isArithmeticOp(tokens.type(pos))) {
+        while (!atEnd() && isArithmeticOp(peek())) {
             expr = parseArithmeticPart(expr);
         }
         return expr;
@@ -519,14 +519,14 @@ public final class SpecParser implements TokenStreamCursor {
      * engine's grammar.
      */
     private AppliedFunction parseBooleanPart(ValueSpecification left) {
-        TokenType t = tokens.type(pos);
+        TokenType t = peek();
         String fn = (t == TokenType.AND) ? "and" : "or";
         pos++;
         ValueSpecification right = parseCombinedArithmeticOnly();
         // REAL Pure: && binds tighter than || (engine DomainParseTreeWalker's
         // isLowerPrecedenceBoolean) — an AND-chain claims the operand before
         // an OR folds it: a || b && c == or(a, and(b, c)).
-        while (fn.equals("or") && pos < tokens.count() && tokens.type(pos) == TokenType.AND) {
+        while (fn.equals("or") && !atEnd() && peek() == TokenType.AND) {
             right = parseBooleanPart(right);
         }
         return new AppliedFunction(fn, List.of(left, right));
@@ -548,9 +548,9 @@ public final class SpecParser implements TokenStreamCursor {
     }
 
     private ValueSpecification parseArithmeticClimb(ValueSpecification left, int minPrec) {
-        while (pos < tokens.count() && isArithmeticOp(tokens.type(pos))
-                && precedenceOf(tokens.type(pos)) >= minPrec) {
-            TokenType op = tokens.type(pos);
+        while (!atEnd() && isArithmeticOp(peek())
+                && precedenceOf(peek()) >= minPrec) {
+            TokenType op = peek();
             int prec = precedenceOf(op);
             String fn = switch (op) {
                 case PLUS -> "plus";
@@ -567,9 +567,9 @@ public final class SpecParser implements TokenStreamCursor {
             pos++;
             ValueSpecification right = parseExpression();
             // Tighter-binding operators on the right claim the operand first.
-            while (pos < tokens.count() && isArithmeticOp(tokens.type(pos))
-                    && precedenceOf(tokens.type(pos)) > prec) {
-                right = parseArithmeticClimb(right, precedenceOf(tokens.type(pos)));
+            while (!atEnd() && isArithmeticOp(peek())
+                    && precedenceOf(peek()) > prec) {
+                right = parseArithmeticClimb(right, precedenceOf(peek()));
             }
             left = new AppliedFunction(fn, List.of(left, right));
         }
@@ -596,10 +596,10 @@ public final class SpecParser implements TokenStreamCursor {
      * name of an {@link AppliedFunction}, decided by lookahead.
      */
     private ValueSpecification parsePrimary() {
-        if (pos >= tokens.count()) {
+        if (atEnd()) {
             throw error( "expected expression, got end of input");
         }
-        TokenType t = tokens.type(pos);
+        TokenType t = peek();
         return switch (t) {
             case INTEGER -> parseInteger();
             case FLOAT -> parseFloat();
@@ -662,7 +662,7 @@ public final class SpecParser implements TokenStreamCursor {
      * engine record contract).
      */
     private CInteger parseInteger() {
-        String text = tokens.text(pos);
+        String text = text();
         pos++;
         try {
             return new CInteger(Long.parseLong(text));
@@ -693,7 +693,7 @@ public final class SpecParser implements TokenStreamCursor {
      * value specifications.
      */
     private ValueSpecification parseFloat() {
-        String text = tokens.text(pos);
+        String text = text();
         pos++;
         // Strip optional 'f'/'F' suffix; Pure permits it on float literals
         // but Java's Double.parseDouble does not.
@@ -716,7 +716,7 @@ public final class SpecParser implements TokenStreamCursor {
      * does not accept, so it is stripped before parsing.
      */
     private CDecimal parseDecimal() {
-        String text = tokens.text(pos);
+        String text = text();
         pos++;
         char last = text.charAt(text.length() - 1);
         if (last == 'd' || last == 'D') text = text.substring(0, text.length() - 1);
@@ -736,7 +736,7 @@ public final class SpecParser implements TokenStreamCursor {
      * accept malformed input.
      */
     private CString parseString() {
-        String raw = tokens.text(pos);
+        String raw = text();
         if (raw.length() < 2 || raw.charAt(0) != '\'' || raw.charAt(raw.length() - 1) != '\'') {
             throw error("malformed string literal: missing surrounding quotes");
         }
@@ -792,7 +792,7 @@ public final class SpecParser implements TokenStreamCursor {
      * record contract).
      */
     private ValueSpecification parseDateOrDateTime() {
-        String raw = tokens.text(pos);
+        String raw = text();
         if (raw.isEmpty() || raw.charAt(0) != '%') {
             throw error("malformed date literal: expected leading '%'");
         }
@@ -808,7 +808,7 @@ public final class SpecParser implements TokenStreamCursor {
     }
 
     private CTime parseStrictTime() {
-        String raw = tokens.text(pos);
+        String raw = text();
         if (raw.isEmpty() || raw.charAt(0) != '%') {
             throw error("malformed time literal: expected leading '%'");
         }
@@ -846,8 +846,8 @@ public final class SpecParser implements TokenStreamCursor {
         // $'my var' must reference the SAME name `let 'my var' = ...` bound
         // (audit M10: the quoted forms previously disagreed).
         String name = peek() == TokenType.STRING
-                ? TokenStreamCursor.unquoteAndUnescape(tokens.text(pos), this)
-                : tokens.text(pos);
+                ? TokenStreamCursor.unquoteAndUnescape(text(), this)
+                : text();
         pos++;
         return new Variable(name);
     }
@@ -865,14 +865,14 @@ public final class SpecParser implements TokenStreamCursor {
     private PureCollection parseCollection() {
         pos++; // consume '['
         List<ValueSpecification> values = new ArrayList<>();
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.BRACKET_CLOSE) {
+        if (!atEnd() && peek() == TokenType.BRACKET_CLOSE) {
             pos++;
             return new PureCollection(values);
         }
         values.add(parseCombinedExpression());
-        while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
+        while (!atEnd() && peek() == TokenType.COMMA) {
             pos++; // consume ','
-            if (pos < tokens.count() && tokens.type(pos) == TokenType.BRACKET_CLOSE) {
+            if (!atEnd() && peek() == TokenType.BRACKET_CLOSE) {
                 throw error("trailing comma in collection literal");
             }
             values.add(parseCombinedExpression());
@@ -960,11 +960,11 @@ public final class SpecParser implements TokenStreamCursor {
         // column binding within a ColSpec (which has its own parse
         // path). Engine-lite attaches the unit part with '~' as a
         // literal separator in the name string.
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.TILDE
+        if (!atEnd() && peek() == TokenType.TILDE
                 && pos + 1 < tokens.count()
                 && isFqnSegmentToken(tokens.type(pos + 1))) {
             pos++; // consume '~'
-            String unitPart = tokens.text(pos);
+            String unitPart = text();
             pos++;
             fqn = fqn + "~" + unitPart;
         }
@@ -975,11 +975,11 @@ public final class SpecParser implements TokenStreamCursor {
         // the resolved stdlib overload names. Using the same names
         // keeps downstream binding tables uniform across the two
         // parsers.
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.DOT) {
+        if (!atEnd() && peek() == TokenType.DOT) {
             int savedPos = pos;
             pos++; // consume '.'
-            if (pos < tokens.count()) {
-                TokenType t = tokens.type(pos);
+            if (!atEnd()) {
+                TokenType t = peek();
                 if (t == TokenType.ALL) {
                     pos++;
                     return parseAllCall(fqn);
@@ -1000,7 +1000,7 @@ public final class SpecParser implements TokenStreamCursor {
             pos = savedPos;
         }
 
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.PAREN_OPEN) {
+        if (!atEnd() && peek() == TokenType.PAREN_OPEN) {
             List<ValueSpecification> args = parseArgList();
             return new AppliedFunction(fqn, args);
         }
@@ -1019,9 +1019,9 @@ public final class SpecParser implements TokenStreamCursor {
         expect(TokenType.PAREN_OPEN, "expected '(' after '.all'");
         List<ValueSpecification> args = new ArrayList<>();
         args.add(new PackageableElementPtr(fqn));
-        if (pos < tokens.count() && tokens.type(pos) != TokenType.PAREN_CLOSE) {
+        if (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
             args.add(parseMilestoningExpression());
-            if (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
+            if (!atEnd() && peek() == TokenType.COMMA) {
                 pos++;
                 args.add(parseMilestoningExpression());
             }
@@ -1056,10 +1056,10 @@ public final class SpecParser implements TokenStreamCursor {
      * (one extra token's worth of work to pin the allowed shapes).
      */
     private ValueSpecification parseMilestoningExpression() {
-        if (pos >= tokens.count()) {
+        if (atEnd()) {
             throw error("expected milestoning expression (%date, %latest, or $variable)");
         }
-        TokenType t = tokens.type(pos);
+        TokenType t = peek();
         if (t == TokenType.LATEST_DATE) return parseLatestDate();
         if (t == TokenType.DATE) return parseDateOrDateTime();
         if (t == TokenType.DOLLAR) return parseVariable();
@@ -1093,11 +1093,11 @@ public final class SpecParser implements TokenStreamCursor {
      */
     private ValueSpecification parseDotPostfix(ValueSpecification receiver) {
         pos++; // consume '.'
-        if (pos >= tokens.count()) {
+        if (atEnd()) {
             throw error("expected property name after '.'");
         }
         String name = readPropertyName();
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.PAREN_OPEN) {
+        if (!atEnd() && peek() == TokenType.PAREN_OPEN) {
             List<ValueSpecification> args = parseArgList();
             List<ValueSpecification> params = new ArrayList<>(1 + args.size());
             params.add(receiver);
@@ -1125,7 +1125,7 @@ public final class SpecParser implements TokenStreamCursor {
      * {@link CString} literal.
      */
     private String readPropertyName() {
-        TokenType t = tokens.type(pos);
+        TokenType t = peek();
         // STRING must come FIRST: it is also a member of IDENTIFIER_TOKENS
         // (the element parser admits quoted strings as identifiers in
         // some keyword positions), so the bare-identifier branch below
@@ -1133,7 +1133,7 @@ public final class SpecParser implements TokenStreamCursor {
         // quotes \u2014 yielding {@code "'My Name'"} as the property name
         // instead of {@code "My Name"}.
         if (t == TokenType.STRING) {
-            String raw = tokens.text(pos);
+            String raw = text();
             if (raw.length() < 2 || raw.charAt(0) != '\'' || raw.charAt(raw.length() - 1) != '\'') {
                 throw error("malformed quoted property: missing surrounding quotes");
             }
@@ -1142,7 +1142,7 @@ public final class SpecParser implements TokenStreamCursor {
             return name;
         }
         if (isIdentifierToken(t)) {
-            String name = tokens.text(pos);
+            String name = text();
             pos++;
             return name;
         }
@@ -1182,14 +1182,14 @@ public final class SpecParser implements TokenStreamCursor {
     private List<ValueSpecification> parseArgList() {
         pos++; // consume '('
         List<ValueSpecification> args = new ArrayList<>();
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.PAREN_CLOSE) {
+        if (!atEnd() && peek() == TokenType.PAREN_CLOSE) {
             pos++;
             return args;
         }
         args.add(parseCombinedExpression());
-        while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
+        while (!atEnd() && peek() == TokenType.COMMA) {
             pos++; // consume ','
-            if (pos < tokens.count() && tokens.type(pos) == TokenType.PAREN_CLOSE) {
+            if (!atEnd() && peek() == TokenType.PAREN_CLOSE) {
                 throw error("trailing comma in argument list");
             }
             args.add(parseCombinedExpression());
@@ -1275,18 +1275,18 @@ public final class SpecParser implements TokenStreamCursor {
         ValueSpecification receiver;
         String className;
         List<TypeExpression> typeArgs = List.of();
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.DOLLAR) {
+        if (!atEnd() && peek() == TokenType.DOLLAR) {
             pos++; // consume '$'
             if (!isFqnSegmentToken(peek())) {
                 throw error("expected variable name after '^$' in copy-with-update");
             }
-            String varName = tokens.text(pos);
+            String varName = text();
             pos++;
             receiver = new Variable(varName);
             className = ""; // class recovered from $var's static type at typecheck
         } else {
             className = parseQualifiedName();
-            if (pos < tokens.count() && tokens.type(pos) == TokenType.LESS_THAN) {
+            if (!atEnd() && peek() == TokenType.LESS_THAN) {
                 typeArgs = parseTypeArguments();
             }
             receiver = new PackageableElementPtr(className);
@@ -1296,7 +1296,7 @@ public final class SpecParser implements TokenStreamCursor {
         // observable cases (debug pretty-printers, AST dumps);
         // duplicate keys silently last-win matching engine-lite.
         Map<String, KeyExpression> properties = new LinkedHashMap<>();
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.PAREN_CLOSE) {
+        if (!atEnd() && peek() == TokenType.PAREN_CLOSE) {
             pos++;
             return wrapNewInstance(receiver, className, typeArgs, properties);
         }
@@ -1315,7 +1315,7 @@ public final class SpecParser implements TokenStreamCursor {
         //
         // Cast is only legal in the class-literal form (className non-
         // empty), never in the copy-with-update ^$var(...) form.
-        if (!className.isEmpty() && !isFqnSegmentToken(tokens.type(pos))) {
+        if (!className.isEmpty() && !isFqnSegmentToken(peek())) {
             ValueSpecification src = parseCombinedExpression();
             expect(TokenType.PAREN_CLOSE,
                     "expected ')' to close ^" + className + "($src) positional cast");
@@ -1326,9 +1326,9 @@ public final class SpecParser implements TokenStreamCursor {
                             new NewInstanceCast(className, typeArgs, src)));
         }
         parseAndPutKeyExpression(properties);
-        while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
+        while (!atEnd() && peek() == TokenType.COMMA) {
             pos++; // consume ','
-            if (pos < tokens.count() && tokens.type(pos) == TokenType.PAREN_CLOSE) {
+            if (!atEnd() && peek() == TokenType.PAREN_CLOSE) {
                 throw error("trailing comma in ^NewInstance binding list");
             }
             parseAndPutKeyExpression(properties);
@@ -1381,17 +1381,17 @@ public final class SpecParser implements TokenStreamCursor {
         // single string matches engine-lite's Map<String,
         // ValueSpecification> representation; the dot-separation in
         // the key is the only signal of nesting.
-        StringBuilder key = new StringBuilder(tokens.text(pos));
+        StringBuilder key = new StringBuilder(text());
         pos++;
         while (pos + 1 < tokens.count()
-                && tokens.type(pos) == TokenType.DOT
+                && peek() == TokenType.DOT
                 && isFqnSegmentToken(tokens.type(pos + 1))) {
             pos++; // consume '.'
-            key.append('.').append(tokens.text(pos));
+            key.append('.').append(text());
             pos++;
         }
         boolean isAdd = false;
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.PLUS) {
+        if (!atEnd() && peek() == TokenType.PLUS) {
             isAdd = true;
             pos++; // consume '+'
         }
@@ -1414,12 +1414,12 @@ public final class SpecParser implements TokenStreamCursor {
     private List<TypeExpression> parseTypeArguments() {
         pos++; // consume '<'
         List<TypeExpression> args = new ArrayList<>();
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.GREATER_THAN) {
+        if (!atEnd() && peek() == TokenType.GREATER_THAN) {
             pos++;
             return args;
         }
         args.add(parseType());
-        while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
+        while (!atEnd() && peek() == TokenType.COMMA) {
             pos++; // consume ','
             args.add(parseType());
         }
@@ -1450,9 +1450,9 @@ public final class SpecParser implements TokenStreamCursor {
     private LambdaFunction parseLambdaFunction() {
         pos++; // consume '{'
         List<Variable> params = new ArrayList<>();
-        if (pos < tokens.count() && tokens.type(pos) != TokenType.PIPE) {
+        if (!atEnd() && peek() != TokenType.PIPE) {
             params.add(parseLambdaParam());
-            while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
+            while (!atEnd() && peek() == TokenType.COMMA) {
                 pos++; // consume ','
                 params.add(parseLambdaParam());
             }
@@ -1484,7 +1484,7 @@ public final class SpecParser implements TokenStreamCursor {
         if (!isFqnSegmentToken(peek())) {
             throw error("expected lambda parameter name");
         }
-        String name = tokens.text(pos);
+        String name = text();
         pos++;
         if (peek() != TokenType.COLON) return new Variable(name);
         advance();
@@ -1560,12 +1560,12 @@ public final class SpecParser implements TokenStreamCursor {
             if (!skipTypeForLookahead()) {
                 return false;
             }
-            if (pos < tokens.count() && tokens.type(pos) == TokenType.BRACKET_OPEN) {
+            if (!atEnd() && peek() == TokenType.BRACKET_OPEN) {
                 if (!skipMultiplicityForLookahead()) {
                     return false;
                 }
             }
-            return pos < tokens.count() && tokens.type(pos) == TokenType.PIPE;
+            return !atEnd() && peek() == TokenType.PIPE;
         } finally {
             pos = saved;
         }
@@ -1576,18 +1576,18 @@ public final class SpecParser implements TokenStreamCursor {
             return false;
         }
         pos++;
-        while (pos < tokens.count() && tokens.type(pos) == TokenType.PATH_SEPARATOR) {
+        while (!atEnd() && peek() == TokenType.PATH_SEPARATOR) {
             pos++;
             if (!isFqnSegmentToken(peek())) {
                 return false;
             }
             pos++;
         }
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.LESS_THAN) {
+        if (!atEnd() && peek() == TokenType.LESS_THAN) {
             int depth = 1;
             pos++;
-            while (pos < tokens.count() && depth > 0) {
-                TokenType t = tokens.type(pos);
+            while (!atEnd() && depth > 0) {
+                TokenType t = peek();
                 if (t == TokenType.LESS_THAN) depth++;
                 if (t == TokenType.GREATER_THAN) depth--;
                 pos++;
@@ -1600,10 +1600,10 @@ public final class SpecParser implements TokenStreamCursor {
     private boolean skipMultiplicityForLookahead() {
         if (peek() != TokenType.BRACKET_OPEN) return false;
         advance();
-        while (pos < tokens.count() && tokens.type(pos) != TokenType.BRACKET_CLOSE) {
+        while (!atEnd() && peek() != TokenType.BRACKET_CLOSE) {
             pos++;
         }
-        if (pos >= tokens.count()) return false;
+        if (atEnd()) return false;
         pos++; // ']'
         return true;
     }
@@ -1623,11 +1623,11 @@ public final class SpecParser implements TokenStreamCursor {
         // REQUIRES its trailing ';'. "|let a = 1; $a" is invalid Pure.
         List<ValueSpecification> body = new java.util.ArrayList<>();
         body.add(parseProgramLine());
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.SEMI_COLON) {
+        if (!atEnd() && peek() == TokenType.SEMI_COLON) {
             pos++; // the first statement's optional ';'
-            while (pos < tokens.count() && !isLambdaBodyTerminator(tokens.type(pos))) {
+            while (!atEnd() && !isLambdaBodyTerminator(peek())) {
                 body.add(parseProgramLine());
-                if (pos >= tokens.count() || tokens.type(pos) != TokenType.SEMI_COLON) {
+                if (atEnd() || peek() != TokenType.SEMI_COLON) {
                     throw error("expected ';' after statement in a multi-statement"
                             + " lambda body (real Pure requires it)");
                 }
@@ -1677,7 +1677,7 @@ public final class SpecParser implements TokenStreamCursor {
      */
     private ColumnInstance parseColumnBuilders() {
         pos++; // consume '~'
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.BRACKET_OPEN) {
+        if (!atEnd() && peek() == TokenType.BRACKET_OPEN) {
             return parseColSpecArray();
         }
         return parseOneColSpec();
@@ -1693,13 +1693,13 @@ public final class SpecParser implements TokenStreamCursor {
         // also a member of IDENTIFIER_TOKENS, so the bare-identifier
         // branch would otherwise capture the quoted form with its
         // outer quotes intact).
-        if (pos >= tokens.count()) {
+        if (atEnd()) {
             throw error("expected column name after '~'");
         }
-        TokenType nameTok = tokens.type(pos);
+        TokenType nameTok = peek();
         String name;
         if (nameTok == TokenType.STRING) {
-            String raw = tokens.text(pos);
+            String raw = text();
             if (raw.length() < 2 || raw.charAt(0) != '\''
                     || raw.charAt(raw.length() - 1) != '\'') {
                 throw error("malformed quoted column name: missing surrounding quotes");
@@ -1707,17 +1707,17 @@ public final class SpecParser implements TokenStreamCursor {
             name = unescapeString(raw.substring(1, raw.length() - 1));
             pos++;
         } else if (isFqnSegmentToken(nameTok)) {
-            name = tokens.text(pos);
+            name = text();
             pos++;
         } else {
             throw error("expected column name after '~'");
         }
         LambdaFunction function1 = null;
         LambdaFunction function2 = null;
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.COLON) {
+        if (!atEnd() && peek() == TokenType.COLON) {
             pos++; // consume ':'
             function1 = parseColumnLambda();
-            if (pos < tokens.count() && tokens.type(pos) == TokenType.COLON) {
+            if (!atEnd() && peek() == TokenType.COLON) {
                 pos++; // consume ':'
                 function2 = parseColumnLambda();
             }
@@ -1728,14 +1728,14 @@ public final class SpecParser implements TokenStreamCursor {
     private ColSpecArray parseColSpecArray() {
         pos++; // consume '['
         List<ColSpec> specs = new ArrayList<>();
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.BRACKET_CLOSE) {
+        if (!atEnd() && peek() == TokenType.BRACKET_CLOSE) {
             pos++;
             return new ColSpecArray(specs);
         }
         specs.add(parseOneColSpec());
-        while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
+        while (!atEnd() && peek() == TokenType.COMMA) {
             pos++; // consume ','
-            if (pos < tokens.count() && tokens.type(pos) == TokenType.BRACKET_CLOSE) {
+            if (!atEnd() && peek() == TokenType.BRACKET_CLOSE) {
                 throw error("trailing comma in ColSpec array");
             }
             specs.add(parseOneColSpec());
@@ -1754,10 +1754,10 @@ public final class SpecParser implements TokenStreamCursor {
      * would silently accept (and then mis-emit) non-lambda values.
      */
     private LambdaFunction parseColumnLambda() {
-        if (pos >= tokens.count()) {
+        if (atEnd()) {
             throw error("expected lambda after ':' in column spec");
         }
-        TokenType t = tokens.type(pos);
+        TokenType t = peek();
         if (t == TokenType.PIPE) {
             return parseLambdaPipe();
         }
@@ -1823,8 +1823,8 @@ public final class SpecParser implements TokenStreamCursor {
         // application of a class named 'Relation'). Engine grammar
         // reserves the structural form for the parenthesised inner.
         if ("Relation".equals(simple)
-                && pos < tokens.count()
-                && tokens.type(pos) == TokenType.LESS_THAN
+                && !atEnd()
+                && peek() == TokenType.LESS_THAN
                 && pos + 1 < tokens.count()
                 && tokens.type(pos + 1) == TokenType.PAREN_OPEN) {
             pos++; // consume '<'
@@ -1837,7 +1837,7 @@ public final class SpecParser implements TokenStreamCursor {
         // helper. Nested '<...>' (e.g. Map<K, List<V>>) is handled by
         // recursive descent inside the helper.
         TypeExpression type;
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.LESS_THAN) {
+        if (!atEnd() && peek() == TokenType.LESS_THAN) {
             List<TypeExpression> args = parseTypeArguments();
             type = new TypeExpression.Generic(name, args);
         } else {
@@ -1855,11 +1855,11 @@ public final class SpecParser implements TokenStreamCursor {
     private TypeAnnotation.RelationShape parseRelationShape() {
         pos++; // consume '('
         List<TypeAnnotation.RelationShape.Column> columns = new ArrayList<>();
-        if (pos < tokens.count() && tokens.type(pos) != TokenType.PAREN_CLOSE) {
+        if (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
             columns.add(parseRelationColumn());
-            while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
+            while (!atEnd() && peek() == TokenType.COMMA) {
                 pos++; // consume ','
-                if (pos < tokens.count() && tokens.type(pos) == TokenType.PAREN_CLOSE) {
+                if (!atEnd() && peek() == TokenType.PAREN_CLOSE) {
                     throw error("trailing comma in @Relation columns");
                 }
                 columns.add(parseRelationColumn());
@@ -1883,16 +1883,16 @@ public final class SpecParser implements TokenStreamCursor {
      * {@link #unescapeString} pipeline.
      */
     private TypeAnnotation.RelationShape.Column parseRelationColumn() {
-        if (pos >= tokens.count()) {
+        if (atEnd()) {
             throw error("expected column name or '?' inside @Relation");
         }
-        TokenType nameTok = tokens.type(pos);
+        TokenType nameTok = peek();
         String name;
         if (nameTok == TokenType.QUESTION) {
             name = null;
             pos++;
         } else if (nameTok == TokenType.STRING) {
-            String raw = tokens.text(pos);
+            String raw = text();
             if (raw.length() < 2 || raw.charAt(0) != '\''
                     || raw.charAt(raw.length() - 1) != '\'') {
                 throw error("malformed quoted column name inside @Relation");
@@ -1900,7 +1900,7 @@ public final class SpecParser implements TokenStreamCursor {
             name = unescapeString(raw.substring(1, raw.length() - 1));
             pos++;
         } else if (isFqnSegmentToken(nameTok)) {
-            name = tokens.text(pos);
+            name = text();
             pos++;
         } else {
             throw error(
@@ -1910,7 +1910,7 @@ public final class SpecParser implements TokenStreamCursor {
         expect(TokenType.COLON, "expected ':' after column name inside @Relation");
 
         TypeAnnotation type;
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.QUESTION) {
+        if (!atEnd() && peek() == TokenType.QUESTION) {
             type = new TypeAnnotation.Wildcard();
             pos++;
         } else {
@@ -1920,7 +1920,7 @@ public final class SpecParser implements TokenStreamCursor {
         }
 
         Multiplicity multiplicity = null;
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.BRACKET_OPEN) {
+        if (!atEnd() && peek() == TokenType.BRACKET_OPEN) {
             multiplicity = parseMultiplicity();
         }
         return new TypeAnnotation.RelationShape.Column(name, type, multiplicity);
@@ -1957,10 +1957,10 @@ public final class SpecParser implements TokenStreamCursor {
      */
     private ValueSpecification parseBracketPostfix(ValueSpecification receiver) {
         pos++; // consume '['
-        if (pos >= tokens.count()) {
+        if (atEnd()) {
             throw error("expected integer or string inside '[...]' index");
         }
-        TokenType t = tokens.type(pos);
+        TokenType t = peek();
         ValueSpecification result;
         if (t == TokenType.INTEGER) {
             CInteger index = parseInteger();
@@ -2007,7 +2007,7 @@ public final class SpecParser implements TokenStreamCursor {
         expect(TokenType.PAREN_OPEN, "expected '(' after 'comparator'");
         List<Variable> params = new ArrayList<>();
         params.add(parseComparatorParam());
-        while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
+        while (!atEnd() && peek() == TokenType.COMMA) {
             pos++;
             params.add(parseComparatorParam());
         }
@@ -2025,7 +2025,7 @@ public final class SpecParser implements TokenStreamCursor {
         if (!isFqnSegmentToken(peek())) {
             throw error("expected parameter name in comparator(...)");
         }
-        String name = tokens.text(pos);
+        String name = text();
         pos++;
         expect(TokenType.COLON, "comparator parameter requires ': Type[mult]' annotation");
         TypeExpression type = parseType();
@@ -2049,7 +2049,7 @@ public final class SpecParser implements TokenStreamCursor {
      * uses to distinguish bag-of-values overloads.
      */
     private AppliedFunction parseTdsLiteral() {
-        String raw = tokens.text(pos);
+        String raw = text();
         pos++;
         return new AppliedFunction("tds",
                 List.of(new CString("TDS"), new CString(raw)));
@@ -2101,7 +2101,7 @@ public final class SpecParser implements TokenStreamCursor {
      * chain call specially.
      */
     private ValueSpecification parseDsl() {
-        String islandOpen = tokens.text(pos);
+        String islandOpen = text();
         pos++; // consume ISLAND_OPEN
         // Extract DSL discriminator: strip leading '#' and trailing '{'.
         // ISLAND_OPEN text always has that shape by lexer contract.
@@ -2110,20 +2110,20 @@ public final class SpecParser implements TokenStreamCursor {
         StringBuilder content = new StringBuilder();
         boolean arrowExit = false;
         int depth = 0;   // NESTED #{...}# islands stay inside the outer one (audit M8a)
-        while (pos < tokens.count()) {
-            TokenType t = tokens.type(pos);
+        while (!atEnd()) {
+            TokenType t = peek();
             if (t == TokenType.ISLAND_OPEN || t == TokenType.ISLAND_START) {
                 // ISLAND_START is the LEXER's spelling of a nested '#{'
                 // (islands re-lex their own openers differently).
                 depth++;
-                content.append(tokens.text(pos));
+                content.append(text());
             } else if (t == TokenType.ISLAND_END) {
                 if (depth == 0) {
                     pos++;
                     break;
                 }
                 depth--;
-                content.append(tokens.text(pos));
+                content.append(text());
             } else if (t == TokenType.ISLAND_ARROW_EXIT) {
                 if (depth == 0) {
                     pos++;
@@ -2131,13 +2131,13 @@ public final class SpecParser implements TokenStreamCursor {
                     break;
                 }
                 depth--;   // a NESTED island closed by '}->' (re-audit M7)
-                content.append(tokens.text(pos));
+                content.append(text());
             } else if (t == TokenType.ISLAND_BRACE_OPEN) {
                 content.append('{');
             } else if (t == TokenType.ISLAND_BRACE_CLOSE) {
                 content.append('}');
             } else {
-                content.append(tokens.text(pos));
+                content.append(text());
             }
             pos++;
         }
@@ -2263,11 +2263,11 @@ public final class SpecParser implements TokenStreamCursor {
     private ColSpecArray parseGraphDefinition(int depth) {
         expect(TokenType.BRACE_OPEN, "expected '{' to open graph-fetch body");
         List<ColSpec> specs = new ArrayList<>();
-        if (pos < tokens.count() && tokens.type(pos) != TokenType.BRACE_CLOSE) {
+        if (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
             specs.add(parseGraphPath(depth));
-            while (pos < tokens.count() && tokens.type(pos) == TokenType.COMMA) {
+            while (!atEnd() && peek() == TokenType.COMMA) {
                 pos++;
-                if (pos < tokens.count() && tokens.type(pos) == TokenType.BRACE_CLOSE) {
+                if (!atEnd() && peek() == TokenType.BRACE_CLOSE) {
                     break; // trailing comma tolerated
                 }
                 specs.add(parseGraphPath(depth));
@@ -2296,14 +2296,14 @@ public final class SpecParser implements TokenStreamCursor {
     private ColSpec parseGraphPath(int depth) {
         // Optional alias: 'aliasName': property
         if (pos + 1 < tokens.count()
-                && tokens.type(pos) == TokenType.STRING
+                && peek() == TokenType.STRING
                 && tokens.type(pos + 1) == TokenType.COLON) {
             pos += 2; // skip alias and colon
         }
         if (!isFqnSegmentToken(peek())) {
             throw error("expected property name in graph-fetch path");
         }
-        String propName = tokens.text(pos);
+        String propName = text();
         pos++;
 
         // function1: x | $x.prop  (produces the property value)
@@ -2314,23 +2314,23 @@ public final class SpecParser implements TokenStreamCursor {
                 List.of(param), List.of(propAccess));
 
         // Optional propertyParameters (milestoning args): consume to close.
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.PAREN_OPEN) {
+        if (!atEnd() && peek() == TokenType.PAREN_OPEN) {
             int depthParens = 1;
             pos++;
-            while (pos < tokens.count() && depthParens > 0) {
-                TokenType t = tokens.type(pos);
+            while (!atEnd() && depthParens > 0) {
+                TokenType t = peek();
                 if (t == TokenType.PAREN_OPEN) depthParens++;
                 else if (t == TokenType.PAREN_CLOSE) depthParens--;
                 if (depthParens > 0) pos++;
             }
-            if (pos >= tokens.count()) {
+            if (atEnd()) {
                 throw error("unterminated graph-fetch property parameters");
             }
             pos++; // consume matching ')'
         }
 
         // Optional nested graph definition: { subpaths }
-        if (pos < tokens.count() && tokens.type(pos) == TokenType.BRACE_OPEN) {
+        if (!atEnd() && peek() == TokenType.BRACE_OPEN) {
             ColSpecArray nested = parseGraphDefinition(depth + 1);
             // function2 wraps the nested array in a zero-param lambda
             // so the two ColSpec slots are uniformly typed (LambdaFunction).

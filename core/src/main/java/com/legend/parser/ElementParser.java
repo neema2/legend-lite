@@ -494,7 +494,7 @@ public final class ElementParser implements TokenStreamCursor {
             advance();
         }
         if (pos == bodyStart) {
-            error("empty constraint expression for '" + name + "'");
+            throw error("empty constraint expression for '" + name + "'");
         }
         ValueSpecification expression = SpecParser.parse(tokens.slice(bodyStart, pos));
         // Door 4: `[name: some::fn]` binds the constraint to a predicate
@@ -526,7 +526,7 @@ public final class ElementParser implements TokenStreamCursor {
         expect(TokenType.BRACE_CLOSE);
 
         if (ends.size() != 2) {
-            error("Association must have exactly 2 properties, found: " + ends.size());
+            throw error("Association must have exactly 2 properties, found: " + ends.size());
         }
         return new AssociationDefinition(qualifiedName, ends.get(0), ends.get(1));
     }
@@ -557,7 +557,7 @@ public final class ElementParser implements TokenStreamCursor {
         expect(TokenType.BRACE_CLOSE);
 
         if (values.isEmpty()) {
-            error("Enum '" + qualifiedName + "' must have at least one value");
+            throw error("Enum '" + qualifiedName + "' must have at least one value");
         }
         return new EnumDefinition(qualifiedName, values);
     }
@@ -603,7 +603,7 @@ public final class ElementParser implements TokenStreamCursor {
                 expect(TokenType.BRACKET_CLOSE);
                 expect(TokenType.SEMI_COLON);
             } else {
-                error("expected 'stereotypes' or 'tags' inside Profile, found " + peek()
+                throw error("expected 'stereotypes' or 'tags' inside Profile, found " + peek()
                         + " ('" + safeText() + "')");
             }
         }
@@ -622,17 +622,30 @@ public final class ElementParser implements TokenStreamCursor {
      * Body parsed eagerly via {@link SpecParser#parseCodeBlock} into a
      * {@code List<ValueSpecification>} (sequence of statements).
      */
-    private FunctionDefinition parseFunctionDefinition() {
+    /**
+     * The signature grammar shared by concrete and native functions (audit
+     * M2 found it duplicated verbatim): stereotypes, tags, FQN,
+     * {@code <T,V|m,n>}, parameters, {@code :R[m]}.
+     */
+    private record FunctionSignature(
+            String qualifiedName,
+            List<String> typeParams,
+            List<String> multParams,
+            List<FunctionDefinition.ParameterDefinition> params,
+            TypeExpression returnType,
+            Multiplicity returnMult,
+            List<StereotypeApplication> stereotypes,
+            List<TaggedValue> taggedValues) {
+    }
+
+    private FunctionSignature parseFunctionSignature() {
         expect(TokenType.FUNCTION);
         List<StereotypeApplication> stereotypes = parseStereotypes();
         List<TaggedValue> taggedValues = parseTaggedValues();
         String qualifiedName = parseQualifiedName();
-
-        // Optional <T,V|m,n> generic + multiplicity parameters
         List<String> typeParams = new ArrayList<>();
         List<String> multParams = new ArrayList<>();
         parseTypeAndMultiplicityParameters(typeParams, multParams);
-
         expect(TokenType.PAREN_OPEN);
         List<FunctionDefinition.ParameterDefinition> params = new ArrayList<>();
         if (peek() != TokenType.PAREN_CLOSE) {
@@ -642,10 +655,16 @@ public final class ElementParser implements TokenStreamCursor {
             }
         }
         expect(TokenType.PAREN_CLOSE);
-
         expect(TokenType.COLON);
         TypeExpression returnType = parseType();
         Multiplicity returnMult = parseMultiplicity();
+        return new FunctionSignature(qualifiedName, List.copyOf(typeParams),
+                List.copyOf(multParams), params, returnType, returnMult,
+                stereotypes, taggedValues);
+    }
+
+    private FunctionDefinition parseFunctionDefinition() {
+        FunctionSignature sig = parseFunctionSignature();
 
         // Optional constraints block — engine accepts then discards.
         // We accept and discard for parity; future work may attach these.
@@ -666,13 +685,9 @@ public final class ElementParser implements TokenStreamCursor {
         expect(TokenType.BRACE_CLOSE);
 
         return new FunctionDefinition(
-                qualifiedName,
-                List.copyOf(typeParams),
-                List.copyOf(multParams),
-                params,
-                returnType,
-                returnMult,
-                body, stereotypes, taggedValues);
+                sig.qualifiedName(), sig.typeParams(), sig.multParams(),
+                sig.params(), sig.returnType(), sig.returnMult(),
+                body, sig.stereotypes(), sig.taggedValues());
     }
 
     /**
@@ -689,39 +704,12 @@ public final class ElementParser implements TokenStreamCursor {
      * </pre>
      */
     private NativeFunctionDefinition parseNativeFunction() {
-        expect(TokenType.FUNCTION);
-        List<StereotypeApplication> stereotypes = parseStereotypes();
-        List<TaggedValue> taggedValues = parseTaggedValues();
-        String qualifiedName = parseQualifiedName();
-
-        List<String> typeParams = new ArrayList<>();
-        List<String> multParams = new ArrayList<>();
-        parseTypeAndMultiplicityParameters(typeParams, multParams);
-
-        expect(TokenType.PAREN_OPEN);
-        List<FunctionDefinition.ParameterDefinition> params = new ArrayList<>();
-        if (peek() != TokenType.PAREN_CLOSE) {
-            params.add(parseFunctionParameter());
-            while (match(TokenType.COMMA)) {
-                params.add(parseFunctionParameter());
-            }
-        }
-        expect(TokenType.PAREN_CLOSE);
-
-        expect(TokenType.COLON);
-        TypeExpression returnType = parseType();
-        Multiplicity returnMult = parseMultiplicity();
-
+        FunctionSignature sig = parseFunctionSignature();
         expect(TokenType.SEMI_COLON);
-
         return new NativeFunctionDefinition(
-                qualifiedName,
-                List.copyOf(typeParams),
-                List.copyOf(multParams),
-                params,
-                returnType,
-                returnMult,
-                stereotypes, taggedValues);
+                sig.qualifiedName(), sig.typeParams(), sig.multParams(),
+                sig.params(), sig.returnType(), sig.returnMult(),
+                sig.stereotypes(), sig.taggedValues());
     }
 
     private FunctionDefinition.ParameterDefinition parseFunctionParameter() {
@@ -862,7 +850,7 @@ public final class ElementParser implements TokenStreamCursor {
                                     advance();
                                 }
                                 if (pos == bs) {
-                                    error("empty query expression in Service '"
+                                    throw error("empty query expression in Service '"
                                             + qualifiedName + "'");
                                 }
                                 functionBody = SpecParser.parse(tokens.slice(bs, pos));
@@ -887,7 +875,7 @@ public final class ElementParser implements TokenStreamCursor {
                     // testSuites may be followed by '{' or '['; both balance the same way.
                     TokenType opener = peek();
                     if (opener != TokenType.BRACE_OPEN && opener != TokenType.BRACKET_OPEN) {
-                        error("expected '{' or '[' after testSuites:, got " + opener);
+                        throw error("expected '{' or '[' after testSuites:, got " + opener);
                     }
                     int bs = pos;
                     skipBalancedContent(opener,
@@ -902,7 +890,7 @@ public final class ElementParser implements TokenStreamCursor {
         expect(TokenType.BRACE_CLOSE);
 
         if (functionBody == null) {
-            error("Service '" + qualifiedName + "' has no query expression");
+            throw error("Service '" + qualifiedName + "' has no query expression");
         }
         return new ServiceDefinition(
                 qualifiedName,
@@ -996,7 +984,10 @@ public final class ElementParser implements TokenStreamCursor {
                     // mode names what it cannot parse.
                     jsonConnections.add(parseEmbeddedJsonModelConnection(embText));
                 } else {
-                    bindings.put(storeName, parseQualifiedName());
+                    if (bindings.put(storeName, parseQualifiedName()) != null) {
+                        throw error("duplicate connection binding for store '"
+                                + storeName + "'");
+                    }
                 }
                 match(TokenType.COMMA);
             }
@@ -1069,7 +1060,7 @@ public final class ElementParser implements TokenStreamCursor {
                     try {
                         dbType = ConnectionDefinition.DatabaseType.valueOf(typeStr);
                     } catch (IllegalArgumentException ex) {
-                        error("unknown database type '" + typeStr + "' (expected one of "
+                        throw error("unknown database type '" + typeStr + "' (expected one of "
                                 + java.util.Arrays.toString(ConnectionDefinition.DatabaseType.values()) + ")");
                     }
                     expect(TokenType.SEMI_COLON);
@@ -1146,7 +1137,9 @@ public final class ElementParser implements TokenStreamCursor {
             } else {
                 value = parseQualifiedName();
             }
-            props.put(key, value);
+            if (props.put(key, value) != null) {
+                throw error("duplicate key '" + key + "' in property block");
+            }
             expect(TokenType.SEMI_COLON);
         }
         return props;
@@ -1217,7 +1210,7 @@ public final class ElementParser implements TokenStreamCursor {
             } else if (peek() == TokenType.MULTIGRAIN_FILTER) {
                 multiGrainFilters.add(parseDbMultiGrainFilter(dbScope));
             } else {
-                error("unknown Database element '" + safeText()
+                throw error("unknown Database element '" + safeText()
                         + "' in '" + qualifiedName + "' (expected include / Schema / Table / View / Join / Filter / MultiGrainFilter)");
             }
         }
@@ -1250,7 +1243,7 @@ public final class ElementParser implements TokenStreamCursor {
                 schemaViews.add(v);
                 flatViews.add(v);
             } else {
-                error("unknown Schema element '" + safeText()
+                throw error("unknown Schema element '" + safeText()
                         + "' inside '" + schemaName + "' (expected Table or View)");
             }
         }
@@ -1420,7 +1413,7 @@ public final class ElementParser implements TokenStreamCursor {
         if (peek() == TokenType.AT) {
             // Join-mediated form: firstDb is the source db (required by grammar)
             if (firstDb == null) {
-                error("Join-mediated filter must start with a [DB] qualifier");
+                throw error("Join-mediated filter must start with a [DB] qualifier");
             }
             List<JoinChainElement> joins = parseJoinChain(firstDb);
             expect(TokenType.PIPE);
@@ -1545,14 +1538,14 @@ public final class ElementParser implements TokenStreamCursor {
                 // hand it to Phase C for lazy parsing. Engine grammar
                 // wraps suites in '[ ... ]'.
                 if (testSuitesSource != null) {
-                    error("duplicate 'testSuites' block in Mapping '"
+                    throw error("duplicate 'testSuites' block in Mapping '"
                             + qualifiedName + "'");
                 }
                 advance(); // consume 'testSuites' identifier
                 expect(TokenType.COLON);
                 TokenType opener = peek();
                 if (opener != TokenType.BRACKET_OPEN && opener != TokenType.BRACE_OPEN) {
-                    error("expected '[' or '{' after testSuites:, got " + opener);
+                    throw error("expected '[' or '{' after testSuites:, got " + opener);
                 }
                 int bs = pos;
                 skipBalancedContent(opener,
@@ -1625,7 +1618,7 @@ public final class ElementParser implements TokenStreamCursor {
         String original = parseQualifiedName();
         // engine grammar uses `->` between the two store names
         if (peek() != TokenType.ARROW) {
-            error("expected '->' in store substitution but found " + peek());
+            throw error("expected '->' in store substitution but found " + peek());
         }
         advance();
         String replacement = parseQualifiedName();
@@ -1669,11 +1662,11 @@ public final class ElementParser implements TokenStreamCursor {
         TokenType mappingTypeToken = peek();
         if (mappingTypeToken == TokenType.ENUMERATION_MAPPING) {
             if (root) {
-                error("Enumeration mappings cannot be marked root (the leading '*' "
+                throw error("Enumeration mappings cannot be marked root (the leading '*' "
                         + "is only valid for class mappings)");
             }
             if (setId != null || extendsSetId != null) {
-                error("Enumeration mappings do not accept [setId] or extends [parentId]");
+                throw error("Enumeration mappings do not accept [setId] or extends [parentId]");
             }
             advance(); // consume EnumerationMapping keyword
             accum.enumerationMappings.add(parseEnumerationMappingBody(elementPath));
@@ -1683,11 +1676,11 @@ public final class ElementParser implements TokenStreamCursor {
         // Relational). Body is a bare predicate-function FQN.
         if (mappingTypeToken == TokenType.ASSOCIATION_MAPPING) {
             if (root) {
-                error("Association mappings cannot be marked root (the leading '*' "
+                throw error("Association mappings cannot be marked root (the leading '*' "
                         + "is only valid for class mappings)");
             }
             if (setId != null || extendsSetId != null) {
-                error("Association mappings do not accept [setId] or extends [parentId]");
+                throw error("Association mappings do not accept [setId] or extends [parentId]");
             }
             advance(); // consume AssociationMapping keyword
             expect(TokenType.BRACE_OPEN);
@@ -1702,11 +1695,11 @@ public final class ElementParser implements TokenStreamCursor {
             // Legacy nested AssociationMapping (`Relational { AssociationMapping (...) }`).
             if (!pure && peek() == TokenType.ASSOCIATION_MAPPING) {
                 if (root) {
-                    error("Association mappings cannot be marked root (the leading '*' "
+                    throw error("Association mappings cannot be marked root (the leading '*' "
                             + "is only valid for class mappings)");
                 }
                 if (setId != null || extendsSetId != null) {
-                    error("Association mappings do not accept [setId] or extends [parentId] "
+                    throw error("Association mappings do not accept [setId] or extends [parentId] "
                             + "on the header");
                 }
                 advance(); // consume AssociationMapping keyword
@@ -1894,7 +1887,7 @@ public final class ElementParser implements TokenStreamCursor {
                         || t == TokenType.GROUP_BY_CMD
                         || t == TokenType.PRIMARY_KEY_CMD
                         || t == TokenType.MAIN_TABLE_CMD) {
-                    error("'" + tildeCommandText(t)
+                    throw error("'" + tildeCommandText(t)
                             + "' out of order or duplicated in Relational class"
                             + " mapping for '" + className + "'; legend-engine order is:"
                             + " ~filter, ~distinct, ~groupBy, ~primaryKey, ~mainTable,"
@@ -2087,7 +2080,7 @@ public final class ElementParser implements TokenStreamCursor {
         if (peek() == TokenType.AT) {
             // Join navigation: @J1 > @J2 ( | terminalColumn )?
             if (enumMappingId != null) {
-                error("EnumerationMapping cannot be applied to a join property mapping");
+                throw error("EnumerationMapping cannot be applied to a join property mapping");
             }
             requirePropertyMappingDb(propName, db, "join navigation");
             List<JoinChainElement> joins = parseJoinChain(db);
@@ -2127,7 +2120,7 @@ public final class ElementParser implements TokenStreamCursor {
         // Structured expression: parse via the existing relational
         // expression grammar with mapping-scope bare-id resolution.
         if (enumMappingId != null) {
-            error("EnumerationMapping with a computed expression is not supported in B.4b");
+            throw error("EnumerationMapping with a computed expression is not supported in B.4b");
         }
         RelationalOperation expr = parseDbOperation(db);
         return new PropertyMapping.Expression(propName, expr);
@@ -2163,7 +2156,7 @@ public final class ElementParser implements TokenStreamCursor {
      */
     private void requirePropertyMappingDb(String propName, String db, String kind) {
         if (db == null) {
-            error("property mapping '" + propName + "': " + kind
+            throw error("property mapping '" + propName + "': " + kind
                     + " requires a database. Write `[db::DB] ...` "
                     + "or place the mapping inside a class mapping with ~mainTable.");
         }
@@ -2269,7 +2262,7 @@ public final class ElementParser implements TokenStreamCursor {
         List<EnumerationMapping.SourceValue> sources = new ArrayList<>();
         if (match(TokenType.BRACKET_OPEN)) {
             if (peek() == TokenType.BRACKET_CLOSE) {
-                error("EnumerationMapping value '" + enumValue
+                throw error("EnumerationMapping value '" + enumValue
                         + "' must list at least one source value");
             }
             sources.add(parseEnumSourceValue());
@@ -2337,7 +2330,7 @@ public final class ElementParser implements TokenStreamCursor {
             int start = pos;
             scanPureExpression(/*stopOnPropertyBindingStart=*/ true);
             if (pos == start) {
-                error("~filter clause in Pure class mapping for '"
+                throw error("~filter clause in Pure class mapping for '"
                         + className + "' is empty");
             }
             filter = SpecParser.parse(tokens.slice(start, pos));
@@ -2350,7 +2343,7 @@ public final class ElementParser implements TokenStreamCursor {
             int start = pos;
             scanPureExpression(/*stopOnPropertyBindingStart=*/ false);
             if (pos == start) {
-                error("Pure class mapping property '" + propName
+                throw error("Pure class mapping property '" + propName
                         + "' has an empty body");
             }
             ValueSpecification expression = SpecParser.parse(tokens.slice(start, pos));
