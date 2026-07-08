@@ -49,44 +49,60 @@ class NativeFunctionTest {
     // ---------------------------------------------------------------
 
     @Test
-    void catalogSizeIsPinned() {
-        // Update this number deliberately when adding or removing natives.
-        // 476 → 478: R0 additions for the MappingNormalizer rewrite
-        // (OTHERWISE__T_1__T_0_1 for Layer 4b fallback; cross-class
-        // ASSOCIATE__CLASS_MANY__COL_SPEC_1__FUNCTION_1 for Layer 3 /
-        // Layer 6' FK-style class-typed PMs). See
-        // MAPPING_NORMALIZER_REWRITE_PLAN.md §0 / §9.
-        // 478 → 479: R0b adds LEGACY_ASSOCIATE__CLASS_MANY__COL_SPEC_1__FUNCTION_1,
-        // the legacy-mode peer of `associate` used for class-typed `Join` PMs in
-        // relational mappings (column-form predicate, no normalize-time reverse
-        // lookup). See MAPPING_NORMALIZER_REWRITE_PLAN.md §§2, 2.4, 9.
-        // 479 → 478: R4.5 deletes OTHERWISE__T_1__T_0_1. OtherwiseEmbedded
-        // is now lowered as a co-named-slot dispatch-merge (partial inline
-        // ^Inner + top-level legacyAssociate naming the same property
-        // slot); no runtime fallback primitive needed. See
-        // MAPPING_NORMALIZER_FOLLOWUPS.md R4.5 / D3.
-        // 478 → 479: Phase-C MappingNormalizer rewrite adds the
-        // legacyAssocPredicate native (row-extraction adapter for
-        // Relational AssociationMapping predicate bodies). The class-typed
-        // Join PM path now also emits the legacyNavigate pipeline step
-        // (already in the catalog). See docs/MAPPING_LEGACY_TO_FUNCTION.md §2.
-        // 479 → 478: remove the never-emitted ASSOCIATE__CLASS_MANY__COL_SPEC_1
-        // __FUNCTION_1. The multi-hop association design (Option A, doc §5.6.1b)
-        // realizes ends via join + legacyNavigate, not the cross-store
-        // `associate` primitive; the native was superseded scaffolding from the
-        // earlier FK-lift design and was emitted nowhere.
-        // 478 → 479: register OTHERWISE__T_1__T_0_1 — the generic class-level
-        // structural-merge primitive (docs/MAPPING_CLEAN_SHEET.md §4.3) that
-        // MappingNormalizer already emits for OtherwiseEmbedded PMs
-        // (otherwise(^Inner(...), $row.<slot>)). Closes the emitted-but-
-        // unregistered gap so the overload resolves (AGENTS.md invariant 1).
-        // 479 → 482: engine-corpus parity pass adds from<T>(T[*],mapping,runtime)
-        // (M2M execution binding) and the rows(…) frame overloads accepting
-        // unbounded() (engine ExtendWindowCheckerTest frame forms).
-        // 482 → 485: the clean-sheet navigate primitive lands (pre-map / post-map /
-        // inline overloads, MAPPING_CLEAN_SHEET.md §3) — the last §12 row.
-        assertEquals(485, Pure.all().size(),
-                "Pure.all() size pin: review the catalog if this changes");
+    void catalogMatchesTheGoldenFile() throws Exception {
+        // THE golden catalog: every signature, canonically rendered, in
+        // (load-bearing) declaration order. Replaces the count-pin + comment
+        // changelog: any add/remove/edit/REORDER is a reviewable line diff.
+        // To update deliberately: fix the code, regenerate the resource with
+        // the renderer below, and review the diff in the commit.
+        List<String> expected = java.nio.file.Files.readAllLines(
+                        java.nio.file.Path.of("src/test/resources/native-catalog.txt"))
+                .stream().filter(l -> !l.startsWith("#")).toList();
+        List<String> actual = Pure.all().stream()
+                .map(NativeFunctionTest::renderCanonical).toList();
+        assertEquals(expected, actual,
+                "the native catalog diverged from the golden file — review the diff;"
+                        + " regenerate the resource only for DELIBERATE catalog changes");
+    }
+
+    /** Canonical signature rendering — the golden file's line format. */
+    static String renderCanonical(NativeFunctionDefinition d) {
+        StringBuilder s = new StringBuilder(d.qualifiedName());
+        if (!d.typeParameters().isEmpty() || !d.multiplicityParameters().isEmpty()) {
+            s.append('<').append(String.join(",", d.typeParameters()));
+            if (!d.multiplicityParameters().isEmpty()) {
+                s.append('|').append(String.join(",", d.multiplicityParameters()));
+            }
+            s.append('>');
+        }
+        s.append('(');
+        for (int i = 0; i < d.parameters().size(); i++) {
+            var p = d.parameters().get(i);
+            if (i > 0) {
+                s.append(", ");
+            }
+            s.append(p.name()).append(':').append(renderType(p.type())).append(p.multiplicity());
+        }
+        return s.append("):").append(renderType(d.returnType()))
+                .append(d.returnMultiplicity()).toString();
+    }
+
+    private static String renderType(com.legend.parser.TypeExpression t) {
+        return switch (t) {
+            case com.legend.parser.TypeExpression.NameRef n -> n.name();
+            case com.legend.parser.TypeExpression.Generic g -> g.name() + "<"
+                    + String.join(",", g.arguments().stream()
+                            .map(NativeFunctionTest::renderType).toList()) + ">";
+            case com.legend.parser.TypeExpression.FunctionType f -> "{"
+                    + String.join(",", f.parameters().stream()
+                            .map(pp -> renderType(pp.type()) + pp.multiplicity()).toList())
+                    + "->" + renderType(f.result().type()) + f.result().multiplicity() + "}";
+            case com.legend.parser.TypeExpression.RelationType r -> "("
+                    + String.join(",", r.columns().stream()
+                            .map(c -> c.name() + ":" + renderType(c.type())).toList()) + ")";
+            case com.legend.parser.TypeExpression.SchemaAlgebra a ->
+                    renderType(a.left()) + a.op() + renderType(a.right());
+        };
     }
 
     @Test

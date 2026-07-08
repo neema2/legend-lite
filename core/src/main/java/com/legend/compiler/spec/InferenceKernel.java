@@ -182,14 +182,45 @@ public final class InferenceKernel {
         }
     }
 
-    /** The left side of a {@code ⊆}: a plain variable, or a nested {@code X=(?:K)} shape. */
+    /**
+     * The left side of a {@code ⊆}: a plain variable, a nested {@code X=(?:K)}
+     * shape, or a bare wildcard row {@code (?:K)} (real pure's
+     * {@code ColSpec<(?:Number)⊆T>} — the selected column may have ANY name
+     * but its type must conform to {@code K}).
+     */
     private void unifyConstraintLeft(Type left, Type.RelationType concrete, Bindings b) {
         switch (left) {
             case Type.TypeVar v -> bindRowAccumulating(v, concrete, b);
             case Type.SchemaAlgebra eq when eq.op() == Type.Op.EQUAL -> unifyWildcardEqual(eq, concrete, b);
+            case Type.RelationType wildcard when wildcard.columns().size() == 1
+                    && wildcard.columns().get(0).name().equals("?") -> {
+                if (concrete.columns().size() != 1) {
+                    throw new TypeInferenceException("expected ONE column, got "
+                            + concrete.typeName());
+                }
+                Type want = wildcard.columns().get(0).type();
+                Type got = concrete.columns().get(0).type();
+                if (!conformsForWildcard(got, want)) {
+                    throw new TypeInferenceException("column '"
+                            + concrete.columns().get(0).name() + "' has type "
+                            + got.typeName() + " but the constraint requires "
+                            + want.typeName());
+                }
+            }
             default -> throw new TypeInferenceException(
                     "unsupported ⊆ left-hand side: " + left.typeName());
         }
+    }
+
+    /** Wildcard-column type conformance: exact, or within the numeric family. */
+    private boolean conformsForWildcard(Type got, Type want) {
+        if (got.equals(want)) {
+            return true;
+        }
+        if (want == Type.Primitive.NUMBER && got instanceof Type.Primitive p) {
+            return p.family() == Type.Primitive.Family.NUMERIC;
+        }
+        return got instanceof Type.PrecisionDecimal && want == Type.Primitive.NUMBER;
     }
 
     /**

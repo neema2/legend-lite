@@ -548,6 +548,19 @@ class LowerRelationTest {
     // ---- scalar roots, from(), flatten ----
 
     @Test
+    @DisplayName("REAL pure 4-arg window aggregate: average(p, w, r, ~col) -> AVG(col) OVER (...)")
+    void fourArgWindowAverage() throws SQLException {
+        // Verbatim real-pure signature (core_functions_standard/math/
+        // aggregator/average.pure) — the engine-lite 3-arg row-returning
+        // forms were made up and are gone.
+        String sql = sqlOf("#>{test::DB.T_PERSON}#"
+                + "->extend(over(~FIRM), ~avgAge:{p,w,r|$p->average($w, $r, ~AGE)})");
+        assertEquals("SELECT t0.*, AVG(t0.AGE) OVER (PARTITION BY t0.FIRM) AS avgAge\n"
+                + "FROM T_PERSON AS t0", sql);
+        assertEquals(4, exec(sql).size());
+    }
+
+    @Test
     @DisplayName("multi-statement lambda query: let-chains bind forward, last statement is the value")
     void letChainQuery() throws SQLException {
         String sql = sqlOfBody("|let first = 'John'; let last = 'Smith';"

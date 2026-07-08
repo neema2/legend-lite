@@ -903,6 +903,19 @@ public final class Lowerer {
                 return new SqlExpr.WindowCall(new SqlAgg.ValueFn(fn.sqlName(), args),
                         over.partitionBy(), over.orderBy(), over.frame());
             }
+            // Real pure's 4-arg colToAgg window aggregates: average(p,w,r,~col).
+            case TypedNativeCall call when Windows.aggregate(call.callee()) != null -> {
+                TypedSpec colArg = call.args().get(call.args().size() - 1);
+                if (!(colArg instanceof com.legend.compiler.spec.typed.TypedColSpec cs)) {
+                    throw new IllegalStateException(
+                            "window aggregate colToAgg must be a ~column colspec");
+                }
+                return new SqlExpr.WindowCall(
+                        new SqlAgg.Reducer(Windows.aggregate(call.callee()),
+                                List.of(new SqlExpr.Column(base.from().alias(), cs.name())),
+                                false),
+                        over.partitionBy(), over.orderBy(), over.frame());
+            }
             case TypedNativeCall call when Windows.lookup(call.callee()) != null -> {
                 Windows.WindowFn fn = Windows.lookup(call.callee());
                 if (fn.kind() != Windows.Kind.RANKING) {
