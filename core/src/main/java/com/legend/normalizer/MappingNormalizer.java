@@ -315,19 +315,19 @@ public final class MappingNormalizer {
                                                      String fnFqn,
                                                      ModelBuilder model) {
         if (inl.body().size() != 1 || !(inl.body().get(0) instanceof LambdaFunction lam)) {
-            throw new IllegalStateException(
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                     "inline association predicate for '" + ab.associationFqn()
                   + "' must be a single (source, target) -> Boolean lambda; mapping="
                   + md.qualifiedName());
         }
         if (lam.parameters().size() != 2) {
-            throw new IllegalStateException(
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                     "inline association predicate for '" + ab.associationFqn()
                   + "' must take exactly 2 parameters (source, target); got "
                   + lam.parameters().size() + "; mapping=" + md.qualifiedName());
         }
         AssociationDefinition ad = model.findAssociation(ab.associationFqn())
-                .orElseThrow(() -> new IllegalStateException(
+                .orElseThrow(() -> new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                         "inline association predicate references unknown association '"
                       + ab.associationFqn() + "'; mapping=" + md.qualifiedName()));
         String classA = associationEndClass(ad.property1().targetClass(),
@@ -386,7 +386,7 @@ public final class MappingNormalizer {
                 // Pure (M2M) extends is not covered by §5.2.3; reject loudly
                 // rather than silently ignore the inheritance (AGENTS.md: no
                 // fallbacks).
-                throw new UnsupportedOperationException(
+                throw new com.legend.error.NotImplementedException(
                         "Class mapping for '" + cm.className() + "' uses extends ["
                       + cm.extendsSetId() + "] on a non-Relational (Pure) mapping; "
                       + "only Relational extends is supported. Mapping="
@@ -407,19 +407,19 @@ public final class MappingNormalizer {
                                                          LegacyMappingDefinition md) {
         String parentSetId = child.extendsSetId();
         if (!chain.add(parentSetId)) {
-            throw new IllegalStateException(
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                     "Circular 'extends' chain in mapping '" + md.qualifiedName()
                   + "': " + String.join(" -> ", chain) + " -> " + parentSetId);
         }
         ClassMapping parent = bySetId.get(parentSetId);
         if (parent == null) {
-            throw new IllegalStateException(
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                     "Class mapping for '" + child.className() + "' extends ["
                   + parentSetId + "] but no class mapping with set id '" + parentSetId
                   + "' exists in mapping=" + md.qualifiedName());
         }
         if (!(parent instanceof ClassMapping.Relational parentRcm)) {
-            throw new UnsupportedOperationException(
+            throw new com.legend.error.NotImplementedException(
                     "Class mapping for '" + child.className() + "' extends ["
                   + parentSetId + "] which is not a Relational mapping; only "
                   + "Relational extends is supported. Mapping=" + md.qualifiedName());
@@ -533,7 +533,7 @@ public final class MappingNormalizer {
                                     Map<String, ClassMapping.Pure> pureByTarget,
                                     Set<String> visiting, LegacyMappingDefinition md) {
         if (!visiting.add(pcm.className())) {
-            throw new IllegalStateException(
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                     "Circular M2M ~src chain detected in mapping '"
                   + md.qualifiedName() + "': " + String.join(" -> ", visiting)
                   + " -> " + pcm.className());
@@ -589,7 +589,7 @@ public final class MappingNormalizer {
             ClassDefinition tgt = model.findClass(pcm.className()).orElse(null);
             for (ClassMapping.Pure.PropertyBinding pb : pcm.propertyBindings()) {
                 if (tgt != null && findPropertyTypeDeep(tgt, pb.propertyName(), model) == null) {
-                    throw new IllegalStateException(
+                    throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                             "M2M PropertyBinding '" + pb.propertyName()
                           + "' is not declared on class '" + tgt.qualifiedName()
                           + "'; mapping=" + md.qualifiedName());
@@ -614,14 +614,14 @@ public final class MappingNormalizer {
         String innerFqn = nr.name();
         if (model.findClass(innerFqn).isEmpty()) return pb.expression();
         if (!model.isMappedClass(innerFqn)) {
-            throw new IllegalStateException(
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                     "M2M class-typed property '" + pb.propertyName() + "' on '"
                   + tgt.qualifiedName() + "' targets unmapped class '" + innerFqn
                   + "'; map '" + innerFqn + "' or use Embedded. Mapping="
                   + md.qualifiedName());
         }
         if (!cycleStack.add(innerFqn)) {
-            throw new IllegalStateException(
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                     "Cycle materializing M2M class-typed property; class "
                   + innerFqn + " recurses. Stack=" + cycleStack);
         }
@@ -646,7 +646,7 @@ public final class MappingNormalizer {
             return synthJsonSourceMapping(md, rcm, model);
         }
         if (rcm.mainTable() == null) {
-            throw new UnsupportedOperationException(
+            throw new com.legend.error.NotImplementedException(
                     "Relational mapping without ~mainTable or sourceUrl not supported; class="
                   + rcm.className() + ", mapping=" + md.qualifiedName()
                   + ". See docs/MAPPING_LEGACY_TO_FUNCTION.md §5.2.3.");
@@ -683,7 +683,7 @@ public final class MappingNormalizer {
                 List.of(new CString(rcm.sourceUrl())));
         Variable rowBind = new Variable("row");
         ClassDefinition cd = model.findClass(rcm.className()).orElseThrow(() ->
-                new IllegalStateException("JSON-source mapping references unknown class '"
+                new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, "JSON-source mapping references unknown class '"
                         + rcm.className() + "'; mapping=" + md.qualifiedName()));
         Map<String, KeyExpression> fields = new LinkedHashMap<>();
         for (ClassDefinition.PropertyDefinition prop : cd.properties()) {
@@ -855,7 +855,7 @@ public final class MappingNormalizer {
             // its own filter would need the mapping-filter join chain hoisted
             // at this outer level; not wired. Refuse loudly rather than
             // silently drop the mapping filter (AGENTS.md: no fallbacks).
-            throw new UnsupportedOperationException(
+            throw new com.legend.error.NotImplementedException(
                     "View-backed class '" + rcm.className() + "' has both a view "
                   + "filter and a JoinMediated mapping ~filter; layering a "
                   + "JoinMediated filter over a filtered view is not supported. "
@@ -872,7 +872,7 @@ public final class MappingNormalizer {
             case FilterPointer.Local l -> rcm.mainTable().database();
         };
         DatabaseDefinition.FilterDefinition fd = model.findFilter(dbFqn, direct.filter().name())
-                .orElseThrow(() -> new IllegalStateException(
+                .orElseThrow(() -> new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                         "~filter '" + direct.filter().name() + "' not found in db '"
                       + dbFqn + "'; class=" + rcm.className() + ", mapping="
                       + md.qualifiedName()));
@@ -905,12 +905,12 @@ public final class MappingNormalizer {
             collectTablesIn(expr, tables);
         }
         if (tables.isEmpty()) {
-            throw new IllegalStateException(
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                     "View '" + viewName + "': cannot infer underlying main table — no "
                   + "non-join column references found; mapping=" + md.qualifiedName());
         }
         if (tables.size() > 1) {
-            throw new IllegalStateException(
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                     "View '" + viewName + "' references multiple root tables " + tables
                   + "; a view must resolve to a single root table. Mapping="
                   + md.qualifiedName());
@@ -1051,7 +1051,7 @@ public final class MappingNormalizer {
             // inherited property (engine parity: property lookup walks
             // generalizations).
             if (findPropertyTypeDeep(cd, pm.propertyName(), model) == null) {
-                throw new IllegalStateException(
+                throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                         "PropertyMapping '" + pm.propertyName() + "' references property "
                       + "not declared on class '" + rcm.className() + "'; mapping="
                       + md.qualifiedName());
@@ -1095,7 +1095,7 @@ public final class MappingNormalizer {
                                                 String mainTable, Variable rowBind,
                                                 ModelBuilder model, LegacyMappingDefinition md) {
         if (!(oe.fallback() instanceof PropertyMapping.Join joinFallback)) {
-            throw new UnsupportedOperationException(
+            throw new com.legend.error.NotImplementedException(
                     "OtherwiseEmbedded PM '" + oe.propertyName() + "' fallback kind "
                   + oe.fallback().getClass().getSimpleName()
                   + " not supported (Join only). Mapping=" + md.qualifiedName());
@@ -1103,13 +1103,13 @@ public final class MappingNormalizer {
         ClassDefinition owner = model.findClass(ownerClassFqn).orElseThrow();
         TypeExpression propType = findPropertyTypeDeep(owner, oe.propertyName(), model);
         if (!(propType instanceof TypeExpression.NameRef nr)) {
-            throw new IllegalStateException(
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                     "OtherwiseEmbedded PM '" + oe.propertyName()
                   + "' has non-class property type; mapping=" + md.qualifiedName());
         }
         String targetClassFqn = nr.name();
         if (!model.isMappedClass(targetClassFqn)) {
-            throw new UnsupportedOperationException(
+            throw new com.legend.error.NotImplementedException(
                     "OtherwiseEmbedded PM '" + oe.propertyName() + "' target class '"
                   + targetClassFqn + "' is not mapped; mapping=" + md.qualifiedName());
         }
@@ -1181,7 +1181,7 @@ public final class MappingNormalizer {
             String hopDb = hop.databaseName() != null ? hop.databaseName()
                     : (chainDb != null ? chainDb : mainDb);
             DatabaseDefinition.JoinDefinition jd = model.findJoin(hopDb, hop.joinName())
-                    .orElseThrow(() -> new IllegalStateException(
+                    .orElseThrow(() -> new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                             "Join '" + hop.joinName() + "' not found in db '"
                           + hopDb + "'; PM='" + propName + "', mapping="
                           + md.qualifiedName()));
@@ -1407,19 +1407,19 @@ public final class MappingNormalizer {
             ModelBuilder model, Set<String> cycleStack) {
         ClassDefinition owner = model.findClass(ownerClassFqn).orElse(null);
         if (owner == null) {
-            throw new IllegalStateException(
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                     "Embedded PM '" + propName + "' on '" + ownerClassFqn
                   + "' but owner class unknown; mapping=" + md.qualifiedName());
         }
         TypeExpression propType = findPropertyTypeDeep(owner, propName, model);
         if (!(propType instanceof TypeExpression.NameRef nr)) {
-            throw new IllegalStateException(
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                     "Embedded PM '" + propName + "' on '" + ownerClassFqn
                   + "' has non-class property type; mapping=" + md.qualifiedName());
         }
         String innerFqn = nr.name();
         if (!cycleStack.add(innerFqn)) {
-            throw new IllegalStateException(
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                     "Cycle materializing Embedded; class " + innerFqn
                   + " recurses via '" + propName + "' on '" + ownerClassFqn + "'");
         }
@@ -1432,7 +1432,7 @@ public final class MappingNormalizer {
                 // with a clear diagnostic rather than silently reading an
                 // unemitted slot.
                 if (sub instanceof PropertyMapping.Join) {
-                    throw new UnsupportedOperationException(
+                    throw new com.legend.error.NotImplementedException(
                             "Embedded sub-PM '" + sub.propertyName() + "' on '"
                           + propName + "' is a class-typed Join; nested Join PMs "
                           + "inside a value-position Embedded are not supported "
@@ -1492,7 +1492,7 @@ public final class MappingNormalizer {
             }
         }
         if (referenced == null) {
-            throw new IllegalStateException(
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                     "InlineEmbedded PM '" + ie.propertyName()
                   + "' references unknown setId '" + ie.setId()
                   + "' in mapping=" + md.qualifiedName());
@@ -1533,7 +1533,7 @@ public final class MappingNormalizer {
             case FilterPointer.Local l -> mainDb;
         };
         DatabaseDefinition.FilterDefinition fd = model.findFilter(
-                dbFqn, direct.filter().name()).orElseThrow(() -> new IllegalStateException(
+                dbFqn, direct.filter().name()).orElseThrow(() -> new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                 "~filter '" + direct.filter().name() + "' not found in db '"
               + dbFqn + "'; class=" + rcm.className() + ", mapping="
               + md.qualifiedName()));
@@ -1557,7 +1557,7 @@ public final class MappingNormalizer {
             case FilterPointer.Local l -> jm.sourceDb();
         };
         DatabaseDefinition.FilterDefinition fd = model.findFilter(
-                dbFqn, jm.filter().name()).orElseThrow(() -> new IllegalStateException(
+                dbFqn, jm.filter().name()).orElseThrow(() -> new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                 "~filter '" + jm.filter().name() + "' not found in db '"
               + dbFqn + "'; class=" + rcm.className() + ", mapping="
               + md.qualifiedName()));
@@ -1605,7 +1605,7 @@ public final class MappingNormalizer {
             if (isAggregatePm(pm)) { aggPms.add(pm); continue; }
             RelationalOperation pmOp = pmAsRelationalOp(pm);
             if (pmOp == null) {
-                throw new UnsupportedOperationException(
+                throw new com.legend.error.NotImplementedException(
                         "PropertyMapping '" + pm.getClass().getSimpleName()
                       + "' for property '" + pm.propertyName()
                       + "' is not supported under ~groupBy (only Column, Expression, "
@@ -1619,7 +1619,7 @@ public final class MappingNormalizer {
                 }
             }
             if (matchIdx < 0) {
-                throw new UnsupportedOperationException(
+                throw new com.legend.error.NotImplementedException(
                         "PM '" + pm.propertyName() + "' is a per-row expression that is "
                       + "neither an aggregate nor a declared ~groupBy key; ~groupBy "
                       + "mappings forbid per-row formulas outside the key list. Mapping="
@@ -1642,7 +1642,7 @@ public final class MappingNormalizer {
             RelationalOperation.FunctionCall fc = (RelationalOperation.FunctionCall)
                     ((PropertyMapping.Expression) pm).expression();
             if (fc.args().size() != 1) {
-                throw new UnsupportedOperationException(
+                throw new com.legend.error.NotImplementedException(
                         "Aggregate PM '" + pm.propertyName() + "' uses '" + fc.name()
                       + "' with " + fc.args().size() + " args; only single-argument "
                       + "aggregates lift to the two-stage AggColSpec form. Mapping="
@@ -1697,12 +1697,12 @@ public final class MappingNormalizer {
                                                                   AssociationMapping am,
                                                                   ModelBuilder model) {
         if (!(am instanceof AssociationMapping.Relational rel)) {
-            throw new UnsupportedOperationException(
+            throw new com.legend.error.NotImplementedException(
                     "Association mapping kind " + am.getClass().getSimpleName()
                   + " not supported; mapping=" + md.qualifiedName());
         }
         AssociationDefinition ad = model.findAssociation(am.associationName())
-                .orElseThrow(() -> new IllegalStateException(
+                .orElseThrow(() -> new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                         "AssociationMapping references unknown association '"
                       + am.associationName() + "'; mapping=" + md.qualifiedName()));
         String classA = associationEndClass(ad.property1().targetClass(),
@@ -1711,7 +1711,7 @@ public final class MappingNormalizer {
                 "association '" + am.associationName() + "' end2");
 
         if (rel.propertyMappings().isEmpty()) {
-            throw new IllegalStateException(
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                     "AssociationMapping for '" + am.associationName()
                   + "' has no property mappings; mapping=" + md.qualifiedName());
         }
@@ -1721,7 +1721,7 @@ public final class MappingNormalizer {
         // same regardless (it describes the association in one place).
         AssociationPropertyMapping firstAm = rel.propertyMappings().get(0);
         if (!(firstAm.body() instanceof PropertyMapping.Join firstJoin)) {
-            throw new UnsupportedOperationException(
+            throw new com.legend.error.NotImplementedException(
                     "AssociationMapping property body kind "
                   + firstAm.body().getClass().getSimpleName()
                   + " not supported (only Join bodies are bridged); mapping="
@@ -1778,7 +1778,7 @@ public final class MappingNormalizer {
                                                              LegacyMappingDefinition md,
                                                              ModelBuilder model) {
         if (join.joins().isEmpty()) {
-            throw new IllegalStateException(
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                     "AssociationMapping for '" + associationName
                   + "' has empty join chain; mapping=" + md.qualifiedName());
         }
@@ -1787,7 +1787,7 @@ public final class MappingNormalizer {
             JoinChainElement hop = join.joins().get(0);
             String hopDb = hop.databaseName() != null ? hop.databaseName() : join.database();
             DatabaseDefinition.JoinDefinition jd = model.findJoin(hopDb, hop.joinName())
-                    .orElseThrow(() -> new IllegalStateException(
+                    .orElseThrow(() -> new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                             "AssociationMapping join '" + hop.joinName()
                           + "' not found in db '" + hopDb + "'; association='"
                           + associationName + "', mapping=" + md.qualifiedName()));
@@ -1804,7 +1804,7 @@ public final class MappingNormalizer {
         // see docs/MAPPING_LEGACY_TO_FUNCTION.md §5.6.1b). A (A,B)->Boolean
         // predicate cannot bind the intermediate row(s). This guard fires only
         // if that interception is bypassed — a compiler invariant violation.
-        throw new IllegalStateException(
+        throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                 "Multi-hop AssociationMapping for '" + associationName + "' ("
               + join.joins().size() + " join hops) reached the predicate "
               + "builder; it should have been handled by per-end injection. "
@@ -1813,7 +1813,7 @@ public final class MappingNormalizer {
 
     private static String associationEndClass(TypeExpression t, String context) {
         if (t instanceof TypeExpression.NameRef nr) return nr.name();
-        throw new IllegalStateException(
+        throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                 context + " has non-NameRef target class type: "
               + t.getClass().getSimpleName());
     }
@@ -1826,7 +1826,7 @@ public final class MappingNormalizer {
                 return rcm.mainTable().table();
             }
         }
-        throw new IllegalStateException(
+        throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                 "No ~mainTable for class '" + classFqn + "' in mapping="
               + md.qualifiedName() + " (required to synthesize AssociationMapping)");
     }
@@ -1844,7 +1844,7 @@ public final class MappingNormalizer {
             if (cand.mappingId().equals(ec.enumMappingId())) { em = cand; break; }
         }
         if (em == null) {
-            throw new IllegalStateException(
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                     "EnumeratedColumn '" + ec.propertyName() + "' references unknown "
                   + "enum mapping '" + ec.enumMappingId() + "'; mapping="
                   + md.qualifiedName());
@@ -1865,7 +1865,7 @@ public final class MappingNormalizer {
                 } else if (sv instanceof EnumerationMapping.SourceValue.EnumRef er) {
                     srcLit = new EnumValue(er.enumPath(), er.enumValueName());
                 } else {
-                    throw new IllegalStateException("Unhandled SourceValue: " + sv);
+                    throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, "Unhandled SourceValue: " + sv);
                 }
                 ValueSpecification eq = new AppliedFunction("equal",
                         List.of(colRead, srcLit));
@@ -1873,7 +1873,7 @@ public final class MappingNormalizer {
                         : new AppliedFunction("or", List.of(disj, eq));
             }
             if (disj == null) {
-                throw new IllegalStateException(
+                throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                         "EnumerationMapping '" + ec.enumMappingId() + "' value '"
                       + ev.enumValue() + "' declares no source values; cannot build "
                       + "a match condition for property '" + ec.propertyName()
@@ -1924,12 +1924,12 @@ public final class MappingNormalizer {
         tables.remove(sourceTable);
         if (tables.size() == 1) return tables.iterator().next();
         if (tables.isEmpty()) {
-            throw new IllegalStateException(
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                     "Join '" + joinName + "' references no table other than source '"
                   + sourceTable + "' and has no {target} marker; owner=" + ownerLabel
                   + ", hop " + hopIndex + ", mapping=" + mappingFqn);
         }
-        throw new UnsupportedOperationException(
+        throw new com.legend.error.NotImplementedException(
                 "Join '" + joinName + "' references multiple non-source tables "
               + tables + "; multi-table joins not supported. owner=" + ownerLabel
               + ", hop " + hopIndex + ", mapping=" + mappingFqn);
@@ -1951,7 +1951,7 @@ public final class MappingNormalizer {
             case RelationalOperation.Group g                 -> containsTargetColumnRef(g.inner());
             case RelationalOperation.ArrayLiteral a          ->
                     a.elements().stream().anyMatch(MappingNormalizer::containsTargetColumnRef);
-            case RelationalOperation.JoinNavigation ignored -> throw new IllegalStateException(
+            case RelationalOperation.JoinNavigation ignored -> throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                     "JoinNavigation inside join condition");
         };
     }
@@ -1968,7 +1968,7 @@ public final class MappingNormalizer {
             case RelationalOperation.IsNotNull n             -> collectTablesIn(n.operand(), sink);
             case RelationalOperation.Group g                 -> collectTablesIn(g.inner(), sink);
             case RelationalOperation.ArrayLiteral a          -> a.elements().forEach(e -> collectTablesIn(e, sink));
-            case RelationalOperation.JoinNavigation ignored  -> throw new IllegalStateException(
+            case RelationalOperation.JoinNavigation ignored  -> throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                     "JoinNavigation inside expression");
         }
     }
@@ -1982,7 +1982,7 @@ public final class MappingNormalizer {
         }
         if (base == null) base = tableScope.get(defaultTable);
         if (base == null) {
-            throw new IllegalStateException(
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                     "No row variable in scope for table '" + table
                   + "'; available=" + tableScope.keySet());
         }
@@ -1995,8 +1995,8 @@ public final class MappingNormalizer {
      * table name, which cannot pick between two sub-rows of the same table.
      * Fail loudly with guidance rather than resolve to an arbitrary sub-row.
      */
-    private static IllegalStateException ambiguousTableRef(String table, String column) {
-        return new IllegalStateException(
+    private static com.legend.error.ModelException ambiguousTableRef(String table, String column) {
+        return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                 "Ambiguous column reference '" + table + "." + column + "': the join "
               + "chain reaches table '" + table + "' through more than one path, so a "
               + "bare column reference cannot identify which sub-row is meant. Pin the "
@@ -2025,7 +2025,7 @@ public final class MappingNormalizer {
                     throw ambiguousTableRef(ref.table(), ref.column());
                 }
                 if (path == null) {
-                    throw new IllegalStateException(
+                    throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                             "ColumnRef references table '" + ref.table()
                           + "' not in scope; available=" + tableScope.keySet());
                 }
@@ -2033,7 +2033,7 @@ public final class MappingNormalizer {
             }
             case RelationalOperation.TargetColumnRef tref -> {
                 if (targetVarOrNull == null) {
-                    throw new IllegalStateException(
+                    throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                             "TargetColumnRef {target}." + tref.column()
                           + " outside a join condition context");
                 }
@@ -2078,7 +2078,7 @@ public final class MappingNormalizer {
                 // the terminal (if any) reads from that sub-row's
                 // table scope.
                 if (rowBindOrNull == null || pipelineOrNull == null) {
-                    throw new IllegalStateException(
+                    throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                             "Nested JoinNavigation in scope without pipeline; "
                           + "JoinNav inside association predicates or join "
                           + "conditions is not supported.");
@@ -2101,7 +2101,7 @@ public final class MappingNormalizer {
         if (value instanceof Integer i) return new CInteger((long) i);
         if (value instanceof Double d)  return new CFloat(d);
         if (value instanceof Boolean b) return new CBoolean(b);
-        throw new IllegalStateException("Unsupported literal type: "
+        throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, "Unsupported literal type: "
                 + (value == null ? "null" : value.getClass().getName()));
     }
 

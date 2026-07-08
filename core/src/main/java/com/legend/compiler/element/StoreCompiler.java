@@ -89,8 +89,8 @@ final class StoreCompiler {
         };
     }
 
-    private static IllegalStateException unsupportedColumnType(RelationalDataType dt) {
-        return new IllegalStateException(
+    private static com.legend.error.ModelException unsupportedColumnType(RelationalDataType dt) {
+        return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL, 
                 "SQL column type '" + dt.getClass().getSimpleName() + "' has no scalar Pure type");
     }
 }

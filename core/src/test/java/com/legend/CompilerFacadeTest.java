@@ -75,7 +75,7 @@ class CompilerFacadeTest {
 
     @Test
     void loweringIsHonestlyUnbuilt() {
-        UnsupportedOperationException ex = assertThrows(UnsupportedOperationException.class,
+        com.legend.error.NotImplementedException ex = assertThrows(com.legend.error.NotImplementedException.class,
                 () -> Compiler.compile(MODEL, "test::Person.all()", "test::Rt"));
         assertTrue(ex.getMessage().contains("compileQuery"),
                 "the error must point at what IS available");

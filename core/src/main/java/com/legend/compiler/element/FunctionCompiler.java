@@ -84,7 +84,7 @@ final class FunctionCompiler {
      */
     void requireFunction(String fqn, String site) {
         if (!exists(fqn)) {
-            throw new IllegalStateException(
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL, 
                     site + " binds to unknown function '" + fqn + "'");
         }
     }
@@ -96,7 +96,7 @@ final class FunctionCompiler {
      */
     void requireShape(String fqn, Predicate<Function> shape, String site, String expected) {
         if (functionsAt(fqn).stream().noneMatch(shape)) {
-            throw new IllegalStateException(
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL, 
                     site + " must be realized by a function " + expected);
         }
     }

@@ -74,7 +74,7 @@ final class TypeClassifier {
                 if (typeParams.contains(nr.name())) {
                     yield new Type.TypeVar(nr.name());
                 }
-                yield findType(nr.name()).orElseThrow(() -> new IllegalStateException(
+                yield findType(nr.name()).orElseThrow(() -> new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL, 
                         "Unknown type: '" + nr.name() + "' is not a known primitive, class, or enum"));
             }
             case TypeExpression.Generic g -> {
@@ -112,11 +112,11 @@ final class TypeClassifier {
             case TypeExpression.Generic g -> g.name();
             // EXHAUSTIVE (no default): a head reference is nominal by
             // construction; the structural forms each say why they cannot be.
-            case TypeExpression.FunctionType f -> throw new IllegalStateException(
+            case TypeExpression.FunctionType f -> throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL, 
                     "a function type cannot head a supertype/generic reference");
-            case TypeExpression.RelationType r -> throw new IllegalStateException(
+            case TypeExpression.RelationType r -> throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL, 
                     "a relation type cannot head a supertype/generic reference");
-            case TypeExpression.SchemaAlgebra a -> throw new IllegalStateException(
+            case TypeExpression.SchemaAlgebra a -> throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL, 
                     "a schema-algebra expression cannot head a supertype/generic reference");
         };
     }

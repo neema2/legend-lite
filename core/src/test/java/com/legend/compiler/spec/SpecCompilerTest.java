@@ -479,7 +479,7 @@ class SpecCompilerTest {
 
     @Test
     void getAll_onNonClassReferenceThrows() {
-        assertThrows(TypeInferenceException.class, () -> query("notAClass.all()"));
+        assertThrows(com.legend.error.ResolutionException.class, () -> query("notAClass.all()"));
     }
 
     // ---- project (relation schema construction) ------------------------

@@ -3,6 +3,9 @@
 
 Parses engine/target/surefire-reports after a full engine-suite run:
 
+    rm -rf engine/target/surefire-reports   # REQUIRED: the scan sums every
+                                            # report file; targeted -Dtest runs
+                                            # leave stale contaminants
     mvn -pl engine test -Dmaven.test.failure.ignore=true
     python3 tools/scoreboard.py            # print the report
     python3 tools/scoreboard.py --record   # append a run row to docs/SCOREBOARD.md

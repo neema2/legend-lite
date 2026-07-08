@@ -623,8 +623,8 @@ class MappingNormalizerTest {
                         + "    name: T_PERSON.NAME "
                         + "  } "
                         + ")");
-        IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalStateException.class,
+        com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.ModelException.class,
                 () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("other::DB"),
                 () -> "Expected unknown-db error to name the missing db; got: " + ex.getMessage());
@@ -642,8 +642,8 @@ class MappingNormalizerTest {
                         + "    name: T_PERSON.NAME "
                         + "  } "
                         + ")");
-        IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalStateException.class,
+        com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.ModelException.class,
                 () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("NonexistentFilter"),
                 () -> "Expected missing-filter error to name the filter; got: " + ex.getMessage());
@@ -738,8 +738,8 @@ class MappingNormalizerTest {
                         + "    department: $src.department "
                         + "  } "
                         + ")");
-        IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalStateException.class,
+        com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.ModelException.class,
                 () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("model::DeptInfo"),
                 () -> "Expected error to name the missing target type; got: " + ex.getMessage());
@@ -1210,8 +1210,8 @@ class MappingNormalizerTest {
                         + "    ) "
                         + "  } "
                         + ")");
-        UnsupportedOperationException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                UnsupportedOperationException.class,
+        com.legend.error.NotImplementedException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.NotImplementedException.class,
                 () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("Embedded sub-PM"),
                 () -> "Expected nested-Join-in-Embedded error; got: " + ex.getMessage());
@@ -1275,8 +1275,8 @@ class MappingNormalizerTest {
                         + "    broker() Inline[no_such_set] "
                         + "  } "
                         + ")");
-        IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalStateException.class,
+        com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.ModelException.class,
                 () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("no_such_set"),
                 () -> "Expected unknown-setId error; got: " + ex.getMessage());
@@ -1601,8 +1601,8 @@ class MappingNormalizerTest {
                         + "    ) Otherwise ([firm_set1]: [db::DB] @Person_Firm) "
                         + "  } "
                         + ")");
-        UnsupportedOperationException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                UnsupportedOperationException.class,
+        com.legend.error.NotImplementedException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.NotImplementedException.class,
                 () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("model::Firm"),
                 () -> "Expected error to name the unmapped target class; got: " + ex.getMessage());
@@ -1717,8 +1717,8 @@ class MappingNormalizerTest {
                         + "    firmName: [db::DB] @Nonexistent | T_FIRM.LEGAL_NAME "
                         + "  } "
                         + ")");
-        IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalStateException.class,
+        com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.ModelException.class,
                 () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("Nonexistent"),
                 () -> "Expected error to name the missing join; got: " + ex.getMessage());
@@ -2876,8 +2876,8 @@ class MappingNormalizerTest {
                         + "    id: T_TGT.ID "
                         + "  } "
                         + ")");
-        UnsupportedOperationException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                UnsupportedOperationException.class,
+        com.legend.error.NotImplementedException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.NotImplementedException.class,
                 () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("T_OTHER"),
                 () -> "Diagnostic must name the offending table; got: " + ex.getMessage());
@@ -3654,8 +3654,8 @@ class MappingNormalizerTest {
                         + "    total: sum(T.QTY) "
                         + "  } "
                         + ")");
-        UnsupportedOperationException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                UnsupportedOperationException.class,
+        com.legend.error.NotImplementedException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.NotImplementedException.class,
                 () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("extra"),
                 () -> "Expected error to name the orphan PM; got: " + ex.getMessage());
@@ -3723,8 +3723,8 @@ class MappingNormalizerTest {
                         + "  *model::Person: Pure { ~src model::SrcA name: $src.name } "
                         + "  *model::Person[alt]: Pure { ~src model::SrcB name: $src.name } "
                         + ")");
-        IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalStateException.class,
+        com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.ModelException.class,
                 () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("model::Person"),
                 () -> "Expected duplicate-mapping error to name the class; got: " + ex.getMessage());
@@ -3916,8 +3916,8 @@ class MappingNormalizerTest {
                         + "  *model::A: Pure { ~src model::B  x: $src.x } "
                         + "  *model::B: Pure { ~src model::A  x: $src.x } "
                         + ")");
-        IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalStateException.class,
+        com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.ModelException.class,
                 () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("Circular M2M"),
                 () -> "Expected circular-M2M diagnostic; got: " + ex.getMessage());
@@ -3944,8 +3944,8 @@ class MappingNormalizerTest {
                         + "    bogus: T_PERSON.AGE "
                         + "  } "
                         + ")");
-        IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalStateException.class,
+        com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.ModelException.class,
                 () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("bogus"),
                 () -> "Expected error to name the offending PM; got: " + ex.getMessage());
@@ -4027,8 +4027,8 @@ class MappingNormalizerTest {
                         + "    b: V_MIX.b "
                         + "  } "
                         + ")");
-        IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalStateException.class,
+        com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.ModelException.class,
                 () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("V_MIX")
                         && ex.getMessage().contains("single root table"),
@@ -4056,8 +4056,8 @@ class MappingNormalizerTest {
                         + "    fname: V_ALLJOIN.fname "
                         + "  } "
                         + ")");
-        IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalStateException.class,
+        com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.ModelException.class,
                 () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("V_ALLJOIN")
                         && ex.getMessage().contains("cannot infer underlying main table"),
@@ -4577,8 +4577,8 @@ class MappingNormalizerTest {
                         + "    ~mainTable [db::DB] T  x: T.X "
                         + "  } "
                         + ")");
-        IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalStateException.class,
+        com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.ModelException.class,
                 () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("nope"),
                 () -> "Expected the unknown parent set id to be named; got: " + ex.getMessage());
@@ -4649,8 +4649,8 @@ class MappingNormalizerTest {
                         + "    label: T_FIRM.NAME "
                         + "  } "
                         + ")");
-        IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalStateException.class,
+        com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.ModelException.class,
                 () -> normalizeViaPipeline(parsed));
         assertTrue(ex.getMessage().contains("Ambiguous") && ex.getMessage().contains("T_FIRM"),
                 () -> "Expected an ambiguous-table diagnostic naming T_FIRM; got: " + ex.getMessage());

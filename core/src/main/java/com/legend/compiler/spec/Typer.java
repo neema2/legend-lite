@@ -554,7 +554,9 @@ final class Typer {
         if (ctx.isExecutionContextElement(ref.fullPath())) {
             return new TypedPackageableRef(ref.fullPath(), ExprType.one(InferenceKernel.anyType()));
         }
-        throw new TypeInferenceException("'" + ref.fullPath()
+        // Semantically a RESOLUTION failure (an unresolvable name), even
+        // though it surfaces during type-checking — typed for what it MEANS.
+        throw new com.legend.error.ResolutionException("'" + ref.fullPath()
                 + "' is not a known class, mapping, runtime, connection, or database"
                 + (ref.fullPath().contains("::")
                         ? "" : " — user elements in a query need a fully qualified name"));

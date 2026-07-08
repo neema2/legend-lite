@@ -309,7 +309,8 @@ public final class ModelBuilder {
         for (ClassMapping cm : md.classMappings()) {
             String classFqn = cm.className();
             if (!seen.add(classFqn)) {
-                throw new IllegalStateException(
+                throw new com.legend.error.ModelException(
+                              com.legend.error.LegendCompileException.Phase.NORMALIZE,
                         "MappingDefinition '" + md.qualifiedName() + "' contains multiple "
                               + "ClassMappings for class '" + classFqn + "'. Each "
                               + "MappingDefinition may map a given class at most once "

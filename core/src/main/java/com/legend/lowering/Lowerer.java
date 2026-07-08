@@ -195,7 +195,7 @@ public final class Lowerer {
             // SANCTIONED frontier default (root package-info invariant is
             // scoped to hiding-prone switches): the not-yet-lowered TypedSpec
             // variants churn every milestone; each throws LOUD and NAMED.
-            default -> throw new IllegalStateException("lowering not yet implemented for "
+            default -> throw new com.legend.error.NotImplementedException("lowering not yet implemented for "
                     + spec.getClass().getSimpleName());
         };
     }
@@ -1026,7 +1026,7 @@ public final class Lowerer {
             case TypedNativeCall n -> Scalars.lower(n,
                     n.args().stream().map(a -> scalar(a, columns)).toList());
             // SANCTIONED frontier default — see relation() above.
-            default -> throw new IllegalStateException("scalar lowering not yet implemented for "
+            default -> throw new com.legend.error.NotImplementedException("scalar lowering not yet implemented for "
                     + spec.getClass().getSimpleName());
         };
     }
@@ -1038,7 +1038,7 @@ public final class Lowerer {
      */
     private SqlSelect pivot(com.legend.compiler.spec.typed.TypedPivot pv) {
         if (pv.pivotColumns().size() != 1) {
-            throw new IllegalStateException("multi-column pivot is not lowered yet");
+            throw new com.legend.error.NotImplementedException("multi-column pivot is not lowered yet");
         }
         SqlSelect src = relation(pv.source());
         SqlSource inner = asRightSide(src);
@@ -1249,7 +1249,7 @@ public final class Lowerer {
         if (spec instanceof TypedCInteger c) {
             return c.value().longValue();
         }
-        throw new IllegalStateException(
+        throw new com.legend.error.NotImplementedException(
                 "dynamic slicing bounds are not lowered yet (literal expected), got "
                         + spec.getClass().getSimpleName());
     }

@@ -283,7 +283,8 @@ public final class ModelNormalizer {
         if (sd.functionBody() instanceof LambdaFunction lf) {
             for (Variable v : lf.parameters()) {
                 if (v.type() == null || v.multiplicity() == null) {
-                    throw new IllegalStateException(
+                    throw new com.legend.error.ModelException(
+                            com.legend.error.LegendCompileException.Phase.NORMALIZE,
                             "Service '" + sd.qualifiedName() + "' query parameter '"
                                   + v.name() + "' must be typed (name: Type[mult]) to "
                                   + "externalize into " + SynthFqn.query(sd.qualifiedName()));

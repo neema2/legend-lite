@@ -44,10 +44,10 @@ class PipelineStageFailureTest {
     @Test
     @DisplayName("parse: malformed query dies in the parser, not downstream")
     void queryParseError() {
-        Exception ex = failsWith(Exception.class, MODEL, "#>{test::DB.T_PERSON}#->filter(x|");
-        assertTrue(ex.getClass().getSimpleName().contains("Parse"),
-                () -> "expected a parser exception, got " + ex.getClass().getName()
-                        + ": " + ex.getMessage());
+        var ex = failsWith(com.legend.parser.ParseException.class,
+                MODEL, "#>{test::DB.T_PERSON}#->filter(x|");
+        org.junit.jupiter.api.Assertions.assertEquals(
+                com.legend.error.LegendCompileException.Phase.PARSE, ex.phase());
     }
 
     // ---- stage: model PARSE ----
@@ -55,10 +55,10 @@ class PipelineStageFailureTest {
     @Test
     @DisplayName("parse: malformed model dies in the element parser")
     void modelParseError() {
-        Exception ex = failsWith(Exception.class,
+        var ex = failsWith(com.legend.parser.ParseException.class,
                 "Database test::DB ( Table (BROKEN ", "#>{test::DB.T_PERSON}#");
-        assertTrue(ex.getClass().getSimpleName().contains("Parse"),
-                () -> "expected a parser exception, got " + ex.getClass().getName());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                com.legend.error.LegendCompileException.Phase.PARSE, ex.phase());
     }
 
     // ---- stage: NAME RESOLUTION scope ----
@@ -66,7 +66,7 @@ class PipelineStageFailureTest {
     @Test
     @DisplayName("resolve: bare user-element name fails with the qualification hint")
     void bareNameFails() {
-        Exception ex = failsWith(Exception.class, MODEL + """
+        var ex = failsWith(com.legend.error.ResolutionException.class, MODEL + """
                 Class test::Person { name: String[1]; }
                 """, "Person.all()");
         messageNames(ex, "Person", "fully qualified");
@@ -77,8 +77,10 @@ class PipelineStageFailureTest {
     @Test
     @DisplayName("element-compile: unknown property type in the model fails at F")
     void unknownTypeInModel() {
-        Exception ex = failsWith(IllegalStateException.class,
+        var ex = failsWith(com.legend.error.ModelException.class,
                 "Class test::P { x: NoSuchType[1]; }", "1 + 1");
+        org.junit.jupiter.api.Assertions.assertEquals(
+                com.legend.error.LegendCompileException.Phase.MODEL, ex.phase());
         messageNames(ex, "NoSuchType");
     }
 
@@ -102,12 +104,11 @@ class PipelineStageFailureTest {
     @Test
     @DisplayName("type-check: type mismatch (String + Integer) fails at G, not in SQL")
     void typeMismatch() {
-        Exception ex = failsWith(Exception.class, MODEL,
+        var ex = failsWith(com.legend.error.LegendCompileException.class, MODEL,
                 "#>{test::DB.T_PERSON}#->filter(x|($x.NAME + 5) == 'x')");
-        assertTrue(ex.getClass().getSimpleName().contains("TypeInference")
-                        || ex.getClass().getSimpleName().contains("Parse"),
-                () -> "expected a type error, got " + ex.getClass().getName()
-                        + ": " + ex.getMessage());
+        assertTrue(ex.phase() == com.legend.error.LegendCompileException.Phase.TYPE
+                        || ex.phase() == com.legend.error.LegendCompileException.Phase.PARSE,
+                () -> "expected a TYPE (or operator-parse) failure, got " + ex.phase());
     }
 
     // ---- stage: LOWERING ----
@@ -115,7 +116,7 @@ class PipelineStageFailureTest {
     @Test
     @DisplayName("lowering: an unimplemented construct fails loudly naming the node")
     void unimplementedConstruct() {
-        Exception ex = failsWith(IllegalStateException.class, MODEL,
+        var ex = failsWith(com.legend.error.NotImplementedException.class, MODEL,
                 "#>{test::DB.T_PERSON}#->write(test::DB)");
         messageNames(ex, "not yet implemented", "TypedWrite");
     }
@@ -131,7 +132,7 @@ class PipelineStageFailureTest {
     @Test
     @DisplayName("lowering: dynamic slicing bound fails loudly (literal expected)")
     void dynamicLimit() {
-        Exception ex = failsWith(IllegalStateException.class, MODEL,
+        var ex = failsWith(com.legend.error.NotImplementedException.class, MODEL,
                 "#>{test::DB.T_PERSON}#->limit(1 + 1)");
         messageNames(ex, "literal expected");
     }

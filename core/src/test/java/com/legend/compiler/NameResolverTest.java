@@ -170,7 +170,7 @@ class NameResolverTest {
                 .add("model::*").add("other::*").build();
         Set<String> ambig = Set.of("model::Person", "other::Person");
         var cd = simpleClass("x::Sub", List.of(nameRef("Person")), List.of());
-        assertThrows(IllegalStateException.class,
+        assertThrows(com.legend.error.ResolutionException.class,
                 () -> resolveOne(cd, two, ambig));
     }
 
@@ -1185,7 +1185,7 @@ class NameResolverTest {
         Set<String> ambig = Set.of("a::Foo", "b::Foo");
         var lam = new LambdaFunction(List.of(),
                 List.of(new PackageableElementPtr("Foo")));
-        assertThrows(IllegalStateException.class,
+        assertThrows(com.legend.error.ResolutionException.class,
                 () -> NameResolver.resolve(lam, NameResolver.Scope.of(two, ambig)));
     }
 

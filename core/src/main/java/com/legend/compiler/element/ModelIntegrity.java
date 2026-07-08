@@ -83,7 +83,7 @@ final class ModelIntegrity {
                                      TypeClassifier classifier, FunctionCompiler functions) {
         for (MappingDefinition.ClassBinding cb : md.classBindings()) {
             if (!classifier.isClassFqn(cb.classFqn())) {
-                throw new IllegalStateException("mapping '" + md.qualifiedName()
+                throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL, "mapping '" + md.qualifiedName()
                       + "' binds unknown class '" + cb.classFqn() + "'");
             }
             String site = "mapping '" + md.qualifiedName()
@@ -95,7 +95,7 @@ final class ModelIntegrity {
         }
         for (MappingDefinition.AssociationBinding ab : md.associationBindings()) {
             if (model.findAssociation(ab.associationFqn()).isEmpty()) {
-                throw new IllegalStateException("mapping '" + md.qualifiedName()
+                throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL, "mapping '" + md.qualifiedName()
                       + "' binds unknown association '" + ab.associationFqn() + "'");
             }
             String site = "mapping '" + md.qualifiedName()

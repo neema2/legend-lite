@@ -9,7 +9,7 @@ package com.legend.parser;
  * empty stream). Unchecked &mdash; parser callers don't typically catch
  * these except at the top of a pipeline.
  */
-public final class ParseException extends RuntimeException {
+public final class ParseException extends com.legend.error.LegendCompileException {
 
     private static final long serialVersionUID = 1L;
 
@@ -17,13 +17,13 @@ public final class ParseException extends RuntimeException {
     private final int column;
 
     public ParseException(String message) {
-        super(message);
+        super(Phase.PARSE, message);
         this.line = 0;
         this.column = 0;
     }
 
     public ParseException(String message, int line, int column) {
-        super(formatMessage(message, line, column));
+        super(Phase.PARSE, formatMessage(message, line, column));
         this.line = line;
         this.column = column;
     }

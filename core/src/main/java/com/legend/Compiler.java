@@ -78,7 +78,7 @@ public final class Compiler {
      * @return SQL execution plan in the runtime's dialect.
      */
     public static String compile(String model, String query, String runtime) {
-        throw new UnsupportedOperationException(
+        throw new com.legend.error.NotImplementedException(
             "runtime-name execution is Phase H (runtime->connection resolution);"
                 + " use execute(model, query, connection) — the full pipeline —"
                 + " or compileQuery(model, query) for the typed HIR");

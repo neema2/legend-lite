@@ -343,7 +343,7 @@ public final class NameResolver {
         }
         if (matches.size() == 1) return matches.get(0);
         if (matches.size() > 1) {
-            throw new IllegalStateException(
+            throw new com.legend.error.ResolutionException(
                     "ambiguous reference '" + name + "' \u2014 matches via imports: "
                     + matches + ". Use a fully qualified name.");
         }

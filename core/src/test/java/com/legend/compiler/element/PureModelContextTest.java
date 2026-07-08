@@ -144,7 +144,7 @@ class PureModelContextTest {
         // nothing ever demands the bad class (pipeline stage-failure finding).
         ParsedModel parsed = ElementParser.parse(
                 "Class model::Bad { x: not::a::RealType[1]; }");
-        IllegalStateException ex = assertThrows(IllegalStateException.class,
+        com.legend.error.ModelException ex = assertThrows(com.legend.error.ModelException.class,
                 () -> PureModelContext.from(asNormalized(parsed)));
         assertTrue(ex.getMessage().contains("Unknown type"));
         assertTrue(ex.getMessage().contains("not::a::RealType"));
@@ -158,7 +158,7 @@ class PureModelContextTest {
     @DisplayName("F.a: a Door-4 derived property bound to a missing function fails, naming the site")
     void derivedPropertyBoundToMissingFunctionThrows() {
         // ModelIntegrity is eager: the dangling realizer fails compileModel itself.
-        IllegalStateException ex = assertThrows(IllegalStateException.class,
+        com.legend.error.ModelException ex = assertThrows(com.legend.error.ModelException.class,
                 () -> com.legend.Compiler.compileModel(
                         "Class model::Person { name: String[1]; "
                       + "  fullName() { model::funcs::missing }: String[1]; }"));
@@ -173,7 +173,7 @@ class PureModelContextTest {
     @Test
     @DisplayName("F.a: a Door-4 constraint bound to a missing predicate fails")
     void constraintBoundToMissingFunctionThrows() {
-        IllegalStateException ex = assertThrows(IllegalStateException.class,
+        com.legend.error.ModelException ex = assertThrows(com.legend.error.ModelException.class,
                 () -> com.legend.Compiler.compileModel(
                         "Class model::Person [adult: model::funcs::missingPredicate] { age: Integer[1]; }"));
         assertTrue(ex.getMessage().contains("binds to unknown function")
@@ -215,7 +215,7 @@ class PureModelContextTest {
     @DisplayName("F.b: a clean-sheet mapping bound to a missing function fails at build")
     void mappingClassBindingToMissingFunctionThrows() {
         // compileModel builds the context (and validates mappings) eagerly.
-        IllegalStateException ex = assertThrows(IllegalStateException.class,
+        com.legend.error.ModelException ex = assertThrows(com.legend.error.ModelException.class,
                 () -> com.legend.Compiler.compileModel(
                         "Class model::Person { name: String[1]; } "
                       + "Mapping my::M ( *model::Person: Pure { my::funcs::missing } )"));
@@ -253,7 +253,7 @@ class PureModelContextTest {
     @Test
     @DisplayName("F.c: a constraint bound to a non-Boolean function fails")
     void constraintBoundToNonBooleanFunctionThrows() {
-        IllegalStateException ex = assertThrows(IllegalStateException.class,
+        com.legend.error.ModelException ex = assertThrows(com.legend.error.ModelException.class,
                 () -> com.legend.Compiler.compileModel(
                         "Class model::Person { age: Integer[1]; } "
                       + "function my::funcs::wrong(p: model::Person[1]): String[1] { 'x' } "
@@ -266,7 +266,7 @@ class PureModelContextTest {
     @Test
     @DisplayName("F.c: a clean-sheet mapping bound to a non-Class[*] function fails")
     void mappingBoundToNonClassManyFunctionThrows() {
-        IllegalStateException ex = assertThrows(IllegalStateException.class,
+        com.legend.error.ModelException ex = assertThrows(com.legend.error.ModelException.class,
                 () -> com.legend.Compiler.compileModel(
                         "Class model::Person { name: String[1]; } "
                       + "function my::funcs::notAClass(): String[1] { 'x' } "
