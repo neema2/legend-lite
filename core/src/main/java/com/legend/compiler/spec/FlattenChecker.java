@@ -36,18 +36,18 @@ final class FlattenChecker {
                     + source.info().type().typeName());
         }
         // Validate the CALL against the registered native signature — never
-        // bypassed (the tableReference lesson: an unexercised registration
-        // goes vestigial). flatten<T,Z>(T[*], ColSpec<Z=(?:T)>): the source
-        // unifies against parameter 0 and the result multiplicity comes from
-        // the signature; the colspec parameter and the OUTPUT SCHEMA are the
-        // documented divergences (engine-lite widens in place; real Pure
-        // yields the single flattened column).
-        var flattenSigs = t.model().findFunction(CoreFn.FLATTEN.parseName());
-        if (flattenSigs.isEmpty()) {
-            throw new TypeInferenceException("flatten is not registered in the catalog");
-        }
-        var sig = flattenSigs.get(0);
-        t.kernel().unify(sig.parameters().get(0).type(), source.info().type(), new Bindings());
+        // bypassed (the tableReference lesson). The re-audit showed unifying
+        // T[*] against anything is VACUOUS, so the REAL checks are: the
+        // registration exists and the call's ARITY matches an overload
+        // (serialize's pattern). The colspec parameter and the OUTPUT SCHEMA
+        // are the documented divergences (engine-lite widens in place; real
+        // Pure yields the single flattened column).
+        var sig = t.model().findFunction(CoreFn.FLATTEN.parseName()).stream()
+                .filter(f -> f.parameters().size() == af.parameters().size())
+                .findFirst()
+                .orElseThrow(() -> new TypeInferenceException(
+                        "no registered 'flatten' overload accepts "
+                                + af.parameters().size() + " argument(s)"));
         boolean known = schema.columns().stream().anyMatch(c -> c.name().equals(cs.name()));
         if (!known) {
             throw new TypeInferenceException("unknown column '" + cs.name() + "' in " + schema.typeName());

@@ -19,11 +19,6 @@ import java.util.Objects;
 public sealed interface Multiplicity permits Multiplicity.Bounded, Multiplicity.Var {
 
     /**
-     * Convert a parse-time multiplicity to the compiled form &mdash; the single
-     * parser&rarr;type-model conversion point (shared by element compilation and
-     * type-annotation resolution).
-     */
-    /**
      * Whether this multiplicity admits more than one value. THE single
      * implementation (an audit found five divergent copies).
      *
@@ -52,6 +47,11 @@ public sealed interface Multiplicity permits Multiplicity.Bounded, Multiplicity.
                 "unresolved multiplicity variable reached " + where + ": " + this);
     }
 
+    /**
+     * Convert a parse-time multiplicity to the compiled form &mdash; the single
+     * parser&rarr;type-model conversion point (shared by element compilation and
+     * type-annotation resolution).
+     */
     static Multiplicity from(com.legend.parser.Multiplicity m) {
         return switch (m) {
             case com.legend.parser.Multiplicity.Concrete c -> new Bounded(c.lowerBound(), c.upperBound());

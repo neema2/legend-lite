@@ -814,8 +814,8 @@ public final class ElementParser implements TokenStreamCursor {
                     expect(TokenType.SEMI_COLON);
                 }
                 case SERVICE_AUTO_ACTIVATE_UPDATES -> {
-                    // A BOOLEAN, not any token (audit M13b).
-                    if (!"true".equals(text()) && !"false".equals(text())) {
+                    // A BOOLEAN TOKEN, not a text re-read (re-audit L5).
+                    if (peek() != TokenType.TRUE && peek() != TokenType.FALSE) {
                         throw error("autoActivateUpdates expects true or false, got '"
                                 + safeText() + "'");
                     }
@@ -838,6 +838,15 @@ public final class ElementParser implements TokenStreamCursor {
                     expect(TokenType.BRACE_OPEN);
                     while (peek() != TokenType.BRACE_CLOSE && !atEnd()) {
                         TokenType execKey = peek();
+                        String execKeyText = safeText();
+                        if (execKey != TokenType.MAPPING_TESTS_QUERY
+                                && execKey != TokenType.SERVICE_MAPPING
+                                && execKey != TokenType.SERVICE_RUNTIME) {
+                            // Validate BEFORE consuming: the error points AT
+                            // the offender, by TEXT (re-audit M4).
+                            throw error("unknown key '" + execKeyText
+                                    + "' inside Service.execution (Phase B.3 strict mode; see D-2)");
+                        }
                         advance();
                         expect(TokenType.COLON);
                         switch (execKey) {
@@ -867,8 +876,8 @@ public final class ElementParser implements TokenStreamCursor {
                                 runtimeRef = parseQualifiedName();
                                 expect(TokenType.SEMI_COLON);
                             }
-                            default -> throw error("unknown key '" + execKey
-                                    + "' inside Service.execution (Phase B.3 strict mode; see D-2)");
+                            default -> throw new IllegalStateException(
+                                    "unreachable: execution keys validated above");
                         }
                     }
                     expect(TokenType.BRACE_CLOSE);
@@ -1162,20 +1171,10 @@ public final class ElementParser implements TokenStreamCursor {
 
     /** Strip the leading and trailing {@code '} from a {@code STRING} token's raw text. */
     private String unquoteString(String raw) {
-        // Routes through THE shared decoder — this copy previously stripped
-        // quotes but FORGOT escapes (audit M11).
-        if (raw.length() >= 2 && raw.charAt(0) == '\'' && raw.charAt(raw.length() - 1) == '\'') {
-            return TokenStreamCursor.unquoteAndUnescape(raw, this);
-        }
-        return legacyUnquote(raw);
-    }
-
-    private static String legacyUnquote(String raw) {
-        if (raw == null || raw.length() < 2) return raw;
-        if (raw.charAt(0) == '\'' && raw.charAt(raw.length() - 1) == '\'') {
-            return raw.substring(1, raw.length() - 1);
-        }
-        return raw;
+        // Routes through THE shared decoder (which throws on malformed
+        // input) — no legacy fallback: an unterminated literal at EOF used
+        // to flow through with its leading quote intact (re-audit M2).
+        return TokenStreamCursor.unquoteAndUnescape(raw, this);
     }
 
     // ============================================================
@@ -1457,22 +1456,44 @@ public final class ElementParser implements TokenStreamCursor {
      * argument seeds the chain's source database when no per-hop {@code [DB]}
      * is specified.
      */
-    private List<JoinChainElement> parseJoinChain(String initialDb) {
+    /**
+     * THE join-chain grammar, engine-uniform (audit M1 found it TRIPLICATED
+     * with capability drift):
+     * <pre>  (joinType)? @Join ( '&gt;' (joinType)? ('[' db ']')? @Join )*  </pre>
+     */
+    private List<JoinChainElement> parseJoinChain(String defaultDb) {
         List<JoinChainElement> chain = new ArrayList<>();
+        JoinType firstJoinType = optionalJoinType();
         expect(TokenType.AT);
-        chain.add(new JoinChainElement(parseIdentifier(), null, initialDb, false));
-        while (peek() == TokenType.GREATER_THAN) {
-            advance();
-            String hopDb = initialDb;
+        chain.add(new JoinChainElement(parseIdentifier(), firstJoinType, defaultDb, false));
+        parseJoinChainHops(chain, defaultDb);
+        return chain;
+    }
+
+    /** The {@code ('&gt;' (type)? ([db])? @Join)*} hop loop shared by all chain forms. */
+    private void parseJoinChainHops(List<JoinChainElement> chain, String defaultDb) {
+        while (match(TokenType.GREATER_THAN)) {
+            JoinType joinType = optionalJoinType();
+            String hopDb = defaultDb;
             if (peek() == TokenType.BRACKET_OPEN) {
                 advance();
                 hopDb = parseQualifiedName();
                 expect(TokenType.BRACKET_CLOSE);
             }
             expect(TokenType.AT);
-            chain.add(new JoinChainElement(parseIdentifier(), null, hopDb, false));
+            chain.add(new JoinChainElement(parseIdentifier(), joinType, hopDb, false));
         }
-        return chain;
+    }
+
+    /** {@code (INNER)}-style parenthesised join type, if present. */
+    private JoinType optionalJoinType() {
+        if (peek() != TokenType.PAREN_OPEN) {
+            return null;
+        }
+        advance();
+        JoinType t = JoinType.fromIdentifier(parseIdentifier());
+        expect(TokenType.PAREN_CLOSE);
+        return t;
     }
 
     private DatabaseDefinition.ViewDefinition.ViewColumnMapping parseViewColumnMapping(String dbScope) {
@@ -2069,7 +2090,7 @@ public final class ElementParser implements TokenStreamCursor {
                 error("EnumerationMapping cannot be applied to a join property mapping");
             }
             requirePropertyMappingDb(propName, db, "join navigation");
-            List<JoinChainElement> joins = parseMappingJoinChain(db);
+            List<JoinChainElement> joins = parseJoinChain(db);
             if (match(TokenType.PIPE)) {
                 RelationalOperation terminal = parseDbAtomicOperation(db);
                 return new PropertyMapping.JoinTerminalColumn(propName, db, joins, terminal);
@@ -2133,34 +2154,6 @@ public final class ElementParser implements TokenStreamCursor {
      * {@link JoinChainElement#joinType()}. Per-hop optional {@code [DB]}
      * overrides the chain's default database.
      */
-    private List<JoinChainElement> parseMappingJoinChain(String defaultDb) {
-        List<JoinChainElement> chain = new ArrayList<>();
-        JoinType firstJoinType = null;
-        if (peek() == TokenType.PAREN_OPEN) {
-            advance();
-            firstJoinType = JoinType.fromIdentifier(parseIdentifier());
-            expect(TokenType.PAREN_CLOSE);
-        }
-        expect(TokenType.AT);
-        chain.add(new JoinChainElement(parseIdentifier(), firstJoinType, defaultDb, false));
-        while (match(TokenType.GREATER_THAN)) {
-            JoinType joinType = null;
-            if (peek() == TokenType.PAREN_OPEN) {
-                advance();
-                joinType = JoinType.fromIdentifier(parseIdentifier());
-                expect(TokenType.PAREN_CLOSE);
-            }
-            String hopDb = defaultDb;
-            if (peek() == TokenType.BRACKET_OPEN) {
-                advance();
-                hopDb = parseQualifiedName();
-                expect(TokenType.BRACKET_CLOSE);
-            }
-            expect(TokenType.AT);
-            chain.add(new JoinChainElement(parseIdentifier(), joinType, hopDb, false));
-        }
-        return chain;
-    }
 
     /**
      * Enforce that a property mapping that needs an explicit database (join
@@ -2599,25 +2592,7 @@ public final class ElementParser implements TokenStreamCursor {
         }
         String db = dbName != null ? dbName : dbScope;
 
-        List<JoinChainElement> chain = new ArrayList<>();
-        expect(TokenType.AT);
-        chain.add(new JoinChainElement(parseIdentifier(), null, db, false));
-        while (match(TokenType.GREATER_THAN)) {
-            JoinType joinType = null;
-            if (peek() == TokenType.PAREN_OPEN) {
-                advance();
-                joinType = JoinType.fromIdentifier(parseIdentifier());
-                expect(TokenType.PAREN_CLOSE);
-            }
-            String hopDb = db;
-            if (peek() == TokenType.BRACKET_OPEN) {
-                advance();
-                hopDb = parseQualifiedName();
-                expect(TokenType.BRACKET_CLOSE);
-            }
-            expect(TokenType.AT);
-            chain.add(new JoinChainElement(parseIdentifier(), joinType, hopDb, false));
-        }
+        List<JoinChainElement> chain = parseJoinChain(db);
 
         RelationalOperation terminal = null;
         if (match(TokenType.PIPE)) {

@@ -23,7 +23,7 @@ import java.util.Set;
  *       {@link #peek(int)}, {@link #advance()}, {@link #atEnd()},
  *       {@link #match(TokenType)}, {@link #expect(TokenType)},
  *       {@link #consume(TokenType)}, {@link #text()},
- *       {@link #safeText()}, {@link #textEquals(String)},
+ *       {@link #safeText()},
  *       {@link #error(String)}, plus the qualified-name and identifier
  *       readers that the type grammar (and the rest of the parser
  *       fleet) lean on.</li>
@@ -114,50 +114,30 @@ public interface TokenStreamCursor {
             TokenType.VALID_STRING, TokenType.STRING,
             // M3
             TokenType.ALL, TokenType.LET, TokenType.ALL_VERSIONS, TokenType.ALL_VERSIONS_IN_RANGE,
-            TokenType.COMPARATOR, TokenType.TO_BYTES_FUNCTION,
-            // Domain
+            TokenType.COMPARATOR, // Domain
             TokenType.IMPORT, TokenType.CLASS, TokenType.FUNCTION, TokenType.PROFILE,
-            TokenType.ASSOCIATION, TokenType.ENUM, TokenType.MEASURE, TokenType.EXTENDS,
-            TokenType.STEREOTYPES, TokenType.TAGS, TokenType.NATIVE, TokenType.PROJECTS, TokenType.AS,
-            TokenType.CONSTRAINT_ENFORCEMENT_LEVEL_ERROR, TokenType.CONSTRAINT_ENFORCEMENT_LEVEL_WARN,
-            TokenType.AGGREGATION_TYPE_COMPOSITE, TokenType.AGGREGATION_TYPE_SHARED, TokenType.AGGREGATION_TYPE_NONE,
+            TokenType.ASSOCIATION, TokenType.ENUM, TokenType.EXTENDS,
+            TokenType.STEREOTYPES, TokenType.TAGS, TokenType.NATIVE, TokenType.AS,
             // Mapping
-            TokenType.MAPPING, TokenType.INCLUDE, TokenType.TESTS,
-            TokenType.MAPPING_TESTABLE_DOC, TokenType.MAPPING_TESTABLE_DATA, TokenType.MAPPING_TESTABLE_ASSERT,
-            TokenType.MAPPING_TESTABLE_SUITES, TokenType.MAPPING_TEST_ASSERTS, TokenType.MAPPING_TESTS,
-            TokenType.MAPPING_TESTS_QUERY,
+            TokenType.MAPPING, TokenType.INCLUDE, TokenType.MAPPING_TESTABLE_SUITES, TokenType.MAPPING_TESTS_QUERY,
             // Runtime
             TokenType.RUNTIME, TokenType.SINGLE_CONNECTION_RUNTIME, TokenType.MAPPINGS,
-            TokenType.CONNECTIONS, TokenType.CONNECTION, TokenType.CONNECTIONSTORES,
-            // Relational / Database
+            TokenType.CONNECTIONS, TokenType.CONNECTION, // Relational / Database
             TokenType.DATABASE, TokenType.TABLE, TokenType.SCHEMA, TokenType.VIEW,
-            TokenType.TABULAR_FUNC, TokenType.FILTER, TokenType.MULTIGRAIN_FILTER, TokenType.JOIN,
+            TokenType.FILTER, TokenType.MULTIGRAIN_FILTER, TokenType.JOIN,
             TokenType.RELATIONAL_AND, TokenType.RELATIONAL_OR,
-            TokenType.MILESTONING, TokenType.BUSINESS_MILESTONING,
-            TokenType.BUSINESS_MILESTONING_FROM, TokenType.BUSINESS_MILESTONING_THRU,
-            TokenType.THRU_IS_INCLUSIVE, TokenType.BUS_SNAPSHOT_DATE,
-            TokenType.PROCESSING_MILESTONING, TokenType.PROCESSING_MILESTONING_IN,
-            TokenType.PROCESSING_MILESTONING_OUT, TokenType.OUT_IS_INCLUSIVE,
-            TokenType.INFINITY_DATE, TokenType.PROCESSING_SNAPSHOT_DATE,
             TokenType.ASSOCIATION_MAPPING, TokenType.ENUMERATION_MAPPING,
-            TokenType.OTHERWISE, TokenType.INLINE, TokenType.BINDING, TokenType.SCOPE,
-            TokenType.PURE_MAPPING, TokenType.RELATIONAL,
+            TokenType.OTHERWISE, TokenType.INLINE, TokenType.PURE_MAPPING, TokenType.RELATIONAL,
             // Connection
-            TokenType.STORE, TokenType.TYPE, TokenType.MODE,
-            TokenType.RELATIONAL_DATASOURCE_SPEC, TokenType.RELATIONAL_AUTH_STRATEGY,
-            TokenType.DB_TIMEZONE, TokenType.QUOTE_IDENTIFIERS, TokenType.QUERY_GENERATION_CONFIGS,
-            TokenType.DUCKDB, TokenType.SQLITE, TokenType.POSTGRES, TokenType.H2, TokenType.SNOWFLAKE,
-            TokenType.LOCALDUCKDB, TokenType.INMEMORY, TokenType.NOAUTH,
-            // Service
+            TokenType.STORE, TokenType.TYPE, TokenType.RELATIONAL_DATASOURCE_SPEC, TokenType.RELATIONAL_AUTH_STRATEGY,
+            TokenType.H2, // Service
             TokenType.SERVICE, TokenType.SERVICE_PATTERN, TokenType.SERVICE_OWNERS,
             TokenType.SERVICE_DOCUMENTATION, TokenType.SERVICE_AUTO_ACTIVATE_UPDATES,
-            TokenType.SERVICE_EXEC, TokenType.SERVICE_SINGLE, TokenType.SERVICE_MULTI,
-            TokenType.SERVICE_MAPPING, TokenType.SERVICE_RUNTIME,
+            TokenType.SERVICE_EXEC, TokenType.SERVICE_SINGLE, TokenType.SERVICE_MAPPING, TokenType.SERVICE_RUNTIME,
             // Boolean literals
             TokenType.TRUE, TokenType.FALSE,
             // Additional
-            TokenType.RELATIONAL_DATABASE_CONNECTION,
-            TokenType.RELATIONAL_POST_PROCESSORS, TokenType.QUERY_TIMEOUT
+            TokenType.RELATIONAL_DATABASE_CONNECTION
     ));
 
     // -----------------------------------------------------------------
@@ -203,14 +183,9 @@ public interface TokenStreamCursor {
         return pos() < tokens().count() ? text() : "<EOF>";
     }
 
-    /** Whether the current token's source text equals {@code s}
-     *  exactly (case-sensitive). False past end. */
-    default boolean textEquals(String s) {
-        return pos() < tokens().count() && s.equals(tokens().text(pos()));
-    }
-
     /** Advance the cursor by one token. */
     default void advance() {
+        rejectInvalid();   // unlexable input dies HERE, not three phases later
         setPos(pos() + 1);
     }
 
@@ -232,6 +207,7 @@ public interface TokenStreamCursor {
     /** Require the next token to be {@code type} and advance past it;
      *  fail with a source-located {@link ParseException} otherwise. */
     default void expect(TokenType type) {
+        rejectInvalid();
         if (peek() != type) {
             throw error("expected " + type + " but found " + peek()
                     + " ('" + safeText() + "')");
@@ -257,6 +233,7 @@ public interface TokenStreamCursor {
     /** Require the next token to be {@code type}, advance past it, and
      *  return its source text. */
     default String consume(TokenType type) {
+        rejectInvalid();
         if (peek() != type) {
             throw error("expected " + type + " but found " + peek()
                     + " ('" + safeText() + "')");
@@ -387,6 +364,17 @@ public interface TokenStreamCursor {
 
     /** Single identifier (no path). Accepts any token in
      *  {@link #IDENTIFIER_TOKENS}. */
+    /**
+     * THE lexer-error trap: {@link TokenType#INVALID} marks unlexable input
+     * and must never flow silently into a parse (it used to — audit). Called
+     * directly by {@code advance()}, {@code expect}, and {@code consume}.
+     */
+    default void rejectInvalid() {
+        if (peek() == TokenType.INVALID) {
+            throw error("unlexable input: '" + safeText() + "'");
+        }
+    }
+
     default String parseIdentifier() {
         if (!isIdentifierToken(peek())) {
             throw error("expected identifier, got " + peek());

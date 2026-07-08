@@ -49,11 +49,29 @@ public sealed interface Function
      * which must not hold parser NODES (AUDIT_2026_07 §1c).
      */
     default String signatureKey() {
+        // MEMOIZED: dispatch lookups call this once per lowered node and the
+        // build walks full TypeExpression trees (re-audit M5). Catalog
+        // definitions are singletons, so an identity cache is exact.
+        String cached = SignatureKeys.CACHE.get(this);
+        if (cached != null) {
+            return cached;
+        }
         StringBuilder key = new StringBuilder(qualifiedName()).append('(');
         for (var p : parameters()) {
             key.append(p.type()).append(':').append(p.multiplicity()).append(',');
         }
-        return key.append(')').toString();
+        String built = key.append(')').toString();
+        SignatureKeys.CACHE.put(this, built);
+        return built;
+    }
+
+    /** Identity-keyed memo for {@link #signatureKey()} (catalog singletons). */
+    final class SignatureKeys {
+        private SignatureKeys() {
+        }
+
+        private static final java.util.Map<Function, String> CACHE =
+                java.util.Collections.synchronizedMap(new java.util.IdentityHashMap<>());
     }
 
     /** Declared parameters, in source order. */

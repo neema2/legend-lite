@@ -451,8 +451,8 @@ public final class ModelBuilder {
      * <p>Association properties are class properties semantically; the
      * {@code MappingNormalizer} consults this so injected per-end association
      * property mappings (Option A; see {@code docs/MAPPING_LEGACY_TO_FUNCTION.md}
-     * §5.6.1b) resolve their terminus class. Linear over declared associations
-     * (typically few); not indexed.
+     * §5.6.1b) resolve their terminus class. O(1) via the lazily built
+     * association-end index (the type checker's hot path).
      */
     public Optional<TypeExpression> findAssociationProperty(String ownerClassFqn,
                                                             String propName) {

@@ -2112,7 +2112,9 @@ public final class SpecParser implements TokenStreamCursor {
         int depth = 0;   // NESTED #{...}# islands stay inside the outer one (audit M8a)
         while (pos < tokens.count()) {
             TokenType t = tokens.type(pos);
-            if (t == TokenType.ISLAND_OPEN) {
+            if (t == TokenType.ISLAND_OPEN || t == TokenType.ISLAND_START) {
+                // ISLAND_START is the LEXER's spelling of a nested '#{'
+                // (islands re-lex their own openers differently).
                 depth++;
                 content.append(tokens.text(pos));
             } else if (t == TokenType.ISLAND_END) {
@@ -2122,10 +2124,14 @@ public final class SpecParser implements TokenStreamCursor {
                 }
                 depth--;
                 content.append(tokens.text(pos));
-            } else if (t == TokenType.ISLAND_ARROW_EXIT && depth == 0) {
-                pos++;
-                arrowExit = true;
-                break;
+            } else if (t == TokenType.ISLAND_ARROW_EXIT) {
+                if (depth == 0) {
+                    pos++;
+                    arrowExit = true;
+                    break;
+                }
+                depth--;   // a NESTED island closed by '}->' (re-audit M7)
+                content.append(tokens.text(pos));
             } else if (t == TokenType.ISLAND_BRACE_OPEN) {
                 content.append('{');
             } else if (t == TokenType.ISLAND_BRACE_CLOSE) {

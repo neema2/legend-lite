@@ -42,39 +42,25 @@ public final class Lexer {
         KEYWORDS.put("comparator", TokenType.COMPARATOR);
         KEYWORDS.put("allVersions", TokenType.ALL_VERSIONS);
         KEYWORDS.put("allVersionsInRange", TokenType.ALL_VERSIONS_IN_RANGE);
-        KEYWORDS.put("toBytes", TokenType.TO_BYTES_FUNCTION);
         // Domain
         KEYWORDS.put("import", TokenType.IMPORT);
         KEYWORDS.put("Class", TokenType.CLASS);
         KEYWORDS.put("Association", TokenType.ASSOCIATION);
         KEYWORDS.put("Profile", TokenType.PROFILE);
         KEYWORDS.put("Enum", TokenType.ENUM);
-        KEYWORDS.put("Measure", TokenType.MEASURE);
         KEYWORDS.put("function", TokenType.FUNCTION);
         KEYWORDS.put("extends", TokenType.EXTENDS);
         KEYWORDS.put("stereotypes", TokenType.STEREOTYPES);
         KEYWORDS.put("tags", TokenType.TAGS);
         KEYWORDS.put("native", TokenType.NATIVE);
-        KEYWORDS.put("projects", TokenType.PROJECTS);
         KEYWORDS.put("as", TokenType.AS);
-        KEYWORDS.put("Error", TokenType.CONSTRAINT_ENFORCEMENT_LEVEL_ERROR);
-        KEYWORDS.put("Warn", TokenType.CONSTRAINT_ENFORCEMENT_LEVEL_WARN);
-        KEYWORDS.put("composite", TokenType.AGGREGATION_TYPE_COMPOSITE);
-        KEYWORDS.put("shared", TokenType.AGGREGATION_TYPE_SHARED);
-        KEYWORDS.put("none", TokenType.AGGREGATION_TYPE_NONE);
         // Boolean literals
         KEYWORDS.put("true", TokenType.TRUE);
         KEYWORDS.put("false", TokenType.FALSE);
         // Mapping
         KEYWORDS.put("Mapping", TokenType.MAPPING);
         KEYWORDS.put("include", TokenType.INCLUDE);
-        KEYWORDS.put("MappingTests", TokenType.TESTS);
-        KEYWORDS.put("data", TokenType.MAPPING_TESTABLE_DATA);
-        KEYWORDS.put("assert", TokenType.MAPPING_TESTABLE_ASSERT);
-        KEYWORDS.put("doc", TokenType.MAPPING_TESTABLE_DOC);
         KEYWORDS.put("testSuites", TokenType.MAPPING_TESTABLE_SUITES);
-        KEYWORDS.put("asserts", TokenType.MAPPING_TEST_ASSERTS);
-        KEYWORDS.put("tests", TokenType.MAPPING_TESTS);
         KEYWORDS.put("query", TokenType.MAPPING_TESTS_QUERY);
         // Service
         KEYWORDS.put("Service", TokenType.SERVICE);
@@ -84,7 +70,6 @@ public final class Lexer {
         KEYWORDS.put("autoActivateUpdates", TokenType.SERVICE_AUTO_ACTIVATE_UPDATES);
         KEYWORDS.put("execution", TokenType.SERVICE_EXEC);
         KEYWORDS.put("Single", TokenType.SERVICE_SINGLE);
-        KEYWORDS.put("Multi", TokenType.SERVICE_MULTI);
         KEYWORDS.put("mapping", TokenType.SERVICE_MAPPING);
         KEYWORDS.put("runtime", TokenType.SERVICE_RUNTIME);
         // Runtime
@@ -93,13 +78,11 @@ public final class Lexer {
         KEYWORDS.put("mappings", TokenType.MAPPINGS);
         KEYWORDS.put("connections", TokenType.CONNECTIONS);
         KEYWORDS.put("connection", TokenType.CONNECTION);
-        KEYWORDS.put("connectionStores", TokenType.CONNECTIONSTORES);
         // Database / Relational
         KEYWORDS.put("Database", TokenType.DATABASE);
         KEYWORDS.put("Table", TokenType.TABLE);
         KEYWORDS.put("Schema", TokenType.SCHEMA);
         KEYWORDS.put("View", TokenType.VIEW);
-        KEYWORDS.put("TabularFunction", TokenType.TABULAR_FUNC);
         KEYWORDS.put("Filter", TokenType.FILTER);
         KEYWORDS.put("MultiGrainFilter", TokenType.MULTIGRAIN_FILTER);
         KEYWORDS.put("Join", TokenType.JOIN);
@@ -108,45 +91,18 @@ public final class Lexer {
         KEYWORDS.put("Relational", TokenType.RELATIONAL);
         KEYWORDS.put("Pure", TokenType.PURE_MAPPING);
         // Milestoning
-        KEYWORDS.put("milestoning", TokenType.MILESTONING);
-        KEYWORDS.put("business", TokenType.BUSINESS_MILESTONING);
-        KEYWORDS.put("BUS_FROM", TokenType.BUSINESS_MILESTONING_FROM);
-        KEYWORDS.put("BUS_THRU", TokenType.BUSINESS_MILESTONING_THRU);
-        KEYWORDS.put("THRU_IS_INCLUSIVE", TokenType.THRU_IS_INCLUSIVE);
-        KEYWORDS.put("BUS_SNAPSHOT_DATE", TokenType.BUS_SNAPSHOT_DATE);
-        KEYWORDS.put("processing", TokenType.PROCESSING_MILESTONING);
-        KEYWORDS.put("PROCESSING_IN", TokenType.PROCESSING_MILESTONING_IN);
-        KEYWORDS.put("PROCESSING_OUT", TokenType.PROCESSING_MILESTONING_OUT);
-        KEYWORDS.put("OUT_IS_INCLUSIVE", TokenType.OUT_IS_INCLUSIVE);
-        KEYWORDS.put("INFINITY_DATE", TokenType.INFINITY_DATE);
-        KEYWORDS.put("PROCESSING_SNAPSHOT_DATE", TokenType.PROCESSING_SNAPSHOT_DATE);
         // Mapping modifiers
         KEYWORDS.put("AssociationMapping", TokenType.ASSOCIATION_MAPPING);
         KEYWORDS.put("EnumerationMapping", TokenType.ENUMERATION_MAPPING);
         KEYWORDS.put("Otherwise", TokenType.OTHERWISE);
         KEYWORDS.put("Inline", TokenType.INLINE);
-        KEYWORDS.put("Binding", TokenType.BINDING);
-        KEYWORDS.put("scope", TokenType.SCOPE);
         // Connection
         KEYWORDS.put("RelationalDatabaseConnection", TokenType.RELATIONAL_DATABASE_CONNECTION);
         KEYWORDS.put("store", TokenType.STORE);
         KEYWORDS.put("type", TokenType.TYPE);
-        KEYWORDS.put("mode", TokenType.MODE);
         KEYWORDS.put("specification", TokenType.RELATIONAL_DATASOURCE_SPEC);
         KEYWORDS.put("auth", TokenType.RELATIONAL_AUTH_STRATEGY);
-        KEYWORDS.put("postProcessors", TokenType.RELATIONAL_POST_PROCESSORS);
-        KEYWORDS.put("queryTimeOutInSeconds", TokenType.QUERY_TIMEOUT);
-        KEYWORDS.put("timezone", TokenType.DB_TIMEZONE);
-        KEYWORDS.put("quoteIdentifiers", TokenType.QUOTE_IDENTIFIERS);
-        KEYWORDS.put("queryGenerationConfigs", TokenType.QUERY_GENERATION_CONFIGS);
-        KEYWORDS.put("DuckDB", TokenType.DUCKDB);
-        KEYWORDS.put("SQLite", TokenType.SQLITE);
-        KEYWORDS.put("Postgres", TokenType.POSTGRES);
         KEYWORDS.put("H2", TokenType.H2);
-        KEYWORDS.put("Snowflake", TokenType.SNOWFLAKE);
-        KEYWORDS.put("NoAuth", TokenType.NOAUTH);
-        KEYWORDS.put("InMemory", TokenType.INMEMORY);
-        KEYWORDS.put("LocalDuckDB", TokenType.LOCALDUCKDB);
     }
 
     // ==================== Tilde Command Map ====================
@@ -157,13 +113,7 @@ public final class Lexer {
             Map.entry("~groupBy", TokenType.GROUP_BY_CMD),
             Map.entry("~mainTable", TokenType.MAIN_TABLE_CMD),
             Map.entry("~primaryKey", TokenType.PRIMARY_KEY_CMD),
-            Map.entry("~src", TokenType.SRC_CMD),
-            Map.entry("~owner", TokenType.CONSTRAINT_OWNER),
-            Map.entry("~externalId", TokenType.CONSTRAINT_EXTERNAL_ID),
-            Map.entry("~function", TokenType.CONSTRAINT_FUNCTION),
-            Map.entry("~message", TokenType.CONSTRAINT_MESSAGE),
-            Map.entry("~enforcementLevel", TokenType.CONSTRAINT_ENFORCEMENT)
-    );
+            Map.entry("~src", TokenType.SRC_CMD));
 
     // ==================== Instance state ====================
 
@@ -391,7 +341,7 @@ public final class Lexer {
     private void scanPercent() {
         int start = pos;
         pos++;
-        if (pos >= length) { emit(TokenType.PERCENT, start, pos); return; }
+        if (pos >= length) { emit(TokenType.INVALID, start, pos); return; }
 
         // %latest
         if (source.startsWith("latest", pos) && (pos + 6 >= length || !isIdentPart(source.charAt(pos + 6)))) {
@@ -435,7 +385,7 @@ public final class Lexer {
 
         // Standalone %
         pos = start + 1;
-        emit(TokenType.PERCENT, start, pos);
+        emit(TokenType.INVALID, start, pos);
     }
 
     // ==================== Hash ====================
@@ -449,12 +399,15 @@ public final class Lexer {
             if (pos < length) pos++;
             emit(TokenType.TDS_LITERAL, start, pos); return;
         }
-        // #/...#
+        // #/...# navigation paths are UNSUPPORTED: consume the WHOLE span
+        // as INVALID (the first purge cut kept consuming but emitted
+        // nothing, mangling everything after it into island garbage).
         if (pos + 1 < length && source.charAt(pos + 1) == '/') {
             pos++;
             while (pos < length && source.charAt(pos) != '#') pos++;
             if (pos < length) pos++;
-            emit(TokenType.NAVIGATION_PATH_BLOCK, start, pos); return;
+            emit(TokenType.INVALID, start, pos);
+            return;
         }
         // #...{ → ISLAND_OPEN
         pos++;
@@ -487,7 +440,11 @@ public final class Lexer {
     private void scanMinusOrArrow() {
         if (pos + 1 < length && source.charAt(pos + 1) == '>') {
             if (pos + 10 < length && source.startsWith("->subType(@", pos)) {
-                emit(TokenType.SUBTYPE_START, pos, pos + 11); pos += 11;
+                // ->subType(@...) is UNSUPPORTED: the cursor's INVALID trap
+                // rejects it loudly. (The purge's first cut left this branch
+                // EMPTY — an unadvanced pos = infinite lexer loop.)
+                emit(TokenType.INVALID, pos, pos + 11);
+                pos += 11;
             } else {
                 emit(TokenType.ARROW, pos, pos + 2); pos += 2;
             }
@@ -508,6 +465,9 @@ public final class Lexer {
     // ==================== File Name ====================
 
     private void scanFileName() {
+        // ?[file.ext form is UNSUPPORTED: the span is INVALID, never a
+        // silent disappearance (the first purge cut consumed and emitted
+        // nothing).
         int start = pos;
         pos += 2;
         while (pos < length) {
@@ -515,7 +475,7 @@ public final class Lexer {
             if (Character.isLetterOrDigit(c) || c == '_' || c == '.' || c == '/') pos++;
             else break;
         }
-        emit(TokenType.FILE_NAME, start, pos);
+        emit(TokenType.INVALID, start, pos);
     }
 
     // ==================== Identifier / Keyword ====================
@@ -606,9 +566,6 @@ public final class Lexer {
                 emit(TokenType.GREATER_OR_EQUAL, pos, pos + 2); pos += 2; return true;
             }
             emit(TokenType.GREATER_THAN, pos, pos + 1); pos++; return true;
-        }
-        if (c == ']' && pos + 1 < length && source.charAt(pos + 1) == '?') {
-            emit(TokenType.FILE_NAME_END, pos, pos + 2); pos += 2; return true;
         }
         return false;
     }

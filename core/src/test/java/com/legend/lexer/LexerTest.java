@@ -210,17 +210,6 @@ final class LexerTest {
 
     // ----- zero-allocation comparison -------------------------------------
 
-    @Test
-    void textEqualsMatchesTextEquals() {
-        TokenStream s = Lexer.tokenize("Class my::Foo");
-        assertTrue(s.textEquals(0, "Class"));
-        assertTrue(s.textEquals(1, "my"));
-        assertTrue(s.textEquals(3, "Foo"));
-        // Negative case
-        assertEquals(false, s.textEquals(0, "Classy"));
-        assertEquals(false, s.textEquals(0, "Clas"));
-    }
-
     // ----- slice ----------------------------------------------------------
 
     @Test
@@ -245,7 +234,22 @@ final class LexerTest {
         assertEquals(full.count() - boundary, barSlice.count());
         // Source string identity preserved \u2014 text(i) still works.
         assertEquals(full.source(), barSlice.source());
-        assertTrue(barSlice.textEquals(0, "Class"));
+        assertEquals("Class", barSlice.text(0));
+    }
+
+    @Test
+    void unsupportedConstructsLexAsInvalidAndTerminate() {
+        // Re-audit H1/H2/M1: the dead-token purge's first cut left branches
+        // that consumed input while emitting NOTHING — one was an INFINITE
+        // LOOP (->subType(@ never advanced pos). Unsupported constructs must
+        // lex as INVALID (the cursor's loud trap) and the lexer must always
+        // TERMINATE.
+        assertTrue(Lexer.tokenize("$x->subType(@Foo)").asList().stream()
+                .anyMatch(t -> t.type() == TokenType.INVALID), "->subType(@ is INVALID");
+        assertTrue(Lexer.tokenize("#/Person/name#").asList().stream()
+                .anyMatch(t -> t.type() == TokenType.INVALID), "#/...# is INVALID");
+        assertTrue(Lexer.tokenize("?[data.csv").asList().stream()
+                .anyMatch(t -> t.type() == TokenType.INVALID), "?[file is INVALID");
     }
 
     @Test

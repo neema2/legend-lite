@@ -29,7 +29,6 @@ public enum TokenType {
     EQUAL,              // =
     TEST_EQUAL,         // ==
     TEST_NOT_EQUAL,     // !=
-    PERCENT,            // %
     ARROW,              // ->
     BRACE_OPEN,         // {
     BRACE_CLOSE,        // }
@@ -58,8 +57,6 @@ public enum TokenType {
     GREATER_OR_EQUAL,   // >=
     NOT_EQUAL,          // <>
     PATH_SEPARATOR,     // ::
-    FILE_NAME,          // ?[filename
-    FILE_NAME_END,      // ]?
 
     // ==================== M3 Keywords ====================
     ALL,                // all
@@ -67,9 +64,6 @@ public enum TokenType {
     COMPARATOR,         // comparator
     ALL_VERSIONS,       // allVersions
     ALL_VERSIONS_IN_RANGE,  // allVersionsInRange
-    TO_BYTES_FUNCTION,  // toBytes
-    NAVIGATION_PATH_BLOCK,  // #/...#
-    SUBTYPE_START,      // ->subType(@
 
     // ==================== Domain Keywords ====================
     IMPORT,             // import
@@ -77,37 +71,19 @@ public enum TokenType {
     ASSOCIATION,        // Association
     PROFILE,            // Profile
     ENUM,               // Enum
-    MEASURE,            // Measure
     FUNCTION,           // function
     EXTENDS,            // extends
     STEREOTYPES,        // stereotypes
     TAGS,               // tags
     NATIVE,             // native
-    PROJECTS,           // projects
     AS,                 // as
-    CONSTRAINT_ENFORCEMENT_LEVEL_ERROR, // Error
-    CONSTRAINT_ENFORCEMENT_LEVEL_WARN,  // Warn
-    AGGREGATION_TYPE_COMPOSITE, // composite
-    AGGREGATION_TYPE_SHARED,    // shared
-    AGGREGATION_TYPE_NONE,      // none
 
     // ==================== Constraint Tilde Commands ====================
-    CONSTRAINT_OWNER,       // ~owner
-    CONSTRAINT_EXTERNAL_ID, // ~externalId
-    CONSTRAINT_FUNCTION,    // ~function
-    CONSTRAINT_MESSAGE,     // ~message
-    CONSTRAINT_ENFORCEMENT, // ~enforcementLevel
 
     // ==================== Mapping Keywords ====================
     MAPPING,            // Mapping
     INCLUDE,            // include
-    TESTS,              // MappingTests
-    MAPPING_TESTABLE_DATA,    // data
-    MAPPING_TESTABLE_ASSERT,  // assert
-    MAPPING_TESTABLE_DOC,     // doc
     MAPPING_TESTABLE_SUITES,  // testSuites
-    MAPPING_TEST_ASSERTS,     // asserts
-    MAPPING_TESTS,            // tests
     MAPPING_TESTS_QUERY,      // query
 
     // ==================== Service Keywords ====================
@@ -118,7 +94,6 @@ public enum TokenType {
     SERVICE_AUTO_ACTIVATE_UPDATES, // autoActivateUpdates
     SERVICE_EXEC,       // execution
     SERVICE_SINGLE,     // Single
-    SERVICE_MULTI,      // Multi
     SERVICE_MAPPING,    // mapping
     SERVICE_RUNTIME,    // runtime
 
@@ -128,14 +103,12 @@ public enum TokenType {
     MAPPINGS,           // mappings
     CONNECTIONS,        // connections
     CONNECTION,         // connection
-    CONNECTIONSTORES,   // connectionStores
 
     // ==================== Relational/Database Keywords ====================
     DATABASE,           // Database
     TABLE,              // Table
     SCHEMA,             // Schema
     VIEW,               // View
-    TABULAR_FUNC,       // TabularFunction
     FILTER,             // Filter
     MULTIGRAIN_FILTER,  // MultiGrainFilter
     JOIN,               // Join
@@ -160,63 +133,41 @@ public enum TokenType {
     PURE_MAPPING,       // Pure
 
     // Milestoning
-    MILESTONING,        // milestoning
-    BUSINESS_MILESTONING, // business
-    BUSINESS_MILESTONING_FROM, // BUS_FROM
-    BUSINESS_MILESTONING_THRU, // BUS_THRU
-    THRU_IS_INCLUSIVE,  // THRU_IS_INCLUSIVE
-    BUS_SNAPSHOT_DATE,  // BUS_SNAPSHOT_DATE
-    PROCESSING_MILESTONING, // processing
-    PROCESSING_MILESTONING_IN, // PROCESSING_IN
-    PROCESSING_MILESTONING_OUT, // PROCESSING_OUT
-    OUT_IS_INCLUSIVE,    // OUT_IS_INCLUSIVE
-    INFINITY_DATE,       // INFINITY_DATE
-    PROCESSING_SNAPSHOT_DATE, // PROCESSING_SNAPSHOT_DATE
 
     // Mapping modifiers
     ASSOCIATION_MAPPING, // AssociationMapping
     ENUMERATION_MAPPING, // EnumerationMapping
     OTHERWISE,          // Otherwise
     INLINE,             // Inline
-    BINDING,            // Binding
-    SCOPE,              // scope
 
     // ==================== Connection Keywords ====================
     RELATIONAL_DATABASE_CONNECTION, // RelationalDatabaseConnection
     STORE,              // store
     TYPE,               // type
-    MODE,               // mode
     RELATIONAL_DATASOURCE_SPEC, // specification
     RELATIONAL_AUTH_STRATEGY,   // auth
-    RELATIONAL_POST_PROCESSORS, // postProcessors
-    QUERY_TIMEOUT,      // queryTimeOutInSeconds
-    DB_TIMEZONE,        // timezone
-    QUOTE_IDENTIFIERS,  // quoteIdentifiers
-    QUERY_GENERATION_CONFIGS, // queryGenerationConfigs
-    DUCKDB,             // DuckDB
-    SQLITE,             // SQLite
-    POSTGRES,           // Postgres
     H2,                 // H2
-    SNOWFLAKE,          // Snowflake
-    NOAUTH,             // NoAuth
-    INMEMORY,           // InMemory
-    LOCALDUCKDB,        // LocalDuckDB
 
     // ==================== Island Mode ====================
-    ISLAND_OPEN,        // #...{
-    ISLAND_START,       // #{
+    ISLAND_OPEN,
+    // Emitted INSIDE islands for nested '#{' / bare '#' / free content — the
+    // DSL collector consumes their TEXT generically; depth tracking counts
+    // ISLAND_START as an open.
+    ISLAND_START,
+    ISLAND_HASH,
+    ISLAND_CONTENT,
+    // THE lexer-error token: unlexable input. The cursor THROWS on contact —
+    // it must never flow silently into a parse (audit: it used to).
+    INVALID,        // #...{
     ISLAND_END,         // }#
     ISLAND_ARROW_EXIT,  // }->
-    ISLAND_HASH,        // # (inside island)
     ISLAND_BRACE_OPEN,  // { (inside island)
     ISLAND_BRACE_CLOSE, // } (inside island)
-    ISLAND_CONTENT,     // text inside island
     TDS_LITERAL,        // #TDS...#
 
     // ==================== Identifiers ====================
     VALID_STRING,       // [A-Za-z_$][A-Za-z0-9_$]*
 
     // ==================== Special ====================
-    INVALID,            // catch-all
     EOF                 // end of input
 }

@@ -493,14 +493,16 @@ final class ElementParserTest {
 
     @Test
     void unsupportedTopLevelKeywordFailsLoudly() {
-        // 'Measure' is still unsupported as of B.4b. The dispatcher must
-        // name the offending token rather than silently skipping it.
+        // 'Measure' is unsupported — and after the dead-token purge it is
+        // no longer even a KEYWORD (zombie tokens deleted; unsupported
+        // constructs fail at the dispatcher). The error names the offending
+        // TEXT, which is what a user can act on.
         ParseException e = assertThrows(ParseException.class,
                 () -> ElementParser.parse("Measure my::M ( )"));
         assertTrue(e.getMessage().toLowerCase().contains("unsupported"),
                 () -> "expected 'unsupported' in message, got: " + e.getMessage());
-        assertTrue(e.getMessage().contains("MEASURE"),
-                () -> "error should name the offending token type, got: " + e.getMessage());
+        assertTrue(e.getMessage().contains("Measure"),
+                () -> "error should name the offending text, got: " + e.getMessage());
     }
 
     @Test

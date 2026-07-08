@@ -28,7 +28,7 @@ import java.util.List;
  * <ul>
  *   <li><strong>Hot paths</strong> (parser, name resolution): use the
  *       positional accessors {@link #type(int)}, {@link #start(int)},
- *       {@link #end(int)}, {@link #textEquals(int, String)}. Zero
+ *       {@link #end(int)},. Zero
  *       allocation per token read.</li>
  *   <li><strong>Tests, debug, error reporting</strong>: use
  *       {@link #at(int)} to materialize a single {@link Token} record,
@@ -83,22 +83,6 @@ public final class TokenStream {
     /** Verbatim source slice for token at index {@code i}. Allocates one {@code String}. */
     public String text(int i) {
         return source.substring(starts[i], ends[i]);
-    }
-
-    /**
-     * Zero-allocation text comparison &mdash; checks whether the token at
-     * index {@code i} has source text equal to {@code expected}, without
-     * materializing a substring. Use on hot paths instead of
-     * {@code text(i).equals(expected)}.
-     */
-    public boolean textEquals(int i, String expected) {
-        int start = starts[i];
-        int len = ends[i] - start;
-        if (len != expected.length()) return false;
-        for (int j = 0; j < len; j++) {
-            if (source.charAt(start + j) != expected.charAt(j)) return false;
-        }
-        return true;
     }
 
     /** Materialize the token at index {@code i} as a {@link Token} record. */

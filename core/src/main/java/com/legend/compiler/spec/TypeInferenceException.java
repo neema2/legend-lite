@@ -9,4 +9,8 @@ public class TypeInferenceException extends RuntimeException {
     public TypeInferenceException(String message) {
         super(message);
     }
+
+    public TypeInferenceException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

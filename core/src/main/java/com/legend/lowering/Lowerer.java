@@ -1102,8 +1102,10 @@ public final class Lowerer {
     }
 
     private static boolean isFamily(TypedNativeCall n, String pureName) {
-        return com.legend.builtin.Pure.nativeFunctionsAt(pureName)
-                .contains(n.callee().definition());
+        // signatureKey membership — the LAST parser-node dispatch the re-audit
+        // found dodging the parser-free wall (ArchUnit cannot see a dependency
+        // reached through definition()'s return type + contains(Object)).
+        return com.legend.builtin.Pure.nativeNamed(pureName, n.callee().signatureKey());
     }
 
     private static RelationPredicate relationPredicate(TypedNativeCall n) {

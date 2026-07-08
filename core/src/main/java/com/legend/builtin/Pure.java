@@ -350,6 +350,8 @@ public final class Pure {
         static final java.util.Map<String, ClassDefinition> CLASS_BY_FQN = new java.util.HashMap<>();
         static final java.util.Map<String, EnumDefinition> ENUM_BY_FQN = new java.util.HashMap<>();
         static final java.util.Map<String, List<NativeFunctionDefinition>> FN_BY_FQN = new java.util.HashMap<>();
+        /** name -> overload signature keys; nativeNamed's O(1) surface (re-audit M5). */
+        static final java.util.Map<String, java.util.Set<String>> KEYS_BY_NAME = new java.util.HashMap<>();
 
         static {
             for (ClassDefinition cd : ALL_CLASSES) {
@@ -360,6 +362,8 @@ public final class Pure {
             }
             for (NativeFunctionDefinition nfd : ALL) {
                 FN_BY_FQN.computeIfAbsent(nfd.qualifiedName(), k -> new ArrayList<>()).add(nfd);
+                KEYS_BY_NAME.computeIfAbsent(nfd.qualifiedName(), k -> new java.util.HashSet<>())
+                        .add(nfd.signatureKey());
             }
         }
     }
@@ -406,12 +410,9 @@ public final class Pure {
     }
 
     public static boolean nativeNamed(String name, String signatureKey) {
-        for (var f : nativeFunctionsAt(name)) {
-            if (f.signatureKey().equals(signatureKey)) {
-                return true;
-            }
-        }
-        return false;
+        return Index.KEYS_BY_NAME
+                .getOrDefault(name, java.util.Set.of())
+                .contains(signatureKey);
     }
 
     public static List<NativeFunctionDefinition> nativeFunctionsAt(String fqn) {

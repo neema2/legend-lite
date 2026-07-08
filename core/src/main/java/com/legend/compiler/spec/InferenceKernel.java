@@ -559,7 +559,7 @@ public final class InferenceKernel {
                 // Re-raise with CALL CONTEXT — a bare "expected X, got Y"
                 // reached corpus users with zero callee info (audit finding).
                 throw new TypeInferenceException("in call to '" + name + "', argument "
-                        + (i + 1) + ": " + e.getMessage());
+                        + (i + 1) + ": " + e.getMessage(), e);
             }
         }
         return new Resolution(c, resolveOutput(c.returnType(), c.returnMultiplicity(), b));
