@@ -84,6 +84,35 @@ class PipelineStageFailureTest {
         messageNames(ex, "NoSuchType");
     }
 
+    @Test
+    @DisplayName("model errors carry the offending ELEMENT's [line:col]")
+    void modelErrorsCarryElementPosition() {
+        // Line 3 of the model declares the broken mapping — the decoration
+        // points AT it (positions wave: fqn-keyed side index + driver).
+        var ex = failsWith(com.legend.error.ModelException.class,
+                "Class test::P { name: String[1]; }\n"
+                        + "Database test::DB ( Table T (X INTEGER) )\n"
+                        + "Mapping test::M ( test::P: Relational { ~filter [test::DB] Nope"
+                        + " ~mainTable [test::DB] T name: T.X } )",
+                "1 + 1");
+        assertTrue(ex.getMessage().startsWith("[3:"),
+                () -> "expected the mapping's [line:col] prefix, got: " + ex.getMessage());
+        org.junit.jupiter.api.Assertions.assertEquals("test::M", ex.element());
+    }
+
+    @Test
+    @DisplayName("type errors inside a function body name the enclosing function")
+    void typeErrorsNameTheEnclosingFunction() {
+        var ctx = com.legend.Compiler.compileModel(
+                MODEL + " function test::broken(): Integer[1] { 'text' + 5 }");
+        var fn = ctx.findFunction("test::broken").get(0);
+        var spec = new com.legend.compiler.spec.SpecCompiler(ctx);
+        var ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.compiler.spec.TypeInferenceException.class,
+                () -> spec.compile(fn));
+        messageNames(ex, "in function 'test::broken");
+    }
+
     // ---- stage: PHASE G (type check) ----
 
     @Test

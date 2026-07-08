@@ -210,16 +210,20 @@ public final class ElementParser implements TokenStreamCursor {
     private ParsedModel parseModel() {
         List<PackageableElement> elements = new ArrayList<>();
         ImportScope.Builder imports = new ImportScope.Builder();
+        Map<String, Integer> offsets = new HashMap<>();
 
         while (!atEnd()) {
             if (peek() == TokenType.IMPORT) {
                 imports.add(parseImportStatement());
             } else {
-                elements.add(parseSingleElement());
+                int at = tokens.start(pos);
+                PackageableElement e = parseSingleElement();
+                offsets.putIfAbsent(e.qualifiedName(), at);
+                elements.add(e);
             }
         }
 
-        return new ParsedModel(elements, imports.build());
+        return new ParsedModel(elements, imports.build(), tokens.source(), offsets);
     }
 
     /**

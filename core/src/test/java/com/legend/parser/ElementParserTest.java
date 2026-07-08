@@ -129,14 +129,15 @@ final class ElementParserTest {
     @Test
     void emptySourceProducesEmptyModel() {
         ParsedModel m = ElementParser.parse("");
-        assertEquals(new ParsedModel(List.of(), ImportScope.empty()), m,
-                "empty source should produce an empty ParsedModel record");
+        assertEquals(List.of(), m.elements(), "empty source: no elements");
+        assertEquals(ImportScope.empty(), m.imports(), "empty source: no imports");
     }
 
     @Test
     void whitespaceAndCommentsOnlyProduceEmptyModel() {
         ParsedModel m = ElementParser.parse("  // hi\n /* x */\n\n");
-        assertEquals(new ParsedModel(List.of(), ImportScope.empty()), m);
+        assertEquals(List.of(), m.elements());
+        assertEquals(ImportScope.empty(), m.imports());
     }
 
     @Test
@@ -454,10 +455,9 @@ final class ElementParserTest {
                         prop("ceo", "Person", 0, 1)),
                 List.of(), List.of(), List.of(), List.of(), false);
 
-        assertEquals(
-                new ParsedModel(List.of(expectedPerson, expectedFirm), expectedImports),
-                m,
-                "full ParsedModel must match expected record graph exactly");
+        assertEquals(List.of(expectedPerson, expectedFirm), m.elements(),
+                "full element list must match the expected record graph exactly");
+        assertEquals(expectedImports, m.imports());
     }
 
     // ---------------------------------------------------------------

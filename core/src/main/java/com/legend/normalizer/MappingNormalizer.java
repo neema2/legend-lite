@@ -158,7 +158,8 @@ public final class MappingNormalizer {
                         model.findLegacyMapping(md.qualifiedName()).orElse(md);
                 // Rewrite legacy surface -> canonical binding table; the legacy
                 // record does NOT flow past Phase E (CLEAN_SHEET_INVERSION §1.5).
-                out.add(normalizeMapping(latest, model, lifted));
+                out.add(withElement(md.qualifiedName(),
+                        () -> normalizeMapping(latest, model, lifted)));
             } else if (el instanceof MappingDefinition canonical) {
                 // Clean-sheet (Door 1/3) mapping: function-ref bindings pass
                 // through; inline expression bindings (Door 3) are lambda-lifted
@@ -183,6 +184,23 @@ public final class MappingNormalizer {
      * function by the function's own FQN — the same string the lift produced,
      * so binding and function agree by construction (no regeneration).
      */
+    /**
+     * Attach the ELEMENT FQN to any {@link com.legend.error.ModelException}
+     * escaping {@code work} — ONE wrap covers every throw inside a mapping's
+     * normalization, so the driver can decorate with the element's
+     * {@code [line:col]} (positions wave).
+     */
+    private static <T> T withElement(String elementFqn, java.util.function.Supplier<T> work) {
+        try {
+            return work.get();
+        } catch (com.legend.error.ModelException e) {
+            if (e.element() != null) {
+                throw e;
+            }
+            throw new com.legend.error.ModelException(e.phase(), e.getMessage(), elementFqn);
+        }
+    }
+
     private static MappingDefinition normalizeMapping(LegacyMappingDefinition md,
                                                      ModelBuilder model,
                                                      List<FunctionDefinition> lifted) {

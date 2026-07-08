@@ -59,7 +59,16 @@ public final class SpecCompiler {
         if (cached != null) {
             return cached;
         }
-        CompiledFunction cf = check(fn);   // flat: check() never re-enters compile()
+        CompiledFunction cf;
+        try {
+            cf = check(fn);   // flat: check() never re-enters compile()
+        } catch (TypeInferenceException e) {
+            // Positions stopgap: name the ENCLOSING FUNCTION (synth FQNs
+            // encode owner+property, e.g. test::Person$prop$age) — the
+            // expression-level [line:col] is the deferred big lift.
+            throw new TypeInferenceException(
+                    "in function '" + fn.qualifiedName() + "': " + e.getMessage(), e);
+        }
         memo.put(fn, cf);
         return cf;
     }

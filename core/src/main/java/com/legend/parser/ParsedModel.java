@@ -19,13 +19,28 @@ import java.util.List;
  * @param elements parsed packageable elements, in source order
  * @param imports  accumulated import scope
  */
-public record ParsedModel(List<PackageableElement> elements, ImportScope imports) {
+public record ParsedModel(List<PackageableElement> elements, ImportScope imports,
+                          String source, java.util.Map<String, Integer> elementOffsets) {
 
     public ParsedModel {
         elements = elements == null ? List.of() : List.copyOf(elements);
         if (imports == null) {
             imports = ImportScope.empty();
         }
+        elementOffsets = elementOffsets == null ? java.util.Map.of()
+                : java.util.Map.copyOf(elementOffsets);
+    }
+
+    /**
+     * Positions live in a SIDE INDEX keyed by element FQN — not on the
+     * element records (they are protocol-faithful shapes, and the normalizer
+     * rebuilds them; an FQN key survives both). Empty for synthesized models.
+     *
+     * @param source         original source text ({@code null} when unknown)
+     * @param elementOffsets element FQN &rarr; char offset of its declaration
+     */
+    public ParsedModel(List<PackageableElement> elements, ImportScope imports) {
+        this(elements, imports, null, java.util.Map.of());
     }
 
     /** {@code true} if no elements and no imports were parsed. */

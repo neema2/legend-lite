@@ -64,9 +64,23 @@ public final class Compiler {
     public static ModelContext compileModel(String model) {
         Objects.requireNonNull(model, "model");
         ParsedModel parsed = ElementParser.parse(model);
-        ParsedModel resolved = NameResolver.resolve(parsed);
-        NormalizedModel normalized = ModelNormalizer.normalize(resolved);
-        return PureModelContext.from(normalized);
+        try {
+            ParsedModel resolved = NameResolver.resolve(parsed);
+            NormalizedModel normalized = ModelNormalizer.normalize(resolved);
+            return PureModelContext.from(normalized);
+        } catch (com.legend.error.ModelException e) {
+            // Decorate with the offending ELEMENT's [line:col] — the offsets
+            // live on the original parse (resolution rebuilds ParsedModel
+            // without them), so the driver is where source meets failure.
+            Integer off = e.element() == null ? null
+                    : parsed.elementOffsets().get(e.element());
+            if (off == null || parsed.source() == null) {
+                throw e;
+            }
+            throw new com.legend.error.ModelException(e.phase(),
+                    com.legend.error.LegendCompileException.position(parsed.source(), off)
+                            + " " + e.getMessage(), e.element());
+        }
     }
 
     /**

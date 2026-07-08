@@ -30,13 +30,28 @@ final class ModelIntegrity {
     }
 
     static void check(ModelBuilder model, TypeClassifier classifier, FunctionCompiler functions) {
-        model.classes().forEach(cd -> checkClass(cd, classifier, functions));
-        model.functions().forEach(f -> checkFunction(f, classifier));
-        model.associations().forEach(a -> {
+        model.classes().forEach(cd -> withElement(cd.qualifiedName(),
+                () -> checkClass(cd, classifier, functions)));
+        model.functions().forEach(f -> withElement(f.qualifiedName(),
+                () -> checkFunction(f, classifier)));
+        model.associations().forEach(a -> withElement(a.qualifiedName(), () -> {
             classifier.classify(a.property1().targetClass(), List.of());
             classifier.classify(a.property2().targetClass(), List.of());
-        });
-        model.mappings().forEach(md -> checkMapping(md, model, classifier, functions));
+        }));
+        model.mappings().forEach(md -> withElement(md.qualifiedName(),
+                () -> checkMapping(md, model, classifier, functions)));
+    }
+
+    /** Attach the element FQN to escaping ModelExceptions (positions wave). */
+    private static void withElement(String elementFqn, Runnable work) {
+        try {
+            work.run();
+        } catch (com.legend.error.ModelException e) {
+            if (e.element() != null) {
+                throw e;
+            }
+            throw new com.legend.error.ModelException(e.phase(), e.getMessage(), elementFqn);
+        }
     }
 
     /** Class references: property/derived types + realizer functions + constraint shapes. */

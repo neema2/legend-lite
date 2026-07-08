@@ -11,4 +11,9 @@ public final class ModelException extends LegendCompileException {
     public ModelException(Phase phase, String message) {
         super(phase, message);
     }
+
+    /** With the FQN of the element the failure is about (position decoration). */
+    public ModelException(Phase phase, String message, String elementFqn) {
+        super(phase, message, elementFqn);
+    }
 }
