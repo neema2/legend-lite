@@ -145,8 +145,7 @@ final class Fold {
                 star = true;
                 continue;
             }
-            String name = p.alias() != null ? p.alias()
-                    : p.expr() instanceof SqlExpr.Column c ? c.name() : null;
+            String name = p.outputName();
             if (column.equals(name)) {
                 return p.expr() instanceof SqlExpr.Column c ? c : null;
             }

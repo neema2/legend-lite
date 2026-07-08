@@ -428,7 +428,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      */
     protected String variantAwareCast(SqlExpr.Cast c) {
         return "CAST(" + expr(c.value(), 0) + " AS "
-                + castTypeName(c.target()) + (c.array() ? "[]" : "") + ")";
+                + castTypeName(c.target()) + ")";
     }
 
     // ---- window / aggregate / case (ANSI) ----

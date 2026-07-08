@@ -67,7 +67,8 @@ def main():
         if fl == 0 and er == 0:
             green_classes += 1
         for line in text.splitlines():
-            if "Exception:" in line and not line.strip().startswith("at "):
+            if ("Exception:" in line and not line.strip().startswith("at ")
+                    and not line.strip().startswith("Caused by:")):
                 msg = line.split("Exception:", 1)[1].strip()
                 if not msg:
                     continue

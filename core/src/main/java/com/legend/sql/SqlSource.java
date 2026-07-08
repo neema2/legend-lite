@@ -11,6 +11,13 @@ import java.util.List;
  */
 public sealed interface SqlSource {
 
+    /**
+     * The source's binding alias — satisfied by each record's {@code alias}
+     * component. A nested {@link Join} has no single alias (its sides
+     * resolve individually); asking is a caller bug.
+     */
+    String alias();
+
     List<OutputCol> outputs();
 
     /**
@@ -40,6 +47,12 @@ public sealed interface SqlSource {
     }
 
     record Join(SqlSource left, SqlSource right, Kind kind, SqlExpr on) implements SqlSource {
+        @Override
+        public String alias() {
+            throw new IllegalStateException(
+                    "a nested join has no single alias — resolve per side");
+        }
+
 
         public enum Kind {
             INNER("JOIN"),

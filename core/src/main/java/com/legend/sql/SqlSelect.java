@@ -21,6 +21,18 @@ public record SqlSelect(List<Projection> projections, boolean distinct, SqlSourc
     }
 
     public record Projection(SqlExpr expr, String alias) {
+
+        /**
+         * The projected OUTPUT name: the alias, else the bare column's own
+         * name, else null (a computed expression with no alias has no
+         * addressable name). THE one implementation of the rule (an audit
+         * found it duplicated across Fold and the Lowerer).
+         */
+        public String outputName() {
+            return alias != null ? alias
+                    : expr instanceof SqlExpr.Column c ? c.name() : null;
+        }
+
     }
 
     /** One ORDER BY key; {@code nullOrder} null = dialect default. */

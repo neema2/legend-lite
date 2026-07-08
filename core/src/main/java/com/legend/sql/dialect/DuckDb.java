@@ -126,7 +126,7 @@ public final class DuckDb extends AnsiSqlRenderer {
             case SqlExpr.Call call -> new SqlExpr.Call(call.fn(),
                     call.args().stream().map(x -> unwrapElemRefs(x, elem)).toList());
             case SqlExpr.Cast c -> new SqlExpr.Cast(unwrapElemRefs(c.value(), elem),
-                    c.target(), c.array());
+                    c.target());
             case SqlExpr.ArrayLit a -> new SqlExpr.ArrayLit(
                     a.elements().stream().map(x -> unwrapElemRefs(x, elem)).toList());
             case SqlExpr.Case cs -> new SqlExpr.Case(
@@ -246,7 +246,8 @@ public final class DuckDb extends AnsiSqlRenderer {
      */
     @Override
     protected String variantAwareCast(SqlExpr.Cast c) {
-        if (!c.array() && c.value() instanceof SqlExpr.Call call && call.fn() == SqlFn.VARIANT_GET) {
+        if (!(c.target() instanceof com.legend.sql.SqlType.Array)
+                && c.value() instanceof SqlExpr.Call call && call.fn() == SqlFn.VARIANT_GET) {
             String text = expr(call.args().get(0), 7) + " ->> " + expr(call.args().get(1), 8);
             return "CAST(" + text + " AS " + castTypeName(c.target()) + ")";
         }

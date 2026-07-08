@@ -17,7 +17,13 @@ public enum ResultShape {
         if (root.type() instanceof Type.RelationType) {
             return TABULAR;
         }
-        if (root.type() instanceof Type.ClassType) {
+        if (root.type() instanceof Type.ClassType ct) {
+            // Variant is a SCALAR JSON value, not an object graph — the
+            // lowering types it as JSON (audit L8); every other class value
+            // is a graph fetch.
+            if (ct.fqn().endsWith("::Variant")) {
+                return isMany(root.multiplicity()) ? COLLECTION : SCALAR;
+            }
             return GRAPH;
         }
         return isMany(root.multiplicity()) ? COLLECTION : SCALAR;

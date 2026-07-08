@@ -265,7 +265,7 @@ final class Scalars {
 
     private static void castFamily(String pureName, Type target) {
         for (String f : Pure.nativeKeysAt(pureName)) {
-            RULES.put(f, (n, args) -> new SqlExpr.Cast(args.get(0), PureSql.type(target), false));
+            RULES.put(f, (n, args) -> new SqlExpr.Cast(args.get(0), PureSql.type(target)));
         }
     }
 

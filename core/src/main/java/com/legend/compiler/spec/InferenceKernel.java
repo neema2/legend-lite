@@ -332,7 +332,7 @@ public final class InferenceKernel {
             case Multiplicity.Bounded fb -> {
                 // Only [*] -> [1] is rejected, and relation sources skip validation (§3.2).
                 boolean relationSource = relationRow(actualType) != null;
-                if (!relationSource && fb.isToOne() && isManyMult(actual)) {
+                if (!relationSource && fb.isToOne() && actual.isMany()) {
                     throw new TypeInferenceException(
                             "expected at most one value, got many (" + actual.text() + ")");
                 }
@@ -628,7 +628,7 @@ public final class InferenceKernel {
                 if (fb.equals(actual)) {
                     yield 5;
                 }
-                if (fb.isToOne() && isManyMult(actual) && relationRow(actualType) == null) {
+                if (fb.isToOne() && actual.isMany() && relationRow(actualType) == null) {
                     yield -1;   // [*] cannot satisfy a to-one slot (unless a relation source, §3.2)
                 }
                 yield multiplicityTightness(fb);
@@ -652,10 +652,6 @@ public final class InferenceKernel {
             return 1;   // [*]
         }
         return 0;
-    }
-
-    private static boolean isManyMult(Multiplicity m) {
-        return m.isMany();
     }
 
     // =====================================================================

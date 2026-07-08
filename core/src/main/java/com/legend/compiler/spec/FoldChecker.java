@@ -47,7 +47,7 @@ final class FoldChecker {
             return new FoldStrategy.Concatenation();
         }
         // 2. SameType: element and accumulator agree (precision-agnostic), scalar init.
-        if (normalize(elementType).equals(normalize(init.type())) && !isMany(init.multiplicity())) {
+        if (normalize(elementType).equals(normalize(init.type())) && !init.multiplicity().isMany()) {
             return new FoldStrategy.SameType();
         }
         // 3. MapReduce: the body's left op-chain spine strips the accumulator, leaving
@@ -142,7 +142,4 @@ final class FoldChecker {
         return t instanceof Type.PrecisionDecimal ? Type.Primitive.DECIMAL : t;
     }
 
-    private static boolean isMany(Multiplicity m) {
-        return m.isMany();
-    }
 }
