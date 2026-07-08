@@ -134,7 +134,7 @@ public final class Lowerer {
 
             case TypedFilter f -> filter(f);
 
-            case TypedSelect sel -> narrowTo(relation(sel.source()), sel.columns(), false, sel.info());
+            case TypedSelect sel -> narrowTo(relation(sel.source()), sel.columns(), sel.info());
 
             case TypedDistinct d -> distinct(d);
 
@@ -163,11 +163,9 @@ public final class Lowerer {
 
             case TypedAggregate a -> aggregate(a);
 
-            case TypedExtend e -> extendWith(relation(e.source()), e.columns(), e.info(),
-                    true, false);
+            case TypedExtend e -> extend(relation(e.source()), e.columns(), e.info());
 
-            case TypedProject p -> extendWith(relation(p.source()), p.columns(), p.info(),
-                    false, false);
+            case TypedProject p -> project(relation(p.source()), p.columns(), p.info());
 
             case TypedConcatenate c -> SqlSelect.starOf(
                     new SqlSource.Subselect(union(c), nextAlias()));
@@ -315,13 +313,47 @@ public final class Lowerer {
      * Column lambdas resolve against the CURRENT select via substitution, so
      * a plain-projection or star select stays flat.
      */
-    private SqlSelect extendWith(SqlSelect src, List<TypedFuncCol> columns,
-                                 com.legend.compiler.element.type.ExprType info, boolean append,
-                                 boolean isolated) {
-        SqlSelect base = (append ? Fold.extendFolds(src) : Fold.projectionFolds(src))
-                ? src : isolate(src);
+    /** extend(~cols): existing projections stay, computed columns APPEND. */
+    private SqlSelect extend(SqlSelect src, List<TypedFuncCol> columns,
+                             com.legend.compiler.element.type.ExprType info) {
+        SqlSelect base = Fold.extendFolds(src) ? src : isolate(src);
+        return computedColumns(base, columns, info, true);
+    }
+
+    /** project(~cols): the computed columns REPLACE the projection list. */
+    private SqlSelect project(SqlSelect src, List<TypedFuncCol> columns,
+                              com.legend.compiler.element.type.ExprType info) {
+        SqlSelect base = Fold.projectionFolds(src) ? src : isolate(src);
+        return computedColumns(base, columns, info, false);
+    }
+
+    /**
+     * Lower computed columns over {@code base}: one attempt, isolate ONCE on
+     * an unfoldable ref, then loud (isolation is idempotent for resolution).
+     */
+    private SqlSelect computedColumns(SqlSelect base, List<TypedFuncCol> columns,
+                                      com.legend.compiler.element.type.ExprType info,
+                                      boolean keepExisting) {
+        SqlSelect attempt1 = tryComputedColumns(base, columns, info, keepExisting);
+        if (attempt1 != null) {
+            return attempt1;
+        }
+        SqlSelect isolated = isolate(base);
+        SqlSelect attempt2 = tryComputedColumns(isolated, columns, info, keepExisting);
+        if (attempt2 != null) {
+            return attempt2;
+        }
+        throw new IllegalStateException("extend/project columns "
+                + columns.stream().map(TypedFuncCol::name).toList()
+                + " reference names unresolvable even after isolation");
+    }
+
+    /** One pass; null when any column's refs would not fold against {@code base}. */
+    private SqlSelect tryComputedColumns(SqlSelect base, List<TypedFuncCol> columns,
+                                         com.legend.compiler.element.type.ExprType info,
+                                         boolean keepExisting) {
         List<SqlSelect.Projection> ps = new ArrayList<>();
-        if (append) {
+        if (keepExisting) {
             if (base.projections().isEmpty()) {
                 ps.add(new SqlSelect.Projection(new SqlExpr.Star(base.from().alias()), null));
             } else {
@@ -329,16 +361,10 @@ public final class Lowerer {
             }
         }
         for (TypedFuncCol c : columns) {
-            SqlSelect target = base;
-            switch (attempt(() -> scalar(last(c.fn()), (v, name) -> resolveOrThrow(target, name)))) {
+            switch (attempt(() -> scalar(last(c.fn()), (v, name) -> resolveOrThrow(base, name)))) {
                 case Resolution.Resolved r -> ps.add(new SqlSelect.Projection(r.expr(), c.name()));
                 case Resolution.Unfoldable u -> {
-                    if (isolated) {
-                        throw new IllegalStateException("extend/project column '" + c.name()
-                                + "' references '" + u.column()
-                                + "', unresolvable even after isolation");
-                    }
-                    return extendWith(isolate(base), columns, info, append, true);
+                    return null;
                 }
             }
         }
@@ -509,40 +535,60 @@ public final class Lowerer {
     }
 
     /** select(~cols) / distinct(~cols): narrow the projection list. */
-    private SqlSelect narrowTo(SqlSelect src, List<String> columns, boolean distinct,
+    /** select(~cols): narrow the projection list. */
+    private SqlSelect narrowTo(SqlSelect src, List<String> columns,
                                com.legend.compiler.element.type.ExprType info) {
         SqlSelect base = Fold.projectionFolds(src) ? src : isolate(src);
-        if (distinct && !Fold.distinctNarrowFolds(base, columns)) {
+        return projectColumns(base, columns, info);
+    }
+
+    /** distinct(~cols): narrow AND dedup (distinct has its own fold policy). */
+    private SqlSelect distinctNarrowTo(SqlSelect src, List<String> columns,
+                                       com.legend.compiler.element.type.ExprType info) {
+        SqlSelect base = Fold.projectionFolds(src) ? src : isolate(src);
+        if (!Fold.distinctNarrowFolds(base, columns)) {
             base = isolate(base);
         }
+        return projectColumns(base, columns, info).withDistinct();
+    }
+
+    /**
+     * Project {@code columns} off {@code base}, isolating ONCE if any fails
+     * to resolve (then loud — isolation is idempotent for resolution). Two
+     * clean attempts, no index-reset restarts.
+     */
+    private SqlSelect projectColumns(SqlSelect base, List<String> columns,
+                                     com.legend.compiler.element.type.ExprType info) {
+        List<SqlSelect.Projection> ps = tryProjectAll(base, columns);
+        if (ps == null) {
+            base = isolate(base);
+            ps = tryProjectAll(base, columns);
+            if (ps == null) {
+                throw new IllegalStateException("select/distinct columns " + columns
+                        + " cannot all be resolved even after isolation");
+            }
+        }
+        return base.withProjections(ps, outputsOf(info));
+    }
+
+    /** All columns resolved against {@code base}, or null if any misses. */
+    private static List<SqlSelect.Projection> tryProjectAll(SqlSelect base, List<String> columns) {
         List<SqlSelect.Projection> ps = new ArrayList<>(columns.size());
-        boolean isolatedOnce = false;
-        for (int i = 0; i < columns.size(); i++) {
-            String c = columns.get(i);
+        for (String c : columns) {
             SqlExpr e = Fold.resolveInto(base, c);
             if (e == null) {
-                if (isolatedOnce) {
-                    // Isolation is idempotent for resolution: fail LOUDLY.
-                    throw new IllegalStateException("column '" + c
-                            + "' cannot be resolved even after isolation");
-                }
-                base = isolate(base);
-                isolatedOnce = true;
-                ps.clear();
-                i = -1; // restart against the isolated select
-                continue;
+                return null;
             }
             ps.add(new SqlSelect.Projection(e,
                     e instanceof SqlExpr.Column col && col.name().equals(c) ? null : c));
         }
-        SqlSelect out = base.withProjections(ps, outputsOf(info));
-        return distinct ? out.withDistinct() : out;
+        return ps;
     }
 
     private SqlSelect distinct(TypedDistinct d) {
         SqlSelect src = relation(d.source());
         if (d.columns() != null && !d.columns().isEmpty()) {
-            return narrowTo(src, d.columns(), true, d.info());
+            return distinctNarrowTo(src, d.columns(), d.info());
         }
         return (Fold.distinctFolds(src) ? src : isolate(src)).withDistinct();
     }
@@ -637,8 +683,8 @@ public final class Lowerer {
     // ==================================================================
 
     private SqlSelect join(com.legend.compiler.spec.typed.TypedJoin j) {
-        SqlSource left = asSource(relation(j.left()), true);
-        SqlSource right = asSource(relation(j.right()), false);
+        SqlSource left = asLeftJoinSide(relation(j.left()));
+        SqlSource right = asRightSide(relation(j.right()));
         SqlExpr on = sideCondition(j.condition(), left, right);
         SqlSource.Join.Kind kind = switch (j.kind().value()) {
             case "INNER" -> SqlSource.Join.Kind.INNER;
@@ -652,8 +698,8 @@ public final class Lowerer {
 
     /** asOfJoin: DuckDB ASOF LEFT JOIN; ON = optional keys AND the match inequality. */
     private SqlSelect asOfJoin(com.legend.compiler.spec.typed.TypedAsOfJoin aj) {
-        SqlSource left = asSource(relation(aj.left()), true);
-        SqlSource right = asSource(relation(aj.right()), false);
+        SqlSource left = asLeftJoinSide(relation(aj.left()));
+        SqlSource right = asRightSide(relation(aj.right()));
         SqlExpr on = sideCondition(aj.match(), left, right);
         if (aj.condition().isPresent()) {
             on = SqlExpr.Call.of(SqlFn.AND, sideCondition(aj.condition().get(), left, right), on);
@@ -690,15 +736,30 @@ public final class Lowerer {
      * {@code (a JOIN b) JOIN c} renders flat, while a join on the RIGHT would
      * be ambiguous and must wrap.
      */
-    private SqlSource asSource(SqlSelect side, boolean leftSide) {
-        boolean bare = side.projections().isEmpty() && !side.distinct()
+    /**
+     * A join's LEFT side: a bare select unwraps to its source — including a
+     * bare join TREE (SQL joins are left-associative, so chains stay flat).
+     */
+    private SqlSource asLeftJoinSide(SqlSelect side) {
+        return isBareSelect(side) ? side.from() : new SqlSource.Subselect(side, nextAlias());
+    }
+
+    /**
+     * A join's RIGHT side (also pivot's source): a bare select unwraps ONLY
+     * to a non-join source — a join tree on the right would re-associate.
+     */
+    private SqlSource asRightSide(SqlSelect side) {
+        return isBareSelect(side) && !(side.from() instanceof SqlSource.Join)
+                ? side.from()
+                : new SqlSource.Subselect(side, nextAlias());
+    }
+
+    /** No clause set — the select adds nothing over its source. */
+    private static boolean isBareSelect(SqlSelect side) {
+        return side.projections().isEmpty() && !side.distinct()
                 && side.where() == null && side.groupBy().isEmpty() && side.having() == null
                 && side.qualify() == null && side.orderBy().isEmpty()
                 && side.limit() == null && side.offset() == null;
-        if (bare && (leftSide || !(side.from() instanceof SqlSource.Join))) {
-            return side.from();
-        }
-        return new SqlSource.Subselect(side, nextAlias());
     }
 
     /**
@@ -939,9 +1000,10 @@ public final class Lowerer {
             case TypedNativeCall n when n.args().size() >= 1
                     && n.args().get(0).info().type() instanceof Type.RelationType
                     && relationPredicate(n) != null -> {
+                var predicate = java.util.Objects.requireNonNull(relationPredicate(n));
                 enclosing.push(columns);
                 try {
-                    yield relationPredicate(n).lower(this, n);
+                    yield predicate.lower(this, n);
                 } finally {
                     enclosing.pop();
                 }
@@ -979,7 +1041,7 @@ public final class Lowerer {
             throw new IllegalStateException("multi-column pivot is not lowered yet");
         }
         SqlSelect src = relation(pv.source());
-        SqlSource inner = asSource(src, false);
+        SqlSource inner = asRightSide(src);
         List<SqlExpr> on = List.of(Fold.sourceColumn(inner, pv.pivotColumns().get(0)));
         List<SqlSource.Pivot.Using> usings = new ArrayList<>();
         SqlSelect forAgg = SqlSelect.starOf(inner);

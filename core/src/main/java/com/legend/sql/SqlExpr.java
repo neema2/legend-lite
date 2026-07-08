@@ -17,9 +17,6 @@ public sealed interface SqlExpr
 
     /** A column reference, optionally qualified by a source alias. */
     record Column(String table, String name) implements SqlExpr {
-        public static Column of(String table, String name) {
-            return new Column(table, name);
-        }
     }
 
     /** {@code *} or {@code alias.*}. */

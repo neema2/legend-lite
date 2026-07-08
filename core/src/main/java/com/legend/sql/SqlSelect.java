@@ -43,6 +43,7 @@ public record SqlSelect(List<Projection> projections, boolean distinct, SqlSourc
             return new SortKey(e, true, null);
         }
 
+        /** Test-DSL convenience (no production callers; hand-built IR only). */
         public static SortKey desc(SqlExpr e) {
             return new SortKey(e, false, null);
         }

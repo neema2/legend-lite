@@ -162,10 +162,18 @@ public final class DuckDb extends AnsiSqlRenderer {
 
     /** Pure semantics ride the expansion: exists([])=false, forAll([])=true. */
     @Override
-    protected String listExists(List<SqlExpr> args, boolean forAll) {
-        String agg = forAll ? "list_bool_and" : "list_bool_or";
-        String dflt = forAll ? boolLit(true) : boolLit(false);
-        return "coalesce(" + agg + "(" + fn("list_transform", args) + "), " + dflt + ")";
+    protected String listExists(List<SqlExpr> args) {
+        return listPredicate(args, "list_bool_or", false);
+    }
+
+    @Override
+    protected String listForAll(List<SqlExpr> args) {
+        return listPredicate(args, "list_bool_and", true);
+    }
+
+    private String listPredicate(List<SqlExpr> args, String agg, boolean emptyDefault) {
+        return "coalesce(" + agg + "(" + fn("list_transform", args) + "), "
+                + boolLit(emptyDefault) + ")";
     }
 
     @Override

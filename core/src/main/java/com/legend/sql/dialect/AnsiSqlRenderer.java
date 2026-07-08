@@ -359,8 +359,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case UNNEST -> unnestProjection(a);
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_CONTAINS, LIST_GET ->
                     listCall(c.fn(), a);
-            case LIST_EXISTS -> listExists(a, false);
-            case LIST_FOR_ALL -> listExists(a, true);
+            case LIST_EXISTS -> listExists(a);
+            case LIST_FOR_ALL -> listForAll(a);
             case VARIANT_ELEMENTS -> variantElements(a);
             case VARIANT_GET -> variantGet(a);
         };
@@ -392,8 +392,14 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      * empty-collection semantics: {@code exists([]) = false},
      * {@code forAll([]) = true}.
      */
-    protected String listExists(List<SqlExpr> args, boolean forAll) {
-        throw new IllegalStateException("collection exists/forAll reached a dialect"
+    protected String listExists(List<SqlExpr> args) {
+        throw new IllegalStateException("collection exists reached a dialect"
+                + " without a list-predicate encoding");
+    }
+
+    /** Contract includes Pure's empty-collection semantics: {@code forAll([]) = true}. */
+    protected String listForAll(List<SqlExpr> args) {
+        throw new IllegalStateException("collection forAll reached a dialect"
                 + " without a list-predicate encoding");
     }
 
