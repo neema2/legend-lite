@@ -1203,6 +1203,35 @@ class TypeCheckerTest {
     }
 
     @Test
+    void evalOfFunctionValueTypesThroughTheVerbatimSignature() {
+        // eval<T,V|m,n>(Function<{T[n]->V[m]}>[1], param:T[n]):V[m] — a
+        // function-typed PARAMETER's own type solves V[m] via the kernel's
+        // FunctionType unification arm (was: a hand-rolled per-arg loop
+        // against a weakened Any[*] signature). Let-bound bare lambdas do
+        // not synthesize FunctionType values yet — that boundary is loud.
+        String model = "function test::apply(f: Function<{Integer[1]->Boolean[1]}>[1],"
+                + " v: Integer[1]): Boolean[1] { eval($f, $v) }";
+        ModelContext ctx = Compiler.compileModel(model);
+        var fn = ctx.findFunction("test::apply").get(0);
+        var compiled = new SpecCompiler(ctx).compile(fn);
+        TypedSpec body = compiled.body().get(compiled.body().size() - 1);
+        assertEquals(Type.Primitive.BOOLEAN, body.info().type());
+        assertEquals(Multiplicity.Bounded.ONE, body.info().multiplicity());
+    }
+
+    @Test
+    void matchTypesTheStaticallySelectedBranch() {
+        // DELIBERATE REFINEMENT over real pure's T[m] (= LUB of branches):
+        // when the input's STATIC type selects a branch at compile time, the
+        // result is that branch's narrowed type — sound (a subtype of the
+        // LUB) and more precise. The verbatim signature governs the SHAPE
+        // (Any[*] value + Function[1..*] branches).
+        TypedSpec t = typeQuery("5->match([i: Integer[1] | $i + 1,"
+                + " f: Float[1] | $f * 2.0])");
+        assertEquals(Type.Primitive.INTEGER, t.info().type());
+    }
+
+    @Test
     void associationNavigationTypesFromTheAssociationIndex() {
         // findProperty's contract THIRD LEG (Property doc §5 discipline 3):
         // association-injected navigation properties resolve at LOOKUP time,

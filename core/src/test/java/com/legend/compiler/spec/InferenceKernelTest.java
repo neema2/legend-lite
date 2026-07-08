@@ -182,11 +182,42 @@ class InferenceKernelTest {
     }
 
     @Test
-    void functionTypeParam_isDeferredToTheLambdaPath() {
-        Type fn = new Type.FunctionType(
+    void functionTypeUnification_bindsNestedVars() {
+        // The eval/match keystone (was: a deliberate throw — lambda literals
+        // still defer; this arm serves function VALUES).
+        Type formal = new Type.FunctionType(
+                List.of(new Type.Param(new Type.TypeVar("T"), new Multiplicity.Var("n"))),
+                new Type.Param(new Type.TypeVar("V"), new Multiplicity.Var("m")));
+        Type actual = new Type.FunctionType(
                 List.of(new Type.Param(Type.Primitive.INTEGER, Multiplicity.Bounded.ONE)),
                 new Type.Param(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE));
-        assertThrows(TypeInferenceException.class, () -> kernel().unify(fn, fn, new Bindings()));
+        Bindings b = new Bindings();
+        kernel().unify(formal, actual, b);
+        assertEquals(java.util.Optional.of(Type.Primitive.INTEGER), b.type("T"));
+        assertEquals(java.util.Optional.of(Type.Primitive.BOOLEAN), b.type("V"));
+        // identical shapes unify trivially too
+        kernel().unify(actual, actual, new Bindings());
+        // shape mismatch is LOUD
+        Type unary = new Type.FunctionType(List.of(),
+                new Type.Param(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE));
+        assertThrows(TypeInferenceException.class,
+                () -> kernel().unify(formal, unary, new Bindings()));
+    }
+
+    @Test
+    void commonSupertype_mergesRelationsAndIsLoudOnMismatch() {
+        InferenceKernel k = kernel();
+        // Bare relation pair: LUB = the merged row.
+        Type ra = new Type.RelationType(List.of(
+                new Type.Column("a", Type.Primitive.INTEGER, Multiplicity.Bounded.ONE)));
+        Type rb = new Type.RelationType(List.of(
+                new Type.Column("b", Type.Primitive.STRING, Multiplicity.Bounded.ONE)));
+        Type lub = k.commonSupertype(ra, rb);
+        assertEquals(2, ((Type.RelationType) lub).columns().size());
+        // Non-nominal MISMATCH (function vs relation): LOUD, never silent Any.
+        Type fn = new Type.FunctionType(List.of(),
+                new Type.Param(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE));
+        assertThrows(TypeInferenceException.class, () -> k.commonSupertype(ra, fn));
     }
 
     // ---- nominal --------------------------------------------------------

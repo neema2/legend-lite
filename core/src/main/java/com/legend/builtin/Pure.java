@@ -10,12 +10,13 @@
 // Multiplicity: [1]->1, [N]->N, [*]->MANY, [0..1]->0_1, [1..*]->1_MANY, [N..M]->N_M.
 // Return type omitted (Pure overloads on args only).
 //
-// HAND-CURATED (the old "do not edit" header predated the port): signatures
-// are kept verbatim to real legend-pure/legend-engine .pure sources where
-// they exist; deliberately WEAKENED signatures carry LITE-WEAKENED markers
-// (blocked on named kernel capabilities — no shape divergences remain); invented natives (tableReference, tds, legacyNavigate, ...) are
-// commented individually. To add a native: add the signature, re-run tests
-// (the golden catalog file will show the diff).
+// HAND-CURATED port of the real legend-pure/legend-engine native catalog.
+// Every signature is VERBATIM to its real .pure source (verified per
+// function; NO divergence categories remain as of 2026-07-08) — except the
+// individually-commented INVENTED pipeline natives (tableReference, tds,
+// legacyNavigate, ...), which are internal plumbing, not stdlib claims.
+// To add a native: add the verbatim signature citing its .pure path,
+// re-run tests (the golden catalog file shows the diff).
 package com.legend.builtin;
 
 import com.legend.parser.ElementParser;
@@ -480,7 +481,7 @@ public final class Pure {
     public static final NativeFunctionDefinition AVERAGE_RANK = signature("native function averageRank():meta::pure::metamodel::type::Number[1];");
     public static final NativeFunctionDefinition AVERAGE__NUMBER_MANY = signature("native function average(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Float[1];");
     // WINDOW FAMILY — VERIFIED per function 2026-07-08 against real checkouts;
-    // now FULLY FAITHFUL (the LITE-SHAPED category is EMPTY): ranking and
+    // now FULLY FAITHFUL: ranking and
     // slice are verbatim (core_functions_relation/relation/functions/
     // {ranking,slice}); the 4-arg colToAgg aggregates below (average,
     // stdDevPopulation — the ONLY aggregate window functions real pure has;
@@ -553,10 +554,13 @@ public final class Pure {
     // of the contract (identity/primitive/collection/model-defined equality).
     public static final NativeFunctionDefinition EQUAL__ANY_MANY__ANY_MANY = signature("native function equal(left:meta::pure::metamodel::type::Any[*], right:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition EQ__ANY_1__ANY_1 = signature("native function eq(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
-    public static final NativeFunctionDefinition EVAL__FUNCTION_1 = signature("native function eval(func:meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[1]):meta::pure::metamodel::type::Any[*];");
-    // LITE-WEAKENED vs real pure eval<T,V|m,n>(Function<{T[m]->V[n]}>[1], T[m]):V[n]
-    // — returns Any[*] here; EvalChecker computes the real type bespoke.
-    public static final NativeFunctionDefinition EVAL__FUNCTION_1__T_MANY = signature("native function eval<T>(func:meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[1], param:T[*]):meta::pure::metamodel::type::Any[*];");
+    // VERBATIM real pure (platform/pure/essential/lang/eval/eval.pure),
+    // arities 1-3 (real pure goes to 8; add on demand). Typed via the
+    // kernel's FunctionType unification for function VALUES; lambda-literal
+    // and colspec sources short-circuit in EvalChecker.
+    public static final NativeFunctionDefinition EVAL__FUNCTION_1 = signature("native function eval<V|m>(func:meta::pure::metamodel::function::Function<{->V[m]}>[1]):V[m];");
+    public static final NativeFunctionDefinition EVAL__FUNCTION_1__T_n = signature("native function eval<T,V|m,n>(func:meta::pure::metamodel::function::Function<{T[n]->V[m]}>[1], param:T[n]):V[m];");
+    public static final NativeFunctionDefinition EVAL__FUNCTION_1__T_n__U_p = signature("native function eval<T,U,V|m,n,p>(func:meta::pure::metamodel::function::Function<{T[n],U[p]->V[m]}>[1], param1:T[n], param2:U[p]):V[m];");
     public static final NativeFunctionDefinition EXISTS__T_MANY__FUNCTION_1 = signature("native function exists<T>(value:T[*], func:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition EXP__NUMBER_1 = signature("native function exp(exponent:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition EXTEND__C_MANY__FUNC_COL_SPEC_1 = signature("native function extend<C,Z>(cl:C[*], f:meta::pure::metamodel::relation::FuncColSpec<{C[1]->meta::pure::metamodel::type::Any[0..1]},Z>[1]):C[*];");
@@ -760,10 +764,12 @@ public final class Pure {
     public static final NativeFunctionDefinition MAP__T_0_1__FUNCTION_1 = signature("native function map<T,V>(value:T[0..1], func:meta::pure::metamodel::function::Function<{T[1]->V[0..1]}>[1]):V[0..1];");
     public static final NativeFunctionDefinition MAP__T_MANY__FUNCTION_1 = signature("native function map<T,V>(value:T[*], func:meta::pure::metamodel::function::Function<{T[1]->V[*]}>[1]):V[*];");
     public static final NativeFunctionDefinition MATCHES__STRING_1__STRING_1 = signature("native function matches(str:meta::pure::metamodel::type::String[1], regex:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
-    // LITE-WEAKENED vs real pure match<T,R>(...):R[*] — returns Any[*] here;
-    // MatchChecker computes the union type bespoke.
-    public static final NativeFunctionDefinition MATCH__ANY_MANY__FUNCTION_1_MANY = signature("native function match(value:meta::pure::metamodel::type::Any[*], branches:meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[1..*]):meta::pure::metamodel::type::Any[*];");
-    public static final NativeFunctionDefinition MATCH__ANY_MANY__FUNCTION_1_MANY__P_MANY = signature("native function match<P>(value:meta::pure::metamodel::type::Any[*], branches:meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[1..*], extra:P[*]):meta::pure::metamodel::type::Any[*];");
+    // VERBATIM real pure (platform/pure/essential/lang/flow/match.pure):
+    // Nil branch params (bottom — the kernel's FunctionType arm skips them),
+    // T[m] = the branch result; MatchChecker REFINES to the statically
+    // selected branch's type (sound: a subtype of the signature's T[m]).
+    public static final NativeFunctionDefinition MATCH__ANY_MANY__FUNCTION_1_MANY = signature("native function match<T|m,n>(var:meta::pure::metamodel::type::Any[*], functions:meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::Nil[n]->T[m]}>[1..*]):T[m];");
+    public static final NativeFunctionDefinition MATCH__ANY_MANY__FUNCTION_1_MANY__P_o = signature("native function match<T,P|m,n,o>(var:meta::pure::metamodel::type::Any[*], functions:meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::Nil[n],P[o]->T[m]}>[1..*], with:P[o]):T[m];");
     public static final NativeFunctionDefinition MAX_BY__ROW_MAPPER_MANY = signature("native function maxBy<T,U>(values:meta::pure::functions::math::mathUtility::RowMapper<T,U>[*]):T[0..1];");
     public static final NativeFunctionDefinition MAX_BY__T_MANY__FUNCTION_1 = signature("native function maxBy<T>(values:T[*], key:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Any[1]}>[1]):T[0..1];");
     public static final NativeFunctionDefinition MAX_BY__T_MANY__FUNCTION_1__INTEGER_1 = signature("native function maxBy<T>(values:T[*], key:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Any[1]}>[1], count:meta::pure::metamodel::type::Integer[1]):T[*];");

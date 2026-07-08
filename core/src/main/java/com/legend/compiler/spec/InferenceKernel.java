@@ -41,6 +41,7 @@ public final class InferenceKernel {
 
     private static final String RELATION_FQN = Pure.RELATION.qualifiedName();
     private static final String ANY_FQN = Pure.ANY.qualifiedName();
+    private static final String NIL_FQN = "meta::pure::metamodel::type::Nil";
 
     private final ModelContext ctx;
 
@@ -59,6 +60,15 @@ public final class InferenceKernel {
      * an unsatisfiable constraint.
      */
     public void unify(Type formal, Type actual, Bindings b) {
+        // Function<{...}> is the WRAPPED spelling of a bare FunctionType —
+        // signatures use the wrapper, lambda-typed values may carry the bare
+        // form. Normalize BOTH sides so the FunctionType arm sees one shape.
+        Type ff = unwrapFunction(formal);
+        Type fa = unwrapFunction(actual);
+        if (ff != formal || fa != actual) {
+            unify(ff, fa, b);
+            return;
+        }
         switch (formal) {
             // Any is the top type: accepts anything (guarded ClassType, before identity).
             case Type.ClassType c when c.fqn().equals(ANY_FQN) -> { }
@@ -122,10 +132,36 @@ public final class InferenceKernel {
             // by resolve(), not here.
             case Type.SchemaAlgebra sa -> unifyConstraint(sa, actual, b);
 
-            // Function-typed (lambda) parameters are handled by the bidirectional
-            // body checker, not here. Reaching this in plain unification is a bug.
-            case Type.FunctionType ignored -> throw new TypeInferenceException(
-                    "function-typed parameter must be unified via the lambda path, not unify()");
+            // FUNCTION-TYPE unification (the eval/match keystone): a formal
+            // Function<{T[n]->V[m]}> against an actual function VALUE's type.
+            // Params are CONTRAVARIANT — a formal Nil param (real pure's
+            // match branches: Function<{Nil[n]->T[m]}>) is the bottom type
+            // and accepts any actual param. Lambda LITERALS never reach here
+            // (they defer and type against the expected signature); this arm
+            // serves function values — variables, colspec functions, refs.
+            case Type.FunctionType f -> {
+                if (!(actual instanceof Type.FunctionType af)) {
+                    throw fail(formal, actual);
+                }
+                if (af.params().size() != f.params().size()) {
+                    throw new TypeInferenceException("function shape mismatch: expected "
+                            + f.params().size() + " parameter(s), got " + af.params().size()
+                            + " (" + actual.typeName() + ")");
+                }
+                for (int i = 0; i < f.params().size(); i++) {
+                    Type formalParam = f.params().get(i).type();
+                    if (formalParam instanceof Type.ClassType c && c.fqn().equals(NIL_FQN)) {
+                        continue;   // bottom type: any actual param conforms
+                    }
+                    unify(formalParam, af.params().get(i).type(), b);
+                    unifyMult(f.params().get(i).multiplicity(),
+                            af.params().get(i).multiplicity(),
+                            af.params().get(i).type(), b);
+                }
+                unify(f.result().type(), af.result().type(), b);
+                unifyMult(f.result().multiplicity(), af.result().multiplicity(),
+                        af.result().type(), b);
+            }
         }
     }
 
@@ -709,9 +745,19 @@ public final class InferenceKernel {
                 && gb.arguments().get(0) instanceof Type.RelationType rb) {
             return new Type.GenericType(ga.rawFqn(), List.of(unionRows(ra, rb)));
         }
+        // Bare relation pair: the LUB is the merged row (same rule as the
+        // schema-fragment containers above).
+        if (a instanceof Type.RelationType ra && b instanceof Type.RelationType rb) {
+            return new Type.RelationType(unionRows(ra, rb).columns());
+        }
         String fa = nominalFqn(a), fb = nominalFqn(b);
         if (fa == null || fb == null) {
-            return anyType();   // non-nominal (relation/function/…): widen to Any
+            // NON-NOMINAL mismatch (function vs relation, differing function
+            // shapes, …): LOUD — silently widening to Any hid branch-type
+            // conflicts until they failed incomprehensibly downstream
+            // (audit finding).
+            throw new TypeInferenceException("no common supertype for "
+                    + a.typeName() + " and " + b.typeName());
         }
         if (ctx.isSubtype(fa, fb)) {
             return b;
@@ -725,6 +771,16 @@ public final class InferenceKernel {
             }
         }
         return anyType();
+    }
+
+    /** {@code Function<{sig}>} unwraps to its bare {@code FunctionType}; everything else passes through. */
+    private static Type unwrapFunction(Type t) {
+        if (t instanceof Type.GenericType g && g.rawFqn().endsWith("::Function")
+                && g.arguments().size() == 1
+                && g.arguments().get(0) instanceof Type.FunctionType inner) {
+            return inner;
+        }
+        return t;
     }
 
     /** The lattice FQN of a nominal type ({@code PrecisionDecimal -> Decimal}); {@code null} for non-nominal. */

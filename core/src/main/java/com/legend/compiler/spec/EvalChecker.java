@@ -107,28 +107,21 @@ final class EvalChecker {
                     "eval expects a lambda, a function reference, ~col, or a function-typed variable; got "
                             + declared.typeName());
         }
-        Type.FunctionType ft = Typer.extractFunctionType(declared);
-        if (ft.params().size() != rawArgs.size()) {
-            throw new TypeInferenceException("eval: function type expects " + ft.params().size()
-                    + " argument(s) but " + rawArgs.size() + " were supplied");
-        }
+        // THE registered verbatim signatures govern (eval<T,V|m,n>(
+        // Function<{T[n]->V[m]}>[1], param:T[n]):V[m], arities 1-3): overload
+        // selection by arity, param types AND multiplicities via the kernel's
+        // FunctionType unification arm, result V[m] from the bindings. The
+        // hand-rolled per-arg loop this replaces was the LITE-WEAKENED era.
         List<TypedSpec> args = new ArrayList<>(rawArgs.size());
-        for (int i = 0; i < rawArgs.size(); i++) {
-            TypedSpec arg = t.synth(rawArgs.get(i), env);
-            t.kernel().unify(ft.params().get(i).type(), arg.info().type(), new Bindings());
-            // Multiplicity conformance (audit finding): [*] into [1] must not
-            // slip by. Vars (unresolved signature mults) conform trivially.
-            if (ft.params().get(i).multiplicity() instanceof Multiplicity.Bounded want
-                    && arg.info().multiplicity() instanceof Multiplicity.Bounded got
-                    && (got.lower() < want.lower()
-                        || (want.upper() != null
-                            && (got.upper() == null || got.upper() > want.upper())))) {
-                throw new TypeInferenceException("eval: argument " + (i + 1)
-                        + " has multiplicity " + got + " but the function type declares "
-                        + want);
-            }
+        List<ExprType> argTypes = new ArrayList<>(rawArgs.size() + 1);
+        argTypes.add(fnTyped.info());
+        for (ValueSpecification raw : rawArgs) {
+            TypedSpec arg = t.synth(raw, env);
             args.add(arg);
+            argTypes.add(arg.info());
         }
-        return new TypedEval(fnTyped, args, new ExprType(ft.result().type(), ft.result().multiplicity()));
+        InferenceKernel.Resolution r = t.kernel().resolveOverload(
+                t.model().findFunction(CoreFn.EVAL.parseName()), argTypes);
+        return new TypedEval(fnTyped, args, r.output());
     }
 }
