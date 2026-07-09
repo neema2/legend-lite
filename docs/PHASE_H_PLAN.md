@@ -54,6 +54,22 @@ H0. THE CENSUS HARNESS. An eager test that compiles EVERY synthesized
     extrapolation). Also wire `compileReachable` into a corpus-side probe
     if cheap. Exit: the list, committed as a doc table.
 
+### H0 CENSUS RESULTS (2026-07-09, PhaseHCensusTest — 1/14 bodies green;
+### state PINNED as a ratchet: green may only rise)
+
+| count | bucket | representative |
+|---|---|---|
+| 11 | tableReference expects (database, 'TABLE'); got [CString, CString] — the normalizer emits the db as a STRING; the checker (query-parser parity) wants PackageableElementPtr. MASKS everything downstream; re-census after fixing. | every ~mainTable fixture |
+| 1 | no overload of 'join' matches 3 argument(s) — the lite join(Relation, ColSpec, Function) registration does not unify with the emitted call | A2 join-chain property |
+| 1 | class Any has no property 'FID' — legacyAssocPredicate's Function<{Any,Any->Boolean}> params erase the class types; the predicate body navigates columns on Any | C association |
+
+Census-process findings (not G gaps): (a) `[db]T.col` without a space
+after `]` fails to parse while `[db] T.col` works — juxtaposition
+sensitivity, feeds the corpus parse family; (b) ~groupBy key matching
+appears form-sensitive (unprefixed key + same-form PM was rejected as
+per-row formula — verify intended). The 1 green body is the derived
+property ($prop$ hat — query-shaped, no store constructs).
+
 H1. G-COMPLETION for mapping bodies. Fix each census bucket; known ones:
     a. tableReference emission/checker shape (decide: normalizer emits
        PackageableElementPtr — parser-parity — OR checker accepts both;
