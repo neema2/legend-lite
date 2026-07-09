@@ -49,3 +49,28 @@ RISKS: multi-home assignment wrong for an overload -> wrong-package FQN
 (golden diff review is the gate); tds-package legacy functions NOT yet in
 catalog (register when corpus needs them); CoreFn parse-name collisions
 across packages (filter core-dispatch must see all homes).
+
+RESOLUTION (2026-07-09) — steps 2 and 3-emission are CLOSED BY DESIGN:
+- Step 2 (resolution flip): wrong as imagined. The multi-home names are
+  NOT overloads of one function — they are DIFFERENT functions sharing a
+  simple name (collection::filter(T[*],fn) vs relation::filter(
+  Relation<T>,fn), each in its own .pure file). Real pure pools every
+  imported function with that simple name and lets OVERLOAD RESOLUTION
+  pick by argument shape; a resolver rewriting bare->single-FQN before
+  types are known would have to guess. The dual-key catalog's bare-union
+  lookup IS that candidate pool; permanent design.
+- Imported bare USER-function calls already resolve (probed: import
+  my::pkg::*; helper() works in model bodies).
+- KNOWN DIVERGENCE (found by user question, probed): when an imported
+  user function shares a simple name with a NATIVE, the import wins
+  COMPLETELY — native candidates drop out of the pool (real pure would
+  pool both). Fails LOUD (type error naming the wrong-package function),
+  never silent; corpus never hits it. Fix = multi-candidate resolution
+  plumbing through functionsAt; ledgered, not blocking.
+- Step 3 emission-site FQNs: unnecessary — user functions always carry
+  packages, so bare emissions can only hit natives; no shadowing channel.
+- Step 3's REAL remainder: the deferred fake-native retirements
+  (sub/avg/concat, percentileCont/Disc, divideRound, notEqualAnsi,
+  maxDate/minDate). Slice 1 (notEqual, md5/sha family, isNull/isNotNull)
+  landed 2026-07-09.
+
