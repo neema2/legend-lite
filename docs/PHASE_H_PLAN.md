@@ -54,21 +54,38 @@ H0. THE CENSUS HARNESS. An eager test that compiles EVERY synthesized
     extrapolation). Also wire `compileReachable` into a corpus-side probe
     if cheap. Exit: the list, committed as a doc table.
 
-### H0 CENSUS RESULTS (2026-07-09, PhaseHCensusTest — 1/14 bodies green;
-### state PINNED as a ratchet: green may only rise)
+### H0→H1 CENSUS (2026-07-09, PhaseHCensusTest — 9/14 bodies green;
+### state PINNED as a ratchet: green may only rise. H0 baseline was 1/14.)
+
+H1 fixes so far: (1) the ×11 tableReference bucket — normalizer now emits
+`PackageableElementPtr(db)` (query-parser parity, option (a) below); this
+unmasked a ×9 property-multiplicity bucket ("[0..1] column into [1]
+property"), cleared by EMISSION: the normalizer wraps store reads bound
+to [1]-declared properties in toOne(...) (buildNewInstanceToOne; navigate/
+legacyNavigate/otherwise/new values and mapping-local properties exempt).
+NewChecker keeps real pure's FULL NewValidator subsumption — the
+hand-written surface stays pure-compatible ([0..1] into [1] is a static
+error; the writer spells ->toOne()), and synthesized bodies conform
+because the mapping IS the to-one assertion, said explicitly. (A checker
+relaxation was tried first and rejected: it weakened a shared guarantee
+to spare the normalizer an edit.) The m2m/PCM path does NOT auto-wrap:
+those lambdas are user-written pure and real engine makes the user write
+the coercion.
 
 | count | bucket | representative |
 |---|---|---|
-| 11 | tableReference expects (database, 'TABLE'); got [CString, CString] — the normalizer emits the db as a STRING; the checker (query-parser parity) wants PackageableElementPtr. MASKS everything downstream; re-census after fixing. | every ~mainTable fixture |
-| 1 | no overload of 'join' matches 3 argument(s) — the lite join(Relation, ColSpec, Function) registration does not unify with the emitted call | A2 join-chain property |
+| 1 | no overload of 'join' matches 3 argument(s) — the lite join(Relation, ColSpec, Function) registration does not unify with the emitted call (ColSpec-with-function types as FuncColSpec; same family as the legacyNavigate seam) | A2 join-chain property |
 | 1 | class Any has no property 'FID' — legacyAssocPredicate's Function<{Any,Any->Boolean}> params erase the class types; the predicate body navigates columns on Any | C association |
+| 1 | groupBy aggregate: expected Integer, got Number — sum overload selection widens | B5 groupBy-agg |
+| 1 | enum transformer yields Any where m::Status expected | A5 enum |
+| 1 | lite concat(String[*]) vs the emitted 3-arg concat call — arity mismatch (consider plus-chain emission) | A3 dynafunction |
 
 Census-process findings (not G gaps): (a) `[db]T.col` without a space
 after `]` fails to parse while `[db] T.col` works — juxtaposition
 sensitivity, feeds the corpus parse family; (b) ~groupBy key matching
 appears form-sensitive (unprefixed key + same-form PM was rejected as
-per-row formula — verify intended). The 1 green body is the derived
-property ($prop$ hat — query-shaped, no store constructs).
+per-row formula — verify intended). H0's single green body was the
+derived property ($prop$ hat — query-shaped, no store constructs).
 
 H1. G-COMPLETION for mapping bodies. Fix each census bucket; known ones:
     a. tableReference emission/checker shape (decide: normalizer emits

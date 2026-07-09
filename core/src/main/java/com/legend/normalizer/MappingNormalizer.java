@@ -722,7 +722,7 @@ public final class MappingNormalizer {
         }
         return new AppliedFunction("map", List.of(source,
                 new LambdaFunction(List.of(rowBind),
-                        List.of(buildNewInstance(rcm.className(), fields)))));
+                        List.of(buildNewInstanceToOne(rcm.className(), fields, model)))));
     }
 
     // ====================================================================
@@ -994,8 +994,11 @@ public final class MappingNormalizer {
         String mainTable = rcm.mainTable().table();
         Variable rowBind = new Variable("row");
 
+        // Query-parser parity (H1): the database is a PackageableElementPtr,
+        // the table a string — the same shapes #>{db.TABLE}# produces, so
+        // TableReferenceChecker serves both surfaces.
         Pipeline p = new Pipeline(new AppliedFunction("tableReference",
-                List.of(new CString(mainDb), new CString(mainTable))));
+                List.of(new PackageableElementPtr(mainDb), new CString(mainTable))));
 
         // Pass 1: structural chain emission (Join, JoinTerminalColumn,
         // LocalProperty-wrapping-JTC). Class-typed Join PMs to mapped
@@ -1074,7 +1077,7 @@ public final class MappingNormalizer {
         }
         return new AppliedFunction("map", List.of(p.expr,
                 new LambdaFunction(List.of(rowBind),
-                        List.of(buildNewInstance(rcm.className(), fields)))));
+                        List.of(buildNewInstanceToOne(rcm.className(), fields, model)))));
     }
 
     private static void validatePmNames(ClassMapping.Relational rcm,
@@ -1247,7 +1250,7 @@ public final class MappingNormalizer {
                 ColSpec slot = new ColSpec(slotAlias,
                         new LambdaFunction(List.of(), List.of(new AppliedFunction(
                                 "tableReference",
-                                List.of(new CString(hopDb), new CString(targetTable))))),
+                                List.of(new PackageableElementPtr(hopDb), new CString(targetTable))))),
                         null);
                 p.expr = new AppliedFunction("join",
                         List.of(p.expr, slot, condLambda));
@@ -1480,7 +1483,7 @@ public final class MappingNormalizer {
                 fields.put(cf.name(),
                         new KeyExpression(cf.value(), false, cf.isLocal()));
             }
-            return buildNewInstance(innerFqn, fields);
+            return buildNewInstanceToOne(innerFqn, fields, model);
         } finally {
             cycleStack.remove(innerFqn);
         }
@@ -2026,6 +2029,67 @@ public final class MappingNormalizer {
                 new PackageableElementPtr(classFqn),
                 new NewInstance(classFqn, List.of(),
                         Collections.unmodifiableMap(new LinkedHashMap<>(fields)))));
+    }
+
+    /**
+     * {@link #buildNewInstance(String, Map)} for STORE-backed emissions
+     * (relational columns, variant/JSON reads): values bound to a
+     * {@code [1]}-declared property are wrapped in {@code toOne(...)}.
+     *
+     * <p>A store read is statically {@code [0..1]} (a nullable column, a
+     * variant key access), and real pure's {@code NewValidator} demands
+     * full multiplicity subsumption on {@code ^new(...)} &mdash; hand-written
+     * pure must spell {@code ->toOne()} to bind such a value to a
+     * {@code [1]} property. The synthesized body says the same thing
+     * explicitly: the MAPPING is the assertion that the read is to-one,
+     * and the residual null-check is {@code toOne}'s runtime semantics.
+     * The m2m (PureInstanceSetImplementation) path deliberately does NOT
+     * auto-wrap: there the lambda is user-written pure and real engine
+     * makes the user write the coercion.
+     *
+     * <p>NOT wrapped: {@code navigate}/{@code legacyNavigate} values
+     * (statically {@code T[*]} by design; conformance is the Phase H
+     * resolver's question) and nested {@code new} (already {@code [1]}).
+     */
+    private static ValueSpecification buildNewInstanceToOne(String classFqn,
+                                                            Map<String, KeyExpression> fields,
+                                                            ModelBuilder model) {
+        ClassDefinition cd = model.findClass(classFqn).orElse(null);
+        Map<String, KeyExpression> wrapped = new LinkedHashMap<>();
+        fields.forEach((name, key) -> {
+            ClassDefinition.PropertyDefinition prop =
+                    cd == null ? null : findPropertyDefDeep(cd, name, model, new HashSet<>());
+            boolean toOneDeclared = prop != null
+                    && prop.multiplicity() instanceof Multiplicity.Concrete c
+                    && c.lowerBound() == 1 && Integer.valueOf(1).equals(c.upperBound());
+            ValueSpecification v = key.value();
+            boolean exempt = v instanceof AppliedFunction af
+                    && (af.function().equals("navigate")
+                        || af.function().equals("legacyNavigate")
+                        || af.function().equals("otherwise")
+                        || af.function().equals("new"));
+            wrapped.put(name, toOneDeclared && !exempt
+                    ? new KeyExpression(new AppliedFunction("toOne", List.of(v)),
+                            key.isAdd(), key.isLocal())
+                    : key);
+        });
+        return buildNewInstance(classFqn, wrapped);
+    }
+
+    private static ClassDefinition.PropertyDefinition findPropertyDefDeep(
+            ClassDefinition cd, String propName, ModelBuilder model, Set<String> visited) {
+        if (cd == null || !visited.add(cd.qualifiedName())) return null;
+        for (ClassDefinition.PropertyDefinition p : cd.properties()) {
+            if (p.name().equals(propName)) return p;
+        }
+        for (TypeExpression sup : cd.superClasses()) {
+            if (sup instanceof TypeExpression.NameRef nr) {
+                ClassDefinition.PropertyDefinition inherited = findPropertyDefDeep(
+                        model.findClass(nr.name()).orElse(null), propName, model, visited);
+                if (inherited != null) return inherited;
+            }
+        }
+        return null;
     }
 
     private static TypeExpression findPropertyType(ClassDefinition cd, String propName) {

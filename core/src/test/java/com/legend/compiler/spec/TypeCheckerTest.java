@@ -1319,4 +1319,48 @@ class TypeCheckerTest {
         assertEquals(6, rt.columns().size(), "Chained ops preserve columns");
         assertEquals(Type.Primitive.INTEGER, columnType(rt, "AGE"));
     }
+
+    // ---- ^new(...) multiplicity conformance (NewChecker) ----
+    // FULL subsumption, real pure's NewValidator parity: the declared range
+    // must contain the value's range. Synthesized mapping bodies conform by
+    // EMISSION (MappingNormalizer wraps store reads in toOne), never by
+    // weakening this rule.
+
+    private static TypedSpec typeInModel(String extraModel, String query) {
+        ModelContext ctx = Compiler.compileModel(DB_MODEL + "\n" + extraModel);
+        return new SpecCompiler(ctx).typeBody(SpecParser.parse(query), Env.empty(), Expected.infer());
+    }
+
+    @Test
+    void newInstanceRejectsUpperBoundOverflow() {
+        // String[2] into name: String[1] — statically absurd.
+        assertThrows(TypeInferenceException.class,
+                () -> typeQuery("^test::Person(name = ['a', 'b'])"));
+    }
+
+    @Test
+    void newInstanceRejectsDisjointMultiplicity() {
+        // String[0] into name: String[1] — the ranges never overlap; the
+        // value cannot conform even at runtime.
+        assertThrows(TypeInferenceException.class, () -> typeInModel(
+                "function test::none(): String[0] { [] }",
+                "^test::Person(name = test::none())"));
+    }
+
+    @Test
+    void newInstanceRejectsLowerBoundShortfallLikeRealPure() {
+        // String[0..1] into name: String[1] — real pure: "Multiplicity
+        // Error: [0..1] is not compatible with [1]"; the writer must spell
+        // ->toOne(). Hand-written surface stays pure-compatible.
+        assertThrows(TypeInferenceException.class,
+                () -> typeQuery("^test::Person(name = 'a'->first())"));
+        // ...and the explicit coercion conforms.
+        TypedSpec t = typeQuery("^test::Person(name = 'a'->first()->toOne())");
+        assertEquals("test::Person", ((Type.ClassType) t.info().type()).fqn());
+        // ...and a value that is ALREADY [1] needs no coercion — the [0..1]
+        // above comes from first()'s signature (T[*] -> T[0..1]), not from
+        // the literal.
+        TypedSpec lit = typeQuery("^test::Person(name = 'a')");
+        assertEquals("test::Person", ((Type.ClassType) lit.info().type()).fqn());
+    }
 }

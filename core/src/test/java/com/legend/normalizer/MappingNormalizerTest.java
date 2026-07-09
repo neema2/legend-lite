@@ -454,8 +454,9 @@ class MappingNormalizerTest {
         AppliedFunction tableRef = (AppliedFunction) mapCall.parameters().get(0);
         assertEquals("tableReference", tableRef.function());
         assertEquals(2, tableRef.parameters().size());
-        // Args are CString("db::DB"), CString("T_PERSON")
-        assertEquals(new com.legend.parser.spec.CString("db::DB"),
+        // Args are PackageableElementPtr(db) + CString(table) — query-parser
+        // parity (H1: TableReferenceChecker serves both surfaces).
+        assertEquals(new PackageableElementPtr("db::DB"),
                 tableRef.parameters().get(0));
         assertEquals(new com.legend.parser.spec.CString("T_PERSON"),
                 tableRef.parameters().get(1));
@@ -470,11 +471,11 @@ class MappingNormalizerTest {
         assertEquals(List.of("firstName", "lastName"), List.copyOf(ni.properties().keySet()));
 
         // firstName value is $row.FIRST (AppliedProperty(receiver=row, property=FIRST))
-        AppliedProperty firstName = (AppliedProperty) ni.properties().get("firstName").value();
+        AppliedProperty firstName = (AppliedProperty) toOneInner(ni.properties().get("firstName").value());
         assertEquals(new Variable("row"), firstName.receiver());
         assertEquals("FIRST", firstName.property());
 
-        AppliedProperty lastName = (AppliedProperty) ni.properties().get("lastName").value();
+        AppliedProperty lastName = (AppliedProperty) toOneInner(ni.properties().get("lastName").value());
         assertEquals("LAST", lastName.property());
     }
 
@@ -865,7 +866,7 @@ class MappingNormalizerTest {
                 "ColSpec target lambda is 0-param (engine convention)");
         AppliedFunction targetTableRef = (AppliedFunction) sole(targetLambda.body());
         assertEquals("tableReference", targetTableRef.function());
-        assertEquals(new com.legend.parser.spec.CString("db::DB"),
+        assertEquals(new PackageableElementPtr("db::DB"),
                 targetTableRef.parameters().get(0));
         assertEquals(new com.legend.parser.spec.CString("T_FIRM"),
                 targetTableRef.parameters().get(1));
@@ -887,7 +888,7 @@ class MappingNormalizerTest {
         LambdaFunction projectLambda = (LambdaFunction) mapCall.parameters().get(1);
         AppliedFunction newCall = (AppliedFunction) sole(projectLambda.body());
         NewInstance ni = (NewInstance) newCall.parameters().get(1);
-        AppliedProperty firmName = (AppliedProperty) ni.properties().get("firmName").value();
+        AppliedProperty firmName = (AppliedProperty) toOneInner(ni.properties().get("firmName").value());
         assertEquals("LEGAL_NAME", firmName.property());
         AppliedProperty firmAlias = (AppliedProperty) firmName.receiver();
         assertEquals("Person_Firm", firmAlias.property());
@@ -969,7 +970,7 @@ class MappingNormalizerTest {
         LambdaFunction projectLambda = (LambdaFunction) mapCall.parameters().get(1);
         AppliedFunction newCall = (AppliedFunction) sole(projectLambda.body());
         NewInstance ni = (NewInstance) newCall.parameters().get(1);
-        AppliedProperty orgName = (AppliedProperty) ni.properties().get("orgName").value();
+        AppliedProperty orgName = (AppliedProperty) toOneInner(ni.properties().get("orgName").value());
         assertEquals("NAME", orgName.property());
         AppliedProperty orgAlias = (AppliedProperty) orgName.receiver();
         assertEquals("Person_Firm__Firm_Org", orgAlias.property(),
@@ -1114,7 +1115,7 @@ class MappingNormalizerTest {
 
         KeyExpression firmKe = personNi.properties().get("firm");
         assertFalse(firmKe.isLocal(), "firm is a public property, not +local");
-        AppliedProperty firmRead = (AppliedProperty) firmKe.value();
+        AppliedProperty firmRead = (AppliedProperty) toOneInner(firmKe.value());
         assertEquals("firm", firmRead.property(), "firm reads $row.firm (the navigate slot)");
         assertEquals(new Variable("row"), firmRead.receiver());
     }
@@ -1177,12 +1178,12 @@ class MappingNormalizerTest {
                 List.copyOf(firmNi.properties().keySet()));
 
         // legalName reads $row.FIRM_NAME (outer table, NOT a join alias).
-        AppliedProperty legalName = (AppliedProperty) firmNi.properties().get("legalName").value();
+        AppliedProperty legalName = (AppliedProperty) toOneInner(firmNi.properties().get("legalName").value());
         assertEquals("FIRM_NAME", legalName.property());
         assertEquals(new Variable("row"), legalName.receiver(),
                 "Embedded sub-PM reads from outer $row, not a join alias");
 
-        AppliedProperty empCount = (AppliedProperty) firmNi.properties().get("employeeCount").value();
+        AppliedProperty empCount = (AppliedProperty) toOneInner(firmNi.properties().get("employeeCount").value());
         assertEquals("FIRM_COUNT", empCount.property());
         assertEquals(new Variable("row"), empCount.receiver());
     }
@@ -1258,7 +1259,7 @@ class MappingNormalizerTest {
                 "InlineEmbedded splices the sibling Broker mapping's PMs in declaration order");
 
         // Sub-PM values read from the OUTER $row (sibling's mainTable matches outer).
-        AppliedProperty nameRef = (AppliedProperty) brokerNi.properties().get("name").value();
+        AppliedProperty nameRef = (AppliedProperty) toOneInner(brokerNi.properties().get("name").value());
         assertEquals("BROKER_NAME", nameRef.property());
         assertEquals(new Variable("row"), nameRef.receiver());
     }
@@ -1401,7 +1402,7 @@ class MappingNormalizerTest {
                 .parameters().get(1);
 
         // Outer: if(equal($row.STATUS, 'A'), {| Active}, <else>)
-        AppliedFunction outerIf = (AppliedFunction) ni.properties().get("status").value();
+        AppliedFunction outerIf = (AppliedFunction) toOneInner(ni.properties().get("status").value());
         assertEquals("if", outerIf.function(),
                 "EnumeratedColumn inlines as nested if(...) chain");
         assertEquals(3, outerIf.parameters().size());
@@ -1565,7 +1566,7 @@ class MappingNormalizerTest {
                 List.copyOf(partialFirm.properties().keySet()),
                 "Partial inline ^Firm carries ONLY the embedded (inline-cached) properties");
         AppliedProperty legalNameInline =
-                (AppliedProperty) partialFirm.properties().get("legalName").value();
+                (AppliedProperty) toOneInner(partialFirm.properties().get("legalName").value());
         assertEquals("FIRM_NAME", legalNameInline.property(),
                 "Inline-cached property reads from the parent's row (denormalized column)");
         assertEquals(new Variable("row"), legalNameInline.receiver());
@@ -1752,7 +1753,7 @@ class MappingNormalizerTest {
         NewInstance ni = (NewInstance) newCall.parameters().get(1);
 
         // firmIdStr value: concat($row.firmName_h1.ID, '')
-        AppliedFunction firmIdStr = (AppliedFunction) ni.properties().get("firmIdStr").value();
+        AppliedFunction firmIdStr = (AppliedFunction) toOneInner(ni.properties().get("firmIdStr").value());
         assertEquals("concat", firmIdStr.function());
         AppliedProperty idRef = (AppliedProperty) firmIdStr.parameters().get(0);
         assertEquals("ID", idRef.property());
@@ -1828,7 +1829,7 @@ class MappingNormalizerTest {
         LambdaFunction projectLambda = (LambdaFunction) mapCall.parameters().get(1);
         AppliedFunction newCall = (AppliedFunction) sole(projectLambda.body());
         NewInstance ni = (NewInstance) newCall.parameters().get(1);
-        AppliedProperty countryName = (AppliedProperty) ni.properties().get("countryName").value();
+        AppliedProperty countryName = (AppliedProperty) toOneInner(ni.properties().get("countryName").value());
         AppliedProperty terminalAlias = (AppliedProperty) countryName.receiver();
         assertEquals("Person_Firm__Firm_Org__Org_Country", terminalAlias.property());
     }
@@ -1879,7 +1880,7 @@ class MappingNormalizerTest {
         // firmIdStr (Column PM referencing T_FIRM, BEFORE the Join PM in
         // source) must resolve via the Join PM's alias -- the two-pass
         // design hoists ALL joins before project translation runs.
-        AppliedFunction firmIdStr = (AppliedFunction) ni.properties().get("firmIdStr").value();
+        AppliedFunction firmIdStr = (AppliedFunction) toOneInner(ni.properties().get("firmIdStr").value());
         assertEquals("concat", firmIdStr.function());
         AppliedProperty idRef = (AppliedProperty) firmIdStr.parameters().get(0);
         AppliedProperty firmAlias = (AppliedProperty) idRef.receiver();
@@ -1888,14 +1889,14 @@ class MappingNormalizerTest {
                         + "via the Join PM's alias (two-pass design)");
 
         // fullName (Expression PM, only T_PERSON refs) uses $row directly.
-        AppliedFunction fullName = (AppliedFunction) ni.properties().get("fullName").value();
+        AppliedFunction fullName = (AppliedFunction) toOneInner(ni.properties().get("fullName").value());
         AppliedProperty firstRef = (AppliedProperty) fullName.parameters().get(0);
         assertEquals("FIRST", firstRef.property());
         assertEquals(new Variable("row"), firstRef.receiver(),
                 "Main-table column ref goes directly through $row");
 
         // age (Column PM, T_PERSON) directly $row.AGE
-        AppliedProperty age = (AppliedProperty) ni.properties().get("age").value();
+        AppliedProperty age = (AppliedProperty) toOneInner(ni.properties().get("age").value());
         assertEquals("AGE", age.property());
         assertEquals(new Variable("row"), age.receiver());
     }
@@ -1982,13 +1983,13 @@ class MappingNormalizerTest {
         AppliedFunction newCall = (AppliedFunction) sole(projectLambda.body());
         NewInstance ni = (NewInstance) newCall.parameters().get(1);
 
-        AppliedProperty firmName = (AppliedProperty) ni.properties().get("firmName").value();
+        AppliedProperty firmName = (AppliedProperty) toOneInner(ni.properties().get("firmName").value());
         assertEquals("LEGAL_NAME", firmName.property());
         assertEquals("Person_Firm",
                 ((AppliedProperty) firmName.receiver()).property(),
                 "firmName reads $row.Person_Firm.LEGAL_NAME");
 
-        AppliedProperty firmId = (AppliedProperty) ni.properties().get("firmId").value();
+        AppliedProperty firmId = (AppliedProperty) toOneInner(ni.properties().get("firmId").value());
         assertEquals("ID", firmId.property());
         assertEquals("Person_Firm",
                 ((AppliedProperty) firmId.receiver()).property(),
@@ -2025,7 +2026,7 @@ class MappingNormalizerTest {
         NewInstance ni = (NewInstance) newCall.parameters().get(1);
 
         // combo = concat($row.firmName_h1.NAME, ' / ', $row.deptName_h1.NAME)
-        AppliedFunction combo = (AppliedFunction) ni.properties().get("combo").value();
+        AppliedFunction combo = (AppliedFunction) toOneInner(ni.properties().get("combo").value());
         assertEquals("concat", combo.function());
         assertEquals(3, combo.parameters().size());
 
@@ -2454,6 +2455,19 @@ class MappingNormalizerTest {
     }
 
     /**
+     * Asserts a ctor-field value carries the {@code toOne(...)} wrapper the
+     * normalizer emits around store reads bound to a {@code [1]}-declared
+     * property (pure NewValidator subsumption, said at EMISSION) and
+     * returns the wrapped read.
+     */
+    private static ValueSpecification toOneInner(ValueSpecification v) {
+        AppliedFunction af = assertInstanceOf(AppliedFunction.class, v,
+                "[1]-property ctor value must be toOne-wrapped");
+        assertEquals("toOne", af.function());
+        return sole(af.parameters());
+    }
+
+    /**
      * Extracts the {@code legacyNavigate} pipeline step from a synth fn
      * whose body is {@code map(legacyNavigate(...), row | ^Cls(...))}.
      * (New class-typed Join PM shape — doc §5.4.3.)
@@ -2554,8 +2568,8 @@ class MappingNormalizerTest {
         NewInstance ni = ctorOf(personFn);
         assertEquals(List.of("address"), List.copyOf(ni.properties().keySet()),
                 "No +propFk carriers; the class-typed property reads the slot");
-        assertEquals("address", propOf(ni.properties().get("address").value()));
-        assertEquals("row", recvOf(ni.properties().get("address").value()));
+        assertEquals("address", propOf(toOneInner(ni.properties().get("address").value())));
+        assertEquals("row", recvOf(toOneInner(ni.properties().get("address").value())));
     }
 
     @Test
@@ -3174,7 +3188,7 @@ class MappingNormalizerTest {
         LambdaFunction projectLambda = (LambdaFunction) mapCall.parameters().get(1);
         NewInstance ni = (NewInstance) ((AppliedFunction) sole(projectLambda.body()))
                 .parameters().get(1);
-        AppliedFunction concat = (AppliedFunction) ni.properties().get("displayName").value();
+        AppliedFunction concat = (AppliedFunction) toOneInner(ni.properties().get("displayName").value());
         assertEquals("concat", concat.function());
 
         AppliedProperty firmName = (AppliedProperty) concat.parameters().get(0);
@@ -3239,7 +3253,7 @@ class MappingNormalizerTest {
         LambdaFunction projectLambda = (LambdaFunction) mapCall.parameters().get(1);
         NewInstance ni = (NewInstance) ((AppliedFunction) sole(projectLambda.body()))
                 .parameters().get(1);
-        AppliedFunction concat = (AppliedFunction) ni.properties().get("line").value();
+        AppliedFunction concat = (AppliedFunction) toOneInner(ni.properties().get("line").value());
         AppliedProperty mainCol = (AppliedProperty) concat.parameters().get(0);
         assertEquals("NAME", mainCol.property());
         assertEquals(new Variable("row"), mainCol.receiver(),
@@ -3435,7 +3449,7 @@ class MappingNormalizerTest {
         LambdaFunction projectLambda = (LambdaFunction) mapCall.parameters().get(1);
         NewInstance ni = (NewInstance) ((AppliedFunction) sole(projectLambda.body()))
                 .parameters().get(1);
-        AppliedFunction concat = (AppliedFunction) ni.properties().get("tagline").value();
+        AppliedFunction concat = (AppliedFunction) toOneInner(ni.properties().get("tagline").value());
         AppliedProperty terminal = (AppliedProperty) concat.parameters().get(0);
         assertEquals("NAME", terminal.property());
         assertEquals("Person_Firm__Firm_Org",
@@ -3689,13 +3703,13 @@ class MappingNormalizerTest {
                 .parameters().get(1);
 
         // k = $row.k  (not $row.K — the key was aliased to the PM name)
-        AppliedProperty kVal = (AppliedProperty) ni.properties().get("k").value();
+        AppliedProperty kVal = (AppliedProperty) toOneInner(ni.properties().get("k").value());
         assertEquals("k", kVal.property(),
                 "Constructor reads the key by its aliased PM name, not the raw column");
         assertEquals(new Variable("row"), kVal.receiver());
 
         // total = $row.total  (the agg-spec's emitted column)
-        AppliedProperty totalVal = (AppliedProperty) ni.properties().get("total").value();
+        AppliedProperty totalVal = (AppliedProperty) toOneInner(ni.properties().get("total").value());
         assertEquals("total", totalVal.property());
         assertEquals(new Variable("row"), totalVal.receiver());
     }
@@ -4001,7 +4015,7 @@ class MappingNormalizerTest {
         LambdaFunction projectLambda = (LambdaFunction) mapCall.parameters().get(1);
         NewInstance ni = (NewInstance) ((AppliedFunction) sole(projectLambda.body()))
                 .parameters().get(1);
-        AppliedProperty nameVal = (AppliedProperty) ni.properties().get("name").value();
+        AppliedProperty nameVal = (AppliedProperty) toOneInner(ni.properties().get("name").value());
         assertEquals("NAME", nameVal.property(),
                 "view column pname rewrote to its underlying physical column NAME");
         assertEquals(new Variable("row"), nameVal.receiver());
@@ -4108,7 +4122,7 @@ class MappingNormalizerTest {
         // firmName reads the terminal column off the joined sub-row:
         // $row.Person_Firm.LEGAL_NAME.
         NewInstance ni = ctorOf(fn);
-        AppliedProperty firmVal = (AppliedProperty) ni.properties().get("firmName").value();
+        AppliedProperty firmVal = (AppliedProperty) toOneInner(ni.properties().get("firmName").value());
         assertEquals("LEGAL_NAME", firmVal.property(),
                 "firmName rewrote to the join terminal column");
         AppliedProperty subRow = (AppliedProperty) firmVal.receiver();
@@ -4295,9 +4309,9 @@ class MappingNormalizerTest {
         NewInstance ni = (NewInstance) ((AppliedFunction) sole(lambda.body()))
                 .parameters().get(1);
         String endSlot   = ((AppliedProperty) ((AppliedProperty)
-                ni.properties().get("endName").value()).receiver()).property();
+                toOneInner(ni.properties().get("endName").value())).receiver()).property();
         String otherSlot = ((AppliedProperty) ((AppliedProperty)
-                ni.properties().get("otherName").value()).receiver()).property();
+                toOneInner(ni.properties().get("otherName").value())).receiver()).property();
         org.junit.jupiter.api.Assertions.assertNotEquals(endSlot, otherSlot,
                 "chain [A, B] and single join A__B must resolve to different slots");
     }
@@ -4334,7 +4348,7 @@ class MappingNormalizerTest {
         LambdaFunction lambda = (LambdaFunction) mapCall.parameters().get(1);
         NewInstance ni = (NewInstance) ((AppliedFunction) sole(lambda.body()))
                 .parameters().get(1);
-        AppliedFunction toCall = (AppliedFunction) ni.properties().get("name").value();
+        AppliedFunction toCall = (AppliedFunction) toOneInner(ni.properties().get("name").value());
         assertEquals("to", toCall.function());
         assertEquals(2, toCall.parameters().size());
 
@@ -4520,7 +4534,7 @@ class MappingNormalizerTest {
         // Parent PM 'name' is inherited, then child's 'salary' (declaration order).
         assertEquals(List.of("name", "salary"), List.copyOf(ni.properties().keySet()),
                 "child absorbs parent PMs (parent first), then its own");
-        AppliedProperty nameRead = (AppliedProperty) ni.properties().get("name").value();
+        AppliedProperty nameRead = (AppliedProperty) toOneInner(ni.properties().get("name").value());
         assertEquals("NAME", nameRead.property(),
                 "inherited 'name' still reads the parent's T.NAME column");
     }
@@ -4543,7 +4557,7 @@ class MappingNormalizerTest {
         NewInstance ni = synthCtor(normalizeViaPipeline(parsed), "::Employee");
         assertEquals(List.of("name"), List.copyOf(ni.properties().keySet()),
                 "conflicting property appears once");
-        AppliedProperty nameRead = (AppliedProperty) ni.properties().get("name").value();
+        AppliedProperty nameRead = (AppliedProperty) toOneInner(ni.properties().get("name").value());
         assertEquals("FULL_NAME", nameRead.property(),
                 "child PM wins on property-name conflict");
     }
@@ -4616,11 +4630,11 @@ class MappingNormalizerTest {
                         + "  } "
                         + ")");
         NewInstance ni = synthCtor(normalizeViaPipeline(parsed), "::Person");
-        AppliedProperty primary = (AppliedProperty) ni.properties().get("primaryFirmName").value();
+        AppliedProperty primary = (AppliedProperty) toOneInner(ni.properties().get("primaryFirmName").value());
         assertEquals("NAME", primary.property());
         assertEquals("Person_PrimaryFirm", ((AppliedProperty) primary.receiver()).property(),
                 "primary terminal column reads from its own sub-row slot");
-        AppliedProperty secondary = (AppliedProperty) ni.properties().get("secondaryFirmName").value();
+        AppliedProperty secondary = (AppliedProperty) toOneInner(ni.properties().get("secondaryFirmName").value());
         assertEquals("NAME", secondary.property());
         assertEquals("Person_SecondaryFirm", ((AppliedProperty) secondary.receiver()).property(),
                 "secondary terminal column reads from its OWN, distinct sub-row slot");

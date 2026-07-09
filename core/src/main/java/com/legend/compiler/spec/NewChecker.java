@@ -31,11 +31,16 @@ final class NewChecker {
                     new TypeInferenceException("class '" + ni.className() + "' has no property '" + name + "'"));
             TypedSpec value = t.synth(key.value(), env);
             t.kernel().unify(prop.type(), value.info().type(), new Bindings());   // value must conform
-            // Multiplicity conformance too: a [2] collection into a [1]
-            // property must not slip by (audit finding). EXCEPTION: navigate()
-            // values — the mapping DSL's navigate is statically T[*] by
-            // design (its predicate narrows the cardinality at Phase H), so
-            // conformance for it is the mapping resolver's question.
+            // Multiplicity conformance: FULL subsumption, exactly real
+            // pure's NewValidator (Multiplicity.subsumes) — the declared
+            // range must contain the value's range, so even [0..1] into a
+            // [1] property is a static error and the writer must spell
+            // ->toOne(). Synthesized mapping bodies conform by EMISSION:
+            // MappingNormalizer wraps store reads bound to [1] properties
+            // in toOne(...) rather than this checker weakening — the
+            // hand-written surface stays pure-compatible. EXCEPTION:
+            // navigate() values — statically T[*] by design; conformance
+            // is the mapping resolver's question.
             if (!(value instanceof com.legend.compiler.spec.typed.TypedNavigate)
                     && prop.multiplicity() instanceof Multiplicity.Bounded declared
                     && value.info().multiplicity() instanceof Multiplicity.Bounded actual) {

@@ -98,7 +98,7 @@ Kind tag is **required on every binding**, even for single-class mappings.
 
 - **Class binding** body must be an expression of type `Class[*]`. Can be:
   - A function reference: `Relational { acme::funcs::personMapping }`
-  - An inline expression: `Relational { tableReference('db','T') -> map(r | ^acme::Person(...)) }`
+  - An inline expression: `Relational { #>{db.T}# -> map(r | ^acme::Person(...)) }`
   - A function call: `Relational { acme::funcs::mappingFor(acme::Person, db1) }`
   - Anything that evaluates to `Class[*]`
 - **Association binding** body must be an expression of type
@@ -108,6 +108,16 @@ Kind tag is **required on every binding**, even for single-class mappings.
   See Layer 9 for details. Function-form bodies are a deferred future
   revision.
 - **Set IDs** are declared inline: `acme::Person[setId]: Relational { f }`.
+
+> **Multiplicity convention in this doc's examples.** Real pure's
+> `NewValidator` demands full multiplicity subsumption on `^new(...)`:
+> binding a store read (statically `[0..1]` for a nullable column or
+> variant key) to a `[1]` property requires an explicit `->toOne()`,
+> e.g. `^acme::Person(firstName = $r.FIRST_NAME->toOne())`. The legacy
+> desugarer emits this wrapper automatically for `[1]`-declared
+> properties; hand-written clean-sheet bodies must spell it. Examples
+> below elide `->toOne()` for readability — read every `[1]`-property
+> column bind as carrying it.
 - **Root marker** is `*` prefix: `*acme::Person: Relational { f }`.
 - **Extends** uses `extends [parentId]` after the class spec.
 
@@ -134,9 +144,9 @@ Phase 1 is **the full Pure Relation API**. Not a curated list of
 mapping-specific operations. Anything that returns a `Relation`:
 
 ```pure
-tableReference('db','PERSON')
+#>{db.PERSON}#
   -> filter(r | $r.STATUS == 'ACTIVE')
-  -> join(~auth: tableReference('db','AUTH'), {p,a|$p.ID==$a.PID})
+  -> join(~auth: #>{db.AUTH}#, {p,a|$p.ID==$a.PID})
   -> navigate(~firm: acme::Firm.all(), {r,f | $r.FIRM_ID == $f.id})
   -> extend(~[ageBracket: r | if($r.AGE > 65, 'senior', 'adult')])
   -> groupBy(~[firmId: r | $r.firm.id], ~[count: x | $x->count()])
@@ -193,7 +203,7 @@ Three syntactic positions, all the same conceptual primitive:
 ### 3.1 Pre-map (Relation widen) — named sub-row
 
 ```pure
-tableReference('db','PERSON')
+#>{db.PERSON}#
   -> navigate(~firm: acme::Firm.all(), {r, f | $r.FIRM_ID == $f.id})
   -> map(r | ^acme::Person(
        firstName    = $r.FIRST_NAME,
@@ -408,7 +418,7 @@ reusable parts.
 
 ```pure
 function acme::funcs::personMapping(): acme::Person[*] = {|
-  tableReference('db','PERSON')
+  #>{db.PERSON}#
     -> filter(r | $r.STATUS == 'ACTIVE')
     -> map(r | ^acme::Person(firstName = $r.FIRST_NAME))
 }
@@ -425,7 +435,7 @@ Mapping acme::M
 -- Pure Relation prep. Returns a typed Relation. Testable as SQL.
 -- Reusable across multiple class constructions and mappings.
 function acme::prep::activePersonRows(): Relation<(PERSON_ID:Integer, FIRST_NAME:String, ...)> = {|
-  tableReference('db','PERSON')
+  #>{db.PERSON}#
     -> filter(r | $r.STATUS == 'ACTIVE')
     -> extend(~[displayName: r | $r.FIRST_NAME + ' ' + $r.LAST_NAME])
 }
@@ -459,7 +469,7 @@ Mapping acme::M
 Mapping acme::M
 (
   acme::Person: Relational {
-    tableReference('db','PERSON') -> map(r | ^acme::Person(firstName = $r.FIRST_NAME))
+    #>{db.PERSON}# -> map(r | ^acme::Person(firstName = $r.FIRST_NAME))
   }
 )
 ```
@@ -468,7 +478,7 @@ Mapping acme::M
 
 ```pure
 function acme::prep::activePersonRows(): Relation<...> = {|
-  tableReference('db','PERSON') -> filter(r | $r.STATUS == 'ACTIVE')
+  #>{db.PERSON}# -> filter(r | $r.STATUS == 'ACTIVE')
 }
 
 Mapping acme::M
@@ -486,7 +496,7 @@ When the data prep produces columns matching class properties 1:1
 
 ```pure
 function acme::prep::people(): Relation<(firstName:String, lastName:String, age:Integer)> = {|
-  tableReference('db','PERSON')
+  #>{db.PERSON}#
     -> filter(r | $r.STATUS == 'ACTIVE')
     -> project(~[
          firstName: r | $r.FIRST_NAME,
@@ -519,7 +529,7 @@ output, projected through the constructor."
 
 ```pure
 function acme::prep::personBase(): Relation<...> = {|
-  tableReference('db','PERSON') -> filter(r | $r.STATUS == 'ACTIVE')
+  #>{db.PERSON}# -> filter(r | $r.STATUS == 'ACTIVE')
 }
 
 function acme::prep::personWithFirm(): Relation<...> = {|
@@ -550,7 +560,7 @@ Each layer is a complete, copy-pasteable user-written setup.
 
 ```pure
 function acme::funcs::personMapping(): acme::Person[*] = {|
-  tableReference('db', 'PERSON')
+  #>{db.PERSON}#
     -> map(r | ^acme::Person(
          firstName = $r.FIRST_NAME,
          lastName  = $r.LAST_NAME,
@@ -569,7 +579,7 @@ With 1:1 sugar (when columns match):
 ```pure
 Mapping acme::M
 (
-  *acme::Person: Relational { tableReference('db','PERSON') -> map(@acme::Person) }
+  *acme::Person: Relational { #>{db.PERSON}# -> map(@acme::Person) }
 )
 ```
 
@@ -580,8 +590,8 @@ in the lambda), A4 (dyna + join — combines with Layer 2).
 
 ```pure
 function acme::funcs::personMapping(): acme::Person[*] = {|
-  tableReference('db', 'PERSON')
-    -> join(~firm: tableReference('db', 'FIRM'),
+  #>{db.PERSON}#
+    -> join(~firm: #>{db.FIRM}#,
             {p, f | $p.FIRM_ID == $f.ID})
     -> map(r | ^acme::Person(
          firstName = $r.FIRST_NAME,
@@ -596,8 +606,8 @@ function acme::funcs::personMapping(): acme::Person[*] = {|
 
 **Multi-hop:**
 ```pure
-... -> join(~firm:    tableReference('db','FIRM'),    {p,f|$p.FIRM_ID==$f.ID})
-   -> join(~country:  tableReference('db','COUNTRY'), {p,c|$p.firm.COUNTRY_ID==$c.ID})
+... -> join(~firm:    #>{db.FIRM}#,    {p,f|$p.FIRM_ID==$f.ID})
+   -> join(~country:  #>{db.COUNTRY}#, {p,c|$p.firm.COUNTRY_ID==$c.ID})
    -> map(r | ^Person(firmName = $r.firm.NAME, countryCode = $r.country.CODE))
 ```
 
@@ -610,7 +620,7 @@ don't own its tables:
 
 ```pure
 function acme::funcs::personMapping(): acme::Person[*] = {|
-  tableReference('db', 'PERSON')
+  #>{db.PERSON}#
     -> navigate(~firm: acme::Firm.all(), {r, f | $r.FIRM_ID == $f.id})
     -> map(r | ^acme::Person(
          firstName    = $r.FIRST_NAME,
@@ -632,7 +642,7 @@ Two equivalent forms; choose by use case.
 **Inline form (concise; primary):**
 ```pure
 function acme::funcs::personMapping(): acme::Person[*] = {|
-  tableReference('db', 'PERSON')
+  #>{db.PERSON}#
     -> map(r | ^acme::Person(
          firstName = $r.FIRST_NAME,
          firm      = navigate(acme::Firm.all(), {f | $r.FIRM_ID == $f.id})
@@ -645,7 +655,7 @@ No `+local` needed. No post-map step. The slot is filled inline.
 **Pre-map form (equivalent; use when target is referenced multiple times):**
 ```pure
 function acme::funcs::personMapping(): acme::Person[*] = {|
-  tableReference('db', 'PERSON')
+  #>{db.PERSON}#
     -> navigate(~firm: acme::Firm.all(), {r, f | $r.FIRM_ID == $f.id})
     -> map(r | ^acme::Person(
          firstName = $r.FIRST_NAME,
@@ -688,7 +698,7 @@ manager = navigate(acme::Employee.all(), {e | $r.MANAGER_ID == $e.id})
 When the constraint holds, the inline-construction form is fine:
 
 ```pure
-... -> join(~firmRow: tableReference('db', 'FIRM'),
+... -> join(~firmRow: #>{db.FIRM}#,
             {p, f | $p.FIRM_ID == $f.ID})
    -> map(r | ^acme::Person(
         firstName = $r.FIRST_NAME,
@@ -744,7 +754,7 @@ construction into its own mapping function and compose via cast.
 ```pure
 -- PersonDetails has its own mapping; defines which columns it reads.
 function acme::funcs::personDetailsMapping(): acme::PersonDetails[*] = {|
-  tableReference('db','PERSON')
+  #>{db.PERSON}#
     -> map(r | ^acme::PersonDetails(
          email = $r.EMAIL,
          phone = $r.PHONE,
@@ -754,7 +764,7 @@ function acme::funcs::personDetailsMapping(): acme::PersonDetails[*] = {|
 
 -- Person's mapping delegates the details-shape to PersonDetails.
 function acme::funcs::personMapping(): acme::Person[*] = {|
-  tableReference('db','PERSON')
+  #>{db.PERSON}#
     -> map(r | ^acme::Person(
          firstName = $r.FIRST_NAME,
          details   = ^acme::PersonDetails($r)       -- pass the whole row; cast reuses PersonDetails's column picks
@@ -803,7 +813,7 @@ Person and Firm mapping functions:
 
 ```pure
 function acme::funcs::personMapping(): acme::Person[*] = {|
-  tableReference('db','PERSON')
+  #>{db.PERSON}#
     -> map(r | ^acme::Person(
          firstName = $r.FIRST_NAME,
          +firmFk   = $r.FIRM_ID
@@ -813,7 +823,7 @@ function acme::funcs::personMapping(): acme::Person[*] = {|
 }
 
 function acme::funcs::firmMapping(): acme::Firm[*] = {|
-  tableReference('db','FIRM')
+  #>{db.FIRM}#
     -> map(r | ^acme::Firm(id = $r.ID, name = $r.NAME))
     -> navigate(~employees: acme::Person.all(),
                 {f, p | acme::funcs::personFirmMatch($p, $f)})
@@ -851,15 +861,15 @@ Association acme::Person_Address ( Person.address [1]: Address, Address.persons 
 Association acme::Address_City   ( Address.city   [1]: City,    City.addresses  [*]: Address )
 
 function acme::funcs::personMapping(): acme::Person[*] = {|
-  tableReference('db','PERSON')
+  #>{db.PERSON}#
     -> map(r | ^acme::Person(id = $r.ID, name = $r.NAME, +addrFk = $r.ADDR_ID))
 }
 function acme::funcs::addressMapping(): acme::Address[*] = {|
-  tableReference('db','ADDR')
+  #>{db.ADDR}#
     -> map(r | ^acme::Address(id = $r.ID, +cityFk = $r.CITY_ID))
 }
 function acme::funcs::cityMapping(): acme::City[*] = {|
-  tableReference('db','CITY')
+  #>{db.CITY}#
     -> map(r | ^acme::City(id = $r.ID, name = $r.NAME))
 }
 
@@ -886,12 +896,12 @@ that never references the middle:
 Association acme::Person_City ( Person.city [1]: City, City.persons [*]: Person )
 
 function acme::funcs::personMapping(): acme::Person[*] = {|
-  tableReference('db','PERSON')
-    -> join(~addr: tableReference('db','ADDR'), {p, a | $p.ADDR_ID == $a.ID})
+  #>{db.PERSON}#
+    -> join(~addr: #>{db.ADDR}#, {p, a | $p.ADDR_ID == $a.ID})
     -> map(r | ^acme::Person(id = $r.ID, name = $r.NAME, +addrCityId = $r.addr.CITY_ID))
 }
 function acme::funcs::cityMapping(): acme::City[*] = {|
-  tableReference('db','CITY')
+  #>{db.CITY}#
     -> map(r | ^acme::City(id = $r.ID, name = $r.NAME))
 }
 function acme::funcs::personCityMatch(p: acme::Person[1], c: acme::City[1]): Boolean[1] = {|
@@ -905,8 +915,8 @@ cannot collapse to a scalar key, carry it as a **physical slot** with
 
 ```pure
 function acme::funcs::personMapping(): acme::Person[*] = {|
-  tableReference('db','PERSON')
-    -> join(~addr: tableReference('db','ADDR'), {p, a | $p.ADDR_ID == $a.ID})
+  #>{db.PERSON}#
+    -> join(~addr: #>{db.ADDR}#, {p, a | $p.ADDR_ID == $a.ID})
     -> navigate(~city: acme::City.all(), {row, c | $row.addr.CITY_ID == $c.id})
     -> map(r | ^acme::Person(id = $r.ID, name = $r.NAME, city = $r.city))
 }
@@ -972,7 +982,7 @@ function acme::funcs::personMapping(): acme::Person[*] = {|
 
 ```pure
 function acme::funcs::personByFirmMapping(): acme::PersonByFirm[*] = {|
-  tableReference('db','PERSON')
+  #>{db.PERSON}#
     -> groupBy(~[firmId: r | $r.FIRM_ID],
                ~[
                  headcount:   x | $x->count(),
@@ -997,7 +1007,7 @@ own mapping function declaring its full property set.
 
 ```pure
 function acme::funcs::employeeMapping(): acme::Employee[*] = {|
-  tableReference('db','EMPLOYEE')
+  #>{db.EMPLOYEE}#
     -> map(r | ^acme::Employee(
          id        = $r.EMP_ID,
          firstName = $r.FIRST_NAME,
@@ -1125,11 +1135,11 @@ collapse to "use Relation API" — they're not mapping-specific.
 
 | # | Feature | Function-form realization |
 |---|---|---|
-| D1 | Table | `tableReference('db', 'T')` |
+| D1 | Table | `#>{db.T}#` |
 | D2-D5 | Joins (simple/complex/function/self) | Inline predicates in `join(...)` |
 | D6 | Filter (DB-declared) | Inline in Phase 1; opt-in to named DB filters TBD |
-| D7 | View | `tableReference('db', 'V')` — no distinction from table |
-| D8 | Schema | `tableReference('db', 'schema.T')` |
+| D7 | View | `#>{db.V}#` — no distinction from table |
+| D8 | Schema | `#>{db.schema.T}#` |
 | D9 | Database include | Store-level, not mapping-level |
 | D10 | TabularFunction | `tableFunctionReference(...)` (open primitive) |
 | D11 | MultiGrainFilter | **Out of scope** (§8) |

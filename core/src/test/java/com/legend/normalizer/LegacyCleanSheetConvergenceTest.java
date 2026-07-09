@@ -137,9 +137,11 @@ class LegacyCleanSheetConvergenceTest {
     @DisplayName("Relational column: ~mainTable + column  ==  tableReference(...) -> map(^Class(...)) — byte-for-byte")
     void relationalColumnConverges() {
         // Verified empirically: the relational desugarer's lifted body byte-
-        // matches the clean-sheet `tableReference(...) -> map(...)` form. (An
-        // earlier worry that the desugarer's internal source representation
-        // would diverge from the parser's turned out to be unfounded.)
+        // matches the clean-sheet `#>{db.TABLE}#` sugar form — both spell the
+        // db as a PackageableElementPtr, and both spell the [1]-property
+        // column bind with an explicit ->toOne() (real pure's NewValidator
+        // subsumption: hand-written clean-sheet MUST write the coercion, and
+        // the desugarer emits the same).
         String shared =
                 "Class model::Person { name: String[1]; } "
               + "Database db::DB ( Table T_PERSON (ID INTEGER, NAME VARCHAR(50)) ) ";
@@ -150,7 +152,7 @@ class LegacyCleanSheetConvergenceTest {
         String clean = shared
               + "Mapping my::M ( "
               + "  *model::Person: Relational { "
-              + "    tableReference('db::DB', 'T_PERSON') -> map(row | ^model::Person(name = $row.NAME)) "
+              + "    #>{db::DB.T_PERSON}# -> map(row | ^model::Person(name = $row.NAME->toOne())) "
               + "  } "
               + ")";
         assertConverges(legacy, clean, "my::M", "my::M$class$model::Person");
@@ -184,8 +186,8 @@ class LegacyCleanSheetConvergenceTest {
               + ")";
         String clean = model
               + "Mapping my::M ( "
-              + "  *model::Firm:   Relational { tableReference('db::DB','T_FIRM') -> map(r | ^model::Firm(id = $r.ID)) } "
-              + "  *model::Person: Relational { tableReference('db::DB','T_PERSON') -> map(r | ^model::Person(firmId = $r.FIRM_ID)) } "
+              + "  *model::Firm:   Relational { #>{db::DB.T_FIRM}# -> map(r | ^model::Firm(id = $r.ID->toOne())) } "
+              + "  *model::Person: Relational { #>{db::DB.T_PERSON}# -> map(r | ^model::Person(firmId = $r.FIRM_ID->toOne())) } "
               + "  model::Person_Firm: AssociationMapping { {a, b | $a.id == $b.firmId} } "
               + ")";
         assertBindingTablesConverge(legacy, clean, "my::M");

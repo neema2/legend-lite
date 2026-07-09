@@ -164,10 +164,10 @@ class PhaseHCensusTest {
         // one-way — green may only rise):
         org.junit.jupiter.api.Assertions.assertEquals(14, total,
                 "fixture battery size changed — re-baseline the census pin");
-        org.junit.jupiter.api.Assertions.assertEquals(1, green,
+        org.junit.jupiter.api.Assertions.assertEquals(9, green,
                 "census GREEN count moved — if it ROSE, update this pin (progress!);"
                         + " if it FELL, a Phase-G regression broke a mapping body");
-        org.junit.jupiter.api.Assertions.assertEquals(3, buckets.size(),
+        org.junit.jupiter.api.Assertions.assertEquals(5, buckets.size(),
                 "failure-bucket count moved — update the census table in"
                         + " docs/PHASE_H_PLAN.md and this pin together");
     }
