@@ -2747,7 +2747,7 @@ class MappingNormalizerTest {
         assertEquals("TGT_ID", propOf(eq.parameters().get(0)));
         assertEquals("s", recvOf(eq.parameters().get(0)), "source side reads $s");
         AppliedFunction isNullCall = (AppliedFunction) andCall.parameters().get(1);
-        assertEquals("isNull", isNullCall.function());
+        assertEquals("isEmpty", isNullCall.function());
         AppliedProperty deletedAt = (AppliedProperty) isNullCall.parameters().get(0);
         assertEquals("DELETED_AT", deletedAt.property());
         assertEquals("t", ((Variable) deletedAt.receiver()).name(),

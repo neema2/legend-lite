@@ -46,14 +46,21 @@ final class Scalars {
 
     static {
         family(SqlFn.EQUAL, "equal");
-        family(SqlFn.NOT_EQUAL, "notEqual");
         family(SqlFn.LESS, "lessThan");
         family(SqlFn.LESS_EQUAL, "lessThanEqual");
         family(SqlFn.GREATER, "greaterThan");
         family(SqlFn.GREATER_EQUAL, "greaterThanEqual");
         family(SqlFn.AND, "and");
         family(SqlFn.OR, "or");
-        family(SqlFn.NOT, "not");
+        // not(equal(a,b)) renders as a <> b (lean SQL): the peephole keeps
+        // SqlFn.NOT_EQUAL alive even though the QUERY spelling is not(equal)
+        // (real pure has no notEqual — FQN_MIGRATION finding).
+        for (String f : Pure.nativeKeysAt("not")) {
+            RULES.put(f, (n, args) ->
+                    args.get(0) instanceof SqlExpr.Call c && c.fn() == SqlFn.EQUAL
+                            ? new SqlExpr.Call(SqlFn.NOT_EQUAL, c.args())
+                            : new SqlExpr.Call(SqlFn.NOT, args));
+        }
         family(SqlFn.PLUS, "plus");
         family(SqlFn.MINUS, "minus");
         family(SqlFn.TIMES, "times");
@@ -213,6 +220,25 @@ final class Scalars {
                 return new SqlExpr.Call(SqlFn.FORMAT, spread);
             });
         }
+        // REAL pure hash(text, HashType.X): the enum value picks the digest
+        // (the relational md5/sha dynafunctions translate here — the lite
+        // md5/sha natives are gone).
+        for (String f : Pure.nativeKeysAt("meta::pure::functions::hash::hash")) {
+            RULES.put(f, (n, args) -> {
+                if (!(n.args().get(1) instanceof com.legend.compiler.spec.typed.TypedEnumValue ev)) {
+                    throw new IllegalStateException("hash(text, hashType) needs a HashType literal");
+                }
+                SqlFn digest = switch (ev.value()) {
+                    case "MD5" -> SqlFn.MD5;
+                    case "SHA1" -> SqlFn.SHA1;
+                    case "SHA256" -> SqlFn.SHA256;
+                    default -> throw new IllegalStateException(
+                            "unknown HashType." + ev.value());
+                };
+                return new SqlExpr.Call(digest, List.of(args.get(0)));
+            });
+        }
+
         // Parses and toString are CASTS (the Type rides the IR).
         castFamily("toString", Type.Primitive.STRING);
         castFamily("parseInteger", Type.Primitive.INTEGER);

@@ -343,6 +343,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case GUID -> "uuid()";
             case FORMAT -> fn("printf", a);
             case HASH -> fn("hash", a);
+            case MD5 -> fn("md5", a);
+            case SHA1 -> fn("sha1", a);
+            case SHA256 -> fn("sha256", a);
             // Temporal
             case EXTRACT -> fn("date_part", a);
             case TODAY -> "current_date";

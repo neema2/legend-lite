@@ -2058,28 +2058,46 @@ public final class MappingNormalizer {
                 yield new AppliedProperty(targetVarOrNull, tref.column());
             }
             case RelationalOperation.Literal lit -> literalToValueSpec(lit.value());
+            case RelationalOperation.FunctionCall call when isHashDyna(call.name()) ->
+                    // The relational DSL's md5/sha1/sha256 dynafunctions are
+                    // engine-real; PURE-side they translate to the REAL
+                    // hash(x, HashType.X) (core_functions_unclassified/hash)
+                    // — the lite md5/sha natives are gone.
+                    new AppliedFunction("hash", List.of(
+                            translateRelOp(call.args().get(0), tableScope, targetVarOrNull,
+                                    rowBindOrNull, pipelineOrNull),
+                            new EnumValue("meta::pure::functions::hash::HashType",
+                                    call.name().toUpperCase())));
             case RelationalOperation.FunctionCall call -> new AppliedFunction(
                     call.name(),
                     call.args().stream()
                             .map(a -> translateRelOp(a, tableScope, targetVarOrNull,
                                     rowBindOrNull, pipelineOrNull))
                             .toList());
-            case RelationalOperation.Comparison cmp -> new AppliedFunction(
-                    comparisonFn(cmp.op()),
-                    List.of(translateRelOp(cmp.left(),  tableScope, targetVarOrNull,
-                                    rowBindOrNull, pipelineOrNull),
-                            translateRelOp(cmp.right(), tableScope, targetVarOrNull,
-                                    rowBindOrNull, pipelineOrNull)));
+            case RelationalOperation.Comparison cmp -> {
+                AppliedFunction c = new AppliedFunction(
+                        comparisonFn(cmp.op()),
+                        List.of(translateRelOp(cmp.left(),  tableScope, targetVarOrNull,
+                                        rowBindOrNull, pipelineOrNull),
+                                translateRelOp(cmp.right(), tableScope, targetVarOrNull,
+                                        rowBindOrNull, pipelineOrNull)));
+                // NEQ emits not(equal(...)) — real pure has no notEqual.
+                yield cmp.op() == ComparisonOp.NEQ
+                        ? new AppliedFunction("not", List.of(c)) : c;
+            }
             case RelationalOperation.BooleanOp bo -> new AppliedFunction(
                     bo.op() == LogicalOp.AND ? "and" : "or",
                     List.of(translateRelOp(bo.left(),  tableScope, targetVarOrNull,
                                     rowBindOrNull, pipelineOrNull),
                             translateRelOp(bo.right(), tableScope, targetVarOrNull,
                                     rowBindOrNull, pipelineOrNull)));
-            case RelationalOperation.IsNull n -> new AppliedFunction("isNull",
+            // Relational 'is (not) null' translates to REAL pure's
+            // isEmpty/isNotEmpty — identical semantics on [0..1] values
+            // (the lite isNull/isNotNull natives are gone).
+            case RelationalOperation.IsNull n -> new AppliedFunction("isEmpty",
                     List.of(translateRelOp(n.operand(), tableScope, targetVarOrNull,
                             rowBindOrNull, pipelineOrNull)));
-            case RelationalOperation.IsNotNull n -> new AppliedFunction("isNotNull",
+            case RelationalOperation.IsNotNull n -> new AppliedFunction("isNotEmpty",
                     List.of(translateRelOp(n.operand(), tableScope, targetVarOrNull,
                             rowBindOrNull, pipelineOrNull)));
             case RelationalOperation.Group g ->
@@ -2123,10 +2141,14 @@ public final class MappingNormalizer {
                 + (value == null ? "null" : value.getClass().getName()));
     }
 
+    private static boolean isHashDyna(String name) {
+        return name.equals("md5") || name.equals("sha1") || name.equals("sha256");
+    }
+
     private static String comparisonFn(ComparisonOp op) {
         return switch (op) {
             case EQ  -> "equal";
-            case NEQ -> "notEqual";
+            case NEQ -> "equal";   // wrapped in not(...) at the call site
             case LT  -> "lessThan";
             case LTE -> "lessThanEqual";
             case GT  -> "greaterThan";

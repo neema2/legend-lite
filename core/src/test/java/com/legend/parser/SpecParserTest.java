@@ -752,32 +752,30 @@ final class SpecParserTest {
 
     @Test
     void equalityOpsUseCanonicalNames() {
-        // == and != desugar to equal/notEqual. These are handled at the
-        // parseExpression level (between postfix and arithmetic) in
-        // Pure's grammar, so they're tested as their own case.
+        // == desugars to equal; != to not(equal(...)) — REAL pure's
+        // spelling (there is NO notEqual native; FQN_MIGRATION finding).
         assertEquals(
                 new AppliedFunction("equal", List.of(
                         new Variable("x"), new CInteger(1L))),
                 SpecParser.parse("$x == 1"));
         assertEquals(
-                new AppliedFunction("notEqual", List.of(
-                        new Variable("x"), new CInteger(1L))),
+                new AppliedFunction("not", List.of(
+                        new AppliedFunction("equal", List.of(
+                                new Variable("x"), new CInteger(1L))))),
                 SpecParser.parse("$x != 1"));
     }
 
     @Test
     void alternateNotEqualSpellingDesugarsIdentically() {
-        // Pure spells inequality two ways: '!=' and '<>'. Both must
-        // produce the same AppliedFunction("notEqual", ...) so the
-        // model layer never has to care which form was written.
-        // A regression that handled only one form would fail here.
+        // Pure spells inequality two ways: '!=' and '<>'. Both desugar to
+        // not(equal(...)) — real pure's spelling — identically.
         ValueSpecification bang = SpecParser.parse("$x != 1");
         ValueSpecification angle = SpecParser.parse("$x <> 1");
         assertEquals(bang, angle,
                 "'$x != 1' and '$x <> 1' must produce equal AST");
         assertEquals(
-                new AppliedFunction("notEqual", List.of(
-                        new Variable("x"), new CInteger(1L))),
+                new AppliedFunction("not", List.of(new AppliedFunction("equal", List.of(
+                        new Variable("x"), new CInteger(1L))))),
                 angle);
     }
 

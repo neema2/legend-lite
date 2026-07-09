@@ -449,10 +449,13 @@ public final class SpecParser implements TokenStreamCursor {
             if (t == TokenType.TEST_EQUAL
                     || t == TokenType.TEST_NOT_EQUAL
                     || t == TokenType.NOT_EQUAL) {
-                String fn = (t == TokenType.TEST_EQUAL) ? "equal" : "notEqual";
                 pos++;
                 ValueSpecification right = parseCombinedArithmeticOnly();
-                expr = new AppliedFunction(fn, List.of(expr, right));
+                // != desugars to not(equal(...)) — REAL pure's spelling
+                // (there is no notEqual native; FQN_MIGRATION finding).
+                AppliedFunction eq = new AppliedFunction("equal", List.of(expr, right));
+                expr = (t == TokenType.TEST_EQUAL) ? eq
+                        : new AppliedFunction("not", List.of(eq));
             }
         }
         return expr;
