@@ -898,7 +898,7 @@ public final class MappingNormalizer {
         ValueSpecification mapLambda = map.parameters().get(1);
         Variable rowBind = new Variable("row");
         Map<String, ValueSpecification> scope = Map.of(physicalTable, rowBind);
-        ValueSpecification cond = translateRelOp(fd.condition(), scope, null, rowBind, null);
+        ValueSpecification cond = RelOpTranslator.translate(fd.condition(), scope, null, rowBind, RelOpTranslator.PipelineView.NONE);
         ValueSpecification filtered = new AppliedFunction("filter",
                 List.of(source, new LambdaFunction(List.of(rowBind), List.of(cond))));
         return new AppliedFunction("map", List.of(filtered, mapLambda));
@@ -920,7 +920,7 @@ public final class MappingNormalizer {
             List<JoinNavSpec> navs = new ArrayList<>();
             collectJoinNavigations(expr, navs);
             if (!navs.isEmpty()) continue;   // joined column — not the view's root table
-            collectTablesIn(expr, tables);
+            RelOpTranslator.collectTablesIn(expr, tables);
         }
         if (tables.isEmpty()) {
             throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
@@ -965,6 +965,24 @@ public final class MappingNormalizer {
         // intended sub-row with a join-terminal column (| T.COL) instead.
         final Set<String> ambiguousTables = new HashSet<>();
         Pipeline(ValueSpecification expr) { this.expr = expr; }
+
+        /** The translator-facing view of this pipeline (seam b). */
+        RelOpTranslator.PipelineView view() {
+            return new RelOpTranslator.PipelineView() {
+                @Override public java.util.Set<String> ambiguousTables() {
+                    return ambiguousTables;
+                }
+                @Override public boolean hasSlots() {
+                    return true;
+                }
+                @Override public String slotFor(java.util.List<JoinChainElement> chain) {
+                    return MappingNormalizer.slotFor(Pipeline.this, chain);
+                }
+                @Override public String targetTable(String alias) {
+                    return aliasToTargetTable.get(alias);
+                }
+            };
+        }
     }
 
     private static ValueSpecification synthTableBackedMapping(LegacyMappingDefinition md,
@@ -1213,8 +1231,8 @@ public final class MappingNormalizer {
             condScope.put(prevTable, prevAlias == null
                     ? s : new AppliedProperty(s, prevAlias));
             if (!targetTable.equals(prevTable)) condScope.put(targetTable, t);
-            ValueSpecification cond = translateRelOp(jd.operation(), condScope, t,
-                    /*rowBind*/ null, /*pipeline*/ null);
+            ValueSpecification cond = RelOpTranslator.translate(jd.operation(), condScope, t,
+                    /*rowBind*/ null, RelOpTranslator.PipelineView.NONE);
             LambdaFunction condLambda = new LambdaFunction(List.of(s, t), List.of(cond));
 
             if (emitNavigate) {
@@ -1366,13 +1384,13 @@ public final class MappingNormalizer {
         }
         return switch (pm) {
             case PropertyMapping.Column col -> new CtorField(col.propertyName(),
-                    columnRead(col.table(), col.column(), tableScope, defaultTable, pipeline),
+                    RelOpTranslator.columnRead(col.table(), col.column(), tableScope, defaultTable, pipeline.view()),
                     false);
             case PropertyMapping.EnumeratedColumn ec -> new CtorField(ec.propertyName(),
                     translateEnumeratedColumn(ec, tableScope, defaultTable, md, pipeline),
                     false);
             case PropertyMapping.Expression expr -> new CtorField(expr.propertyName(),
-                    translateRelOp(expr.expression(), tableScope, null, rowBind, pipeline),
+                    RelOpTranslator.translate(expr.expression(), tableScope, null, rowBind, pipeline.view()),
                     false);
             case PropertyMapping.Join j -> {
                 String targetIfMapped = classTypedTargetIfMapped(ownerClassFqn,
@@ -1390,7 +1408,7 @@ public final class MappingNormalizer {
                 String terminalTable = pipeline.aliasToTargetTable.get(alias);
                 if (terminalTable != null) scope.put(terminalTable, subRow);
                 yield new CtorField(jtc.propertyName(),
-                        translateRelOp(jtc.terminalColumn(), scope, null, rowBind, pipeline),
+                        RelOpTranslator.translate(jtc.terminalColumn(), scope, null, rowBind, pipeline.view()),
                         false);
             }
             case PropertyMapping.LocalProperty lp -> {
@@ -1558,7 +1576,7 @@ public final class MappingNormalizer {
         Map<String, ValueSpecification> scope = new LinkedHashMap<>();
         scope.put(mainTable, rowBind);
         seedAliasScope(scope, p, rowBind, mainTable);
-        ValueSpecification cond = translateRelOp(fd.condition(), scope, null, rowBind, p);
+        ValueSpecification cond = RelOpTranslator.translate(fd.condition(), scope, null, rowBind, p.view());
         return new AppliedFunction("filter", List.of(source,
                 new LambdaFunction(List.of(rowBind), List.of(cond))));
     }
@@ -1591,8 +1609,8 @@ public final class MappingNormalizer {
         seedAliasScope(scope, p, rowBind, mainTable);
         String terminalTable = p.aliasToTargetTable.get(terminalAlias);
         if (terminalTable != null) scope.putIfAbsent(terminalTable, terminalRow);
-        ValueSpecification cond = translateRelOp(fd.condition(), scope, terminalRow,
-                rowBind, p);
+        ValueSpecification cond = RelOpTranslator.translate(fd.condition(), scope, terminalRow,
+                rowBind, p.view());
         return new AppliedFunction("filter", List.of(source,
                 new LambdaFunction(List.of(rowBind), List.of(cond))));
     }
@@ -1649,8 +1667,8 @@ public final class MappingNormalizer {
         // Build key ColSpecs.
         List<ColSpec> keyCols = new ArrayList<>(keyOps.size());
         for (int i = 0; i < keyOps.size(); i++) {
-            ValueSpecification keyValue = translateRelOp(keyOps.get(i), scope, null,
-                    rowBind, p);
+            ValueSpecification keyValue = RelOpTranslator.translate(keyOps.get(i), scope, null,
+                    rowBind, p.view());
             keyCols.add(new ColSpec(keyNames[i],
                     new LambdaFunction(List.of(rowBind), List.of(keyValue)), null));
         }
@@ -1666,8 +1684,8 @@ public final class MappingNormalizer {
                       + "aggregates lift to the two-stage AggColSpec form. Mapping="
                       + md.qualifiedName());
             }
-            ValueSpecification selector = translateRelOp(fc.args().get(0), scope, null,
-                    rowBind, p);
+            ValueSpecification selector = RelOpTranslator.translate(fc.args().get(0), scope, null,
+                    rowBind, p.view());
             Variable vals = new Variable("vals");
             ValueSpecification aggBody = new AppliedFunction(
                     fc.name(), List.of(vals));
@@ -1814,7 +1832,7 @@ public final class MappingNormalizer {
             Map<String, ValueSpecification> condScope = new LinkedHashMap<>();
             condScope.put(sourceTable, srcRow);
             if (!targetTable.equals(sourceTable)) condScope.put(targetTable, tgtRow);
-            return translateRelOp(jd.operation(), condScope, tgtRow, /*rowBind*/ null, /*pipeline*/ null);
+            return RelOpTranslator.translate(jd.operation(), condScope, tgtRow, /*rowBind*/ null, RelOpTranslator.PipelineView.NONE);
         }
         // Unreachable: multi-hop associations are intercepted in
         // synthesizeAssociationMapping (returns null) and realized as per-end
@@ -1867,8 +1885,8 @@ public final class MappingNormalizer {
                   + "enum mapping '" + ec.enumMappingId() + "'; mapping="
                   + md.qualifiedName());
         }
-        ValueSpecification colRead = columnRead(ec.table(), ec.column(),
-                tableScope, defaultTable, p);
+        ValueSpecification colRead = RelOpTranslator.columnRead(ec.table(), ec.column(),
+                tableScope, defaultTable, p == null ? RelOpTranslator.PipelineView.NONE : p.view());
         ValueSpecification tail = new PureCollection(List.of());
         List<EnumerationMapping.EnumValueMapping> values = em.valueMappings();
         for (int i = values.size() - 1; i >= 0; i--) {
@@ -1938,7 +1956,7 @@ public final class MappingNormalizer {
                                               int hopIndex, String mappingFqn) {
         if (containsTargetColumnRef(cond)) return sourceTable;
         Set<String> tables = new LinkedHashSet<>();
-        collectTablesIn(cond, tables);
+        RelOpTranslator.collectTablesIn(cond, tables);
         tables.remove(sourceTable);
         if (tables.size() == 1) return tables.iterator().next();
         if (tables.isEmpty()) {
@@ -1974,38 +1992,9 @@ public final class MappingNormalizer {
         };
     }
 
-    private static void collectTablesIn(RelationalOperation op, Set<String> sink) {
-        switch (op) {
-            case RelationalOperation.ColumnRef cr            -> sink.add(cr.table());
-            case RelationalOperation.TargetColumnRef ignored -> { }
-            case RelationalOperation.Literal ignored         -> { }
-            case RelationalOperation.FunctionCall fc         -> fc.args().forEach(a -> collectTablesIn(a, sink));
-            case RelationalOperation.Comparison c            -> { collectTablesIn(c.left(), sink); collectTablesIn(c.right(), sink); }
-            case RelationalOperation.BooleanOp b             -> { collectTablesIn(b.left(), sink); collectTablesIn(b.right(), sink); }
-            case RelationalOperation.IsNull n                -> collectTablesIn(n.operand(), sink);
-            case RelationalOperation.IsNotNull n             -> collectTablesIn(n.operand(), sink);
-            case RelationalOperation.Group g                 -> collectTablesIn(g.inner(), sink);
-            case RelationalOperation.ArrayLiteral a          -> a.elements().forEach(e -> collectTablesIn(e, sink));
-            case RelationalOperation.JoinNavigation ignored  -> throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
-                    "JoinNavigation inside expression");
-        }
-    }
 
-    private static ValueSpecification columnRead(String table, String column,
-                                                Map<String, ValueSpecification> tableScope,
-                                                String defaultTable, Pipeline p) {
-        ValueSpecification base = tableScope.get(table);
-        if (base == null && p != null && p.ambiguousTables.contains(table)) {
-            throw ambiguousTableRef(table, column);
-        }
-        if (base == null) base = tableScope.get(defaultTable);
-        if (base == null) {
-            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
-                    "No row variable in scope for table '" + table
-                  + "'; available=" + tableScope.keySet());
-        }
-        return new AppliedProperty(base, column);
-    }
+
+
 
     /**
      * A bare column reference to a table the join chain reaches through more
@@ -2013,14 +2002,7 @@ public final class MappingNormalizer {
      * table name, which cannot pick between two sub-rows of the same table.
      * Fail loudly with guidance rather than resolve to an arbitrary sub-row.
      */
-    private static com.legend.error.ModelException ambiguousTableRef(String table, String column) {
-        return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
-                "Ambiguous column reference '" + table + "." + column + "': the join "
-              + "chain reaches table '" + table + "' through more than one path, so a "
-              + "bare column reference cannot identify which sub-row is meant. Pin the "
-              + "intended sub-row with a join-terminal column (e.g. @SomeJoin | "
-              + table + "." + column + ").");
-    }
+
 
     /**
      * Translate a {@link RelationalOperation} into a Pure value
@@ -2030,131 +2012,13 @@ public final class MappingNormalizer {
      * its sub-row is reachable as {@code $row.<alias>}, and the
      * terminal column (if any) reads from that sub-row.
      */
-    private static ValueSpecification translateRelOp(RelationalOperation op,
-                                                    Map<String, ValueSpecification> tableScope,
-                                                    ValueSpecification targetVarOrNull,
-                                                    Variable rowBindOrNull,
-                                                    Pipeline pipelineOrNull) {
-        return switch (op) {
-            case RelationalOperation.ColumnRef ref -> {
-                ValueSpecification path = tableScope.get(ref.table());
-                if (path == null && pipelineOrNull != null
-                        && pipelineOrNull.ambiguousTables.contains(ref.table())) {
-                    throw ambiguousTableRef(ref.table(), ref.column());
-                }
-                if (path == null) {
-                    throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
-                            "ColumnRef references table '" + ref.table()
-                          + "' not in scope; available=" + tableScope.keySet());
-                }
-                yield new AppliedProperty(path, ref.column());
-            }
-            case RelationalOperation.TargetColumnRef tref -> {
-                if (targetVarOrNull == null) {
-                    throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
-                            "TargetColumnRef {target}." + tref.column()
-                          + " outside a join condition context");
-                }
-                yield new AppliedProperty(targetVarOrNull, tref.column());
-            }
-            case RelationalOperation.Literal lit -> literalToValueSpec(lit.value());
-            case RelationalOperation.FunctionCall call when isHashDyna(call.name()) ->
-                    // The relational DSL's md5/sha1/sha256 dynafunctions are
-                    // engine-real; PURE-side they translate to the REAL
-                    // hash(x, HashType.X) (core_functions_unclassified/hash)
-                    // — the lite md5/sha natives are gone.
-                    new AppliedFunction("hash", List.of(
-                            translateRelOp(call.args().get(0), tableScope, targetVarOrNull,
-                                    rowBindOrNull, pipelineOrNull),
-                            new EnumValue("meta::pure::functions::hash::HashType",
-                                    call.name().toUpperCase())));
-            case RelationalOperation.FunctionCall call -> new AppliedFunction(
-                    call.name(),
-                    call.args().stream()
-                            .map(a -> translateRelOp(a, tableScope, targetVarOrNull,
-                                    rowBindOrNull, pipelineOrNull))
-                            .toList());
-            case RelationalOperation.Comparison cmp -> {
-                AppliedFunction c = new AppliedFunction(
-                        comparisonFn(cmp.op()),
-                        List.of(translateRelOp(cmp.left(),  tableScope, targetVarOrNull,
-                                        rowBindOrNull, pipelineOrNull),
-                                translateRelOp(cmp.right(), tableScope, targetVarOrNull,
-                                        rowBindOrNull, pipelineOrNull)));
-                // NEQ emits not(equal(...)) — real pure has no notEqual.
-                yield cmp.op() == ComparisonOp.NEQ
-                        ? new AppliedFunction("not", List.of(c)) : c;
-            }
-            case RelationalOperation.BooleanOp bo -> new AppliedFunction(
-                    bo.op() == LogicalOp.AND ? "and" : "or",
-                    List.of(translateRelOp(bo.left(),  tableScope, targetVarOrNull,
-                                    rowBindOrNull, pipelineOrNull),
-                            translateRelOp(bo.right(), tableScope, targetVarOrNull,
-                                    rowBindOrNull, pipelineOrNull)));
-            // Relational 'is (not) null' translates to REAL pure's
-            // isEmpty/isNotEmpty — identical semantics on [0..1] values
-            // (the lite isNull/isNotNull natives are gone).
-            case RelationalOperation.IsNull n -> new AppliedFunction("isEmpty",
-                    List.of(translateRelOp(n.operand(), tableScope, targetVarOrNull,
-                            rowBindOrNull, pipelineOrNull)));
-            case RelationalOperation.IsNotNull n -> new AppliedFunction("isNotEmpty",
-                    List.of(translateRelOp(n.operand(), tableScope, targetVarOrNull,
-                            rowBindOrNull, pipelineOrNull)));
-            case RelationalOperation.Group g ->
-                    translateRelOp(g.inner(), tableScope, targetVarOrNull,
-                            rowBindOrNull, pipelineOrNull);
-            case RelationalOperation.ArrayLiteral arr -> new PureCollection(
-                    arr.elements().stream()
-                            .map(e -> translateRelOp(e, tableScope, targetVarOrNull,
-                                    rowBindOrNull, pipelineOrNull))
-                            .toList());
-            case RelationalOperation.JoinNavigation jn -> {
-                // The chain has been hoisted into the pipeline as a
-                // join(~alias, ...) step. Its sub-row is $row.<alias>;
-                // the terminal (if any) reads from that sub-row's
-                // table scope.
-                if (rowBindOrNull == null || pipelineOrNull == null) {
-                    throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
-                            "Nested JoinNavigation in scope without pipeline; "
-                          + "JoinNav inside association predicates or join "
-                          + "conditions is not supported.");
-                }
-                String alias = slotFor(pipelineOrNull, jn.chain());
-                ValueSpecification subRow = new AppliedProperty(rowBindOrNull, alias);
-                if (jn.terminal() == null) yield subRow;
-                String terminalTable = pipelineOrNull.aliasToTargetTable.get(alias);
-                Map<String, ValueSpecification> innerScope = new LinkedHashMap<>(tableScope);
-                if (terminalTable != null) innerScope.put(terminalTable, subRow);
-                yield translateRelOp(jn.terminal(), innerScope, targetVarOrNull,
-                        rowBindOrNull, pipelineOrNull);
-            }
-        };
-    }
 
-    private static ValueSpecification literalToValueSpec(Object value) {
-        if (value instanceof String s)  return new CString(s);
-        if (value instanceof Long l)    return new CInteger(l);
-        if (value instanceof Integer i) return new CInteger((long) i);
-        if (value instanceof Double d)  return new CFloat(d);
-        if (value instanceof Boolean b) return new CBoolean(b);
-        throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, "Unsupported literal type: "
-                + (value == null ? "null" : value.getClass().getName()));
-    }
 
-    private static boolean isHashDyna(String name) {
-        return name.equals("md5") || name.equals("sha1") || name.equals("sha256");
-    }
 
-    private static String comparisonFn(ComparisonOp op) {
-        return switch (op) {
-            case EQ  -> "equal";
-            case NEQ -> "equal";   // wrapped in not(...) at the call site
-            case LT  -> "lessThan";
-            case LTE -> "lessThanEqual";
-            case GT  -> "greaterThan";
-            case GTE -> "greaterThanEqual";
-        };
-    }
+
+
+
+
 
     private static ValueSpecification buildNewInstance(String classFqn,
                                                       Map<String, KeyExpression> fields) {
