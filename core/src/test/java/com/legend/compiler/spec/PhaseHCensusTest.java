@@ -27,17 +27,19 @@ import java.util.TreeMap;
  */
 public class PhaseHCensusTest {
 
-    /** SHARED battery: the resolver's ClassSourceTest extracts over the same fixtures. */
-    public static final Map<String, String> FIXTURES = new LinkedHashMap<>();
+    private static final Map<String, String> FIXTURES_MUTABLE = new LinkedHashMap<>();
+    /** SHARED battery (read-only): the resolver's ClassSourceTest extracts over the same fixtures. */
+    public static final Map<String, String> FIXTURES =
+            java.util.Collections.unmodifiableMap(FIXTURES_MUTABLE);
 
     static {
-        FIXTURES.put("A1 simple columns", """
+        FIXTURES_MUTABLE.put("A1 simple columns", """
             Class m::Person { name: String[1]; age: Integer[1]; }
             Database s::DB ( Table T (NAME VARCHAR(50), AGE INTEGER) )
             Mapping m::M ( *m::Person: Relational { ~mainTable [s::DB] T
               name: T.NAME, age: T.AGE } )
             """);
-        FIXTURES.put("A2 join chain property", """
+        FIXTURES_MUTABLE.put("A2 join chain property", """
             Class m::Person { name: String[1]; firmName: String[1]; }
             Database s::DB (
               Table P (NAME VARCHAR(50), FID INTEGER)
@@ -46,13 +48,13 @@ public class PhaseHCensusTest {
             Mapping m::M ( *m::Person: Relational { ~mainTable [s::DB] P
               name: P.NAME, firmName: @PF | F.LEGAL } )
             """);
-        FIXTURES.put("A3 dynafunction", """
+        FIXTURES_MUTABLE.put("A3 dynafunction", """
             Class m::P { full: String[1]; up: String[1]; digest: String[1]; }
             Database s::DB ( Table T (A VARCHAR(10), B VARCHAR(10)) )
             Mapping m::M ( *m::P: Relational { ~mainTable [s::DB] T
               full: concat(T.A, ' ', T.B), up: toUpper(T.A), digest: md5(T.B) } )
             """);
-        FIXTURES.put("A5 enum mapping", """
+        FIXTURES_MUTABLE.put("A5 enum mapping", """
             Enum m::Status { ACTIVE, INACTIVE }
             Class m::P { status: m::Status[1]; }
             Database s::DB ( Table T (CODE VARCHAR(10)) )
@@ -61,33 +63,33 @@ public class PhaseHCensusTest {
               *m::P: Relational { ~mainTable [s::DB] T
                 status: EnumerationMapping StatusM: T.CODE } )
             """);
-        FIXTURES.put("A6 embedded", """
+        FIXTURES_MUTABLE.put("A6 embedded", """
             Class m::P { name: String[1]; addr: m::Addr[1]; }
             Class m::Addr { city: String[1]; }
             Database s::DB ( Table T (NAME VARCHAR(50), CITY VARCHAR(50)) )
             Mapping m::M ( *m::P: Relational { ~mainTable [s::DB] T
               name: T.NAME, addr( city: T.CITY ) } )
             """);
-        FIXTURES.put("B2 mapping filter", """
+        FIXTURES_MUTABLE.put("B2 mapping filter", """
             Class m::P { name: String[1]; }
             Database s::DB ( Table T (NAME VARCHAR(50), ACTIVE INTEGER)
               Filter ActiveF ( T.ACTIVE = 1 ) )
             Mapping m::M ( *m::P: Relational { ~filter [s::DB] ActiveF
               ~mainTable [s::DB] T name: T.NAME } )
             """);
-        FIXTURES.put("B4+B5 distinct groupBy", """
+        FIXTURES_MUTABLE.put("B4+B5 distinct groupBy", """
             Class m::P { name: String[1]; total: Integer[1]; }
             Database s::DB ( Table T (NAME VARCHAR(50), AMT INTEGER) )
             Mapping m::M ( *m::P: Relational { ~distinct
               ~mainTable [s::DB] T name: T.NAME, total: T.AMT } )
             """);
-        FIXTURES.put("B5 groupBy agg", """
+        FIXTURES_MUTABLE.put("B5 groupBy agg", """
             Class m::P { name: String[1]; total: Integer[1]; }
             Database s::DB ( Table T (NAME VARCHAR(50), AMT INTEGER) )
             Mapping m::M ( *m::P: Relational { ~groupBy([s::DB] T.NAME)
               ~mainTable [s::DB] T name: T.NAME, total: sum(T.AMT) } )
             """);
-        FIXTURES.put("C association", """
+        FIXTURES_MUTABLE.put("C association", """
             Class m::Person { name: String[1]; }
             Class m::Firm { legal: String[1]; }
             Association m::Emp { employer: m::Firm[1]; staff: m::Person[*]; }
@@ -101,7 +103,7 @@ public class PhaseHCensusTest {
               m::Emp: Relational { AssociationMapping (
                 employer: [s::DB] @PF, staff: [s::DB] @PF ) } )
             """);
-        FIXTURES.put("view-backed", """
+        FIXTURES_MUTABLE.put("view-backed", """
             Class m::P { name: String[1]; }
             Database s::DB ( Table T (NAME VARCHAR(50), ACTIVE INTEGER)
               Filter ActiveF ( T.ACTIVE = 1 )
@@ -109,7 +111,7 @@ public class PhaseHCensusTest {
             Mapping m::M ( *m::P: Relational { ~mainTable [s::DB] V
               name: V.vname } )
             """);
-        FIXTURES.put("derived property", """
+        FIXTURES_MUTABLE.put("derived property", """
             Class m::P { first: String[1]; last: String[1];
               full() { $this.first + ' ' + $this.last }: String[1]; }
             Database s::DB ( Table T (F VARCHAR(20), L VARCHAR(20)) )

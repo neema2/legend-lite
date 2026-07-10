@@ -21,12 +21,14 @@
  *       {@code TypedJoinSlot}, or {@code TypedNavigate} reaching the lowerer
  *       after resolution is a resolver bug and fails on the lowerer's named
  *       walls.</li>
- *   <li><strong>Loud misses.</strong> An unmapped class/property, a missing
- *       or ambiguous execution context, an unsupported object-space
- *       construct: {@link com.legend.error.MappingResolutionException}
- *       naming the property, class, and mapping. NEVER the reference
- *       engines' silent property-name-as-column fallback.
- *       {@code IllegalStateException} stays "resolver bug".</li>
+ *   <li><strong>Loud misses.</strong> An unmapped class/property or a
+ *       missing/ambiguous execution context:
+ *       {@link com.legend.error.MappingResolutionException} naming the
+ *       property, class, and mapping — NEVER the reference engines'
+ *       silent property-name-as-column fallback. Unsupported-but-legal
+ *       constructs: {@code NotImplementedException} naming the construct
+ *       and owning phase. {@code IllegalStateException} stays
+ *       "resolver bug".</li>
  * </ul>
  *
  * <h2>The join boundary (sharpened &sect;119)</h2>

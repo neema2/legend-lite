@@ -43,13 +43,15 @@ class ResolveSimpleClassTest {
             Class m::Person { name: String[1]; age: Integer[1]; nick: String[1]; }
             Class m::Coded { code: m::Status[1]; label: String[1]; }
             Enum m::Status { ACTIVE, INACTIVE }
-            Class m::Emp { name: String[1]; firmName: String[1]; }
+            Class m::Emp { name: String[1]; firmName: String[1]; orgName: String[1]; }
             Database s::DB (
               Table T (NAME VARCHAR(50), AGE INTEGER, ACTIVE INTEGER)
               Table C (CODE VARCHAR(10), LABEL VARCHAR(50))
               Table P (NAME VARCHAR(50), FID INTEGER)
-              Table F (ID INTEGER, LEGAL VARCHAR(50))
+              Table F (ID INTEGER, LEGAL VARCHAR(50), OID INTEGER)
+              Table O (ID INTEGER, ONAME VARCHAR(50))
               Join PF (P.FID = F.ID)
+              Join FO (F.OID = O.ID)
               Filter ActiveF ( T.ACTIVE = 1 )
             )
             Mapping m::M (
@@ -59,7 +61,8 @@ class ResolveSimpleClassTest {
               *m::Coded: Relational { ~mainTable [s::DB] C
                 code: EnumerationMapping StatusM: C.CODE, label: C.LABEL }
               *m::Emp: Relational { ~mainTable [s::DB] P
-                name: P.NAME, firmName: @PF | F.LEGAL }
+                name: P.NAME, firmName: @PF | F.LEGAL,
+                orgName: @PF > @FO | O.ONAME }
             )
             Runtime m::RT { mappings: [m::M]; }
             """;
@@ -77,8 +80,10 @@ class ResolveSimpleClassTest {
             st.execute("INSERT INTO C VALUES ('A', 'first'), ('I', 'second')");
             st.execute("CREATE TABLE P (NAME VARCHAR, FID INTEGER)");
             st.execute("INSERT INTO P VALUES ('Ann', 1), ('Bob', NULL)");
-            st.execute("CREATE TABLE F (ID INTEGER, LEGAL VARCHAR)");
-            st.execute("INSERT INTO F VALUES (1, 'ACME')");
+            st.execute("CREATE TABLE F (ID INTEGER, LEGAL VARCHAR, OID INTEGER)");
+            st.execute("INSERT INTO F VALUES (1, 'ACME', 7)");
+            st.execute("CREATE TABLE O (ID INTEGER, ONAME VARCHAR)");
+            st.execute("INSERT INTO O VALUES (7, 'MegaCorp')");
         }
     }
 
@@ -93,9 +98,9 @@ class ResolveSimpleClassTest {
         SpecCompiler specs = new SpecCompiler(ctx);
         List<TypedSpec> body = specs.typeQueryBody(
                 NameResolver.resolveQuery(SpecParser.parse(query)));
-        List<TypedSpec> resolved = new StoreResolver(ctx, specs)
-                .resolve(body, "m::RT_UNUSED".equals(query) ? null : null);
-        // H2b: mapping supplied via ->from(...) in the query text.
+        // Context comes from the query's ->from(...); the driver-runtime
+        // path is exercised by driverSeamNoFrom through Compiler.execute.
+        List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, null);
         SqlQuery plan = new Lowerer().lower(resolved);
         return new DuckDb().render(plan);
     }
@@ -226,17 +231,54 @@ class ResolveSimpleClassTest {
         assertEquals(List.of("Ann", "Bob"), exec(sql));
     }
 
-    // ---- fixture 8b: the slot-demanding binding is loud (H3-pending) ----
+    // ---- fixture 10 (M-H3a): the demanded slot becomes ONE LEFT JOIN ----
     @Test
-    @DisplayName("8b: consuming a slot-mapped property is loud H3-pending, not wrong SQL")
-    void slotDemandIsLoud() {
-        var ctx = Compiler.compileModel(MODEL);
-        SpecCompiler specs = new SpecCompiler(ctx);
-        var body = specs.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(
-                "m::Emp.all()->project(~[firmName: e|$e.firmName])->from(m::RT)")));
-        var e = assertThrows(com.legend.error.NotImplementedException.class,
-                () -> new StoreResolver(ctx, specs).resolve(body, null));
-        assertTrue(e.getMessage().contains("join slot"), e.getMessage());
+    @DisplayName("10: slot-mapped property consumed — exactly ONE LEFT JOIN, flat, prefixed read")
+    void slotDemandJoins() throws SQLException {
+        String sql = sqlOf("m::Emp.all()->project(~[name: e|$e.name,"
+                + " firmName: e|$e.firmName])->from(m::RT)");
+        assertEquals("""
+                SELECT t0.NAME AS name, t1.LEGAL AS firmName
+                FROM P AS t0
+                LEFT OUTER JOIN F AS t1 ON t0.FID = t1.ID""", sql);
+        assertEquals(1, count(sql, "LEFT OUTER JOIN"));
+        assertEquals(1, count(sql, "SELECT"));
+        // LEFT semantics: Bob's NULL FID keeps his row, firm NULL.
+        assertEquals(List.of("Ann|ACME", "Bob|null"), exec(sql));
+    }
+
+    // ---- fixture 12 preview: same slot in filter AND project — ONE join ----
+    @Test
+    @DisplayName("12(slot): filter and project through the same slot share ONE join")
+    void slotSharedAcrossFilterAndProject() throws SQLException {
+        String sql = sqlOf("m::Emp.all()->filter(e|$e.firmName == 'ACME')"
+                + "->project(~[firmName: e|$e.firmName])->from(m::RT)");
+        assertEquals(1, count(sql, "LEFT OUTER JOIN"),
+                "whole-chain dedup — one join for both positions:\n" + sql);
+        assertEquals(1, count(sql, "SELECT"), sql);
+        assertTrue(sql.contains("WHERE t1.LEGAL = 'ACME'"), sql);
+        assertEquals(List.of("ACME"), exec(sql));
+    }
+
+    // ---- fixture 13 (slot variant): two-hop chain — 2 chained LEFT JOINs, flat ----
+    @Test
+    @DisplayName("13(slot): @PF > @FO chain — two chained LEFT JOINs, one SELECT")
+    void multiHopSlotChain() throws SQLException {
+        String sql = sqlOf("m::Emp.all()->project(~[name: e|$e.name,"
+                + " org: e|$e.orgName])->from(m::RT)");
+        assertEquals(2, count(sql, "LEFT OUTER JOIN"), sql);
+        assertEquals(1, count(sql, "SELECT"), sql);
+        assertEquals(List.of("Ann|MegaCorp", "Bob|null"), exec(sql));
+    }
+
+    // ---- fixture 13b: only the SECOND hop's property consumed pulls BOTH hops ----
+    @Test
+    @DisplayName("13b: transitive slot demand — hop-2 consumption pulls hop-1's join")
+    void transitiveSlotDemand() throws SQLException {
+        String sql = sqlOf("m::Emp.all()->project(~[org: e|$e.orgName])->from(m::RT)");
+        assertEquals(2, count(sql, "LEFT OUTER JOIN"),
+                "hop 2's condition reads hop 1's sub-row — both joins:\n" + sql);
+        assertEquals(List.of("MegaCorp", "null"), exec(sql));
     }
 
     // ---- M-H2c: the driver seam — no-from query + driver runtime ----

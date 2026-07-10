@@ -40,12 +40,12 @@ public final class StoreResolver {
     private final ClassSources sources;
     private int freshVarCounter;
 
-    public StoreResolver(ModelContext ctx, SpecCompiler specs) {
-        this.sources = new ClassSources(ctx, specs);
-        this.ctx = Objects.requireNonNull(ctx, "ctx");
-    }
-
     private final ModelContext ctx;
+
+    public StoreResolver(ModelContext ctx, SpecCompiler specs) {
+        this.ctx = Objects.requireNonNull(ctx, "ctx");
+        this.sources = new ClassSources(ctx, specs);
+    }
 
     /** Resolve every statement of a query body (lets + final expression). */
     public List<TypedSpec> resolve(List<TypedSpec> body) {
@@ -167,10 +167,6 @@ public final class StoreResolver {
     // Object-space chain resolution (the H2 heart)
     // =====================================================================
 
-    /** The per-chain carrier — never escapes (no sidecar). */
-    private record ObjectRelation(ClassSource source, String rowVar,
-                                  TypedSpec pipeline, Set<String> strippedSlots) {}
-
     private TypedSpec resolveChain(TypedSpec top, Context context) {
         if (context.isNone()) {
             throw new MappingResolutionException(
@@ -180,91 +176,151 @@ public final class StoreResolver {
         return resolveObject(top, context);
     }
 
-    private TypedSpec loudObjectRoot(TypedSpec top) {
-        throw new NotImplementedException("class-shaped result at the query root"
-                + " (" + top.getClass().getSimpleName() + ") is graph output (Phase H4)");
-    }
-
     /**
-     * Resolve one object-space op. Ops below the projection boundary fold
-     * onto the pipeline; {@code project} exits object space and returns the
-     * finished relation node.
+     * Resolve one object-space chain (SCAN-THEN-MATERIALIZE, plan §2.2):
+     * collect the ops, scan the user lambdas for demand, materialize the
+     * pipeline (demanded slots -> prefixed LEFT joins; un-demanded slots
+     * CANCELLED), THEN fold the ops back on with substitution against the
+     * final row type. No restamp pass exists.
      */
-    private TypedSpec resolveObject(TypedSpec n, Context context) {
-        return switch (n) {
-            case TypedProject p -> {
-                ObjectRelation rel = objectRelation(p.source(), context);
-                List<TypedFuncCol> cols = new ArrayList<>(p.columns().size());
-                for (TypedFuncCol col : p.columns()) {
-                    cols.add(new TypedFuncCol(col.name(),
-                            substitution(rel, col.fn()).rewriteLambda(col.fn())));
-                }
-                // The projection boundary: info UNCHANGED — downstream
-                // relation ops need zero rewriting.
-                yield new TypedProject(rel.pipeline(), cols, p.info());
-            }
-            default -> loudObjectRoot(n);
-        };
-    }
-
-    /** Fold the below-boundary ops (filter/limit/take/slice/drop) onto the pipeline. */
-    private ObjectRelation objectRelation(TypedSpec n, Context context) {
-        return switch (n) {
-            case TypedGetAll g -> instantiate(g, context);
-            case TypedFilter f -> {
-                ObjectRelation rel = objectRelation(f.source(), context);
-                TypedLambda pred = substitution(rel, f.predicate())
-                        .rewriteLambda(f.predicate());
-                yield new ObjectRelation(rel.source(), rel.rowVar(),
-                        new TypedFilter(rel.pipeline(), pred, rel.pipeline().info()),
-                        rel.strippedSlots());
-            }
-            case TypedLimit l -> {
-                ObjectRelation rel = objectRelation(l.source(), context);
-                yield new ObjectRelation(rel.source(), rel.rowVar(),
-                        new TypedLimit(rel.pipeline(), l.count(), rel.pipeline().info()),
-                        rel.strippedSlots());
-            }
-            case TypedDrop d -> {
-                ObjectRelation rel = objectRelation(d.source(), context);
-                yield new ObjectRelation(rel.source(), rel.rowVar(),
-                        new TypedDrop(rel.pipeline(), d.count(), rel.pipeline().info()),
-                        rel.strippedSlots());
-            }
-            case TypedSlice s -> {
-                ObjectRelation rel = objectRelation(s.source(), context);
-                yield new ObjectRelation(rel.source(), rel.rowVar(),
-                        new TypedSlice(rel.pipeline(), s.start(), s.stop(),
-                                rel.pipeline().info()),
-                        rel.strippedSlots());
-            }
-            default -> throw new NotImplementedException("object-space operation "
-                    + n.getClass().getSimpleName() + " is not supported yet");
-        };
-    }
-
-    private ObjectRelation instantiate(TypedGetAll g, Context context) {
+    private TypedSpec resolveObject(TypedSpec top, Context context) {
+        if (!(top instanceof TypedProject p)) {
+            throw new NotImplementedException("class-shaped result at the query root"
+                    + " (" + top.getClass().getSimpleName() + ") is graph output (Phase H4)");
+        }
+        // 1. Collect the below-boundary op chain (top-down) to the getAll.
+        List<TypedSpec> ops = new ArrayList<>();
+        TypedSpec cur = p.source();
+        while (!(cur instanceof TypedGetAll)) {
+            ops.add(cur);
+            cur = switch (cur) {
+                case TypedFilter f -> f.source();
+                case TypedLimit l -> l.source();
+                case TypedDrop d -> d.source();
+                case TypedSlice sl -> sl.source();
+                default -> throw new NotImplementedException("object-space operation "
+                        + cur.getClass().getSimpleName() + " is not supported yet");
+            };
+        }
+        TypedGetAll g = (TypedGetAll) cur;
         if (!g.milestoning().isEmpty()) {
             throw new MappingResolutionException("milestoned class fetch of '"
                     + g.classFqn() + "' is not supported yet (H-scope exclusion)",
                     g.classFqn());
         }
         ClassSource cs = sources.get(dispatch(context, g.classFqn()), g.classFqn());
-        Pipelines.Stripped stripped = Pipelines.stripSlots(cs.pipeline(), cs.classFqn());
-        String fresh = "_r" + freshVarCounter++;
-        return new ObjectRelation(cs, fresh, stripped.pipeline(), stripped.slotAliases());
+
+        // 2. Demand scan over ALL the chain's user lambdas (one funnel with
+        //    the substitution — they cannot drift), close over slot
+        //    conditions, materialize.
+        Set<String> slotAliases = Pipelines.slotAliases(cs.pipeline());
+        Set<String> demanded = new java.util.LinkedHashSet<>();
+        if (!slotAliases.isEmpty()) {
+            Set<String> consumed = new java.util.LinkedHashSet<>();
+            for (TypedSpec op : ops) {
+                if (op instanceof TypedFilter f) {
+                    consumedProps(f.predicate(),
+                            f.predicate().parameters().get(0), consumed);
+                }
+            }
+            for (TypedFuncCol col : p.columns()) {
+                consumedProps(col.fn(), col.fn().parameters().get(0), consumed);
+            }
+            for (String prop : consumed) {
+                TypedSpec binding = cs.bindings().get(prop);
+                if (binding != null) {
+                    collectAliasReads(binding, cs.rowVar(), slotAliases, demanded);
+                }
+            }
+            demanded = Pipelines.closeOverConditions(cs.pipeline(), demanded);
+        }
+        Pipelines.Materialized m = Pipelines.materialize(
+                cs.pipeline(), demanded, cs.classFqn());
+
+        // 3. Fold the ops back on, bottom-up, substituting filter lambdas.
+        // The fresh row var must not collide with ANY lambda parameter in
+        // reach (user lambdas may legally be named _rN — audit capture
+        // finding); scan and skip.
+        Set<String> paramsInReach = new java.util.LinkedHashSet<>();
+        for (TypedSpec op : ops) {
+            collectLambdaParams(op, paramsInReach);
+        }
+        for (TypedFuncCol col : p.columns()) {
+            collectLambdaParams(col.fn(), paramsInReach);
+        }
+        for (TypedSpec b : cs.bindings().values()) {
+            collectLambdaParams(b, paramsInReach);
+        }
+        String fresh;
+        do {
+            fresh = "_r" + freshVarCounter++;
+        } while (paramsInReach.contains(fresh));
+        TypedSpec pipeline = m.pipeline();
+        for (int i = ops.size() - 1; i >= 0; i--) {
+            pipeline = switch (ops.get(i)) {
+                case TypedFilter f -> new TypedFilter(pipeline,
+                        substitution(cs, m, fresh, f.predicate())
+                                .rewriteLambda(f.predicate()),
+                        pipeline.info());
+                case TypedLimit l -> new TypedLimit(pipeline, l.count(), pipeline.info());
+                case TypedDrop d -> new TypedDrop(pipeline, d.count(), pipeline.info());
+                case TypedSlice sl -> new TypedSlice(pipeline, sl.start(), sl.stop(),
+                        pipeline.info());
+                default -> throw new IllegalStateException("resolver bug: uncollected op");
+            };
+        }
+
+        // 4. The projection boundary: info UNCHANGED.
+        List<TypedFuncCol> cols = new ArrayList<>(p.columns().size());
+        for (TypedFuncCol col : p.columns()) {
+            cols.add(new TypedFuncCol(col.name(),
+                    substitution(cs, m, fresh, col.fn()).rewriteLambda(col.fn())));
+        }
+        return new TypedProject(pipeline, cols, p.info());
     }
 
-    private Substitution substitution(ObjectRelation rel, TypedLambda userLambda) {
+    private static void collectLambdaParams(TypedSpec n, Set<String> out) {
+        if (n instanceof TypedLambda l) {
+            out.addAll(l.parameters());
+        }
+        for (TypedSpec c : n.children()) {
+            collectLambdaParams(c, out);
+        }
+    }
+
+    /** The demand half of the shared funnel: every $p.prop read in a lambda. */
+    private static void consumedProps(TypedSpec n, String userVar, Set<String> out) {
+        String prop = Substitution.propertyOnUserVar(n, userVar);
+        if (prop != null) {
+            out.add(prop);
+        }
+        for (TypedSpec c : n.children()) {
+            consumedProps(c, userVar, out);
+        }
+    }
+
+    /** Slot aliases a binding expression reads ($row.alias...). */
+    private static void collectAliasReads(TypedSpec n, String rowVar,
+                                          Set<String> slotAliases, Set<String> out) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                && pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
+                && v.name().equals(rowVar)
+                && slotAliases.contains(pa.property())) {
+            out.add(pa.property());
+        }
+        for (TypedSpec c : n.children()) {
+            collectAliasReads(c, rowVar, slotAliases, out);
+        }
+    }
+
+    private Substitution substitution(ClassSource cs, Pipelines.Materialized m,
+                                      String freshRowVar, TypedLambda userLambda) {
         return new Substitution(new Substitution.Target(
-                userLambda.parameters().get(0), rel.rowVar(),
-                rel.source().classFqn(), rel.source().mappingFqn(),
-                rel.source().rowVar(), rel.source().bindings(),
-                rowTypeOf(rel), rel.strippedSlots()));
-    }
-
-    private static com.legend.compiler.element.type.Type.RelationType rowTypeOf(ObjectRelation rel) {
-        return (com.legend.compiler.element.type.Type.RelationType) rel.pipeline().info().type();
+                userLambda.parameters().get(0), freshRowVar,
+                cs.classFqn(), cs.mappingFqn(), cs.rowVar(), cs.bindings(),
+                (com.legend.compiler.element.type.Type.RelationType)
+                        m.pipeline().info().type(),
+                m.stripped(), m.slotPrefixes()));
     }
 
     /** Per-class dispatch: the runtime candidate that BINDS the class wins. */
@@ -276,6 +332,7 @@ public final class StoreResolver {
                 new MappingResolutionException("unknown runtime '"
                         + context.runtimeFqn() + "'", context.runtimeFqn()));
         List<String> binders = rt.mappings().stream()
+                .distinct()   // a runtime listing a mapping twice is not ambiguity
                 .filter(m -> sources.binds(m, classFqn))
                 .toList();
         if (binders.size() != 1) {

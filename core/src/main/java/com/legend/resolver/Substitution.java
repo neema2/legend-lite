@@ -47,7 +47,8 @@ final class Substitution {
     record Target(String userVar, String freshRowVar, String classFqn,
                   String mappingFqn, String sourceRowVar,
                   Map<String, TypedSpec> bindings, Type.RelationType rowType,
-                  java.util.Set<String> strippedSlots) {}
+                  java.util.Set<String> strippedSlots,
+                  Map<String, String> slotPrefixes) {}
 
     private final Target target;
 
@@ -116,9 +117,16 @@ final class Substitution {
             case TypedCollection c -> new TypedCollection(rewriteAll(c.elements()), c.info());
             case TypedIf i -> new TypedIf(rewrite(i.condition()),
                     rewrite(i.thenBranch()), i.elseBranch().map(this::rewrite), i.info());
-            case TypedLambda l -> l.parameters().contains(target.userVar())
-                    ? l   // shadowing: substitution stops (standard capture rule)
-                    : new TypedLambda(l.parameters(), rewriteAll(l.body()), l.info());
+            case TypedLambda l -> {
+                if (l.parameters().contains(target.freshRowVar())) {
+                    throw new IllegalStateException("resolver bug: nested lambda"
+                            + " binds the fresh row var '" + target.freshRowVar()
+                            + "' — fresh-var selection must avoid user names");
+                }
+                yield l.parameters().contains(target.userVar())
+                        ? l   // shadowing: substitution stops (standard capture rule)
+                        : new TypedLambda(l.parameters(), rewriteAll(l.body()), l.info());
+            }
             // Literals: nothing to substitute.
             case TypedCString ignored -> n;
             case TypedCInteger ignored -> n;
@@ -142,57 +150,18 @@ final class Substitution {
     }
 
     /**
-     * Freshen a binding expression: every occurrence of the ClassSource's
-     * own row variable becomes this instantiation's fresh row var (same
-     * ExprType &mdash; a pure rename). Binding expressions are mapping
-     * emissions, so their vocabulary is the normalizer's (property reads,
-     * native calls, ifs, literals); anything else is a contract violation.
+     * Freshen a binding expression through THE unified row-read rewriter
+     * ({@link Pipelines#rewriteRowReads}) — slot-condition rewriting and
+     * binding rewriting share one implementation with a loud default, so
+     * the demand scan and the substitution cannot drift. The row variable
+     * maps to this instantiation's fresh var (stamped with the
+     * MATERIALIZED row type); converted-slot sub-row reads become their
+     * prefixed flat columns; stripped-slot reads and out-of-vocabulary
+     * nodes are loud resolver bugs.
      */
     private TypedSpec renameRowVar(TypedSpec n) {
-        // A binding reading through a STRIPPED join slot ($row.slot.COL):
-        // the slot's join was elided because nothing demanded it — but this
-        // binding IS a demand. Loud until H3 re-adds demanded slots.
-        if (n instanceof TypedPropertyAccess slotRead
-                && slotRead.source() instanceof TypedVariable sv
-                && sv.name().equals(target.sourceRowVar())
-                && target.strippedSlots().contains(slotRead.property())) {
-            throw new NotImplementedException("property mapped through join slot '"
-                    + slotRead.property() + "' of class '" + target.classFqn()
-                    + "' — join-slot navigation is H3-pending");
-        }
-        return switch (n) {
-            case TypedVariable v when v.name().equals(target.sourceRowVar()) ->
-                    new TypedVariable(target.freshRowVar(), v.info());
-            case TypedVariable v -> v;
-            case TypedPropertyAccess pa -> new TypedPropertyAccess(
-                    renameRowVar(pa.source()), pa.property(), pa.info());
-            case TypedNativeCall c -> new TypedNativeCall(c.callee(),
-                    renameAll(c.args()), c.info());
-            case TypedCollection c -> new TypedCollection(renameAll(c.elements()), c.info());
-            case TypedIf i -> new TypedIf(renameRowVar(i.condition()),
-                    renameRowVar(i.thenBranch()), i.elseBranch().map(this::renameRowVar), i.info());
-            case TypedLambda l -> l.parameters().contains(target.sourceRowVar())
-                    ? l
-                    : new TypedLambda(l.parameters(), renameAll(l.body()), l.info());
-            case TypedCString ignored -> n;
-            case TypedCInteger ignored -> n;
-            case TypedCFloat ignored -> n;
-            case TypedCDecimal ignored -> n;
-            case TypedCBoolean ignored -> n;
-            case TypedCDate ignored -> n;
-            case TypedEnumValue ignored -> n;
-            default -> throw new IllegalStateException(
-                    "resolver bug: mapping binding contains "
-                            + n.getClass().getSimpleName()
-                            + ", outside the normalizer's emission vocabulary");
-        };
-    }
-
-    private List<TypedSpec> renameAll(List<TypedSpec> ns) {
-        List<TypedSpec> out = new ArrayList<>(ns.size());
-        for (TypedSpec n : ns) {
-            out.add(renameRowVar(n));
-        }
-        return out;
-    }
-}
+        return Pipelines.rewriteRowReads(n, target.sourceRowVar(),
+                target.slotPrefixes(), target.strippedSlots(),
+                v -> new TypedVariable(target.freshRowVar(),
+                        new ExprType(target.rowType(), Multiplicity.Bounded.ONE)));
+    }}

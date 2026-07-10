@@ -252,8 +252,11 @@ class JoinTortureTest {
                 + "->join(" + TAGS + "->join(" + P + ", JoinKind.INNER,"
                 + "         {t, p2 | $t.T_NAME == $p2.NAME}, 'p_'),"
                 + "     JoinKind.INNER, {l, r | $l.NAME == $r.T_NAME})");
-        // Left arm: flat chain; right arm: a join tree on the RIGHT -> wraps once.
-        assertEquals(3, count(sql, "SELECT"), "left arm flat, right arm wraps: " + sql);
+        // Left arm: the f_ prefixed select WRAPS under an UNPREFIXED outer
+        // join — hosting fires only for prefixed joins (an unprefixed
+        // joined() is SELECT * and would DROP the f_ renames; audit
+        // blocker). Right arm: a join tree on the RIGHT wraps as always.
+        assertEquals(3, count(sql, "SELECT"), "prefixed left arm wraps under unprefixed join: " + sql);
         // Ann(2 tags), Bob(1), Cat(1) survive both arms; Dan has no firm and no tags.
         assertEquals(4, exec(sql).size());
         assertTrue(exec(sql).stream().noneMatch(r -> r.startsWith("Dan")));
@@ -347,5 +350,67 @@ class JoinTortureTest {
                 + " {l, r | $l.AGE >= $r.c_POP})");
         assertEquals(1, count(sql, "ASOF LEFT JOIN"), sql);
         assertTrue(exec(sql).size() >= 3, "executes with a wrapped composite right side");
+    }
+
+    /** Column labels from ResultSet metadata — value-only asserts miss label bugs. */
+    private List<String> labels(String sql) throws SQLException {
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery(sql)) {
+            List<String> out = new ArrayList<>();
+            for (int i = 1; i <= rs.getMetaData().getColumnCount(); i++) {
+                out.add(rs.getMetaData().getColumnLabel(i));
+            }
+            return out;
+        }
+    }
+
+    // ---- audit pins: flat-hosting must NOT fire for unprefixed joins ----
+
+    @Test
+    @DisplayName("audit: rename before an UNPREFIXED join keeps the rename (no hosting)")
+    void renameSurvivesUnprefixedJoin() throws SQLException {
+        String sql = sqlOf(P + "->rename(~NAME, ~PNAME)"
+                + "->join(" + F + ", JoinKind.INNER, {l, r | $l.FIRM == $r.F_NAME})");
+        assertTrue(labels(sql).contains("PNAME"),
+                "the rename must survive the join: " + labels(sql) + "\n" + sql);
+    }
+
+    @Test
+    @DisplayName("audit: select-narrowing before an UNPREFIXED join keeps the narrowing")
+    void narrowingSurvivesUnprefixedJoin() throws SQLException {
+        String sql = sqlOf(P + "->select(~[NAME, FIRM])"
+                + "->join(" + F + ", JoinKind.INNER, {l, r | $l.FIRM == $r.F_NAME})");
+        assertEquals(List.of("NAME", "FIRM", "F_NAME", "CITY"), labels(sql),
+                "dropped AGE must NOT leak back: " + sql);
+    }
+
+    @Test
+    @DisplayName("audit: prefixed join then UNPREFIXED join keeps the prefixed labels")
+    void prefixedLabelsSurviveUnprefixedJoin() throws SQLException {
+        String sql = sqlOf(P
+                + "->join(" + F + ", JoinKind.INNER, {p, f | $p.FIRM == $f.F_NAME}, 'f_')"
+                + "->join(" + C + ", JoinKind.INNER, {l, c | $l.f_CITY == $c.C_NAME})");
+        assertTrue(labels(sql).containsAll(List.of("f_F_NAME", "f_CITY")),
+                "prefixed columns must keep their prefixes: " + labels(sql) + "\n" + sql);
+    }
+
+    @Test
+    @DisplayName("audit: unprefixed chain then PREFIXED join — column count equals typed arity")
+    void unprefixedChainThenPrefixedJoin() throws SQLException {
+        String sql = sqlOf(P
+                + "->join(" + F + ", JoinKind.INNER, {p, f | $p.FIRM == $f.F_NAME})"
+                + "->join(" + C + ", JoinKind.INNER, {l, c | $l.CITY == $c.C_NAME}, 'c_')");
+        // T_PERSON(3) + T_FIRM(2) + prefixed T_CITY(2) = 7 — no bare-star
+        // leak of the right side (audit blocker 2).
+        assertEquals(7, labels(sql).size(),
+                "no unprefixed right-side leak: " + labels(sql) + "\n" + sql);
+        assertTrue(labels(sql).containsAll(List.of("c_C_NAME", "c_POP")), labels(sql).toString());
+    }
+
+    @Test
+    @DisplayName("audit: in([]) is FALSE, not NULL — negated filter keeps all rows")
+    void inEmptyListIsFalse() throws SQLException {
+        String sql = sqlOf(P + "->filter(x | !($x.AGE->in([])))");
+        assertEquals(4, exec(sql).size(), "in(x,[]) is false; !false keeps every row: " + sql);
     }
 }

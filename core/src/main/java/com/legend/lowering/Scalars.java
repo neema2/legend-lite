@@ -256,6 +256,12 @@ final class Scalars {
         // Overload-specific overrides — the resolved signature IS the decision.
         RULES.put(Pure.keyPlusString(), (n, args) -> new SqlExpr.Call(SqlFn.CONCAT, args));
         RULES.put(Pure.keyIn(), (n, args) -> {
+            // in(x, []) is FALSE in pure; the empty collection lowers to
+            // NULL in scalar position, and `x IN (NULL)` would be NULL —
+            // silently dropping rows under negation (audit finding).
+            if (args.get(1) instanceof SqlExpr.NullLit) {
+                return new SqlExpr.BoolLit(false);
+            }
             List<SqlExpr> flat = new ArrayList<>();
             flat.add(args.get(0));
             if (args.get(1) instanceof SqlExpr.ArrayLit arr) {

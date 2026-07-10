@@ -52,7 +52,7 @@ public final class ClassSources {
 
     /** The memoized extraction for {@code classFqn} under {@code mappingFqn}. */
     public ClassSource get(String mappingFqn, String classFqn) {
-        String key = mappingFqn + "::" + classFqn;
+        String key = mappingFqn + '\u0000' + classFqn;
         ClassSource cached = memo.get(key);
         if (cached != null) {
             return cached;
@@ -168,40 +168,52 @@ public final class ClassSources {
     }
 
     /**
-     * The class binding within {@code mapping} or its includes (depth-first,
-     * cycle-tolerant). Multi-set-ID (two bindings for one class) is loud
-     * until H5's dispatch lands.
+     * The class binding within {@code mapping} or its includes: hits are
+     * collected across the WHOLE include closure — a class bound by two
+     * included mappings is a loud ambiguity (real Legend errors on
+     * duplicate class mappings), never a silent depth-first pick. A local
+     * binding shadows included ones (checked first, include semantics).
+     * Multi-set-ID within one mapping is a legal-but-unbuilt feature (H5).
      */
     private MappingDefinition.ClassBinding findBinding(MappingDefinition mapping,
                                                        String classFqn,
                                                        LinkedHashSet<String> visited) {
-        if (!visited.add(mapping.qualifiedName())) {
-            return null;
-        }
-        List<MappingDefinition.ClassBinding> hits = new ArrayList<>();
+        List<MappingDefinition.ClassBinding> local = new ArrayList<>();
         for (MappingDefinition.ClassBinding cb : mapping.classBindings()) {
             if (cb.classFqn().equals(classFqn)) {
-                hits.add(cb);
+                local.add(cb);
             }
         }
-        if (hits.size() > 1) {
-            throw new MappingResolutionException("class '" + classFqn
-                    + "' has " + hits.size() + " set-id bindings in mapping '"
+        if (local.size() > 1) {
+            throw new com.legend.error.NotImplementedException("class '" + classFqn
+                    + "' has " + local.size() + " set-id bindings in mapping '"
                     + mapping.qualifiedName()
-                    + "'; multi-set-ID dispatch is not supported yet", classFqn);
+                    + "'; multi-set-ID dispatch is not supported yet (H5)");
         }
-        if (hits.size() == 1) {
-            return hits.get(0);
+        if (local.size() == 1) {
+            return local.get(0);   // local shadows included
         }
+        visited.add(mapping.qualifiedName());
+        List<MappingDefinition.ClassBinding> included = new ArrayList<>();
+        List<String> sources = new ArrayList<>();
         for (MappingInclude inc : mapping.includes()) {
-            MappingDefinition included = ctx.findMapping(inc.mappingPath()).orElseThrow(() ->
+            if (visited.contains(inc.mappingPath())) {
+                continue;
+            }
+            MappingDefinition inner = ctx.findMapping(inc.mappingPath()).orElseThrow(() ->
                     new MappingResolutionException("mapping '" + mapping.qualifiedName()
                             + "' includes unknown mapping '" + inc.mappingPath() + "'"));
-            MappingDefinition.ClassBinding found = findBinding(included, classFqn, visited);
+            MappingDefinition.ClassBinding found = findBinding(inner, classFqn, visited);
             if (found != null) {
-                return found;
+                included.add(found);
+                sources.add(inc.mappingPath());
             }
         }
-        return null;
+        if (included.size() > 1) {
+            throw new MappingResolutionException("class '" + classFqn
+                    + "' is ambiguously mapped in '" + mapping.qualifiedName()
+                    + "' via includes " + sources, classFqn);
+        }
+        return included.isEmpty() ? null : included.get(0);
     }
 }

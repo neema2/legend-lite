@@ -692,9 +692,27 @@ public final class Lowerer {
     // ==================================================================
 
     private SqlSelect join(com.legend.compiler.spec.typed.TypedJoin j) {
-        SqlSource left = asLeftJoinSide(relation(j.left()));
+        SqlSelect leftSel = relation(j.left());
+        // A RENAME-ONLY select (star + plain column renames, no clauses —
+        // what a PREFIXED join produces) can HOST further joins flat: its
+        // join tree is the left side and its renames carry into the chain's
+        // projections; refs to renamed columns in the ON condition
+        // substitute to their underlying columns (the resolver's prefix
+        // chains stay one flat SELECT — the real engine's shape).
+        List<SqlSelect.Projection> leftCarry = null;
+        SqlSource left;
+        if (j.prefix().isPresent() && isRenameOnlySelect(leftSel)) {
+            // Hosting is only sound when the new join is PREFIXED — the
+            // prefixed joined() branch re-emits the carry; the unprefixed
+            // branch is SELECT * and would DROP the renames/narrowing
+            // (audit blocker: rename->join lost its rename silently).
+            leftCarry = leftSel.projections();
+            left = leftSel.from();
+        } else {
+            left = asLeftJoinSide(leftSel);
+        }
         SqlSource right = asRightSide(relation(j.right()));
-        SqlExpr on = sideCondition(j.condition(), left, right);
+        SqlExpr on = sideCondition(j.condition(), left, right, leftCarry);
         SqlSource.Join.Kind kind = switch (j.kind().value()) {
             case "INNER" -> SqlSource.Join.Kind.INNER;
             case "LEFT" -> SqlSource.Join.Kind.LEFT;
@@ -702,7 +720,8 @@ public final class Lowerer {
             case "FULL" -> SqlSource.Join.Kind.FULL;
             default -> throw new IllegalStateException("unknown join kind " + j.kind().value());
         };
-        return joined(new SqlSource.Join(left, right, kind, on), j.prefix(), j.right(), j.info());
+        return joined(new SqlSource.Join(left, right, kind, on), j.prefix(),
+                j.right(), j.info(), leftCarry);
     }
 
     /** asOfJoin: DuckDB ASOF LEFT JOIN; ON = optional keys AND the match inequality. */
@@ -724,18 +743,61 @@ public final class Lowerer {
      */
     private SqlSelect joined(SqlSource.Join source, java.util.Optional<String> prefix,
                              TypedSpec rightNode, com.legend.compiler.element.type.ExprType info) {
+        return joined(source, prefix, rightNode, info, null);
+    }
+
+    private SqlSelect joined(SqlSource.Join source, java.util.Optional<String> prefix,
+                             TypedSpec rightNode, com.legend.compiler.element.type.ExprType info,
+                             List<SqlSelect.Projection> leftCarry) {
         SqlSelect out = SqlSelect.starOf(source);
         if (prefix.isEmpty()) {
             return out.withProjections(List.of(), outputsOf(info));
         }
         List<SqlSelect.Projection> ps = new ArrayList<>();
-        ps.add(new SqlSelect.Projection(new SqlExpr.Star(source.left().alias()), null));
+        if (leftCarry != null) {
+            ps.addAll(leftCarry);   // the hosted chain's star + prior renames
+        } else if (source.left() instanceof SqlSource.Join leftTree) {
+            // A bare join tree has no single alias, and Star(null) would
+            // expand the WHOLE FROM — leaking the new right side's
+            // unprefixed columns (audit blocker). Enumerate the left
+            // tree's columns explicitly (names are disjoint by the
+            // Phase-G join invariant).
+            for (com.legend.sql.OutputCol c : leftTree.outputs()) {
+                ps.add(new SqlSelect.Projection(
+                        Fold.sourceColumn(leftTree, c.name()), null));
+            }
+        } else {
+            ps.add(new SqlSelect.Projection(new SqlExpr.Star(source.left().alias()), null));
+        }
         for (Type.Column c : schemaOf(rightNode).columns()) {
             ps.add(new SqlSelect.Projection(
                     new SqlExpr.Column(source.right().alias(), c.name()),
                     prefix.get() + c.name()));
         }
         return out.withProjections(ps, outputsOf(info));
+    }
+
+    /**
+     * Star + plain-column renames, nothing else — the shape a prefixed join
+     * produces. Such a select adds no row semantics; it can host further
+     * joins with its renames carried forward.
+     */
+    private static boolean isRenameOnlySelect(SqlSelect s) {
+        if (s.projections().isEmpty() || s.distinct()
+                || s.where() != null || !s.groupBy().isEmpty() || s.having() != null
+                || s.qualify() != null || !s.orderBy().isEmpty()
+                || s.limit() != null || s.offset() != null) {
+            return false;
+        }
+        if (!(s.from() instanceof SqlSource.Join || s.from() instanceof SqlSource.Table)) {
+            return false;
+        }
+        for (SqlSelect.Projection p : s.projections()) {
+            if (!(p.expr() instanceof SqlExpr.Star || p.expr() instanceof SqlExpr.Column)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -777,15 +839,31 @@ public final class Lowerer {
      * side schemas ({@link Fold#sourceColumn}), not by a single alias.
      */
     private SqlExpr sideCondition(TypedLambda lambda, SqlSource left, SqlSource right) {
+        return sideCondition(lambda, left, right, null);
+    }
+
+    private SqlExpr sideCondition(TypedLambda lambda, SqlSource left, SqlSource right,
+                                  List<SqlSelect.Projection> leftCarry) {
         String leftVar = lambda.parameters().get(0);
         return scalar(last(lambda), (var, prop) -> {
-            SqlSource side = var.equals(leftVar) ? left : right;
+            boolean isLeft = var.equals(leftVar);
+            if (isLeft && leftCarry != null) {
+                // A hosted chain's renamed column substitutes to its
+                // underlying plain column (PF_OID -> t1.OID).
+                for (SqlSelect.Projection pj : leftCarry) {
+                    if (prop.equals(pj.outputName())
+                            && pj.expr() instanceof SqlExpr.Column c) {
+                        return c;
+                    }
+                }
+            }
+            SqlSource side = isLeft ? left : right;
             SqlExpr.Column c = side instanceof SqlSource.Join
                     ? Fold.sourceColumn(side, prop)
                     : new SqlExpr.Column(side.alias(), prop);
             if (c == null) {
                 throw new IllegalStateException("join condition references unknown column '"
-                        + prop + "' on its " + (var.equals(leftVar) ? "left" : "right") + " side");
+                        + prop + "' on its " + (isLeft ? "left" : "right") + " side");
             }
             return c;
         });
@@ -1049,9 +1127,10 @@ public final class Lowerer {
 
             case com.legend.compiler.spec.typed.TypedCast c -> cast(c, columns);
 
-            // if(cond, {|then}, {|else}) — scalar position: CASE WHEN. Nested
-            // if-chains (the mapping enum decode emission) flatten into one
-            // CASE at render time via the nested-Case-otherwise structure.
+            // if(cond, {|then}, {|else}) — scalar position: CASE WHEN.
+            // If-chains (the mapping enum decode emission) render as NESTED
+            // CASE expressions in the otherwise slot — correct; single-CASE
+            // flattening is a cosmetic peephole if ever demanded.
             case com.legend.compiler.spec.typed.TypedIf i -> new SqlExpr.Case(
                     java.util.List.of(new SqlExpr.Case.When(
                             scalar(i.condition(), columns),
@@ -1061,8 +1140,19 @@ public final class Lowerer {
 
             // An enum VALUE in scalar position renders as its name string
             // (plangen :2591 parity; the mapping decode CASE compares against
-            // these names, and result cells carry the name).
+            // these names, and result cells carry the name). Cross-type
+            // equality (enum vs string / different enums) is guarded in the
+            // equality arm below — silently-true 'NYC'=='NYC' across types
+            // was an audit finding.
             case com.legend.compiler.spec.typed.TypedEnumValue e -> new SqlExpr.StringLit(e.value());
+
+            case TypedNativeCall n when isFamily(n, "equal")
+                    && enumTypeMismatch(n.args()) ->
+                    throw new com.legend.error.NotImplementedException(
+                            "equality between an enum value and a non-matching type"
+                                    + " is not lowered (enum values render as name"
+                                    + " strings; cross-type equality would be"
+                                    + " silently wrong)");
 
             case TypedNativeCall n -> Scalars.lower(n,
                     n.args().stream().map(a -> scalar(a, columns)).toList());
@@ -1222,6 +1312,33 @@ public final class Lowerer {
         SqlExpr lower(Lowerer lowerer, TypedNativeCall call);
     }
 
+    /**
+     * Enum equality that cannot mean NAME comparison: two DIFFERENT enums,
+     * or an enum against a non-string type. Enum values lower as name
+     * strings (plangen parity), so enum-vs-STRING equality IS the corpus's
+     * deliberate name-comparison convention and stays allowed; the blocked
+     * shapes would be silently wrong ('X' == OtherEnum.X) or DB type
+     * errors (enum vs Integer).
+     */
+    private static boolean enumTypeMismatch(List<com.legend.compiler.spec.typed.TypedSpec> args) {
+        if (args.size() != 2) {
+            return false;
+        }
+        var a = args.get(0).info().type();
+        var b = args.get(1).info().type();
+        boolean ae = a instanceof Type.EnumType;
+        boolean be = b instanceof Type.EnumType;
+        if (ae && be) {
+            return !((Type.EnumType) a).fqn().equals(((Type.EnumType) b).fqn());
+        }
+        if (ae != be) {
+            var other = ae ? b : a;
+            return !(other instanceof Type.Primitive prim
+                    && prim == Type.Primitive.STRING);
+        }
+        return false;
+    }
+
     private static boolean isFamily(TypedNativeCall n, String pureName) {
         // signatureKey membership — the LAST parser-node dispatch the re-audit
         // found dodging the parser-free wall (ArchUnit cannot see a dependency
@@ -1278,11 +1395,18 @@ public final class Lowerer {
     // ==================================================================
 
     /** Close the current select into a subselect and open a fresh star select over it. */
-    /** An if-branch is a 0-param lambda thunk; its body is the value. */
+    /** An if-branch is a 0-param SINGLE-expression thunk; its body is the value. */
     private static com.legend.compiler.spec.typed.TypedSpec thunkBody(
             com.legend.compiler.spec.typed.TypedSpec branch) {
-        return branch instanceof com.legend.compiler.spec.typed.TypedLambda l
-                ? l.body().get(l.body().size() - 1) : branch;
+        if (branch instanceof com.legend.compiler.spec.typed.TypedLambda l) {
+            if (l.body().size() != 1) {
+                throw new IllegalStateException("if-branch thunk has "
+                        + l.body().size() + " statements; a last-statement pick"
+                        + " would silently drop the rest");
+            }
+            return l.body().get(0);
+        }
+        return branch;
     }
 
     private SqlSelect isolate(SqlSelect s) {

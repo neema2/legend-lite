@@ -1054,3 +1054,48 @@ Top detail:
     9  no overload of 'concatenate' matches 2 argument(s) of these shapes
     9  no compiled mapping function for class fetch: test::Person
 ```
+
+### Run 2026-07-10 @ 6a5040a
+
+| tests | pass | failures | errors | skipped | green classes |
+|---|---|---|---|---|---|
+| 2721 | **1605** | 102 | 995 | 19 | 210 |
+
+| bucket | exception lines |
+|---|---|
+| OTHER | 381 |
+| CORE(parse): query syntax gaps | 151 |
+| CORE: scalar/agg function registrations | 145 |
+| FIXTURE: unknown refs (to diagnose) | 103 |
+| CORE: unlowered constructs | 96 |
+| H: class sources / property nav / mappings | 38 |
+| CORE(G): overload/typing gaps | 29 |
+
+Top detail:
+```
+   93  no scalar lowering registered for resolved overload 'meta::pure::funct
+   68  class query under TypedSerialize is not resolvable yet (H2 vocabulary)
+   59  class query under TypedGroupBy is not resolvable yet (H2 vocabulary)
+   34  no aggregate lowering registered for resolved overload 'meta::pure::fu
+   32  property 'firm' of class 'test::Person' is not mapped in mapping 'test
+   29  class query under TypedSortBy is not resolvable yet (H2 vocabulary)
+   28  'test::Person' is not a known class, mapping, runtime, connection, or 
+   28  in function 'model::PersonMapping$class$model::Person': unknown table 
+   26  unbound type variable T
+   25  no SQL type for Pure class meta::pure::metamodel::type::Any at the low
+   24  unknown table 'T_EVENTS' in database 'EventDatabase'
+   21  resolver bug: mapping pipeline for 'model::StaffMember' in 'model::Sta
+   19  class query under TypedExtendWindow is not resolvable yet (H2 vocabula
+   18  scalar lowering not yet implemented for TypedNewInstance
+   16  lowering not yet implemented for TypedUserCall
+   14  property 'addresses' of class 'model::Person' is not mapped in mapping
+   13  scalar lowering not yet implemented for TypedMatch
+   12  property 'dept' of class 'model::Emp' is not mapped in mapping 'model:
+   11  resolver bug: mapping pipeline for 'model::StaffCard' in 'model::Staff
+   10  resolver bug: mapping pipeline for 'model::Person' in 'model::PersonM2
+   10  'test::Order' is not a known class, mapping, runtime, connection, or d
+    9  property 'addresses' of class 'test::Person' is not mapped in mapping 
+    9  no overload of 'concatenate' matches 2 argument(s) of these shapes
+    9  no compiled mapping function for class fetch: test::Person
+    8  [plangen-c0954a] Not yet ported: TypedPropertyAccess (stage-3-relation
+```
