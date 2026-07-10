@@ -2359,7 +2359,8 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         String sql = generateSql(
                 "|%2024-01-15->meta::pure::functions::date::adjust(10, meta::pure::functions::date::DurationUnit.DAYS)");
         System.out.println("1. Positive days: " + sql);
-        assertTrue(sql.contains("INTERVAL '1' DAY * 10"), "Should use multiplication for interval");
+        assertTrue(sql.contains("to_days(") || sql.contains("* INTERVAL"),
+                "interval arithmetic present (to_days(n) is core's spelling): " + sql);
         try (Statement stmt = connection.createStatement();
                 ResultSet rs = stmt.executeQuery(sql)) {
             assertTrue(rs.next());
@@ -2370,7 +2371,8 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         sql = generateSql(
                 "|%2024-01-15T12:00:00->meta::pure::functions::date::adjust(-3, meta::pure::functions::date::DurationUnit.HOURS)");
         System.out.println("2. Negative hours: " + sql);
-        assertTrue(sql.contains("INTERVAL '1' HOUR"), "Should use HOUR interval");
+        assertTrue(sql.contains("to_hours(") || sql.contains("INTERVAL '1' HOUR"),
+                "Should use HOUR interval arithmetic: " + sql);
         try (Statement stmt = connection.createStatement();
                 ResultSet rs = stmt.executeQuery(sql)) {
             assertTrue(rs.next());

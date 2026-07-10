@@ -40,9 +40,21 @@ public enum SqlFn {
     ENCODE_BASE64, LEVENSHTEIN, GUID, FORMAT, HASH, MD5, SHA1, SHA256,
     // Temporal: EXTRACT takes a part-name literal first (one entry, all parts)
     EXTRACT, TODAY, NOW, DATE_TRUNC_DAY, MAKE_DATE, MAKE_TIMESTAMP,
+    // Temporal (part-literal-first like EXTRACT): truncation, arithmetic,
+    // bucketing, epoch conversion, calendar names
+    DATE_TRUNC, ADD_INTERVAL, DATE_DIFF, TIME_BUCKET,
+    EPOCH_SECONDS, EPOCH_MS, FROM_EPOCH_SECONDS, FROM_EPOCH_MS,
+    DAYNAME, MONTHNAME,
+    // Math extras
+    COT, RADIANS, DEGREES, INT_DIVIDE,
+    // String extras
+    REPEAT_STR, JARO_WINKLER, DECODE_BASE64,
+    // Runtime
+    CURRENT_USER_FN,
+    LIST_LENGTH,
     // Lists (beyond the lambda family)
     LIST_ZIP, LIST_DISTINCT, LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX,
-    LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_TAIL, LIST_INIT, RANGE_FN,
+    LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_AGG, LIST_TAIL, LIST_INIT, RANGE_FN,
     // Variant construction
     TO_VARIANT,
     // Variant navigation: logical JSON access; text-extraction idioms are rendering

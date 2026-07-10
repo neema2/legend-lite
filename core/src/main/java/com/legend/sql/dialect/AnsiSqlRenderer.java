@@ -359,9 +359,40 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case DATE_TRUNC_DAY -> "CAST(" + expr(a.get(0), 0) + " AS DATE)";
             case MAKE_DATE -> fn("make_date", a);
             case MAKE_TIMESTAMP -> fn("make_timestamp", a);
+            case DATE_TRUNC -> fn("date_trunc", a);           // (part, value)
+            // (unitFn literal, amount, date) — the unit FUNCTION NAME rides
+            // as a string literal and renders bare: d + to_years(n).
+            case ADD_INTERVAL -> expr(a.get(2), 5) + " + "
+                    + ((SqlExpr.StringLit) a.get(0)).value()
+                    + "(" + expr(a.get(1), 0) + ")";
+            case DATE_DIFF -> fn("date_diff", a);              // (part, d1, d2)
+            // Week buckets align to MONDAY (DuckDB's default origin,
+            // 2000-01-03); every other unit aligns to the 1970 epoch.
+            case TIME_BUCKET -> "time_bucket("
+                    + ((SqlExpr.StringLit) a.get(0)).value()
+                    + "(" + expr(a.get(1), 0) + "), " + expr(a.get(2), 0)
+                    + ("to_weeks".equals(((SqlExpr.StringLit) a.get(0)).value())
+                            ? "" : ", TIMESTAMP '1970-01-01 00:00:00'")
+                    + ")";
+            case EPOCH_SECONDS -> fn("epoch", a);
+            case EPOCH_MS -> fn("epoch_ms", a);
+            case FROM_EPOCH_SECONDS -> fn("to_timestamp", a);
+            case FROM_EPOCH_MS -> "epoch_ms(CAST(" + expr(a.get(0), 0) + " AS BIGINT))";
+            case DAYNAME -> fn("dayname", a);
+            case MONTHNAME -> fn("monthname", a);
+            case COT -> fn("cot", a);
+            case INT_DIVIDE -> "(" + expr(a.get(0), 6) + " // " + expr(a.get(1), 6) + ")";
+            case RADIANS -> fn("radians", a);
+            case DEGREES -> fn("degrees", a);
+            case REPEAT_STR -> fn("repeat", a);
+            case JARO_WINKLER -> fn("jaro_winkler_similarity", a);
+            case DECODE_BASE64 -> "CAST(from_base64(" + expr(a.get(0), 0) + ") AS VARCHAR)";
+            case CURRENT_USER_FN -> "current_user";
+            case LIST_LENGTH -> fn("len", a);
             // Lists (dialect-owned; base throws like the lambda family)
             case LIST_ZIP, LIST_DISTINCT, LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX,
-                 LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_TAIL, LIST_INIT, RANGE_FN ->
+                 LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_AGG, LIST_TAIL, LIST_INIT,
+                 RANGE_FN ->
                     listCall(c.fn(), a);
             case TO_VARIANT -> variantConstruct(a);
             // Idiom points — no ANSI spelling; the dialect decides or dies.

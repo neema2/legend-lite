@@ -145,6 +145,238 @@ final class Scalars {
                 Map.entry("toVariant", SqlFn.TO_VARIANT)).entrySet()) {
             familyIfPresent(e.getValue(), e.getKey());
         }
+        // ---- Date family (H-audit registrations bucket) ----
+        // Numeric extractions ride EXTRACT with a part literal.
+        for (var e : Map.of("dayOfYear", "doy", "weekOfYear", "week",
+                "dayOfWeekNumber", "isodow", "quarterNumber", "quarter").entrySet()) {
+            for (String f : Pure.nativeKeysAt(e.getKey())) {
+                RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.EXTRACT, List.of(
+                        new SqlExpr.StringLit(e.getValue()), args.get(0))));
+            }
+        }
+        // Calendar-enum extractions: names match the Pure enum values
+        // (Monday…, January… — the corpus's enum-by-name convention).
+        familyIfPresent(SqlFn.DAYNAME, "dayOfWeek");
+        familyIfPresent(SqlFn.MONTHNAME, "month");
+        for (String f : Pure.nativeKeysAt("quarter")) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.CONCAT, List.of(
+                    new SqlExpr.StringLit("Q"),
+                    new SqlExpr.Cast(new SqlExpr.Call(SqlFn.EXTRACT, List.of(
+                            new SqlExpr.StringLit("quarter"), args.get(0))),
+                            com.legend.sql.SqlType.Scalar.VARCHAR))));
+        }
+        // Truncations: DATE_TRUNC with the part literal.
+        for (var e : Map.of("firstDayOfMonth", "month", "firstDayOfYear", "year",
+                "firstDayOfWeek", "week", "firstDayOfQuarter", "quarter",
+                "firstHourOfDay", "day", "firstMinuteOfHour", "hour",
+                "firstSecondOfMinute", "minute",
+                "firstMillisecondOfSecond", "second").entrySet()) {
+            for (String f : Pure.nativeKeysAt(e.getKey())) {
+                RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.DATE_TRUNC, List.of(
+                        new SqlExpr.StringLit(e.getValue()), args.get(0))));
+            }
+        }
+        // adjust(d, n, unit) / timeBucket(d, n, unit): the DurationUnit enum
+        // literal selects DuckDB's interval-constructor function.
+        for (String f : Pure.nativeKeysAt("adjust")) {
+            RULES.put(f, (n, args) -> {
+                SqlExpr added = new SqlExpr.Call(SqlFn.ADD_INTERVAL, List.of(
+                        new SqlExpr.StringLit(intervalFn(n.args().get(2))),
+                        args.get(1), dateArg(n.args().get(0), args.get(0))));
+                // SQL date+interval widens to TIMESTAMP; a StrictDate input
+                // adjusted by a DAY-or-coarser unit stays a StrictDate.
+                boolean strictIn = n.args().get(0).info().type()
+                        == com.legend.compiler.element.type.Type.Primitive.STRICT_DATE;
+                boolean coarse = switch (enumName(n.args().get(2))) {
+                    case "YEARS", "MONTHS", "WEEKS", "DAYS" -> true;
+                    default -> false;
+                };
+                return strictIn && coarse
+                        ? new SqlExpr.Cast(added, com.legend.sql.SqlType.Scalar.DATE)
+                        : added;
+            });
+        }
+        for (String f : Pure.nativeKeysAt("timeBucket")) {
+            RULES.put(f, (n, args) -> {
+                SqlExpr bucketed = new SqlExpr.Call(SqlFn.TIME_BUCKET, List.of(
+                        new SqlExpr.StringLit(intervalFn(n.args().get(2))),
+                        args.get(1), dateArg(n.args().get(0), args.get(0))));
+                return n.args().get(0).info().type()
+                        == com.legend.compiler.element.type.Type.Primitive.STRICT_DATE
+                        ? new SqlExpr.Cast(bucketed, com.legend.sql.SqlType.Scalar.DATE)
+                        : bucketed;
+            });
+        }
+        // dateDiff(d1, d2, unit) -> date_diff('part', d1, d2). WEEKS is
+        // whole ELAPSED weeks (floor of days/7) — SQL's 'week' part counts
+        // week-boundary crossings, which is a different number.
+        for (String f : Pure.nativeKeysAt("dateDiff")) {
+            RULES.put(f, (n, args) -> {
+                if ("week".equals(diffPart(n.args().get(2)))) {
+                    // Real pure WEEKS counts SUNDAY-boundary crossings (PCT).
+                    // DuckDB's 'week' part is floor(days/7) — count boundaries
+                    // by flooring day-offsets from a Sunday epoch (1970-01-04).
+                    return SqlExpr.Call.of(SqlFn.MINUS,
+                            sundayWeeks(dateArg(n.args().get(1), args.get(1))),
+                            sundayWeeks(dateArg(n.args().get(0), args.get(0))));
+                }
+                return new SqlExpr.Call(SqlFn.DATE_DIFF, List.of(
+                        new SqlExpr.StringLit(diffPart(n.args().get(2))),
+                        dateArg(n.args().get(0), args.get(0)),
+                        dateArg(n.args().get(1), args.get(1))));
+            });
+        }
+        // Epoch conversions: bare = SECONDS (real pure); MILLISECONDS mapped.
+        for (String f : Pure.nativeKeysAt("toEpochValue")) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(
+                    n.args().size() > 1 && "MILLISECONDS".equals(enumName(n.args().get(1)))
+                            ? SqlFn.EPOCH_MS : SqlFn.EPOCH_SECONDS,
+                    List.of(args.get(0))));
+        }
+        for (String f : Pure.nativeKeysAt("fromEpochValue")) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(
+                    n.args().size() > 1 && "MILLISECONDS".equals(enumName(n.args().get(1)))
+                            ? SqlFn.FROM_EPOCH_MS : SqlFn.FROM_EPOCH_SECONDS,
+                    List.of(args.get(0))));
+        }
+        // Day-granularity comparisons.
+        for (String f : Pure.nativeKeysAt("isOnDay")) {
+            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.EQUAL,
+                    new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY, List.of(args.get(0))),
+                    new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY, List.of(args.get(1)))));
+        }
+        for (String f : Pure.nativeKeysAt("isAfterDay")) {
+            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.GREATER,
+                    new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY, List.of(args.get(0))),
+                    new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY, List.of(args.get(1)))));
+        }
+        for (String f : Pure.nativeKeysAt("isOnOrAfterDay")) {
+            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.GREATER_EQUAL,
+                    new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY, List.of(args.get(0))),
+                    new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY, List.of(args.get(1)))));
+        }
+        // Precision predicates: a LITERAL answers from its own written
+        // precision; a column answers from its Pure type (StrictDate =
+        // day precision, DateTime = SQL TIMESTAMP = full precision).
+        for (var e : Map.of("hasMonth", 1, "hasDay", 2, "hasHour", 3,
+                "hasMinute", 4, "hasSecond", 5, "hasSubsecond", 6).entrySet()) {
+            for (String f : Pure.nativeKeysAt(e.getKey())) {
+                RULES.put(f, (n, args) -> new SqlExpr.BoolLit(
+                        datePrecision(n.args().get(0)) >= e.getValue()));
+            }
+        }
+        for (String f : Pure.nativeKeysAt("hasSubsecondWithAtLeastPrecision")) {
+            // DuckDB TIMESTAMP is microsecond-precision: p <= 6 holds.
+            RULES.put(f, (n, args) -> new SqlExpr.BoolLit(
+                    datePrecision(n.args().get(0)) >= 6
+                            && n.args().get(1) instanceof com.legend.compiler.spec.typed.TypedCInteger i
+                            && i.value().longValue() <= 6));
+        }
+        // ---- Misc (registrations bucket) ----
+        for (String f : Pure.nativeKeysAt("between")) {
+            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.AND,
+                    SqlExpr.Call.of(SqlFn.GREATER_EQUAL, args.get(0), args.get(1)),
+                    SqlExpr.Call.of(SqlFn.LESS_EQUAL, args.get(0), args.get(2))));
+        }
+        for (String f : Pure.nativeKeysAt("compare")) {
+            RULES.put(f, (n, args) -> new SqlExpr.Case(List.of(
+                    new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.LESS,
+                            args.get(0), args.get(1)), new SqlExpr.IntLit(-1)),
+                    new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.GREATER,
+                            args.get(0), args.get(1)), new SqlExpr.IntLit(1))),
+                    new SqlExpr.IntLit(0)));
+        }
+        for (String f : Pure.nativeKeysAt("sqlTrue")) {
+            RULES.put(f, (n, args) -> new SqlExpr.BoolLit(true));
+        }
+        for (String f : Pure.nativeKeysAt("sqlFalse")) {
+            RULES.put(f, (n, args) -> new SqlExpr.BoolLit(false));
+        }
+        familyIfPresent(SqlFn.CURRENT_USER_FN, "currentUserId");
+        familyIfPresent(SqlFn.COT, "cot");
+        familyIfPresent(SqlFn.RADIANS, "toRadians");
+        familyIfPresent(SqlFn.DEGREES, "toDegrees");
+        familyIfPresent(SqlFn.REPEAT_STR, "repeatString");
+        familyIfPresent(SqlFn.JARO_WINKLER, "jaroWinklerSimilarity");
+        familyIfPresent(SqlFn.DECODE_BASE64, "decodeBase64");
+        familyIfPresent(SqlFn.LIST_LENGTH, "size");
+        familyIfPresent(SqlFn.MINUS, "sub");
+        // joinStrings over a LIST value: (list), (list, sep), or
+        // (list, prefix, sep, suffix).
+        for (String f : Pure.nativeKeysAt("joinStrings")) {
+            RULES.put(f, (n, args) -> {
+                SqlExpr sep = args.size() == 2 ? args.get(1)
+                        : args.size() == 4 ? args.get(2) : new SqlExpr.StringLit("");
+                SqlExpr joined = new SqlExpr.Call(SqlFn.LIST_AGG, List.of(
+                        new SqlExpr.StringLit("string_agg"), args.get(0), sep));
+                if (args.size() == 4) {
+                    return SqlExpr.Call.of(SqlFn.CONCAT,
+                            SqlExpr.Call.of(SqlFn.CONCAT, args.get(1), joined),
+                            args.get(3));
+                }
+                return joined;
+            });
+        }
+        // percentile family over LIST values; the 4-arg overload's
+        // ascending/continuous flags choose the quantile flavor, and a
+        // DESCENDING percentile is the 1-p quantile.
+        for (String f : Pure.nativeKeysAt("percentile")) {
+            RULES.put(f, (n, args) -> {
+                boolean asc = true;
+                boolean cont = true;
+                if (n.args().size() == 4) {
+                    asc = n.args().get(2) instanceof com.legend.compiler.spec.typed.TypedCBoolean b1 && b1.value();
+                    cont = n.args().get(3) instanceof com.legend.compiler.spec.typed.TypedCBoolean b2 && b2.value();
+                }
+                SqlExpr p2 = asc ? args.get(1)
+                        : SqlExpr.Call.of(SqlFn.MINUS, new SqlExpr.IntLit(1), args.get(1));
+                return new SqlExpr.Call(SqlFn.LIST_AGG, List.of(
+                        new SqlExpr.StringLit(cont ? "quantile_cont" : "quantile_disc"),
+                        args.get(0), p2));
+            });
+        }
+        for (String f : Pure.nativeKeysAt("percentileCont")) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_AGG, List.of(
+                    new SqlExpr.StringLit("quantile_cont"), args.get(0), args.get(1))));
+        }
+        for (String f : Pure.nativeKeysAt("percentileDisc")) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_AGG, List.of(
+                    new SqlExpr.StringLit("quantile_disc"), args.get(0), args.get(1))));
+        }
+        // collection sort (no comparator): list_sort.
+        for (String f : Pure.nativeKeysAt("sort")) {
+            RULES.put(f, (n, args) -> {
+                if (n.args().size() > 1) {
+                    throw new IllegalStateException(
+                            "sort with a comparator has no scalar lowering yet");
+                }
+                return new SqlExpr.Call(SqlFn.LIST_AGG, List.of(
+                        new SqlExpr.StringLit("array_sort"), args.get(0)));
+            });
+        }
+        for (String f : Pure.nativeKeysAt("isBeforeDay")) {
+            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.LESS,
+                    new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY, List.of(args.get(0))),
+                    new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY, List.of(args.get(1)))));
+        }
+        for (String f : Pure.nativeKeysAt("isOnOrBeforeDay")) {
+            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.LESS_EQUAL,
+                    new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY, List.of(args.get(0))),
+                    new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY, List.of(args.get(1)))));
+        }
+        for (String f : Pure.nativeKeysAt("toDecimal")) {
+            RULES.put(f, (n, args) -> new SqlExpr.Cast(args.get(0), new com.legend.sql.SqlType.Decimal(38, 18)));
+        }
+        for (String f : Pure.nativeKeysAt("divideRound")) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.ROUND, List.of(
+                    SqlExpr.Call.of(SqlFn.DIVIDE, args.get(0), args.get(1)),
+                    args.get(2))));
+        }
+        for (String f : Pure.nativeKeysAt("notEqualAnsi")) {
+            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.NOT_EQUAL,
+                    args.get(0), args.get(1)));
+        }
+
         // Temporal EXTRACT parts: one SqlFn entry, part-name literal first.
         for (var e : Map.of(
                 "year", "year", "monthNumber", "month", "dayOfMonth", "day",
@@ -169,6 +401,28 @@ final class Scalars {
         }
         for (String f : Pure.nativeKeysAt("sum")) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_SUM, args));
+        }
+        // Statistical list reductions: DuckDB list_aggregate(x, '<agg>').
+        for (var e : Map.of(
+                "stdDevSample", "stddev_samp", "stdDev", "stddev_samp",
+                "stdDevPopulation", "stddev_pop",
+                "varianceSample", "var_samp",
+                "variancePopulation", "var_pop").entrySet()) {
+            for (String f : Pure.nativeKeysAt(e.getKey())) {
+                RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_AGG, List.of(
+                        new SqlExpr.StringLit(e.getValue()), args.get(0))));
+            }
+        }
+        // variance(list, isBiasCorrected): true => sample, false => population.
+        for (String f : Pure.nativeKeysAt("variance")) {
+            RULES.put(f, (n, args) -> {
+                boolean sample = !(n.args().size() > 1
+                        && n.args().get(1) instanceof com.legend.compiler.spec.typed.TypedCBoolean b
+                        && !b.value());
+                return new SqlExpr.Call(SqlFn.LIST_AGG, List.of(
+                        new SqlExpr.StringLit(sample ? "var_samp" : "var_pop"),
+                        args.get(0)));
+            });
         }
         for (String f : Pure.nativeKeysAt("first")) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_GET,
@@ -349,4 +603,104 @@ final class Scalars {
         throw new IllegalStateException(
                 "no TDS cell rendering for Pure type " + type.typeName());
     }
+    /** The DuckDB interval-constructor for a DurationUnit enum literal. */
+    private static String intervalFn(com.legend.compiler.spec.typed.TypedSpec unit) {
+        return switch (enumName(unit)) {
+            case "YEARS" -> "to_years";
+            case "MONTHS" -> "to_months";
+            case "WEEKS" -> "to_weeks";
+            case "DAYS" -> "to_days";
+            case "HOURS" -> "to_hours";
+            case "MINUTES" -> "to_minutes";
+            case "SECONDS" -> "to_seconds";
+            case "MILLISECONDS" -> "to_milliseconds";
+            case "MICROSECONDS" -> "to_microseconds";
+            default -> throw new IllegalStateException(
+                    "unknown DurationUnit for interval arithmetic: " + enumName(unit));
+        };
+    }
+
+    /** The date_diff part name for a DurationUnit enum literal. */
+    private static String diffPart(com.legend.compiler.spec.typed.TypedSpec unit) {
+        return switch (enumName(unit)) {
+            case "YEARS" -> "year";
+            case "MONTHS" -> "month";
+            case "WEEKS" -> "week";
+            case "DAYS" -> "day";
+            case "HOURS" -> "hour";
+            case "MINUTES" -> "minute";
+            case "SECONDS" -> "second";
+            case "MILLISECONDS" -> "millisecond";
+            case "MICROSECONDS" -> "microsecond";
+            default -> throw new IllegalStateException(
+                    "unknown DurationUnit for dateDiff: " + enumName(unit));
+        };
+    }
+
+    /**
+     * A DATE-ARITHMETIC argument: partial-date LITERALS (year, year-month
+     * — globally string-typed for the pinned string-comparison semantics)
+     * pad to the first of their period as real DATE literals.
+     */
+    private static SqlExpr dateArg(com.legend.compiler.spec.typed.TypedSpec typed,
+                                   SqlExpr lowered) {
+        if (typed instanceof com.legend.compiler.spec.typed.TypedCDate d) {
+            if (d.value() instanceof com.legend.values.PureDateLiteral.Year y) {
+                return new SqlExpr.DateLit(y.toEngineString() + "-01-01");
+            }
+            if (d.value() instanceof com.legend.values.PureDateLiteral.YearMonth ym) {
+                return new SqlExpr.DateLit(ym.toEngineString() + "-01");
+            }
+        }
+        return lowered;
+    }
+
+    /** Floored week index of {@code d} counted from a SUNDAY epoch. */
+    private static SqlExpr sundayWeeks(SqlExpr d) {
+        return SqlExpr.Call.of(SqlFn.INT_DIVIDE,
+                new SqlExpr.Call(SqlFn.DATE_DIFF, List.of(
+                        new SqlExpr.StringLit("day"),
+                        new SqlExpr.DateLit("1970-01-04"), d)),
+                new SqlExpr.IntLit(7));
+    }
+
+    /** The enum VALUE of a literal enum argument; loud on anything else. */
+    private static String enumName(com.legend.compiler.spec.typed.TypedSpec arg) {
+        if (arg instanceof com.legend.compiler.spec.typed.TypedEnumValue ev) {
+            return ev.value();
+        }
+        throw new IllegalStateException("a DurationUnit argument must be an enum"
+                + " literal, got " + arg.getClass().getSimpleName());
+    }
+
+    /**
+     * The precision RANK of a date argument (0=year .. 6=subsecond): a
+     * LITERAL answers from its own written precision; a column from its
+     * Pure type (StrictDate = day, DateTime = SQL TIMESTAMP = full); the
+     * abstract Date is undecidable and refuses loudly.
+     */
+    private static int datePrecision(com.legend.compiler.spec.typed.TypedSpec arg) {
+        if (arg instanceof com.legend.compiler.spec.typed.TypedCDate d) {
+            return switch (d.value()) {
+                case com.legend.values.PureDateLiteral.Year ignored -> 0;
+                case com.legend.values.PureDateLiteral.YearMonth ignored -> 1;
+                case com.legend.values.PureDateLiteral.StrictDate ignored -> 2;
+                case com.legend.values.PureDateLiteral.DateWithHour ignored -> 3;
+                case com.legend.values.PureDateLiteral.DateWithMinute ignored -> 4;
+                case com.legend.values.PureDateLiteral.DateWithSecond ignored -> 5;
+                default -> 6;
+            };
+        }
+        var t = arg.info().type();
+        if (t == com.legend.compiler.element.type.Type.Primitive.DATE_TIME) {
+            return 6;
+        }
+        if (t == com.legend.compiler.element.type.Type.Primitive.STRICT_DATE) {
+            return 2;
+        }
+        throw new IllegalStateException("a date-precision predicate over the"
+                + " abstract Date type is not statically decidable — declare"
+                + " the value StrictDate or DateTime");
+    }
+
 }

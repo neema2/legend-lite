@@ -259,7 +259,7 @@ public final class Lowerer {
                     e instanceof SqlExpr.Column c && c.name().equals(k.column()) ? null : k.column()));
         }
         for (TypedAggCol a : g.aggs()) {
-            ps.add(new SqlSelect.Projection(aggExpr(base, a), a.name()));
+            ps.add(new SqlSelect.Projection(aggValue(base, a), a.name()));
         }
         return base.withGroupBy(keys).withProjections(ps, outputsOf(g.info()));
     }
@@ -277,7 +277,7 @@ public final class Lowerer {
             ps.add(new SqlSelect.Projection(e, null));
         }
         for (TypedAggCol a : g.aggs()) {
-            ps.add(new SqlSelect.Projection(aggExpr(base, a), a.name()));
+            ps.add(new SqlSelect.Projection(aggValue(base, a), a.name()));
         }
         return base.withGroupBy(keys).withProjections(ps, outputsOf(g.info()));
     }
@@ -333,7 +333,7 @@ public final class Lowerer {
         SqlSelect base = Fold.groupByFolds(src) ? src : isolate(src);
         List<SqlSelect.Projection> ps = new ArrayList<>(a.aggs().size());
         for (TypedAggCol col : a.aggs()) {
-            ps.add(new SqlSelect.Projection(aggExpr(base, col), col.name()));
+            ps.add(new SqlSelect.Projection(aggValue(base, col), col.name()));
         }
         return base.withProjections(ps, outputsOf(a.info()));
     }
@@ -344,6 +344,16 @@ public final class Lowerer {
      * ({@code x|$x}) is COUNT(*)-style — no value argument.
      */
     private SqlAgg.Reducer aggExpr(SqlSelect base, TypedAggCol a) {
+        SqlExpr e = aggValue(base, a);
+        if (!(e instanceof SqlAgg.Reducer r)) {
+            throw new IllegalStateException("aggregate '" + a.name()
+                    + "' composes multiple reducers (wavg) — not usable in"
+                    + " window position yet");
+        }
+        return r;
+    }
+
+    private SqlExpr aggValue(SqlSelect base, TypedAggCol a) {
         TypedSpec reduceBody = last(a.reduce());
         if (!(reduceBody instanceof TypedNativeCall call)) {
             throw new IllegalStateException("aggregate reduce must be a native reducer call, got "
@@ -351,20 +361,58 @@ public final class Lowerer {
         }
         String fn = Aggregates.reducerFor(call.callee());
         TypedSpec mapBody = last(a.map());
-        // Reducer EXTRA arguments (joinStrings('_') carries its separator):
-        // literal args ride along after the value; variable refs are the
-        // reducer's own collection params; anything ELSE is unsupported and
-        // must be LOUD, not dropped.
+        // Reducer EXTRA arguments (joinStrings('_') carries its separator;
+        // percentile carries p [+ ascending, continuous]): literal args ride
+        // along after the value; variable refs are the reducer's own
+        // collection params; anything ELSE is unsupported and must be LOUD.
         List<SqlExpr> extra = new ArrayList<>();
+        List<Boolean> flags = new ArrayList<>();
         for (TypedSpec argSpec : call.args()) {
-            if (argSpec instanceof com.legend.compiler.spec.typed.TypedCString
-                    || argSpec instanceof TypedCInteger) {
+            if (argSpec instanceof com.legend.compiler.spec.typed.TypedCBoolean b) {
+                flags.add(b.value());
+            } else if (argSpec instanceof com.legend.compiler.spec.typed.TypedCString
+                    || argSpec instanceof TypedCInteger
+                    || argSpec instanceof com.legend.compiler.spec.typed.TypedCFloat
+                    || argSpec instanceof com.legend.compiler.spec.typed.TypedCDecimal) {
                 extra.add(scalar(argSpec, (v, name) -> resolveOrThrow(base, name)));
             } else if (!(argSpec instanceof TypedVariable)) {
                 throw new IllegalStateException("aggregate reducer argument of kind "
                         + argSpec.getClass().getSimpleName()
                         + " is not supported (literals only)");
             }
+        }
+        // percentile(p, ascending, continuous): continuous selects the
+        // QUANTILE flavor; descending order is the 1-p quantile.
+        if (!flags.isEmpty()) {
+            if (!"QUANTILE_CONT".equals(fn) || flags.size() != 2 || extra.size() != 1) {
+                throw new IllegalStateException("boolean reducer arguments are"
+                        + " only understood on percentile(p, ascending, continuous)");
+            }
+            fn = flags.get(1) ? "QUANTILE_CONT" : "QUANTILE_DISC";
+            if (!flags.get(0)) {
+                extra.set(0, SqlExpr.Call.of(SqlFn.MINUS,
+                        new SqlExpr.IntLit(1), extra.get(0)));
+            }
+        }
+        // BI-VARIATE map: rowMapper(value, key) decomposes into the SQL
+        // aggregate's two arguments — CORR(a, b), ARG_MAX(v, k), ...
+        if (mapBody instanceof TypedNativeCall rm
+                && rm.callee().qualifiedName().endsWith("::rowMapper")
+                && rm.args().size() == 2) {
+            SqlExpr first = scalar(rm.args().get(0), (v, name) -> resolveOrThrow(base, name));
+            SqlExpr second = scalar(rm.args().get(1), (v, name) -> resolveOrThrow(base, name));
+            if ("__WAVG__".equals(fn)) {
+                // Weighted average: SUM(v*w)/SUM(w) — no single SQL reducer.
+                return SqlExpr.Call.of(SqlFn.DIVIDE,
+                        new SqlAgg.Reducer("SUM",
+                                List.of(SqlExpr.Call.of(SqlFn.TIMES, first, second)), false),
+                        new SqlAgg.Reducer("SUM", List.of(second), false));
+            }
+            return new SqlAgg.Reducer(fn, List.of(first, second), false);
+        }
+        if ("__WAVG__".equals(fn)) {
+            throw new IllegalStateException(
+                    "wavg expects a rowMapper(value, weight) map body");
         }
         if (mapBody instanceof TypedVariable && extra.isEmpty()) {
             return new SqlAgg.Reducer(fn, List.of(), false);

@@ -170,7 +170,8 @@ class PipelineStageFailureTest {
     @DisplayName("lowering: unregistered scalar overload names the function")
     void unregisteredScalar() {
         Exception ex = failsWith(IllegalStateException.class, MODEL,
-                "#>{test::DB.T_PERSON}#->filter(x|$x.NAME->decodeBase64() == 'x')");
-        messageNames(ex, "decodeBase64");
+                "#>{test::DB.T_PERSON}#->filter(x|"
+                        + "['a','b']->removeDuplicatesBy(v|$v)->size() > 1)");
+        messageNames(ex, "removeDuplicatesBy");
     }
 }

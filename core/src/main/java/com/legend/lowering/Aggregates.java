@@ -39,6 +39,26 @@ final class Aggregates {
         family("STDDEV_POP", "stdDevPopulation");
         family("VAR_SAMP", "varianceSample");
         family("VAR_POP", "variancePopulation");
+        // Pure's bare variance is the SAMPLE variance (PCT semantics).
+        family("VAR_SAMP", "variance");
+        family("MEDIAN", "median");
+        family("AVG", "mean");
+        family("MODE", "mode");
+        // percentile: DuckDB QUANTILE family; the 4-arg overload's
+        // ascending/continuous flags are folded in the lowering (aggExpr).
+        family("QUANTILE_CONT", "percentile");
+        family("QUANTILE_CONT", "percentileCont");
+        family("QUANTILE_DISC", "percentileDisc");
+        // BI-VARIATE reducers — the map body is rowMapper(a, b); aggExpr
+        // decomposes it into the two SQL arguments.
+        family("CORR", "corr");
+        family("COVAR_SAMP", "covarSample");
+        family("COVAR_POP", "covarPopulation");
+        family("ARG_MAX", "maxBy");
+        family("ARG_MIN", "minBy");
+        // wavg has NO single SQL reducer: SUM(v*w)/SUM(w), composed in
+        // aggExpr — the marker name never reaches the renderer.
+        family("__WAVG__", "wavg");
     }
 
     /**

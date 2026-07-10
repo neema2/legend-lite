@@ -234,9 +234,10 @@ class LowerRelationTest {
     void unregisteredOverloadThrows() {
         IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 IllegalStateException.class,
-                () -> sqlOf("#>{test::DB.T_PERSON}#->filter(x|$x.NAME->decodeBase64() == 'x')"));
+                () -> sqlOf("#>{test::DB.T_PERSON}#->filter(x|"
+                        + "['a','b']->removeDuplicatesBy(v|$v)->size() > 1)"));
         org.junit.jupiter.api.Assertions.assertTrue(
-                ex.getMessage().contains("decodeBase64"),
+                ex.getMessage().contains("removeDuplicatesBy"),
                 "error names the overload; got: " + ex.getMessage());
     }
 

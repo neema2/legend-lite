@@ -197,6 +197,14 @@ public final class DuckDb extends AnsiSqlRenderer {
             case LIST_AVG -> fn("list_avg", args);
             case LIST_MEDIAN -> fn("list_median", args);
             case LIST_MODE -> "list_aggregate(" + expr(args.get(0), 0) + ", 'mode')";
+            // Generic list aggregation: the AGG NAME rides as a leading
+            // string-literal arg (the EXTRACT part-name pattern).
+            case LIST_AGG -> "list_aggregate(" + expr(args.get(1), 0) + ", "
+                    + expr(args.get(0), 0)
+                    + args.subList(2, args.size()).stream()
+                            .map(x -> ", " + expr(x, 0))
+                            .collect(java.util.stream.Collectors.joining())
+                    + ")";
             case LIST_TAIL -> expr(args.get(0), 8) + "[2:]";
             case LIST_INIT -> expr(args.get(0), 8) + "[:-2]";
             case RANGE_FN -> fn("range", args);
