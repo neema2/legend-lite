@@ -75,20 +75,19 @@ public final class Executor {
         } else if (hasPivot(plan)) {
             // DYNAMIC PIVOT: one result column per pivoted VALUE — the static
             // schema cannot enumerate them (engine's DynamicPivotColumn
-            // concept). Statically-known names match by NAME; every other
-            // column is a pivot-generated value column and carries the
-            // schema's single aggregate type (multi-agg pivots suffix-match).
-            Type dynamicType = schema.columns().get(schema.columns().size() - 1).type();
+            // concept; the checker keeps only the group-by half). Statically
+            // known names match by NAME; a pivot-generated value column is
+            // DATA-DEPENDENT and the result set knows its real type — derive
+            // the Pure type from the SQL column type (the schema's last
+            // column was a wrong stand-in: audit, String-typed aggregates).
             for (int i = 1; i <= n; i++) {
                 String name = rs.getMetaData().getColumnName(i);
+                String sqlType = rs.getMetaData().getColumnTypeName(i);
                 Type pure = schema.columns().stream()
                         .filter(c -> c.name().equals(name)).findFirst()
                         .map(Type.Column::type)
-                        .orElseGet(() -> schema.columns().stream()
-                                .filter(c -> name.endsWith("_" + c.name()))
-                                .findFirst().map(Type.Column::type)
-                                .orElse(dynamicType));
-                columns.add(new Column(name, rs.getMetaData().getColumnTypeName(i), pure));
+                        .orElseGet(() -> pureOfSqlType(sqlType));
+                columns.add(new Column(name, sqlType, pure));
             }
         } else {
             throw new IllegalStateException("result has " + n + " columns but the typed"
@@ -131,6 +130,21 @@ public final class Executor {
             default -> false;
         };
     }
+    /** The Pure primitive a DYNAMIC (pivot-generated) SQL column carries. */
+    private static Type pureOfSqlType(String sqlType) {
+        return switch (sqlType.toUpperCase()) {
+            case "TINYINT", "SMALLINT", "INTEGER", "BIGINT", "HUGEINT" ->
+                    Type.Primitive.INTEGER;
+            case "FLOAT", "DOUBLE", "REAL" -> Type.Primitive.FLOAT;
+            case "BOOLEAN" -> Type.Primitive.BOOLEAN;
+            case "DATE" -> Type.Primitive.STRICT_DATE;
+            case "TIMESTAMP" -> Type.Primitive.DATE_TIME;
+            default -> sqlType.toUpperCase().startsWith("DECIMAL")
+                    ? Type.Primitive.DECIMAL
+                    : Type.Primitive.STRING;
+        };
+    }
+
     /** Expand row-struct columns (navigate slots) to their prefixed flat set. */
     private static Type.RelationType flattenStructColumns(Type.RelationType schema) {
         if (schema.columns().stream().noneMatch(c -> c.type() instanceof Type.RelationType)) {

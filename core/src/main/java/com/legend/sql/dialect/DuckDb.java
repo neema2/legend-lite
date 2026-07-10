@@ -60,7 +60,11 @@ public final class DuckDb extends AnsiSqlRenderer {
         sb.append(" USING ").append(p.usings().stream()
                 .map(u -> reducer(new SqlAgg.Reducer(u.agg().fn(),
                         u.agg().args().stream().map(DuckDb::unqualify).toList(),
-                        u.agg().distinct())) + " AS " + ident(u.alias()))
+                        u.agg().distinct()))
+                        // real pure names pivot columns value__|__agg; DuckDB
+                        // joins value + '_' + alias, so the alias carries the
+                        // '_|__agg' tail.
+                        + " AS " + ident("_|__" + u.alias()))
                 .collect(Collectors.joining(", ")));
         sb.append(") AS ").append(ident(p.alias()));
     }
@@ -210,6 +214,7 @@ public final class DuckDb extends AnsiSqlRenderer {
             case LIST_CONCAT -> fn("list_concat", args);
             case LIST_CONTAINS -> fn("list_contains", args);
             case LIST_GET -> fn("list_extract", args);
+            case LIST_POSITION -> fn("list_position", args);
             case LIST_ZIP -> fn("list_zip", args);
             case LIST_DISTINCT -> fn("list_distinct", args);
             case LIST_APPEND -> fn("list_append", args);
@@ -238,7 +243,10 @@ public final class DuckDb extends AnsiSqlRenderer {
 
     @Override
     protected String roundHalfEven(List<SqlExpr> a) {
-        return fn("round_even", a);
+        // round_even is a 2-arg macro — bare round(x) means precision 0.
+        return a.size() == 1
+                ? "round_even(" + expr(a.get(0), 0) + ", 0)"
+                : fn("round_even", a);
     }
 
     @Override

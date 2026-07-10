@@ -637,8 +637,10 @@ class LowerRelationTest {
     void pivotNative() throws SQLException {
         String sql = sqlOf("#>{test::DB.T_PERSON}#"
                 + "->pivot(~FIRM, ~total : x|$x.AGE : y|$y->sum())");
+        // The USING alias carries '_|__total' so DuckDB's value_alias
+        // naming yields real pure's value__|__total pivot columns.
         assertTrue(sql.contains("PIVOT") && sql.contains("ON FIRM")
-                && sql.contains("USING SUM(AGE) AS total"), sql);
+                && sql.contains("USING SUM(AGE) AS \"_|__total\""), sql);
         // Columns: NAME + one per firm value (ACME, Widget, NULL bucket).
         List<String> rows = exec(sql + "\nORDER BY NAME");
         assertEquals(4, rows.size(), "one row per person name: " + rows);

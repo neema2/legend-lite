@@ -23,7 +23,7 @@ public enum SqlFn {
     // LIST_EXISTS/LIST_FOR_ALL carry (collection, predicate-lambda) and
     // include Pure's empty-collection semantics (exists([])=false,
     // forAll([])=true) — the dialect's expansion must honor them.
-    LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_CONTAINS, LIST_GET,
+    LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_CONTAINS, LIST_GET, LIST_POSITION,
     LIST_EXISTS, LIST_FOR_ALL,
     // UNNEST: explode a collection into rows; PLACEMENT (select-list vs
     // LATERAL FROM) is dialect assembly.

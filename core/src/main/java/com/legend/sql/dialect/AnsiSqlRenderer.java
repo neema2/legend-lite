@@ -343,8 +343,11 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case MATCHES -> fn("regexp_matches", a);
             case LEFT -> fn("left", a);
             case RIGHT -> fn("right", a);
-            case LPAD -> fn("lpad", a);
-            case RPAD -> fn("rpad", a);
+            // the PAD CHAR is optional in Pure; SQL requires it — ' '.
+            case LPAD -> fn("lpad", a.size() == 2
+                    ? List.of(a.get(0), a.get(1), new SqlExpr.StringLit(" ")) : a);
+            case RPAD -> fn("rpad", a.size() == 2
+                    ? List.of(a.get(0), a.get(1), new SqlExpr.StringLit(" ")) : a);
             case TRIM -> fn("trim", a);
             case LTRIM -> fn("ltrim", a);
             case RTRIM -> fn("rtrim", a);
@@ -358,7 +361,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     + expr(a.get(0), 0) + ", 2)";
             case LC_FIRST -> "lower(substr(" + expr(a.get(0), 0) + ", 1, 1)) || substr("
                     + expr(a.get(0), 0) + ", 2)";
-            case ENCODE_BASE64 -> fn("to_base64", a);
+            case ENCODE_BASE64 -> "to_base64(CAST(" + expr(a.get(0), 0) + " AS BLOB))";
             case LEVENSHTEIN -> fn("levenshtein", a);
             case GUID -> "uuid()";
             case FORMAT -> fn("printf", a);
@@ -372,7 +375,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case NOW -> "now()";
             case DATE_TRUNC_DAY -> "CAST(" + expr(a.get(0), 0) + " AS DATE)";
             case MAKE_DATE -> fn("make_date", a);
-            case MAKE_TIMESTAMP -> fn("make_timestamp", a);
+            // make_timestamp wants DOUBLE seconds.
+            case MAKE_TIMESTAMP -> a.size() == 6
+                    ? "make_timestamp(" + a.subList(0, 5).stream()
+                            .map(x -> expr(x, 0)).collect(Collectors.joining(", "))
+                            + ", CAST(" + expr(a.get(5), 0) + " AS DOUBLE))"
+                    : fn("make_timestamp", a);
             case DATE_TRUNC -> fn("date_trunc", a);           // (part, value)
             // (unitFn literal, amount, date) — the unit FUNCTION NAME rides
             // as a string literal and renders bare: d + to_years(n).
@@ -413,7 +421,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case TO_VARIANT -> variantConstruct(a);
             // Idiom points — no ANSI spelling; the dialect decides or dies.
             case UNNEST -> unnestProjection(a);
-            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_CONTAINS, LIST_GET ->
+            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_CONTAINS, LIST_GET,
+                 LIST_POSITION ->
                     listCall(c.fn(), a);
             case LIST_EXISTS -> listExists(a);
             case LIST_FOR_ALL -> listForAll(a);

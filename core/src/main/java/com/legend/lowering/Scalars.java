@@ -135,8 +135,7 @@ final class Scalars {
                 Map.entry("concatenate", SqlFn.LIST_CONCAT),
                 Map.entry("removeDuplicates", SqlFn.LIST_DISTINCT),
                 Map.entry("add", SqlFn.LIST_APPEND),
-                Map.entry("mean", SqlFn.LIST_AVG),
-                Map.entry("average", SqlFn.LIST_AVG),
+
                 Map.entry("median", SqlFn.LIST_MEDIAN),
                 Map.entry("mode", SqlFn.LIST_MODE),
                 Map.entry("tail", SqlFn.LIST_TAIL),
@@ -415,16 +414,27 @@ final class Scalars {
             }
         }
         // Collection min/max/sum: 1-arg = over a LIST; 2-arg = least/greatest.
+        // A TO-ONE argument (sum(7), average of one value) is the IDENTITY —
+        // the list encodings choke on scalars.
         for (String f : Pure.nativeKeysAt("min")) {
-            RULES.put(f, (n, args) -> args.size() == 1
-                    ? new SqlExpr.Call(SqlFn.LIST_MIN, args) : new SqlExpr.Call(SqlFn.LEAST, args));
+            RULES.put(f, (n, args) -> args.size() != 1 ? new SqlExpr.Call(SqlFn.LEAST, args)
+                    : isToOne(n.args().get(0)) ? args.get(0)
+                    : new SqlExpr.Call(SqlFn.LIST_MIN, args));
         }
         for (String f : Pure.nativeKeysAt("max")) {
-            RULES.put(f, (n, args) -> args.size() == 1
-                    ? new SqlExpr.Call(SqlFn.LIST_MAX, args) : new SqlExpr.Call(SqlFn.GREATEST, args));
+            RULES.put(f, (n, args) -> args.size() != 1 ? new SqlExpr.Call(SqlFn.GREATEST, args)
+                    : isToOne(n.args().get(0)) ? args.get(0)
+                    : new SqlExpr.Call(SqlFn.LIST_MAX, args));
         }
         for (String f : Pure.nativeKeysAt("sum")) {
-            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_SUM, args));
+            RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
+                    : new SqlExpr.Call(SqlFn.LIST_SUM, args));
+        }
+        for (String name : List.of("mean", "average")) {
+            for (String f : Pure.nativeKeysAt(name)) {
+                RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
+                        : new SqlExpr.Call(SqlFn.LIST_AVG, args));
+            }
         }
         // Statistical list reductions: DuckDB list_aggregate(x, '<agg>').
         for (var e : Map.of(
@@ -464,8 +474,33 @@ final class Scalars {
             });
         }
         for (String f : Pure.nativeKeysAt("indexOf")) {
-            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.MINUS, List.of(
-                    new SqlExpr.Call(SqlFn.STRPOS, args), new SqlExpr.IntLit(1))));
+            RULES.put(f, (n, args) -> {
+                if (n.args().get(0).info().type() != Type.Primitive.STRING) {
+                    // LIST indexOf: 0-based, -1 on a miss.
+                    return new SqlExpr.Call(SqlFn.MINUS, List.of(
+                            new SqlExpr.Call(SqlFn.COALESCE, List.of(
+                                    new SqlExpr.Call(SqlFn.LIST_POSITION,
+                                            List.of(args.get(0), args.get(1))),
+                                    new SqlExpr.IntLit(0))),
+                            new SqlExpr.IntLit(1)));
+                }
+                if (args.size() == 3) {
+                    // indexOf(s, sub, from): search the suffix; re-base hits,
+                    // misses stay -1.
+                    SqlExpr suffix = new SqlExpr.Call(SqlFn.SUBSTRING, List.of(
+                            args.get(0), plusOne(args.get(2))));
+                    SqlExpr k = new SqlExpr.Call(SqlFn.STRPOS,
+                            List.of(suffix, args.get(1)));
+                    return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                            SqlExpr.Call.of(SqlFn.GREATER, k, new SqlExpr.IntLit(0)),
+                            SqlExpr.Call.of(SqlFn.MINUS,
+                                    SqlExpr.Call.of(SqlFn.PLUS, k, args.get(2)),
+                                    new SqlExpr.IntLit(1)))),
+                            new SqlExpr.IntLit(-1));
+                }
+                return new SqlExpr.Call(SqlFn.MINUS, List.of(
+                        new SqlExpr.Call(SqlFn.STRPOS, args), new SqlExpr.IntLit(1)));
+            });
         }
         for (String f : Pure.nativeKeysAt("at")) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_GET,
@@ -766,6 +801,13 @@ final class Scalars {
                 SqlExpr.Call.of(SqlFn.PLUS, ip, new SqlExpr.IntLit(2)));
         return new SqlExpr.Call(SqlFn.LIST_GET, List.of(sorted,
                 new SqlExpr.Cast(pick, com.legend.sql.SqlType.Scalar.BIGINT)));
+    }
+
+    /** Whether an argument's Pure multiplicity is at most one. */
+    private static boolean isToOne(com.legend.compiler.spec.typed.TypedSpec arg) {
+        var m = arg.info().multiplicity();
+        return m instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                && Integer.valueOf(1).equals(b.upper());
     }
 
     /** A literal boolean argument; LOUD otherwise (never a silent default). */
