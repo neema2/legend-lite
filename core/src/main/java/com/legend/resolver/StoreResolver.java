@@ -223,21 +223,27 @@ public final class StoreResolver {
         // 2. Demand scan over ALL the chain's user lambdas (one funnel with
         //    the substitution — they cannot drift), close over slot
         //    conditions, materialize.
-        Set<java.util.List<String>> paths = new java.util.LinkedHashSet<>();
+        // POSITION-AWARE demand (the positional rule table): to-many paths
+        // in PROJECTION position explode via LEFT JOIN; in FILTER position
+        // they become implicit EXISTS per boolean leaf.
         // ENTRY RULE (learned three times now): scans enter through the
         // lambda's BODY — entering via the lambda itself trips the shadow
         // stop on its own parameter.
+        Set<java.util.List<String>> filterPaths = new java.util.LinkedHashSet<>();
+        Set<java.util.List<String>> projectionPaths = new java.util.LinkedHashSet<>();
         for (TypedSpec op : ops) {
             if (op instanceof TypedFilter f) {
-                scanLambda(f.predicate(), paths);
+                scanLambda(f.predicate(), filterPaths);
             }
             if (op instanceof TypedSortBy sb) {
-                scanLambda(sb.key(), paths);
+                scanLambda(sb.key(), projectionPaths);
             }
         }
         for (TypedFuncCol col : p.columns()) {
-            scanLambda(col.fn(), paths);
+            scanLambda(col.fn(), projectionPaths);
         }
+        Set<java.util.List<String>> paths = new java.util.LinkedHashSet<>(filterPaths);
+        paths.addAll(projectionPaths);
 
         // Slot demand (heads whose bindings read join slots).
         Set<String> slotAliases = Pipelines.slotAliases(cs.pipeline());
@@ -295,6 +301,39 @@ public final class StoreResolver {
                         sources.get(cs.mappingFqn(), targetClass).pipeline(),
                         Set.of(), targetClass).pipeline());
 
+        // To-many association heads (1-hop, exists/isEmpty position):
+        // correlated-EXISTS material — target pipeline + oriented condition,
+        // NO join emitted (§133's single form).
+        Map<String, Substitution.ExistsSub> existsSubs = new java.util.LinkedHashMap<>();
+        for (java.util.List<String> path : paths) {
+            String head = path.get(0);
+            boolean filterTwoHop = path.size() == 2 && filterPaths.contains(path);
+            if ((path.size() != 1 && !filterTwoHop)
+                    || cs.bindings().containsKey(head)
+                    || existsSubs.containsKey(head)) {
+                continue;
+            }
+            var assocOpt = ctx.findAssociationOf(cs.classFqn(), head);
+            if (assocOpt.isEmpty()) {
+                continue;   // not an association — plain unmapped (loud later)
+            }
+            // ANY multiplicity: the EXISTS material is consumed only under
+            // emptiness calls (plan rule: class-typed isEmpty/isNotEmpty of
+            // any multiplicity, incl. to-one-optional, => [NOT] EXISTS); a
+            // bare head not under an emptiness call still gets the honest
+            // H4 story at substitution.
+            AssocJoin aj = associationJoin(cs, head, context, true);
+            var assocEnd = assocOpt.get().property1().propertyName().equals(head)
+                    ? assocOpt.get().property1() : assocOpt.get().property2();
+            boolean isToMany = !(assocEnd.multiplicity()
+                    instanceof com.legend.parser.Multiplicity.Concrete emc
+                    && Integer.valueOf(1).equals(emc.upperBound()));
+            existsSubs.put(head, new Substitution.ExistsSub(aj.targetPipeline(),
+                    aj.condition(), aj.target().rowVar(), aj.target().bindings(),
+                    aj.targetRow(), aj.target().classFqn(),
+                    Pipelines.slotAliases(aj.target().pipeline()), isToMany));
+        }
+
         // Association demand: 2-hop paths whose head is NOT a binding are
         // association navigations — one LEFT join per head (dedup by head:
         // the whole-chain registry), target = the class's own pipeline.
@@ -311,7 +350,18 @@ public final class StoreResolver {
             if (assocs.containsKey(head)) {
                 continue;
             }
-            AssocJoin aj = associationJoin(cs, head, context);
+            // Filter-ONLY TO-MANY paths take the implicit-EXISTS route; a
+            // projection-position to-many path joins with ROW EXPLOSION
+            // (the unanimous reference semantics). A TO-ONE head always gets
+            // its flat LEFT join even though ExistsSub material exists for it
+            // (that material serves only explicit emptiness calls).
+            boolean projectionPosition = projectionPaths.stream()
+                    .anyMatch(pp -> pp.size() >= 2 && pp.get(0).equals(head));
+            if (!projectionPosition && existsSubs.containsKey(head)
+                    && existsSubs.get(head).toMany()) {
+                continue;
+            }
+            AssocJoin aj = associationJoin(cs, head, context, false);
             assocJoins.add(aj);
             assocs.put(head, new Substitution.AssocSub(aj.prefix(),
                     aj.target().rowVar(), aj.target().bindings(),
@@ -370,6 +420,12 @@ public final class StoreResolver {
                 collectLambdaParams(b, paramsInReach);
             }
         }
+        for (Substitution.ExistsSub ex : existsSubs.values()) {
+            paramsInReach.addAll(ex.orientedCond().parameters());
+            for (TypedSpec b : ex.targetBindings().values()) {
+                collectLambdaParams(b, paramsInReach);
+            }
+        }
         String fresh;
         do {
             fresh = "_r" + freshVarCounter++;
@@ -378,7 +434,7 @@ public final class StoreResolver {
         for (int i = ops.size() - 1; i >= 0; i--) {
             pipeline = switch (ops.get(i)) {
                 case TypedFilter f -> new TypedFilter(pipeline,
-                        substitution(cs, m, assocs, assocEnds, fresh, f.predicate())
+                        substitution(cs, m, assocs, assocEnds, existsSubs, true, fresh, f.predicate())
                                 .rewriteLambda(f.predicate()),
                         pipeline.info());
                 case TypedLimit l -> new TypedLimit(pipeline, l.count(), pipeline.info());
@@ -386,7 +442,7 @@ public final class StoreResolver {
                 case TypedSlice sl -> new TypedSlice(pipeline, sl.start(), sl.stop(),
                         pipeline.info());
                 case TypedSortBy sb -> new TypedSortBy(pipeline,
-                        substitution(cs, m, assocs, assocEnds, fresh, sb.key()).rewriteLambda(sb.key()),
+                        substitution(cs, m, assocs, assocEnds, existsSubs, false, fresh, sb.key()).rewriteLambda(sb.key()),
                         sb.ascending(), pipeline.info());
                 default -> throw new IllegalStateException("resolver bug: uncollected op");
             };
@@ -396,7 +452,7 @@ public final class StoreResolver {
         List<TypedFuncCol> cols = new ArrayList<>(p.columns().size());
         for (TypedFuncCol col : p.columns()) {
             cols.add(new TypedFuncCol(col.name(),
-                    substitution(cs, m, assocs, assocEnds, fresh, col.fn()).rewriteLambda(col.fn())));
+                    substitution(cs, m, assocs, assocEnds, existsSubs, false, fresh, col.fn()).rewriteLambda(col.fn())));
         }
         return new TypedProject(pipeline, cols, p.info());
     }
@@ -498,7 +554,8 @@ public final class StoreResolver {
      * property1 means the PARENT is classB, so the params REVERSE (the
      * TypedJoin condition binds (leftRow=parent, rightRow=target)).
      */
-    private AssocJoin associationJoin(ClassSource cs, String head, Context context) {
+    private AssocJoin associationJoin(ClassSource cs, String head, Context context,
+                                      boolean forExists) {
         var assoc = ctx.findAssociationOf(cs.classFqn(), head).orElseThrow(() ->
                 new MappingResolutionException("property '" + head + "' of class '"
                         + cs.classFqn() + "' is not mapped in mapping '"
@@ -507,14 +564,14 @@ public final class StoreResolver {
         // was a split-brain with findAssociationOf (audit blocker).
         var end = assoc.property1().propertyName().equals(head)
                 ? assoc.property1() : assoc.property2();
-        // DEFAULT-DENY multiplicity: only a concrete to-one end navigates
-        // here (a Parameter-multiplicity end must not silently duplicate rows).
-        if (!(end.multiplicity() instanceof com.legend.parser.Multiplicity.Concrete mc)
-                || !Integer.valueOf(1).equals(mc.upperBound())) {
+        // A CONCRETE end joins: to-one flat, to-many with ROW EXPLOSION
+        // (projection semantics — engine/V1/plangen unanimous). A
+        // Parameter-multiplicity end stays denied (unknown cardinality).
+        if (!forExists
+                && !(end.multiplicity() instanceof com.legend.parser.Multiplicity.Concrete)) {
             throw new NotImplementedException("navigation of association end '$"
-                    + head + "' (multiplicity " + end.multiplicity() + ") is not"
-                    + " supported yet: filter-position to-many becomes EXISTS in"
-                    + " H3c; other positions are H4+");
+                    + head + "' with non-concrete multiplicity "
+                    + end.multiplicity() + " is not supported");
         }
         String targetClass = ((com.legend.parser.TypeExpression.NameRef)
                 end.targetClass()).name();
@@ -601,13 +658,25 @@ public final class StoreResolver {
     private Substitution substitution(ClassSource cs, Pipelines.Materialized m,
                                       Map<String, Substitution.AssocSub> assocs,
                                       Set<String> assocEnds,
+                                      Map<String, Substitution.ExistsSub> existsSubs,
+                                      boolean filterPosition,
                                       String freshRowVar, TypedLambda userLambda) {
         return new Substitution(new Substitution.Target(
                 userLambda.parameters().get(0), freshRowVar,
                 cs.classFqn(), cs.mappingFqn(), cs.rowVar(), cs.bindings(),
                 (com.legend.compiler.element.type.Type.RelationType)
                         m.pipeline().info().type(),
-                m.stripped(), m.slotPrefixes(), assocs, assocEnds));
+                m.stripped(), m.slotPrefixes(), assocs, assocEnds, existsSubs,
+                isNotEmptyCallee(), filterPosition, false));
+    }
+
+    /** Any registered isNotEmpty overload — the lowerer dispatches by family. */
+    private com.legend.compiler.element.TypedFunction isNotEmptyCallee() {
+        var fns = ctx.findFunction("isNotEmpty");
+        if (fns.isEmpty()) {
+            throw new IllegalStateException("resolver bug: no isNotEmpty registration");
+        }
+        return fns.get(0);
     }
 
     /** Per-class dispatch: the runtime candidate that BINDS the class wins. */

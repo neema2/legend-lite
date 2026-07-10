@@ -50,12 +50,35 @@ final class Substitution {
                   java.util.Set<String> strippedSlots,
                   Map<String, String> slotPrefixes,
                   Map<String, AssocSub> assocs,
-                  java.util.Set<String> assocEnds) {}
+                  java.util.Set<String> assocEnds,
+                  Map<String, ExistsSub> existsSubs,
+                  com.legend.compiler.element.TypedFunction isNotEmptyCallee,
+                  boolean filterPosition, boolean nested) {}
 
-    /** A demanded association head: how its leaf bindings substitute. */
+    /** A to-many association head consumable under exists/isEmpty/isNotEmpty. */
+    record ExistsSub(TypedSpec targetPipeline, TypedLambda orientedCond,
+                     String targetRowVar, Map<String, TypedSpec> targetBindings,
+                     Type.RelationType targetRow, String targetClassFqn,
+                     java.util.Set<String> targetSlotAliases, boolean toMany) {}
+
+    /**
+     * A demanded association head: how its leaf bindings substitute.
+     * {@code readVar}/{@code readRowType} override where the rewritten
+     * reads attach — null means the chain's fresh row var (joined form);
+     * an EXISTS-inner registration points them at the subquery row.
+     */
     record AssocSub(String prefix, String targetRowVar,
                     Map<String, TypedSpec> targetBindings, String targetClassFqn,
-                    java.util.Set<String> targetSlotAliases) {}
+                    java.util.Set<String> targetSlotAliases,
+                    String readVar, Type.RelationType readRowType) {
+
+        AssocSub(String prefix, String targetRowVar,
+                 Map<String, TypedSpec> targetBindings, String targetClassFqn,
+                 java.util.Set<String> targetSlotAliases) {
+            this(prefix, targetRowVar, targetBindings, targetClassFqn,
+                    targetSlotAliases, null, null);
+        }
+    }
 
     private final Target target;
 
@@ -125,6 +148,34 @@ final class Substitution {
     }
 
     private TypedSpec rewrite(TypedSpec n) {
+        // TO-MANY navigation under an emptiness call: correlated EXISTS —
+        // the target pipeline filtered by the association condition (parent
+        // reads become the FREE outer row var, resolved through the
+        // lowerer's enclosing-scope channel), the user predicate substituted
+        // over the target's bindings. §133's single form.
+        if (n instanceof TypedNativeCall call && !call.args().isEmpty()) {
+            java.util.List<String> headPath = pathOf(call.args().get(0), target.userVar());
+            if (headPath != null && headPath.size() == 1
+                    && target.existsSubs().containsKey(headPath.get(0))
+                    && isEmptinessFamily(call)) {
+                return rewriteExists(call, target.existsSubs().get(headPath.get(0)));
+            }
+        }
+        // Boolean LEAF (not and/or/not) crossing a filter-only to-many:
+        // implicit EXISTS (plangen F1). and/or/not recurse so each leaf
+        // wraps individually.
+        // Emptiness-family leaves are NOT ∃-distributive (isEmpty over a
+        // crossing is about ABSENCE — wrapping it in EXISTS silently
+        // inverts rows; audit blocker): they take the join/loud routes.
+        if (n instanceof TypedNativeCall lc
+                && lc.info().type() == Type.Primitive.BOOLEAN
+                && !isBooleanConnective(lc)
+                && !isEmptinessFamily(lc)) {
+            String head = toManyFilterHead(lc);
+            if (head != null) {
+                return rewriteImplicitExists(lc, head);
+            }
+        }
         java.util.List<String> path = pathOf(n, target.userVar());
         if (path != null && path.size() == 2) {
             return rewritePath(path.get(0), path.get(1), n);
@@ -154,6 +205,11 @@ final class Substitution {
                 }
             }
             if (binding == null) {
+                if (target.nested()) {
+                    throw new NotImplementedException("nested navigation '$"
+                            + target.userVar() + "." + prop + "' inside an"
+                            + " exists/isEmpty predicate is not supported yet");
+                }
                 if (target.assocEnds().contains(prop)) {
                     throw new NotImplementedException("association property '$"
                             + target.userVar() + "." + prop + "' used other than"
@@ -243,12 +299,27 @@ final class Substitution {
     private TypedSpec assocLeaf(String head, String leaf) {
         AssocSub a = target.assocs().get(head);
         if (a == null) {
+            if (target.nested()) {
+                throw new NotImplementedException("nested navigation '" + head
+                        + "." + leaf + "' inside an exists/isEmpty predicate is"
+                        + " not supported yet");
+            }
+            if (target.existsSubs().containsKey(head)) {
+                throw new NotImplementedException("to-many navigation '" + head
+                        + "." + leaf + "' in this position (e.g. under isEmpty)"
+                        + " is not supported yet");
+            }
             throw new IllegalStateException("resolver bug: undemanded navigation"
                     + " '" + head + "." + leaf + "' — the demand scan and the"
                     + " rewrite disagreed");
         }
         TypedSpec leafBinding = a.targetBindings().get(leaf);
         if (leafBinding == null) {
+            if (target.nested()) {
+                throw new NotImplementedException("nested navigation '" + head
+                        + "." + leaf + "' inside an exists/isEmpty predicate is"
+                        + " not supported yet");
+            }
             throw new MappingResolutionException("property '" + leaf
                     + "' of class '" + a.targetClassFqn()
                     + "' is not mapped in mapping '" + target.mappingFqn() + "'",
@@ -274,9 +345,144 @@ final class Substitution {
                     + a.targetClassFqn() + "' is mapped through the target's own"
                     + " join slots; nested navigation joins are not supported yet");
         }
+        String readVar = a.readVar() != null ? a.readVar() : target.freshRowVar();
+        Type.RelationType readRow = a.readRowType() != null ? a.readRowType()
+                : target.rowType();
         return Pipelines.prefixColumns(leafBinding, a.targetRowVar(), a.prefix(),
-                v -> new TypedVariable(target.freshRowVar(),
-                        new ExprType(target.rowType(), Multiplicity.Bounded.ONE)));
+                v -> new TypedVariable(readVar,
+                        new ExprType(readRow, Multiplicity.Bounded.ONE)));
+    }
+
+    /** Filter-only to-many head inside this expression (implicit-EXISTS demand). */
+    private String toManyFilterHead(TypedSpec n) {
+        java.util.List<String> path = pathOf(n, target.userVar());
+        // FILTER position + a TO-MANY head wraps in EXISTS even when a
+        // projection elsewhere forced the JOIN: filtering the EXPLODED rows
+        // would keep only matching children instead of selecting parents
+        // (the reference semantics is EXISTS-then-explode).
+        if (path != null && path.size() == 2
+                && target.filterPosition()
+                && target.existsSubs().containsKey(path.get(0))
+                && target.existsSubs().get(path.get(0)).toMany()) {
+            return path.get(0);
+        }
+        if (path != null && path.size() == 2
+                && target.existsSubs().containsKey(path.get(0))
+                && target.existsSubs().get(path.get(0)).toMany()
+                && !target.assocs().containsKey(path.get(0))) {
+            return path.get(0);
+        }
+        for (TypedSpec c : n.children()) {
+            String h = toManyFilterHead(c);
+            if (h != null) {
+                return h;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Implicit EXISTS (plangen F1): a boolean LEAF crossing a to-many
+     * association wraps — EXISTS(target WHERE assoc-corr AND leaf'), the
+     * leaf's crossing reads rewritten onto the subquery row, everything
+     * else staying correlated to the outer row.
+     */
+    private TypedSpec rewriteImplicitExists(TypedNativeCall leaf, String head) {
+        if (target.isNotEmptyCallee() == null) {
+            throw new IllegalStateException(
+                    "resolver bug: implicit EXISTS demanded without an isNotEmpty callee");
+        }
+        ExistsSub ex = target.existsSubs().get(head);
+        TypedLambda cond = ex.orientedCond();
+        String pVar = cond.parameters().get(0);
+        String tVar = cond.parameters().get(1);
+        List<TypedSpec> corrBody = cond.body().stream().map(b ->
+                Pipelines.rewriteRowReads(b, pVar, Map.of(), java.util.Set.of(),
+                        v -> new TypedVariable(target.freshRowVar(),
+                                new ExprType(target.rowType(), Multiplicity.Bounded.ONE))))
+                .toList();
+        ExprType predType = new ExprType(new Type.FunctionType(
+                List.of(new Type.Param(ex.targetRow(), Multiplicity.Bounded.ONE)),
+                new Type.Param(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE)),
+                Multiplicity.Bounded.ONE);
+        TypedLambda corr = new TypedLambda(List.of(tVar), corrBody, predType);
+
+        // The leaf rewrites with the head registered as an UNPREFIXED
+        // AssocSub reading the subquery row; everything else substitutes
+        // as usual (outer reads stay correlated).
+        Map<String, AssocSub> inner = new java.util.LinkedHashMap<>(target.assocs());
+        inner.put(head, new AssocSub("", ex.targetRowVar(), ex.targetBindings(),
+                ex.targetClassFqn(), ex.targetSlotAliases(), tVar, ex.targetRow()));
+        Substitution innerSub = new Substitution(new Target(
+                target.userVar(), target.freshRowVar(), target.classFqn(),
+                target.mappingFqn(), target.sourceRowVar(), target.bindings(),
+                target.rowType(), target.strippedSlots(), target.slotPrefixes(),
+                inner, target.assocEnds(), Map.of(), null, true, true));
+        TypedSpec leafInner = innerSub.rewrite(leaf);
+        TypedLambda pred = new TypedLambda(List.of(tVar), List.of(leafInner), predType);
+
+        TypedSpec rel = new com.legend.compiler.spec.typed.TypedFilter(
+                new com.legend.compiler.spec.typed.TypedFilter(
+                        ex.targetPipeline(), corr, ex.targetPipeline().info()),
+                pred, ex.targetPipeline().info());
+        return new TypedNativeCall(target.isNotEmptyCallee(), List.of(rel),
+                new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE));
+    }
+
+    private static boolean isEmptinessFamily(TypedNativeCall c) {
+        String key = c.callee().signatureKey();
+        return com.legend.builtin.Pure.nativeNamed("isEmpty", key)
+                || com.legend.builtin.Pure.nativeNamed("isNotEmpty", key)
+                || com.legend.builtin.Pure.nativeNamed("exists", key);
+    }
+
+    private TypedSpec rewriteExists(TypedNativeCall call, ExistsSub ex) {
+        TypedLambda cond = ex.orientedCond();   // params (parentRow, targetRow)
+        String pVar = cond.parameters().get(0);
+        String tVar = cond.parameters().get(1);
+        List<TypedSpec> corrBody = cond.body().stream().map(b ->
+                Pipelines.rewriteRowReads(b, pVar, Map.of(), java.util.Set.of(),
+                        v -> new TypedVariable(target.freshRowVar(),
+                                new ExprType(target.rowType(), Multiplicity.Bounded.ONE))))
+                .toList();
+        TypedLambda corr = new TypedLambda(List.of(tVar), corrBody,
+                new ExprType(new Type.FunctionType(
+                        List.of(new Type.Param(ex.targetRow(), Multiplicity.Bounded.ONE)),
+                        new Type.Param(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE)),
+                        Multiplicity.Bounded.ONE));
+        TypedSpec rel = new com.legend.compiler.spec.typed.TypedFilter(
+                ex.targetPipeline(), corr, ex.targetPipeline().info());
+        List<TypedSpec> newArgs = new ArrayList<>();
+        newArgs.add(rel);
+        if (call.args().size() == 2) {
+            if (!(call.args().get(1) instanceof TypedLambda predLam)) {
+                throw new NotImplementedException("non-lambda predicate in "
+                        + call.callee().qualifiedName() + " over an association");
+            }
+            Substitution predSub = new Substitution(new Target(
+                    predLam.parameters().get(0), tVar, ex.targetClassFqn(),
+                    target.mappingFqn(), ex.targetRowVar(), ex.targetBindings(),
+                    ex.targetRow(), ex.targetSlotAliases(), Map.of(), Map.of(),
+                    java.util.Set.of(), Map.of(), null, true, true));
+            TypedLambda inner = predSub.rewriteLambda(predLam);
+            // OUTER reads inside the predicate ($s.name == $f.legal): a
+            // second pass through THIS substitution turns them into
+            // correlated free-var bindings (the pred param shadows nothing
+            // of the outer var; already-rewritten inner reads don't match
+            // the outer path funnel). Without it they escaped verbatim —
+            // audit blocker (StackOverflow downstream).
+            newArgs.add(new TypedLambda(inner.parameters(),
+                    inner.body().stream().map(this::rewrite).toList(),
+                    inner.info()));
+        }
+        return new TypedNativeCall(call.callee(), newArgs, call.info());
+    }
+
+    private static boolean isBooleanConnective(TypedNativeCall c) {
+        String key = c.callee().signatureKey();
+        return com.legend.builtin.Pure.nativeNamed("and", key)
+                || com.legend.builtin.Pure.nativeNamed("or", key)
+                || com.legend.builtin.Pure.nativeNamed("not", key);
     }
 
     private List<TypedSpec> rewriteAll(List<TypedSpec> ns) {

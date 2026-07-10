@@ -437,7 +437,7 @@ public final class Lowerer {
 
     private Resolution tryPredicate(SqlSelect select, TypedLambda lambda) {
         ColumnResolver columns = select.groupBy().isEmpty()
-                ? scopedResolver(select)
+                ? scopedResolver(select, lambda.parameters().get(0))
                 : (v, name) -> projectionExprOrThrow(select, name);
         return attempt(() -> scalar(last(lambda), columns));
     }
@@ -479,21 +479,37 @@ public final class Lowerer {
     }
 
     /**
-     * A lambda-body resolver over {@code select} that falls back to ENCLOSING
-     * lambda scopes — the correlation channel for nested relation queries.
-     * The own select is tried first (inner scope shadows outer).
+     * A lambda-body resolver over {@code select} — the correlation channel
+     * for nested relation queries. VAR-AWARE: the lambda's OWN parameter
+     * resolves against the own select; any OTHER variable belongs to an
+     * ENCLOSING lambda and tries the outer scopes FIRST. Resolving outer
+     * vars own-select-first silently SELF-CORRELATES whenever the outer
+     * row's column name also exists on the inner row (same-named columns
+     * across joined tables, self-joins — the audit's two wrong-answer
+     * regressions). The own select remains the last resort for other vars
+     * (legacy fallthrough).
      */
-    private ColumnResolver scopedResolver(SqlSelect select) {
+    private ColumnResolver scopedResolver(SqlSelect select, String ownVar) {
+        // SNAPSHOT the enclosing scopes at creation: iterating the LIVE
+        // deque includes this resolver itself once inner scopes run — any
+        // correlated miss then recurses forever (audit: StackOverflow where
+        // the contract promises a loud UnfoldableRef).
+        var outers = java.util.List.copyOf(enclosing);
         return (var, name) -> {
-            if (attempt(() -> resolveOrThrow(select, name))
-                    instanceof Resolution.Resolved own) {
-                return own.expr();
+            boolean own = var == null || var.equals(ownVar);
+            if (own && attempt(() -> resolveOrThrow(select, name))
+                    instanceof Resolution.Resolved o) {
+                return o.expr();
             }
-            for (var outer : enclosing) {
+            for (var outer : outers) {
                 if (attempt(() -> outer.resolve(var, name))
                         instanceof Resolution.Resolved found) {
                     return found.expr();
                 }
+            }
+            if (!own && attempt(() -> resolveOrThrow(select, name))
+                    instanceof Resolution.Resolved fallback) {
+                return fallback.expr();
             }
             throw new UnfoldableRef(name);
         };

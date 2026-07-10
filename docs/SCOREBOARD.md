@@ -1234,3 +1234,48 @@ Top detail:
     6  scalar lowering not yet implemented for TypedFilter
     6  unknown SQL data type: 'JSON'
 ```
+
+### Run 2026-07-10 @ e1d5008
+
+| tests | pass | failures | errors | skipped | green classes |
+|---|---|---|---|---|---|
+| 2721 | **1714** | 100 | 888 | 19 | 229 |
+
+| bucket | exception lines |
+|---|---|
+| OTHER | 269 |
+| CORE(parse): query syntax gaps | 156 |
+| CORE: scalar/agg function registrations | 145 |
+| FIXTURE: unknown refs (to diagnose) | 103 |
+| CORE: unlowered constructs | 96 |
+| H: class sources / property nav / mappings | 38 |
+| CORE(G): overload/typing gaps | 29 |
+
+Top detail:
+```
+   93  no scalar lowering registered for resolved overload 'meta::pure::funct
+   68  class query under TypedSerialize is not resolvable yet (H2 vocabulary)
+   59  class query under TypedGroupBy is not resolvable yet (H2 vocabulary)
+   34  no aggregate lowering registered for resolved overload 'meta::pure::fu
+   28  'test::Person' is not a known class, mapping, runtime, connection, or 
+   28  in function 'model::PersonMapping$class$model::Person': unknown table 
+   26  unbound type variable T
+   25  no SQL type for Pure class meta::pure::metamodel::type::Any at the low
+   24  unknown table 'T_EVENTS' in database 'EventDatabase'
+   23  resolver bug: mapping pipeline for 'model::StaffMember' in 'model::Sta
+   19  class query under TypedExtendWindow is not resolvable yet (H2 vocabula
+   18  scalar lowering not yet implemented for TypedNewInstance
+   16  lowering not yet implemented for TypedUserCall
+   13  resolver bug: mapping pipeline for 'model::StaffCard' in 'model::Staff
+   13  scalar lowering not yet implemented for TypedMatch
+   10  resolver bug: mapping pipeline for 'model::Person' in 'model::PersonM2
+   10  'test::Order' is not a known class, mapping, runtime, connection, or d
+    9  no overload of 'concatenate' matches 2 argument(s) of these shapes
+    9  no compiled mapping function for class fetch: test::Person
+    8  [plangen-c0954a] Not yet ported: TypedPropertyAccess (stage-3-relation
+    7  [plangen-c0954a] Not yet ported: TypedProject (stage-3-relation). Vari
+    6  unknown function 'meta::pure::functions::collection::concatenate'
+    6  scalar lowering not yet implemented for TypedFilter
+    6  unknown SQL data type: 'JSON'
+    5  class query under TypedExtend is not resolvable yet (H2 vocabulary)
+```

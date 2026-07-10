@@ -65,7 +65,7 @@ class ResolveNavigationTest {
             st.execute("CREATE TABLE P (NAME VARCHAR, CITY VARCHAR, FID INTEGER,"
                     + " BOSS INTEGER, ID INTEGER)");
             st.execute("INSERT INTO P VALUES ('Ann', 'NYC', 1, 2, 1),"
-                    + " ('Bob', 'SF', NULL, NULL, 2)");
+                    + " ('Bob', 'SF', NULL, NULL, 2), ('Cat', 'LA', 1, NULL, 3)");
             st.execute("CREATE TABLE F (ID INTEGER, LEGAL VARCHAR)");
             st.execute("INSERT INTO F VALUES (1, 'ACME')");
         }
@@ -116,7 +116,8 @@ class ResolveNavigationTest {
                 + " legal: p|$p.employer.legal])->from(m::RT)");
         assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
         assertEquals(1, count(sql, "SELECT"), sql);
-        assertEquals(List.of("Ann|ACME", "Bob|null"), exec(sql),
+        assertEquals(List.of("Ann|ACME", "Bob|null", "Cat|ACME"),
+                exec(sql).stream().sorted().toList(),
                 "LEFT semantics: Bob's NULL FID keeps his row");
     }
 
@@ -128,7 +129,9 @@ class ResolveNavigationTest {
         assertEquals(1, count(sql, "LEFT OUTER JOIN"),
                 "the beats-V1 pin — one registry across the whole chain:\n" + sql);
         assertEquals(1, count(sql, "SELECT"), sql);
-        assertEquals(List.of("ACME"), exec(sql));
+        // TO-ONE filter navigation = flat JOIN semantics (audit R4): both
+        // ACME employees qualify — one row each, no dedup of the parent set.
+        assertEquals(List.of("ACME", "ACME"), exec(sql));
     }
 
     @Test
@@ -139,7 +142,8 @@ class ResolveNavigationTest {
         assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
         assertTrue(sql.contains("P AS t0") && sql.contains("P AS t1"),
                 "same table twice, two aliases: " + sql);
-        assertEquals(List.of("Ann|Bob", "Bob|null"), exec(sql),
+        assertEquals(List.of("Ann|Bob", "Bob|null", "Cat|null"),
+                exec(sql).stream().sorted().toList(),
                 "Ann's boss is Bob (orientation pin — a swapped condition"
                         + " would join BOSS to the wrong side)");
     }
@@ -152,7 +156,7 @@ class ResolveNavigationTest {
         assertEquals(0, count(sql, "JOIN"), sql);
         assertEquals(1, count(sql, "SELECT"), sql);
         assertTrue(sql.contains("t0.CITY AS city"), sql);
-        assertEquals(List.of("NYC", "SF"), exec(sql));
+        assertEquals(List.of("LA", "NYC", "SF"), exec(sql).stream().sorted().toList());
     }
 
     @Test
@@ -161,21 +165,19 @@ class ResolveNavigationTest {
         String sql = sqlOf("m::Person.all()->project(~[name: p|$p.name])"
                 + "->from(m::RT)");
         assertEquals(0, count(sql, "JOIN"), sql);
-        assertEquals(List.of("Ann", "Bob"), exec(sql));
+        assertEquals(List.of("Ann", "Bob", "Cat"), exec(sql).stream().sorted().toList());
     }
 
     @Test
-    @DisplayName("14b: self-association property2 to-one variant navigates correctly")
+    @DisplayName("14b: self-association property2 (to-many) projection EXPLODES with correct orientation")
     void selfAssociationOtherEnd() throws SQLException {
-        // reports is [*] (loud, H3c) — pin the loud path for the other end.
-        var ctx = Compiler.compileModel(MODEL);
-        SpecCompiler specs = new SpecCompiler(ctx);
-        var body = specs.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(
-                "m::Person.all()->project(~[r: p|$p.reports.name])->from(m::RT)")));
-        var e = org.junit.jupiter.api.Assertions.assertThrows(
-                com.legend.error.NotImplementedException.class,
-                () -> new StoreResolver(ctx, specs).resolve(body, null));
-        assertTrue(e.getMessage().contains("EXISTS in"), e.getMessage());
+        String sql = sqlOf("m::Person.all()->project(~[name: p|$p.name,"
+                + " r: p|$p.reports.name])->from(m::RT)");
+        assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
+        // Bob's report is Ann (Ann.BOSS=2=Bob); Ann has none — explosion +
+        // orientation pinned by DATA (property2 = reversed condition).
+        assertEquals(List.of("Ann|null", "Bob|Ann", "Cat|null"),
+                exec(sql).stream().sorted().toList());
     }
 
     @Test
@@ -185,7 +187,8 @@ class ResolveNavigationTest {
                 + " bossName: p|$p.boss.name])->from(m::RT)");
         assertEquals(2, count(sql, "LEFT OUTER JOIN"), sql);
         assertEquals(1, count(sql, "SELECT"), sql);
-        assertEquals(List.of("ACME|Bob", "null|null"), exec(sql));
+        assertEquals(List.of("ACME|Bob", "ACME|null", "null|null"),
+                exec(sql).stream().sorted().toList());
     }
 
     @Test
@@ -194,17 +197,19 @@ class ResolveNavigationTest {
         String sql = sqlOf("m::Person.all()"
                 + "->project(~[legal: p|$p.employer->toOne().legal])->from(m::RT)");
         assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
-        assertEquals(List.of("ACME", "null"), exec(sql));
+        assertEquals(List.of("ACME", "ACME", "null"),
+                exec(sql).stream().sorted().toList());
     }
 
     @Test
-    @DisplayName("bare association head gets the honest unsupported story, not 'not mapped'")
+    @DisplayName("bare association head AS A VALUE gets the honest unsupported story")
     void bareAssocHeadHonestError() {
+        // ($p.employer->isEmpty() now RESOLVES — fixture 26; the remaining
+        // unsupported bare shape is the whole-instance VALUE use.)
         var ctx = Compiler.compileModel(MODEL);
         SpecCompiler specs = new SpecCompiler(ctx);
         var body = specs.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(
-                "m::Person.all()->filter(p|$p.employer->isEmpty())"
-                        + "->project(~[name: p|$p.name])->from(m::RT)")));
+                "m::Person.all()->project(~[e: p|$p.employer])->from(m::RT)")));
         var e = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.error.NotImplementedException.class,
                 () -> new StoreResolver(ctx, specs).resolve(body, null));
@@ -270,7 +275,8 @@ class ResolveNavigationTest {
                 + " legal: p|$p.firm.legal])->from(m::RT)");
         assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
         assertEquals(1, count(sql, "SELECT"), sql);
-        assertEquals(List.of("Ann|ACME", "Bob|null"), exec(sql));
+        assertEquals(List.of("Ann|ACME", "Bob|null", "Cat|ACME"),
+                exec(sql).stream().sorted().toList());
     }
 
     @Test
@@ -279,7 +285,7 @@ class ResolveNavigationTest {
         String sql = sqlOfA7("m::P.all()->project(~[name: p|$p.name])->from(m::RT)");
         assertEquals(0, count(sql, "JOIN"),
                 "un-navigated class slot must cancel (was the A7 lowerer wall):\n" + sql);
-        assertEquals(List.of("Ann", "Bob"), exec(sql));
+        assertEquals(List.of("Ann", "Bob", "Cat"), exec(sql).stream().sorted().toList());
     }
 
     @Test
@@ -289,7 +295,8 @@ class ResolveNavigationTest {
                 + " p|$p.employer.legal + '/' + $p.boss.name])->from(m::RT)");
         assertEquals(2, count(sql, "LEFT OUTER JOIN"), sql);
         assertEquals(1, count(sql, "SELECT"), sql);
-        assertEquals(List.of("ACME/Bob", "null"), exec(sql),
+        assertEquals(List.of("ACME/Bob", "null", "null"),
+                exec(sql).stream().sorted().toList(),
                 "NULL string concat propagates per SQL semantics");
     }
 
@@ -313,5 +320,147 @@ class ResolveNavigationTest {
                 com.legend.error.NotImplementedException.class,
                 () -> new StoreResolver(ctx2, specs2).resolve(body2, null));
         assertTrue(e2.getMessage().contains("H4"), e2.getMessage());
+    }
+
+    // ---- M-H3c: to-many navigation in filter position = correlated EXISTS ----
+
+    @Test
+    @DisplayName("15: to-many exists(pred) — correlated EXISTS, no top-level join")
+    void toManyExists() throws SQLException {
+        String sql = sqlOf("m::Firm.all()->filter(f|$f.staff->exists(s|$s.name == 'Ann'))"
+                + "->project(~[legal: f|$f.legal])->from(m::RT)");
+        assertEquals(0, count(sql, "LEFT OUTER JOIN"), sql);
+        assertEquals(1, count(sql, "EXISTS"), sql);
+        assertEquals(2, count(sql, "SELECT"), "outer + the correlated subquery: " + sql);
+        assertEquals(List.of("ACME"), exec(sql));
+    }
+
+    @Test
+    @DisplayName("15b: to-many isEmpty — NOT EXISTS, executed")
+    void toManyIsEmpty() throws SQLException {
+        String sql = sqlOf("m::Firm.all()->filter(f|$f.staff->isEmpty())"
+                + "->project(~[legal: f|$f.legal])->from(m::RT)");
+        assertEquals(1, count(sql, "NOT EXISTS"), sql);
+        assertEquals(List.of(), exec(sql), "ACME has staff (Ann): no empty firms");
+    }
+
+    @Test
+    @DisplayName("26: to-one-OPTIONAL class-typed isEmpty — NOT EXISTS (any-multiplicity rule)")
+    void toOneOptionalIsEmpty() throws SQLException {
+        String sql = sqlOf("m::Person.all()->filter(p|$p.employer->isEmpty())"
+                + "->project(~[name: p|$p.name])->from(m::RT)");
+        assertEquals(1, count(sql, "NOT EXISTS"), sql);
+        assertEquals(0, count(sql, "LEFT OUTER JOIN"), sql);
+        assertEquals(List.of("Bob"), exec(sql), "Bob's NULL FID matches no firm");
+    }
+
+    @Test
+    @DisplayName("implicit EXISTS: filter crossing a to-many with NO exists() call (plangen F1)")
+    void implicitExistsOnToManyCrossing() throws SQLException {
+        String sql = sqlOf("m::Firm.all()->filter(f|$f.staff.name == 'Ann')"
+                + "->project(~[legal: f|$f.legal])->from(m::RT)");
+        assertEquals(1, count(sql, "EXISTS"), sql);
+        assertEquals(0, count(sql, "LEFT OUTER JOIN"), sql);
+        assertEquals(List.of("ACME"), exec(sql));
+    }
+
+    @Test
+    @DisplayName("projection-position to-many — LEFT JOIN with ROW EXPLOSION")
+    void projectionToManyExplodes() throws SQLException {
+        String sql = sqlOf("m::Firm.all()->project(~[legal: f|$f.legal,"
+                + " who: f|$f.staff.name])->from(m::RT)");
+        assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
+        // ACME has two staff (Ann, Cat): two exploded rows.
+        assertEquals(List.of("ACME|Ann", "ACME|Cat"),
+                exec(sql).stream().sorted().toList());
+    }
+
+    @Test
+    @DisplayName("mixed position: filter EXISTS-selects parents, projection explodes ALL their children")
+    void mixedPositionSameHead() throws SQLException {
+        String sql = sqlOf("m::Firm.all()->filter(f|$f.staff.name == 'Ann')"
+                + "->project(~[legal: f|$f.legal, who: f|$f.staff.name])->from(m::RT)");
+        assertEquals(1, count(sql, "EXISTS"),
+                "the filter stays EXISTS even though projection forced the join:\n" + sql);
+        assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
+        // THE SEMANTIC PIN (audit): ACME qualifies via Ann and explodes ALL
+        // its staff — filter-on-exploded-rows would drop Cat.
+        assertEquals(List.of("ACME|Ann", "ACME|Cat"),
+                exec(sql).stream().sorted().toList());
+    }
+
+    @Test
+    @DisplayName("P02: filter-ONLY to-one navigation — flat LEFT JOIN, never EXISTS (audit R4)")
+    void filterOnlyToOneNavIsFlatJoin() throws SQLException {
+        String sql = sqlOf("m::Person.all()->filter(p|$p.employer.legal == 'ACME')"
+                + "->project(~[name: p|$p.name])->from(m::RT)");
+        assertEquals(1, count(sql, "LEFT OUTER JOIN"),
+                "to-one head must rebuild its join even though ExistsSub"
+                        + " material exists for explicit emptiness calls:\n" + sql);
+        assertEquals(0, count(sql, "EXISTS"), sql);
+        assertEquals(1, count(sql, "SELECT"), sql);
+        assertEquals(List.of("Ann", "Cat"), exec(sql).stream().sorted().toList());
+    }
+
+    @Test
+    @DisplayName("P03: NOT over a to-one filter navigation — SQL NULL semantics (engine parity)")
+    void notOverToOneNavKeepsNullSemantics() throws SQLException {
+        String sql = sqlOf("m::Person.all()->filter(p|!($p.employer.legal == 'ACME'))"
+                + "->project(~[name: p|$p.name])->from(m::RT)");
+        assertEquals(0, count(sql, "EXISTS"), sql);
+        // Ann/Cat are ACME (excluded); Bob's NULL comparison is NULL, and
+        // NOT(NULL) is NULL — excluded too. The flat-join semantics, pinned
+        // by DATA so an EXISTS reroute (NOT EXISTS would ADMIT Bob) fails.
+        assertEquals(List.of(), exec(sql));
+    }
+
+    @Test
+    @DisplayName("P01: scalar isEmpty ACROSS a to-one crossing — IS NULL via the join, not EXISTS")
+    void scalarIsEmptyAcrossToOneCrossing() throws SQLException {
+        String sql = sqlOf("m::Person.all()->filter(p|$p.employer.legal->isEmpty())"
+                + "->project(~[name: p|$p.name])->from(m::RT)");
+        assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
+        assertEquals(0, count(sql, "EXISTS"), sql);
+        assertEquals(1, count(sql, "IS NULL"), sql);
+        assertEquals(List.of("Bob"), exec(sql),
+                "no-employer row: joined LEGAL is NULL, isEmpty true");
+    }
+
+    @Test
+    @DisplayName("P04: OUTER var inside an explicit exists predicate — correlated, no overflow")
+    void outerVarInsideExistsPredicate() throws SQLException {
+        String sql = sqlOf("m::Firm.all()->filter(f|$f.staff->exists(s|$s.name != $f.legal))"
+                + "->project(~[legal: f|$f.legal])->from(m::RT)");
+        assertEquals(1, count(sql, "EXISTS"), sql);
+        assertEquals(List.of("ACME"), exec(sql),
+                "staff names differ from the firm's LEGAL: predicate true");
+    }
+
+    @Test
+    @DisplayName("emptiness leaf over a to-many crossing is REFUSED loud (not ∃-distributive)")
+    void emptinessLeafOverToManyCrossingIsLoud() {
+        var ctx = Compiler.compileModel(MODEL);
+        SpecCompiler specs = new SpecCompiler(ctx);
+        var body = specs.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(
+                "m::Firm.all()->filter(f|$f.staff.name->isEmpty())"
+                        + "->project(~[legal: f|$f.legal])->from(m::RT)")));
+        var e = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.NotImplementedException.class,
+                () -> new StoreResolver(ctx, specs).resolve(body, null));
+        assertTrue(e.getMessage().contains("staff.name"), e.getMessage());
+    }
+
+    @Test
+    @DisplayName("nested navigation inside an exists predicate is loud NotImplemented")
+    void nestedNavInsideExistsIsLoud() {
+        var ctx = Compiler.compileModel(MODEL);
+        SpecCompiler specs = new SpecCompiler(ctx);
+        var body = specs.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(
+                "m::Firm.all()->filter(f|$f.staff->exists(s|$s.boss.name == 'Bob'))"
+                        + "->project(~[legal: f|$f.legal])->from(m::RT)")));
+        var e = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.NotImplementedException.class,
+                () -> new StoreResolver(ctx, specs).resolve(body, null));
+        assertTrue(e.getMessage().contains("nested navigation"), e.getMessage());
     }
 }
