@@ -307,6 +307,19 @@ final class Substitution {
                 }
                 return renameRowVar(leafExpr);
             }
+            // OTHERWISE per-leaf dispatch (V1 §D.5): leaf in the embedded
+            // partial => parent-alias read, no join; any other leaf =>
+            // through the FALLBACK's demanded navigate slot. The same head
+            // can go both ways in one query.
+            TypedNativeCall ow = otherwiseOf(headBinding);
+            if (ow != null) {
+                TypedSpec leafExpr = ((com.legend.compiler.spec.typed.TypedNewInstance)
+                        ow.args().get(0)).properties().get(leaf);
+                if (leafExpr != null) {
+                    return renameRowVar(leafExpr);
+                }
+                return assocLeaf(head, leaf);
+            }
             throw new NotImplementedException("navigation through class-typed"
                     + " slot property '" + head + "' is not supported yet");
         }
@@ -508,6 +521,29 @@ final class Substitution {
         String key = c.callee().signatureKey();
         return com.legend.builtin.Pure.nativeNamed("and", key)
                 || com.legend.builtin.Pure.nativeNamed("or", key);
+    }
+
+    /**
+     * THE otherwise recognizer (one, shared with the demand scan): the
+     * binding's {@code otherwise(^Inner(...), $row.<slot>)} call, looking
+     * through a {@code toOne} wrap; {@code null} when the binding is not an
+     * otherwise composition. The normalizer emits exactly this shape —
+     * partial FIRST, fallback slot read second (canonical by construction).
+     */
+    static TypedNativeCall otherwiseOf(TypedSpec binding) {
+        TypedSpec inner = binding;
+        if (inner instanceof TypedNativeCall c && c.args().size() == 1
+                && c.callee().qualifiedName().endsWith("toOne")) {
+            inner = c.args().get(0);
+        }
+        if (inner instanceof TypedNativeCall oc && oc.args().size() == 2
+                && com.legend.builtin.Pure.nativeNamed("otherwise",
+                        oc.callee().signatureKey())
+                && oc.args().get(0)
+                        instanceof com.legend.compiler.spec.typed.TypedNewInstance) {
+            return oc;
+        }
+        return null;
     }
 
     /** An emptiness-family call at this node or anywhere beneath it. */

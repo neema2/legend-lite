@@ -306,7 +306,22 @@ public final class StoreResolver {
             if (headBinding == null) {
                 continue;   // association heads (below)
             }
-            String alias = navSlotAlias(headBinding, cs.rowVar(), navSteps.keySet());
+            // OTHERWISE per-leaf dispatch (V1 §D.5): a leaf mapped by the
+            // embedded partial reads the PARENT row — no demand; any other
+            // leaf demands the FALLBACK's navigate slot. Same head can go
+            // both ways in one query. The normalizer's emission is the one
+            // canonical shape: otherwise(^Inner(...), $row.<slot>).
+            TypedSpec navRead = headBinding;
+            var ow = Substitution.otherwiseOf(headBinding);
+            if (ow != null) {
+                var partial = (com.legend.compiler.spec.typed.TypedNewInstance)
+                        ow.args().get(0);
+                if (partial.properties().containsKey(path.get(1))) {
+                    continue;   // embedded leaf: parent-alias read, no join
+                }
+                navRead = ow.args().get(1);
+            }
+            String alias = navSlotAlias(navRead, cs.rowVar(), navSteps.keySet());
             if (alias == null || demandedNavs.contains(alias)) {
                 continue;
             }
