@@ -46,6 +46,9 @@ final class Scalars {
 
     static {
         family(SqlFn.EQUAL, "equal");
+        // eq = strict equality; over our SQL value set (scalars, structs —
+        // DuckDB compares structs structurally) it IS the = operator.
+        family(SqlFn.EQUAL, "eq");
         family(SqlFn.LESS, "lessThan");
         family(SqlFn.LESS_EQUAL, "lessThanEqual");
         family(SqlFn.GREATER, "greaterThan");
@@ -127,7 +130,6 @@ final class Scalars {
                 Map.entry("today", SqlFn.TODAY), Map.entry("now", SqlFn.NOW),
                 Map.entry("datePart", SqlFn.DATE_TRUNC_DAY),
                 // Lists / collections
-                Map.entry("zip", SqlFn.LIST_ZIP),
                 // collection concatenate only — the relation overload is the
                 // TypedConcatenate set-op and never reaches scalar lowering
                 Map.entry("concatenate", SqlFn.LIST_CONCAT),
@@ -442,6 +444,26 @@ final class Scalars {
             RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
                     : new SqlExpr.Call(SqlFn.LIST_MODE, args));
         }
+        // zip(a, b) -> Pair<T,U>[*]: index over the SHORTER list (real pure
+        // truncates; DuckDB's native list_zip PADS with NULL — wrong
+        // semantics), each element a struct with Pair's first/second layout.
+        for (String f : Pure.nativeKeysAt("zip")) {
+            RULES.put(f, (n, args) -> {
+                SqlExpr a = args.get(0), b = args.get(1);
+                SqlExpr count = SqlExpr.Call.of(SqlFn.LEAST,
+                        SqlExpr.Call.of(SqlFn.LIST_LENGTH, a),
+                        SqlExpr.Call.of(SqlFn.LIST_LENGTH, b));
+                SqlExpr i = new SqlExpr.Column(null, "_zip_i");
+                SqlExpr body = new SqlExpr.StructLit(List.of(
+                        new SqlExpr.StructLit.Field("first",
+                                SqlExpr.Call.of(SqlFn.LIST_GET, a, i)),
+                        new SqlExpr.StructLit.Field("second",
+                                SqlExpr.Call.of(SqlFn.LIST_GET, b, i))));
+                return SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
+                        SqlExpr.Call.of(SqlFn.RANGE_FN, new SqlExpr.IntLit(1), plusOne(count)),
+                        new SqlExpr.Lambda(List.of("_zip_i"), body));
+            });
+        }
         for (String name : List.of("mean", "average")) {
             for (String f : Pure.nativeKeysAt(name)) {
                 RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
@@ -515,8 +537,18 @@ final class Scalars {
             });
         }
         for (String f : Pure.nativeKeysAt("at")) {
-            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_GET,
-                    List.of(args.get(0), plusOne(args.get(1)))));
+            // at(x, 0) over a TO-ONE value is the IDENTITY — the list encoding
+            // would CHAR-INDEX a lone string ('Doe'[1] = 'D' in DuckDB).
+            RULES.put(f, (n, args) -> isToOne(n.args().get(0))
+                    && args.get(1) instanceof SqlExpr.IntLit i && i.value() == 0
+                    ? args.get(0)
+                    : new SqlExpr.Call(SqlFn.LIST_GET,
+                            List.of(args.get(0), plusOne(args.get(1)))));
+        }
+        // find(coll, pred): the FIRST satisfying element, [0..1] — filter, then head.
+        for (String f : Pure.nativeKeysAt("find")) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_GET, List.of(
+                    new SqlExpr.Call(SqlFn.LIST_FILTER, args), new SqlExpr.IntLit(1))));
         }
         for (String f : Pure.nativeKeysAt("splitPart")) {
             RULES.put(f, (n, args) -> {

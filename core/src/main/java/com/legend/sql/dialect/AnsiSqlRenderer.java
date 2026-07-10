@@ -250,6 +250,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.DateLit d -> dateLit(d.iso());
             case SqlExpr.TimestampLit t -> timestampLit(t.iso());
             case SqlExpr.ArrayLit a -> arrayLit(a.elements());
+            case SqlExpr.StructLit s -> structLit(s);
+            case SqlExpr.StructGet g -> structGet(g);
             case SqlExpr.Call c -> call(c, parentPrec);
             case SqlExpr.Case c -> caseExpr(c);
             case SqlExpr.Exists ex -> "EXISTS (" + inline(ex.subquery()) + ")";
@@ -586,6 +588,14 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         throw new IllegalStateException("an array literal reached a dialect without array support");
     }
 
+    protected String structLit(SqlExpr.StructLit s) {
+        throw new IllegalStateException("a struct literal reached a dialect without struct support");
+    }
+
+    protected String structGet(SqlExpr.StructGet g) {
+        throw new IllegalStateException("a struct extraction reached a dialect without struct support");
+    }
+
     /** SQL type → this dialect's CAST spelling (ANSI defaults). */
     protected String castTypeName(com.legend.sql.SqlType t) {
         return switch (t) {
@@ -602,6 +612,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case com.legend.sql.SqlType.Decimal d ->
                     "DECIMAL(" + d.precision() + ", " + d.scale() + ")";
             case com.legend.sql.SqlType.Array a -> castTypeName(a.element()) + "[]";
+            case com.legend.sql.SqlType.Struct s -> throw new IllegalStateException(
+                    "a STRUCT type reached a dialect without struct support");
         };
     }
 

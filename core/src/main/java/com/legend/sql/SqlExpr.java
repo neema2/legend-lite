@@ -11,7 +11,8 @@ import java.util.List;
 public sealed interface SqlExpr
         permits SqlExpr.Column, SqlExpr.Star, SqlExpr.StringLit, SqlExpr.IntLit,
                 SqlExpr.FloatLit, SqlExpr.DecimalLit, SqlExpr.BoolLit, SqlExpr.NullLit,
-                SqlExpr.DateLit, SqlExpr.TimestampLit, SqlExpr.ArrayLit, SqlExpr.Call,
+                SqlExpr.DateLit, SqlExpr.TimestampLit, SqlExpr.ArrayLit,
+                SqlExpr.StructLit, SqlExpr.StructGet, SqlExpr.Call,
                 SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.WindowCall,
                 SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlExpr.JsonObject,
                 SqlExpr.JsonArrayAgg, SqlAgg.Reducer {
@@ -52,6 +53,24 @@ public sealed interface SqlExpr
 
     /** A list literal, {@code [a, b, c]} in DuckDB. */
     record ArrayLit(List<SqlExpr> elements) implements SqlExpr {
+    }
+
+    /**
+     * A named-field composite literal ({@code {'f': v, …}} in DuckDB). Field
+     * ORDER is the emitting frontend's declared layout — load-bearing, never
+     * inferred from the value set.
+     */
+    record StructLit(List<Field> fields) implements SqlExpr {
+        public StructLit {
+            fields = List.copyOf(fields);
+        }
+
+        public record Field(String name, SqlExpr value) {
+        }
+    }
+
+    /** Field extraction from a composite value ({@code struct_extract(x, 'f')} in DuckDB). */
+    record StructGet(SqlExpr source, String field) implements SqlExpr {
     }
 
     /** A function application by SEMANTIC vocabulary entry (see {@link SqlFn}). */

@@ -55,6 +55,39 @@ public final class Lowerer {
     private int aliasCounter = 0;
 
     /**
+     * The CANONICAL class-value layout resolver (ClassLayouts, supplied by the
+     * driver): declared stored properties in declaration order — a struct's
+     * fields come from the MODEL, never from an instance's value set. Empty
+     * when no model rides along (unit tests over pure-relational queries);
+     * class values then keep hitting the loud walls.
+     */
+    private final java.util.function.Function<Type,
+            java.util.Optional<java.util.List<Type.Column>>> classLayout;
+
+    public Lowerer() {
+        this(t -> java.util.Optional.empty());
+    }
+
+    public Lowerer(java.util.function.Function<Type,
+            java.util.Optional<java.util.List<Type.Column>>> classLayout) {
+        this.classLayout = classLayout;
+    }
+
+    /** SQL type of a value, seeing through class layouts (structs) before {@link PureSql}. */
+    private com.legend.sql.SqlType sqlTypeOf(Type t) {
+        return classLayout.apply(t)
+                .<com.legend.sql.SqlType>map(cols -> new com.legend.sql.SqlType.Struct(
+                        cols.stream().map(c -> {
+                            com.legend.sql.SqlType ft = sqlTypeOf(c.type());
+                            boolean many = c.multiplicity() instanceof
+                                    com.legend.compiler.element.type.Multiplicity.Bounded b && b.isMany();
+                            return new com.legend.sql.SqlType.Struct.Field(c.name(),
+                                    many ? new com.legend.sql.SqlType.Array(ft) : ft);
+                        }).toList()))
+                .orElseGet(() -> PureSql.type(t));
+    }
+
+    /**
      * Enclosing lambda scopes for CORRELATED nesting: when a relation query is
      * lowered INSIDE a lambda (a correlated subquery), the outer lambda's
      * resolver is pushed here so the inner predicate can reference outer rows.
@@ -124,7 +157,7 @@ public final class Lowerer {
         return new SqlSelect(
                 List.of(new SqlSelect.Projection(e, "value")), false, null,
                 null, List.of(), null, null, List.of(), null, null,
-                List.of(new OutputCol("value", PureSql.type(spec.info().type()),
+                List.of(new OutputCol("value", sqlTypeOf(spec.info().type()),
                         PureSql.nullable(spec.info().multiplicity()))));
     }
 
@@ -1287,8 +1320,41 @@ public final class Lowerer {
                     && inner.source() instanceof TypedVariable v
                     && inner.info().type() instanceof Type.RelationType
                     -> columns.resolve(v.name(), inner.property() + "_" + p.property());
+            // A let-bound VALUE's field ($person.firstName after
+            // |let person = ^Person(…)): extract from the lowered binding —
+            // there is no row scope to resolve against.
+            case TypedPropertyAccess p when p.source() instanceof TypedVariable v
+                    && letBindings.containsKey(v.name())
+                    -> new SqlExpr.StructGet(letBindings.get(v.name()), p.property());
             case TypedPropertyAccess p when p.source() instanceof TypedVariable v
                     -> columns.resolve(v.name(), p.property());
+            // Field access on a CLASS-typed VALUE (an instance literal, a
+            // native call's struct result, a nested pair): the visible-literal
+            // case inlines the field's own expression (no struct round-trip);
+            // anything opaque extracts from the struct.
+            case TypedPropertyAccess p when p.source()
+                        instanceof com.legend.compiler.spec.typed.TypedNewInstance ni -> {
+                TypedSpec v = ni.properties().get(p.property());
+                // The MODEL declares the field; an unset optional is NULL.
+                yield v == null ? new SqlExpr.NullLit() : scalar(v, columns);
+            }
+            case TypedPropertyAccess p when classLayout.apply(p.source().info().type()).isPresent()
+                    -> new SqlExpr.StructGet(scalar(p.source(), columns), p.property());
+            // ^Class(prop=value, …) as a VALUE: a struct with the MODEL's
+            // canonical layout (declared stored properties, declaration
+            // order) — never the instance's own field set; an omitted
+            // property is a NULL field.
+            case com.legend.compiler.spec.typed.TypedNewInstance n -> {
+                var layout = classLayout.apply(n.info().type()).orElseThrow(() ->
+                        new IllegalStateException("class value ^" + n.classFqn()
+                                + "(…) has no canonical layout — the class declares no"
+                                + " stored properties (or no model rides this lowering)"));
+                yield new SqlExpr.StructLit(layout.stream().map(c ->
+                        new SqlExpr.StructLit.Field(c.name(),
+                                n.properties().containsKey(c.name())
+                                        ? scalar(n.properties().get(c.name()), columns)
+                                        : new SqlExpr.NullLit())).toList());
+            }
             // A bare variable: a query-level let binding substitutes; else a
             // lambda variable (a list element inside exists/forAll etc.).
             case TypedVariable v -> letBindings.containsKey(v.name())
@@ -1636,7 +1702,7 @@ public final class Lowerer {
         return (Type.RelationType) spec.info().type();
     }
 
-    private static List<OutputCol> outputsOf(com.legend.compiler.element.type.ExprType info) {
+    private List<OutputCol> outputsOf(com.legend.compiler.element.type.ExprType info) {
         if (!(info.type() instanceof Type.RelationType rt)) {
             return List.of();
         }
@@ -1653,7 +1719,7 @@ public final class Lowerer {
                 }
                 continue;
             }
-            out.add(new OutputCol(c.name(), PureSql.type(c.type()),
+            out.add(new OutputCol(c.name(), sqlTypeOf(c.type()),
                     PureSql.nullable(c.multiplicity())));
         }
         return out;

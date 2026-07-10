@@ -26,18 +26,30 @@ public final class Executor {
                                           Connection connection,
                                           com.legend.sql.dialect.SqlDialect dialect)
             throws SQLException {
-        ResultShape shape = ResultShape.of(rootType);
+        return execute(sql, plan, rootType, ResultShape.of(rootType), connection, dialect);
+    }
+
+    /**
+     * Shape-explicit entry: the driver decides the shape from the RESOLVED
+     * root NODE (a class-typed root is GRAPH only under the resolver's
+     * serialize envelope; bare it is an instance VALUE — the type alone
+     * cannot tell them apart).
+     */
+    public static ExecutionResult execute(String sql, SqlQuery plan, ExprType rootType,
+                                          ResultShape shape, Connection connection,
+                                          com.legend.sql.dialect.SqlDialect dialect)
+            throws SQLException {
         try (Statement st = connection.createStatement();
              ResultSet rs = st.executeQuery(sql)) {
             return switch (shape) {
                 case TABULAR -> tabular(rs, plan, rootType, dialect);
                 case SCALAR -> new ExecutionResult.Scalar(
-                        rs.next() ? dialect.normalize(rs.getObject(1), sqlTypeOf(plan, 0)) : null,
+                        rs.next() ? unwrap(rs.getObject(1), sqlTypeOf(plan, 0), dialect) : null,
                         rootType.type());
                 case COLLECTION -> {
                     List<Object> values = new ArrayList<>();
                     while (rs.next()) {
-                        values.add(dialect.normalize(rs.getObject(1), sqlTypeOf(plan, 0)));
+                        values.add(unwrap(rs.getObject(1), sqlTypeOf(plan, 0), dialect));
                     }
                     yield new ExecutionResult.Collection(values, rootType.type());
                 }
@@ -45,6 +57,42 @@ public final class Executor {
                         rs.next() ? String.valueOf(rs.getObject(1)) : "[]", rootType.type());
             };
         }
+    }
+
+    /**
+     * A composite JDBC cell unwraps by its DECLARED layout: a struct cell
+     * becomes an ordered field map (names from the plan's {@link SqlType.Struct}
+     * — the model's canonical layout, positional values), an array cell a list;
+     * leaves normalize through the dialect. Attribute-count drift from the
+     * declared layout is a contract violation — loud, never zipped short.
+     */
+    private static Object unwrap(Object v, com.legend.sql.SqlType type,
+                                 com.legend.sql.dialect.SqlDialect dialect) throws SQLException {
+        if (v == null) {
+            return null;
+        }
+        if (type instanceof com.legend.sql.SqlType.Struct st && v instanceof java.sql.Struct s) {
+            Object[] attrs = s.getAttributes();
+            if (attrs.length != st.fields().size()) {
+                throw new IllegalStateException("struct cell has " + attrs.length
+                        + " attribute(s) but the declared layout has " + st.fields().size());
+            }
+            java.util.LinkedHashMap<String, Object> m = new java.util.LinkedHashMap<>();
+            for (int i = 0; i < attrs.length; i++) {
+                m.put(st.fields().get(i).name(),
+                        unwrap(attrs[i], st.fields().get(i).type(), dialect));
+            }
+            return m;
+        }
+        if (type instanceof com.legend.sql.SqlType.Array at && v instanceof java.sql.Array a) {
+            Object[] elements = (Object[]) a.getArray();
+            List<Object> out = new ArrayList<>(elements.length);
+            for (Object e : elements) {
+                out.add(unwrap(e, at.element(), dialect));
+            }
+            return out;
+        }
+        return dialect.normalize(v, type);
     }
 
     /**
@@ -95,7 +143,7 @@ public final class Executor {
         while (rs.next()) {
             List<Object> cells = new ArrayList<>(n);
             for (int i = 1; i <= n; i++) {
-                cells.add(dialect.normalize(rs.getObject(i), sqlTypeOf(plan, i - 1)));
+                cells.add(unwrap(rs.getObject(i), sqlTypeOf(plan, i - 1), dialect));
             }
             rows.add(new Row(cells));
         }

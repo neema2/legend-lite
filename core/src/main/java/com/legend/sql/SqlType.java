@@ -17,4 +17,18 @@ public sealed interface SqlType {
 
     record Array(SqlType element) implements SqlType {
     }
+
+    /**
+     * A named-field composite (DuckDB/BigQuery {@code STRUCT}, Postgres
+     * {@code ROW}). Field order is load-bearing — it is the layout the
+     * emitting frontend declared, never inferred from data.
+     */
+    record Struct(java.util.List<Field> fields) implements SqlType {
+        public Struct {
+            fields = java.util.List.copyOf(fields);
+        }
+
+        public record Field(String name, SqlType type) {
+        }
+    }
 }

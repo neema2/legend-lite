@@ -13,6 +13,26 @@ import com.legend.compiler.element.type.ExprType;
 public enum ResultShape {
     TABULAR, GRAPH, COLLECTION, SCALAR;
 
+    /**
+     * Node-aware classification (post-H roots): GRAPH is the RESOLVER's
+     * envelope — a class-typed root WITHOUT one is an instance VALUE (a
+     * struct: {@code find} over instance literals, a constructed pair) and
+     * takes the value shapes. The type alone cannot distinguish the two.
+     */
+    public static ResultShape of(com.legend.compiler.spec.typed.TypedSpec root) {
+        if (root instanceof com.legend.compiler.spec.typed.TypedFrom f) {
+            return of(f.source());
+        }
+        if (root instanceof com.legend.compiler.spec.typed.TypedSerializeGraph) {
+            return GRAPH;
+        }
+        if (root.info().type() instanceof Type.ClassType ct && !ct.fqn().endsWith("::Variant")
+                && !ct.fqn().equals("meta::pure::metamodel::type::Nil")) {
+            return isMany(root.info().multiplicity()) ? COLLECTION : SCALAR;
+        }
+        return of(root.info());
+    }
+
     public static ResultShape of(ExprType root) {
         if (root.type() instanceof Type.RelationType) {
             return TABULAR;

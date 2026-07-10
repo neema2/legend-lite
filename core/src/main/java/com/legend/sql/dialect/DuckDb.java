@@ -279,6 +279,18 @@ public final class DuckDb extends AnsiSqlRenderer {
         return "[" + list(elements) + "]";
     }
 
+    @Override
+    protected String structLit(SqlExpr.StructLit s) {
+        return "{" + s.fields().stream()
+                .map(f -> "'" + f.name() + "': " + expr(f.value(), 0))
+                .collect(java.util.stream.Collectors.joining(", ")) + "}";
+    }
+
+    @Override
+    protected String structGet(SqlExpr.StructGet g) {
+        return "struct_extract(" + expr(g.source(), 0) + ", '" + g.field() + "')";
+    }
+
     // ---- variant (JSON) idioms ----
 
     @Override
@@ -314,6 +326,9 @@ public final class DuckDb extends AnsiSqlRenderer {
                 case JSON -> "JSON";
                 default -> super.castTypeName(t);
             };
+            case com.legend.sql.SqlType.Struct s -> "STRUCT(" + s.fields().stream()
+                    .map(f -> ident(f.name()) + " " + castTypeName(f.type()))
+                    .collect(java.util.stream.Collectors.joining(", ")) + ")";
             default -> super.castTypeName(t);
         };
     }
