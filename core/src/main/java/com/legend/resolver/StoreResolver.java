@@ -277,7 +277,8 @@ public final class StoreResolver {
                     + g.classFqn() + "' is not supported yet (H-scope exclusion)",
                     g.classFqn());
         }
-        ClassSource cs = sources.get(dispatch(context, g.classFqn()), g.classFqn());
+        ClassSource cs = sources.get(dispatch(context, g.classFqn()), g.classFqn(),
+                target -> dispatch(context, target));
 
         // 2. Demand scan over ALL the chain's user lambdas (one funnel with
         //    the substitution — they cannot drift), close over slot
@@ -658,6 +659,11 @@ public final class StoreResolver {
                 throw new NotImplementedException("graph leaf '" + node.property()
                         + "' is an EMBEDDED class property — embedded graph"
                         + " children are not supported yet (H4b)");
+            }
+            if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstanceCast) {
+                throw new NotImplementedException("graph property '" + node.property()
+                        + "' is a MODEL-TO-MODEL cast binding — M2M graph"
+                        + " children are not supported yet (H5c)");
             }
             TypedSpec body = Pipelines.rewriteRowReads(binding, cs.rowVar(),
                     slotPrefixes, stripped, toRow);

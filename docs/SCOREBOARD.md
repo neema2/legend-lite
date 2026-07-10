@@ -1549,3 +1549,48 @@ Top detail:
     6  scalar lowering not yet implemented for TypedUserCall
     5  multi-hop navigation dept.org.name is not supported yet
 ```
+
+### Run 2026-07-10 @ 332ca8f
+
+| tests | pass | failures | errors | skipped | green classes |
+|---|---|---|---|---|---|
+| 2721 | **2020** | 57 | 625 | 19 | 279 |
+
+| bucket | exception lines |
+|---|---|
+| OTHER | 212 |
+| CORE: scalar/agg function registrations | 160 |
+| CORE: unlowered constructs | 87 |
+| FIXTURE: unknown refs (to diagnose) | 60 |
+| H: class sources / property nav / mappings | 34 |
+| CORE(parse): query syntax gaps | 11 |
+| CORE(G): overload/typing gaps | 6 |
+
+Top detail:
+```
+   96  no scalar lowering registered for resolved overload 'meta::pure::funct
+   55  resolver bug: row-read rewrite hit TypedCast, outside the normalizer's
+   43  no aggregate lowering registered for resolved overload 'meta::pure::fu
+   37  'test::Person' is not a known class, mapping, runtime, connection, or 
+   33  unbound type variable T
+   27  object-space expression node TypedUserCall is not substitutable yet (H
+   25  no SQL type for Pure class meta::pure::metamodel::type::Any at the low
+   18  scalar lowering not yet implemented for TypedNewInstance
+   16  lowering not yet implemented for TypedUserCall
+   13  scalar lowering not yet implemented for TypedMatch
+   10  'test::Order' is not a known class, mapping, runtime, connection, or d
+    9  unknown SQL data type: 'JSON'
+    6  multi-column pivot is not lowered yet
+    6  no TDS cell rendering for Pure type meta::pure::metamodel::variant::Va
+    6  no scalar lowering registered for resolved overload 'meta::legend::lit
+    6  scalar lowering not yet implemented for TypedFilter
+    6  model-to-model binding of 'model::StaffComplete' in 'model::DisjointDe
+    6  scalar lowering not yet implemented for TypedUserCall
+    5  multi-hop navigation dept.org.name is not supported yet
+    5  scalar lowering not yet implemented for TypedTds
+    5  'test::Sale' is not a known class, mapping, runtime, connection, or da
+    5  aggregate reduce must be a native reducer call, got TypedCast
+    5  scalar lowering not yet implemented for TypedPropertyAccess
+    4  no aggregate lowering registered for resolved overload 'meta::legend::
+    4  in call to 'meta::pure::functions::collection::add', argument 2: type 
+```

@@ -320,6 +320,11 @@ final class Substitution {
                 }
                 return assocLeaf(head, leaf);
             }
+            if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstanceCast) {
+                throw new NotImplementedException("navigation '$" + target.userVar()
+                        + "." + head + "." + leaf + "' crosses a MODEL-TO-MODEL"
+                        + " cast binding — not supported yet (H5c)");
+            }
             throw new NotImplementedException("navigation through class-typed"
                     + " slot property '" + head + "' is not supported yet");
         }

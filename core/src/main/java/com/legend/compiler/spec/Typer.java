@@ -144,8 +144,20 @@ final class Typer {
             case LambdaFunction lf -> throw new TypeInferenceException(
                     "a bare lambda has no type outside a call position"
                             + " (lambdas type against their call's signature)");
-            case NewInstanceCast nc -> throw new TypeInferenceException(
-                    "Phase-G compilation of NewInstanceCast is not implemented yet");
+            // ^Class($src): the MAPPING CAST — an upstream class value fed
+            // through Class's mapping (M2M). Typed nominally here; the
+            // RESOLVER composes it during class-source extraction (H5).
+            case NewInstanceCast nc -> {
+                TypedSpec src = synth(nc.src(), env);
+                String fqn = nc.className();   // NameResolver already qualified it
+                if (ctx.findClass(fqn).isEmpty()) {
+                    throw new TypeInferenceException("Unknown type: '" + fqn
+                            + "' is not a known class (in ^" + fqn + "(...) cast)");
+                }
+                yield new com.legend.compiler.spec.typed.TypedNewInstanceCast(fqn, src,
+                        new ExprType(new Type.ClassType(fqn),
+                                src.info().multiplicity()));
+            }
         };
     }
 

@@ -59,6 +59,7 @@ public sealed interface TypedSpec permits
         TypedFold,
         TypedNavigate,
         TypedGraphFetch,
+        TypedNewInstanceCast,
         TypedSerialize,
         TypedSerializeGraph,
         TypedOver,

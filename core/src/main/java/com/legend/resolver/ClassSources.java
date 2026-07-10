@@ -53,6 +53,18 @@ public final class ClassSources {
 
     /** The memoized extraction for {@code classFqn} under {@code mappingFqn}. */
     public ClassSource get(String mappingFqn, String classFqn) {
+        return get(mappingFqn, classFqn, null);
+    }
+
+    /**
+     * {@code upstreamMapping} dispatches a MODEL-TO-MODEL source class to
+     * the mapping that binds it (the runtime's candidate set) when this
+     * mapping doesn't — the corpus lists relational base mappings and M2M
+     * mappings side by side in one runtime. {@code null} restricts
+     * resolution to this mapping (+ includes).
+     */
+    public ClassSource get(String mappingFqn, String classFqn,
+            java.util.function.UnaryOperator<String> upstreamMapping) {
         String key = mappingFqn + '\u0000' + classFqn;
         ClassSource cached = memo.get(key);
         if (cached != null) {
@@ -64,7 +76,7 @@ public final class ClassSources {
                     + " (association targets mid-cycle must take the SHALLOW path)");
         }
         try {
-            ClassSource built = build(mappingFqn, classFqn);
+            ClassSource built = build(mappingFqn, classFqn, upstreamMapping);
             memo.put(key, built);
             return built;
         } finally {
@@ -72,7 +84,8 @@ public final class ClassSources {
         }
     }
 
-    private ClassSource build(String mappingFqn, String classFqn) {
+    private ClassSource build(String mappingFqn, String classFqn,
+            java.util.function.UnaryOperator<String> upstreamMapping) {
         MappingDefinition mapping = ctx.findMapping(mappingFqn).orElseThrow(() ->
                 new MappingResolutionException(
                         "unknown mapping '" + mappingFqn + "'", mappingFqn));
@@ -114,13 +127,15 @@ public final class ClassSources {
 
         TypedSpec pipeline = map.source();
         if (!(pipeline.info().type() instanceof Type.RelationType rowType)) {
-            // A CLASS-typed pipeline is a model-to-model mapping (the body is
-            // getAll(Upstream)->...->map(^Target(...))) — designed as H5's
-            // recursive substitution, not a malformed body.
+            // A CLASS-typed pipeline is a MODEL-TO-MODEL mapping: the body is
+            // getAll(Upstream)->map(src|^Target(...)). Composition is pure
+            // β-transitivity (plan H5): resolve the UPSTREAM class through
+            // this same mapping (memo + cycle guard ride along), then
+            // substitute every $src.prop read with the upstream's binding —
+            // the composed table sits over the upstream's own pipeline.
             if (pipeline.info().type() instanceof Type.ClassType src) {
-                throw new NotImplementedException("model-to-model mapping: '"
-                        + classFqn + "' in '" + mappingFqn + "' maps from class '"
-                        + src.typeName() + "', not a store — not supported yet (H5)");
+                return composeModelToModel(mappingFqn, classFqn, binding,
+                        pipeline, mapper, ctor, src, upstreamMapping);
             }
             throw new IllegalStateException("resolver bug: mapping pipeline for '"
                     + classFqn + "' in '" + mappingFqn + "' types as "
@@ -143,6 +158,155 @@ public final class ClassSources {
 
         return new ClassSource(mappingFqn, classFqn, binding.setId(),
                 pipeline, mapper.parameters().get(0), bindings, rowType);
+    }
+
+    /**
+     * MODEL-TO-MODEL composition (plan H5, scalar slice): the target's
+     * binding table substitutes through the upstream class's — a binding
+     * {@code fullName: $src.firstName + ' ' + $src.lastName} composes to
+     * the upstream's own row expressions, so the result is an ordinary
+     * relation-backed {@link ClassSource} and NOTHING downstream knows M2M
+     * existed. Association navigation and whole-instance uses of the
+     * source are the class-typed slice (H5b) — loud.
+     */
+    private ClassSource composeModelToModel(String mappingFqn, String classFqn,
+            MappingDefinition.ClassBinding binding, TypedSpec pipeline,
+            TypedLambda mapper, TypedNewInstance ctor, Type.ClassType srcType,
+            java.util.function.UnaryOperator<String> upstreamMapping) {
+        // Ops between the extent and the constructor: instance-space
+        // FILTERS compose (their predicates substitute through the
+        // upstream bindings like everything else); other ops are loud.
+        List<com.legend.compiler.spec.typed.TypedFilter> filters = new java.util.ArrayList<>();
+        TypedSpec cur = pipeline;
+        while (!(cur instanceof com.legend.compiler.spec.typed.TypedGetAll)) {
+            if (cur instanceof com.legend.compiler.spec.typed.TypedFilter f) {
+                filters.add(f);
+                cur = f.source();
+                continue;
+            }
+            throw new NotImplementedException("model-to-model pipeline of '"
+                    + classFqn + "' in '" + mappingFqn + "' carries a "
+                    + cur.getClass().getSimpleName() + " between the source"
+                    + " extent and the constructor — not supported yet (H5c)");
+        }
+        // The upstream class resolves in THIS mapping when bound here (or
+        // via includes); otherwise through the runtime dispatch — corpus
+        // runtimes list the relational base and the M2M layers side by side.
+        String srcMapping = binds(mappingFqn, srcType.fqn()) || upstreamMapping == null
+                ? mappingFqn
+                : upstreamMapping.apply(srcType.fqn());
+        ClassSource inner = get(srcMapping, srcType.fqn(), upstreamMapping);
+        String srcVar = mapper.parameters().get(0);
+        TypedSpec composedPipeline = inner.pipeline();
+        for (int i = filters.size() - 1; i >= 0; i--) {
+            TypedLambda lam = filters.get(i).predicate();
+            String v = lam.parameters().get(0);
+            List<TypedSpec> body = lam.body().stream().map(b ->
+                    substituteSourceReads(b, v, inner, classFqn, mappingFqn)).toList();
+            var fnType = new Type.FunctionType(
+                    List.of(new Type.Param(inner.rowType(),
+                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                    new Type.Param(Type.Primitive.BOOLEAN,
+                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+            composedPipeline = new com.legend.compiler.spec.typed.TypedFilter(
+                    composedPipeline,
+                    new TypedLambda(List.of(inner.rowVar()), body,
+                            new com.legend.compiler.element.type.ExprType(fnType,
+                                    com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                    composedPipeline.info());
+        }
+        Map<String, TypedSpec> composed = new LinkedHashMap<>();
+        for (Map.Entry<String, TypedSpec> e : ctor.properties().entrySet()) {
+            if (ctx.findProperty(classFqn, e.getKey()).isEmpty()) {
+                throw new IllegalStateException("resolver bug: mapping binding '"
+                        + e.getKey() + "' is not a property of class '" + classFqn
+                        + "' (G should have rejected the body)");
+            }
+            composed.put(e.getKey(), substituteSourceReads(e.getValue(), srcVar,
+                    inner, classFqn, mappingFqn));
+        }
+        return new ClassSource(mappingFqn, classFqn, binding.setId(),
+                composedPipeline, inner.rowVar(), composed, inner.rowType());
+    }
+
+    /**
+     * β-substitute {@code $src.prop} reads with the upstream's bindings.
+     * Closed vocabulary with a LOUD default — a node this rewriter does not
+     * know is a normalizer contract change, never silent.
+     */
+    private TypedSpec substituteSourceReads(TypedSpec n, String srcVar,
+            ClassSource inner, String classFqn, String mappingFqn) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                && pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
+                && v.name().equals(srcVar)) {
+            TypedSpec bound = inner.bindings().get(pa.property());
+            if (bound == null) {
+                throw new NotImplementedException("model-to-model binding of '"
+                        + classFqn + "' in '" + mappingFqn + "' navigates '$"
+                        + srcVar + "." + pa.property() + "' — an association or"
+                        + " unmapped property of source class '" + inner.classFqn()
+                        + "' is not supported yet (H5b)");
+            }
+            return bound;
+        }
+        return switch (n) {
+            case com.legend.compiler.spec.typed.TypedVariable v
+                    when v.name().equals(srcVar) ->
+                    throw new NotImplementedException("model-to-model binding of '"
+                            + classFqn + "' uses the whole source instance '$"
+                            + srcVar + "' — not supported yet (H5b)");
+            case com.legend.compiler.spec.typed.TypedVariable v -> v;
+            // ^Target($src.prop): the M2M CAST — substitute within its
+            // source; the cast survives as a CLASS-TYPED binding (read
+            // sites give it graph-child / H4 stories, never silent SQL).
+            case com.legend.compiler.spec.typed.TypedNewInstanceCast nic ->
+                    new com.legend.compiler.spec.typed.TypedNewInstanceCast(
+                            nic.classFqn(),
+                            substituteSourceReads(nic.source(), srcVar, inner,
+                                    classFqn, mappingFqn),
+                            nic.info());
+            case com.legend.compiler.spec.typed.TypedPropertyAccess pa ->
+                    new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                            substituteSourceReads(pa.source(), srcVar, inner,
+                                    classFqn, mappingFqn),
+                            pa.property(), pa.info());
+            case com.legend.compiler.spec.typed.TypedNativeCall c ->
+                    new com.legend.compiler.spec.typed.TypedNativeCall(c.callee(),
+                            c.args().stream().map(a -> substituteSourceReads(a,
+                                    srcVar, inner, classFqn, mappingFqn)).toList(),
+                            c.info());
+            case com.legend.compiler.spec.typed.TypedCollection c ->
+                    new com.legend.compiler.spec.typed.TypedCollection(
+                            c.elements().stream().map(a -> substituteSourceReads(a,
+                                    srcVar, inner, classFqn, mappingFqn)).toList(),
+                            c.info());
+            case com.legend.compiler.spec.typed.TypedIf i ->
+                    new com.legend.compiler.spec.typed.TypedIf(
+                            substituteSourceReads(i.condition(), srcVar, inner,
+                                    classFqn, mappingFqn),
+                            substituteSourceReads(i.thenBranch(), srcVar, inner,
+                                    classFqn, mappingFqn),
+                            i.elseBranch().map(e2 -> substituteSourceReads(e2,
+                                    srcVar, inner, classFqn, mappingFqn)),
+                            i.info());
+            case TypedLambda l -> l.parameters().contains(srcVar)
+                    ? l   // shadowing: substitution stops (capture rule)
+                    : new TypedLambda(l.parameters(),
+                            l.body().stream().map(b -> substituteSourceReads(b,
+                                    srcVar, inner, classFqn, mappingFqn)).toList(),
+                            l.info());
+            case com.legend.compiler.spec.typed.TypedCString ignored -> n;
+            case com.legend.compiler.spec.typed.TypedCInteger ignored -> n;
+            case com.legend.compiler.spec.typed.TypedCFloat ignored -> n;
+            case com.legend.compiler.spec.typed.TypedCDecimal ignored -> n;
+            case com.legend.compiler.spec.typed.TypedCBoolean ignored -> n;
+            case com.legend.compiler.spec.typed.TypedCDate ignored -> n;
+            case com.legend.compiler.spec.typed.TypedEnumValue ignored -> n;
+            default -> throw new NotImplementedException(
+                    "model-to-model binding node "
+                            + n.getClass().getSimpleName()
+                            + " is not substitutable yet (H5 vocabulary)");
+        };
     }
 
     /**
