@@ -406,12 +406,21 @@ final class Typer {
 
         TypedSpec body = synth(lam.body().get(0), lambdaScope);
 
-        // An unbound return variable (map's V) is inferred from the body; otherwise the body is checked.
+        // An unbound return variable (map's V) is inferred from the body. A
+        // solved return is resolved then CHECKED (subtype-friendly, bindings
+        // untouched — the long-standing semantics; SchemaAlgebra always takes
+        // this path, since resolve() owns return-position algebra). ONLY a
+        // structured return still carrying free vars ({->Relation<T>[1]}: the
+        // slot-join thunk) — where the resolve path could only throw — unifies
+        // UNRESOLVED into b, so the body's shape SOLVES the vars and later
+        // parameters (the cond lambda's T[1] rows) see the solution.
         Type retType = ftype.result().type();
         if (retType instanceof Type.TypeVar rv && !b.hasType(rv.name())) {
             b.bindType(rv.name(), body.info().type());
-        } else {
+        } else if (retType instanceof Type.SchemaAlgebra || !kernel.hasFreeTypeVars(retType, b)) {
             kernel.unify(kernel.resolve(retType, b), body.info().type(), new Bindings());
+        } else {
+            kernel.unify(retType, body.info().type(), b);
         }
         // The body's MULTIPLICITY must satisfy the declared return too — a many-valued
         // body cannot serve a to-one slot (engine rejects sortBy on a to-many key:

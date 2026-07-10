@@ -64,6 +64,7 @@ public sealed interface TypedSpec permits
         TypedExtendWindow,
         TypedExtendAgg,
         TypedJoin,
+        TypedJoinSlot,
         TypedAsOfJoin,
         TypedSelect,
         TypedDistinct,

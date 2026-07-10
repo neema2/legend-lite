@@ -54,8 +54,9 @@ H0. THE CENSUS HARNESS. An eager test that compiles EVERY synthesized
     extrapolation). Also wire `compileReachable` into a corpus-side probe
     if cheap. Exit: the list, committed as a doc table.
 
-### H0→H1 CENSUS (2026-07-09, PhaseHCensusTest — 9/14 bodies green;
-### state PINNED as a ratchet: green may only rise. H0 baseline was 1/14.)
+### H0→H1 CENSUS (2026-07-09, PhaseHCensusTest — 14/14 GREEN: H1 EXIT.
+### The ratchet collapsed to the permanent green==total invariant.
+### H0 baseline was 1/14.)
 
 H1 fixes so far: (1) the ×11 tableReference bucket — normalizer now emits
 `PackageableElementPtr(db)` (query-parser parity, option (a) below); this
@@ -72,13 +73,18 @@ to spare the normalizer an edit.) The m2m/PCM path does NOT auto-wrap:
 those lambdas are user-written pure and real engine makes the user write
 the coercion.
 
-| count | bucket | representative |
-|---|---|---|
-| 1 | no overload of 'join' matches 3 argument(s) — the lite join(Relation, ColSpec, Function) registration does not unify with the emitted call (ColSpec-with-function types as FuncColSpec; same family as the legacyNavigate seam) | A2 join-chain property |
-| 1 | class Any has no property 'FID' — legacyAssocPredicate's Function<{Any,Any->Boolean}> params erase the class types; the predicate body navigates columns on Any | C association |
-| 1 | groupBy aggregate: expected Integer, got Number — sum overload selection widens | B5 groupBy-agg |
-| 1 | enum transformer yields Any where m::Status expected | A5 enum |
-| 1 | lite concat(String[*]) vs the emitted 3-arg concat call — arity mismatch (consider plus-chain emission) | A3 dynafunction |
+All buckets cleared (in order): tableReference emission parity (x11);
+NewChecker strict subsumption + toOne EMISSION (x9); sum Integer/Float
+overloads from real pure (B5); [] as Nil bottom type (A5); lite concat
+retired -> plus-chain emission + fixture upper->toUpper (A3);
+legacyAssocPredicate re-spelled with explicit src/tgt Relation args so
+the adapter lambda's rows TYPE (C); slot-join JoinChecker arm + lite
+FuncColSpec signature + typeLambda binding structured returns into b
+(A2). Every fix was emission-or-real-signature — no checker was
+weakened. NOT exercised by the battery: legacyNavigate typing (no
+class-typed Join PM fixture emits it; its registration still carries
+the free-T ColSpec shape and will fail LOUD at G until H3, which
+rewrites it into join emission anyway).
 
 Census-process findings (not G gaps): (a) `[db]T.col` without a space
 after `]` fails to parse while `[db] T.col` works — juxtaposition
@@ -87,7 +93,8 @@ appears form-sensitive (unprefixed key + same-form PM was rejected as
 per-row formula — verify intended). H0's single green body was the
 derived property ($prop$ hat — query-shaped, no store constructs).
 
-H1. G-COMPLETION for mapping bodies. Fix each census bucket; known ones:
+H1. G-COMPLETION for mapping bodies. DONE 2026-07-09 (14/14 census;
+    b's legacyNavigate seam deferred to H3 — see note above). Was:
     a. tableReference emission/checker shape (decide: normalizer emits
        PackageableElementPtr — parser-parity — OR checker accepts both;
        prefer fixing the EMISSION to the query-side shape).

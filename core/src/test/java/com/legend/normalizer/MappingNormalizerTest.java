@@ -3873,12 +3873,22 @@ class MappingNormalizerTest {
         assertEquals("meta::pure::metamodel::type::Boolean",
                 ((com.legend.parser.TypeExpression.NameRef) assocFn.returnType()).name());
 
-        // Body: legacyAssocPredicate($a, $b, {srcRow, tgtRow | cond}).
+        // Body: legacyAssocPredicate($a, $b, #>{srcTable}#, #>{tgtTable}#,
+        // {srcRow, tgtRow | cond}) — the two ends' ~mainTable rows are
+        // spelled in the call so the adapter lambda's rows TYPE (no Any).
         AppliedFunction lap = (AppliedFunction) sole(assocFn.body());
         assertEquals("legacyAssocPredicate", lap.function());
         assertEquals(new Variable("a"), lap.parameters().get(0));
         assertEquals(new Variable("b"), lap.parameters().get(1));
-        LambdaFunction adapter = (LambdaFunction) lap.parameters().get(2);
+        AppliedFunction srcRef = (AppliedFunction) lap.parameters().get(2);
+        assertEquals("tableReference", srcRef.function());
+        assertEquals(new com.legend.parser.spec.CString("T_FIRM"),
+                srcRef.parameters().get(1), "src row source is classA's (Firm) ~mainTable");
+        AppliedFunction tgtRef = (AppliedFunction) lap.parameters().get(3);
+        assertEquals("tableReference", tgtRef.function());
+        assertEquals(new com.legend.parser.spec.CString("T_PERSON"),
+                tgtRef.parameters().get(1), "tgt row source is classB's (Person) ~mainTable");
+        LambdaFunction adapter = (LambdaFunction) lap.parameters().get(4);
         assertEquals(List.of(new Variable("srcRow"), new Variable("tgtRow")),
                 adapter.parameters(),
                 "adapter lambda binds the two physical-row parameters");

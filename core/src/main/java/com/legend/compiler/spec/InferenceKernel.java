@@ -359,6 +359,25 @@ public final class InferenceKernel {
         }
     }
 
+    /**
+     * Whether {@code t} still contains a type variable unsolved in {@code b}
+     * ({@code ?} excluded — it is not a solvable variable). Function types are
+     * leaves, mirroring {@link #resolve}.
+     */
+    public boolean hasFreeTypeVars(Type t, Bindings b) {
+        return switch (t) {
+            case Type.TypeVar v -> !isUnknown(v) && !b.hasType(v.name());
+            case Type.GenericType g -> g.arguments().stream().anyMatch(a -> hasFreeTypeVars(a, b));
+            case Type.RelationType r -> r.columns().stream().anyMatch(c -> hasFreeTypeVars(c.type(), b));
+            case Type.SchemaAlgebra sa -> hasFreeTypeVars(sa.left(), b) || hasFreeTypeVars(sa.right(), b);
+            case Type.FunctionType ignored -> false;
+            case Type.Primitive ignored -> false;
+            case Type.PrecisionDecimal ignored -> false;
+            case Type.ClassType ignored -> false;
+            case Type.EnumType ignored -> false;
+        };
+    }
+
     /** A row-struct that is still entirely unsolved (every column type is {@code ?}). */
     private static boolean isUnknownFragment(Type.RelationType r) {
         return !r.columns().isEmpty() && r.columns().stream().allMatch(c -> isUnknown(c.type()));

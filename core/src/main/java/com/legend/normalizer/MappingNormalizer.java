@@ -1780,11 +1780,24 @@ public final class MappingNormalizer {
         Variable tgtRow = new Variable("tgtRow");
         ValueSpecification predicateBody = buildAssocPredicateBody(firstJoin, classA,
                 classB, srcRow, tgtRow, am.associationName(), md, model);
+        // predicateBody's tgtRow reads the JOIN's landing table; the call
+        // declares tgtRow's row type as classB's ~mainTable. Those must be
+        // the SAME table or the lambda would silently mistype (checked
+        // inside buildAssocPredicateBody, which knows the landing table).
 
         Variable a = new Variable("a");
         Variable b = new Variable("b");
+        // The adapter lambda speaks ROW scope; its row types are knowable
+        // right here (the two ends' ~mainTable), so say them: the src/tgt
+        // Relation args bind the signature's S,T and the lambda's columns
+        // type through the ordinary kernel — no Any punt, no bespoke
+        // checker. The resolver reads the tables from the CALL instead of
+        // re-deriving them from the classes' mappings.
         ValueSpecification body = new AppliedFunction("legacyAssocPredicate", List.of(
-                a, b, new LambdaFunction(List.of(srcRow, tgtRow),
+                a, b,
+                mainTableRefOf(md, classA),
+                mainTableRefOf(md, classB),
+                new LambdaFunction(List.of(srcRow, tgtRow),
                                          List.of(predicateBody))));
 
         FunctionDefinition.ParameterDefinition pA = new FunctionDefinition.ParameterDefinition(
@@ -1832,6 +1845,19 @@ public final class MappingNormalizer {
                           + associationName + "', mapping=" + md.qualifiedName()));
             String targetTable = determineTargetTable(jd.operation(), sourceTable,
                     hop.joinName(), associationName, 1, md.qualifiedName());
+            // The synthesized legacyAssocPredicate call declares tgtRow's row
+            // type as classB's ~mainTable; the join must actually land there,
+            // or the lambda's column reads would silently mistype.
+            String classBTable = mainTableOf(md, classB);
+            if (!targetTable.equals(classBTable)) {
+                throw new com.legend.error.NotImplementedException(
+                        "AssociationMapping join '" + hop.joinName() + "' lands on table '"
+                      + targetTable + "' but the target end class '" + classB
+                      + "' is mapped to ~mainTable '" + classBTable + "'; an "
+                      + "association joining through a non-mainTable row is not "
+                      + "supported. Association='" + associationName + "', mapping="
+                      + md.qualifiedName());
+            }
             Map<String, ValueSpecification> condScope = new LinkedHashMap<>();
             condScope.put(sourceTable, srcRow);
             if (!targetTable.equals(sourceTable)) condScope.put(targetTable, tgtRow);
@@ -1857,17 +1883,31 @@ public final class MappingNormalizer {
               + t.getClass().getSimpleName());
     }
 
-    private static String mainTableOf(LegacyMappingDefinition md, String classFqn) {
+    /** {@code classFqn}'s ~mainTable declaration in {@code md} (loud if absent). */
+    private static LegacyMappingDefinition.TableReference mainTableDefOf(
+            LegacyMappingDefinition md, String classFqn) {
         for (ClassMapping cm : md.classMappings()) {
             if (cm instanceof ClassMapping.Relational rcm
                     && classFqn.equals(rcm.className())
                     && rcm.mainTable() != null) {
-                return rcm.mainTable().table();
+                return rcm.mainTable();
             }
         }
-        throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+        throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE,
                 "No ~mainTable for class '" + classFqn + "' in mapping="
               + md.qualifiedName() + " (required to synthesize AssociationMapping)");
+    }
+
+    /** The {@code #>{db.T}#}-shaped source of {@code classFqn}'s ~mainTable row. */
+    private static ValueSpecification mainTableRefOf(LegacyMappingDefinition md, String classFqn) {
+        LegacyMappingDefinition.TableReference ref = mainTableDefOf(md, classFqn);
+        return new AppliedFunction("tableReference", List.of(
+                new PackageableElementPtr(ref.database()),
+                new CString(ref.table())));
+    }
+
+    private static String mainTableOf(LegacyMappingDefinition md, String classFqn) {
+        return mainTableDefOf(md, classFqn).table();
     }
 
     // ====================================================================

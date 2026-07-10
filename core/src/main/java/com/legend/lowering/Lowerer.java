@@ -192,6 +192,15 @@ public final class Lowerer {
 
             case com.legend.compiler.spec.typed.TypedPivot pv -> pivot(pv);
 
+            // STORE-ONLY nodes: reaching the lowerer is not a missing rule —
+            // it means the Phase H resolver failed to rewrite them away. Say
+            // so, instead of the frontier default's misdiagnosis.
+            case com.legend.compiler.spec.typed.TypedJoinSlot js ->
+                    throw new com.legend.error.NotImplementedException(
+                            "TypedJoinSlot (pipeline slot join '" + js.alias()
+                          + "') escaped Phase H store resolution — a resolver gap,"
+                          + " not a missing lowering rule");
+
             // SANCTIONED frontier default (root package-info invariant is
             // scoped to hiding-prone switches): the not-yet-lowered TypedSpec
             // variants churn every milestone; each throws LOUD and NAMED.

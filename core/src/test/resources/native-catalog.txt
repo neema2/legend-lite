@@ -1,8 +1,3 @@
-# THE GOLDEN NATIVE CATALOG — canonical rendering of every registered
-# signature, in (load-bearing) declaration order. NativeFunctionTest
-# diffs the live catalog against this file: any add/remove/edit/reorder
-# shows as a reviewable line diff (replaces the count-pin + comment
-# changelog). Regenerate deliberately; never hand-edit to make it pass.
 meta::pure::functions::math::abs<T>(number:T[1]):T[1]
 meta::pure::functions::math::acos(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1]
 meta::pure::functions::collection::add<T>(set:T[*], index:meta::pure::metamodel::type::Integer[1], val:T[1]):T[*]
@@ -195,7 +190,7 @@ meta::pure::functions::string::jaroWinklerSimilarity(s1:meta::pure::metamodel::t
 meta::pure::functions::string::joinStrings(strings:meta::pure::metamodel::type::String[*], separator:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1]
 meta::pure::functions::string::joinStrings(strings:meta::pure::metamodel::type::String[*], prefix:meta::pure::metamodel::type::String[1], separator:meta::pure::metamodel::type::String[1], suffix:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1]
 meta::pure::functions::relation::join<T,V>(rel1:meta::pure::metamodel::relation::Relation<T>[1], rel2:meta::pure::metamodel::relation::Relation<V>[1], joinKind:meta::pure::functions::relation::JoinKind[1], f:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<TUNIONV>[1]
-meta::pure::functions::relation::join<S,T,A>(rel:meta::pure::metamodel::relation::Relation<S>[1], binding:meta::pure::metamodel::relation::ColSpec<A>[1], cond:meta::pure::metamodel::function::Function<{S[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<SUNIONA>[1]
+meta::legend::lite::join<S,T,Z>(rel:meta::pure::metamodel::relation::Relation<S>[1], slot:meta::pure::metamodel::relation::FuncColSpec<{->meta::pure::metamodel::relation::Relation<T>[1]},Z>[1], cond:meta::pure::metamodel::function::Function<{S[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<SUNIONZ>[1]
 meta::pure::functions::relation::join<T,V>(rel1:meta::pure::metamodel::relation::Relation<T>[1], rel2:meta::pure::metamodel::relation::Relation<V>[1], joinKind:meta::pure::functions::relation::JoinKind[1], f:meta::pure::metamodel::function::Function<{T[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[1], prefix:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::relation::Relation<TUNIONV>[1]
 meta::pure::functions::relation::lag<T>(w:meta::pure::metamodel::relation::Relation<T>[1], r:T[1]):T[0..1]
 meta::pure::functions::relation::lag<T>(w:meta::pure::metamodel::relation::Relation<T>[1], r:T[1], offset:meta::pure::metamodel::type::Integer[1]):T[0..1]
@@ -209,7 +204,7 @@ meta::legend::lite::navigate<S,T,Z>(rel:meta::pure::metamodel::relation::Relatio
 meta::legend::lite::navigate<C,T,Z>(cl:C[*], target:meta::pure::metamodel::relation::FuncColSpec<{->T[*]},Z>[1], pred:meta::pure::metamodel::function::Function<{C[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):C[*]
 meta::legend::lite::navigate<T>(target:T[*], pred:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):T[*]
 meta::legend::lite::legacyNavigate<S,T,A>(rel:meta::pure::metamodel::relation::Relation<S>[1], binding:meta::pure::metamodel::relation::ColSpec<A>[1], cond:meta::pure::metamodel::function::Function<{S[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<SUNIONA>[1]
-meta::legend::lite::legacyAssocPredicate<A,B>(a:A[1], b:B[1], cond:meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::Any[1],meta::pure::metamodel::type::Any[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1]
+meta::legend::lite::legacyAssocPredicate<A,B,S,T>(a:A[1], b:B[1], src:meta::pure::metamodel::relation::Relation<S>[1], tgt:meta::pure::metamodel::relation::Relation<T>[1], cond:meta::pure::metamodel::function::Function<{S[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1]
 meta::pure::functions::string::length(str:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Integer[1]
 meta::pure::functions::boolean::lessThanEqual(left:meta::pure::metamodel::type::Date[0..1], right:meta::pure::metamodel::type::Date[0..1]):meta::pure::metamodel::type::Boolean[1]
 meta::pure::functions::boolean::lessThanEqual(left:meta::pure::metamodel::type::Date[0..1], right:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Boolean[1]

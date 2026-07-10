@@ -194,22 +194,29 @@ address = otherwise(
 #### Signature
 
 ```pure
-function meta::legacy::legacyAssocPredicate<A, B>(
+function meta::legend::lite::legacyAssocPredicate<A, B, S, T>(
     a: A[1],
     b: B[1],
-    predicate: Function<{Row[1], Row[1]} → Boolean[1]>[1]
+    src: Relation<S>[1],
+    tgt: Relation<T>[1],
+    predicate: Function<{S[1], T[1] → Boolean[1]}>[1]
 ): Boolean[1]
 ```
 
 - `a, b`: the two **class instances** that the AssociationMapping
   predicate function takes as parameters.
-- `predicate`: a lambda over the **underlying main-table rows** of
-  those instances, returning `Boolean[1]`.
+- `src, tgt`: the two ends' **~mainTable row sources** (table
+  references), spelled explicitly by the desugarer. They bind `S` and
+  `T`, so the predicate lambda's row parameters TYPE as the real table
+  rows — column reads check like any other relation access (no `Any`).
+- `predicate`: a lambda over one row of each source, returning
+  `Boolean[1]`.
 
-The helper's runtime semantics: extract the main-table rows of `$a`
-and `$b` (using their classes' mappings to locate `~mainTable`), bind
-them to the lambda's `$srcRow` and `$tgtRow` parameters, and evaluate.
-At SQL lowering time it produces the natural column comparisons.
+The helper's runtime semantics: bind the main-table rows of `$a` and
+`$b` (the tables are IN the call — the resolver reads them instead of
+re-deriving from the classes' mappings) to the lambda's `$srcRow` and
+`$tgtRow` parameters, and evaluate. At SQL lowering time it produces
+the natural column comparisons.
 
 #### Why it exists
 
@@ -230,6 +237,7 @@ becomes:
 function acme::funcs::personFirmMatch(p: acme::Person[1], f: acme::Firm[1]): Boolean[1] = {|
   legacyAssocPredicate(
     $p, $f,
+    #>{store::DB.T_PERSON}#, #>{store::DB.T_FIRM}#,
     {srcRow, tgtRow | $srcRow.FIRM_ID == $tgtRow.ID}
   )
 |}
@@ -1044,6 +1052,7 @@ predicate against the underlying main-table rows:
 function acme::funcs::personFirmMatch(p: acme::Person[1], f: acme::Firm[1]): Boolean[1] = {|
   legacyAssocPredicate(
     $p, $f,
+    #>{store::DB.T_PERSON}#, #>{store::DB.T_FIRM}#,
     {srcRow, tgtRow | $srcRow.FIRM_ID == $tgtRow.ID}
   )
 |}

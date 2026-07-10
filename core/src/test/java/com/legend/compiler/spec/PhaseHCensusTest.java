@@ -160,16 +160,13 @@ class PhaseHCensusTest {
             System.out.println("      e.g. " + sample.get(k));
         });
 
-        // THE RATCHET (update DELIBERATELY as H1 fixes land; direction is
-        // one-way — green may only rise):
-        org.junit.jupiter.api.Assertions.assertEquals(14, total,
-                "fixture battery size changed — re-baseline the census pin");
-        org.junit.jupiter.api.Assertions.assertEquals(12, green,
-                "census GREEN count moved — if it ROSE, update this pin (progress!);"
-                        + " if it FELL, a Phase-G regression broke a mapping body");
-        org.junit.jupiter.api.Assertions.assertEquals(2, buckets.size(),
-                "failure-bucket count moved — update the census table in"
-                        + " docs/PHASE_H_PLAN.md and this pin together");
+        // H1 EXIT (2026-07-09): the ratchet reached 14/14 and collapses to
+        // the permanent invariant — EVERY synthesized mapping body
+        // type-checks. New fixtures are welcome (total may grow); a red body
+        // is a Phase-G regression, full stop.
+        org.junit.jupiter.api.Assertions.assertEquals(total, green,
+                "a synthesized mapping body no longer type-checks — Phase-G"
+                        + " regression: " + sample.values());
     }
 
     private static void bucket(Map<String, Integer> b, Map<String, String> s,
