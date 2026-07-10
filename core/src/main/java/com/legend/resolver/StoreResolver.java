@@ -2,15 +2,23 @@ package com.legend.resolver;
 
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.spec.SpecCompiler;
+import com.legend.compiler.spec.typed.TypedAggCol;
+import com.legend.compiler.spec.typed.TypedAggregate;
+import com.legend.compiler.spec.typed.TypedConcatenate;
 import com.legend.compiler.spec.typed.TypedDistinct;
 import com.legend.compiler.spec.typed.TypedDrop;
+import com.legend.compiler.spec.typed.TypedExtend;
+import com.legend.compiler.spec.typed.TypedExtendWindow;
 import com.legend.compiler.spec.typed.TypedFilter;
 import com.legend.compiler.spec.typed.TypedFrom;
 import com.legend.compiler.spec.typed.TypedFuncCol;
 import com.legend.compiler.spec.typed.TypedGetAll;
+import com.legend.compiler.spec.typed.TypedGroupBy;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedLimit;
 import com.legend.compiler.spec.typed.TypedProject;
+import com.legend.compiler.spec.typed.TypedRename;
+import com.legend.compiler.spec.typed.TypedSelect;
 import com.legend.compiler.spec.typed.TypedSlice;
 import com.legend.compiler.spec.typed.TypedSort;
 import com.legend.compiler.spec.typed.TypedSortBy;
@@ -117,6 +125,13 @@ public final class StoreResolver {
                     resolveChain(s, context);
             case TypedSortBy sb when isObjectSpace(sb.source()) ->
                     resolveChain(sb, context);
+            // Class-source groupBy (tds::groupBy cl:C[*] overload; the legacy
+            // 4-arg form desugars into it): a relation-shaping TERMINAL like
+            // project — key/map lambdas read the object and substitute
+            // through the one funnel (plan: uniform lifting set). aggregate
+            // is Relation-only in real pure — no class-source arm exists.
+            case TypedGroupBy g when isObjectSpace(g.source()) ->
+                    resolveChain(g, context);
             // Relation-space wrappers over a chain that bottoms at a getAll:
             // rebuild with the resolved source. (Each wrapper keeps its own
             // info — relation-space types are stable across resolution.)
@@ -136,6 +151,22 @@ public final class StoreResolver {
                     resolveNode(s.source(), context), s.start(), s.stop(), s.info());
             case TypedDistinct d when containsGetAll(d.source()) -> new TypedDistinct(
                     resolveNode(d.source(), context), d.columns(), d.info());
+            case TypedGroupBy g when containsGetAll(g.source()) -> new TypedGroupBy(
+                    resolveNode(g.source(), context), g.keys(), g.aggs(), g.info());
+            case TypedAggregate a when containsGetAll(a.source()) -> new TypedAggregate(
+                    resolveNode(a.source(), context), a.aggs(), a.info());
+            case TypedExtend e when containsGetAll(e.source()) -> new TypedExtend(
+                    resolveNode(e.source(), context), e.columns(), e.info());
+            case TypedExtendWindow w when containsGetAll(w.source()) ->
+                    new TypedExtendWindow(resolveNode(w.source(), context),
+                            w.window(), w.columns(), w.aggs(), w.info());
+            case TypedRename r when containsGetAll(r.source()) -> new TypedRename(
+                    resolveNode(r.source(), context), r.renames(), r.info());
+            case TypedSelect s when containsGetAll(s.source()) -> new TypedSelect(
+                    resolveNode(s.source(), context), s.columns(), s.info());
+            case TypedConcatenate c when containsGetAll(c) -> new TypedConcatenate(
+                    resolveNode(c.left(), context), resolveNode(c.right(), context),
+                    c.info());
             default -> {
                 if (containsGetAll(n)) {
                     throw new NotImplementedException("class query under "
@@ -193,13 +224,17 @@ public final class StoreResolver {
      * final row type. No restamp pass exists.
      */
     private TypedSpec resolveObject(TypedSpec top, Context context) {
-        if (!(top instanceof TypedProject p)) {
+        // The relation-shaping TERMINAL: project, or the class-source
+        // groupBy form (keys carry extraction lambdas; agg map lambdas read
+        // the object) — both through the one funnel.
+        if (!(top instanceof TypedProject || top instanceof TypedGroupBy)) {
             throw new NotImplementedException("class-shaped result at the query root"
                     + " (" + top.getClass().getSimpleName() + ") is graph output (Phase H4)");
         }
         // 1. Collect the below-boundary op chain (top-down) to the getAll.
         List<TypedSpec> ops = new ArrayList<>();
-        TypedSpec cur = p.source();
+        TypedSpec cur = top instanceof TypedProject t ? t.source()
+                : ((TypedGroupBy) top).source();
         while (!(cur instanceof TypedGetAll)) {
             ops.add(cur);
             cur = switch (cur) {
@@ -239,8 +274,8 @@ public final class StoreResolver {
                 scanLambda(sb.key(), projectionPaths);
             }
         }
-        for (TypedFuncCol col : p.columns()) {
-            scanLambda(col.fn(), projectionPaths);
+        for (TypedLambda fn : terminalLambdas(top)) {
+            scanLambda(fn, projectionPaths);
         }
         Set<java.util.List<String>> paths = new java.util.LinkedHashSet<>(filterPaths);
         paths.addAll(projectionPaths);
@@ -409,9 +444,7 @@ public final class StoreResolver {
         for (TypedSpec op : ops) {
             collectLambdaParams(op, paramsInReach);
         }
-        for (TypedFuncCol col : p.columns()) {
-            collectLambdaParams(col.fn(), paramsInReach);
-        }
+        collectLambdaParams(top, paramsInReach);
         for (TypedSpec b : cs.bindings().values()) {
             collectLambdaParams(b, paramsInReach);
         }
@@ -448,13 +481,60 @@ public final class StoreResolver {
             };
         }
 
-        // 4. The projection boundary: info UNCHANGED.
-        List<TypedFuncCol> cols = new ArrayList<>(p.columns().size());
-        for (TypedFuncCol col : p.columns()) {
-            cols.add(new TypedFuncCol(col.name(),
-                    substitution(cs, m, assocs, assocEnds, existsSubs, false, fresh, col.fn()).rewriteLambda(col.fn())));
+        // 4. The relation-shaping boundary: info UNCHANGED.
+        final TypedSpec base = pipeline;
+        final Pipelines.Materialized fm = m;
+        final String fv = fresh;
+        java.util.function.Function<TypedLambda, TypedLambda> sub = fn ->
+                substitution(cs, fm, assocs, assocEnds, existsSubs, false, fv, fn)
+                        .rewriteLambda(fn);
+        // An agg map may be the BARE instance var (x|$x : y|$y->count()) —
+        // COUNT(*)-style; it becomes the identity over the row.
+        java.util.function.Function<TypedAggCol, TypedAggCol> subAgg = a ->
+                new TypedAggCol(a.name(),
+                        isBareUserVar(a.map())
+                                ? substitution(cs, fm, assocs, assocEnds, existsSubs,
+                                        false, fv, a.map()).identityLambda(a.map())
+                                : sub.apply(a.map()),
+                        a.reduce());
+        return switch (top) {
+            case TypedProject p -> new TypedProject(base,
+                    p.columns().stream().map(col -> new TypedFuncCol(col.name(),
+                            sub.apply(col.fn()))).toList(),
+                    p.info());
+            case TypedGroupBy gb -> new TypedGroupBy(base,
+                    gb.keys().stream().map(k -> new TypedGroupBy.GroupKey(k.column(),
+                            java.util.Optional.of(sub.apply(k.fn().orElseThrow(() ->
+                                    new NotImplementedException("class-source groupBy"
+                                            + " key '" + k.column() + "' without an"
+                                            + " extraction lambda is not supported"
+                                            + " yet")))))).toList(),
+                    gb.aggs().stream().map(subAgg).toList(),
+                    gb.info());
+            default -> throw new IllegalStateException("unreachable");
+        };
+    }
+
+    /** The object-space lambdas a relation-shaping terminal carries. */
+    private static List<TypedLambda> terminalLambdas(TypedSpec top) {
+        List<TypedLambda> out = new ArrayList<>();
+        switch (top) {
+            case TypedProject p -> p.columns().forEach(c -> out.add(c.fn()));
+            case TypedGroupBy g -> {
+                g.keys().forEach(k -> k.fn().ifPresent(out::add));
+                g.aggs().forEach(a -> out.add(a.map()));
+            }
+            default -> throw new IllegalStateException("unreachable");
         }
-        return new TypedProject(pipeline, cols, p.info());
+        return out;
+    }
+
+    /** {@code x|$x} — the whole-instance map of a COUNT(*)-style aggregate. */
+    private static boolean isBareUserVar(TypedLambda l) {
+        return l.body().size() == 1
+                && l.body().get(0) instanceof com.legend.compiler.spec.typed.TypedVariable v
+                && l.parameters().size() == 1
+                && v.name().equals(l.parameters().get(0));
     }
 
     private static void collectLambdaParams(TypedSpec n, Set<String> out) {

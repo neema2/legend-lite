@@ -148,13 +148,16 @@ class LowerRelationTest {
     }
 
     @Test
-    @DisplayName("rename lowers to a flat explicit projection (schema-driven)")
+    @DisplayName("rename lowers to a flat explicit projection in the T-Z+V schema order")
     void renameFlat() throws SQLException {
         String sql = sqlOf("#>{test::DB.T_PERSON}#->rename(~NAME, ~FULL_NAME)");
+        // Column ORDER pins the checker's T-Z+V (real pure: the renamed
+        // column moves to the END) — SQL and typed schema must agree, since
+        // executors read columns by index.
         assertEquals("""
-                SELECT t0.NAME AS FULL_NAME, t0.AGE, t0.FIRM
+                SELECT t0.AGE, t0.FIRM, t0.NAME AS FULL_NAME
                 FROM T_PERSON AS t0""", sql);
-        assertEquals(List.of("Ann|25|ACME", "Bob|35|ACME", "Cat|45|Widget", "Dan|55|null"),
+        assertEquals(List.of("25|ACME|Ann", "35|ACME|Bob", "45|Widget|Cat", "55|null|Dan"),
                 exec(sql));
     }
 
@@ -164,7 +167,7 @@ class LowerRelationTest {
         String sql = sqlOf("#>{test::DB.T_PERSON}#->rename(~AGE, ~YEARS)"
                 + "->filter(x|$x.YEARS > 50)");
         assertEquals(1, count(sql, "SELECT"), "substitution keeps it flat: " + sql);
-        assertEquals(List.of("Dan|55|null"), exec(sql));
+        assertEquals(List.of("Dan|null|55"), exec(sql));
     }
 
     @Test

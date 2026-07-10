@@ -622,34 +622,41 @@ public final class Lowerer {
     /**
      * rename lowers to a FULL explicit projection from the (always-known)
      * output schema &mdash; flat and self-describing; no EXCLUDE gymnastics.
+     * Column ORDER is the checker's {@code T-Z+V} (real pure: renamed
+     * columns move to the END) &mdash; iterating {@code r.info()} keeps the
+     * SQL aligned with the typed schema the executor reads by index.
      */
     private SqlSelect rename(TypedRename r) {
         SqlSelect src = relation(r.source());
         SqlSelect base = Fold.projectionFolds(src) ? src : isolate(src);
-        Type.RelationType sourceSchema = schemaOf(r.source());
+        Type.RelationType outSchema = (Type.RelationType) r.info().type();
+        // Each output column reverse-maps to the source column it renames.
+        java.util.function.Function<String, String> sourceOf = out -> {
+            for (TypedRename.ColRename cr : r.renames()) {
+                if (cr.to().equals(out)) {
+                    return cr.from();
+                }
+            }
+            return out;
+        };
         // Pre-pass: if ANY source column would not resolve to a plain column
         // reference in the folded select, isolate ONCE, then project.
-        for (Type.Column c : sourceSchema.columns()) {
-            if (Fold.resolveInto(base, c.name()) == null) {
+        for (Type.Column c : outSchema.columns()) {
+            if (Fold.resolveInto(base, sourceOf.apply(c.name())) == null) {
                 base = isolate(base);
                 break;
             }
         }
         List<SqlSelect.Projection> ps = new ArrayList<>();
-        for (Type.Column c : sourceSchema.columns()) {
-            String target = c.name();
-            for (TypedRename.ColRename cr : r.renames()) {
-                if (cr.from().equals(c.name())) {
-                    target = cr.to();
-                }
-            }
-            SqlExpr e = Fold.resolveInto(base, c.name());
+        for (Type.Column c : outSchema.columns()) {
+            String from = sourceOf.apply(c.name());
+            SqlExpr e = Fold.resolveInto(base, from);
             if (e == null) {
-                throw new IllegalStateException("rename source column '" + c.name()
+                throw new IllegalStateException("rename source column '" + from
                         + "' cannot be resolved after isolation");
             }
-            ps.add(new SqlSelect.Projection(e, target.equals(
-                    e instanceof SqlExpr.Column col ? col.name() : null) ? null : target));
+            ps.add(new SqlSelect.Projection(e, c.name().equals(
+                    e instanceof SqlExpr.Column col ? col.name() : null) ? null : c.name()));
         }
         return base.withProjections(ps, outputsOf(r.info()));
     }

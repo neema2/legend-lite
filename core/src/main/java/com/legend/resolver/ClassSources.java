@@ -10,6 +10,7 @@ import com.legend.compiler.spec.typed.TypedMap;
 import com.legend.compiler.spec.typed.TypedNewInstance;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.error.MappingResolutionException;
+import com.legend.error.NotImplementedException;
 import com.legend.parser.element.MappingDefinition;
 import com.legend.parser.element.MappingInclude;
 
@@ -113,6 +114,14 @@ public final class ClassSources {
 
         TypedSpec pipeline = map.source();
         if (!(pipeline.info().type() instanceof Type.RelationType rowType)) {
+            // A CLASS-typed pipeline is a model-to-model mapping (the body is
+            // getAll(Upstream)->...->map(^Target(...))) — designed as H5's
+            // recursive substitution, not a malformed body.
+            if (pipeline.info().type() instanceof Type.ClassType src) {
+                throw new NotImplementedException("model-to-model mapping: '"
+                        + classFqn + "' in '" + mappingFqn + "' maps from class '"
+                        + src.typeName() + "', not a store — not supported yet (H5)");
+            }
             throw new IllegalStateException("resolver bug: mapping pipeline for '"
                     + classFqn + "' in '" + mappingFqn + "' types as "
                     + pipeline.info().type().typeName() + ", expected a relation row");

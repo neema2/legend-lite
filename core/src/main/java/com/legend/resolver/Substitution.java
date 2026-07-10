@@ -109,6 +109,22 @@ final class Substitution {
     }
 
     /**
+     * The identity over the row &mdash; a whole-instance aggregate map
+     * ({@code x|$x}, COUNT(*)-style) becomes {@code _rN|$_rN}: the bare row
+     * var, which the lowerer's bare-map arm turns into a no-value reducer.
+     */
+    TypedLambda identityLambda(TypedLambda lambda) {
+        Type.FunctionType oldFn = (Type.FunctionType) lambda.info().type();
+        Type.FunctionType newFn = new Type.FunctionType(
+                List.of(new Type.Param(target.rowType(), Multiplicity.Bounded.ONE)),
+                oldFn.result());
+        return new TypedLambda(List.of(target.freshRowVar()),
+                List.of(new TypedVariable(target.freshRowVar(),
+                        new ExprType(target.rowType(), Multiplicity.Bounded.ONE))),
+                new ExprType(newFn, Multiplicity.Bounded.ONE));
+    }
+
+    /**
      * THE path funnel: if {@code n} is a property access whose receiver is
      * the user's lambda variable, its property name; else {@code null}.
      * (H3 extends this to multi-hop paths; DemandScan shares it.)
@@ -161,16 +177,18 @@ final class Substitution {
                 return rewriteExists(call, target.existsSubs().get(headPath.get(0)));
             }
         }
-        // Boolean LEAF (not and/or/not) crossing a filter-only to-many:
-        // implicit EXISTS (plangen F1). and/or/not recurse so each leaf
-        // wraps individually.
-        // Emptiness-family leaves are NOT ∃-distributive (isEmpty over a
+        // Boolean LEAF (not and/or) crossing a filter-only to-many:
+        // implicit EXISTS (plangen F1). and/or recurse so each leaf wraps
+        // individually; a `not` wraps as a WHOLE leaf — ∃(¬X), never
+        // ¬∃(X) (see isBooleanConnective; the `!=` corpus family).
+        // Emptiness-family calls are NOT ∃-distributive (isEmpty over a
         // crossing is about ABSENCE — wrapping it in EXISTS silently
-        // inverts rows; audit blocker): they take the join/loud routes.
+        // inverts rows; audit blocker): whether at the leaf top or inside
+        // a `not`, they take the join/loud routes instead.
         if (n instanceof TypedNativeCall lc
                 && lc.info().type() == Type.Primitive.BOOLEAN
                 && !isBooleanConnective(lc)
-                && !isEmptinessFamily(lc)) {
+                && !containsEmptinessFamily(lc)) {
             String head = toManyFilterHead(lc);
             if (head != null) {
                 return rewriteImplicitExists(lc, head);
@@ -478,11 +496,31 @@ final class Substitution {
         return new TypedNativeCall(call.callee(), newArgs, call.info());
     }
 
+    /**
+     * {@code and}/{@code or} distribute over the per-leaf implicit EXISTS;
+     * {@code not} does NOT (&not; is not &exist;-distributive): {@code !=}
+     * is real pure's {@code not(equal(...))}, and hoisting the negation
+     * outside would turn "has an address with a different city" into "has
+     * no address with that city" — {@code not(X)} wraps as a WHOLE leaf,
+     * &exist;(&not;X), the engine's ANY-semantics.
+     */
     private static boolean isBooleanConnective(TypedNativeCall c) {
         String key = c.callee().signatureKey();
         return com.legend.builtin.Pure.nativeNamed("and", key)
-                || com.legend.builtin.Pure.nativeNamed("or", key)
-                || com.legend.builtin.Pure.nativeNamed("not", key);
+                || com.legend.builtin.Pure.nativeNamed("or", key);
+    }
+
+    /** An emptiness-family call at this node or anywhere beneath it. */
+    private static boolean containsEmptinessFamily(TypedSpec n) {
+        if (n instanceof TypedNativeCall c && isEmptinessFamily(c)) {
+            return true;
+        }
+        for (TypedSpec ch : n.children()) {
+            if (containsEmptinessFamily(ch)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private List<TypedSpec> rewriteAll(List<TypedSpec> ns) {

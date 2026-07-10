@@ -451,6 +451,73 @@ class ResolveNavigationTest {
     }
 
     @Test
+    @DisplayName("21: class-source groupBy with an association-path KEY — GROUP BY the joined column")
+    void classSourceGroupByAssociationKey() throws SQLException {
+        String sql = sqlOf("m::Person.all()->groupBy(~[legal : p|$p.employer.legal],"
+                + " ~cnt : x|$x : y|$y->count())->from(m::RT)");
+        assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
+        assertEquals(1, count(sql, "SELECT"), sql);
+        assertEquals(1, count(sql, "GROUP BY"), sql);
+        assertEquals(List.of("ACME|2", "null|1"), exec(sql).stream().sorted().toList(),
+                "LEFT semantics: Bob's no-employer row groups under NULL");
+    }
+
+    @Test
+    @DisplayName("21b: filter + class-source groupBy — both lambdas through the one funnel")
+    void classSourceGroupByAfterFilter() throws SQLException {
+        String sql = sqlOf("m::Person.all()->filter(p|$p.name != 'Bob')"
+                + "->groupBy(~[legal : p|$p.employer.legal],"
+                + " ~cnt : x|$x : y|$y->count())->from(m::RT)");
+        assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
+        assertEquals(List.of("ACME|2"), exec(sql));
+    }
+
+    @Test
+    @DisplayName("21c: LEGACY 4-arg class-source groupBy (the plangen form) — desugars and resolves")
+    void legacyClassSourceGroupBy() throws SQLException {
+        String sql = sqlOf("m::Person.all()->groupBy([{p|$p.employer.legal}],"
+                + " [agg({x|$x.name}, {y|$y->count()})], ['legal', 'cnt'])->from(m::RT)");
+        assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
+        assertEquals(List.of("ACME|2", "null|1"), exec(sql).stream().sorted().toList());
+    }
+
+    @Test
+    @DisplayName("relation-space groupBy ABOVE a resolved projection (the corpus shape)")
+    void relationGroupByOverResolvedChain() throws SQLException {
+        String sql = sqlOf("m::Person.all()->project(~[legal: p|$p.employer.legal])"
+                + "->groupBy(~legal, ~cnt : x|$x : y|$y->count())->from(m::RT)");
+        assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
+        assertEquals(List.of("ACME|2", "null|1"), exec(sql).stream().sorted().toList());
+    }
+
+    @Test
+    @DisplayName("implicit EXISTS on != — the negation stays INSIDE: ∃(¬X), never ¬∃(X)")
+    void notEqualCrossingKeepsNegationInsideExists() throws SQLException {
+        String sql = sqlOf("m::Firm.all()->filter(f|$f.staff.name != 'Ann')"
+                + "->project(~[legal: f|$f.legal])->from(m::RT)");
+        assertEquals(1, count(sql, "EXISTS"), sql);
+        assertEquals(0, count(sql, "NOT EXISTS"),
+                "hoisting the ¬ outside the ∃ silently inverts the rows:\n" + sql);
+        // THE DATA PIN: ACME employs Cat (≠ Ann), so ∃(name≠Ann) admits it;
+        // the wrong ¬∃(name=Ann) reading would exclude ACME via Ann.
+        assertEquals(List.of("ACME"), exec(sql));
+    }
+
+    @Test
+    @DisplayName("negated emptiness INSIDE a not-leaf refuses the implicit wrap (¬∃ ≠ ∃¬)")
+    void notOverEmptinessCrossingIsLoud() {
+        var ctx = Compiler.compileModel(MODEL);
+        SpecCompiler specs = new SpecCompiler(ctx);
+        var body = specs.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(
+                "m::Firm.all()->filter(f|!($f.staff.name->isNotEmpty()))"
+                        + "->project(~[legal: f|$f.legal])->from(m::RT)")));
+        var e = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.NotImplementedException.class,
+                () -> new StoreResolver(ctx, specs).resolve(body, null));
+        assertTrue(e.getMessage().contains("staff.name"), e.getMessage());
+    }
+
+    @Test
     @DisplayName("nested navigation inside an exists predicate is loud NotImplemented")
     void nestedNavInsideExistsIsLoud() {
         var ctx = Compiler.compileModel(MODEL);
