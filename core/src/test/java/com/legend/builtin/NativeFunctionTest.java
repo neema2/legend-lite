@@ -395,13 +395,22 @@ class NativeFunctionTest {
 
     @Test
     void everyNativeClassIsMarkedNativeAndHasEmptyBody() {
+        // Opaque carriers — EXCEPT where real legend-pure declares properties:
+        // Pair has first/second (anonymousCollections.pure:17-25), which property
+        // access and ^Pair(...) construction validate against.
         for (ClassDefinition c : Pure.allNativeClasses()) {
             assertTrue(c.isNative(),
                     () -> "native class '" + c.qualifiedName() + "' has isNative=false");
-            assertTrue(c.properties().isEmpty(),
-                    () -> "native class '" + c.qualifiedName()
-                            + "' must have empty properties for now (got "
-                            + c.properties() + ")");
+            if (c.qualifiedName().equals("meta::pure::functions::collection::Pair")) {
+                assertEquals(List.of("first", "second"),
+                        c.properties().stream().map(p -> p.name()).toList(),
+                        "Pair declares exactly first/second (real pure)");
+            } else {
+                assertTrue(c.properties().isEmpty(),
+                        () -> "native class '" + c.qualifiedName()
+                                + "' must have empty properties for now (got "
+                                + c.properties() + ")");
+            }
             assertTrue(c.derivedProperties().isEmpty(),
                     () -> "native class '" + c.qualifiedName()
                             + "' must have empty derived properties");

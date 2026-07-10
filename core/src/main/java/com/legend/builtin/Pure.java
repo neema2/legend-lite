@@ -211,7 +211,9 @@ public final class Pure {
 
     // ---- Collection carriers ----
     public static final ClassDefinition LIST = nativeClass("native Class meta::pure::functions::collection::List<T>    extends meta::pure::metamodel::type::Any {}");
-    public static final ClassDefinition PAIR = nativeClass("native Class meta::pure::functions::collection::Pair<U, V> extends meta::pure::metamodel::type::Any {}");
+    // REAL pure declares first/second (legend-pure platform/pure/anonymousCollections.pure:17-25,
+    // both <<equality.Key>>) — property access and instance construction validate against THEM.
+    public static final ClassDefinition PAIR = nativeClass("native Class meta::pure::functions::collection::Pair<U, V> extends meta::pure::metamodel::type::Any { first: U[1]; second: V[1]; }");
 
     // ---- Math helper carrier (rowwise correlation/covariance inputs) ----
     public static final ClassDefinition ROW_MAPPER = nativeClass("native Class meta::pure::functions::math::mathUtility::RowMapper<T, U> extends meta::pure::metamodel::type::Any {}");
@@ -518,9 +520,14 @@ public final class Pure {
     public static final NativeFunctionDefinition CBRT__NUMBER_1 = signature("native function meta::pure::functions::math::cbrt(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition CEILING__NUMBER_1 = signature("native function meta::pure::functions::math::ceiling(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition CHAR__INTEGER_1 = signature("native function meta::pure::functions::string::char(code:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1];");
-    public static final NativeFunctionDefinition COALESCE__ANY_0_1__ANY_0_1__ANY_1 = signature("native function meta::pure::functions::flow::coalesce(value:meta::pure::metamodel::type::Any[0..1], value2:meta::pure::metamodel::type::Any[0..1], defaultValue:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Any[1];");
-    public static final NativeFunctionDefinition COALESCE__ANY_0_1__ANY_1 = signature("native function meta::pure::functions::flow::coalesce(value:meta::pure::metamodel::type::Any[0..1], defaultValue:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Any[1];");
-    public static final NativeFunctionDefinition COALESCE__ANY_MANY = signature("native function meta::pure::functions::flow::coalesce(values:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Any[0..1];");
+    // coalesce: REAL pure is GENERIC (legend-engine core_functions_unclassified/flow/coalesce.pure)
+    // — six overloads: 1-3 optional values, ifEmpty either [1] (result [1]) or [0..1] (result [0..1]).
+    public static final NativeFunctionDefinition COALESCE__T_0_1__T_1 = signature("native function meta::pure::functions::flow::coalesce<T>(value:T[0..1], ifEmpty:T[1]):T[1];");
+    public static final NativeFunctionDefinition COALESCE__T_0_1__T_0_1__T_1 = signature("native function meta::pure::functions::flow::coalesce<T>(value1:T[0..1], value2:T[0..1], ifEmpty:T[1]):T[1];");
+    public static final NativeFunctionDefinition COALESCE__T_0_1__T_0_1__T_0_1__T_1 = signature("native function meta::pure::functions::flow::coalesce<T>(value1:T[0..1], value2:T[0..1], value3:T[0..1], ifEmpty:T[1]):T[1];");
+    public static final NativeFunctionDefinition COALESCE__T_0_1__T_0_1 = signature("native function meta::pure::functions::flow::coalesce<T>(value:T[0..1], ifEmpty:T[0..1]):T[0..1];");
+    public static final NativeFunctionDefinition COALESCE__T_0_1__T_0_1__T_0_1 = signature("native function meta::pure::functions::flow::coalesce<T>(value1:T[0..1], value2:T[0..1], ifEmpty:T[0..1]):T[0..1];");
+    public static final NativeFunctionDefinition COALESCE__T_0_1__T_0_1__T_0_1__T_0_1 = signature("native function meta::pure::functions::flow::coalesce<T>(value1:T[0..1], value2:T[0..1], value3:T[0..1], ifEmpty:T[0..1]):T[0..1];");
     public static final NativeFunctionDefinition COMPARE__ANY_1__ANY_1 = signature("native function meta::pure::functions::lang::compare(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition CONCATENATE__T_MANY__T_MANY = signature("native function meta::pure::functions::collection::concatenate<T>(set1:T[*], set2:T[*]):T[*];");
     public static final NativeFunctionDefinition CONCATENATE__RELATION_1__RELATION_1 = signature("native function meta::pure::functions::relation::concatenate<T>(rel1:meta::pure::metamodel::relation::Relation<T>[1], rel2:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
@@ -649,7 +656,9 @@ public final class Pure {
     public static final NativeFunctionDefinition GREATER_THAN__STRING_0_1__STRING_1 = signature("native function meta::pure::functions::boolean::greaterThan(left:meta::pure::metamodel::type::String[0..1], right:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition GREATER_THAN__STRING_1__STRING_0_1 = signature("native function meta::pure::functions::boolean::greaterThan(left:meta::pure::metamodel::type::String[1], right:meta::pure::metamodel::type::String[0..1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition GREATER_THAN__STRING_1__STRING_1 = signature("native function meta::pure::functions::boolean::greaterThan(left:meta::pure::metamodel::type::String[1], right:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
-    public static final NativeFunctionDefinition GREATEST__ANY_MANY = signature("native function meta::pure::functions::collection::greatest(values:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Any[0..1];");
+    // greatest/least: REAL pure is GENERIC (legend-engine core_functions_standard/collection/{greatest,least}.pure).
+    public static final NativeFunctionDefinition GREATEST__X_MANY = signature("native function meta::pure::functions::collection::greatest<X>(values:X[*]):X[0..1];");
+    public static final NativeFunctionDefinition GREATEST__X_1_MANY = signature("native function meta::pure::functions::collection::greatest<X>(values:X[1..*]):X[1];");
     public static final NativeFunctionDefinition GROUP_BY__C_MANY__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_1 = signature("native function meta::pure::tds::groupBy<C,Z,K,V,R>(cl:C[*], keys:meta::pure::metamodel::relation::FuncColSpecArray<{C[1]->meta::pure::metamodel::type::Any[*]},Z>[1], aggs:meta::pure::metamodel::relation::AggColSpec<{C[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
     public static final NativeFunctionDefinition GROUP_BY__C_MANY__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_ARRAY_1 = signature("native function meta::pure::tds::groupBy<C,Z,K,V,R>(cl:C[*], keys:meta::pure::metamodel::relation::FuncColSpecArray<{C[1]->meta::pure::metamodel::type::Any[*]},Z>[1], aggs:meta::pure::metamodel::relation::AggColSpecArray<{C[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<Z+R>[1];");
     public static final NativeFunctionDefinition GROUP_BY__K_MANY__FUNCTION_MANY__ANY_MANY__STRING_MANY = signature("native function meta::pure::functions::collection::groupBy<K,V,U>(set:K[*], fns:meta::pure::metamodel::function::Function<{K[1]->meta::pure::metamodel::type::Any[*]}>[*], aggs:meta::pure::metamodel::type::Any[*], ids:meta::pure::metamodel::type::String[*]):meta::pure::metamodel::relation::Relation<K>[1];");
@@ -706,7 +715,8 @@ public final class Pure {
     public static final NativeFunctionDefinition LAST__T_MANY = signature("native function meta::pure::functions::collection::last<T>(set:T[*]):T[0..1];");
     public static final NativeFunctionDefinition LEAD__RELATION_1__T_1 = signature("native function meta::pure::functions::relation::lead<T>(w:meta::pure::metamodel::relation::Relation<T>[1], r:T[1]):T[0..1];");
     public static final NativeFunctionDefinition LEAD__RELATION_1__T_1__INTEGER_1 = signature("native function meta::pure::functions::relation::lead<T>(w:meta::pure::metamodel::relation::Relation<T>[1], r:T[1], offset:meta::pure::metamodel::type::Integer[1]):T[0..1];");
-    public static final NativeFunctionDefinition LEAST__ANY_MANY = signature("native function meta::pure::functions::collection::least(values:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Any[0..1];");
+    public static final NativeFunctionDefinition LEAST__X_MANY = signature("native function meta::pure::functions::collection::least<X>(values:X[*]):X[0..1];");
+    public static final NativeFunctionDefinition LEAST__X_1_MANY = signature("native function meta::pure::functions::collection::least<X>(values:X[1..*]):X[1];");
     public static final NativeFunctionDefinition LEFT__STRING_1__INTEGER_1 = signature("native function meta::pure::functions::string::left(str:meta::pure::metamodel::type::String[1], len:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1];");
     // legacyNavigate (pipeline step): structurally symmetric to clean-
     // sheet `navigate`. Widens the current row scope by adding a named
@@ -828,7 +838,10 @@ public final class Pure {
     public static final NativeFunctionDefinition MIN__NUMBER_MANY = signature("native function meta::pure::functions::math::min(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[0..1];");
     public static final NativeFunctionDefinition MIN__STRICT_DATE_1__STRICT_DATE_1 = signature("native function meta::pure::functions::date::min(left:meta::pure::metamodel::type::StrictDate[1], right:meta::pure::metamodel::type::StrictDate[1]):meta::pure::metamodel::type::StrictDate[1];");
     public static final NativeFunctionDefinition MIN__STRICT_DATE_MANY = signature("native function meta::pure::functions::date::min(dates:meta::pure::metamodel::type::StrictDate[*]):meta::pure::metamodel::type::StrictDate[0..1];");
-    public static final NativeFunctionDefinition MODE__ANY_MANY = signature("native function meta::pure::functions::math::mode(values:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Any[0..1];");
+    // mode: REAL pure has CONCRETE numeric overloads, result [1] (core_functions_standard/math/aggregator/mode.pure).
+    public static final NativeFunctionDefinition MODE__INTEGER_MANY = signature("native function meta::pure::functions::math::mode(numbers:meta::pure::metamodel::type::Integer[*]):meta::pure::metamodel::type::Integer[1];");
+    public static final NativeFunctionDefinition MODE__FLOAT_MANY = signature("native function meta::pure::functions::math::mode(numbers:meta::pure::metamodel::type::Float[*]):meta::pure::metamodel::type::Float[1];");
+    public static final NativeFunctionDefinition MODE__NUMBER_MANY = signature("native function meta::pure::functions::math::mode(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1];");
     public static final NativeFunctionDefinition MOD__INTEGER_1__INTEGER_1 = signature("native function meta::pure::functions::math::mod(dividend:meta::pure::metamodel::type::Integer[1], divisor:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition MONTH_NUMBER__DATE_1 = signature("native function meta::pure::functions::date::monthNumber(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition MONTH__DATE_1 = signature("native function meta::pure::functions::date::month(d:meta::pure::metamodel::type::Date[1]):meta::pure::functions::date::Month[1];");

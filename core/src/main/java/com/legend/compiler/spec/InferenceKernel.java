@@ -349,6 +349,17 @@ public final class InferenceKernel {
                 b.bindType(v.name(), unionRows(er, ar));
                 return;
             }
+            // Nil is BOTTOM (the []-born element type): it conforms to every
+            // binding and never constrains one — the other side wins, the same
+            // rule that makes Nil vanish in collection-literal LUBs. This is how
+            // coalesce<T>([], 'x') binds T=String (real pure's covariant binding).
+            if (isNil(actual)) {
+                return;
+            }
+            if (isNil(existing)) {
+                b.bindType(v.name(), actual);
+                return;
+            }
             if (!compatibleRebind(existing, actual)) {
                 throw new TypeInferenceException(
                         "type variable " + v.name() + " bound to " + existing.typeName()
@@ -357,6 +368,11 @@ public final class InferenceKernel {
         } else {
             b.bindType(v.name(), actual);   // bind the actual unchanged
         }
+    }
+
+    private static boolean isNil(Type t) {
+        return t instanceof Type.ClassType c
+                && c.fqn().equals("meta::pure::metamodel::type::Nil");
     }
 
     /**

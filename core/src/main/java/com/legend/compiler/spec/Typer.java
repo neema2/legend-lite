@@ -624,6 +624,27 @@ final class Typer {
                         new TypeInferenceException("class " + ct.fqn() + " has no property '" + ap.property() + "'"));
                 yield new ExprType(prop.type(), prop.multiplicity());
             }
+            // A PARAMETERIZED class receiver (Pair<Integer,String>.first): the
+            // property's declared type is written in the class's type parameters
+            // — instantiate them at the receiver's arguments (positional, real
+            // pure's generic instantiation).
+            case Type.GenericType g -> {
+                var cls = ctx.findClass(g.rawFqn()).orElseThrow(() -> new TypeInferenceException(
+                        "unknown class '" + g.rawFqn() + "'"));
+                Property prop = ctx.findProperty(g.rawFqn(), ap.property()).orElseThrow(() ->
+                        new TypeInferenceException("class " + g.rawFqn()
+                                + " has no property '" + ap.property() + "'"));
+                if (cls.typeParameters().size() != g.arguments().size()) {
+                    throw new TypeInferenceException("class " + g.rawFqn() + " declares "
+                            + cls.typeParameters().size() + " type parameter(s) but the receiver "
+                            + g.typeName() + " supplies " + g.arguments().size());
+                }
+                Bindings b = new Bindings();
+                for (int i = 0; i < cls.typeParameters().size(); i++) {
+                    b.bindType(cls.typeParameters().get(i), g.arguments().get(i));
+                }
+                yield new ExprType(kernel.resolve(prop.type(), b), prop.multiplicity());
+            }
             case Type.RelationType rel -> {
                 Type.Column col = rel.columns().stream()
                         .filter(c -> c.name().equals(ap.property()))

@@ -38,6 +38,12 @@ final class PureSql {
                 if (ct.fqn().endsWith("::Variant")) {
                     yield SqlType.Scalar.JSON;
                 }
+                if (ct.fqn().equals("meta::pure::metamodel::type::Nil")) {
+                    // Nil is the BOTTOM type — it types only []-born values, whose
+                    // sole inhabitant is emptiness. The cell is always SQL NULL;
+                    // VARCHAR is the carrier of an always-null column.
+                    yield SqlType.Scalar.VARCHAR;
+                }
                 throw new IllegalStateException("no SQL type for Pure class "
                         + ct.fqn() + " at the lowering boundary (class values do not"
                         + " reach SQL until Phase H lowers their sources)");

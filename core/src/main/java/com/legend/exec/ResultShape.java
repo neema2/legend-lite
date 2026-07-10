@@ -24,6 +24,11 @@ public enum ResultShape {
             if (ct.fqn().endsWith("::Variant")) {
                 return isMany(root.multiplicity()) ? COLLECTION : SCALAR;
             }
+            // Nil is the []-born BOTTOM type — an always-empty VALUE
+            // ([]->head() is Nil[0..1] = null), never an object graph.
+            if (ct.fqn().equals("meta::pure::metamodel::type::Nil")) {
+                return isMany(root.multiplicity()) ? COLLECTION : SCALAR;
+            }
             return GRAPH;
         }
         return isMany(root.multiplicity()) ? COLLECTION : SCALAR;

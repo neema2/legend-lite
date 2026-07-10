@@ -123,8 +123,6 @@ final class Scalars {
                 Map.entry("generateGuid", SqlFn.GUID),
                 Map.entry("hash", SqlFn.HASH), Map.entry("hashCode", SqlFn.HASH),
                 Map.entry("coalesce", SqlFn.COALESCE),
-                Map.entry("greatest", SqlFn.GREATEST),
-                Map.entry("least", SqlFn.LEAST),
                 // Temporal
                 Map.entry("today", SqlFn.TODAY), Map.entry("now", SqlFn.NOW),
                 Map.entry("datePart", SqlFn.DATE_TRUNC_DAY),
@@ -137,7 +135,6 @@ final class Scalars {
                 Map.entry("add", SqlFn.LIST_APPEND),
 
                 Map.entry("median", SqlFn.LIST_MEDIAN),
-                Map.entry("mode", SqlFn.LIST_MODE),
                 Map.entry("tail", SqlFn.LIST_TAIL),
                 Map.entry("init", SqlFn.LIST_INIT),
                 Map.entry("range", SqlFn.RANGE_FN),
@@ -429,6 +426,21 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("sum")) {
             RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
                     : new SqlExpr.Call(SqlFn.LIST_SUM, args));
+        }
+        // greatest/least/mode take ONE collection argument (real pure: values:X[*]);
+        // like min/max/sum, a to-one argument is the identity and a list reduces
+        // with the list encoding — SQL's variadic GREATEST/LEAST never applies.
+        for (String f : Pure.nativeKeysAt("greatest")) {
+            RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
+                    : new SqlExpr.Call(SqlFn.LIST_MAX, args));
+        }
+        for (String f : Pure.nativeKeysAt("least")) {
+            RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
+                    : new SqlExpr.Call(SqlFn.LIST_MIN, args));
+        }
+        for (String f : Pure.nativeKeysAt("mode")) {
+            RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
+                    : new SqlExpr.Call(SqlFn.LIST_MODE, args));
         }
         for (String name : List.of("mean", "average")) {
             for (String f : Pure.nativeKeysAt(name)) {
