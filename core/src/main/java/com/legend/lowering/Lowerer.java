@@ -997,6 +997,10 @@ public final class Lowerer {
                 case com.legend.values.PureDateLiteral.DateWithSubsecond su ->
                         new SqlExpr.TimestampLit(su.toEngineString());
             };
+            // The EMPTY collection [] (Nil[0]) in scalar position IS SQL
+            // NULL — a [0] value has no cell representation other than null
+            // (the mapping enum decode chain's tail: CASE ... ELSE NULL).
+            case TypedCollection c when c.elements().isEmpty() -> new SqlExpr.NullLit();
             case TypedCollection c -> new SqlExpr.ArrayLit(
                     c.elements().stream().map(e -> scalar(e, columns)).toList());
             case TypedPropertyAccess p when p.source() instanceof TypedVariable v
@@ -1044,6 +1048,21 @@ public final class Lowerer {
                             scalar(n.args().get(0), columns), scalar(n.args().get(1), columns));
 
             case com.legend.compiler.spec.typed.TypedCast c -> cast(c, columns);
+
+            // if(cond, {|then}, {|else}) — scalar position: CASE WHEN. Nested
+            // if-chains (the mapping enum decode emission) flatten into one
+            // CASE at render time via the nested-Case-otherwise structure.
+            case com.legend.compiler.spec.typed.TypedIf i -> new SqlExpr.Case(
+                    java.util.List.of(new SqlExpr.Case.When(
+                            scalar(i.condition(), columns),
+                            scalar(thunkBody(i.thenBranch()), columns))),
+                    i.elseBranch().map(e -> scalar(thunkBody(e), columns))
+                            .orElse(new SqlExpr.NullLit()));
+
+            // An enum VALUE in scalar position renders as its name string
+            // (plangen :2591 parity; the mapping decode CASE compares against
+            // these names, and result cells carry the name).
+            case com.legend.compiler.spec.typed.TypedEnumValue e -> new SqlExpr.StringLit(e.value());
 
             case TypedNativeCall n -> Scalars.lower(n,
                     n.args().stream().map(a -> scalar(a, columns)).toList());
@@ -1259,6 +1278,13 @@ public final class Lowerer {
     // ==================================================================
 
     /** Close the current select into a subselect and open a fresh star select over it. */
+    /** An if-branch is a 0-param lambda thunk; its body is the value. */
+    private static com.legend.compiler.spec.typed.TypedSpec thunkBody(
+            com.legend.compiler.spec.typed.TypedSpec branch) {
+        return branch instanceof com.legend.compiler.spec.typed.TypedLambda l
+                ? l.body().get(l.body().size() - 1) : branch;
+    }
+
     private SqlSelect isolate(SqlSelect s) {
         return SqlSelect.starOf(new SqlSource.Subselect(s, nextAlias()));
     }
