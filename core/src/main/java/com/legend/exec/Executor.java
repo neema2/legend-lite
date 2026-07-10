@@ -74,20 +74,18 @@ public final class Executor {
             }
         } else if (hasPivot(plan)) {
             // DYNAMIC PIVOT: one result column per pivoted VALUE — the static
-            // schema cannot enumerate them (engine's DynamicPivotColumn
-            // concept; the checker keeps only the group-by half). Statically
-            // known names match by NAME; a pivot-generated value column is
-            // DATA-DEPENDENT and the result set knows its real type — derive
-            // the Pure type from the SQL column type (the schema's last
-            // column was a wrong stand-in: audit, String-typed aggregates).
+            // schema cannot enumerate them (the checker keeps only the
+            // group-by half). Statically known names match by NAME; a
+            // pivot-generated '<value>__|__<agg>' column inherits its
+            // aggregate TEMPLATE's type (schema.dynamicColumns(), the
+            // engine-lite DynamicPivotColumn design) — the name is
+            // data-dependent, the type is not. SQL-type derivation remains
+            // only for schemas rebuilt downstream of the pivot, where the
+            // templates no longer ride.
             for (int i = 1; i <= n; i++) {
                 String name = rs.getMetaData().getColumnName(i);
                 String sqlType = rs.getMetaData().getColumnTypeName(i);
-                Type pure = schema.columns().stream()
-                        .filter(c -> c.name().equals(name)).findFirst()
-                        .map(Type.Column::type)
-                        .orElseGet(() -> pureOfSqlType(sqlType));
-                columns.add(new Column(name, sqlType, pure));
+                columns.add(new Column(name, sqlType, pivotColumnType(schema, name, sqlType)));
             }
         } else {
             throw new IllegalStateException("result has " + n + " columns but the typed"
@@ -130,6 +128,31 @@ public final class Executor {
             default -> false;
         };
     }
+    /**
+     * The Pure type of one column of a pivot result. Static (group-by) names
+     * match the schema; a dynamic {@code <value>__|__<agg>} name inherits its
+     * aggregate template's type. A suffixed name that matches NO template while
+     * templates are present is a naming-contract bug — loud, never guessed.
+     */
+    private static Type pivotColumnType(Type.RelationType schema, String name, String sqlType) {
+        var byName = schema.columns().stream()
+                .filter(c -> c.name().equals(name)).findFirst();
+        if (byName.isPresent()) {
+            return byName.get().type();
+        }
+        int sep = name.lastIndexOf(Type.RelationType.PIVOT_SEPARATOR);
+        if (sep >= 0 && !schema.dynamicColumns().isEmpty()) {
+            String template = name.substring(sep + Type.RelationType.PIVOT_SEPARATOR.length());
+            return schema.dynamicColumns().stream()
+                    .filter(c -> c.name().equals(template)).findFirst()
+                    .map(Type.Column::type)
+                    .orElseThrow(() -> new IllegalStateException("pivot column '" + name
+                            + "' matches no aggregate template " + schema.dynamicColumns().stream()
+                                    .map(Type.Column::name).toList()));
+        }
+        return pureOfSqlType(sqlType);
+    }
+
     /** The Pure primitive a DYNAMIC (pivot-generated) SQL column carries. */
     private static Type pureOfSqlType(String sqlType) {
         return switch (sqlType.toUpperCase()) {

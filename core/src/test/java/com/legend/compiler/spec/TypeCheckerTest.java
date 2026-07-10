@@ -748,6 +748,11 @@ class TypeCheckerTest {
         assertEquals(4, rt.columns().size(), "group columns = source − pivot − value");
         assertFalse(hasColumn(rt, "FIRST_NAME"));
         assertFalse(hasColumn(rt, "AGE"));
+        // The aggregates ride the schema as the dynamic-column TEMPLATES: every
+        // data-dependent '<value>__|__total' output column is Integer (sum's type).
+        assertEquals(1, rt.dynamicColumns().size());
+        assertEquals("total", rt.dynamicColumns().get(0).name());
+        assertEquals(Type.Primitive.INTEGER, rt.dynamicColumns().get(0).type());
 
         Type.RelationType cast = schemaOf(typeQuery(T_PERSON
                 + "->pivot(~FIRST_NAME, ~total : x|$x.AGE : y|$y->sum())"

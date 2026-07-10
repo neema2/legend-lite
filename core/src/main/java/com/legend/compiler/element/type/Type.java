@@ -322,11 +322,31 @@ public sealed interface Type permits
         }
     }
 
-    /** Inline relation type literal: {@code (col:Type[mult], ...)}. */
-    record RelationType(List<Column> columns) implements Type {
+    /**
+     * Inline relation type literal: {@code (col:Type[mult], ...)}.
+     *
+     * <p>{@code dynamicColumns} (engine-lite's {@code DynamicPivotColumn}; not in the
+     * Pure metamodel) are a pivot output's aggregate TEMPLATES: the pivoted columns
+     * are data-dependent (one per distinct pivot value, named
+     * {@code <value>__|__<template-name>}), so they cannot appear in {@link #columns()},
+     * but every one of them carries its template's type. Empty everywhere except a
+     * pivot's schema; checkers read {@link #columns()} only — the templates are
+     * consumed at the execution boundary, where the data-derived names first exist.
+     */
+    record RelationType(List<Column> columns, List<Column> dynamicColumns) implements Type {
+
+        /** Separator between a pivoted data value and its aggregate-template name. */
+        public static final String PIVOT_SEPARATOR = "__|__";
+
+        public RelationType(List<Column> columns) {
+            this(columns, List.of());
+        }
+
         public RelationType {
             Objects.requireNonNull(columns, "columns");
+            Objects.requireNonNull(dynamicColumns, "dynamicColumns");
             columns = List.copyOf(columns);
+            dynamicColumns = List.copyOf(dynamicColumns);
             // Column names are unique BY CONSTRUCTION (real legend-pure errors on
             // duplicates; engine-lite's map-keyed schema silently last-wins — both
             // classes of silent wrongness become unrepresentable here). Checker-level
@@ -336,6 +356,13 @@ public sealed interface Type permits
                 if (!seen.add(c.name())) {
                     throw new IllegalArgumentException(
                             "duplicate column '" + c.name() + "' in relation type");
+                }
+            }
+            java.util.Set<String> dynSeen = new java.util.HashSet<>();
+            for (Column c : dynamicColumns) {
+                if (!dynSeen.add(c.name())) {
+                    throw new IllegalArgumentException(
+                            "duplicate dynamic (pivot template) column '" + c.name() + "'");
                 }
             }
         }

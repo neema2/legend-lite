@@ -58,8 +58,18 @@ final class PivotChecker {
                 groupCols.add(c);
             }
         }
+        // The aggregates double as the DYNAMIC-column templates: every pivoted
+        // output column '<value>__|__<agg-name>' carries its aggregate's type
+        // (the reduce body's — TypedAggCol's contract). The names are
+        // data-dependent, the types are not.
+        List<Type.Column> templates = aggs.stream()
+                .map(agg -> {
+                    ExprType out = agg.reduce().body().get(agg.reduce().body().size() - 1).info();
+                    return new Type.Column(agg.name(), out.type(), out.multiplicity());
+                })
+                .toList();
         return new TypedPivot(source, pivotCols, aggs,
-                new ExprType(new Type.RelationType(groupCols), a.out().multiplicity()));
+                new ExprType(new Type.RelationType(groupCols, templates), a.out().multiplicity()));
     }
 
     private static List<String> pivotColumns(TypedSpec arg) {

@@ -30,6 +30,7 @@ class ExecutorTest {
             Database test::DB
             (
               Table T_PERSON (NAME VARCHAR(100) NOT NULL, AGE INTEGER NOT NULL)
+              Table T_TREES (CITY VARCHAR(100) NOT NULL, YR INTEGER NOT NULL, TREES INTEGER NOT NULL)
             )
             """;
 
@@ -41,6 +42,10 @@ class ExecutorTest {
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE TABLE T_PERSON (NAME VARCHAR NOT NULL, AGE INTEGER NOT NULL)");
             st.execute("INSERT INTO T_PERSON VALUES ('Ann', 25), ('Bob', 35)");
+            st.execute("CREATE TABLE T_TREES (CITY VARCHAR NOT NULL, YR INTEGER NOT NULL,"
+                    + " TREES INTEGER NOT NULL)");
+            st.execute("INSERT INTO T_TREES VALUES ('NYC', 2011, 100), ('SF', 2011, 50),"
+                    + " ('NYC', 2012, 120)");
         }
     }
 
@@ -95,6 +100,24 @@ class ExecutorTest {
         ExecutionResult.Tabular t = assertInstanceOf(ExecutionResult.Tabular.class, r);
         assertEquals(1, t.rowCount());
         assertNull(t.rows().get(0).get(0));
+    }
+
+    @Test
+    @DisplayName("PIVOT: dynamic '<value>__|__<agg>' columns inherit the aggregate template's type")
+    void pivotDynamicColumnsInheritTemplateType() throws SQLException {
+        ExecutionResult r = Compiler.execute(MODEL,
+                "#>{test::DB.T_TREES}#->pivot(~CITY, ~total : x|$x.TREES : y|$y->sum())", conn);
+        ExecutionResult.Tabular t = assertInstanceOf(ExecutionResult.Tabular.class, r);
+        // YR is the static group column; the city columns are data-derived —
+        // their NAMES come from the result set, their TYPES from the schema's
+        // aggregate template (never SQL-type sniffing).
+        List<String> names = t.columns().stream().map(Column::name).toList();
+        assertEquals(List.of("YR", "NYC__|__total", "SF__|__total"), names);
+        assertEquals(Type.Primitive.INTEGER, t.columns().get(0).pureType());
+        assertEquals(Type.Primitive.INTEGER, t.columns().get(1).pureType(),
+                "the sum template's Pure type rides the dynamic column");
+        assertEquals(Type.Primitive.INTEGER, t.columns().get(2).pureType());
+        assertEquals(2, t.rowCount());
     }
 
     @Test
