@@ -172,6 +172,7 @@ public final class Lowerer {
             }
 
             case TypedGroupBy g -> groupBy(g);
+            case com.legend.compiler.spec.typed.TypedNavigate nav -> navigate(nav);
 
             case TypedAggregate a -> aggregate(a);
 
@@ -784,6 +785,37 @@ public final class Lowerer {
     // Joins — a structural SOURCE (JoinTree); sides bind per lambda param
     // ==================================================================
 
+    /**
+     * USER-facing {@code navigate(~alias: <relation>, {s,t|cond})} — the
+     * clean-sheet dynamic navigation over relations: a PREFIXED LEFT join
+     * (alias_COL columns), riding the exact TypedJoin machinery; struct
+     * reads ({@code $r.alias.COL}) flatten in the scalar path. Class-extent
+     * navigates are STORE material and never reach the lowerer.
+     */
+    private SqlSelect navigate(com.legend.compiler.spec.typed.TypedNavigate nav) {
+        if (nav.form() != com.legend.compiler.spec.typed.TypedNavigate.Form.PRE_MAP
+                || !(nav.target().info().type() instanceof Type.RelationType targetRel)
+                || nav.alias().isEmpty()) {
+            throw new IllegalStateException("store-only navigate (class-extent"
+                    + " target) reached the lowerer — resolver bug");
+        }
+        String alias = nav.alias().get();
+        var srcRow = (Type.RelationType) nav.source().info().type();
+        Type.RelationType targetRow = targetRel;
+        List<Type.Column> flat = new ArrayList<>(srcRow.columns());
+        for (Type.Column c : targetRow.columns()) {
+            flat.add(new Type.Column(alias + "_" + c.name(), c.type(),
+                    com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE));
+        }
+        var flatInfo = new com.legend.compiler.element.type.ExprType(
+                new Type.RelationType(flat), nav.info().multiplicity());
+        var leftKind = new com.legend.compiler.spec.typed.TypedEnumValue(
+                "meta::pure::functions::relation::JoinKind", "LEFT", nav.info());
+        return join(new com.legend.compiler.spec.typed.TypedJoin(nav.source(),
+                nav.target(), leftKind, nav.predicate(),
+                java.util.Optional.of(alias + "_"), flatInfo));
+    }
+
     private SqlSelect join(com.legend.compiler.spec.typed.TypedJoin j) {
         SqlSelect leftSel = relation(j.left());
         // A RENAME-ONLY select (star + plain column renames, no clauses —
@@ -1174,6 +1206,12 @@ public final class Lowerer {
             case TypedCollection c when c.elements().isEmpty() -> new SqlExpr.NullLit();
             case TypedCollection c -> new SqlExpr.ArrayLit(
                     c.elements().stream().map(e -> scalar(e, columns)).toList());
+            // $r.alias.COL — a NAVIGATE slot's struct column flattens to
+            // its prefixed physical column (alias_COL).
+            case TypedPropertyAccess p when p.source() instanceof TypedPropertyAccess inner
+                    && inner.source() instanceof TypedVariable v
+                    && inner.info().type() instanceof Type.RelationType
+                    -> columns.resolve(v.name(), inner.property() + "_" + p.property());
             case TypedPropertyAccess p when p.source() instanceof TypedVariable v
                     -> columns.resolve(v.name(), p.property());
             // A bare variable: a query-level let binding substitutes; else a
@@ -1527,10 +1565,22 @@ public final class Lowerer {
         if (!(info.type() instanceof Type.RelationType rt)) {
             return List.of();
         }
-        // THE Pure→SQL type boundary: plans carry SQL types only.
-        return rt.columns().stream()
-                .map(c -> new OutputCol(c.name(), PureSql.type(c.type()),
-                        PureSql.nullable(c.multiplicity())))
-                .toList();
+        // THE Pure→SQL type boundary: plans carry SQL types only. A
+        // ROW-STRUCT column (a user navigate's slot) is typed nesting over a
+        // FLAT physical reality — its outputs are the prefixed columns the
+        // join actually emitted (alias_COL, all nullable: LEFT semantics).
+        List<OutputCol> out = new ArrayList<>(rt.columns().size());
+        for (Type.Column c : rt.columns()) {
+            if (c.type() instanceof Type.RelationType sub) {
+                for (Type.Column sc : sub.columns()) {
+                    out.add(new OutputCol(c.name() + "_" + sc.name(),
+                            PureSql.type(sc.type()), true));
+                }
+                continue;
+            }
+            out.add(new OutputCol(c.name(), PureSql.type(c.type()),
+                    PureSql.nullable(c.multiplicity())));
+        }
+        return out;
     }
 }

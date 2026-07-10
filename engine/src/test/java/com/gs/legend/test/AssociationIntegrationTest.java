@@ -1366,7 +1366,7 @@ class AssociationIntegrationTest {
             // Project includes deptId so traverse can use it as FK
             var r = exec(combinedModel(),
                 "test::Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.deptId], ['name', 'firm', 'deptId'])" +
-                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.deptId == $hop.ID}), ~deptName:{src,tgt|$tgt.NAME})" +
+                "->navigate(~n1: #>{store::DB.T_DEPT}#, {prev,hop|$prev.deptId == $hop.ID})->extend(~deptName: __r|$__r.n1.NAME)" +
                 "->select(~[name, firm, deptName])");
             assertEquals(4, r.rowCount());
             Map<String, String> firms = new HashMap<>();
@@ -1393,7 +1393,7 @@ class AssociationIntegrationTest {
             var r = exec(combinedModel(),
                 "test::Person.all()->filter({p|$p.firm.legalName == 'Acme'})" +
                 "->project(~[name:x|$x.name, deptId:x|$x.deptId])" +
-                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.deptId == $hop.ID}), ~deptName:{src,tgt|$tgt.NAME})" +
+                "->navigate(~n1: #>{store::DB.T_DEPT}#, {prev,hop|$prev.deptId == $hop.ID})->extend(~deptName: __r|$__r.n1.NAME)" +
                 "->select(~[name, deptName])->sort(~name->ascending())");
             assertEquals(2, r.rowCount());
             assertEquals(List.of("Alice", "Bob"), colStr(r, 0));
@@ -1409,8 +1409,8 @@ class AssociationIntegrationTest {
             // Both in same query
             var r = exec(combinedModel(),
                 "test::Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.deptId], ['name', 'firm', 'deptId'])" +
-                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.deptId == $hop.ID})" +
-                "->traverse(#>{store::DB.T_ORG}#, {prev,hop|$prev.ORG_ID == $hop.ID}), ~orgName:{src,tgt|$tgt.NAME})" +
+                "->navigate(~n1: #>{store::DB.T_DEPT}#, {prev,hop|$prev.deptId == $hop.ID})" +
+                "->navigate(~n2: #>{store::DB.T_ORG}#, {prev,hop|$prev.n1.ORG_ID == $hop.ID})->extend(~orgName: __r|$__r.n2.NAME)" +
                 "->select(~[name, firm, orgName])->sort(~name->ascending())");
             assertEquals(4, r.rowCount());
             assertEquals(List.of("Alice", "Bob", "Charlie", "Diana"), colStr(r, 0));
@@ -1430,7 +1430,7 @@ class AssociationIntegrationTest {
             // Add dept via extend(traverse()), then filter on traversed col AND association col
             var r = exec(combinedModel(),
                 "test::Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.deptId], ['name', 'firm', 'deptId'])" +
-                "->extend(traverse(#>{store::DB.T_DEPT}#, {prev,hop|$prev.deptId == $hop.ID}), ~deptName:{src,tgt|$tgt.NAME})" +
+                "->navigate(~n1: #>{store::DB.T_DEPT}#, {prev,hop|$prev.deptId == $hop.ID})->extend(~deptName: __r|$__r.n1.NAME)" +
                 "->filter(x|$x.firm == 'Acme' && $x.deptName == 'Engineering')");
             assertEquals(1, r.rowCount());
             assertEquals("Alice", colStr(r, 0).get(0));

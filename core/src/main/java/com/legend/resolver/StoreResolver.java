@@ -177,6 +177,13 @@ public final class StoreResolver {
             case TypedConcatenate c when containsGetAll(c) -> new TypedConcatenate(
                     resolveNode(c.left(), context), resolveNode(c.right(), context),
                     c.info());
+            case com.legend.compiler.spec.typed.TypedNavigate nav
+                    when containsGetAll(nav.source())
+                    && nav.target().info().type()
+                            instanceof com.legend.compiler.element.type.Type.RelationType ->
+                    new com.legend.compiler.spec.typed.TypedNavigate(
+                            resolveNode(nav.source(), context), nav.alias(),
+                            nav.target(), nav.predicate(), nav.form(), nav.info());
             case com.legend.compiler.spec.typed.TypedJoin j when containsGetAll(j) ->
                     new com.legend.compiler.spec.typed.TypedJoin(
                             resolveNode(j.left(), context), resolveNode(j.right(), context),

@@ -169,9 +169,17 @@ final class NavigateChecker {
         TypedLambda thunk = (TypedLambda) t.typeLambda(cs.function1(),
                 colspecParam.arguments().get(0), b, env);
         Type target = ((Type.FunctionType) thunk.info().type()).result().type();
-        if (!(target instanceof Type.ClassType)) {
+        // Class extent (Class.all()) or a RELATION target (a table/pipeline)
+        // — the slot column carries the target's row-struct; the lowerer
+        // flattens it as a prefixed LEFT join.
+        if (target instanceof Type.GenericType g
+                && g.rawFqn().equals("meta::pure::metamodel::relation::Relation")) {
+            target = g.arguments().get(0);
+        }
+        if (!(target instanceof Type.ClassType || target instanceof Type.RelationType)) {
             throw new TypeInferenceException(
-                    "navigate target must be a class extent (Class.all()), got " + target.typeName());
+                    "navigate target must be a class extent (Class.all()) or a"
+                            + " relation, got " + target.typeName());
         }
         return new Parts(cs.name(), thunk.body().get(0), target, predLam);
     }

@@ -55,10 +55,14 @@ public final class Executor {
     private static ExecutionResult.Tabular tabular(ResultSet rs, SqlQuery plan, ExprType rootType,
                                                     com.legend.sql.dialect.SqlDialect dialect)
             throws SQLException {
-        if (!(rootType.type() instanceof Type.RelationType schema)) {
+        if (!(rootType.type() instanceof Type.RelationType typedSchema)) {
             throw new IllegalStateException("TABULAR result without a relation root type: "
                     + rootType.type().typeName());
         }
+        // A ROW-STRUCT column (a user navigate's slot) is typed nesting over
+        // a FLAT physical reality — expand to the prefixed columns the join
+        // emitted (alias_COL), mirroring the lowerer's output flattening.
+        final Type.RelationType schema = flattenStructColumns(typedSchema);
         int n = rs.getMetaData().getColumnCount();
         List<Column> columns = new ArrayList<>();
         if (n == schema.columns().size()) {
@@ -127,4 +131,23 @@ public final class Executor {
             default -> false;
         };
     }
+    /** Expand row-struct columns (navigate slots) to their prefixed flat set. */
+    private static Type.RelationType flattenStructColumns(Type.RelationType schema) {
+        if (schema.columns().stream().noneMatch(c -> c.type() instanceof Type.RelationType)) {
+            return schema;
+        }
+        List<Type.Column> flat = new ArrayList<>();
+        for (Type.Column c : schema.columns()) {
+            if (c.type() instanceof Type.RelationType sub) {
+                for (Type.Column sc : sub.columns()) {
+                    flat.add(new Type.Column(c.name() + "_" + sc.name(),
+                            sc.type(), sc.multiplicity()));
+                }
+            } else {
+                flat.add(c);
+            }
+        }
+        return new Type.RelationType(flat);
+    }
+
 }
