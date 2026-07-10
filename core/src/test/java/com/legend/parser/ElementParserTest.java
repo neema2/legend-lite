@@ -2297,6 +2297,42 @@ final class ElementParserTest {
     }
 
     @Test
+    void dbQualifiedColumnRefInsideFunctionArgs() {
+        // The dynafunction corpus qualifies each ARGUMENT with its own
+        // [db] bracket: isNull([store::DB] TN1.VAL). The bracket must
+        // parse as a database qualifier on the column ref — an
+        // array-literal reading dies at 'store::'.
+        var cm = firstRelationalClassMapping(
+                "Mapping my::M ( *model::Person: Relational { "
+                + "~mainTable [db::DB] PERSON "
+                + "missing: isNull([db::DB] PERSON.VAL) "
+                + "} )");
+        var expr = (PropertyMapping.Expression) cm.propertyMappings().get(0);
+        var fn = (FunctionCall) expr.expression();
+        assertEquals("isNull", fn.name());
+        var arg = (ColumnRef) fn.args().get(0);
+        assertEquals("db::DB", arg.databaseName());
+        assertEquals("PERSON", arg.table());
+        assertEquals("VAL", arg.column());
+    }
+
+    @Test
+    void arrayLiteralArgsStayArrayLiterals() {
+        // The qualifier lookahead must NOT swallow real array literals —
+        // a '::'-free bracket followed by ',' or ')' is still an array.
+        var cm = firstRelationalClassMapping(
+                "Mapping my::M ( *model::Person: Relational { "
+                + "~mainTable [db::DB] PERSON "
+                + "flag: case(in(PERSON.KIND, ['a', 'b']), 'x', 'y') "
+                + "} )");
+        var expr = (PropertyMapping.Expression) cm.propertyMappings().get(0);
+        var fn = (FunctionCall) expr.expression();
+        assertEquals("case", fn.name());
+        var in = (FunctionCall) fn.args().get(0);
+        assertEquals(RelationalOperation.ArrayLiteral.class, in.args().get(1).getClass());
+    }
+
+    @Test
     void mappingMissingMainTableThrows() {
         ParseException e = assertThrows(ParseException.class, () ->
                 ElementParser.parse(

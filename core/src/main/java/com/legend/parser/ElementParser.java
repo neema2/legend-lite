@@ -2563,8 +2563,12 @@ public final class ElementParser implements TokenStreamCursor {
         // lookahead, every '[' was consumed as array-literal opening and
         // a function argument like concat([db::DB] @J | T.X, ...) failed
         // to parse. Defer to parseDbOperation when the bracket region is
-        // a database qualifier on a join chain.
-        if (peek() == TokenType.BRACKET_OPEN && !lookAheadIsJoin()) {
+        // a database qualifier on a join chain — or on a COLUMN REF: the
+        // dynafunction corpus writes isNull([store::DB] TN1.VAL) with a
+        // per-argument database bracket (the atomic grammar's
+        // self-qualified arm parses it once we defer).
+        if (peek() == TokenType.BRACKET_OPEN && !lookAheadIsJoin()
+                && !lookAheadIsDbQualifiedColumn()) {
             advance();
             List<RelationalOperation> elements = new ArrayList<>();
             if (peek() != TokenType.BRACKET_CLOSE) {
@@ -2611,6 +2615,40 @@ public final class ElementParser implements TokenStreamCursor {
         boolean isJoin = !atEnd() && peek() == TokenType.AT;
         pos = saved;
         return isJoin;
+    }
+
+    /**
+     * Lookahead: is this bracket a DATABASE QUALIFIER on a column reference
+     * ({@code [store::DB] TN1.VAL}) rather than an array literal? A
+     * qualifier bracket contains only a qualified name (identifiers joined
+     * by {@code ::} — never dots, commas, or literals) and is followed by
+     * an identifier; an array literal's contents or successor break one of
+     * those. The {@code @}-successor case is {@link #lookAheadIsJoin}.
+     */
+    private boolean lookAheadIsDbQualifiedColumn() {
+        int saved = pos;
+        advance(); // skip '['
+        boolean qualifiedName = !atEnd() && isIdentifierToken(peek());
+        if (qualifiedName) {
+            advance();
+            while (!atEnd() && peek() == TokenType.PATH_SEPARATOR) {
+                advance();
+                if (atEnd() || !isIdentifierToken(peek())) {
+                    qualifiedName = false;
+                    break;
+                }
+                advance();
+            }
+        }
+        boolean isQualifier = qualifiedName && !atEnd()
+                && peek() == TokenType.BRACKET_CLOSE;
+        if (isQualifier) {
+            advance(); // skip ']'
+            isQualifier = !atEnd() && (isIdentifierToken(peek())
+                    || peek() == TokenType.QUOTED_STRING);
+        }
+        pos = saved;
+        return isQualifier;
     }
 
     /**
