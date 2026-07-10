@@ -51,6 +51,33 @@ final class Pipelines {
     record Materialized(TypedSpec pipeline, Map<String, String> slotPrefixes,
                         Set<String> stripped) {}
 
+    /** Resolves a navigate step's target class to its (slot-stripped) pipeline. */
+    interface TargetResolver {
+        TypedSpec pipelineFor(String targetClassFqn);
+    }
+
+    /** All navigate-step aliases in {@code pipeline} (class-typed Join PMs). */
+    static Map<String, com.legend.compiler.spec.typed.TypedNavigate> navSteps(
+            TypedSpec pipeline) {
+        Map<String, com.legend.compiler.spec.typed.TypedNavigate> out = new LinkedHashMap<>();
+        collectNavSteps(pipeline, out);
+        return out;
+    }
+
+    private static void collectNavSteps(TypedSpec n,
+            Map<String, com.legend.compiler.spec.typed.TypedNavigate> out) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedNavigate nav
+                && nav.alias().isPresent()) {
+            out.put(nav.alias().get(), nav);
+        }
+        for (TypedSpec c : n.children()) {
+            if (!(n instanceof com.legend.compiler.spec.typed.TypedNavigate nav)
+                    || c == nav.source()) {   // only the chain spine
+                collectNavSteps(c, out);
+            }
+        }
+    }
+
     /** All slot aliases present in {@code pipeline}, in source order. */
     static Set<String> slotAliases(TypedSpec pipeline) {
         Set<String> out = new LinkedHashSet<>();
@@ -98,17 +125,25 @@ final class Pipelines {
 
     static Materialized materialize(TypedSpec pipeline, Set<String> demanded,
                                     String classFqn) {
+        return materialize(pipeline, demanded, Set.of(), classFqn, null);
+    }
+
+    static Materialized materialize(TypedSpec pipeline, Set<String> demanded,
+                                    Set<String> demandedNavs, String classFqn,
+                                    TargetResolver targets) {
         Set<String> all = slotAliases(pipeline);
-        if (all.isEmpty()) {
+        if (all.isEmpty() && navSteps(pipeline).isEmpty()) {
             return new Materialized(pipeline, Map.of(), Set.of());
         }
         Map<String, String> prefixes = new LinkedHashMap<>();
         Set<String> stripped = new LinkedHashSet<>();
-        TypedSpec out = walk(pipeline, demanded, prefixes, stripped, classFqn);
+        TypedSpec out = walk(pipeline, demanded, demandedNavs, targets,
+                prefixes, stripped, classFqn);
         return new Materialized(out, prefixes, stripped);
     }
 
     private static TypedSpec walk(TypedSpec n, Set<String> demanded,
+                                  Set<String> demandedNavs, TargetResolver targets,
                                   Map<String, String> prefixes, Set<String> stripped,
                                   String classFqn) {
         return switch (n) {
@@ -118,7 +153,7 @@ final class Pipelines {
                             + js.alias() + "' carries a nested slot in its target;"
                             + " the normalizer emits linear chains only");
                 }
-                TypedSpec left = walk(js.source(), demanded, prefixes, stripped, classFqn);
+                TypedSpec left = walk(js.source(), demanded, demandedNavs, targets, prefixes, stripped, classFqn);
                 if (!demanded.contains(js.alias())) {
                     stripped.add(js.alias());
                     yield left;   // JOIN CANCELLED: nothing reads through it
@@ -149,8 +184,53 @@ final class Pipelines {
                         cond, Optional.of(prefix),
                         new ExprType(new Type.RelationType(cols), Multiplicity.Bounded.ONE));
             }
+            case com.legend.compiler.spec.typed.TypedNavigate nav
+                    when nav.alias().isPresent() -> {
+                TypedSpec left = walk(nav.source(), demanded, demandedNavs, targets,
+                        prefixes, stripped, classFqn);
+                String alias = nav.alias().get();
+                if (!demandedNavs.contains(alias)) {
+                    stripped.add(alias);
+                    yield left;   // CLASS-SLOT JOIN CANCELLED
+                }
+                if (targets == null) {
+                    throw new IllegalStateException(
+                            "resolver bug: demanded navigate step without a target resolver");
+                }
+                if (!(nav.target() instanceof com.legend.compiler.spec.typed.TypedGetAll ga)) {
+                    throw new IllegalStateException("resolver bug: navigate step '"
+                            + alias + "' target is "
+                            + nav.target().getClass().getSimpleName()
+                            + ", expected the class extent");
+                }
+                String prefix = alias + "_";
+                prefixes.put(alias, prefix);
+                TypedSpec targetPipeline = targets.pipelineFor(ga.classFqn());
+                // The condition speaks (parent row, target TABLE row) — the
+                // 4-arg emission; prior joinslot sub-row reads prefix.
+                TypedLambda condLam = nav.predicate();
+                String leftParam = condLam.parameters().get(0);
+                TypedLambda cond = new TypedLambda(condLam.parameters(),
+                        condLam.body().stream().map(b -> rewriteRowReads(
+                                b, leftParam, prefixes, stripped,
+                                java.util.function.UnaryOperator.identity())).toList(),
+                        condLam.info());
+                Type.RelationType leftRow = (Type.RelationType) left.info().type();
+                Type.RelationType rightRow =
+                        (Type.RelationType) targetPipeline.info().type();
+                List<Type.Column> cols = new ArrayList<>(leftRow.columns());
+                for (Type.Column c : rightRow.columns()) {
+                    cols.add(new Type.Column(prefix + c.name(), c.type(), c.multiplicity()));
+                }
+                yield new TypedJoin(left, targetPipeline,
+                        new TypedEnumValue(JOIN_KIND_FQN, "LEFT",
+                                new ExprType(new Type.EnumType(JOIN_KIND_FQN),
+                                        Multiplicity.Bounded.ONE)),
+                        cond, Optional.of(prefix),
+                        new ExprType(new Type.RelationType(cols), Multiplicity.Bounded.ONE));
+            }
             case TypedFilter f -> {
-                TypedSpec src = walk(f.source(), demanded, prefixes, stripped, classFqn);
+                TypedSpec src = walk(f.source(), demanded, demandedNavs, targets, prefixes, stripped, classFqn);
                 // BODY, not the lambda — same shadow-stop conflation as the
                 // closure above; via the lambda this check silently never
                 // fires (the un-loud direction, worse than over-firing).

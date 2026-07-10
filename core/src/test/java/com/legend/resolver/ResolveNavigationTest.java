@@ -239,4 +239,79 @@ class ResolveNavigationTest {
                 () -> new StoreResolver(ctx, specs).resolve(body, null));
         assertTrue(e.getMessage().contains("join slots"), e.getMessage());
     }
+
+    // ---- part 3: class-typed Join PM (navigate-step) navigation ----
+
+    private static final String A7_MODEL = """
+            Class m::P { name: String[1]; firm: m::F[1]; }
+            Class m::F { legal: String[1]; }
+            Database s::DB (
+              Table P (NAME VARCHAR(50), FID INTEGER)
+              Table F (ID INTEGER, LEGAL VARCHAR(50))
+              Join PF (P.FID = F.ID) )
+            Mapping m::M (
+              *m::P: Relational { ~mainTable [s::DB] P name: P.NAME, firm: [s::DB] @PF }
+              *m::F: Relational { ~mainTable [s::DB] F legal: F.LEGAL } )
+            Runtime m::RT { mappings: [m::M]; }
+            """;
+
+    private static String sqlOfA7(String query) {
+        var ctx = Compiler.compileModel(A7_MODEL);
+        SpecCompiler specs = new SpecCompiler(ctx);
+        var body = specs.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(query)));
+        return new DuckDb().render(new Lowerer().lower(
+                new StoreResolver(ctx, specs).resolve(body, null)));
+    }
+
+    @Test
+    @DisplayName("25a: class-typed Join PM navigated — ONE LEFT JOIN against the target pipeline")
+    void classTypedJoinPmNavigates() throws SQLException {
+        String sql = sqlOfA7("m::P.all()->project(~[name: p|$p.name,"
+                + " legal: p|$p.firm.legal])->from(m::RT)");
+        assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
+        assertEquals(1, count(sql, "SELECT"), sql);
+        assertEquals(List.of("Ann|ACME", "Bob|null"), exec(sql));
+    }
+
+    @Test
+    @DisplayName("25b: class-typed Join PM NOT navigated — the step strips, ZERO joins")
+    void classTypedJoinPmElides() throws SQLException {
+        String sql = sqlOfA7("m::P.all()->project(~[name: p|$p.name])->from(m::RT)");
+        assertEquals(0, count(sql, "JOIN"),
+                "un-navigated class slot must cancel (was the A7 lowerer wall):\n" + sql);
+        assertEquals(List.of("Ann", "Bob"), exec(sql));
+    }
+
+    @Test
+    @DisplayName("23: multiple nav paths in ONE computed expression")
+    void multiplePathsOneExpression() throws SQLException {
+        String sql = sqlOf("m::Person.all()->project(~[combo:"
+                + " p|$p.employer.legal + '/' + $p.boss.name])->from(m::RT)");
+        assertEquals(2, count(sql, "LEFT OUTER JOIN"), sql);
+        assertEquals(1, count(sql, "SELECT"), sql);
+        assertEquals(List.of("ACME/Bob", "null"), exec(sql),
+                "NULL string concat propagates per SQL semantics");
+    }
+
+    @Test
+    @DisplayName("audit: bare class-typed heads (nav slot / embedded) get the H4 story")
+    void bareClassTypedHeadsHonest() {
+        var ctx = Compiler.compileModel(A7_MODEL);
+        SpecCompiler specs = new SpecCompiler(ctx);
+        var body = specs.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(
+                "m::P.all()->project(~[f: p|$p.firm])->from(m::RT)")));
+        var e = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.NotImplementedException.class,
+                () -> new StoreResolver(ctx, specs).resolve(body, null));
+        assertTrue(e.getMessage().contains("H4"), e.getMessage());
+
+        var ctx2 = Compiler.compileModel(MODEL);
+        SpecCompiler specs2 = new SpecCompiler(ctx2);
+        var body2 = specs2.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(
+                "m::Person.all()->project(~[a: p|$p.addr])->from(m::RT)")));
+        var e2 = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.NotImplementedException.class,
+                () -> new StoreResolver(ctx2, specs2).resolve(body2, null));
+        assertTrue(e2.getMessage().contains("H4"), e2.getMessage());
+    }
 }

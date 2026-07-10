@@ -136,6 +136,23 @@ final class Substitution {
         String prop = propertyOnUserVar(n, target.userVar());
         if (prop != null) {
             TypedSpec binding = target.bindings().get(prop);
+            if (binding != null) {
+                // A CLASS-typED binding used as a whole value ($p.firm bare,
+                // $p.addr bare): graph output territory — the honest story,
+                // not a "resolver bug" from the rewriter's vocabulary wall.
+                TypedSpec inner = binding;
+                if (inner instanceof TypedNativeCall c1 && c1.args().size() == 1
+                        && c1.callee().qualifiedName().endsWith("toOne")) {
+                    inner = c1.args().get(0);
+                }
+                if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstance
+                        || inner.info().type()
+                                instanceof com.legend.compiler.element.type.Type.ClassType) {
+                    throw new NotImplementedException("class-typed property '$"
+                            + target.userVar() + "." + prop + "' used as a whole"
+                            + " value is graph output (Phase H4)");
+                }
+            }
             if (binding == null) {
                 if (target.assocEnds().contains(prop)) {
                     throw new NotImplementedException("association property '$"
@@ -196,6 +213,14 @@ final class Substitution {
                     && c.callee().qualifiedName().endsWith("toOne")) {
                 inner = c.args().get(0);
             }
+            // A class-typed navigate-slot read ($row.alias): the step was
+            // demanded and registered under this HEAD — dispatch like an
+            // association (target bindings, prefixed columns).
+            if (target.assocs().containsKey(head)
+                    && inner instanceof TypedPropertyAccess pa
+                    && pa.source() instanceof TypedVariable) {
+                return assocLeaf(head, leaf);
+            }
             if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstance ctor) {
                 // EMBEDDED: the inner binding reads the PARENT row — a
                 // parent-alias column, never a join (V1 §D.4 semantics).
@@ -211,6 +236,11 @@ final class Substitution {
             throw new NotImplementedException("navigation through class-typed"
                     + " slot property '" + head + "' is not supported yet");
         }
+        return assocLeaf(head, leaf);
+    }
+
+    /** The leaf of a demanded association / navigate-slot head. */
+    private TypedSpec assocLeaf(String head, String leaf) {
         AssocSub a = target.assocs().get(head);
         if (a == null) {
             throw new IllegalStateException("resolver bug: undemanded navigation"

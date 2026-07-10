@@ -249,15 +249,55 @@ public final class StoreResolver {
                     collectAliasReads(binding, cs.rowVar(), slotAliases, demanded);
                 }
             }
-            demanded = Pipelines.closeOverConditions(cs.pipeline(), demanded);
         }
+
+        // Navigate-step (class-typed Join PM) demand: a 2-hop path whose
+        // head binding reads a navigate slot ($row.alias, class-typed)
+        // demands that step; its target joins as the class's own pipeline.
+        var navSteps = Pipelines.navSteps(cs.pipeline());
+        Set<String> demandedNavs = new java.util.LinkedHashSet<>();
+        Map<String, Substitution.AssocSub> assocs = new java.util.LinkedHashMap<>();
+        for (java.util.List<String> path : paths) {
+            if (path.size() < 2) {
+                continue;
+            }
+            TypedSpec headBinding = cs.bindings().get(path.get(0));
+            if (headBinding == null) {
+                continue;   // association heads (below)
+            }
+            String alias = navSlotAlias(headBinding, cs.rowVar(), navSteps.keySet());
+            if (alias == null || demandedNavs.contains(alias)) {
+                continue;
+            }
+            demandedNavs.add(alias);
+            var nav = navSteps.get(alias);
+            String targetClass = ((com.legend.compiler.spec.typed.TypedGetAll)
+                    nav.target()).classFqn();
+            ClassSource target = sources.get(cs.mappingFqn(), targetClass);
+            // The nav condition may read joinslot sub-rows: demand them too.
+            for (TypedSpec b : nav.predicate().body()) {
+                for (String slot : slotAliases) {
+                    if (Pipelines.referencesAliasOn(b,
+                            nav.predicate().parameters().get(0), Set.of(slot))) {
+                        demanded.add(slot);
+                    }
+                }
+            }
+            assocs.put(path.get(0), new Substitution.AssocSub(alias + "_",
+                    target.rowVar(), target.bindings(), target.classFqn(),
+                    Pipelines.slotAliases(target.pipeline())));
+        }
+        demanded = Pipelines.closeOverConditions(cs.pipeline(), demanded);
+
         Pipelines.Materialized m = Pipelines.materialize(
-                cs.pipeline(), demanded, cs.classFqn());
+                cs.pipeline(), demanded, demandedNavs, cs.classFqn(),
+                targetClass -> Pipelines.materialize(
+                        sources.get(cs.mappingFqn(), targetClass).pipeline(),
+                        Set.of(), targetClass).pipeline());
 
         // Association demand: 2-hop paths whose head is NOT a binding are
         // association navigations — one LEFT join per head (dedup by head:
         // the whole-chain registry), target = the class's own pipeline.
-        Map<String, Substitution.AssocSub> assocs = new java.util.LinkedHashMap<>();
         java.util.List<AssocJoin> assocJoins = new ArrayList<>();
         for (java.util.List<String> path : paths) {
             if (path.size() < 2 || cs.bindings().containsKey(path.get(0))) {
@@ -368,6 +408,24 @@ public final class StoreResolver {
         for (TypedSpec c : n.children()) {
             collectLambdaParams(c, out);
         }
+    }
+
+    /** The navigate-slot alias a class-typed head binding reads, or null. */
+    private static String navSlotAlias(TypedSpec binding, String rowVar,
+                                       Set<String> navAliases) {
+        TypedSpec inner = binding;
+        if (inner instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+                && c.args().size() == 1
+                && c.callee().qualifiedName().endsWith("toOne")) {
+            inner = c.args().get(0);
+        }
+        if (inner instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                && pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
+                && v.name().equals(rowVar)
+                && navAliases.contains(pa.property())) {
+            return pa.property();
+        }
+        return null;
     }
 
     /** Scan entry: the lambda's BODY under its own parameter (never the lambda node). */
