@@ -112,6 +112,7 @@ public final class Compiler {
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.List<TypedSpec> body = specs.typeQueryBody(
                 NameResolver.resolveQuery(SpecParser.parse(query)));
+        body = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(body);   // Phase G½
         body = new com.legend.resolver.StoreResolver(ctx, specs)
                 .resolve(body, runtime);                          // Phase H
         TypedSpec root = body.get(body.size() - 1);
@@ -197,6 +198,7 @@ public final class Compiler {
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.List<TypedSpec> body = specs.typeQueryBody(
                 NameResolver.resolveQuery(SpecParser.parse(query)));
+        body = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(body);   // Phase G½
         body = new com.legend.resolver.StoreResolver(ctx, specs)
                 .resolve(body, runtimeFqn);                       // Phase H
         TypedSpec root = body.get(body.size() - 1);
