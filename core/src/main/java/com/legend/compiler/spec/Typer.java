@@ -571,7 +571,11 @@ final class Typer {
         Type elementType = elements.stream()
                 .map(e -> e.info().type())
                 .reduce(kernel::commonSupertype)
-                .orElseGet(InferenceKernel::anyType);   // empty collection -> Any
+                // The empty collection [] types as Nil[0] — the BOTTOM type
+                // (real pure), so it conforms to any expected element type
+                // and vanishes in LUBs: if(c, {|Status}, {|[]}) is
+                // Status[0..1], not Any.
+                .orElseGet(() -> new Type.ClassType("meta::pure::metamodel::type::Nil"));
         Multiplicity mult = new Multiplicity.Bounded(elements.size(), elements.size());
         return new TypedCollection(elements, new ExprType(elementType, mult));
     }

@@ -89,6 +89,13 @@ public interface ModelContext {
         if (childFqn.equals(parentFqn)) {
             return true;
         }
+        // Nil is the BOTTOM type — a subtype of every type (real pure:
+        // m3 navigation Type.subTypeOf's explicit isBottomType arm). It is
+        // the type of the empty collection [], so LUB(X, Nil) = X and a
+        // Nil value conforms to any expected type.
+        if (childFqn.equals("meta::pure::metamodel::type::Nil")) {
+            return true;
+        }
         Optional<TypedClass> child = findClass(childFqn);
         if (child.isEmpty()) {
             return false;

@@ -1491,9 +1491,10 @@ class MappingNormalizerTest {
         LambdaFunction projectLambda = (LambdaFunction) mapCall.parameters().get(1);
         NewInstance ni = (NewInstance) ((AppliedFunction) sole(projectLambda.body()))
                 .parameters().get(1);
-        AppliedFunction computed = (AppliedFunction) ni.properties().get("computed").value();
-        assertEquals("concat", computed.function(),
-                "LocalProperty wrapping Expression unwraps to the Expression's translation");
+        List<ValueSpecification> computed = plusChain(
+                ni.properties().get("computed").value(), 3);
+        assertEquals(3, computed.size(),
+                "LocalProperty wrapping Expression unwraps to the Expression's translation (concat -> plus-chain)");
     }
 
     // ====================================================================
@@ -1754,7 +1755,7 @@ class MappingNormalizerTest {
 
         // firmIdStr value: concat($row.firmName_h1.ID, '')
         AppliedFunction firmIdStr = (AppliedFunction) toOneInner(ni.properties().get("firmIdStr").value());
-        assertEquals("concat", firmIdStr.function());
+        assertEquals("plus", firmIdStr.function());   // concat -> plus-chain
         AppliedProperty idRef = (AppliedProperty) firmIdStr.parameters().get(0);
         assertEquals("ID", idRef.property());
         AppliedProperty firmAlias = (AppliedProperty) idRef.receiver();
@@ -1881,7 +1882,7 @@ class MappingNormalizerTest {
         // source) must resolve via the Join PM's alias -- the two-pass
         // design hoists ALL joins before project translation runs.
         AppliedFunction firmIdStr = (AppliedFunction) toOneInner(ni.properties().get("firmIdStr").value());
-        assertEquals("concat", firmIdStr.function());
+        assertEquals("plus", firmIdStr.function());   // concat -> plus-chain
         AppliedProperty idRef = (AppliedProperty) firmIdStr.parameters().get(0);
         AppliedProperty firmAlias = (AppliedProperty) idRef.receiver();
         assertEquals("Person_Firm", firmAlias.property(),
@@ -1889,8 +1890,9 @@ class MappingNormalizerTest {
                         + "via the Join PM's alias (two-pass design)");
 
         // fullName (Expression PM, only T_PERSON refs) uses $row directly.
-        AppliedFunction fullName = (AppliedFunction) toOneInner(ni.properties().get("fullName").value());
-        AppliedProperty firstRef = (AppliedProperty) fullName.parameters().get(0);
+        List<ValueSpecification> fullName = plusChain(
+                toOneInner(ni.properties().get("fullName").value()), 3);
+        AppliedProperty firstRef = (AppliedProperty) fullName.get(0);
         assertEquals("FIRST", firstRef.property());
         assertEquals(new Variable("row"), firstRef.receiver(),
                 "Main-table column ref goes directly through $row");
@@ -2026,11 +2028,10 @@ class MappingNormalizerTest {
         NewInstance ni = (NewInstance) newCall.parameters().get(1);
 
         // combo = concat($row.firmName_h1.NAME, ' / ', $row.deptName_h1.NAME)
-        AppliedFunction combo = (AppliedFunction) toOneInner(ni.properties().get("combo").value());
-        assertEquals("concat", combo.function());
-        assertEquals(3, combo.parameters().size());
+        List<ValueSpecification> combo = plusChain(
+                toOneInner(ni.properties().get("combo").value()), 3);
 
-        AppliedProperty firmRef = (AppliedProperty) combo.parameters().get(0);
+        AppliedProperty firmRef = (AppliedProperty) combo.get(0);
         assertEquals("NAME", firmRef.property());
         AppliedProperty firmAlias = (AppliedProperty) firmRef.receiver();
         assertEquals("Person_Firm", firmAlias.property(),
@@ -2038,9 +2039,9 @@ class MappingNormalizerTest {
 
         // Middle arg is the ' / ' string literal.
         assertEquals(new com.legend.parser.spec.CString(" / "),
-                combo.parameters().get(1));
+                combo.get(1));
 
-        AppliedProperty deptRef = (AppliedProperty) combo.parameters().get(2);
+        AppliedProperty deptRef = (AppliedProperty) combo.get(2);
         assertEquals("NAME", deptRef.property());
         AppliedProperty deptAlias = (AppliedProperty) deptRef.receiver();
         assertEquals("Person_Dept", deptAlias.property(),
@@ -2452,6 +2453,27 @@ class MappingNormalizerTest {
     private static <T> T sole(List<T> list) {
         assertEquals(1, list.size(), "expected exactly one element");
         return list.get(0);
+    }
+
+    /**
+     * Flattens the left-assoc {@code plus(plus(a,b),c)} chain the normalizer
+     * emits for the variadic {@code concat} dynafunction (which has no
+     * pure-function counterpart; real pure spells concatenation with plus)
+     * back into its {@code n} argument list.
+     */
+    private static List<ValueSpecification> plusChain(ValueSpecification v, int n) {
+        java.util.LinkedList<ValueSpecification> out = new java.util.LinkedList<>();
+        ValueSpecification cur = v;
+        while (out.size() < n - 1) {
+            AppliedFunction af = assertInstanceOf(AppliedFunction.class, cur,
+                    "expected a plus-chain node");
+            assertEquals("plus", af.function());
+            assertEquals(2, af.parameters().size());
+            out.addFirst(af.parameters().get(1));
+            cur = af.parameters().get(0);
+        }
+        out.addFirst(cur);
+        return List.copyOf(out);
     }
 
     /**
@@ -3188,16 +3210,16 @@ class MappingNormalizerTest {
         LambdaFunction projectLambda = (LambdaFunction) mapCall.parameters().get(1);
         NewInstance ni = (NewInstance) ((AppliedFunction) sole(projectLambda.body()))
                 .parameters().get(1);
-        AppliedFunction concat = (AppliedFunction) toOneInner(ni.properties().get("displayName").value());
-        assertEquals("concat", concat.function());
+        List<ValueSpecification> concat = plusChain(
+                toOneInner(ni.properties().get("displayName").value()), 3);
 
-        AppliedProperty firmName = (AppliedProperty) concat.parameters().get(0);
+        AppliedProperty firmName = (AppliedProperty) concat.get(0);
         assertEquals("NAME", firmName.property());
         assertEquals("Person_Firm",
                 ((AppliedProperty) firmName.receiver()).property(),
                 "First chain's terminal reads $row.Person_Firm.NAME");
 
-        AppliedProperty addrStreet = (AppliedProperty) concat.parameters().get(2);
+        AppliedProperty addrStreet = (AppliedProperty) concat.get(2);
         assertEquals("STREET", addrStreet.property());
         assertEquals("Person_Addr",
                 ((AppliedProperty) addrStreet.receiver()).property(),
@@ -3253,12 +3275,13 @@ class MappingNormalizerTest {
         LambdaFunction projectLambda = (LambdaFunction) mapCall.parameters().get(1);
         NewInstance ni = (NewInstance) ((AppliedFunction) sole(projectLambda.body()))
                 .parameters().get(1);
-        AppliedFunction concat = (AppliedFunction) toOneInner(ni.properties().get("line").value());
-        AppliedProperty mainCol = (AppliedProperty) concat.parameters().get(0);
+        List<ValueSpecification> concat = plusChain(
+                toOneInner(ni.properties().get("line").value()), 3);
+        AppliedProperty mainCol = (AppliedProperty) concat.get(0);
         assertEquals("NAME", mainCol.property());
         assertEquals(new Variable("row"), mainCol.receiver(),
                 "Main-table column reads $row directly");
-        AppliedProperty firmCol = (AppliedProperty) concat.parameters().get(2);
+        AppliedProperty firmCol = (AppliedProperty) concat.get(2);
         assertEquals("LEGAL_NAME", firmCol.property());
         assertEquals("Person_Firm",
                 ((AppliedProperty) firmCol.receiver()).property(),
@@ -3384,7 +3407,7 @@ class MappingNormalizerTest {
         assertTrue(displayKe.isLocal(),
                 "displayFirm is a +local field (isLocal=true)");
         AppliedFunction concat = (AppliedFunction) displayKe.value();
-        assertEquals("concat", concat.function());
+        assertEquals("plus", concat.function());   // concat -> plus-chain
         AppliedProperty subRowCol = (AppliedProperty) concat.parameters().get(0);
         assertEquals("LEGAL_NAME", subRowCol.property());
         assertEquals("Person_Firm",

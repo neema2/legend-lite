@@ -49,7 +49,7 @@ class PhaseHCensusTest {
             Class m::P { full: String[1]; up: String[1]; digest: String[1]; }
             Database s::DB ( Table T (A VARCHAR(10), B VARCHAR(10)) )
             Mapping m::M ( *m::P: Relational { ~mainTable [s::DB] T
-              full: concat(T.A, ' ', T.B), up: upper(T.A), digest: md5(T.B) } )
+              full: concat(T.A, ' ', T.B), up: toUpper(T.A), digest: md5(T.B) } )
             """);
         FIXTURES.put("A5 enum mapping", """
             Enum m::Status { ACTIVE, INACTIVE }
@@ -164,10 +164,10 @@ class PhaseHCensusTest {
         // one-way — green may only rise):
         org.junit.jupiter.api.Assertions.assertEquals(14, total,
                 "fixture battery size changed — re-baseline the census pin");
-        org.junit.jupiter.api.Assertions.assertEquals(9, green,
+        org.junit.jupiter.api.Assertions.assertEquals(12, green,
                 "census GREEN count moved — if it ROSE, update this pin (progress!);"
                         + " if it FELL, a Phase-G regression broke a mapping body");
-        org.junit.jupiter.api.Assertions.assertEquals(5, buckets.size(),
+        org.junit.jupiter.api.Assertions.assertEquals(2, buckets.size(),
                 "failure-bucket count moved — update the census table in"
                         + " docs/PHASE_H_PLAN.md and this pin together");
     }

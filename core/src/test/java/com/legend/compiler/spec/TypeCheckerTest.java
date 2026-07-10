@@ -389,7 +389,7 @@ class TypeCheckerTest {
         assertEquals("total", ext.aggs().get(0).name());
         Type.RelationType rt = schemaOf(n);
         assertEquals(7, rt.columns().size());
-        assertEquals(Type.Primitive.NUMBER, columnType(rt, "total"));
+        assertEquals(Type.Primitive.INTEGER, columnType(rt, "total"));  // sum(Integer[*]):Integer[1]
     }
 
     @Test
@@ -431,7 +431,7 @@ class TypeCheckerTest {
         Type.RelationType rt = schemaOf(n);
         assertEquals(java.util.List.of("LAST_NAME", "total"),
                 rt.columns().stream().map(Type.Column::name).toList());
-        assertEquals(Type.Primitive.NUMBER, columnType(rt, "total"));
+        assertEquals(Type.Primitive.INTEGER, columnType(rt, "total"));  // sum(Integer[*]):Integer[1]
     }
 
     @Test
@@ -497,7 +497,7 @@ class TypeCheckerTest {
         assertEquals(java.util.List.of("LAST_NAME", "TOTAL_AGE"),
                 rt.columns().stream().map(Type.Column::name).toList());
         assertEquals(Type.Primitive.STRING, columnType(rt, "LAST_NAME"));
-        assertEquals(Type.Primitive.NUMBER, columnType(rt, "TOTAL_AGE"));   // sum(Number[*]):Number[1]
+        assertEquals(Type.Primitive.INTEGER, columnType(rt, "TOTAL_AGE"));   // sum(Integer[*]):Integer[1]
     }
 
     @Test
@@ -509,7 +509,7 @@ class TypeCheckerTest {
                 + " ~[TOTAL : x|$x.AGE : y|$y->sum(), AVG_SAL : x|$x.SALARY : y|$y->avg()])"));
         assertEquals(java.util.List.of("FIRST_NAME", "LAST_NAME", "TOTAL", "AVG_SAL"),
                 rt.columns().stream().map(Type.Column::name).toList());
-        assertEquals(Type.Primitive.NUMBER, columnType(rt, "TOTAL"));
+        assertEquals(Type.Primitive.INTEGER, columnType(rt, "TOTAL"));  // sum(Integer[*]):Integer[1]
         assertEquals(Type.Primitive.FLOAT, columnType(rt, "AVG_SAL"));   // avg(Number[*]):Float[1]
     }
 

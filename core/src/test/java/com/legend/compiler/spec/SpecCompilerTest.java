@@ -401,8 +401,12 @@ class SpecCompilerTest {
     }
 
     @Test
-    void collection_emptyIsAnyZero() {
-        assertEquals(exact(new Type.ClassType(Pure.ANY.qualifiedName()), 0), infer("[]").info());
+    void collection_emptyIsNilZero() {
+        // [] is Nil[0] — the BOTTOM type (real pure m3 Type.subTypeOf):
+        // it conforms to any expected type and vanishes in LUBs, so
+        // if(c, {|Status}, {|[]}) is Status[0..1], not Any.
+        assertEquals(exact(new Type.ClassType("meta::pure::metamodel::type::Nil"), 0),
+                infer("[]").info());
     }
 
     // ---- if -------------------------------------------------------------

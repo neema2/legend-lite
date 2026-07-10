@@ -155,6 +155,22 @@ final class RelOpTranslator {
                                     rowBindOrNull, pipeline),
                             new EnumValue("meta::pure::functions::hash::HashType",
                                     DYNA_HASH_TYPES.get(call.name()))));
+            case RelationalOperation.FunctionCall call
+                    when call.name().equals("concat") && call.args().size() >= 2 -> {
+                    // The variadic 'concat' dynafunction has NO pure-function
+                    // counterpart (engine renders it per-dialect straight to
+                    // SQL); real pure spells string concatenation with plus.
+                    // Emit the left-assoc plus-chain — byte-identical to
+                    // hand-written $a + $b + $c.
+                    ValueSpecification chain = translate(call.args().get(0),
+                            tableScope, targetVarOrNull, rowBindOrNull, pipeline);
+                    for (int i = 1; i < call.args().size(); i++) {
+                        chain = new AppliedFunction("plus", List.of(chain,
+                                translate(call.args().get(i), tableScope,
+                                        targetVarOrNull, rowBindOrNull, pipeline)));
+                    }
+                    yield chain;
+            }
             case RelationalOperation.FunctionCall call -> new AppliedFunction(
                     call.name(),
                     call.args().stream()
