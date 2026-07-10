@@ -343,6 +343,14 @@ final class Pipelines {
             case com.legend.compiler.spec.typed.TypedCBoolean ignored -> n;
             case com.legend.compiler.spec.typed.TypedCDate ignored -> n;
             case com.legend.compiler.spec.typed.TypedEnumValue ignored -> n;
+            // JSON/variant-source bindings are casts over variant reads:
+            // to(get($row.data, 'k'), @T) — the cast rides, the reads
+            // rewrite (plan §F12: substitution doesn't care).
+            case com.legend.compiler.spec.typed.TypedCast c ->
+                    new com.legend.compiler.spec.typed.TypedCast(
+                            rewriteRowReads(c.source(), rowVar, prefixes, stripped, varRewrite),
+                            c.target(), c.info());
+            case com.legend.compiler.spec.typed.TypedTypeRef ignored -> n;
             default -> throw new IllegalStateException(
                     "resolver bug: row-read rewrite hit "
                             + n.getClass().getSimpleName()

@@ -31,6 +31,15 @@ public sealed interface SqlSource {
         }
     }
 
+    /**
+     * An external semi-structured source ({@code sourceUrl('data:...')}) —
+     * ONE {@code data} column of JSON rows; the DIALECT renders the URL
+     * into a complete subquery (scheme-dispatched: {@code data:} inlines,
+     * {@code file:} reads).
+     */
+    record SourceUrl(String url, String alias, List<OutputCol> outputs) implements SqlSource {
+    }
+
     record Table(String name, String alias, List<OutputCol> outputs) implements SqlSource {
     }
 

@@ -134,6 +134,15 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         }
     }
 
+    /**
+     * Render a {@code sourceUrl} into a complete SELECT (scheme-dispatched).
+     * No ANSI spelling exists — the base is a capability statement.
+     */
+    protected String sourceUrl(String url) {
+        throw new IllegalStateException("sourceUrl reached a dialect without"
+                + " an external-source encoding: " + url);
+    }
+
     /** Whether this dialect has a native QUALIFY clause. ANSI does not. */
     protected boolean supportsQualify() {
         return false;
@@ -177,6 +186,11 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 nl(sb, depth).append(") AS ").append(ident(sub.alias()));
             }
             case SqlSource.Values v -> valuesSource(sb, v);
+            case SqlSource.SourceUrl u -> {
+                sb.append("(");
+                nl(sb, depth + 1).append(sourceUrl(u.url()));
+                nl(sb, depth).append(") AS ").append(ident(u.alias()));
+            }
             case SqlSource.Pivot p -> pivotSource(sb, p, depth);
             case SqlSource.Join j -> {
                 source(sb, j.left(), depth);

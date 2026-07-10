@@ -164,6 +164,28 @@ public final class DuckDb extends AnsiSqlRenderer {
         };
     }
 
+    /**
+     * {@code data:application/json,[...]} inlines the payload as a JSON
+     * array unnested one row per element; {@code file:} reads objects.
+     * One {@code data} column either way (the engine's scheme dispatch).
+     */
+    @Override
+    protected String sourceUrl(String url) {
+        if (url.startsWith("data:")) {
+            int comma = url.indexOf(',');
+            if (comma < 0) {
+                throw new IllegalStateException("invalid data: URI (no comma): " + url);
+            }
+            String content = url.substring(comma + 1);
+            return "SELECT unnest(CAST(" + stringLit(content) + " AS JSON[])) AS data";
+        }
+        if (url.startsWith("file:")) {
+            String path = java.net.URI.create(url).getPath();
+            return "SELECT json AS data FROM read_json_objects(" + stringLit(path) + ")";
+        }
+        throw new IllegalStateException("unsupported sourceUrl scheme: " + url);
+    }
+
     /** Pure semantics ride the expansion: exists([])=false, forAll([])=true. */
     @Override
     protected String listExists(List<SqlExpr> args) {

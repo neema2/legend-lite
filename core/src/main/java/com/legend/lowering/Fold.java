@@ -175,6 +175,8 @@ final class Fold {
                     ? new SqlExpr.Column(sub.alias(), column) : null;
             case SqlSource.Values v -> claims(v.outputs(), column)
                     ? new SqlExpr.Column(v.alias(), column) : null;
+            case SqlSource.SourceUrl u -> claims(u.outputs(), column)
+                    ? new SqlExpr.Column(u.alias(), column) : null;
             // Pivot outputs are DYNAMIC (one column per pivoted value) — the
             // static schema cannot enumerate them, so a pivot claims any name.
             case SqlSource.Pivot p -> new SqlExpr.Column(p.alias(), column);

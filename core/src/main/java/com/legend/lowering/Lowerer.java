@@ -138,6 +138,8 @@ public final class Lowerer {
 
     private SqlSelect relation(TypedSpec spec) {
         return switch (spec) {
+            case com.legend.compiler.spec.typed.TypedSourceUrl su -> SqlSelect.starOf(
+                    new SqlSource.SourceUrl(su.url(), nextAlias(), outputsOf(su.info())));
             case TypedTableReference t -> SqlSelect.starOf(
                     new SqlSource.Table(t.table(), nextAlias(), outputsOf(t.info())));
 
