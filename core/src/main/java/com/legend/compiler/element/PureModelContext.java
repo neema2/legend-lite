@@ -157,6 +157,12 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
+    public java.util.Optional<com.legend.parser.element.ConnectionDefinition> findConnection(String fqn) {
+        Objects.requireNonNull(fqn, "fqn");
+        return model.findConnection(fqn);
+    }
+
+    @Override
     public java.util.Optional<com.legend.parser.element.AssociationDefinition> findAssociationOf(
             String ownerClassFqn, String propName) {
         return model.findAssociationOf(ownerClassFqn, propName);

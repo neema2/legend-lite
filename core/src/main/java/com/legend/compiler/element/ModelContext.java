@@ -69,6 +69,13 @@ public interface ModelContext {
     Optional<com.legend.parser.element.RuntimeDefinition> findRuntime(String fqn);
 
     /**
+     * The connection for {@code fqn}, if present &mdash; carries the declared
+     * {@code DatabaseType} that selects the SQL dialect a runtime's queries
+     * render in.
+     */
+    Optional<com.legend.parser.element.ConnectionDefinition> findConnection(String fqn);
+
+    /**
      * Classify an FQN into a kinded {@link Type}: <strong>primitive &rarr; class
      * &rarr; enum</strong> (engine {@code findType} parity), FQN-only. The single
      * place a name becomes a kind for nominal references.

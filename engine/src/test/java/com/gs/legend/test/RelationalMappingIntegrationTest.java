@@ -4635,7 +4635,7 @@ class RelationalMappingIntegrationTest {
         @Test
         @DisplayName("Embedded property from parent table (no JOIN needed)")
         void testOtherwiseEmbeddedProperty() throws SQLException {
-            var query = "test::Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])";
+            var query = "model::Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])";
             var r = exec(model, query);
             assertEquals(3, r.rowCount());
             assertTrue(colStr(r, 1).contains("Acme Corp"));
@@ -4647,7 +4647,7 @@ class RelationalMappingIntegrationTest {
         @Test
         @DisplayName("Fallback property via join (JOIN required)")
         void testOtherwiseFallbackProperty() throws SQLException {
-            var query = "test::Person.all()->project(~[name:p|$p.name, rev:p|$p.firm.revenue])";
+            var query = "model::Person.all()->project(~[name:p|$p.name, rev:p|$p.firm.revenue])";
             var r = exec(model, query);
             assertEquals(3, r.rowCount());
             var names = colStr(r, 0);
@@ -4662,7 +4662,7 @@ class RelationalMappingIntegrationTest {
         @Test
         @DisplayName("Mixed: embedded from parent + fallback from join")
         void testOtherwiseMixed() throws SQLException {
-            var query = "test::Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName, rev:p|$p.firm.revenue])";
+            var query = "model::Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName, rev:p|$p.firm.revenue])";
             var r = exec(model, query);
             assertEquals(3, r.rowCount());
             var names = colStr(r, 0);
@@ -4679,7 +4679,7 @@ class RelationalMappingIntegrationTest {
         @Test
         @DisplayName("Filter on embedded property (no JOIN needed)")
         void testOtherwiseFilterOnEmbedded() throws SQLException {
-            var query = "test::Person.all()->filter({p|$p.firm.legalName == 'Acme Corp'})->project(~[name:p|$p.name])";
+            var query = "model::Person.all()->filter({p|$p.firm.legalName == 'Acme Corp'})->project(~[name:p|$p.name])";
             var r = exec(model, query);
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Charlie")));
@@ -4696,7 +4696,7 @@ class RelationalMappingIntegrationTest {
         @DisplayName("Pruning: no firm access → 0 JOINs, no T_FIRM")
         void testOtherwisePruningNoFirmAccess() {
             String sql = planSql(model,
-                    "test::Person.all()->project(~[name:p|$p.name])");
+                    "model::Person.all()->project(~[name:p|$p.name])");
             assertFalse(sql.toUpperCase().contains("JOIN"),
                     "No firm access → no JOIN. SQL: " + sql);
             assertFalse(sql.toUpperCase().contains("T_FIRM"),
@@ -4707,7 +4707,7 @@ class RelationalMappingIntegrationTest {
         @DisplayName("Pruning: only embedded firm.legalName → 0 JOINs")
         void testOtherwisePruningEmbeddedOnly() {
             String sql = planSql(model,
-                    "test::Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])");
+                    "model::Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])");
             assertFalse(sql.toUpperCase().contains("JOIN"),
                     "Embedded-only access → no JOIN. SQL: " + sql);
             assertTrue(sql.toUpperCase().contains("FIRM_NAME"),
@@ -4718,7 +4718,7 @@ class RelationalMappingIntegrationTest {
         @DisplayName("Pruning: only fallback firm.revenue → 1 JOIN to T_FIRM")
         void testOtherwisePruningFallbackOnly() {
             String sql = planSql(model,
-                    "test::Person.all()->project(~[name:p|$p.name, rev:p|$p.firm.revenue])");
+                    "model::Person.all()->project(~[name:p|$p.name, rev:p|$p.firm.revenue])");
             assertEquals(1, sql.toUpperCase().split("JOIN").length - 1,
                     "Fallback-only access → 1 JOIN. SQL: " + sql);
             assertTrue(sql.toUpperCase().contains("T_FIRM"),
@@ -4729,7 +4729,7 @@ class RelationalMappingIntegrationTest {
         @DisplayName("Pruning: mixed embedded + fallback → 1 JOIN, both columns present")
         void testOtherwisePruningMixed() {
             String sql = planSql(model,
-                    "test::Person.all()->project(~[firmName:p|$p.firm.legalName, rev:p|$p.firm.revenue])");
+                    "model::Person.all()->project(~[firmName:p|$p.firm.legalName, rev:p|$p.firm.revenue])");
             assertEquals(1, sql.toUpperCase().split("JOIN").length - 1,
                     "Mixed access → 1 JOIN for fallback. SQL: " + sql);
             assertTrue(sql.toUpperCase().contains("FIRM_NAME"),

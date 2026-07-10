@@ -85,17 +85,74 @@ public final class Compiler {
 
     /**
      * Compile a Pure model + query against a runtime to a SQL execution plan.
+     * The plan half of {@link #execute(String, String, String, java.sql.Connection)}:
+     * the same pipeline (frontend &rarr; G &rarr; H resolve against the
+     * driver-supplied runtime &rarr; lower &rarr; render) WITHOUT executing
+     * &mdash; the {@code planSql} seam for SQL-shape assertions and plan
+     * inspection.
      *
      * @param model      Pure model source (classes, mappings, stores, runtimes, ...).
      * @param query      Pure query expression (a {@code ValueSpecification} in legacy terms).
      * @param runtime    FQN of the runtime to compile against.
-     * @return SQL execution plan in the runtime's dialect.
+     * @return rendered SQL in the runtime's dialect.
      */
     public static String compile(String model, String query, String runtime) {
-        throw new com.legend.error.NotImplementedException(
-            "runtime-name execution is Phase H (runtime->connection resolution);"
-                + " use execute(model, query, connection) — the full pipeline —"
-                + " or compileQuery(model, query) for the typed HIR");
+        return plan(model, query, runtime).sql();
+    }
+
+    /**
+     * {@link #compile} with the full plan contract: rendered SQL plus the
+     * root's {@link com.legend.compiler.element.type.ExprType} and
+     * {@link com.legend.exec.ResultShape} &mdash; exactly what
+     * {@link com.legend.exec.Executor} would consume, minus execution.
+     * Bridges re-wrap these fields verbatim (no invented metadata).
+     */
+    public static com.legend.exec.QueryPlan plan(String model, String query, String runtime) {
+        ModelContext ctx = compileModel(model);
+        SpecCompiler specs = new SpecCompiler(ctx);
+        java.util.List<TypedSpec> body = specs.typeQueryBody(
+                NameResolver.resolveQuery(SpecParser.parse(query)));
+        body = new com.legend.resolver.StoreResolver(ctx, specs)
+                .resolve(body, runtime);                          // Phase H
+        TypedSpec root = body.get(body.size() - 1);
+        String sql = dialectOf(ctx, runtime)
+                .render(new com.legend.lowering.Lowerer().lower(body));
+        return new com.legend.exec.QueryPlan(sql, root.info(),
+                com.legend.exec.ResultShape.of(root.info()));
+    }
+
+    /**
+     * The runtime's SQL dialect: its connections' declared
+     * {@code DatabaseType} selects the renderer; an undeclared type is LOUD.
+     * A runtime with no relational connection binding (or no runtime at all
+     * &mdash; the caller-supplied-connection path) defaults to DuckDB, the
+     * reference dialect.
+     */
+    private static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx, String runtimeFqn) {
+        if (runtimeFqn != null) {
+            var rt = ctx.findRuntime(runtimeFqn);
+            if (rt.isPresent()) {
+                for (String connFqn : rt.get().connectionBindings().values()) {
+                    var conn = ctx.findConnection(connFqn);
+                    if (conn.isEmpty()) {
+                        continue;
+                    }
+                    switch (conn.get().databaseType()) {
+                        case DuckDB -> {
+                            return new com.legend.sql.dialect.DuckDb();
+                        }
+                        case SQLite -> {
+                            return new com.legend.sql.dialect.Sqlite();
+                        }
+                        default -> throw new com.legend.error.NotImplementedException(
+                                "SQL dialect for database type '" + conn.get().databaseType()
+                                        + "' (connection '" + connFqn + "' of runtime '"
+                                        + runtimeFqn + "') is not implemented yet");
+                    }
+                }
+            }
+        }
+        return new com.legend.sql.dialect.DuckDb();
     }
 
     /**
@@ -128,7 +185,7 @@ public final class Compiler {
                 .resolve(body, runtimeFqn);                       // Phase H
         TypedSpec root = body.get(body.size() - 1);
         com.legend.sql.SqlQuery plan = new com.legend.lowering.Lowerer().lower(body);
-        com.legend.sql.dialect.SqlDialect dialect = new com.legend.sql.dialect.DuckDb();
+        com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn);
         return com.legend.exec.Executor.execute(
                 dialect.render(plan), plan, root.info(), connection, dialect);
     }

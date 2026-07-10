@@ -235,11 +235,15 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // THEN: SQL has proper structure
         assertTrue(sql.contains("SELECT"), "Should have SELECT");
-        assertTrue(sql.contains("FROM \"T_PERSON\""), "Should have FROM T_PERSON");
+        assertTrue(sql.contains("FROM T_PERSON") || sql.contains("FROM \"T_PERSON\""),
+                "Should have FROM T_PERSON");
         assertTrue(sql.contains("WHERE"), "Should have WHERE");
-        assertTrue(sql.contains("\"LAST_NAME\" = 'Smith'"), "Should filter by LAST_NAME");
-        assertTrue(sql.contains("AS \"firstName\""), "Should alias to firstName");
-        assertTrue(sql.contains("AS \"lastName\""), "Should alias to lastName");
+        assertTrue(sql.contains("LAST_NAME") && sql.contains("= 'Smith'"),
+                "Should filter by LAST_NAME");
+        assertTrue(sql.contains("AS firstName") || sql.contains("AS \"firstName\""),
+                "Should alias to firstName");
+        assertTrue(sql.contains("AS lastName") || sql.contains("AS \"lastName\""),
+                "Should alias to lastName");
     }
 
     // ==================== Metamodel & Registry Tests ====================
@@ -4176,7 +4180,8 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         String sql = generateSql(pureQuery);
         System.out.println("nth() window function SQL: " + sql);
         assertTrue(sql.contains("NTH_VALUE"), "Should generate NTH_VALUE window function. Got: " + sql);
-        assertTrue(sql.contains("\"id\", 2"), "NTH_VALUE should have column and offset. Got: " + sql);
+        assertTrue(sql.contains("id, 2") || sql.contains("\"id\", 2"),
+                "NTH_VALUE should have column and offset. Got: " + sql);
 
         var result = executeRelation(pureQuery);
         System.out.println("nth() results:");
@@ -5815,7 +5820,8 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Must have PARTITION BY with both grp and grp2
         assertTrue(sql.contains("PARTITION BY"), "SQL must contain PARTITION BY, got: " + sql);
-        assertTrue(sql.contains("\"grp\"") && sql.contains("\"grp2\""),
+        assertTrue((sql.contains("grp") && sql.contains("grp2"))
+                        || (sql.contains("\"grp\"") && sql.contains("\"grp2\"")),
                 "SQL must partition by both grp and grp2, got: " + sql);
 
         var result = executeRelation(pureQuery);

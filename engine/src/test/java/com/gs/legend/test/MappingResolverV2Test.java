@@ -36,6 +36,20 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("MappingResolverV2: rewrite-based mapping resolution")
 class MappingResolverV2Test {
 
+    // These tests exercise the ENGINE's own V1/V2 resolvers by design —
+    // pin the legacy pipeline so the core-default gate in
+    // PlanGenerator.generate(String,...) does not reroute them.
+    @org.junit.jupiter.api.BeforeAll
+    static void pinEnginePipeline() {
+        System.setProperty("legend.pipeline", "engine");
+    }
+
+    @org.junit.jupiter.api.AfterAll
+    static void unpinEnginePipeline() {
+        System.clearProperty("legend.pipeline");
+    }
+
+
     private static String withRuntime(String body, String dbName, String mappingName) {
         return body + """
 

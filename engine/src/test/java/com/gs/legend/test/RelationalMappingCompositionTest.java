@@ -338,32 +338,32 @@ class RelationalMappingCompositionTest {
     @DisplayName("4. Mixed chains — selective activation")
     class MixedChains {
 
-        @Test @DisplayName("project dept + org → 3 JOINs (1-hop + 2-hop)")
+        @Test @DisplayName("project dept + org → 2 JOINs (shared chain prefix, 1-hop + 2-hop)")
         void projectBothChains() {
             String sql = planSql(threeHopModel(),
                     "model::Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName, org:p|$p.orgName])");
-            assertEquals(3, countLeftJoins(sql), "SQL: " + sql);
+            assertEquals(2, countLeftJoins(sql), "SQL: " + sql);
         }
 
-        @Test @DisplayName("project all 5 properties → 3 JOINs (no duplication)")
+        @Test @DisplayName("project all 5 properties → 2 JOINs (no duplication)")
         void projectAllProperties() {
             String sql = planSql(threeHopModel(),
                     "model::Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName, budget:p|$p.deptBudget, org:p|$p.orgName, country:p|$p.orgCountry])");
-            assertEquals(3, countLeftJoins(sql), "SQL: " + sql);
+            assertEquals(2, countLeftJoins(sql), "SQL: " + sql);
         }
 
-        @Test @DisplayName("filter dept + project org → 3 JOINs")
+        @Test @DisplayName("filter dept + project org → 2 JOINs")
         void filterDeptProjectOrg() {
             String sql = planSql(threeHopModel(),
                     "model::Person.all()->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name, org:p|$p.orgName])");
-            assertEquals(3, countLeftJoins(sql), "SQL: " + sql);
+            assertEquals(2, countLeftJoins(sql), "SQL: " + sql);
         }
 
-        @Test @DisplayName("filter org + project dept → 3 JOINs")
+        @Test @DisplayName("filter org + project dept → 2 JOINs")
         void filterOrgProjectDept() {
             String sql = planSql(threeHopModel(),
                     "model::Person.all()->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name, dept:p|$p.deptName])");
-            assertEquals(3, countLeftJoins(sql), "SQL: " + sql);
+            assertEquals(2, countLeftJoins(sql), "SQL: " + sql);
         }
 
         @Test @DisplayName("Data: project all properties returns correct values")
@@ -524,7 +524,7 @@ class RelationalMappingCompositionTest {
         void filterOrgProjectDeptSort() {
             String sql = planSql(threeHopModel(),
                     "model::Person.all()->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name, dept:p|$p.deptName])->sort(~dept->ascending())");
-            assertEquals(3, countLeftJoins(sql), "SQL: " + sql);
+            assertEquals(2, countLeftJoins(sql), "SQL: " + sql);
         }
 
         @Test @DisplayName("Data: filter org + project dept + sort")
@@ -612,7 +612,7 @@ class RelationalMappingCompositionTest {
         void filterDeptAndOrg() {
             String sql = planSql(threeHopModel(),
                     "model::Person.all()->filter({p|$p.deptName == 'Engineering'})->filter({p|$p.orgName == 'Acme Corp'})->project(~[name:p|$p.name])");
-            assertEquals(3, countLeftJoins(sql), "SQL: " + sql);
+            assertEquals(2, countLeftJoins(sql), "SQL: " + sql);
         }
 
         @Test @DisplayName("Data: double filter narrows correctly")
@@ -786,7 +786,7 @@ class RelationalMappingCompositionTest {
         void lambdaMultipleChainProps() {
             String sql = planSql(threeHopModel(),
                     "model::Person.all()->filter({p|$p.deptName == 'Engineering' && $p.orgCountry == 'USA'})->project(~[name:p|$p.name])");
-            assertEquals(3, countLeftJoins(sql), "SQL: " + sql);
+            assertEquals(2, countLeftJoins(sql), "SQL: " + sql);
         }
     }
 

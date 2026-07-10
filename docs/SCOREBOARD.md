@@ -1324,3 +1324,48 @@ Top detail:
     5  multi-hop navigation dept.org.name is not supported yet
     5  scalar lowering not yet implemented for TypedTds
 ```
+
+### Run 2026-07-10 @ 1382e76
+
+| tests | pass | failures | errors | skipped | green classes |
+|---|---|---|---|---|---|
+| 2721 | **1866** | 56 | 780 | 19 | 259 |
+
+| bucket | exception lines |
+|---|---|
+| OTHER | 297 |
+| CORE: scalar/agg function registrations | 153 |
+| CORE: unlowered constructs | 84 |
+| CORE(parse): query syntax gaps | 71 |
+| FIXTURE: unknown refs (to diagnose) | 58 |
+| H: class sources / property nav / mappings | 34 |
+| CORE(G): overload/typing gaps | 30 |
+
+Top detail:
+```
+   94  no scalar lowering registered for resolved overload 'meta::pure::funct
+   68  class query under TypedSerialize is not resolvable yet (H2 vocabulary)
+   39  no aggregate lowering registered for resolved overload 'meta::pure::fu
+   35  'test::Person' is not a known class, mapping, runtime, connection, or 
+   33  unbound type variable T
+   27  object-space expression node TypedUserCall is not substitutable yet (H
+   25  no SQL type for Pure class meta::pure::metamodel::type::Any at the low
+   23  model-to-model mapping: 'model::StaffMember' in 'model::StaffMemberMap
+   18  scalar lowering not yet implemented for TypedNewInstance
+   16  lowering not yet implemented for TypedUserCall
+   13  model-to-model mapping: 'model::StaffCard' in 'model::StaffCardMapping
+   13  scalar lowering not yet implemented for TypedMatch
+   10  model-to-model mapping: 'model::Person' in 'model::PersonM2MMapping' m
+   10  'test::Order' is not a known class, mapping, runtime, connection, or d
+    9  no overload of 'concatenate' matches 2 argument(s) of these shapes
+    9  unknown SQL data type: 'JSON'
+    6  unknown function 'meta::pure::functions::collection::concatenate'
+    6  multi-column pivot is not lowered yet
+    6  scalar lowering not yet implemented for TypedFilter
+    6  model-to-model mapping: 'model::PersonView' in 'model::PersonViewMappi
+    6  scalar lowering not yet implemented for TypedUserCall
+    5  multi-hop navigation dept.org.name is not supported yet
+    5  scalar lowering not yet implemented for TypedTds
+    5  [6:86] expected BRACKET_CLOSE but found PATH_SEPARATOR ('::')
+    5  model-to-model mapping: 'model::DirectoryEntry' in 'model::DirectoryMa
+```

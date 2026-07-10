@@ -133,7 +133,7 @@ class VariantIntegrationTest {
     void testGetTopLevelKey() throws SQLException {
         // Note: get('key') returns JSON, get('key', @String) returns text
         String pureQuery = """
-                #>{EventDatabase.T_EVENTS}#
+                #>{store::EventDatabase.T_EVENTS}#
                     ->extend(~page: _ | $_.PAYLOAD->get('page')->to(@String))
                     ->filter(_ | $_.EVENT_TYPE == 'page_view')
                     ->select(~[ID, page])
@@ -149,7 +149,7 @@ class VariantIntegrationTest {
     void testChainedGet() throws SQLException {
         // Chained get: get('user') returns JSON, get('name', @String) extracts text
         String pureQuery = """
-                #>{EventDatabase.T_EVENTS}#
+                #>{store::EventDatabase.T_EVENTS}#
                     ->extend(~userName: _ | $_.PAYLOAD->get('user')->get('name')->to(@String))
                     ->filter(_ | $_.EVENT_TYPE == 'page_view')
                     ->select(~[ID, userName])
@@ -164,7 +164,7 @@ class VariantIntegrationTest {
     @DisplayName("get(key) generates correct SQL")
     void testSqlGeneration() {
         String pureQuery = """
-                #>{EventDatabase.T_EVENTS}#
+                #>{store::EventDatabase.T_EVENTS}#
                     ->extend(~page: _ | $_.PAYLOAD->get('page'))
                     ->select(~[ID, page])
                 """;
@@ -179,7 +179,7 @@ class VariantIntegrationTest {
     @DisplayName("map() transforms JSON array elements")
     void testMapOnJsonArray() throws SQLException {
         String pureQuery = """
-                #>{EventDatabase.T_EVENTS}#
+                #>{store::EventDatabase.T_EVENTS}#
                     ->extend(~prices: _ | $_.PAYLOAD->get('items')->toMany(@Variant)->map(i | $i->get('price')))
                     ->filter(_ | $_.EVENT_TYPE == 'purchase')
                     ->select(~[ID, prices])
@@ -206,7 +206,7 @@ class VariantIntegrationTest {
         // Test fold by summing prices: fold({a, v | $a + $v}, 0)
         // Use get('price', @Integer) for typed extraction
         String pureQuery = """
-                #>{EventDatabase.T_EVENTS}#
+                #>{store::EventDatabase.T_EVENTS}#
                     ->extend(~totalPrice: _ | $_.PAYLOAD->get('items')
                                 ->toMany(@Variant)
                                 ->map(i | $i->get('price')->to(@Integer))
@@ -259,7 +259,7 @@ class VariantIntegrationTest {
         // The Combined Example from research: calculate order total from items
         // Use get('field', @Integer) for typed extraction
         String pureQuery = """
-                #>{EventDatabase.T_EVENTS}#
+                #>{store::EventDatabase.T_EVENTS}#
                     ->extend(~calculatedTotal: _ | $_.PAYLOAD->get('items')
                                 ->toMany(@Variant)
                                 ->map(i | $i->get('price')->to(@Integer)->toOne() * $i->get('qty')->to(@Integer)->toOne())
@@ -411,7 +411,7 @@ class VariantIntegrationTest {
     void testExplicitCastFunction() throws SQLException {
         // With new syntax: get('field', @Type) does both extraction and casting
         String pureQuery = """
-                #>{EventDatabase.T_EVENTS}#
+                #>{store::EventDatabase.T_EVENTS}#
                     ->extend(~userId: _ | $_.PAYLOAD->get('user')->get('id')->to(@Integer))
                     ->extend(~page: _ | $_.PAYLOAD->get('page')->to(@String))
                     ->filter(_ | $_.EVENT_TYPE == 'page_view')
@@ -443,7 +443,7 @@ class VariantIntegrationTest {
     void testCastWithMapAndFold() throws SQLException {
         // Use get('field', @Integer) for typed extraction within map
         String pureQuery = """
-                #>{EventDatabase.T_EVENTS}#
+                #>{store::EventDatabase.T_EVENTS}#
                     ->extend(~totalPrice: _ | $_.PAYLOAD->get('items')
                         ->toMany(@Variant)
                         ->map(i | $i->get('price')->to(@Integer))
@@ -487,7 +487,7 @@ class VariantIntegrationTest {
         // Flatten items array and calculate price * qty with typed get()
         // New syntax: get('field', @Type) returns typed scalar
         String pureQuery = """
-                #>{EventDatabase.T_EVENTS}#
+                #>{store::EventDatabase.T_EVENTS}#
                     ->filter(_ | $_.EVENT_TYPE == 'purchase')
                     ->extend(~items: _ | $_.PAYLOAD->get('items'))
                     ->flatten(~items)

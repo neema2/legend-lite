@@ -41,6 +41,20 @@ import static org.junit.jupiter.api.Assertions.fail;
 @DisplayName("MappingResolver parity fixture")
 class MappingResolverParityTest {
 
+    // These tests exercise the ENGINE's own V1/V2 resolvers by design —
+    // pin the legacy pipeline so the core-default gate in
+    // PlanGenerator.generate(String,...) does not reroute them.
+    @org.junit.jupiter.api.BeforeAll
+    static void pinEnginePipeline() {
+        System.setProperty("legend.pipeline", "engine");
+    }
+
+    @org.junit.jupiter.api.AfterAll
+    static void unpinEnginePipeline() {
+        System.clearProperty("legend.pipeline");
+    }
+
+
     /** Set this system property to (re)write all snapshots: -DupdateParitySnapshots=true */
     private static final boolean UPDATE_SNAPSHOTS =
             Boolean.getBoolean("updateParitySnapshots");

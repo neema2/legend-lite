@@ -74,10 +74,44 @@ class CompilerFacadeTest {
     }
 
     @Test
-    void loweringIsHonestlyUnbuilt() {
-        com.legend.error.NotImplementedException ex = assertThrows(com.legend.error.NotImplementedException.class,
-                () -> Compiler.compile(MODEL, "test::Person.all()", "test::Rt"));
-        assertTrue(ex.getMessage().contains("compileQuery"),
-                "the error must point at what IS available");
+    void compileRendersTheFullPlanWithoutExecuting() {
+        String planModel = MODEL + """
+
+                Mapping test::M (
+                  *test::Person: Relational { ~mainTable [test::DB] T_PERSON
+                    name: T_PERSON.NAME, age: T_PERSON.AGE }
+                )
+                Runtime test::RT { mappings: [test::M]; }
+                """;
+        com.legend.exec.QueryPlan plan = Compiler.plan(planModel,
+                "test::Person.all()->project(~[name: p|$p.name])", "test::RT");
+        assertEquals("SELECT t0.NAME AS name\nFROM T_PERSON AS t0", plan.sql());
+        assertEquals(com.legend.exec.ResultShape.TABULAR, plan.shape(),
+                "the plan carries the REAL shape — bridges re-wrap, never invent");
+        assertEquals(plan.sql(), Compiler.compile(planModel,
+                "test::Person.all()->project(~[name: p|$p.name])", "test::RT"));
+    }
+
+    @Test
+    void undeclaredDialectIsHonestlyUnbuilt() {
+        String pgModel = MODEL + """
+
+                Mapping test::M (
+                  *test::Person: Relational { ~mainTable [test::DB] T_PERSON
+                    name: T_PERSON.NAME, age: T_PERSON.AGE }
+                )
+                RelationalDatabaseConnection test::Conn {
+                  store: test::DB; type: Postgres;
+                  specification: InMemory { }; auth: NoAuth { }; }
+                Runtime test::RT { mappings: [test::M];
+                  connections: [ test::DB: [ environment: test::Conn ] ]; }
+                """;
+        com.legend.error.NotImplementedException ex =
+                assertThrows(com.legend.error.NotImplementedException.class,
+                        () -> Compiler.compile(pgModel,
+                                "test::Person.all()->project(~[name: p|$p.name])",
+                                "test::RT"));
+        assertTrue(ex.getMessage().contains("Postgres"),
+                "the error must name the undeclared dialect: " + ex.getMessage());
     }
 }

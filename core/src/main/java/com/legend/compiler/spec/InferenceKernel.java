@@ -397,7 +397,15 @@ public final class InferenceKernel {
                     .findFirst()
                     .orElseThrow(() -> new TypeInferenceException(
                             "relation is missing expected column '" + fc.name() + "'"));
-            unify(fc.type(), ac.type(), b);
+            try {
+                unify(fc.type(), ac.type(), b);
+            } catch (TypeInferenceException e) {
+                // Re-raise with COLUMN CONTEXT (the resolveChosen call-boundary
+                // pattern): a bare "expected String, got Integer" over a wide
+                // schema names no column at all.
+                throw new TypeInferenceException(
+                        "column '" + fc.name() + "': " + e.getMessage(), e);
+            }
         }
     }
 

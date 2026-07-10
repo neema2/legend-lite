@@ -140,7 +140,7 @@ public class GetCheckerTest {
         @DisplayName("top-level field returns JSON value")
         void testTopLevelField() throws SQLException {
             var result = exec("""
-                    #>{EventDatabase.T_EVENTS}#
+                    #>{store::EventDatabase.T_EVENTS}#
                         ->extend(~page: _ | $_.PAYLOAD->get('page'))
                         ->filter(_ | $_.EVENT_TYPE == 'page_view')
                         ->select(~[ID, page])
@@ -154,7 +154,7 @@ public class GetCheckerTest {
         @DisplayName("nested field via chained get->to")
         void testChainedFieldAccess() throws SQLException {
             var result = exec("""
-                    #>{EventDatabase.T_EVENTS}#
+                    #>{store::EventDatabase.T_EVENTS}#
                         ->extend(~userName: _ | $_.PAYLOAD->get('user')->get('name')->to(@String))
                         ->filter(_ | $_.EVENT_TYPE == 'page_view')
                         ->select(~[ID, userName])
@@ -168,7 +168,7 @@ public class GetCheckerTest {
         void testDeeplyNested() throws SQLException {
             // user -> id (3 levels: PAYLOAD -> user -> id)
             var result = exec("""
-                    #>{EventDatabase.T_EVENTS}#
+                    #>{store::EventDatabase.T_EVENTS}#
                         ->extend(~userId: _ | $_.PAYLOAD->get('user')->get('id')->to(@Integer))
                         ->filter(_ | $_.EVENT_TYPE == 'page_view')
                         ->select(~[ID, userId])
@@ -188,7 +188,7 @@ public class GetCheckerTest {
         @DisplayName("->to(@String) extraction")
         void testStringExtraction() throws SQLException {
             var result = exec("""
-                    #>{EventDatabase.T_EVENTS}#
+                    #>{store::EventDatabase.T_EVENTS}#
                         ->extend(~page: _ | $_.PAYLOAD->get('page')->to(@String))
                         ->filter(_ | $_.EVENT_TYPE == 'page_view')
                         ->select(~[ID, page])
@@ -201,7 +201,7 @@ public class GetCheckerTest {
         @DisplayName("->to(@Integer) extraction")
         void testIntegerExtraction() throws SQLException {
             var result = exec("""
-                    #>{EventDatabase.T_EVENTS}#
+                    #>{store::EventDatabase.T_EVENTS}#
                         ->extend(~cnt: _ | $_.PAYLOAD->get('count')->to(@Integer))
                         ->filter(_ | $_.EVENT_TYPE == 'page_view')
                         ->select(~[ID, cnt])
@@ -214,7 +214,7 @@ public class GetCheckerTest {
         @DisplayName("->to(@Integer) on nested field")
         void testNestedIntegerExtraction() throws SQLException {
             var result = exec("""
-                    #>{EventDatabase.T_EVENTS}#
+                    #>{store::EventDatabase.T_EVENTS}#
                         ->extend(~total: _ | $_.PAYLOAD->get('total')->to(@Integer))
                         ->filter(_ | $_.EVENT_TYPE == 'purchase')
                         ->select(~[ID, total])
@@ -229,7 +229,7 @@ public class GetCheckerTest {
         @DisplayName("multiple typed gets->to() in same extend")
         void testMultipleTypedGets() throws SQLException {
             var result = exec("""
-                    #>{EventDatabase.T_EVENTS}#
+                    #>{store::EventDatabase.T_EVENTS}#
                         ->extend(~[
                             userId: _ | $_.PAYLOAD->get('user')->get('id')->to(@Integer),
                             page: _ | $_.PAYLOAD->get('page')->to(@String)
@@ -254,7 +254,7 @@ public class GetCheckerTest {
         @DisplayName("get(0) on array returns first element")
         void testIndexZero() throws SQLException {
             var result = exec("""
-                    #>{EventDatabase.T_EVENTS}#
+                    #>{store::EventDatabase.T_EVENTS}#
                         ->extend(~firstItem: _ | $_.PAYLOAD->get('items')->get(0))
                         ->filter(_ | $_.EVENT_TYPE == 'purchase')
                         ->select(~[ID, firstItem])
@@ -269,7 +269,7 @@ public class GetCheckerTest {
         @DisplayName("get(0)->get('field')->to(@Type) chains index + field + cast")
         void testIndexThenField() throws SQLException {
             var result = exec("""
-                    #>{EventDatabase.T_EVENTS}#
+                    #>{store::EventDatabase.T_EVENTS}#
                         ->extend(~firstSku: _ | $_.PAYLOAD->get('items')->get(0)->get('sku')->to(@String))
                         ->filter(_ | $_.EVENT_TYPE == 'purchase')
                         ->select(~[ID, firstSku])
@@ -285,7 +285,7 @@ public class GetCheckerTest {
         void testIndexOne() throws SQLException {
             // Event 2 has 2 items; event 3 has only 1 item (get(1) → null)
             var result = exec("""
-                    #>{EventDatabase.T_EVENTS}#
+                    #>{store::EventDatabase.T_EVENTS}#
                         ->extend(~secondSku: _ | $_.PAYLOAD->get('items')->get(1)->get('sku')->to(@String))
                         ->filter(_ | $_.ID == 2)
                         ->select(~[ID, secondSku])
@@ -305,7 +305,7 @@ public class GetCheckerTest {
         @DisplayName("filter on typed get value")
         void testFilterOnGet() throws SQLException {
             var result = exec("""
-                    #>{EventDatabase.T_EVENTS}#
+                    #>{store::EventDatabase.T_EVENTS}#
                         ->extend(~total: _ | $_.PAYLOAD->get('total')->to(@Integer))
                         ->filter(_ | $_.total > 100)
                         ->select(~[ID, total])
@@ -319,7 +319,7 @@ public class GetCheckerTest {
         @DisplayName("sort on typed get value")
         void testSortOnGet() throws SQLException {
             var result = exec("""
-                    #>{EventDatabase.T_EVENTS}#
+                    #>{store::EventDatabase.T_EVENTS}#
                         ->extend(~total: _ | $_.PAYLOAD->get('total')->to(@Integer))
                         ->filter(_ | $_.EVENT_TYPE == 'purchase')
                         ->select(~[ID, total])
@@ -335,7 +335,7 @@ public class GetCheckerTest {
         @DisplayName("get() inside map() over JSON array")
         void testGetInsideMap() throws SQLException {
             var result = exec("""
-                    #>{EventDatabase.T_EVENTS}#
+                    #>{store::EventDatabase.T_EVENTS}#
                         ->extend(~prices: _ | $_.PAYLOAD->get('items')->toMany(@Variant)->map(i | $i->get('price')))
                         ->filter(_ | $_.EVENT_TYPE == 'purchase')
                         ->select(~[ID, prices])
@@ -344,7 +344,7 @@ public class GetCheckerTest {
             assertEquals(2, result.rows().size());
             // Verify SQL uses list_transform
             String generatedSql = sql("""
-                    #>{EventDatabase.T_EVENTS}#
+                    #>{store::EventDatabase.T_EVENTS}#
                         ->extend(~prices: _ | $_.PAYLOAD->get('items')->toMany(@Variant)->map(i | $i->get('price')))
                         ->filter(_ | $_.EVENT_TYPE == 'purchase')
                         ->select(~[ID, prices])
@@ -358,7 +358,7 @@ public class GetCheckerTest {
         void testTypedGetInMapFold() throws SQLException {
             // Compute sum of prices: map(get('price')->to(@Integer)) -> fold(+, 0)
             var result = exec("""
-                    #>{EventDatabase.T_EVENTS}#
+                    #>{store::EventDatabase.T_EVENTS}#
                         ->extend(~totalPrice: _ | $_.PAYLOAD->get('items')->toMany(@Variant)
                             ->map(i | $i->get('price')->to(@Integer)->toOne())
                             ->fold({a, v | $a + $v}, 0))
@@ -377,7 +377,7 @@ public class GetCheckerTest {
         @DisplayName("get() + arithmetic: price * qty via typed gets")
         void testGetWithArithmetic() throws SQLException {
             var result = exec("""
-                    #>{EventDatabase.T_EVENTS}#
+                    #>{store::EventDatabase.T_EVENTS}#
                         ->extend(~calcTotal: _ | $_.PAYLOAD->get('items')->toMany(@Variant)
                             ->map(i | $i->get('price')->to(@Integer)->toOne() * $i->get('qty')->to(@Integer)->toOne())
                             ->fold({a, v | $a + $v}, 0))
@@ -403,7 +403,7 @@ public class GetCheckerTest {
         @DisplayName("flatten JSON array then get fields with typed extraction")
         void testFlattenThenGet() throws SQLException {
             var result = exec("""
-                    #>{EventDatabase.T_EVENTS}#
+                    #>{store::EventDatabase.T_EVENTS}#
                         ->filter(_ | $_.EVENT_TYPE == 'purchase')
                         ->extend(~items: _ | $_.PAYLOAD->get('items'))
                         ->flatten(~items)
@@ -429,7 +429,7 @@ public class GetCheckerTest {
         @DisplayName("untyped get generates JSON access operator")
         void testUntypedSqlGen() {
             String generatedSql = sql("""
-                    #>{EventDatabase.T_EVENTS}#
+                    #>{store::EventDatabase.T_EVENTS}#
                         ->extend(~page: _ | $_.PAYLOAD->get('page'))
                         ->select(~[ID, page])
                     """);
@@ -442,7 +442,7 @@ public class GetCheckerTest {
         @DisplayName("get()->to(@Type) generates CAST wrapper")
         void testTypedSqlGen() {
             String generatedSql = sql("""
-                    #>{EventDatabase.T_EVENTS}#
+                    #>{store::EventDatabase.T_EVENTS}#
                         ->extend(~cnt: _ | $_.PAYLOAD->get('count')->to(@Integer))
                         ->select(~[ID, cnt])
                     """);
@@ -454,7 +454,7 @@ public class GetCheckerTest {
         @DisplayName("index access generates array subscript")
         void testIndexSqlGen() {
             String generatedSql = sql("""
-                    #>{EventDatabase.T_EVENTS}#
+                    #>{store::EventDatabase.T_EVENTS}#
                         ->extend(~first: _ | $_.PAYLOAD->get('items')->get(0))
                         ->select(~[ID, first])
                     """);
