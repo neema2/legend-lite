@@ -42,6 +42,21 @@ public interface ModelContext {
     List<TypedFunction> findFunction(String fqn);
 
     /**
+     * The canonical (post-normalization) mapping for {@code fqn}, if present
+     * &mdash; the Phase-H resolver's dispatch surface: its
+     * {@code ClassBinding}s name the realizing functions whose typed bodies
+     * the resolver inlines.
+     */
+    Optional<com.legend.parser.element.MappingDefinition> findMapping(String fqn);
+
+    /**
+     * The runtime for {@code fqn}, if present &mdash; supplies the active
+     * mapping when a class query names a runtime (explicitly via
+     * {@code ->from(...)} or through the driver's execution context).
+     */
+    Optional<com.legend.parser.element.RuntimeDefinition> findRuntime(String fqn);
+
+    /**
      * Classify an FQN into a kinded {@link Type}: <strong>primitive &rarr; class
      * &rarr; enum</strong> (engine {@code findType} parity), FQN-only. The single
      * place a name becomes a kind for nominal references.

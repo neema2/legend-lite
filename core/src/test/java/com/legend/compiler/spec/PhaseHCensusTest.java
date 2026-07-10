@@ -25,9 +25,10 @@ import java.util.TreeMap;
  * {@code green == total} and becomes the standing invariant "every
  * synthesized mapping body type-checks".
  */
-class PhaseHCensusTest {
+public class PhaseHCensusTest {
 
-    private static final Map<String, String> FIXTURES = new LinkedHashMap<>();
+    /** SHARED battery: the resolver's ClassSourceTest extracts over the same fixtures. */
+    public static final Map<String, String> FIXTURES = new LinkedHashMap<>();
 
     static {
         FIXTURES.put("A1 simple columns", """

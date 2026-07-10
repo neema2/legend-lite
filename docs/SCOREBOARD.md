@@ -874,3 +874,93 @@ Top detail:
     5  scalar lowering not yet implemented for TypedTds
     5  multi-column pivot is not lowered yet
 ```
+
+### Run 2026-07-09 @ c9405bb
+
+| tests | pass | failures | errors | skipped | green classes |
+|---|---|---|---|---|---|
+| 2721 | **1402** | 105 | 1195 | 19 | 188 |
+
+| bucket | exception lines |
+|---|---|
+| H: class sources / property nav / mappings | 560 |
+| CORE: unlowered constructs | 233 |
+| CORE: scalar/agg function registrations | 105 |
+| OTHER | 76 |
+| FIXTURE: unknown refs (to diagnose) | 73 |
+| CORE(parse): query syntax gaps | 69 |
+| CORE(G): overload/typing gaps | 27 |
+
+Top detail:
+```
+  520  lowering not yet implemented for TypedGetAll
+   69  scalar lowering not yet implemented for TypedSerialize
+   55  no scalar lowering registered for resolved overload 'meta::pure::funct
+   34  no aggregate lowering registered for resolved overload 'meta::pure::fu
+   28  'test::Person' is not a known class, mapping, runtime, connection, or 
+   27  lowering not yet implemented for TypedSortBy
+   26  unbound type variable T
+   25  no SQL type for Pure class meta::pure::metamodel::type::Any at the low
+   24  unknown table 'T_EVENTS' in database 'EventDatabase'
+   18  scalar lowering not yet implemented for TypedEnumValue
+   18  scalar lowering not yet implemented for TypedNewInstance
+   16  lowering not yet implemented for TypedUserCall
+   13  scalar lowering not yet implemented for TypedMatch
+   11  scalar lowering not yet implemented for TypedIf
+   10  scalar lowering not yet implemented for TypedFilter
+   10  'test::Order' is not a known class, mapping, runtime, connection, or d
+    9  no overload of 'concatenate' matches 2 argument(s) of these shapes
+    9  no compiled mapping function for class fetch: test::Person
+    8  [plangen-c0954a] Not yet ported: TypedPropertyAccess (stage-3-relation
+    8  scalar lowering not yet implemented for TypedUserCall
+    7  [plangen-c0954a] Not yet ported: TypedProject (stage-3-relation). Vari
+    6  unknown function 'meta::pure::functions::collection::concatenate'
+    6  unknown SQL data type: 'JSON'
+    5  scalar lowering not yet implemented for TypedTds
+    5  multi-column pivot is not lowered yet
+```
+
+### Run 2026-07-09 @ 52bb5d7
+
+| tests | pass | failures | errors | skipped | green classes |
+|---|---|---|---|---|---|
+| 2721 | **1402** | 105 | 1195 | 19 | 188 |
+
+| bucket | exception lines |
+|---|---|
+| H: class sources / property nav / mappings | 560 |
+| CORE: unlowered constructs | 233 |
+| CORE: scalar/agg function registrations | 105 |
+| OTHER | 76 |
+| FIXTURE: unknown refs (to diagnose) | 73 |
+| CORE(parse): query syntax gaps | 69 |
+| CORE(G): overload/typing gaps | 27 |
+
+Top detail:
+```
+  520  lowering not yet implemented for TypedGetAll
+   69  scalar lowering not yet implemented for TypedSerialize
+   55  no scalar lowering registered for resolved overload 'meta::pure::funct
+   34  no aggregate lowering registered for resolved overload 'meta::pure::fu
+   28  'test::Person' is not a known class, mapping, runtime, connection, or 
+   27  lowering not yet implemented for TypedSortBy
+   26  unbound type variable T
+   25  no SQL type for Pure class meta::pure::metamodel::type::Any at the low
+   24  unknown table 'T_EVENTS' in database 'EventDatabase'
+   18  scalar lowering not yet implemented for TypedEnumValue
+   18  scalar lowering not yet implemented for TypedNewInstance
+   16  lowering not yet implemented for TypedUserCall
+   13  scalar lowering not yet implemented for TypedMatch
+   11  scalar lowering not yet implemented for TypedIf
+   10  scalar lowering not yet implemented for TypedFilter
+   10  'test::Order' is not a known class, mapping, runtime, connection, or d
+    9  no overload of 'concatenate' matches 2 argument(s) of these shapes
+    9  no compiled mapping function for class fetch: test::Person
+    8  [plangen-c0954a] Not yet ported: TypedPropertyAccess (stage-3-relation
+    8  scalar lowering not yet implemented for TypedUserCall
+    7  [plangen-c0954a] Not yet ported: TypedProject (stage-3-relation). Vari
+    6  unknown function 'meta::pure::functions::collection::concatenate'
+    6  unknown SQL data type: 'JSON'
+    5  scalar lowering not yet implemented for TypedTds
+    5  multi-column pivot is not lowered yet
+```

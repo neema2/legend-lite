@@ -105,6 +105,76 @@ H1. G-COMPLETION for mapping bodies. DONE 2026-07-09 (14/14 census;
     d. unbound-T family: mapping fns are generic-free — find where T leaks.
     Exit: census harness 100% green; corpus unchanged (G-only).
 
+### H2/H3 DETAILED PLAN: see docs/PHASE_H2_H3_RESOLVER_PLAN.md
+(the full research dossier + implementation plan: real-engine functional
+spec, V1 join-cancellation prior art, positional rule table, milestones
+M-H2a..M-H4b, fixture matrix, audit catches incl. the driver-runtime
+blocker. This section below is the earlier three-reference summary.)
+
+### H2 DESIGN (2026-07-09, from the three-reference structured read)
+
+CONSENSUS of plangen (stage-I consumer, 100% green), V1 (committed,
+mostly-working), V2 (WIP learnings):
+
+1. RESOLUTION = replace each TypedGetAll(class) with the mapping body's
+   relation pipeline; the map(row|^Class(...)) TERMINAL IS STRIPPED and
+   survives only as a property->expression BINDING TABLE. plangen's
+   whole consumption contract (generateGetAll 509-535, resolveColumnExpr
+   1075-1097): (a) source = the pipeline with mapping ~filter baked in
+   BELOW any user op; (b) resolveProperty(name) -> column-or-expression;
+   (c) propertyToColumn() wholesale for whole-class output (H4).
+2. ORDERING: mapping filter -> user filter -> user project; filter is a
+   schema pass-through; project builds a fresh alias-keyed TDS row; a
+   flat filter->project over a simple class must land as ONE
+   SELECT cols FROM t WHERE pred (plangen 774-789, 847-854).
+3. OBJECT-SPACE vs RELATION-SPACE: a filter BEFORE projection resolves
+   $p.prop through the binding table; after projection, columns are
+   literal output names (plangen 808-812). The resolver rewrites only
+   object-space positions.
+4. DISPATCH BY CLASS per active mapping (V1 623-654): memo per class
+   FQN, `resolving` cycle guard; V1's shallowResolution is the H3 cycle
+   answer. H2 has no cross-class traversal.
+5. V2's ONE great idea, adopted wholesale: PURE TypedSpec->TypedSpec
+   rewrite, NO SIDECAR — resolution lives in the returned tree; row
+   schema stays DERIVABLE from the AST, never stored beside it (V2's
+   sidecar-elimination thesis; V1's forwardStamp/restamp bug family is
+   the cautionary tale). V2's cautionary tale in turn: association->join
+   lifting must be UNIFORM across lambda relops, not per-relop opt-in
+   bags (its filter/project asymmetry) — that constraint SHAPES H3.
+6. LOUD on unmapped property. V1+plangen silently fall back to the
+   property name as a column name (StoreResolution.columnFor null ->
+   PropertyAccessLowering "col != null ? col : property", their own
+   "Phase C.2" leak). We throw, naming property, class, and mapping.
+
+OUR STRUCTURAL ADVANTAGE: their normalizer pre-shredded ^Class(...)
+into extend-column chains, so V1 reconstructs bindings by pattern-
+matching lambda shapes (forwardRelationalRename etc.). OUR synthesized
+bodies keep the typed map(row|^Class(prop = expr...)) terminal — the
+binding table is read directly off ONE TypedNewInstance (expressions
+already typed, toOne wrappers explicit). No archaeology.
+
+H2 COMPONENTS (new leaf package com.legend.resolver):
+- ClassSource: per (mapping, class) — the typed pipeline WITHOUT its
+  map terminal + rowVar + Map<String propName, TypedSpec expr> binding
+  table + the source row type. Built by compiling the ClassBinding's
+  realizing function (SpecCompiler — 14/14 green, H1's whole point)
+  and splitting its TypedMap. Memoized per class FQN; cycle guard.
+- StoreResolver: the pure rewriter. H2 arms: TypedGetAll under
+  TypedFilter (object-space predicate: substitute rowVar, rewrite
+  property reads through the binding table), under TypedProject
+  (object-space colspec lambdas -> relation project with alias-named
+  output columns), and chains thereof. TypedFrom supplies the mapping.
+  Everything else: recurse structurally; store-only leftovers reach
+  the lowerer's loud walls.
+- Driver: resolver runs BETWEEN G and I at the driver seam (the engine
+  query path calls core's Lowerer today — the 521-error TypedGetAll
+  wall IS core's frontier default); wiring lands last, after the core
+  tests are green.
+
+H2 NON-GOALS (H3+): association navigation/joins/elision, embedded/
+otherwise, multi-set-ID, milestoning, graph/whole-class output (H4),
+M2M chains.
+
 H2. RESOLVER SKELETON + SIMPLE CLASS QUERIES. StoreResolver rewrites
     TypedGetAll(class) -> the mapping fn's TYPED BODY (beta-inlined,
     memoized per (mapping, class)); TypedNewInstance map-terminals stay

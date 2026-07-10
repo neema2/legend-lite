@@ -145,6 +145,18 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
+    public java.util.Optional<com.legend.parser.element.MappingDefinition> findMapping(String fqn) {
+        Objects.requireNonNull(fqn, "fqn");
+        return model.findMapping(fqn);
+    }
+
+    @Override
+    public java.util.Optional<com.legend.parser.element.RuntimeDefinition> findRuntime(String fqn) {
+        Objects.requireNonNull(fqn, "fqn");
+        return model.findRuntime(fqn);
+    }
+
+    @Override
     public boolean isExecutionContextElement(String fqn) {
         Objects.requireNonNull(fqn, "fqn");
         return model.findMapping(fqn).isPresent()

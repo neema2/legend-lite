@@ -24,7 +24,7 @@ package com.legend.error;
 public abstract class LegendCompileException extends RuntimeException {
 
     /** The pipeline stage that rejected the input. */
-    public enum Phase { PARSE, RESOLVE, NORMALIZE, MODEL, TYPE, LOWER, EXECUTE }
+    public enum Phase { PARSE, RESOLVE, NORMALIZE, MODEL, TYPE, MAPPING, LOWER, EXECUTE }
 
     private final Phase phase;
     private final String element;
