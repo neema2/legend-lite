@@ -48,7 +48,14 @@ final class Substitution {
                   String mappingFqn, String sourceRowVar,
                   Map<String, TypedSpec> bindings, Type.RelationType rowType,
                   java.util.Set<String> strippedSlots,
-                  Map<String, String> slotPrefixes) {}
+                  Map<String, String> slotPrefixes,
+                  Map<String, AssocSub> assocs,
+                  java.util.Set<String> assocEnds) {}
+
+    /** A demanded association head: how its leaf bindings substitute. */
+    record AssocSub(String prefix, String targetRowVar,
+                    Map<String, TypedSpec> targetBindings, String targetClassFqn,
+                    java.util.Set<String> targetSlotAliases) {}
 
     private final Target target;
 
@@ -84,19 +91,58 @@ final class Substitution {
      * (H3 extends this to multi-hop paths; DemandScan shares it.)
      */
     static String propertyOnUserVar(TypedSpec n, String userVar) {
-        if (n instanceof TypedPropertyAccess pa
-                && pa.source() instanceof TypedVariable v
-                && v.name().equals(userVar)) {
-            return pa.property();
+        java.util.List<String> p = pathOf(n, userVar);
+        return p != null && p.size() == 1 ? p.get(0) : null;
+    }
+
+    /**
+     * THE path funnel: the full property chain when {@code n}'s receiver
+     * chain bottoms at the user's lambda variable ({@code $p.employer.legal}
+     * &rArr; {@code [employer, legal]}); {@code null} otherwise. DemandScan
+     * and the rewrite share this single extractor.
+     */
+    static java.util.List<String> pathOf(TypedSpec n, String userVar) {
+        // toOne() look-through: $p.employer->toOne().legal is the idiomatic
+        // spelling after an optional navigation — the coercion is
+        // multiplicity-only and transparent to the path (audit R3).
+        if (n instanceof TypedNativeCall c && c.args().size() == 1
+                && c.callee().qualifiedName().endsWith("toOne")) {
+            return pathOf(c.args().get(0), userVar);
         }
-        return null;
+        if (!(n instanceof TypedPropertyAccess pa)) {
+            return null;
+        }
+        if (pa.source() instanceof TypedVariable v && v.name().equals(userVar)) {
+            return java.util.List.of(pa.property());
+        }
+        java.util.List<String> inner = pathOf(pa.source(), userVar);
+        if (inner == null) {
+            return null;
+        }
+        java.util.List<String> out = new ArrayList<>(inner);
+        out.add(pa.property());
+        return out;
     }
 
     private TypedSpec rewrite(TypedSpec n) {
+        java.util.List<String> path = pathOf(n, target.userVar());
+        if (path != null && path.size() == 2) {
+            return rewritePath(path.get(0), path.get(1), n);
+        }
+        if (path != null && path.size() > 2) {
+            throw new NotImplementedException("multi-hop navigation "
+                    + String.join(".", path) + " is not supported yet");
+        }
         String prop = propertyOnUserVar(n, target.userVar());
         if (prop != null) {
             TypedSpec binding = target.bindings().get(prop);
             if (binding == null) {
+                if (target.assocEnds().contains(prop)) {
+                    throw new NotImplementedException("association property '$"
+                            + target.userVar() + "." + prop + "' used other than"
+                            + " as a navigation head (class-typed value /"
+                            + " isEmpty / whole-instance) is not supported yet");
+                }
                 throw new MappingResolutionException("property '" + prop
                         + "' of class '" + target.classFqn()
                         + "' is not mapped in mapping '" + target.mappingFqn() + "'",
@@ -139,6 +185,68 @@ final class Substitution {
                     "object-space expression node " + n.getClass().getSimpleName()
                             + " is not substitutable yet (H2 vocabulary)");
         };
+    }
+
+    /** {@code $p.head.leaf}: embedded ctor look-through, or association leaf. */
+    private TypedSpec rewritePath(String head, String leaf, TypedSpec original) {
+        TypedSpec headBinding = target.bindings().get(head);
+        if (headBinding != null) {
+            TypedSpec inner = headBinding;
+            if (inner instanceof TypedNativeCall c && c.args().size() == 1
+                    && c.callee().qualifiedName().endsWith("toOne")) {
+                inner = c.args().get(0);
+            }
+            if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstance ctor) {
+                // EMBEDDED: the inner binding reads the PARENT row — a
+                // parent-alias column, never a join (V1 §D.4 semantics).
+                TypedSpec leafExpr = ctor.properties().get(leaf);
+                if (leafExpr == null) {
+                    throw new MappingResolutionException("property '" + leaf
+                            + "' of embedded '" + head + "' on class '"
+                            + target.classFqn() + "' is not mapped in mapping '"
+                            + target.mappingFqn() + "'", target.classFqn());
+                }
+                return renameRowVar(leafExpr);
+            }
+            throw new NotImplementedException("navigation through class-typed"
+                    + " slot property '" + head + "' is not supported yet");
+        }
+        AssocSub a = target.assocs().get(head);
+        if (a == null) {
+            throw new IllegalStateException("resolver bug: undemanded navigation"
+                    + " '" + head + "." + leaf + "' — the demand scan and the"
+                    + " rewrite disagreed");
+        }
+        TypedSpec leafBinding = a.targetBindings().get(leaf);
+        if (leafBinding == null) {
+            throw new MappingResolutionException("property '" + leaf
+                    + "' of class '" + a.targetClassFqn()
+                    + "' is not mapped in mapping '" + target.mappingFqn() + "'",
+                    a.targetClassFqn());
+        }
+        TypedSpec leafInner = leafBinding;
+        if (leafInner instanceof TypedNativeCall lc && lc.args().size() == 1
+                && lc.callee().qualifiedName().endsWith("toOne")) {
+            leafInner = lc.args().get(0);
+        }
+        if (leafInner instanceof com.legend.compiler.spec.typed.TypedNewInstance) {
+            throw new NotImplementedException("class-typed property '" + leaf
+                    + "' of association target '" + a.targetClassFqn()
+                    + "' (embedded) is not supported yet");
+        }
+        // The target pipeline materialized with EMPTY demand — its own join
+        // slots are STRIPPED. A leaf whose binding reads one would silently
+        // prefix a nonexistent column: loud instead (nested navigation
+        // through the target's joins is a later slice).
+        if (Pipelines.referencesAliasOn(leafBinding, a.targetRowVar(),
+                a.targetSlotAliases())) {
+            throw new NotImplementedException("property '" + leaf + "' of class '"
+                    + a.targetClassFqn() + "' is mapped through the target's own"
+                    + " join slots; nested navigation joins are not supported yet");
+        }
+        return Pipelines.prefixColumns(leafBinding, a.targetRowVar(), a.prefix(),
+                v -> new TypedVariable(target.freshRowVar(),
+                        new ExprType(target.rowType(), Multiplicity.Bounded.ONE)));
     }
 
     private List<TypedSpec> rewriteAll(List<TypedSpec> ns) {

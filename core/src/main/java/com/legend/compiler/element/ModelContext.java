@@ -50,6 +50,18 @@ public interface ModelContext {
     Optional<com.legend.parser.element.MappingDefinition> findMapping(String fqn);
 
     /**
+     * The association whose end {@code propName} injects onto
+     * {@code ownerClassFqn}, and that end itself &mdash; the Phase-H
+     * resolver's navigation dispatch (association FQN &rarr; the mapping's
+     * AssociationBinding; the end carries target class + multiplicity).
+     */
+    Optional<com.legend.parser.element.AssociationDefinition> findAssociationOf(
+            String ownerClassFqn, String propName);
+
+    Optional<com.legend.parser.element.AssociationDefinition.AssociationEndDefinition>
+            findAssociationEnd(String ownerClassFqn, String propName);
+
+    /**
      * The runtime for {@code fqn}, if present &mdash; supplies the active
      * mapping when a class query names a runtime (explicitly via
      * {@code ->from(...)} or through the driver's execution context).

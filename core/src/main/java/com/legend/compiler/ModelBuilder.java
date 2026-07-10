@@ -467,6 +467,42 @@ public final class ModelBuilder {
      * lookup-time resolution of association navigation properties
      * (never stored on the class; Property doc §5 discipline 3).
      */
+    /**
+     * The ASSOCIATION whose end named {@code propName} injects onto
+     * {@code ownerClassFqn} — the Phase-H resolver's dispatch key from a
+     * navigation to the mapping's AssociationBinding. Linear scan
+     * (associations are few; the hot per-end lookup is the indexed
+     * {@link #findAssociationEnd}).
+     */
+    public Optional<AssociationDefinition> findAssociationOf(String ownerClassFqn,
+                                                             String propName) {
+        java.util.List<AssociationDefinition> hits = new java.util.ArrayList<>();
+        for (AssociationDefinition ad : associations) {
+            if (ad == null) continue;
+            if ((isNameRef(ad.property2().targetClass(), ownerClassFqn)
+                    && ad.property1().propertyName().equals(propName))
+                    || (isNameRef(ad.property1().targetClass(), ownerClassFqn)
+                    && ad.property2().propertyName().equals(propName))) {
+                hits.add(ad);
+            }
+        }
+        if (hits.size() > 1) {
+            // Two associations injecting the same property name onto one
+            // class: first-wins here vs last-wins in the end index was a
+            // SPLIT-BRAIN (one association's condition on another's table —
+            // silent wrong SQL). Real pure rejects the model; loud.
+            throw new com.legend.error.ModelException(
+                    com.legend.error.LegendCompileException.Phase.MODEL,
+                    "property '" + propName + "' is injected onto class '"
+                            + ownerClassFqn + "' by " + hits.size() + " associations ("
+                            + hits.stream().map(AssociationDefinition::qualifiedName)
+                                    .collect(java.util.stream.Collectors.joining(", "))
+                            + "); duplicate association-end names are ambiguous",
+                    ownerClassFqn);
+        }
+        return hits.isEmpty() ? Optional.empty() : Optional.of(hits.get(0));
+    }
+
     public Optional<AssociationDefinition.AssociationEndDefinition> findAssociationEnd(
             String ownerClassFqn, String propName) {
         if (associationEndsByOwner == null) {

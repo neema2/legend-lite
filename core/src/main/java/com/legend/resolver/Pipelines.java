@@ -270,6 +270,63 @@ final class Pipelines {
         };
     }
 
+    /**
+     * Rewrite a TARGET-class binding for use on the JOINED row: every
+     * {@code $targetRow.COL} read becomes {@code varRewrite($targetRow)}
+     * {@code .prefixCOL} (the prefixed flat column the association join
+     * exposes). Closed vocabulary, loud default — the same discipline as
+     * {@link #rewriteRowReads}.
+     */
+    static TypedSpec prefixColumns(TypedSpec n, String rowVar, String colPrefix,
+                                   java.util.function.UnaryOperator<TypedSpec> varRewrite) {
+        if (n instanceof TypedPropertyAccess pa
+                && pa.source() instanceof TypedVariable v
+                && v.name().equals(rowVar)) {
+            return new TypedPropertyAccess(varRewrite.apply(v),
+                    colPrefix + pa.property(), pa.info());
+        }
+        return switch (n) {
+            case TypedVariable v when v.name().equals(rowVar) ->
+                    throw new IllegalStateException("resolver bug: bare target row var"
+                            + " in an association-leaf binding");
+            case TypedVariable v -> v;
+            case TypedPropertyAccess pa -> new TypedPropertyAccess(
+                    prefixColumns(pa.source(), rowVar, colPrefix, varRewrite),
+                    pa.property(), pa.info());
+            case TypedNativeCall c -> new TypedNativeCall(c.callee(),
+                    c.args().stream().map(a -> prefixColumns(a, rowVar, colPrefix, varRewrite))
+                            .toList(), c.info());
+            case com.legend.compiler.spec.typed.TypedCollection c ->
+                    new com.legend.compiler.spec.typed.TypedCollection(
+                            c.elements().stream().map(e ->
+                                    prefixColumns(e, rowVar, colPrefix, varRewrite)).toList(),
+                            c.info());
+            case com.legend.compiler.spec.typed.TypedIf i ->
+                    new com.legend.compiler.spec.typed.TypedIf(
+                            prefixColumns(i.condition(), rowVar, colPrefix, varRewrite),
+                            prefixColumns(i.thenBranch(), rowVar, colPrefix, varRewrite),
+                            i.elseBranch().map(e -> prefixColumns(e, rowVar, colPrefix, varRewrite)),
+                            i.info());
+            case TypedLambda l -> l.parameters().contains(rowVar)
+                    ? l
+                    : new TypedLambda(l.parameters(),
+                            l.body().stream().map(b ->
+                                    prefixColumns(b, rowVar, colPrefix, varRewrite)).toList(),
+                            l.info());
+            case com.legend.compiler.spec.typed.TypedCString ignored -> n;
+            case com.legend.compiler.spec.typed.TypedCInteger ignored -> n;
+            case com.legend.compiler.spec.typed.TypedCFloat ignored -> n;
+            case com.legend.compiler.spec.typed.TypedCDecimal ignored -> n;
+            case com.legend.compiler.spec.typed.TypedCBoolean ignored -> n;
+            case com.legend.compiler.spec.typed.TypedCDate ignored -> n;
+            case com.legend.compiler.spec.typed.TypedEnumValue ignored -> n;
+            default -> throw new IllegalStateException(
+                    "resolver bug: association-leaf rewrite hit "
+                            + n.getClass().getSimpleName()
+                            + ", outside the normalizer's emission vocabulary");
+        };
+    }
+
     private static void indexSlots(TypedSpec n, Map<String, TypedJoinSlot> out) {
         if (n instanceof TypedJoinSlot js) {
             out.put(js.alias(), js);

@@ -21,6 +21,7 @@ import com.legend.parser.element.RuntimeDefinition;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -39,12 +40,14 @@ import java.util.Set;
 public final class StoreResolver {
 
     private final ClassSources sources;
+    private final SpecCompiler specs;
     private int freshVarCounter;
 
     private final ModelContext ctx;
 
     public StoreResolver(ModelContext ctx, SpecCompiler specs) {
         this.ctx = Objects.requireNonNull(ctx, "ctx");
+        this.specs = Objects.requireNonNull(specs, "specs");
         this.sources = new ClassSources(ctx, specs);
     }
 
@@ -220,24 +223,28 @@ public final class StoreResolver {
         // 2. Demand scan over ALL the chain's user lambdas (one funnel with
         //    the substitution — they cannot drift), close over slot
         //    conditions, materialize.
+        Set<java.util.List<String>> paths = new java.util.LinkedHashSet<>();
+        // ENTRY RULE (learned three times now): scans enter through the
+        // lambda's BODY — entering via the lambda itself trips the shadow
+        // stop on its own parameter.
+        for (TypedSpec op : ops) {
+            if (op instanceof TypedFilter f) {
+                scanLambda(f.predicate(), paths);
+            }
+            if (op instanceof TypedSortBy sb) {
+                scanLambda(sb.key(), paths);
+            }
+        }
+        for (TypedFuncCol col : p.columns()) {
+            scanLambda(col.fn(), paths);
+        }
+
+        // Slot demand (heads whose bindings read join slots).
         Set<String> slotAliases = Pipelines.slotAliases(cs.pipeline());
         Set<String> demanded = new java.util.LinkedHashSet<>();
         if (!slotAliases.isEmpty()) {
-            Set<String> consumed = new java.util.LinkedHashSet<>();
-            for (TypedSpec op : ops) {
-                if (op instanceof TypedFilter f) {
-                    consumedProps(f.predicate(),
-                            f.predicate().parameters().get(0), consumed);
-                }
-                if (op instanceof TypedSortBy sb) {
-                    consumedProps(sb.key(), sb.key().parameters().get(0), consumed);
-                }
-            }
-            for (TypedFuncCol col : p.columns()) {
-                consumedProps(col.fn(), col.fn().parameters().get(0), consumed);
-            }
-            for (String prop : consumed) {
-                TypedSpec binding = cs.bindings().get(prop);
+            for (java.util.List<String> path : paths) {
+                TypedSpec binding = cs.bindings().get(path.get(0));
                 if (binding != null) {
                     collectAliasReads(binding, cs.rowVar(), slotAliases, demanded);
                 }
@@ -246,6 +253,63 @@ public final class StoreResolver {
         }
         Pipelines.Materialized m = Pipelines.materialize(
                 cs.pipeline(), demanded, cs.classFqn());
+
+        // Association demand: 2-hop paths whose head is NOT a binding are
+        // association navigations — one LEFT join per head (dedup by head:
+        // the whole-chain registry), target = the class's own pipeline.
+        Map<String, Substitution.AssocSub> assocs = new java.util.LinkedHashMap<>();
+        java.util.List<AssocJoin> assocJoins = new ArrayList<>();
+        for (java.util.List<String> path : paths) {
+            if (path.size() < 2 || cs.bindings().containsKey(path.get(0))) {
+                continue;   // 1-hop, or embedded/slot heads (substitution-side)
+            }
+            String head = path.get(0);
+            if (path.size() > 2) {
+                throw new NotImplementedException("multi-hop navigation "
+                        + String.join(".", path) + " is not supported yet");
+            }
+            if (assocs.containsKey(head)) {
+                continue;
+            }
+            AssocJoin aj = associationJoin(cs, head, context);
+            assocJoins.add(aj);
+            assocs.put(head, new Substitution.AssocSub(aj.prefix(),
+                    aj.target().rowVar(), aj.target().bindings(),
+                    aj.target().classFqn(),
+                    Pipelines.slotAliases(aj.target().pipeline())));
+        }
+
+        // 2b. Materialize the association joins (descriptor -> emission,
+        //     first-demand order) onto the pipeline.
+        TypedSpec withJoins = m.pipeline();
+        for (AssocJoin aj : assocJoins) {
+            com.legend.compiler.element.type.Type.RelationType leftRow =
+                    (com.legend.compiler.element.type.Type.RelationType)
+                            withJoins.info().type();
+            java.util.List<com.legend.compiler.element.type.Type.Column> cols =
+                    new ArrayList<>(leftRow.columns());
+            for (com.legend.compiler.element.type.Type.Column c
+                    : aj.targetRow().columns()) {
+                cols.add(new com.legend.compiler.element.type.Type.Column(
+                        aj.prefix() + c.name(), c.type(), c.multiplicity()));
+            }
+            withJoins = new com.legend.compiler.spec.typed.TypedJoin(withJoins,
+                    aj.targetPipeline(), leftKind(), aj.condition(),
+                    java.util.Optional.of(aj.prefix()),
+                    new com.legend.compiler.element.type.ExprType(
+                            new com.legend.compiler.element.type.Type.RelationType(cols),
+                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+        }
+        m = new Pipelines.Materialized(withJoins, m.slotPrefixes(), m.stripped());
+
+        // Association-end names for honest bare-head errors (audit R3).
+        Set<String> assocEnds = new java.util.LinkedHashSet<>(assocs.keySet());
+        for (java.util.List<String> path : paths) {
+            if (!cs.bindings().containsKey(path.get(0))
+                    && ctx.findAssociationOf(cs.classFqn(), path.get(0)).isPresent()) {
+                assocEnds.add(path.get(0));
+            }
+        }
 
         // 3. Fold the ops back on, bottom-up, substituting filter lambdas.
         // The fresh row var must not collide with ANY lambda parameter in
@@ -261,6 +325,11 @@ public final class StoreResolver {
         for (TypedSpec b : cs.bindings().values()) {
             collectLambdaParams(b, paramsInReach);
         }
+        for (AssocJoin aj : assocJoins) {
+            for (TypedSpec b : aj.target().bindings().values()) {
+                collectLambdaParams(b, paramsInReach);
+            }
+        }
         String fresh;
         do {
             fresh = "_r" + freshVarCounter++;
@@ -269,7 +338,7 @@ public final class StoreResolver {
         for (int i = ops.size() - 1; i >= 0; i--) {
             pipeline = switch (ops.get(i)) {
                 case TypedFilter f -> new TypedFilter(pipeline,
-                        substitution(cs, m, fresh, f.predicate())
+                        substitution(cs, m, assocs, assocEnds, fresh, f.predicate())
                                 .rewriteLambda(f.predicate()),
                         pipeline.info());
                 case TypedLimit l -> new TypedLimit(pipeline, l.count(), pipeline.info());
@@ -277,7 +346,7 @@ public final class StoreResolver {
                 case TypedSlice sl -> new TypedSlice(pipeline, sl.start(), sl.stop(),
                         pipeline.info());
                 case TypedSortBy sb -> new TypedSortBy(pipeline,
-                        substitution(cs, m, fresh, sb.key()).rewriteLambda(sb.key()),
+                        substitution(cs, m, assocs, assocEnds, fresh, sb.key()).rewriteLambda(sb.key()),
                         sb.ascending(), pipeline.info());
                 default -> throw new IllegalStateException("resolver bug: uncollected op");
             };
@@ -287,7 +356,7 @@ public final class StoreResolver {
         List<TypedFuncCol> cols = new ArrayList<>(p.columns().size());
         for (TypedFuncCol col : p.columns()) {
             cols.add(new TypedFuncCol(col.name(),
-                    substitution(cs, m, fresh, col.fn()).rewriteLambda(col.fn())));
+                    substitution(cs, m, assocs, assocEnds, fresh, col.fn()).rewriteLambda(col.fn())));
         }
         return new TypedProject(pipeline, cols, p.info());
     }
@@ -301,15 +370,160 @@ public final class StoreResolver {
         }
     }
 
-    /** The demand half of the shared funnel: every $p.prop read in a lambda. */
-    private static void consumedProps(TypedSpec n, String userVar, Set<String> out) {
-        String prop = Substitution.propertyOnUserVar(n, userVar);
-        if (prop != null) {
-            out.add(prop);
+    /** Scan entry: the lambda's BODY under its own parameter (never the lambda node). */
+    private static void scanLambda(TypedLambda lambda, Set<java.util.List<String>> out) {
+        for (TypedSpec b : lambda.body()) {
+            consumedPaths(b, lambda.parameters().get(0), out);
+        }
+    }
+
+    /** The demand half of the shared funnel: every $p.<path> read in a lambda. */
+    private static void consumedPaths(TypedSpec n, String userVar,
+                                      Set<java.util.List<String>> out) {
+        java.util.List<String> path = Substitution.pathOf(n, userVar);
+        if (path != null) {
+            out.add(path);
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(userVar)) {
+            return;   // shadowing: the substitution stops here too (one funnel)
         }
         for (TypedSpec c : n.children()) {
-            consumedProps(c, userVar, out);
+            consumedPaths(c, userVar, out);
         }
+    }
+
+    /** A demanded association navigation, ready to emit as a prefixed LEFT join. */
+    private record AssocJoin(String prefix, ClassSource target,
+                             TypedSpec targetPipeline,
+                             com.legend.compiler.element.type.Type.RelationType targetRow,
+                             TypedLambda condition) {}
+
+    /** Deterministic prefix with ordinal bump on collision against the parent row (plan §2.3). */
+    private static String prefixFor(String head, ClassSource cs) {
+        Set<String> taken = new java.util.LinkedHashSet<>();
+        for (com.legend.compiler.element.type.Type.Column c : cs.rowType().columns()) {
+            taken.add(c.name());
+        }
+        String prefix = head + "_";
+        int ordinal = 2;
+        while (hasPrefixCollision(prefix, taken)) {
+            prefix = head + "_" + ordinal++ + "_";
+        }
+        return prefix;
+    }
+
+    private static boolean hasPrefixCollision(String prefix, Set<String> taken) {
+        for (String t : taken) {
+            if (t.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static com.legend.compiler.spec.typed.TypedEnumValue leftKind() {
+        String fqn = "meta::pure::functions::relation::JoinKind";
+        return new com.legend.compiler.spec.typed.TypedEnumValue(fqn, "LEFT",
+                new com.legend.compiler.element.type.ExprType(
+                        new com.legend.compiler.element.type.Type.EnumType(fqn),
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+    }
+
+    /**
+     * Build the association join for {@code $parent.head}: the mapping's
+     * AssociationBinding predicate function carries the condition
+     * (legacyAssocPredicate(a, b, srcRows, tgtRows, {srcRow,tgtRow|cond}) —
+     * H1's emission); the target is the class's own pipeline (its ~filter
+     * rides along; its slots strip under empty demand — leaf bindings that
+     * read them are loud). Orientation: the predicate's cond params are
+     * (classA-row, classB-row) with classA = property1's target; navigating
+     * property1 means the PARENT is classB, so the params REVERSE (the
+     * TypedJoin condition binds (leftRow=parent, rightRow=target)).
+     */
+    private AssocJoin associationJoin(ClassSource cs, String head, Context context) {
+        var assoc = ctx.findAssociationOf(cs.classFqn(), head).orElseThrow(() ->
+                new MappingResolutionException("property '" + head + "' of class '"
+                        + cs.classFqn() + "' is not mapped in mapping '"
+                        + cs.mappingFqn() + "'", cs.classFqn()));
+        // The end from the SAME association object — a separate index lookup
+        // was a split-brain with findAssociationOf (audit blocker).
+        var end = assoc.property1().propertyName().equals(head)
+                ? assoc.property1() : assoc.property2();
+        // DEFAULT-DENY multiplicity: only a concrete to-one end navigates
+        // here (a Parameter-multiplicity end must not silently duplicate rows).
+        if (!(end.multiplicity() instanceof com.legend.parser.Multiplicity.Concrete mc)
+                || !Integer.valueOf(1).equals(mc.upperBound())) {
+            throw new NotImplementedException("navigation of association end '$"
+                    + head + "' (multiplicity " + end.multiplicity() + ") is not"
+                    + " supported yet: filter-position to-many becomes EXISTS in"
+                    + " H3c; other positions are H4+");
+        }
+        String targetClass = ((com.legend.parser.TypeExpression.NameRef)
+                end.targetClass()).name();
+        ClassSource target = sources.get(cs.mappingFqn(), targetClass);
+        Pipelines.Materialized tMat = Pipelines.materialize(
+                target.pipeline(), Set.of(), target.classFqn());
+
+        // The predicate function: mapping's AssociationBinding for the assoc.
+        var mapping = ctx.findMapping(cs.mappingFqn()).orElseThrow();
+        var binding = mapping.associationBindings().stream()
+                .filter(ab -> ab.associationFqn().equals(assoc.qualifiedName()))
+                .findFirst()
+                .orElseThrow(() -> new MappingResolutionException("association '"
+                        + assoc.qualifiedName() + "' is not mapped in mapping '"
+                        + cs.mappingFqn() + "'", assoc.qualifiedName()));
+        var fns = ctx.findFunction(binding.predicateFunctionFqn());
+        if (fns.size() != 1) {
+            throw new IllegalStateException("resolver bug: association predicate '"
+                    + binding.predicateFunctionFqn() + "' has " + fns.size() + " overloads");
+        }
+        var cf = specs.compile(fns.get(0));
+        TypedSpec last = cf.body().get(cf.body().size() - 1);
+        if (!(last instanceof com.legend.compiler.spec.typed.TypedNativeCall call)
+                || !call.callee().qualifiedName().endsWith("legacyAssocPredicate")
+                || call.args().size() != 5
+                || !(call.args().get(4) instanceof TypedLambda cond)) {
+            throw new IllegalStateException("resolver bug: association predicate body"
+                    + " for '" + assoc.qualifiedName() + "' is not the"
+                    + " legacyAssocPredicate(a,b,src,tgt,cond) emission: "
+                    + last.getClass().getSimpleName());
+        }
+        // ORIENTATION: the predicate fn's params are (a: classA, b: classB)
+        // and the cond's (srcRow, tgtRow) are their tables' rows in that
+        // order (H1's emission). The TypedJoin condition binds
+        // (leftRow=PARENT, rightRow=TARGET): if the parent is classB the
+        // params reverse. Self-associations (parent == target) cannot
+        // orient by class — the emission convention puts {target} (the
+        // navigated destination when traversing property1) on tgtRow, so
+        // property1 keeps the order and property2 reverses (pinned by the
+        // executing self-association fixture).
+        String classAFqn = ((com.legend.compiler.element.type.Type.ClassType)
+                fns.get(0).parameters().get(0).type()).fqn();
+        if (!classAFqn.equals(cs.classFqn()) && !classAFqn.equals(targetClass)) {
+            throw new IllegalStateException("resolver bug: association predicate '"
+                    + binding.predicateFunctionFqn() + "' first param class '"
+                    + classAFqn + "' is neither parent '" + cs.classFqn()
+                    + "' nor target '" + targetClass + "'");
+        }
+        boolean reverse = cs.classFqn().equals(targetClass)
+                ? !assoc.property1().propertyName().equals(head)
+                : !cs.classFqn().equals(classAFqn);
+        TypedLambda oriented = cond;
+        if (reverse) {
+            var ft = (com.legend.compiler.element.type.Type.FunctionType)
+                    cond.info().type();
+            var swapped = new com.legend.compiler.element.type.Type.FunctionType(
+                    java.util.List.of(ft.params().get(1), ft.params().get(0)),
+                    ft.result());
+            oriented = new TypedLambda(java.util.List.of(cond.parameters().get(1),
+                    cond.parameters().get(0)), cond.body(),
+                    new com.legend.compiler.element.type.ExprType(swapped,
+                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+        }
+        return new AssocJoin(prefixFor(head, cs), target, tMat.pipeline(),
+                (com.legend.compiler.element.type.Type.RelationType)
+                        tMat.pipeline().info().type(),
+                oriented);
     }
 
     /** Slot aliases a binding expression reads ($row.alias...). */
@@ -327,13 +541,15 @@ public final class StoreResolver {
     }
 
     private Substitution substitution(ClassSource cs, Pipelines.Materialized m,
+                                      Map<String, Substitution.AssocSub> assocs,
+                                      Set<String> assocEnds,
                                       String freshRowVar, TypedLambda userLambda) {
         return new Substitution(new Substitution.Target(
                 userLambda.parameters().get(0), freshRowVar,
                 cs.classFqn(), cs.mappingFqn(), cs.rowVar(), cs.bindings(),
                 (com.legend.compiler.element.type.Type.RelationType)
                         m.pipeline().info().type(),
-                m.stripped(), m.slotPrefixes()));
+                m.stripped(), m.slotPrefixes(), assocs, assocEnds));
     }
 
     /** Per-class dispatch: the runtime candidate that BINDS the class wins. */
