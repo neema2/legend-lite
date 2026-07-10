@@ -1575,6 +1575,15 @@ public final class SpecParser implements TokenStreamCursor {
     }
 
     private boolean skipTypeForLookahead() {
+        // Bare ROW-STRUCT type ((id:Integer, v:Variant) — the PCT
+        // fully-annotated lambda form) or FUNCTION type ({T[1]->R[1]}):
+        // skip the balanced region; parseType() owns the real grammar.
+        if (peek() == TokenType.PAREN_OPEN) {
+            return skipBalancedForLookahead(TokenType.PAREN_OPEN, TokenType.PAREN_CLOSE);
+        }
+        if (peek() == TokenType.BRACE_OPEN) {
+            return skipBalancedForLookahead(TokenType.BRACE_OPEN, TokenType.BRACE_CLOSE);
+        }
         if (!isFqnSegmentToken(peek())) {
             return false;
         }
@@ -1598,6 +1607,18 @@ public final class SpecParser implements TokenStreamCursor {
             if (depth != 0) return false;
         }
         return true;
+    }
+
+    private boolean skipBalancedForLookahead(TokenType open, TokenType close) {
+        int depth = 1;
+        pos++;   // the opener
+        while (!atEnd() && depth > 0) {
+            TokenType t = peek();
+            if (t == open) depth++;
+            if (t == close) depth--;
+            pos++;
+        }
+        return depth == 0;
     }
 
     private boolean skipMultiplicityForLookahead() {

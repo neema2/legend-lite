@@ -10,6 +10,7 @@ package com.legend.parser.element;
 public sealed interface ConnectionSpecification
         permits ConnectionSpecification.InMemory,
                 ConnectionSpecification.LocalFile,
+                ConnectionSpecification.LocalH2,
                 ConnectionSpecification.StaticDatasource {
 
     /**
@@ -23,6 +24,10 @@ public sealed interface ConnectionSpecification
      * Pure: {@code specification: LocalFile { path: '/tmp/db.duckdb'; };}.
      */
     record LocalFile(String path) implements ConnectionSpecification {}
+
+    /** Local H2-style test datasource ({@code LocalH2 { url: '...' }}); the
+     *  url is optional in source and carried verbatim. */
+    record LocalH2(String url) implements ConnectionSpecification {}
 
     /**
      * Static datasource with explicit host/port/database. Used for remote servers.

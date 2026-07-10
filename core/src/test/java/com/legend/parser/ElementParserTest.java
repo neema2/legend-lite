@@ -2317,6 +2317,33 @@ final class ElementParserTest {
     }
 
     @Test
+    void anonymousEnumerationMappingReference() {
+        // prop: EnumerationMapping: [db]T.COL — no mapping id; resolved by
+        // the property's enum type at normalize time (the corpus's
+        // multi-source-enum shape).
+        var cm = firstRelationalClassMapping(
+                "Mapping my::M ( *model::Task: Relational { "
+                + "~mainTable [db::DB] TASKS "
+                + "status: EnumerationMapping: [db::DB] TASKS.STATUS_CODE "
+                + "} )");
+        var ec = (PropertyMapping.EnumeratedColumn) cm.propertyMappings().get(0);
+        assertNull(ec.enumMappingId(), "anonymous reference carries no id");
+        assertEquals("TASKS", ec.table());
+        assertEquals("STATUS_CODE", ec.column());
+    }
+
+    @Test
+    void localH2ConnectionSpecificationFlavor() {
+        var parsed = ElementParser.parse(
+                "RelationalDatabaseConnection store::C { store: db::DB; type: DuckDB; "
+                + "specification: LocalH2 { url: 'jdbc:duckdb:' }; auth: NoAuth { }; }");
+        var conn = (com.legend.parser.element.ConnectionDefinition) parsed.elements().get(0);
+        var spec = (com.legend.parser.element.ConnectionSpecification.LocalH2)
+                conn.specification();
+        assertEquals("jdbc:duckdb:", spec.url());
+    }
+
+    @Test
     void arrayLiteralArgsStayArrayLiterals() {
         // The qualifier lookahead must NOT swallow real array literals —
         // a '::'-free bracket followed by ',' or ')' is still an array.

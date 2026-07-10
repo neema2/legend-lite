@@ -8,10 +8,14 @@ package com.legend.parser.element;
  */
 public sealed interface AuthenticationSpec
         permits AuthenticationSpec.NoAuth,
+                AuthenticationSpec.DefaultH2,
                 AuthenticationSpec.UsernamePassword {
 
     /** No authentication. Used for in-memory databases and local development. */
     record NoAuth() implements AuthenticationSpec {}
+
+    /** H2-style default test authentication ({@code auth: DefaultH2 {};}). */
+    record DefaultH2() implements AuthenticationSpec {}
 
     /**
      * Username + password authentication. {@code passwordVaultRef} may be a

@@ -91,8 +91,10 @@ public sealed interface PropertyMapping
      * @param propertyName     Pure property name
      * @param enumMappingId    name of the {@code EnumerationMapping} declared
      *                         elsewhere in this {@link LegacyMappingDefinition} (or
-     *                         an included one); resolution validates the
-     *                         reference in Phase D
+     *                         an included one); {@code null} for the ANONYMOUS
+     *                         form ({@code prop: EnumerationMapping: ...}),
+     *                         resolved by the property's enum type at
+     *                         normalize time
      * @param database         database the column lives in
      * @param table            table name
      * @param column           column name
@@ -102,7 +104,6 @@ public sealed interface PropertyMapping
             implements PropertyMapping {
         public EnumeratedColumn {
             Objects.requireNonNull(propertyName, "Property name cannot be null");
-            Objects.requireNonNull(enumMappingId, "Enumeration mapping id cannot be null");
             Objects.requireNonNull(database, "Database cannot be null");
             Objects.requireNonNull(table, "Table cannot be null");
             Objects.requireNonNull(column, "Column cannot be null");

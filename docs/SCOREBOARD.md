@@ -1414,3 +1414,48 @@ Top detail:
     5  scalar lowering not yet implemented for TypedTds
     5  model-to-model mapping: 'model::DirectoryEntry' in 'model::DirectoryMa
 ```
+
+### Run 2026-07-10 @ 935598f
+
+| tests | pass | failures | errors | skipped | green classes |
+|---|---|---|---|---|---|
+| 2721 | **1894** | 57 | 751 | 19 | 260 |
+
+| bucket | exception lines |
+|---|---|
+| OTHER | 307 |
+| CORE: scalar/agg function registrations | 166 |
+| CORE: unlowered constructs | 86 |
+| FIXTURE: unknown refs (to diagnose) | 60 |
+| H: class sources / property nav / mappings | 34 |
+| CORE(G): overload/typing gaps | 30 |
+| CORE(parse): query syntax gaps | 13 |
+
+Top detail:
+```
+   96  no scalar lowering registered for resolved overload 'meta::pure::funct
+   68  class query under TypedSerialize is not resolvable yet (H2 vocabulary)
+   43  no aggregate lowering registered for resolved overload 'meta::pure::fu
+   37  'test::Person' is not a known class, mapping, runtime, connection, or 
+   33  unbound type variable T
+   27  object-space expression node TypedUserCall is not substitutable yet (H
+   25  no SQL type for Pure class meta::pure::metamodel::type::Any at the low
+   23  model-to-model mapping: 'model::StaffMember' in 'model::StaffMemberMap
+   18  scalar lowering not yet implemented for TypedNewInstance
+   16  lowering not yet implemented for TypedUserCall
+   13  model-to-model mapping: 'model::StaffCard' in 'model::StaffCardMapping
+   13  scalar lowering not yet implemented for TypedMatch
+   10  model-to-model mapping: 'model::Person' in 'model::PersonM2MMapping' m
+   10  'test::Order' is not a known class, mapping, runtime, connection, or d
+    9  no overload of 'concatenate' matches 2 argument(s) of these shapes
+    9  unknown SQL data type: 'JSON'
+    6  unknown function 'meta::pure::functions::collection::concatenate'
+    6  multi-column pivot is not lowered yet
+    6  no TDS cell rendering for Pure type meta::pure::metamodel::variant::Va
+    6  no scalar lowering registered for resolved overload 'meta::legend::lit
+    6  scalar lowering not yet implemented for TypedFilter
+    6  model-to-model mapping: 'model::PersonView' in 'model::PersonViewMappi
+    6  scalar lowering not yet implemented for TypedUserCall
+    5  multi-hop navigation dept.org.name is not supported yet
+    5  scalar lowering not yet implemented for TypedTds
+```

@@ -2965,4 +2965,22 @@ final class SpecParserTest {
         assertEquals(2, ex.line(),
                 () -> "error in slice should report ORIGINAL line 2, got: " + ex.getMessage());
     }
+    @Test
+    void rowStructTypedLambdaParam() {
+        // The PCT fully-annotated form: a shorthand lambda whose parameter
+        // carries a BARE row-struct type — filter(x: (id:Integer,
+        // v:String)[1]|...). The typed-lambda LOOKAHEAD must accept a
+        // paren-opened type (parseType already owns the grammar); before,
+        // '(id:' was misread as a parenthesised expression.
+        var vs = SpecParser.parse(
+                "|#TDS\n id, v\n 1, 2\n#->filter(x: (id:Integer, v:Integer)[1]|$x.v > 1)");
+        org.junit.jupiter.api.Assertions.assertNotNull(vs);
+    }
+
+    @Test
+    void functionTypeTypedLambdaParam() {
+        var vs = SpecParser.parse("|apply(f: {Integer[1]->Integer[1]}[1]|$f->eval(1))");
+        org.junit.jupiter.api.Assertions.assertNotNull(vs);
+    }
+
 }

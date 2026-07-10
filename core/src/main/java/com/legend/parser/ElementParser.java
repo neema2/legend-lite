@@ -1081,8 +1081,9 @@ public final class ElementParser implements TokenStreamCursor {
                                 props.get("host"),
                                 props.containsKey("port") ? Integer.parseInt(props.get("port")) : 0,
                                 props.get("database"));
+                        case "LocalH2" -> new ConnectionSpecification.LocalH2(props.get("url"));
                         default -> throw error("unknown specification flavor '" + specType
-                                + "' (expected InMemory / LocalFile / Static)");
+                                + "' (expected InMemory / LocalFile / LocalH2 / Static)");
                     };
                     expect(TokenType.SEMI_COLON);
                 }
@@ -1095,10 +1096,11 @@ public final class ElementParser implements TokenStreamCursor {
                     }
                     authentication = switch (authType) {
                         case "NoAuth" -> new AuthenticationSpec.NoAuth();
+                        case "DefaultH2" -> new AuthenticationSpec.DefaultH2();
                         case "UsernamePassword" -> new AuthenticationSpec.UsernamePassword(
                                 props.get("username"), props.get("passwordVaultRef"));
                         default -> throw error("unknown auth flavor '" + authType
-                                + "' (expected NoAuth / UsernamePassword)");
+                                + "' (expected NoAuth / DefaultH2 / UsernamePassword)");
                     };
                     expect(TokenType.SEMI_COLON);
                 }
@@ -1144,7 +1146,11 @@ public final class ElementParser implements TokenStreamCursor {
             if (props.put(key, value) != null) {
                 throw error("duplicate key '" + key + "' in property block");
             }
-            expect(TokenType.SEMI_COLON);
+            // The last pair's semicolon is optional in corpus sources
+            // (LocalH2 { url: '...' }); a following key still needs one.
+            if (peek() != TokenType.BRACE_CLOSE) {
+                expect(TokenType.SEMI_COLON);
+            }
         }
         return props;
     }
@@ -2062,10 +2068,17 @@ public final class ElementParser implements TokenStreamCursor {
             String propName, LegacyMappingDefinition.TableReference mainTable) {
         // Optional EnumerationMapping prefix:
         //   prop: EnumerationMapping enumId : ...
+        //   prop: EnumerationMapping : ...        (ANONYMOUS — resolved by
+        //                                          the property's enum type)
         String enumMappingId = null;
+        boolean anonymousEnumMapping = false;
         if (peek() == TokenType.ENUMERATION_MAPPING) {
             advance();
-            enumMappingId = parseIdentifier();
+            if (peek() == TokenType.COLON) {
+                anonymousEnumMapping = true;
+            } else {
+                enumMappingId = parseIdentifier();
+            }
             expect(TokenType.COLON);
         }
 
@@ -2083,7 +2096,7 @@ public final class ElementParser implements TokenStreamCursor {
         // Branch by what follows the optional [DB].
         if (peek() == TokenType.AT) {
             // Join navigation: @J1 > @J2 ( | terminalColumn )?
-            if (enumMappingId != null) {
+            if (enumMappingId != null || anonymousEnumMapping) {
                 throw error("EnumerationMapping cannot be applied to a join property mapping");
             }
             requirePropertyMappingDb(propName, db, "join navigation");
@@ -2115,7 +2128,7 @@ public final class ElementParser implements TokenStreamCursor {
                 table = tablePart;
                 column = second;
             }
-            if (enumMappingId != null) {
+            if (enumMappingId != null || anonymousEnumMapping) {
                 return new PropertyMapping.EnumeratedColumn(propName, enumMappingId, db, table, column);
             }
             return new PropertyMapping.Column(propName, db, table, column);
@@ -2123,7 +2136,7 @@ public final class ElementParser implements TokenStreamCursor {
 
         // Structured expression: parse via the existing relational
         // expression grammar with mapping-scope bare-id resolution.
-        if (enumMappingId != null) {
+        if (enumMappingId != null || anonymousEnumMapping) {
             throw error("EnumerationMapping with a computed expression is not supported in B.4b");
         }
         RelationalOperation expr = parseDbOperation(db);

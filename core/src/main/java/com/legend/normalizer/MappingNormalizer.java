@@ -1398,7 +1398,8 @@ public final class MappingNormalizer {
                     RelOpTranslator.columnRead(col.table(), col.column(), tableScope, defaultTable, pipeline.view()),
                     false);
             case PropertyMapping.EnumeratedColumn ec -> new CtorField(ec.propertyName(),
-                    translateEnumeratedColumn(ec, tableScope, defaultTable, md, pipeline),
+                    translateEnumeratedColumn(ec, tableScope, defaultTable, md, pipeline,
+                            ownerClassFqn, model),
                     false);
             case PropertyMapping.Expression expr -> new CtorField(expr.propertyName(),
                     RelOpTranslator.translate(expr.expression(), tableScope, null, rowBind, pipeline.view()),
@@ -1925,10 +1926,35 @@ public final class MappingNormalizer {
     private static ValueSpecification translateEnumeratedColumn(
             PropertyMapping.EnumeratedColumn ec,
             Map<String, ValueSpecification> tableScope,
-            String defaultTable, LegacyMappingDefinition md, Pipeline p) {
+            String defaultTable, LegacyMappingDefinition md, Pipeline p,
+            String ownerClassFqn, ModelBuilder model) {
         EnumerationMapping em = null;
-        for (EnumerationMapping cand : md.enumerationMappings()) {
-            if (cand.mappingId().equals(ec.enumMappingId())) { em = cand; break; }
+        if (ec.enumMappingId() != null) {
+            for (EnumerationMapping cand : md.enumerationMappings()) {
+                if (ec.enumMappingId().equals(cand.mappingId())) { em = cand; break; }
+            }
+        } else {
+            // ANONYMOUS reference (prop: EnumerationMapping: [db]T.COL) —
+            // resolved by the PROPERTY's declared enum type. Names are FQNs
+            // here (NameResolver runs before the normalizer). Two mappings
+            // for the SAME enum need the id spelled — loud, never arbitrary.
+            ClassDefinition owner = model.findClass(ownerClassFqn).orElse(null);
+            TypeExpression propType = owner == null ? null
+                    : findPropertyTypeDeep(owner, ec.propertyName(), model);
+            String enumFqn = propType instanceof TypeExpression.NameRef nr ? nr.name() : null;
+            for (EnumerationMapping cand : md.enumerationMappings()) {
+                if (cand.enumName().equals(enumFqn)) {
+                    if (em != null) {
+                        throw new com.legend.error.ModelException(
+                                com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                                "EnumeratedColumn '" + ec.propertyName() + "' uses an"
+                              + " anonymous EnumerationMapping but '" + enumFqn
+                              + "' has more than one — name the mapping id; mapping="
+                              + md.qualifiedName());
+                    }
+                    em = cand;
+                }
+            }
         }
         if (em == null) {
             throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 

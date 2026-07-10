@@ -1285,7 +1285,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Class model::Item { category: String[1]; value: Integer[1]; }
                 Database store::ItemDb ( Table T_ITEMS ( ID INTEGER, CATEGORY VARCHAR(50), VALUE INTEGER ) )
                 Mapping model::ItemMap ( Item: Relational { ~mainTable [ItemDb] T_ITEMS category: [ItemDb] T_ITEMS.CATEGORY, value: [ItemDb] T_ITEMS.VALUE } )
-                RelationalDatabaseConnection store::TestConn { store: ItemDb; type: DuckDB; specification: LocalH2{ url: 'jdbc:duckdb:' }; }
+                RelationalDatabaseConnection store::TestConn { store: ItemDb; type: DuckDB; specification: LocalH2{ url: 'jdbc:duckdb:' }; auth: NoAuth { }; }
                 Runtime test::TestRuntime { mappings: [ItemMap]; connections: [ItemDb: [conn: store::TestConn]]; }
                 """;
 
@@ -1354,7 +1354,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     Table T_ACTIVE_USERS ( ID INTEGER, NAME VARCHAR(100) )
                     Table T_INACTIVE_USERS ( ID INTEGER, NAME VARCHAR(100) )
                 )
-                RelationalDatabaseConnection store::TestConn { store: UserDb; type: DuckDB; specification: LocalH2{ url: 'jdbc:duckdb:' }; }
+                RelationalDatabaseConnection store::TestConn { store: UserDb; type: DuckDB; specification: LocalH2{ url: 'jdbc:duckdb:' }; auth: NoAuth { }; }
                 Runtime test::TestRuntime { mappings: []; connections: [UserDb: [conn: store::TestConn]]; }
                 """;
 
