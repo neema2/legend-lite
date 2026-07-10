@@ -1312,6 +1312,15 @@ public final class Lowerer {
             // NULL — a [0] value has no cell representation other than null
             // (the mapping enum decode chain's tail: CASE ... ELSE NULL).
             case TypedCollection c when c.elements().isEmpty() -> new SqlExpr.NullLit();
+            // A HETEROGENEOUS literal ([1, 'a'] — element LUB Any): each
+            // element wraps as variant JSON, the one SQL carrier that keeps
+            // per-element runtime kinds (a raw mixed array cannot even type).
+            case TypedCollection c when c.info().type() instanceof Type.ClassType ct
+                    && ct.fqn().equals("meta::pure::metamodel::type::Any") ->
+                    new SqlExpr.ArrayLit(c.elements().stream()
+                            .map(e -> (SqlExpr) SqlExpr.Call.of(
+                                    com.legend.sql.SqlFn.TO_VARIANT, scalar(e, columns)))
+                            .toList());
             case TypedCollection c -> new SqlExpr.ArrayLit(
                     c.elements().stream().map(e -> scalar(e, columns)).toList());
             // $r.alias.COL — a NAVIGATE slot's struct column flattens to

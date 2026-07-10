@@ -39,23 +39,72 @@ public final class Executor {
                                           ResultShape shape, Connection connection,
                                           com.legend.sql.dialect.SqlDialect dialect)
             throws SQLException {
+        boolean anyRoot = rootType.type() instanceof Type.ClassType ct
+                && ct.fqn().equals("meta::pure::metamodel::type::Any");
         try (Statement st = connection.createStatement();
              ResultSet rs = st.executeQuery(sql)) {
             return switch (shape) {
                 case TABULAR -> tabular(rs, plan, rootType, dialect);
                 case SCALAR -> new ExecutionResult.Scalar(
-                        rs.next() ? unwrap(rs.getObject(1), sqlTypeOf(plan, 0), dialect) : null,
-                        rootType.type());
+                        rs.next() ? cell(rs, plan, dialect, anyRoot) : null, rootType.type());
                 case COLLECTION -> {
                     List<Object> values = new ArrayList<>();
                     while (rs.next()) {
-                        values.add(unwrap(rs.getObject(1), sqlTypeOf(plan, 0), dialect));
+                        values.add(cell(rs, plan, dialect, anyRoot));
                     }
                     yield new ExecutionResult.Collection(values, rootType.type());
                 }
                 case GRAPH -> new ExecutionResult.Graph(
                         rs.next() ? String.valueOf(rs.getObject(1)) : "[]", rootType.type());
             };
+        }
+    }
+
+    private static Object cell(ResultSet rs, SqlQuery plan,
+                               com.legend.sql.dialect.SqlDialect dialect, boolean anyRoot)
+            throws SQLException {
+        Object v = unwrap(rs.getObject(1), sqlTypeOf(plan, 0), dialect);
+        return anyRoot ? decodeAny(v) : v;
+    }
+
+    /**
+     * An ANY-typed value travels as variant JSON (the heterogeneous-list
+     * carrier); at the boundary each element decodes back to its own runtime
+     * kind — a number is a Number again, not the string {@code "1"}. Variant
+     * results are NOT decoded (their contract is the JSON text itself); only
+     * the Any root takes this path.
+     */
+    private static Object decodeAny(Object v) {
+        // Drivers hand JSON cells back as their own node type (DuckDB:
+        // org.duckdb.JsonNode) or as text — matched by NAME so the executor
+        // needs no driver import; the node's toString IS the JSON text.
+        String s;
+        if (v instanceof String str) {
+            s = str;
+        } else if (v != null && v.getClass().getSimpleName().equals("JsonNode")) {
+            s = v.toString();
+        } else {
+            return v;
+        }
+        String t = s.trim();
+        if (t.length() >= 2 && t.startsWith("\"") && t.endsWith("\"")) {
+            return t.substring(1, t.length() - 1);
+        }
+        if (t.equals("true") || t.equals("false")) {
+            return Boolean.valueOf(t);
+        }
+        if (t.equals("null")) {
+            return null;
+        }
+        try {
+            return Long.valueOf(t);
+        } catch (NumberFormatException ignored) {
+            // fall through
+        }
+        try {
+            return Double.valueOf(t);
+        } catch (NumberFormatException ignored) {
+            return s;
         }
     }
 

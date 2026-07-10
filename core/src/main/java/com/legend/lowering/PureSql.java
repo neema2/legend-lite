@@ -38,6 +38,14 @@ final class PureSql {
                 if (ct.fqn().endsWith("::Variant")) {
                     yield SqlType.Scalar.JSON;
                 }
+                if (ct.fqn().equals("meta::pure::metamodel::type::Any")) {
+                    // Any = a heterogeneous VALUE position ([1,'a'] roots):
+                    // the carrier is variant JSON — the one SQL type that
+                    // keeps each element's own runtime kind (engine-lite's
+                    // VARIANT-wrapping; the real engine refuses: 'Any is not
+                    // managed yet!' and excludes these from relational PCT).
+                    yield SqlType.Scalar.JSON;
+                }
                 if (ct.fqn().equals("meta::pure::metamodel::type::Nil")) {
                     // Nil is the BOTTOM type — it types only []-born values, whose
                     // sole inhabitant is emptiness. The cell is always SQL NULL;

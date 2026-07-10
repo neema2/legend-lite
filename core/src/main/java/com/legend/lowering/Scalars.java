@@ -459,9 +459,14 @@ final class Scalars {
                                 SqlExpr.Call.of(SqlFn.LIST_GET, a, i)),
                         new SqlExpr.StructLit.Field("second",
                                 SqlExpr.Call.of(SqlFn.LIST_GET, b, i))));
-                return SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
-                        SqlExpr.Call.of(SqlFn.RANGE_FN, new SqlExpr.IntLit(1), plusOne(count)),
-                        new SqlExpr.Lambda(List.of("_zip_i"), body));
+                // An EMPTY side lowers as SQL NULL — the whole zip is then
+                // NULL; the Pure contract is the EMPTY list.
+                return SqlExpr.Call.of(SqlFn.COALESCE,
+                        SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
+                                SqlExpr.Call.of(SqlFn.RANGE_FN,
+                                        new SqlExpr.IntLit(1), plusOne(count)),
+                                new SqlExpr.Lambda(List.of("_zip_i"), body)),
+                        new SqlExpr.ArrayLit(List.of()));
             });
         }
         for (String name : List.of("mean", "average")) {
@@ -557,14 +562,32 @@ final class Scalars {
                 return new SqlExpr.Call(SqlFn.SPLIT_PART, shifted);
             });
         }
-        // contains on STRINGS: strpos > 0 (list contains stays LIST_CONTAINS
-        // by overload identity — register string overloads specifically).
+        // contains on a TO-ONE STRING: strpos > 0. A String[*] source is a
+        // LIST of strings — list containment, not substring search (the
+        // to-one gate; audit: ['x','y']->contains('x') hit strpos).
         for (String f : Pure.nativeKeysAt("contains")) {
-            RULES.put(f, (n, args) ->
-                    n.args().get(0).info().type() == Type.Primitive.STRING
-                            ? new SqlExpr.Call(SqlFn.GREATER, List.of(
-                                    new SqlExpr.Call(SqlFn.STRPOS, args), new SqlExpr.IntLit(0)))
-                            : new SqlExpr.Call(SqlFn.LIST_CONTAINS, args));
+            RULES.put(f, (n, args) -> {
+                Type elem = n.args().get(0).info().type();
+                Type val = n.args().get(1).info().type();
+                if (elem == Type.Primitive.STRING && isToOne(n.args().get(0))) {
+                    return new SqlExpr.Call(SqlFn.GREATER, List.of(
+                            new SqlExpr.Call(SqlFn.STRPOS, args), new SqlExpr.IntLit(0)));
+                }
+                // Pure equality never relates an instance to a primitive —
+                // cross-kind containment is statically FALSE (SQL list_contains
+                // would refuse to even type it).
+                if (isClassish(elem) != isClassish(val)) {
+                    return new SqlExpr.BoolLit(false);
+                }
+                // A heterogeneous (Any) list is variant-wrapped — wrap the
+                // needle the same way so containment compares JSON to JSON.
+                if (elem instanceof Type.ClassType ct
+                        && ct.fqn().equals("meta::pure::metamodel::type::Any")) {
+                    return new SqlExpr.Call(SqlFn.LIST_CONTAINS, List.of(args.get(0),
+                            SqlExpr.Call.of(SqlFn.TO_VARIANT, args.get(1))));
+                }
+                return new SqlExpr.Call(SqlFn.LIST_CONTAINS, args);
+            });
         }
         // format('%s...', [args]) -> printf(fmt, args...): the array spreads.
         for (String f : Pure.nativeKeysAt("format")) {
@@ -572,7 +595,12 @@ final class Scalars {
                 List<SqlExpr> spread = new ArrayList<>();
                 spread.add(args.get(0));
                 if (args.get(1) instanceof SqlExpr.ArrayLit arr) {
-                    spread.addAll(arr.elements());
+                    // A MIXED argument list arrives variant-wrapped (its LUB
+                    // is Any) — printf wants the raw values back, each
+                    // substitution slot carries its own kind already.
+                    arr.elements().forEach(e -> spread.add(
+                            e instanceof SqlExpr.Call c && c.fn() == SqlFn.TO_VARIANT
+                                    ? c.args().get(0) : e));
                 } else {
                     spread.add(args.get(1));
                 }
@@ -845,6 +873,14 @@ final class Scalars {
                 SqlExpr.Call.of(SqlFn.PLUS, ip, new SqlExpr.IntLit(2)));
         return new SqlExpr.Call(SqlFn.LIST_GET, List.of(sorted,
                 new SqlExpr.Cast(pick, com.legend.sql.SqlType.Scalar.BIGINT)));
+    }
+
+    /** Whether a type is an instance kind (a user class or parameterized class), not a primitive. */
+    private static boolean isClassish(Type t) {
+        return (t instanceof Type.ClassType ct && !ct.fqn().endsWith("::Variant")
+                        && !ct.fqn().equals("meta::pure::metamodel::type::Any")
+                        && !ct.fqn().equals("meta::pure::metamodel::type::Nil"))
+                || t instanceof Type.GenericType;
     }
 
     /** Whether an argument's Pure multiplicity is at most one. */
