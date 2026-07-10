@@ -260,6 +260,32 @@ class ResolveSimpleClassTest {
         assertEquals(List.of("ACME"), exec(sql));
     }
 
+    // ---- fixture 20: sortBy through the slot SHARES the projection's join ----
+    @Test
+    @DisplayName("20: sortBy($e.firmName) + project of the same path — ONE join (beats-plangen)")
+    void sortBysSharesTheJoin() throws SQLException {
+        String sql = sqlOf("m::Emp.all()->sortBy(e|$e.firmName)"
+                + "->project(~[firmName: e|$e.firmName])->from(m::RT)");
+        assertEquals(1, count(sql, "LEFT OUTER JOIN"),
+                "sort-key navigation joins the whole-chain registry — one join,"
+                        + " not plangen's unshared scalar subquery:\n" + sql);
+        assertEquals(1, count(sql, "SELECT"), sql);
+        assertTrue(sql.contains("ORDER BY t1.LEGAL"), sql);
+        assertEquals(List.of("ACME", "null"), exec(sql),
+                "DuckDB ascending puts NULLS LAST by default");
+    }
+
+    // ---- fixture 20b: plain object-space sortBy folds flat ----
+    @Test
+    @DisplayName("20b: object-space sortBy on a scalar property — flat ORDER BY")
+    void objectSpaceSortBy() throws SQLException {
+        String sql = sqlOf("m::Person.all()->sortBy(p|$p.age)"
+                + "->project(~[name: p|$p.name])->from(m::RT)");
+        assertEquals(1, count(sql, "SELECT"), sql);
+        assertTrue(sql.contains("ORDER BY t0.AGE"), sql);
+        assertEquals(List.of("Ann", "Bob", "Dan"), exec(sql));
+    }
+
     // ---- fixture 13 (slot variant): two-hop chain — 2 chained LEFT JOINs, flat ----
     @Test
     @DisplayName("13(slot): @PF > @FO chain — two chained LEFT JOINs, one SELECT")

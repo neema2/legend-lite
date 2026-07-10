@@ -732,4 +732,22 @@ class LowerRelationTest {
         assertEquals(1, count(sql, "SELECT"), "VALUES + WHERE folds: " + sql);
         assertEquals(List.of("2|b"), exec(sql));
     }
+
+    // ---- audit pins (H3b): the sort/limit ordering guard ----
+
+    @Test
+    @DisplayName("audit: limit THEN sort isolates — folding would sort before limiting")
+    void limitThenSortIsolates() throws SQLException {
+        String sql = sqlOf("#>{test::DB.T_PERSON}#->limit(2)->sort(asc(~AGE))");
+        assertEquals(2, count(sql, "SELECT"),
+                "ORDER BY into a limited select would reorder before LIMIT: " + sql);
+        assertEquals(2, exec(sql).size());
+    }
+
+    @Test
+    @DisplayName("audit: sortBy over a COMPUTED projection isolates once and sorts the output column")
+    void sortByComputedProjectionIsolates() throws SQLException {
+        String sql = sqlOf("#>{test::DB.T_PERSON}#->project(~[older: x|$x.AGE + 10])->sortBy(r|$r.older)");
+        assertEquals(List.of("35", "45", "55", "65"), exec(sql));
+    }
 }

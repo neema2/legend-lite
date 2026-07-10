@@ -31,6 +31,57 @@ final class NavigateChecker {
     private NavigateChecker() {
     }
 
+    /**
+     * The legacy bridge {@code legacyNavigate(rel, ~alias: Target.all(),
+     * #>{db.T}#, {s,t|cond})} — the pre-map rule with the target's TABLE
+     * row spelled into the call: the slot thunk is the CLASS extent (the
+     * sub-row column's type) while the condition speaks table-row scope,
+     * so a fourth argument carries the rows that bind {@code T} (the same
+     * conform-by-emission cure as legacyAssocPredicate). Only {@code Z}
+     * (the class-typed sub-row column) is bespoke.
+     */
+    static TypedSpec legacy(Typer t, AppliedFunction af, Env env) {
+        TypedFunction sig = t.model().findFunction(af.function()).stream()
+                .filter(c -> c.parameters().size() == 4)
+                .findFirst()
+                .orElseThrow(() -> new TypeInferenceException(
+                        "no 4-argument legacyNavigate overload is registered"));
+        if (af.parameters().size() != 4
+                || !(af.parameters().get(1) instanceof ColSpec cs)
+                || cs.function1() == null || !cs.function1().parameters().isEmpty()
+                || !(af.parameters().get(3) instanceof LambdaFunction condLam)) {
+            throw new TypeInferenceException("legacyNavigate expects"
+                    + " (rel, ~alias: Target.all(), <target rows>, {s,t|cond})");
+        }
+        Bindings b = new Bindings();
+        TypedSpec source = t.synth(af.parameters().get(0), env);
+        t.kernel().unify(sig.parameters().get(0).type(), source.info().type(), b);
+        t.kernel().unifyMult(sig.parameters().get(0).multiplicity(),
+                source.info().multiplicity(), source.info().type(), b);
+
+        // The thunk {->C[*]}: C = the target CLASS extent.
+        Type.GenericType colspecParam = (Type.GenericType) sig.parameters().get(1).type();
+        TypedLambda thunk = (TypedLambda) t.typeLambda(cs.function1(),
+                colspecParam.arguments().get(0), b, env);
+        Type target = ((Type.FunctionType) thunk.info().type()).result().type();
+        if (!(target instanceof Type.ClassType)) {
+            throw new TypeInferenceException("legacyNavigate target must be a class"
+                    + " extent (Class.all()), got " + target.typeName());
+        }
+        // The target ROWS bind T — the condition's right-side scope.
+        TypedSpec tgtRows = Checkers.unifiedArg(t, sig, 2, af, b, env);
+
+        // Z = (alias : TargetClass[1]) — the class-typed sub-row column.
+        b.bindType(schemaVar(sig), new Type.RelationType(List.of(
+                new Type.Column(cs.name(), target, Multiplicity.Bounded.ONE))));
+        TypedLambda pred = (TypedLambda) t.typeLambda(condLam,
+                sig.parameters().get(3).type(), b, env);
+
+        ExprType out = t.kernel().resolveOutput(sig.returnType(), sig.returnMultiplicity(), b);
+        return new TypedNavigate(source, Optional.of(cs.name()), thunk.body().get(0),
+                pred, TypedNavigate.Form.PRE_MAP, out);
+    }
+
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
         if (af.parameters().size() == 2) {
             return inline(t, af, env);
@@ -57,7 +108,7 @@ final class NavigateChecker {
 
     /** Pre-map: widen {@code Relation<S>} with a named class-typed sub-row, {@code S + (alias:Target[1])}. */
     private static TypedSpec preMap(Typer t, AppliedFunction af, TypedSpec source, Env env) {
-        TypedFunction sig = overload(t, p -> p.type() instanceof Type.GenericType);
+        TypedFunction sig = overload(t, af, p -> p.type() instanceof Type.GenericType);
         Bindings b = new Bindings();
         t.kernel().unify(sig.parameters().get(0).type(), source.info().type(), b);
         t.kernel().unifyMult(sig.parameters().get(0).multiplicity(),
@@ -80,7 +131,7 @@ final class NavigateChecker {
             throw new TypeInferenceException("navigate requires a relation or class-collection source, got "
                     + source.info().type().typeName());
         }
-        TypedFunction sig = overload(t, p -> p.type() instanceof Type.TypeVar);
+        TypedFunction sig = overload(t, af, p -> p.type() instanceof Type.TypeVar);
         Bindings b = new Bindings();
         t.kernel().unify(sig.parameters().get(0).type(), source.info().type(), b);
         t.kernel().unifyMult(sig.parameters().get(0).multiplicity(),
@@ -131,12 +182,17 @@ final class NavigateChecker {
         return ((Type.TypeVar) g.arguments().get(1)).name();
     }
 
-    /** The 3-arity navigate overload whose FIRST parameter matches {@code sourceParam}. */
-    private static TypedFunction overload(Typer t, java.util.function.Predicate<com.legend.compiler.element.TypedParameter> sourceParam) {
-        return t.model().findFunction(CoreFn.NAVIGATE.parseName()).stream()
+    /**
+     * The 3-arity overload of the CALLED function (navigate or its legacy
+     * bridge legacyNavigate — same pre-map rule, own registration) whose
+     * FIRST parameter matches {@code sourceParam}.
+     */
+    private static TypedFunction overload(Typer t, AppliedFunction af,
+            java.util.function.Predicate<com.legend.compiler.element.TypedParameter> sourceParam) {
+        return t.model().findFunction(af.function()).stream()
                 .filter(c -> c.parameters().size() == 3 && sourceParam.test(c.parameters().get(0)))
                 .findFirst()
                 .orElseThrow(() -> new TypeInferenceException(
-                        "no matching navigate overload is registered"));
+                        "no matching " + af.function() + " overload is registered"));
     }
 }

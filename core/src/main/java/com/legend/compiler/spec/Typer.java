@@ -191,6 +191,9 @@ final class Typer {
             case WRITE -> WriteChecker.check(this, af, env);
             case FOLD -> FoldChecker.check(this, af, env);
             case NAVIGATE -> NavigateChecker.check(this, af, env);
+            // legacyNavigate: the pre-map rule under the legacy bridge's
+            // name, with the target's table rows spelled into the call.
+            case LEGACY_NAVIGATE -> NavigateChecker.legacy(this, af, env);
             case GRAPH_FETCH -> GraphFetchChecker.graphFetch(this, af, env);
             case SERIALIZE -> GraphFetchChecker.serialize(this, af, env);
             case OVER -> OverChecker.check(this, af, env);

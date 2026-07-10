@@ -141,6 +141,7 @@ public final class Lowerer {
             case TypedRename r -> rename(r);
 
             case TypedSort s -> sort(s);
+            case com.legend.compiler.spec.typed.TypedSortBy sb -> sortBy(sb);
 
             case TypedLimit l -> {
                 SqlSelect src = relation(l.source());
@@ -650,6 +651,28 @@ public final class Lowerer {
             keys.add(new SqlSelect.SortKey(e, k.ascending(), null));
         }
         return base.withOrderBy(keys);
+    }
+
+    /**
+     * {@code sortBy(rel, key-lambda)} — ORDER BY over the lowered key
+     * EXPRESSION (TypedSort is column-name-keyed; sortBy's key is a
+     * per-row lambda). Fold.sortFolds decides extend-vs-isolate, same as
+     * sort; the key expression resolves against the base select's row.
+     */
+    private SqlSelect sortBy(com.legend.compiler.spec.typed.TypedSortBy sb) {
+        SqlSelect src = relation(sb.source());
+        SqlSelect base = Fold.sortFolds(src) ? src : isolate(src);
+        // One isolate retry on an unfoldable key ref (a computed projection
+        // column): behind the subselect it is a plain output column.
+        SqlSelect fin1 = base;
+        if (attempt(() -> scalar(last(sb.key()), (v, name) -> resolveOrThrow(fin1, name)))
+                instanceof Resolution.Resolved r) {
+            return base.withOrderBy(List.of(
+                    new SqlSelect.SortKey(r.expr(), sb.ascending(), null)));
+        }
+        SqlSelect iso = isolate(base);
+        SqlExpr key = scalar(last(sb.key()), (v, name) -> resolveOrThrow(iso, name));
+        return iso.withOrderBy(List.of(new SqlSelect.SortKey(key, sb.ascending(), null)));
     }
 
     private SqlSelect sortOnto(SqlSelect base, TypedSort s) {

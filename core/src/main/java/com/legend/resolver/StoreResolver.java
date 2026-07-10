@@ -13,6 +13,7 @@ import com.legend.compiler.spec.typed.TypedLimit;
 import com.legend.compiler.spec.typed.TypedProject;
 import com.legend.compiler.spec.typed.TypedSlice;
 import com.legend.compiler.spec.typed.TypedSort;
+import com.legend.compiler.spec.typed.TypedSortBy;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.error.MappingResolutionException;
 import com.legend.error.NotImplementedException;
@@ -111,6 +112,8 @@ public final class StoreResolver {
                     resolveChain(d, context);
             case TypedSlice s when isObjectSpace(s.source()) ->
                     resolveChain(s, context);
+            case TypedSortBy sb when isObjectSpace(sb.source()) ->
+                    resolveChain(sb, context);
             // Relation-space wrappers over a chain that bottoms at a getAll:
             // rebuild with the resolved source. (Each wrapper keeps its own
             // info — relation-space types are stable across resolution.)
@@ -120,6 +123,8 @@ public final class StoreResolver {
                     resolveNode(p.source(), context), p.columns(), p.info());
             case TypedSort s when containsGetAll(s.source()) -> new TypedSort(
                     resolveNode(s.source(), context), s.keys(), s.info());
+            case TypedSortBy sb when containsGetAll(sb.source()) -> new TypedSortBy(
+                    resolveNode(sb.source(), context), sb.key(), sb.ascending(), sb.info());
             case TypedLimit l when containsGetAll(l.source()) -> new TypedLimit(
                     resolveNode(l.source(), context), l.count(), l.info());
             case TypedDrop d when containsGetAll(d.source()) -> new TypedDrop(
@@ -147,6 +152,7 @@ public final class StoreResolver {
             case TypedLimit l -> isObjectSpace(l.source());
             case TypedDrop d -> isObjectSpace(d.source());
             case TypedSlice s -> isObjectSpace(s.source());
+            case TypedSortBy sb -> isObjectSpace(sb.source());
             default -> false;
         };
     }
@@ -198,6 +204,7 @@ public final class StoreResolver {
                 case TypedLimit l -> l.source();
                 case TypedDrop d -> d.source();
                 case TypedSlice sl -> sl.source();
+                case TypedSortBy sb -> sb.source();
                 default -> throw new NotImplementedException("object-space operation "
                         + cur.getClass().getSimpleName() + " is not supported yet");
             };
@@ -221,6 +228,9 @@ public final class StoreResolver {
                 if (op instanceof TypedFilter f) {
                     consumedProps(f.predicate(),
                             f.predicate().parameters().get(0), consumed);
+                }
+                if (op instanceof TypedSortBy sb) {
+                    consumedProps(sb.key(), sb.key().parameters().get(0), consumed);
                 }
             }
             for (TypedFuncCol col : p.columns()) {
@@ -266,6 +276,9 @@ public final class StoreResolver {
                 case TypedDrop d -> new TypedDrop(pipeline, d.count(), pipeline.info());
                 case TypedSlice sl -> new TypedSlice(pipeline, sl.start(), sl.stop(),
                         pipeline.info());
+                case TypedSortBy sb -> new TypedSortBy(pipeline,
+                        substitution(cs, m, fresh, sb.key()).rewriteLambda(sb.key()),
+                        sb.ascending(), pipeline.info());
                 default -> throw new IllegalStateException("resolver bug: uncollected op");
             };
         }

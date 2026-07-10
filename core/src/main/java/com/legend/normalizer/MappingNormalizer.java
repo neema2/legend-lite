@@ -1243,8 +1243,16 @@ public final class MappingNormalizer {
                         new LambdaFunction(List.of(), List.of(new AppliedFunction(
                                 "getAll", List.of(new PackageableElementPtr(targetClassFqn))))),
                         null);
+                // The condition speaks TABLE-row scope while the slot's
+                // thunk is the CLASS extent — spell the target's table row
+                // into the call so the cond lambda's T types (the same
+                // conform-by-emission cure as legacyAssocPredicate).
                 p.expr = new AppliedFunction("legacyNavigate",
-                        List.of(p.expr, slot, condLambda));
+                        List.of(p.expr, slot,
+                                new AppliedFunction("tableReference", List.of(
+                                        new PackageableElementPtr(hopDb),
+                                        new CString(targetTable))),
+                                condLambda));
                 p.classSlots.add(slotAlias);
             } else {
                 ColSpec slot = new ColSpec(slotAlias,

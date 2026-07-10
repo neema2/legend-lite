@@ -103,7 +103,10 @@ final class Fold {
 
     /** Sort folds iff ORDER BY is free (a second sort re-orders; last wins only via isolation). */
     static boolean sortFolds(SqlSelect s) {
-        return s.orderBy().isEmpty();
+        // LIMIT/OFFSET guard: within ONE select ORDER BY applies BEFORE
+        // LIMIT, so folding a sort into an already-limited select would
+        // sort-then-limit where the query asked limit-then-sort (audit).
+        return s.orderBy().isEmpty() && s.limit() == null && s.offset() == null;
     }
 
     /** {@code limit n} folds iff LIMIT is free (limit-of-limit must nest to keep the smaller window). */

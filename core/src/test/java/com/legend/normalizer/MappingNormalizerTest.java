@@ -1073,8 +1073,8 @@ class MappingNormalizerTest {
         AppliedFunction nav = (AppliedFunction) mapCall.parameters().get(0);
         assertEquals("legacyNavigate", nav.function(),
                 "Class-typed Join PM with mapped target emits a legacyNavigate step");
-        assertEquals(3, nav.parameters().size(),
-                "legacyNavigate takes (rel, ColSpec, cond)");
+        assertEquals(4, nav.parameters().size(),
+                "legacyNavigate takes (rel, ColSpec, targetRows, cond)");
 
         // Upstream of legacyNavigate is the bare tableReference.
         AppliedFunction upstream = (AppliedFunction) nav.parameters().get(0);
@@ -1095,7 +1095,7 @@ class MappingNormalizerTest {
         assertEquals("model::Firm", firmPtr.fullPath());
 
         // Condition lambda: {s, t | $s.FIRM_ID == $t.ID}.
-        LambdaFunction condLambda = (LambdaFunction) nav.parameters().get(2);
+        LambdaFunction condLambda = (LambdaFunction) nav.parameters().get(3);
         assertEquals(2, condLambda.parameters().size());
         AppliedFunction eq = (AppliedFunction) sole(condLambda.body());
         assertEquals("equal", eq.function());
@@ -1544,7 +1544,7 @@ class MappingNormalizerTest {
                 "OE fallback emits a legacyNavigate slot named after the property");
 
         // Condition: {s, t | $s.FIRM_ID == $t.ID}.
-        LambdaFunction cond = (LambdaFunction) nav.parameters().get(2);
+        LambdaFunction cond = (LambdaFunction) nav.parameters().get(3);
         AppliedFunction condEq = (AppliedFunction) sole(cond.body());
         assertEquals("equal", condEq.function());
         assertEquals("FIRM_ID", propOf(condEq.parameters().get(0)));
@@ -2503,9 +2503,13 @@ class MappingNormalizerTest {
         return nav;
     }
 
-    /** The {@code legacyNavigate} condition lambda's body. */
+    /** The {@code legacyNavigate} condition lambda's body (arg 3; arg 2 = target rows). */
     private static ValueSpecification navCondBody(FunctionDefinition fn) {
-        LambdaFunction cond = (LambdaFunction) navStep(fn).parameters().get(2);
+        AppliedFunction nav = navStep(fn);
+        AppliedFunction tgtRows = (AppliedFunction) nav.parameters().get(2);
+        assertEquals("tableReference", tgtRows.function(),
+                "legacyNavigate carries the target's table row source");
+        LambdaFunction cond = (LambdaFunction) nav.parameters().get(3);
         return sole(cond.body());
     }
 
@@ -2979,7 +2983,7 @@ class MappingNormalizerTest {
                 "intermediate hop is a clean join step");
 
         // Condition: {s, t | $s.Person_Firm.ORG_ID == $t.ID}.
-        LambdaFunction cond = (LambdaFunction) nav.parameters().get(2);
+        LambdaFunction cond = (LambdaFunction) nav.parameters().get(3);
         AppliedFunction eq = (AppliedFunction) sole(cond.body());
         assertEquals("equal", eq.function());
         AppliedProperty srcCol = (AppliedProperty) eq.parameters().get(0);
@@ -3036,7 +3040,7 @@ class MappingNormalizerTest {
         AppliedFunction nav = navStep(personFn);
         assertEquals("division",
                 ((com.legend.parser.spec.ColSpec) nav.parameters().get(1)).name());
-        LambdaFunction cond = (LambdaFunction) nav.parameters().get(2);
+        LambdaFunction cond = (LambdaFunction) nav.parameters().get(3);
         AppliedFunction eq = (AppliedFunction) sole(cond.body());
         AppliedProperty srcCol = (AppliedProperty) eq.parameters().get(0);
         assertEquals("DIV_ID", srcCol.property());
@@ -3138,7 +3142,7 @@ class MappingNormalizerTest {
         AppliedFunction nav = navStep(personFn);
         assertEquals("parentFirm",
                 ((com.legend.parser.spec.ColSpec) nav.parameters().get(1)).name());
-        LambdaFunction cond = (LambdaFunction) nav.parameters().get(2);
+        LambdaFunction cond = (LambdaFunction) nav.parameters().get(3);
         AppliedFunction eq = (AppliedFunction) sole(cond.body());
         AppliedProperty srcCol = (AppliedProperty) eq.parameters().get(0);
         assertEquals("PARENT_ID", srcCol.property());
@@ -4461,7 +4465,7 @@ class MappingNormalizerTest {
         //   {s, t | $s.Person_Address.CITY_ID == $t.ID}
         // A naive predicate-style desugar could not bind $s.Person_Address;
         // this proves the injected chain carries the intermediate correctly.
-        LambdaFunction cond = (LambdaFunction) nav.parameters().get(2);
+        LambdaFunction cond = (LambdaFunction) nav.parameters().get(3);
         AppliedFunction eq = (AppliedFunction) sole(cond.body());
         assertEquals("equal", eq.function());
         AppliedProperty srcCol = (AppliedProperty) eq.parameters().get(0);

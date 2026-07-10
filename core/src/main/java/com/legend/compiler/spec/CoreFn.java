@@ -107,6 +107,7 @@ public enum CoreFn {
     FOLD("fold"),
     /** {@code navigate} &mdash; the clean-sheet graph-traversal primitive (pre-map/post-map/inline). */
     NAVIGATE("navigate"),
+    LEGACY_NAVIGATE("legacyNavigate"),
     /** {@code graphFetch(#{Class{…}}#)} &mdash; object-graph projection; result = source type. */
     GRAPH_FETCH("graphFetch"),
     /** {@code serialize(#{Class{…}}#)} &mdash; graph serialization; {@code String[1]}. */

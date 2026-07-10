@@ -89,6 +89,17 @@ public class PhaseHCensusTest {
             Mapping m::M ( *m::P: Relational { ~groupBy([s::DB] T.NAME)
               ~mainTable [s::DB] T name: T.NAME, total: sum(T.AMT) } )
             """);
+        FIXTURES_MUTABLE.put("A7 class-typed join PM (legacyNavigate)", """
+            Class m::P { name: String[1]; firm: m::F[1]; }
+            Class m::F { legal: String[1]; }
+            Database s::DB (
+              Table P (NAME VARCHAR(50), FID INTEGER)
+              Table F (ID INTEGER, LEGAL VARCHAR(50))
+              Join PF (P.FID = F.ID) )
+            Mapping m::M (
+              *m::P: Relational { ~mainTable [s::DB] P name: P.NAME, firm: [s::DB] @PF }
+              *m::F: Relational { ~mainTable [s::DB] F legal: F.LEGAL } )
+            """);
         FIXTURES_MUTABLE.put("C association", """
             Class m::Person { name: String[1]; }
             Class m::Firm { legal: String[1]; }
