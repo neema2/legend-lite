@@ -239,6 +239,19 @@ class ResolveSimpleClassTest {
         assertTrue(e.getMessage().contains("join slot"), e.getMessage());
     }
 
+    // ---- M-H2c: the driver seam — no-from query + driver runtime ----
+    @Test
+    @DisplayName("H2c: from-less query resolves via the 4-arg execute (the corpus shape)")
+    void driverSeamNoFrom() throws SQLException {
+        var result = Compiler.execute(MODEL,
+                "m::Person.all()->filter(p|$p.age > 30)->project(~[name: p|$p.name])",
+                "m::RT", conn);
+        assertEquals(List.of(List.of("Bob"), List.of("Dan")),
+                result.rows().stream()
+                        .map(r -> r.values().stream().map(String::valueOf).toList())
+                        .toList());
+    }
+
     // ---- fixture 9: limit family passes through object space ----
     @Test
     @DisplayName("9: object-space limit stacks on the pipeline (limit-not-last isolates: 2 SELECTs)")

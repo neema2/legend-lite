@@ -102,13 +102,30 @@ public final class Compiler {
      * The core QUERY SERVICE: frontend + Phase G + lowering + rendering +
      * EXECUTION over the caller's connection, shaped per the result-type
      * classification ({@link com.legend.exec.ResultShape}). The corpus
-     * bridge's target (PHASE_K_EXECUTION.md).
+     * bridge's target (PHASE_K_EXECUTION.md). Class queries need an
+     * execution context in the query itself ({@code ->from(...)}) on this
+     * overload; the 4-arg overload supplies a driver runtime.
      */
     public static com.legend.exec.ExecutionResult execute(String model, String query,
             java.sql.Connection connection) throws java.sql.SQLException {
+        return execute(model, query, null, connection);
+    }
+
+    /**
+     * The full pipeline with a DRIVER-SUPPLIED execution context — the
+     * service shape: queries carry no {@code ->from(...)}; the runtime
+     * arrives as an API argument (PHASE_K_EXECUTION.md §4). Phase H
+     * resolves class queries against the runtime's mapping between G and
+     * I; an explicit {@code from()} in the query always wins.
+     */
+    public static com.legend.exec.ExecutionResult execute(String model, String query,
+            String runtimeFqn, java.sql.Connection connection) throws java.sql.SQLException {
         ModelContext ctx = compileModel(model);
-        java.util.List<TypedSpec> body = new SpecCompiler(ctx).typeQueryBody(
+        SpecCompiler specs = new SpecCompiler(ctx);
+        java.util.List<TypedSpec> body = specs.typeQueryBody(
                 NameResolver.resolveQuery(SpecParser.parse(query)));
+        body = new com.legend.resolver.StoreResolver(ctx, specs)
+                .resolve(body, runtimeFqn);                       // Phase H
         TypedSpec root = body.get(body.size() - 1);
         com.legend.sql.SqlQuery plan = new com.legend.lowering.Lowerer().lower(body);
         com.legend.sql.dialect.SqlDialect dialect = new com.legend.sql.dialect.DuckDb();

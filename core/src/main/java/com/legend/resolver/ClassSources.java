@@ -137,6 +137,37 @@ public final class ClassSources {
     }
 
     /**
+     * Whether {@code mappingFqn} (or its includes) binds {@code classFqn} —
+     * the runtime-dispatch probe: a multi-mapping runtime picks the ONE
+     * candidate that binds the fetched class. Never throws (a multi-set-ID
+     * binding still counts as "binds"; the loud path is {@link #get}).
+     */
+    public boolean binds(String mappingFqn, String classFqn) {
+        return ctx.findMapping(mappingFqn)
+                .map(m -> bindsIn(m, classFqn, new LinkedHashSet<>()))
+                .orElse(false);
+    }
+
+    private boolean bindsIn(MappingDefinition mapping, String classFqn,
+                            LinkedHashSet<String> visited) {
+        if (!visited.add(mapping.qualifiedName())) {
+            return false;
+        }
+        for (MappingDefinition.ClassBinding cb : mapping.classBindings()) {
+            if (cb.classFqn().equals(classFqn)) {
+                return true;
+            }
+        }
+        for (MappingInclude inc : mapping.includes()) {
+            if (ctx.findMapping(inc.mappingPath())
+                    .map(m -> bindsIn(m, classFqn, visited)).orElse(false)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * The class binding within {@code mapping} or its includes (depth-first,
      * cycle-tolerant). Multi-set-ID (two bindings for one class) is loud
      * until H5's dispatch lands.

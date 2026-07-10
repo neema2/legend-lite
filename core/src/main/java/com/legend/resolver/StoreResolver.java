@@ -59,26 +59,42 @@ public final class StoreResolver {
      * the query always wins; the driver runtime is the outermost fallback.
      */
     public List<TypedSpec> resolve(List<TypedSpec> body, String driverRuntimeFqn) {
-        String mapping = driverRuntimeFqn == null ? null
-                : soleMappingOf(driverRuntimeFqn);
+        // LAZY: the runtime is consulted only when a class fetch needs a
+        // mapping — a pure relation query with an unusable runtime must not
+        // fail (the corpus's date-literal regression).
+        Context context = driverRuntimeFqn == null ? Context.NONE
+                : Context.ofRuntime(driverRuntimeFqn);
         List<TypedSpec> out = new ArrayList<>(body.size());
         for (TypedSpec stmt : body) {
-            out.add(resolveNode(stmt, mapping));
+            out.add(resolveNode(stmt, context));
         }
         return out;
+    }
+
+    /**
+     * The execution context: an explicit mapping, or a runtime whose
+     * candidate mappings are dispatched PER FETCHED CLASS — the candidate
+     * that binds the class wins; zero or several binders is loud (plan
+     * audit catch 1's precedence rule).
+     */
+    private record Context(String explicitMapping, String runtimeFqn) {
+        static final Context NONE = new Context(null, null);
+        static Context ofMapping(String fqn) { return new Context(fqn, null); }
+        static Context ofRuntime(String fqn) { return new Context(null, fqn); }
+        boolean isNone() { return explicitMapping == null && runtimeFqn == null; }
     }
 
     // =====================================================================
     // The context walk
     // =====================================================================
 
-    private TypedSpec resolveNode(TypedSpec n, String mapping) {
+    private TypedSpec resolveNode(TypedSpec n, Context context) {
         return switch (n) {
             case TypedFrom from -> {
-                String inner = from.mapping().map(m -> m.fullPath())
+                Context inner = from.mapping().map(m -> Context.ofMapping(m.fullPath()))
                         .orElseGet(() -> from.runtime()
-                                .map(r -> soleMappingOf(r.fullPath()))
-                                .orElse(mapping));
+                                .map(r -> Context.ofRuntime(r.fullPath()))
+                                .orElse(context));
                 yield new TypedFrom(resolveNode(from.source(), inner),
                         from.mapping(), from.runtime(), from.info());
             }
@@ -86,32 +102,32 @@ public final class StoreResolver {
                     "bare class fetch '" + g.classFqn() + ".all()' without a"
                             + " relation-shaping operation is graph output (Phase H4)");
             case TypedFilter f when isObjectSpace(f.source()) ->
-                    resolveChain(f, mapping);
+                    resolveChain(f, context);
             case TypedProject p when isObjectSpace(p.source()) ->
-                    resolveChain(p, mapping);
+                    resolveChain(p, context);
             case TypedLimit l when isObjectSpace(l.source()) ->
-                    resolveChain(l, mapping);
+                    resolveChain(l, context);
             case TypedDrop d when isObjectSpace(d.source()) ->
-                    resolveChain(d, mapping);
+                    resolveChain(d, context);
             case TypedSlice s when isObjectSpace(s.source()) ->
-                    resolveChain(s, mapping);
+                    resolveChain(s, context);
             // Relation-space wrappers over a chain that bottoms at a getAll:
             // rebuild with the resolved source. (Each wrapper keeps its own
             // info — relation-space types are stable across resolution.)
             case TypedFilter f when containsGetAll(f.source()) -> new TypedFilter(
-                    resolveNode(f.source(), mapping), f.predicate(), f.info());
+                    resolveNode(f.source(), context), f.predicate(), f.info());
             case TypedProject p when containsGetAll(p.source()) -> new TypedProject(
-                    resolveNode(p.source(), mapping), p.columns(), p.info());
+                    resolveNode(p.source(), context), p.columns(), p.info());
             case TypedSort s when containsGetAll(s.source()) -> new TypedSort(
-                    resolveNode(s.source(), mapping), s.keys(), s.info());
+                    resolveNode(s.source(), context), s.keys(), s.info());
             case TypedLimit l when containsGetAll(l.source()) -> new TypedLimit(
-                    resolveNode(l.source(), mapping), l.count(), l.info());
+                    resolveNode(l.source(), context), l.count(), l.info());
             case TypedDrop d when containsGetAll(d.source()) -> new TypedDrop(
-                    resolveNode(d.source(), mapping), d.count(), d.info());
+                    resolveNode(d.source(), context), d.count(), d.info());
             case TypedSlice s when containsGetAll(s.source()) -> new TypedSlice(
-                    resolveNode(s.source(), mapping), s.start(), s.stop(), s.info());
+                    resolveNode(s.source(), context), s.start(), s.stop(), s.info());
             case TypedDistinct d when containsGetAll(d.source()) -> new TypedDistinct(
-                    resolveNode(d.source(), mapping), d.columns(), d.info());
+                    resolveNode(d.source(), context), d.columns(), d.info());
             default -> {
                 if (containsGetAll(n)) {
                     throw new NotImplementedException("class query under "
@@ -155,16 +171,13 @@ public final class StoreResolver {
     private record ObjectRelation(ClassSource source, String rowVar,
                                   TypedSpec pipeline, Set<String> strippedSlots) {}
 
-    private TypedSpec resolveChain(TypedSpec top, String mapping) {
-        if (mapping == null) {
+    private TypedSpec resolveChain(TypedSpec top, Context context) {
+        if (context.isNone()) {
             throw new MappingResolutionException(
                     "class query requires an execution context: add"
                             + " ->from(mapping, runtime) or supply a runtime");
         }
-        return resolveObject(top, mapping) instanceof TypedSpec done ? done
-                : loudObjectRoot(top);
-        // (resolveObject returns TypedSpec for boundary-exited chains and
-        //  throws for still-object-space roots — see below.)
+        return resolveObject(top, context);
     }
 
     private TypedSpec loudObjectRoot(TypedSpec top) {
@@ -177,10 +190,10 @@ public final class StoreResolver {
      * onto the pipeline; {@code project} exits object space and returns the
      * finished relation node.
      */
-    private TypedSpec resolveObject(TypedSpec n, String mapping) {
+    private TypedSpec resolveObject(TypedSpec n, Context context) {
         return switch (n) {
             case TypedProject p -> {
-                ObjectRelation rel = objectRelation(p.source(), mapping);
+                ObjectRelation rel = objectRelation(p.source(), context);
                 List<TypedFuncCol> cols = new ArrayList<>(p.columns().size());
                 for (TypedFuncCol col : p.columns()) {
                     cols.add(new TypedFuncCol(col.name(),
@@ -195,11 +208,11 @@ public final class StoreResolver {
     }
 
     /** Fold the below-boundary ops (filter/limit/take/slice/drop) onto the pipeline. */
-    private ObjectRelation objectRelation(TypedSpec n, String mapping) {
+    private ObjectRelation objectRelation(TypedSpec n, Context context) {
         return switch (n) {
-            case TypedGetAll g -> instantiate(g, mapping);
+            case TypedGetAll g -> instantiate(g, context);
             case TypedFilter f -> {
-                ObjectRelation rel = objectRelation(f.source(), mapping);
+                ObjectRelation rel = objectRelation(f.source(), context);
                 TypedLambda pred = substitution(rel, f.predicate())
                         .rewriteLambda(f.predicate());
                 yield new ObjectRelation(rel.source(), rel.rowVar(),
@@ -207,19 +220,19 @@ public final class StoreResolver {
                         rel.strippedSlots());
             }
             case TypedLimit l -> {
-                ObjectRelation rel = objectRelation(l.source(), mapping);
+                ObjectRelation rel = objectRelation(l.source(), context);
                 yield new ObjectRelation(rel.source(), rel.rowVar(),
                         new TypedLimit(rel.pipeline(), l.count(), rel.pipeline().info()),
                         rel.strippedSlots());
             }
             case TypedDrop d -> {
-                ObjectRelation rel = objectRelation(d.source(), mapping);
+                ObjectRelation rel = objectRelation(d.source(), context);
                 yield new ObjectRelation(rel.source(), rel.rowVar(),
                         new TypedDrop(rel.pipeline(), d.count(), rel.pipeline().info()),
                         rel.strippedSlots());
             }
             case TypedSlice s -> {
-                ObjectRelation rel = objectRelation(s.source(), mapping);
+                ObjectRelation rel = objectRelation(s.source(), context);
                 yield new ObjectRelation(rel.source(), rel.rowVar(),
                         new TypedSlice(rel.pipeline(), s.start(), s.stop(),
                                 rel.pipeline().info()),
@@ -230,13 +243,13 @@ public final class StoreResolver {
         };
     }
 
-    private ObjectRelation instantiate(TypedGetAll g, String mapping) {
+    private ObjectRelation instantiate(TypedGetAll g, Context context) {
         if (!g.milestoning().isEmpty()) {
             throw new MappingResolutionException("milestoned class fetch of '"
                     + g.classFqn() + "' is not supported yet (H-scope exclusion)",
                     g.classFqn());
         }
-        ClassSource cs = sources.get(mapping, g.classFqn());
+        ClassSource cs = sources.get(dispatch(context, g.classFqn()), g.classFqn());
         Pipelines.Stripped stripped = Pipelines.stripSlots(cs.pipeline(), cs.classFqn());
         String fresh = "_r" + freshVarCounter++;
         return new ObjectRelation(cs, fresh, stripped.pipeline(), stripped.slotAliases());
@@ -254,15 +267,24 @@ public final class StoreResolver {
         return (com.legend.compiler.element.type.Type.RelationType) rel.pipeline().info().type();
     }
 
-    private String soleMappingOf(String runtimeFqn) {
-        RuntimeDefinition rt = ctx.findRuntime(runtimeFqn).orElseThrow(() ->
-                new MappingResolutionException("unknown runtime '" + runtimeFqn + "'",
-                        runtimeFqn));
-        if (rt.mappings().size() != 1) {
-            throw new MappingResolutionException("runtime '" + runtimeFqn + "' names "
-                    + rt.mappings().size() + " mappings; class-query dispatch needs"
-                    + " exactly one (multi-mapping runtimes: H5)", runtimeFqn);
+    /** Per-class dispatch: the runtime candidate that BINDS the class wins. */
+    private String dispatch(Context context, String classFqn) {
+        if (context.explicitMapping() != null) {
+            return context.explicitMapping();
         }
-        return rt.mappings().get(0);
+        RuntimeDefinition rt = ctx.findRuntime(context.runtimeFqn()).orElseThrow(() ->
+                new MappingResolutionException("unknown runtime '"
+                        + context.runtimeFqn() + "'", context.runtimeFqn()));
+        List<String> binders = rt.mappings().stream()
+                .filter(m -> sources.binds(m, classFqn))
+                .toList();
+        if (binders.size() != 1) {
+            throw new MappingResolutionException("runtime '" + context.runtimeFqn()
+                    + "' has " + binders.size() + " mappings binding class '"
+                    + classFqn + "' (of " + rt.mappings().size()
+                    + " candidates); class-query dispatch needs exactly one",
+                    classFqn);
+        }
+        return binders.get(0);
     }
 }
