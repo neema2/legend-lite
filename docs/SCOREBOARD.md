@@ -1864,3 +1864,48 @@ Top detail:
     3  class query under TypedIf is not resolvable yet (H2 vocabulary)
     3  property 'country' of class 'test::Firm' is mapped through the target'
 ```
+
+### Run 2026-07-10 @ 5c34e56
+
+| tests | pass | failures | errors | skipped | green classes |
+|---|---|---|---|---|---|
+| 2721 | **2333** | 60 | 309 | 19 | 318 |
+
+| bucket | exception lines |
+|---|---|
+| OTHER | 143 |
+| CORE: unlowered constructs | 63 |
+| CORE: scalar/agg function registrations | 22 |
+| CORE(parse): query syntax gaps | 11 |
+| CORE(G): overload/typing gaps | 6 |
+| FIXTURE: unknown refs (to diagnose) | 5 |
+| H: class sources / property nav / mappings | 1 |
+
+Top detail:
+```
+   26  no SQL type for Pure class meta::pure::metamodel::type::Any at the low
+   18  scalar lowering not yet implemented for TypedNewInstance
+   13  scalar lowering not yet implemented for TypedMatch
+   12  no scalar lowering registered for resolved overload 'meta::pure::funct
+    9  unknown SQL data type: 'JSON'
+    6  multi-hop navigation dept.org.name is not supported yet
+    6  multi-column pivot is not lowered yet
+    6  no TDS cell rendering for Pure type meta::pure::metamodel::variant::Va
+    6  scalar lowering not yet implemented for TypedFilter
+    6  model-to-model binding of 'model::StaffComplete' in 'model::DisjointDe
+    5  scalar lowering not yet implemented for TypedTds
+    5  aggregate reduce must be a native reducer call, got TypedCast
+    5  scalar lowering not yet implemented for TypedPropertyAccess
+    4  in call to 'meta::pure::functions::collection::add', argument 2: type 
+    4  class query under TypedNativeCall is not resolvable yet (H2 vocabulary
+    4  Invalid Input Error: Invalid type specifier "{" for formatting a value
+    3  aggregate reducer argument of kind TypedCast is not supported (literal
+    3  in call to 'meta::pure::functions::collection::concatenate', argument 
+    3  class java.lang.String cannot be cast to class java.lang.Number (java.
+    3  graph child 'department' of class 'model::StaffWithDept' is mapped as 
+    3  class query under TypedIf is not resolvable yet (H2 vocabulary)
+    3  property 'country' of class 'test::Firm' is mapped through the target'
+    3  scalar lowering not yet implemented for TypedSlice
+    3  no SQL type for generic Pair<Integer, String> at the lowering boundary
+    2  a nested join has no single alias — resolve per side
+```
