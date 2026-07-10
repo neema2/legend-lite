@@ -130,6 +130,9 @@ final class Scalars {
                 Map.entry("datePart", SqlFn.DATE_TRUNC_DAY),
                 // Lists / collections
                 Map.entry("zip", SqlFn.LIST_ZIP),
+                // collection concatenate only — the relation overload is the
+                // TypedConcatenate set-op and never reaches scalar lowering
+                Map.entry("concatenate", SqlFn.LIST_CONCAT),
                 Map.entry("removeDuplicates", SqlFn.LIST_DISTINCT),
                 Map.entry("add", SqlFn.LIST_APPEND),
                 Map.entry("mean", SqlFn.LIST_AVG),

@@ -1717,7 +1717,7 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
                     val
                     10
                     #->extend(~doubled: x | $x.val * 2)->concatenate(
-                    |#TDS
+                    #TDS
                     val, doubled
                     20, 40
                     #)""");

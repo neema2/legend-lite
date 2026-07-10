@@ -660,14 +660,16 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
                         ->project(~[firstName:p|$p.firstName, age:p|$p.age])
                         ->join(
                             model::Address.all()->project(~[city:a|$a.city, street:a|$a.street]),
-                            JoinType.INNER,
+                            JoinKind.INNER,
                             {l, r | $l.firstName == $r.city}
                         )
                     """;
 
             // Verify SQL generation first
             String sql = generateSql(pureQuery);
-            assertTrue(sql.contains("INNER JOIN"), "Should generate INNER JOIN");
+            // Core spells ANSI inner join as bare JOIN (lean-SQL rendering).
+            assertTrue(sql.contains("JOIN") && !sql.contains("LEFT OUTER JOIN"),
+                    "Should generate an INNER join: " + sql);
 
             // Execute E2E through QueryService
             var result = executeRelation(pureQuery);
@@ -684,7 +686,7 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
                         ->project(~[firstName:p|$p.firstName, age:p|$p.age])
                         ->join(
                             model::Address.all()->project(~[city:a|$a.city, street:a|$a.street]),
-                            JoinType.LEFT_OUTER,
+                            JoinKind.LEFT,
                             {l, r | $l.firstName == $r.city}
                         )
                     """;
@@ -716,7 +718,7 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
                         ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName])
                         ->join(
                             model::Person.all()->project(~[firstName:p2|$p2.firstName, age:p2|$p2.age]),
-                            JoinType.INNER,
+                            JoinKind.INNER,
                             {l, r | $l.firstName == $r.firstName},
                             'right'
                         )

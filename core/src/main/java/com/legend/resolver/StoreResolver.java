@@ -177,6 +177,10 @@ public final class StoreResolver {
             case TypedConcatenate c when containsGetAll(c) -> new TypedConcatenate(
                     resolveNode(c.left(), context), resolveNode(c.right(), context),
                     c.info());
+            case com.legend.compiler.spec.typed.TypedJoin j when containsGetAll(j) ->
+                    new com.legend.compiler.spec.typed.TypedJoin(
+                            resolveNode(j.left(), context), resolveNode(j.right(), context),
+                            j.kind(), j.condition(), j.prefix(), j.info());
             default -> {
                 if (containsGetAll(n)) {
                     throw new NotImplementedException("class query under "

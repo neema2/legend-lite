@@ -1504,3 +1504,48 @@ Top detail:
     6  model-to-model mapping: 'model::PersonView' in 'model::PersonViewMappi
     6  in function 'model::DisjointDeepFetchMapping$class$model::StaffComplet
 ```
+
+### Run 2026-07-10 @ d24ecb7
+
+| tests | pass | failures | errors | skipped | green classes |
+|---|---|---|---|---|---|
+| 2721 | **1950** | 57 | 695 | 19 | 271 |
+
+| bucket | exception lines |
+|---|---|
+| OTHER | 282 |
+| CORE: scalar/agg function registrations | 160 |
+| CORE: unlowered constructs | 87 |
+| FIXTURE: unknown refs (to diagnose) | 60 |
+| H: class sources / property nav / mappings | 34 |
+| CORE(parse): query syntax gaps | 11 |
+| CORE(G): overload/typing gaps | 6 |
+
+Top detail:
+```
+   96  no scalar lowering registered for resolved overload 'meta::pure::funct
+   43  no aggregate lowering registered for resolved overload 'meta::pure::fu
+   37  'test::Person' is not a known class, mapping, runtime, connection, or 
+   33  unbound type variable T
+   30  model-to-model mapping: 'model::StaffMember' in 'model::StaffMemberMap
+   27  object-space expression node TypedUserCall is not substitutable yet (H
+   25  no SQL type for Pure class meta::pure::metamodel::type::Any at the low
+   18  scalar lowering not yet implemented for TypedNewInstance
+   17  model-to-model mapping: 'model::Person' in 'model::PersonM2MMapping' m
+   16  lowering not yet implemented for TypedUserCall
+   15  model-to-model mapping: 'model::StaffCard' in 'model::StaffCardMapping
+   13  scalar lowering not yet implemented for TypedMatch
+   10  'test::Order' is not a known class, mapping, runtime, connection, or d
+    9  unknown SQL data type: 'JSON'
+    7  model-to-model mapping: 'model::ActiveStaff' in 'model::ActiveStaffMap
+    7  model-to-model mapping: 'model::DirectoryEntry' in 'model::DirectoryMa
+    6  multi-column pivot is not lowered yet
+    6  no TDS cell rendering for Pure type meta::pure::metamodel::variant::Va
+    6  no scalar lowering registered for resolved overload 'meta::legend::lit
+    6  scalar lowering not yet implemented for TypedFilter
+    6  model-to-model mapping: 'model::Badge' in 'model::BadgeMapping' maps f
+    6  model-to-model mapping: 'model::PersonView' in 'model::PersonViewMappi
+    6  in function 'model::DisjointDeepFetchMapping$class$model::StaffComplet
+    6  scalar lowering not yet implemented for TypedUserCall
+    5  multi-hop navigation dept.org.name is not supported yet
+```

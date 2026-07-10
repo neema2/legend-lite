@@ -188,7 +188,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                             1, 90
                             2, 85
                         #,
-                        meta::pure::functions::relation::JoinKind.LEFT_OUTER,
+                        meta::pure::functions::relation::JoinKind.LEFT,
                         {l, r | $l.id == $r.person_id}
                     )""");
             assertEquals(3, result.rowCount(), "All 3 left rows preserved");
@@ -222,7 +222,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                             1, 90
                             2, 85
                         #,
-                        meta::pure::functions::relation::JoinKind.LEFT_OUTER,
+                        meta::pure::functions::relation::JoinKind.LEFT,
                         {l, r | $l.id == $r.person_id}
                     )""");
             assertEquals(2, result.rowCount());
@@ -245,7 +245,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                             person_id, score
                             99, 100
                         #,
-                        meta::pure::functions::relation::JoinKind.LEFT_OUTER,
+                        meta::pure::functions::relation::JoinKind.LEFT,
                         {l, r | $l.id == $r.person_id}
                     )""");
             assertEquals(2, result.rowCount(), "Both left rows preserved");
@@ -276,7 +276,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                             2, 85
                             3, 75
                         #,
-                        meta::pure::functions::relation::JoinKind.RIGHT_OUTER,
+                        meta::pure::functions::relation::JoinKind.RIGHT,
                         {l, r | $l.id == $r.person_id}
                     )""");
             assertEquals(3, result.rowCount(), "All 3 right rows preserved");
@@ -304,7 +304,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                             1, 90
                             2, 85
                         #,
-                        meta::pure::functions::relation::JoinKind.RIGHT_OUTER,
+                        meta::pure::functions::relation::JoinKind.RIGHT,
                         {l, r | $l.id == $r.person_id}
                     )""");
             assertEquals(2, result.rowCount(), "Both right rows preserved");
@@ -328,7 +328,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                             1, 90
                             2, 85
                         #,
-                        meta::pure::functions::relation::JoinKind.RIGHT_OUTER,
+                        meta::pure::functions::relation::JoinKind.RIGHT,
                         {l, r | $l.id == $r.person_id}
                     )""");
             assertEquals(2, result.rowCount());
@@ -351,7 +351,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                             99, 100
                             98, 200
                         #,
-                        meta::pure::functions::relation::JoinKind.RIGHT_OUTER,
+                        meta::pure::functions::relation::JoinKind.RIGHT,
                         {l, r | $l.id == $r.person_id}
                     )""");
             assertEquals(2, result.rowCount(), "Both right rows preserved");
@@ -382,7 +382,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                             2, 85
                             3, 75
                         #,
-                        meta::pure::functions::relation::JoinKind.FULL_OUTER,
+                        meta::pure::functions::relation::JoinKind.FULL,
                         {l, r | $l.id == $r.person_id}
                     )""");
             assertEquals(3, result.rowCount(),
@@ -418,7 +418,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                             person_id, score
                             99, 100
                         #,
-                        meta::pure::functions::relation::JoinKind.FULL_OUTER,
+                        meta::pure::functions::relation::JoinKind.FULL,
                         {l, r | $l.id == $r.person_id}
                     )""");
             assertEquals(2, result.rowCount(), "One from each side, no match");
@@ -453,7 +453,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                             1, 90
                             2, 85
                         #,
-                        meta::pure::functions::relation::JoinKind.FULL_OUTER,
+                        meta::pure::functions::relation::JoinKind.FULL,
                         {l, r | $l.id == $r.person_id}
                     )""");
             assertEquals(2, result.rowCount(), "Both right rows preserved");
@@ -475,7 +475,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                         #TDS
                             person_id, score
                         #,
-                        meta::pure::functions::relation::JoinKind.FULL_OUTER,
+                        meta::pure::functions::relation::JoinKind.FULL,
                         {l, r | $l.id == $r.person_id}
                     )""");
             assertEquals(2, result.rowCount(), "Both left rows preserved");
@@ -923,7 +923,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                         #TDS
                             person_id, score
                         #,
-                        meta::pure::functions::relation::JoinKind.LEFT_OUTER,
+                        meta::pure::functions::relation::JoinKind.LEFT,
                         {l, r | $l.id == $r.person_id}
                     )""");
             assertEquals(2, result.rowCount(), "Both left rows preserved with NULLs");

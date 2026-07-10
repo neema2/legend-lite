@@ -68,7 +68,7 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
                     1, Alice
                     2, Bob
                     #->concatenate(
-                      |#TDS
+                      #TDS
                       id, name
                       3, Charlie
                       #
@@ -88,7 +88,7 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
                     1, Alice
                     2, Bob
                     #->concatenate(
-                      |#TDS
+                      #TDS
                       id, name
                       3, Charlie
                       4, Dave
@@ -109,7 +109,7 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
                     2, Bob
                     1, Alice
                     #->concatenate(
-                      |#TDS
+                      #TDS
                       id, name
                       3, Charlie
                       #
@@ -138,7 +138,7 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
                             id, name, score
                             1, Alice, 95
                             #->concatenate(
-                              |#TDS
+                              #TDS
                               id, name
                               2, Bob
                               #
@@ -156,7 +156,7 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
                             id, name
                             1, Alice
                             #->concatenate(
-                              |#TDS
+                              #TDS
                               id, name, age
                               2, Bob, 30
                               #
@@ -174,7 +174,7 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
                             id, name
                             1, Alice
                             #->concatenate(
-                              |#TDS
+                              #TDS
                               id, age
                               2, 30
                               #
@@ -244,7 +244,7 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
                     1, Alice
                     2, Bob
                     #->concatenate(
-                      |#TDS
+                      #TDS
                       id, name
                       3, Alice
                       4, Charlie
@@ -264,7 +264,7 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
                     1, Alice
                     2, Bob
                     #->concatenate(
-                      |#TDS
+                      #TDS
                       id, name
                       3, Charlie
                       #
@@ -289,7 +289,7 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
                     id, name
                     1, Alice
                     #->concatenate(
-                      |#TDS
+                      #TDS
                       id, name
                       2, Bob
                       #
@@ -308,12 +308,12 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
                     id, name
                     1, Alice
                     #->concatenate(
-                      |#TDS
+                      #TDS
                       id, name
                       2, Bob
                       #
                     )->concatenate(
-                      |#TDS
+                      #TDS
                       id, name
                       3, Charlie
                       #
@@ -334,7 +334,7 @@ public class ConcatenateFlattenCheckerTest extends AbstractDatabaseTest {
                     1, Alice
                     2, Bob
                     #->concatenate(
-                      |#TDS
+                      #TDS
                       id, name
                       1, Alice
                       2, Bob
