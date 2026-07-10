@@ -20,7 +20,7 @@ final class ConcatenateChecker {
         // operation (SQL list concat), not the relation set-op node.
         if (!(a.out().type()
                 instanceof com.legend.compiler.element.type.Type.RelationType)) {
-            return t.applyGeneric(af, env);
+            return Typer.emitCall(a.chosen(), a.args(), a.out());
         }
         return new TypedConcatenate(a.args().get(0), a.args().get(1), a.out());
     }

@@ -274,7 +274,7 @@ final class Typer {
     }
 
     /** Build the call node for the chosen overload &mdash; the resolved callee rides the node, never a name. */
-    private static TypedSpec emitCall(TypedFunction chosen, List<TypedSpec> args, ExprType out) {
+    static TypedSpec emitCall(TypedFunction chosen, List<TypedSpec> args, ExprType out) {
         return chosen.isNative()
                 ? new TypedNativeCall(chosen, args, out)
                 : new TypedUserCall(chosen, args, out);
