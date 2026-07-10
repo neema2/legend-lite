@@ -258,21 +258,19 @@ public final class UserCallInliner {
             // BINDERS — α-fresh inside inlined bodies (env non-empty),
             // untouched at the query's own level.
             case TypedLambda l -> lambda(l, env);
+            // match is STATICALLY DISPATCHED (the checker picked the branch)
+            // — the node IS a β-redex: substitute the input (and the extra
+            // argument) into the chosen body and the match disappears; the
+            // lowerer never needs a match arm.
             case TypedMatch m -> {
                 TypedSpec input = rewrite(m.input(), env);
-                // extra is an ARGUMENT — it evaluates in the ENCLOSING
-                // scope; the BODY sees both binders (MatchChecker's scoping;
-                // the audit caught this arm with the binding backwards).
                 Optional<TypedSpec> extra = m.extra().map(e -> rewrite(e, env));
                 Map<String, TypedSpec> inner = new LinkedHashMap<>(env);
-                String p = bind(m.param(), inner, input.info());
-                Optional<String> extraParam = m.extraParam();
-                if (extraParam.isPresent()) {
-                    TypedSpec ei = extra.orElse(input);
-                    extraParam = Optional.of(bind(extraParam.get(), inner, ei.info()));
+                inner.put(m.param(), input);
+                if (m.extraParam().isPresent()) {
+                    inner.put(m.extraParam().get(), extra.orElse(input));
                 }
-                TypedSpec mBody = rewrite(m.body(), inner);
-                yield new TypedMatch(input, p, mBody, extraParam, extra, m.info());
+                yield rewrite(m.body(), inner);
             }
             case TypedLet let -> {
                 // Reached only for QUERY-LEVEL lets (callee lets reduce in
