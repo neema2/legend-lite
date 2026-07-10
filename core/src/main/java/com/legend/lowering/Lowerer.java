@@ -383,15 +383,21 @@ public final class Lowerer {
         }
         // percentile(p, ascending, continuous): continuous selects the
         // QUANTILE flavor; descending order is the 1-p quantile.
+        // variance(isBiasCorrected): false selects the POPULATION variance.
         if (!flags.isEmpty()) {
-            if (!"QUANTILE_CONT".equals(fn) || flags.size() != 2 || extra.size() != 1) {
+            if ("VAR_SAMP".equals(fn) && flags.size() == 1 && extra.isEmpty()) {
+                fn = flags.get(0) ? "VAR_SAMP" : "VAR_POP";
+            } else if ("QUANTILE_CONT".equals(fn) && flags.size() == 2
+                    && extra.size() == 1) {
+                fn = flags.get(1) ? "QUANTILE_CONT" : "QUANTILE_DISC";
+                if (!flags.get(0)) {
+                    extra.set(0, SqlExpr.Call.of(SqlFn.MINUS,
+                            new SqlExpr.IntLit(1), extra.get(0)));
+                }
+            } else {
                 throw new IllegalStateException("boolean reducer arguments are"
-                        + " only understood on percentile(p, ascending, continuous)");
-            }
-            fn = flags.get(1) ? "QUANTILE_CONT" : "QUANTILE_DISC";
-            if (!flags.get(0)) {
-                extra.set(0, SqlExpr.Call.of(SqlFn.MINUS,
-                        new SqlExpr.IntLit(1), extra.get(0)));
+                        + " only understood on percentile(p, ascending,"
+                        + " continuous) and variance(isBiasCorrected)");
             }
         }
         // BI-VARIATE map: rowMapper(value, key) decomposes into the SQL
@@ -417,8 +423,18 @@ public final class Lowerer {
         if (mapBody instanceof TypedVariable && extra.isEmpty()) {
             return new SqlAgg.Reducer(fn, List.of(), false);
         }
+        SqlExpr value = scalar(mapBody, (v, name) -> resolveOrThrow(base, name));
+        // joinStrings(prefix, sep, suffix): STRING_AGG takes only the
+        // separator — prefix/suffix concatenate AROUND the aggregate
+        // (the audit: three extras produced an invalid 4-arg string_agg).
+        if ("STRING_AGG".equals(fn) && extra.size() == 3) {
+            return SqlExpr.Call.of(SqlFn.CONCAT,
+                    SqlExpr.Call.of(SqlFn.CONCAT, extra.get(0),
+                            new SqlAgg.Reducer(fn, List.of(value, extra.get(1)), false)),
+                    extra.get(2));
+        }
         List<SqlExpr> args = new ArrayList<>();
-        args.add(scalar(mapBody, (v, name) -> resolveOrThrow(base, name)));
+        args.add(value);
         args.addAll(extra);
         return new SqlAgg.Reducer(fn, args, false);
     }

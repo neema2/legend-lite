@@ -54,7 +54,8 @@ public enum SqlFn {
     LIST_LENGTH,
     // Lists (beyond the lambda family)
     LIST_ZIP, LIST_DISTINCT, LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX,
-    LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_AGG, LIST_TAIL, LIST_INIT, RANGE_FN,
+    LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_AGG, LIST_SORT, LIST_SORT_DESC,
+    LIST_TAIL, LIST_INIT, RANGE_FN,
     // Variant construction
     TO_VARIANT,
     // Variant navigation: logical JSON access; text-extraction idioms are rendering

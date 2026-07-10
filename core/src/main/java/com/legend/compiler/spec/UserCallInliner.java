@@ -114,6 +114,7 @@ public final class UserCallInliner {
 
     private final SpecCompiler specs;
     private final ArrayDeque<String> stack = new ArrayDeque<>();
+    private final ArrayDeque<String> names = new ArrayDeque<>();
     private int fresh;
 
     public UserCallInliner(SpecCompiler specs) {
@@ -122,11 +123,40 @@ public final class UserCallInliner {
 
     /** Inline every user call in a query body (statements = lets + result). */
     public List<TypedSpec> inlineBody(List<TypedSpec> body) {
+        // The fresh namespace must clear every user-written _i<N> — a query
+        // variable literally named _i0 would otherwise be CAPTURED by an
+        // α-renamed callee binder (audit). Callee bodies are closed, so the
+        // query body is the only collision source.
+        for (TypedSpec stmt : body) {
+            reserveFreshNames(stmt);
+        }
         List<TypedSpec> out = new ArrayList<>(body.size());
         for (TypedSpec stmt : body) {
             out.add(rewrite(stmt, Map.of()));
         }
         return out;
+    }
+
+    private void reserveFreshNames(TypedSpec n) {
+        switch (n) {
+            case TypedVariable v -> bumpPast(v.name());
+            case TypedLet let -> bumpPast(let.name());
+            case TypedLambda l -> l.parameters().forEach(this::bumpPast);
+            default -> { }
+        }
+        for (TypedSpec c : n.children()) {
+            reserveFreshNames(c);
+        }
+    }
+
+    private void bumpPast(String name) {
+        if (name.startsWith("_i")) {
+            try {
+                fresh = Math.max(fresh, Integer.parseInt(name.substring(2)) + 1);
+            } catch (NumberFormatException ignored) {
+                // _iFoo is outside the fresh namespace
+            }
+        }
     }
 
     // =====================================================================
@@ -138,15 +168,20 @@ public final class UserCallInliner {
         for (TypedSpec a : call.args()) {
             args.add(rewrite(a, env));
         }
-        String key = call.callee().qualifiedName() + "/" + call.callee().parameters().size();
+        // signatureKey identifies the OVERLOAD — name/arity conflated two
+        // same-arity overloads into a false recursion (audit).
+        String key = call.callee().signatureKey();
+        String shown = call.callee().qualifiedName() + "/"
+                + call.callee().parameters().size();
         if (stack.contains(key)) {
-            List<String> path = new ArrayList<>(stack);
+            List<String> path = new ArrayList<>(names);
             java.util.Collections.reverse(path);
-            throw new NotImplementedException("recursion cycle involving " + key
-                    + " (" + String.join(" -> ", path) + " -> " + key
+            throw new NotImplementedException("recursion cycle involving " + shown
+                    + " (" + String.join(" -> ", path) + " -> " + shown
                     + ") — recursive functions cannot lower to SQL");
         }
         stack.push(key);
+        names.push(shown);
         try {
             List<TypedSpec> body = specs.compile(call.callee()).body();
             Map<String, TypedSpec> callEnv = new LinkedHashMap<>();
@@ -156,6 +191,7 @@ public final class UserCallInliner {
             return reduceStatements(body, callEnv);
         } finally {
             stack.pop();
+            names.pop();
         }
     }
 
@@ -224,17 +260,18 @@ public final class UserCallInliner {
             case TypedLambda l -> lambda(l, env);
             case TypedMatch m -> {
                 TypedSpec input = rewrite(m.input(), env);
+                // extra is an ARGUMENT — it evaluates in the ENCLOSING
+                // scope; the BODY sees both binders (MatchChecker's scoping;
+                // the audit caught this arm with the binding backwards).
+                Optional<TypedSpec> extra = m.extra().map(e -> rewrite(e, env));
                 Map<String, TypedSpec> inner = new LinkedHashMap<>(env);
                 String p = bind(m.param(), inner, input.info());
-                TypedSpec mBody = rewrite(m.body(), inner);
                 Optional<String> extraParam = m.extraParam();
-                Optional<TypedSpec> extra = m.extra();
                 if (extraParam.isPresent()) {
-                    Map<String, TypedSpec> inner2 = new LinkedHashMap<>(env);
-                    String p2 = bind(extraParam.get(), inner2, input.info());
-                    extraParam = Optional.of(p2);
-                    extra = extra.map(e -> rewrite(e, inner2));
+                    TypedSpec ei = extra.orElse(input);
+                    extraParam = Optional.of(bind(extraParam.get(), inner, ei.info()));
                 }
+                TypedSpec mBody = rewrite(m.body(), inner);
                 yield new TypedMatch(input, p, mBody, extraParam, extra, m.info());
             }
             case TypedLet let -> {
