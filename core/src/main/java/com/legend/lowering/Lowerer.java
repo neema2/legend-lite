@@ -86,6 +86,17 @@ public final class Lowerer {
 
     /** Lower a typed query to SQL: relation pipelines and scalar roots. */
     public SqlQuery lower(TypedSpec spec) {
+        // from() is execution-context metadata, fully consumed by Phase H —
+        // the SQL is its source's. (Relation-typed from-roots take the
+        // relation() arm below; a GRAPH-typed root needs the unwrap here.)
+        if (spec instanceof com.legend.compiler.spec.typed.TypedFrom from) {
+            return lower(from.source());
+        }
+        // The resolved GRAPH envelope keeps its CLASS-typed info (the
+        // result-shape contract) but lowers as a relation.
+        if (spec instanceof com.legend.compiler.spec.typed.TypedSerializeGraph g) {
+            return serializeGraph(g);
+        }
         // A terminal concatenate is a BARE set operation — no wrapping SELECT *.
         if (spec instanceof TypedConcatenate c) {
             return union(c);
@@ -268,6 +279,42 @@ public final class Lowerer {
             ps.add(new SqlSelect.Projection(aggExpr(base, a), a.name()));
         }
         return base.withGroupBy(keys).withProjections(ps, outputsOf(g.info()));
+    }
+
+    /**
+     * The GRAPH-serialize envelope (Phase H4a SNAPSHOT): one
+     * {@code json_object} per source row keyed by the fetch tree's leaves,
+     * nested children as CORRELATED scalar subqueries (the parent scope
+     * rides the enclosing-resolver channel — the EXISTS mechanism), and an
+     * {@code arrayWrap} node aggregates the objects into one JSON-array
+     * {@code result} value.
+     */
+    private SqlSelect serializeGraph(com.legend.compiler.spec.typed.TypedSerializeGraph g) {
+        SqlSelect src = relation(g.source());
+        // json_group_array is an AGGREGATE and the envelope REPLACES the
+        // projection list — the groupBy folding constraints are exactly right.
+        SqlSelect base = Fold.groupByFolds(src) ? src : isolate(src);
+        ColumnResolver own = scopedResolver(base, g.rowVar());
+        List<SqlExpr> kv = new ArrayList<>(2 * (g.leaves().size() + g.nested().size()));
+        for (TypedFuncCol leaf : g.leaves()) {
+            kv.add(new SqlExpr.StringLit(leaf.name()));
+            kv.add(scalar(last(leaf.fn()),
+                    scopedResolver(base, leaf.fn().parameters().get(0))));
+        }
+        for (var child : g.nested()) {
+            kv.add(new SqlExpr.StringLit(child.property()));
+            enclosing.push(own);
+            try {
+                kv.add(new SqlExpr.ScalarSubquery(serializeGraph(child.node())));
+            } finally {
+                enclosing.pop();
+            }
+        }
+        SqlExpr obj = new SqlExpr.JsonObject(kv);
+        SqlExpr result = g.arrayWrap() ? new SqlExpr.JsonArrayAgg(obj) : obj;
+        return base.withProjections(
+                List.of(new SqlSelect.Projection(result, "result")),
+                List.of(new OutputCol("result", PureSql.type(Type.Primitive.STRING), false)));
     }
 
     /** aggregate: whole-relation reduction — aggregates only, no GROUP BY clause. */

@@ -60,6 +60,7 @@ public sealed interface TypedSpec permits
         TypedNavigate,
         TypedGraphFetch,
         TypedSerialize,
+        TypedSerializeGraph,
         TypedOver,
         TypedExtendWindow,
         TypedExtendAgg,

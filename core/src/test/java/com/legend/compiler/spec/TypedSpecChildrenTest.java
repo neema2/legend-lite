@@ -138,6 +138,15 @@ class TypedSpecChildrenTest {
         if (type == TypedFuncCol.class) {
             return new TypedFuncCol("c", (TypedLambda) dummy(TypedLambda.class, null));
         }
+        if (type == com.legend.compiler.spec.typed.TypedSerializeGraph.Child.class) {
+            // The child's envelope IS a TypedSpec — surfaced through
+            // children() via c.node(); the coverage walk sees it there.
+            return new com.legend.compiler.spec.typed.TypedSerializeGraph.Child("p",
+                    new com.legend.compiler.spec.typed.TypedSerializeGraph(
+                            (com.legend.compiler.spec.typed.TypedSpec) dummy(
+                                    com.legend.compiler.spec.typed.TypedSpec.class, null),
+                            "r", java.util.List.of(), java.util.List.of(), false, one()));
+        }
         if (type == TypedAggCol.class) {
             return new TypedAggCol("c", (TypedLambda) dummy(TypedLambda.class, null),
                     (TypedLambda) dummy(TypedLambda.class, null));

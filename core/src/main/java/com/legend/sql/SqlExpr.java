@@ -13,7 +13,8 @@ public sealed interface SqlExpr
                 SqlExpr.FloatLit, SqlExpr.DecimalLit, SqlExpr.BoolLit, SqlExpr.NullLit,
                 SqlExpr.DateLit, SqlExpr.TimestampLit, SqlExpr.ArrayLit, SqlExpr.Call,
                 SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.WindowCall,
-                SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlAgg.Reducer {
+                SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlExpr.JsonObject,
+                SqlExpr.JsonArrayAgg, SqlAgg.Reducer {
 
     /** A column reference, optionally qualified by a source alias. */
     record Column(String table, String name) implements SqlExpr {
@@ -72,6 +73,22 @@ public sealed interface SqlExpr
 
     /** A single-value subquery in scalar position. */
     record ScalarSubquery(SqlQuery subquery) implements SqlExpr {
+    }
+
+    /**
+     * {@code json_object(k1, v1, k2, v2, ...)} &mdash; the graph-serialize
+     * envelope's per-row object. {@code kv} alternates string-literal keys
+     * with value expressions.
+     */
+    record JsonObject(List<SqlExpr> kv) implements SqlExpr {
+    }
+
+    /**
+     * {@code coalesce(json_group_array(x), '[]')} &mdash; the SNAPSHOT
+     * aggregation of an envelope: all rows into one JSON-array value; an
+     * empty rowset is the EMPTY ARRAY, never SQL NULL.
+     */
+    record JsonArrayAgg(SqlExpr value) implements SqlExpr {
     }
 
     /**

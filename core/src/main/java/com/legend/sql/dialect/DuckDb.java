@@ -156,6 +156,10 @@ public final class DuckDb extends AnsiSqlRenderer {
             case SqlExpr.Exists x -> x;
             case SqlExpr.ScalarSubquery x -> x;
             case SqlExpr.WindowCall w -> w;
+            // JSON envelope nodes never appear inside fold bodies (the
+            // serialize envelope is a projection-level construct).
+            case SqlExpr.JsonObject j -> j;
+            case SqlExpr.JsonArrayAgg j -> j;
             case com.legend.sql.SqlAgg.Reducer r -> r;
         };
     }

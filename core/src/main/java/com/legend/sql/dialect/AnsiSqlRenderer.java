@@ -244,6 +244,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.Lambda l -> lambda(l);
             case SqlExpr.Cast c -> variantAwareCast(c);
             case SqlExpr.FoldCall f -> foldCall(f);
+            case SqlExpr.JsonObject j -> "json_object(" + j.kv().stream()
+                    .map(kvE -> expr(kvE, 0)).collect(Collectors.joining(", ")) + ")";
+            // COALESCE: an aggregate over ZERO rows is SQL NULL; the graph
+            // contract says empty collection = the EMPTY ARRAY.
+            case SqlExpr.JsonArrayAgg j -> "coalesce(json_group_array("
+                    + expr(j.value(), 0) + "), '[]')";
             case SqlAgg.Reducer r -> reducer(r);
         };
     }

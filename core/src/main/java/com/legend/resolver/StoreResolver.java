@@ -18,11 +18,16 @@ import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedLimit;
 import com.legend.compiler.spec.typed.TypedProject;
 import com.legend.compiler.spec.typed.TypedRename;
+import com.legend.compiler.spec.typed.TypedGraphFetch;
+import com.legend.compiler.spec.typed.TypedGraphTree;
 import com.legend.compiler.spec.typed.TypedSelect;
+import com.legend.compiler.spec.typed.TypedSerialize;
+import com.legend.compiler.spec.typed.TypedSerializeGraph;
 import com.legend.compiler.spec.typed.TypedSlice;
 import com.legend.compiler.spec.typed.TypedSort;
 import com.legend.compiler.spec.typed.TypedSortBy;
 import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.error.MappingResolutionException;
 import com.legend.error.NotImplementedException;
 import com.legend.parser.element.RuntimeDefinition;
@@ -110,9 +115,9 @@ public final class StoreResolver {
                 yield new TypedFrom(resolveNode(from.source(), inner),
                         from.mapping(), from.runtime(), from.info());
             }
-            case TypedGetAll g -> throw new NotImplementedException(
-                    "bare class fetch '" + g.classFqn() + ".all()' without a"
-                            + " relation-shaping operation is graph output (Phase H4)");
+            // Bare class fetch: GRAPH output — implicit serialize with a
+            // leaf-only tree over the class's SCALAR bindings (plan §E10).
+            case TypedGetAll g -> resolveChain(g, context);
             case TypedFilter f when isObjectSpace(f.source()) ->
                     resolveChain(f, context);
             case TypedProject p when isObjectSpace(p.source()) ->
@@ -132,6 +137,11 @@ public final class StoreResolver {
             // is Relation-only in real pure — no class-source arm exists.
             case TypedGroupBy g when isObjectSpace(g.source()) ->
                     resolveChain(g, context);
+            // serialize / graphFetch->serialize: the GRAPH terminal. The
+            // graphFetch wrapper is SOURCE-PRESERVING (engine parity) —
+            // serialize's tree governs the envelope.
+            case TypedSerialize sz when containsGetAll(sz.source()) ->
+                    resolveChain(sz, context);
             // Relation-space wrappers over a chain that bottoms at a getAll:
             // rebuild with the resolved source. (Each wrapper keeps its own
             // info — relation-space types are stable across resolution.)
@@ -224,17 +234,27 @@ public final class StoreResolver {
      * final row type. No restamp pass exists.
      */
     private TypedSpec resolveObject(TypedSpec top, Context context) {
-        // The relation-shaping TERMINAL: project, or the class-source
-        // groupBy form (keys carry extraction lambdas; agg map lambdas read
-        // the object) — both through the one funnel.
-        if (!(top instanceof TypedProject || top instanceof TypedGroupBy)) {
-            throw new NotImplementedException("class-shaped result at the query root"
-                    + " (" + top.getClass().getSimpleName() + ") is graph output (Phase H4)");
+        // The relation-shaping TERMINAL: project or class-source groupBy
+        // (lambdas through the one funnel), or the GRAPH terminals —
+        // explicit serialize (graphFetch is source-preserving; serialize's
+        // tree governs) and every other class-shaped root, which is the
+        // IMPLICIT serialize over the class's scalar bindings (plan §E10).
+        List<TypedGraphTree> tree = null;   // non-null => graph terminal
+        boolean implicitSerialize = false;
+        TypedSpec cur;
+        if (top instanceof TypedSerialize sz) {
+            tree = sz.tree();
+            cur = sz.source() instanceof TypedGraphFetch gf ? gf.source() : sz.source();
+        } else if (top instanceof TypedProject t) {
+            cur = t.source();
+        } else if (top instanceof TypedGroupBy t) {
+            cur = t.source();
+        } else {
+            implicitSerialize = true;
+            cur = top;
         }
         // 1. Collect the below-boundary op chain (top-down) to the getAll.
         List<TypedSpec> ops = new ArrayList<>();
-        TypedSpec cur = top instanceof TypedProject t ? t.source()
-                : ((TypedGroupBy) top).source();
         while (!(cur instanceof TypedGetAll)) {
             ops.add(cur);
             cur = switch (cur) {
@@ -274,8 +294,23 @@ public final class StoreResolver {
                 scanLambda(sb.key(), projectionPaths);
             }
         }
-        for (TypedLambda fn : terminalLambdas(top)) {
-            scanLambda(fn, projectionPaths);
+        if (tree == null && implicitSerialize) {
+            tree = synthesizeScalarTree(cs);
+        }
+        if (tree != null) {
+            // GRAPH terminal: tree LEAF paths feed slot demand (a leaf's
+            // binding may read a demanded join slot); class-typed children
+            // correlate — never join — and are materialized by
+            // buildGraphNode, not the demand scan.
+            for (TypedGraphTree node : tree) {
+                if (node.children().isEmpty()) {
+                    projectionPaths.add(java.util.List.of(node.property()));
+                }
+            }
+        } else {
+            for (TypedLambda fn : terminalLambdas(top)) {
+                scanLambda(fn, projectionPaths);
+            }
         }
         Set<java.util.List<String>> paths = new java.util.LinkedHashSet<>(filterPaths);
         paths.addAll(projectionPaths);
@@ -496,6 +531,13 @@ public final class StoreResolver {
             };
         }
 
+        // 4a. GRAPH terminal: the envelope — leaves substituted over the
+        //     row, children as correlated per-hop nodes (plan H4a SNAPSHOT).
+        if (tree != null) {
+            return buildGraphNode(cs, pipeline, m.slotPrefixes(), m.stripped(),
+                    fresh, tree, context, /*arrayWrap*/ true, g.info());
+        }
+
         // 4. The relation-shaping boundary: info UNCHANGED.
         final TypedSpec base = pipeline;
         final Pipelines.Materialized fm = m;
@@ -542,6 +584,143 @@ public final class StoreResolver {
             default -> throw new IllegalStateException("unreachable");
         }
         return out;
+    }
+
+    /**
+     * The implicit-serialize tree for a BARE class root: one leaf per
+     * SCALAR binding, declaration order — class-typed bindings (embedded
+     * ctors, navigation slots) are graph CHILDREN territory and stay out
+     * of the bare-root envelope (plan §E10).
+     */
+    private static List<TypedGraphTree> synthesizeScalarTree(ClassSource cs) {
+        List<TypedGraphTree> tree = new ArrayList<>();
+        for (Map.Entry<String, TypedSpec> e : cs.bindings().entrySet()) {
+            TypedSpec inner = e.getValue();
+            if (inner instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+                    && c.args().size() == 1
+                    && c.callee().qualifiedName().endsWith("toOne")) {
+                inner = c.args().get(0);
+            }
+            if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstance
+                    || inner.info().type()
+                            instanceof com.legend.compiler.element.type.Type.ClassType) {
+                continue;
+            }
+            tree.add(new TypedGraphTree(e.getKey(), List.of()));
+        }
+        return tree;
+    }
+
+    /**
+     * One envelope node (recursive): {@code leaves} substitute the class's
+     * bindings over the row var; class-typed children become correlated
+     * per-hop nodes — the child pipeline FILTERED by the association
+     * condition with the PARENT row var free (the EXISTS material shape),
+     * to-many children array-wrapped. Same-leaf pruning is by construction:
+     * only tree entries are emitted.
+     */
+    private TypedSerializeGraph buildGraphNode(ClassSource cs, TypedSpec pipeline,
+            Map<String, String> slotPrefixes, Set<String> stripped, String rowVar,
+            List<TypedGraphTree> tree, Context context, boolean arrayWrap,
+            com.legend.compiler.element.type.ExprType info) {
+        var rowType = (com.legend.compiler.element.type.Type.RelationType)
+                pipeline.info().type();
+        java.util.function.UnaryOperator<TypedSpec> toRow = v -> new TypedVariable(
+                rowVar, new com.legend.compiler.element.type.ExprType(rowType,
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+        List<TypedFuncCol> leaves = new ArrayList<>();
+        List<TypedSerializeGraph.Child> children = new ArrayList<>();
+        for (TypedGraphTree node : tree) {
+            if (!node.children().isEmpty()
+                    || (!cs.bindings().containsKey(node.property())
+                            && ctx.findAssociationOf(cs.classFqn(), node.property())
+                                    .isPresent())) {
+                children.add(graphChild(cs, node, context, rowVar));
+                continue;
+            }
+            TypedSpec binding = cs.bindings().get(node.property());
+            if (binding == null) {
+                throw new MappingResolutionException("property '" + node.property()
+                        + "' of class '" + cs.classFqn() + "' is not mapped in"
+                        + " mapping '" + cs.mappingFqn() + "'", cs.classFqn());
+            }
+            TypedSpec inner = binding;
+            if (inner instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+                    && c.args().size() == 1
+                    && c.callee().qualifiedName().endsWith("toOne")) {
+                inner = c.args().get(0);
+            }
+            if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstance) {
+                throw new NotImplementedException("graph leaf '" + node.property()
+                        + "' is an EMBEDDED class property — embedded graph"
+                        + " children are not supported yet (H4b)");
+            }
+            TypedSpec body = Pipelines.rewriteRowReads(binding, cs.rowVar(),
+                    slotPrefixes, stripped, toRow);
+            var fnType = new com.legend.compiler.element.type.Type.FunctionType(
+                    List.of(new com.legend.compiler.element.type.Type.Param(rowType,
+                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                    new com.legend.compiler.element.type.Type.Param(
+                            body.info().type(), body.info().multiplicity()));
+            leaves.add(new TypedFuncCol(node.property(),
+                    new TypedLambda(List.of(rowVar), List.of(body),
+                            new com.legend.compiler.element.type.ExprType(fnType,
+                                    com.legend.compiler.element.type.Multiplicity.Bounded.ONE))));
+        }
+        return new TypedSerializeGraph(pipeline, rowVar, leaves, children,
+                arrayWrap, info);
+    }
+
+    /** One nested hop: correlated child pipeline + the child's own envelope. */
+    private TypedSerializeGraph.Child graphChild(ClassSource cs, TypedGraphTree node,
+            Context context, String parentRowVar) {
+        if (node.children().isEmpty()) {
+            throw new NotImplementedException("graph child '" + node.property()
+                    + "' of class '" + cs.classFqn() + "' has no sub-tree — a"
+                    + " class-typed leaf serializes nothing; list its properties");
+        }
+        AssocJoin aj = associationJoin(cs, node.property(), context, /*forExists*/ true);
+        var assoc = ctx.findAssociationOf(cs.classFqn(), node.property()).orElseThrow();
+        var end = assoc.property1().propertyName().equals(node.property())
+                ? assoc.property1() : assoc.property2();
+        boolean toMany = !(end.multiplicity()
+                instanceof com.legend.parser.Multiplicity.Concrete emc
+                && Integer.valueOf(1).equals(emc.upperBound()));
+        // The association condition λ(parent, target): parent reads become
+        // the FREE parent row var (the lowerer's enclosing-scope channel);
+        // the target param stays as the child filter's own row.
+        TypedLambda cond = aj.condition();
+        String pVar = cond.parameters().get(0);
+        String tVar = cond.parameters().get(1);
+        var parentRowType = (com.legend.compiler.element.type.Type.RelationType)
+                cs.pipeline().info().type();
+        List<TypedSpec> corrBody = cond.body().stream().map(b ->
+                Pipelines.rewriteRowReads(b, pVar, Map.of(), java.util.Set.of(),
+                        v -> new TypedVariable(parentRowVar,
+                                new com.legend.compiler.element.type.ExprType(parentRowType,
+                                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE))))
+                .toList();
+        TypedLambda corr = new TypedLambda(List.of(tVar), corrBody,
+                new com.legend.compiler.element.type.ExprType(
+                        new com.legend.compiler.element.type.Type.FunctionType(
+                                List.of(new com.legend.compiler.element.type.Type.Param(
+                                        aj.targetRow(),
+                                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                                new com.legend.compiler.element.type.Type.Param(
+                                        com.legend.compiler.element.type.Type.Primitive.BOOLEAN,
+                                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+        TypedSpec childRel = new TypedFilter(aj.targetPipeline(), corr,
+                aj.targetPipeline().info());
+        String childVar = "_r" + freshVarCounter++;
+        var childInfo = new com.legend.compiler.element.type.ExprType(
+                new com.legend.compiler.element.type.Type.ClassType(aj.target().classFqn()),
+                toMany ? com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY
+                        : com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE);
+        TypedSerializeGraph child = buildGraphNode(aj.target(), childRel, Map.of(),
+                Pipelines.slotAliases(aj.target().pipeline()), childVar,
+                node.children(), context, toMany, childInfo);
+        return new TypedSerializeGraph.Child(node.property(), child);
     }
 
     /** {@code x|$x} — the whole-instance map of a COUNT(*)-style aggregate. */
