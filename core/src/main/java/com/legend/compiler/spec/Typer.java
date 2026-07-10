@@ -148,6 +148,10 @@ final class Typer {
             // through Class's mapping (M2M). Typed nominally here; the
             // RESOLVER composes it during class-source extraction (H5).
             case NewInstanceCast nc -> {
+                if (!nc.typeArguments().isEmpty()) {
+                    throw new TypeInferenceException("generic mapping cast ^"
+                            + nc.className() + "<...>($src) is not supported yet");
+                }
                 TypedSpec src = synth(nc.src(), env);
                 String fqn = nc.className();   // NameResolver already qualified it
                 if (ctx.findClass(fqn).isEmpty()) {

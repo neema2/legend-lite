@@ -138,6 +138,13 @@ final class NavigateChecker {
                 source.info().multiplicity(), source.info().type(), b);
 
         Parts parts = parts(t, sig, af, b, env);
+        // Post-map fills a CLASS property — a relation target is a pre-map
+        // shape only (audit: an Any-typed property accepted a row-struct).
+        if (parts.targetClass() instanceof Type.RelationType) {
+            throw new TypeInferenceException(
+                    "navigate post-map target must be a class extent (Class.all()),"
+                            + " got a relation");
+        }
         // The slot must be a DECLARED property whose type accepts the navigated target (§3.3).
         Property prop = t.model().findProperty(ct.fqn(), parts.alias()).orElseThrow(() ->
                 new TypeInferenceException("navigate: class " + ct.fqn()
@@ -173,7 +180,8 @@ final class NavigateChecker {
         // — the slot column carries the target's row-struct; the lowerer
         // flattens it as a prefixed LEFT join.
         if (target instanceof Type.GenericType g
-                && g.rawFqn().equals("meta::pure::metamodel::relation::Relation")) {
+                && g.rawFqn().equals("meta::pure::metamodel::relation::Relation")
+                && g.arguments().size() == 1) {
             target = g.arguments().get(0);
         }
         if (!(target instanceof Type.ClassType || target instanceof Type.RelationType)) {

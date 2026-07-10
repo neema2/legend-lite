@@ -5,11 +5,13 @@ import java.util.Set;
 /**
  * SQLite &mdash; the ANSI baseline rendering with SQLite's reserved-word
  * list (<a href="https://sqlite.org/lang_keywords.html">lang_keywords</a>).
- * SQLite accepts the ANSI core this renderer emits (SELECT/JOIN/WHERE/
- * GROUP BY/ORDER BY/LIMIT-OFFSET, TRUE/FALSE since 3.23); constructs with
- * no ANSI encoding (list lambdas, QUALIFY, ASOF, native PIVOT) stay on the
- * base class's loud defaults &mdash; SQLite has no dialect-specific encoding
- * for them yet.
+ * SQLite accepts the relational core this renderer emits (SELECT/JOIN/
+ * WHERE/GROUP BY/ORDER BY/LIMIT-OFFSET, TRUE/FALSE since 3.23). KNOWN
+ * GAPS that fail LOUD at execution, pending SQLite-specific overrides:
+ * aliased VALUES sources (TDS literals &mdash; SQLite lacks
+ * {@code (VALUES ...) AS t(c1, c2)}), typed DATE/TIMESTAMP literals, and
+ * everything with no ANSI encoding at all (list lambdas, QUALIFY, ASOF,
+ * native PIVOT) on the base class's loud defaults.
  */
 public final class Sqlite extends AnsiSqlRenderer {
 

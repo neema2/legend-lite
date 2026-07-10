@@ -129,30 +129,46 @@ public final class Compiler {
      * reference dialect.
      */
     private static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx, String runtimeFqn) {
-        if (runtimeFqn != null) {
-            var rt = ctx.findRuntime(runtimeFqn);
-            if (rt.isPresent()) {
-                for (String connFqn : rt.get().connectionBindings().values()) {
-                    var conn = ctx.findConnection(connFqn);
-                    if (conn.isEmpty()) {
-                        continue;
-                    }
-                    switch (conn.get().databaseType()) {
-                        case DuckDB -> {
-                            return new com.legend.sql.dialect.DuckDb();
-                        }
-                        case SQLite -> {
-                            return new com.legend.sql.dialect.Sqlite();
-                        }
-                        default -> throw new com.legend.error.NotImplementedException(
-                                "SQL dialect for database type '" + conn.get().databaseType()
-                                        + "' (connection '" + connFqn + "' of runtime '"
-                                        + runtimeFqn + "') is not implemented yet");
-                    }
-                }
+        if (runtimeFqn == null) {
+            return new com.legend.sql.dialect.DuckDb();
+        }
+        var rt = ctx.findRuntime(runtimeFqn);
+        if (rt.isEmpty()) {
+            return new com.legend.sql.dialect.DuckDb();
+        }
+        // EVERY binding is inspected, in sorted (deterministic) order —
+        // connection bindings are an unordered map, and first-match-wins
+        // was nondeterministic AND skipped later unsupported types (audit).
+        var types = new java.util.TreeMap<String,
+                com.legend.parser.element.ConnectionDefinition.DatabaseType>();
+        for (String connFqn : new java.util.TreeSet<>(
+                rt.get().connectionBindings().values())) {
+            var conn = ctx.findConnection(connFqn);
+            if (conn.isEmpty()) {
+                throw new com.legend.error.MappingResolutionException(
+                        "connection '" + connFqn + "' of runtime '" + runtimeFqn
+                                + "' is not defined", runtimeFqn);
+            }
+            types.put(connFqn, conn.get().databaseType());
+        }
+        var distinct = new java.util.TreeSet<String>();
+        for (var e : types.entrySet()) {
+            switch (e.getValue()) {
+                case DuckDB, SQLite -> distinct.add(e.getValue().name());
+                default -> throw new com.legend.error.NotImplementedException(
+                        "SQL dialect for database type '" + e.getValue()
+                                + "' (connection '" + e.getKey() + "' of runtime '"
+                                + runtimeFqn + "') is not implemented yet");
             }
         }
-        return new com.legend.sql.dialect.DuckDb();
+        if (distinct.size() > 1) {
+            throw new com.legend.error.NotImplementedException(
+                    "runtime '" + runtimeFqn + "' mixes database types "
+                            + distinct + " — one dialect per query is supported");
+        }
+        return distinct.contains("SQLite")
+                ? new com.legend.sql.dialect.Sqlite()
+                : new com.legend.sql.dialect.DuckDb();
     }
 
     /**

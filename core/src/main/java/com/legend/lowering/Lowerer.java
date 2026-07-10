@@ -299,8 +299,17 @@ public final class Lowerer {
         List<SqlExpr> kv = new ArrayList<>(2 * (g.leaves().size() + g.nested().size()));
         for (TypedFuncCol leaf : g.leaves()) {
             kv.add(new SqlExpr.StringLit(leaf.name()));
-            kv.add(scalar(last(leaf.fn()),
-                    scopedResolver(base, leaf.fn().parameters().get(0))));
+            // STRICT own-select resolution: leaves read their own row only —
+            // an outer-scope fallback could silently supply a SAME-NAMED
+            // parent column to a nested child's leaf (audit L2); a miss is
+            // loud naming the leaf.
+            switch (attempt(() -> scalar(last(leaf.fn()),
+                    (v, name) -> resolveOrThrow(base, name)))) {
+                case Resolution.Resolved r -> kv.add(r.expr());
+                case Resolution.Unfoldable u -> throw new IllegalStateException(
+                        "serialize leaf '" + leaf.name() + "' references column '"
+                                + u.column() + "', unresolvable in the envelope source");
+            }
         }
         for (var child : g.nested()) {
             kv.add(new SqlExpr.StringLit(child.property()));

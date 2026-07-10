@@ -53,7 +53,7 @@ public final class ClassSources {
 
     /** The memoized extraction for {@code classFqn} under {@code mappingFqn}. */
     public ClassSource get(String mappingFqn, String classFqn) {
-        return get(mappingFqn, classFqn, null);
+        return get(mappingFqn, classFqn, null, "");
     }
 
     /**
@@ -64,8 +64,13 @@ public final class ClassSources {
      * resolution to this mapping (+ includes).
      */
     public ClassSource get(String mappingFqn, String classFqn,
-            java.util.function.UnaryOperator<String> upstreamMapping) {
-        String key = mappingFqn + '\u0000' + classFqn;
+            java.util.function.UnaryOperator<String> upstreamMapping,
+            String contextKey) {
+        // The context key participates in memoization because an M2M
+        // composition resolves its UPSTREAM through the runtime dispatch —
+        // the same mapping::class composed under different runtimes reads
+        // different stores (audit F1: memo poisoning was silent wrong data).
+        String key = mappingFqn + '\u0000' + classFqn + '\u0000' + contextKey;
         ClassSource cached = memo.get(key);
         if (cached != null) {
             return cached;
@@ -76,7 +81,7 @@ public final class ClassSources {
                     + " (association targets mid-cycle must take the SHALLOW path)");
         }
         try {
-            ClassSource built = build(mappingFqn, classFqn, upstreamMapping);
+            ClassSource built = build(mappingFqn, classFqn, upstreamMapping, contextKey);
             memo.put(key, built);
             return built;
         } finally {
@@ -85,7 +90,8 @@ public final class ClassSources {
     }
 
     private ClassSource build(String mappingFqn, String classFqn,
-            java.util.function.UnaryOperator<String> upstreamMapping) {
+            java.util.function.UnaryOperator<String> upstreamMapping,
+            String contextKey) {
         MappingDefinition mapping = ctx.findMapping(mappingFqn).orElseThrow(() ->
                 new MappingResolutionException(
                         "unknown mapping '" + mappingFqn + "'", mappingFqn));
@@ -135,7 +141,7 @@ public final class ClassSources {
             // the composed table sits over the upstream's own pipeline.
             if (pipeline.info().type() instanceof Type.ClassType src) {
                 return composeModelToModel(mappingFqn, classFqn, binding,
-                        pipeline, mapper, ctor, src, upstreamMapping);
+                        pipeline, mapper, ctor, src, upstreamMapping, contextKey);
             }
             throw new IllegalStateException("resolver bug: mapping pipeline for '"
                     + classFqn + "' in '" + mappingFqn + "' types as "
@@ -172,7 +178,8 @@ public final class ClassSources {
     private ClassSource composeModelToModel(String mappingFqn, String classFqn,
             MappingDefinition.ClassBinding binding, TypedSpec pipeline,
             TypedLambda mapper, TypedNewInstance ctor, Type.ClassType srcType,
-            java.util.function.UnaryOperator<String> upstreamMapping) {
+            java.util.function.UnaryOperator<String> upstreamMapping,
+            String contextKey) {
         // Ops between the extent and the constructor: instance-space
         // FILTERS compose (their predicates substitute through the
         // upstream bindings like everything else); other ops are loud.
@@ -195,7 +202,7 @@ public final class ClassSources {
         String srcMapping = binds(mappingFqn, srcType.fqn()) || upstreamMapping == null
                 ? mappingFqn
                 : upstreamMapping.apply(srcType.fqn());
-        ClassSource inner = get(srcMapping, srcType.fqn(), upstreamMapping);
+        ClassSource inner = get(srcMapping, srcType.fqn(), upstreamMapping, contextKey);
         String srcVar = mapper.parameters().get(0);
         TypedSpec composedPipeline = inner.pipeline();
         for (int i = filters.size() - 1; i >= 0; i--) {
@@ -289,12 +296,26 @@ public final class ClassSources {
                             i.elseBranch().map(e2 -> substituteSourceReads(e2,
                                     srcVar, inner, classFqn, mappingFqn)),
                             i.info());
-            case TypedLambda l -> l.parameters().contains(srcVar)
-                    ? l   // shadowing: substitution stops (capture rule)
-                    : new TypedLambda(l.parameters(),
-                            l.body().stream().map(b -> substituteSourceReads(b,
-                                    srcVar, inner, classFqn, mappingFqn)).toList(),
-                            l.info());
+            case TypedLambda l -> {
+                if (l.parameters().contains(srcVar)) {
+                    yield l;   // shadowing: substitution stops (capture rule)
+                }
+                // CAPTURE guard (audit F2): a lambda parameter named like
+                // the UPSTREAM row var would capture the substituted
+                // binding's row reads — loud, never silently mis-scoped.
+                if (l.parameters().contains(inner.rowVar())
+                        && readsVar(l, srcVar)) {
+                    throw new NotImplementedException("model-to-model binding of '"
+                            + classFqn + "' in '" + mappingFqn + "' has a lambda"
+                            + " parameter named '" + inner.rowVar() + "' shadowing"
+                            + " the upstream mapping's row variable — rename the"
+                            + " parameter");
+                }
+                yield new TypedLambda(l.parameters(),
+                        l.body().stream().map(b -> substituteSourceReads(b,
+                                srcVar, inner, classFqn, mappingFqn)).toList(),
+                        l.info());
+            }
             case com.legend.compiler.spec.typed.TypedCString ignored -> n;
             case com.legend.compiler.spec.typed.TypedCInteger ignored -> n;
             case com.legend.compiler.spec.typed.TypedCFloat ignored -> n;
@@ -307,6 +328,20 @@ public final class ClassSources {
                             + n.getClass().getSimpleName()
                             + " is not substitutable yet (H5 vocabulary)");
         };
+    }
+
+    /** Whether any {@code $var} read occurs in {@code n}'s subtree. */
+    private static boolean readsVar(TypedSpec n, String var) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedVariable v
+                && v.name().equals(var)) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (readsVar(c, var)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

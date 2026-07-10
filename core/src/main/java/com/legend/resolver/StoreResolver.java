@@ -285,7 +285,10 @@ public final class StoreResolver {
                     g.classFqn());
         }
         ClassSource cs = sources.get(dispatch(context, g.classFqn()), g.classFqn(),
-                target -> dispatch(context, target));
+                target -> dispatch(context, target),
+                (context.explicitMapping() == null ? "" : context.explicitMapping())
+                        + '\u0000'
+                        + (context.runtimeFqn() == null ? "" : context.runtimeFqn()));
 
         // 2. Demand scan over ALL the chain's user lambdas (one funnel with
         //    the substitution — they cannot drift), close over slot
@@ -647,7 +650,7 @@ public final class StoreResolver {
                     || (!cs.bindings().containsKey(node.property())
                             && ctx.findAssociationOf(cs.classFqn(), node.property())
                                     .isPresent())) {
-                children.add(graphChild(cs, node, context, rowVar));
+                children.add(graphChild(cs, node, context, rowVar, rowType));
                 continue;
             }
             TypedSpec binding = cs.bindings().get(node.property());
@@ -672,6 +675,15 @@ public final class StoreResolver {
                         + "' is a MODEL-TO-MODEL cast binding — M2M graph"
                         + " children are not supported yet (H5c)");
             }
+            // A leaf mapped through STRIPPED join slots (a nested child's
+            // own joins materialize with empty demand) is a feature gap,
+            // not a resolver bug (audit F5).
+            if (Pipelines.referencesAliasOn(binding, cs.rowVar(), stripped)) {
+                throw new NotImplementedException("graph leaf '" + node.property()
+                        + "' of class '" + cs.classFqn() + "' is mapped through"
+                        + " the class's own join slots — nested join demand"
+                        + " inside a graph child is not supported yet (H4b)");
+            }
             TypedSpec body = Pipelines.rewriteRowReads(binding, cs.rowVar(),
                     slotPrefixes, stripped, toRow);
             var fnType = new com.legend.compiler.element.type.Type.FunctionType(
@@ -690,11 +702,21 @@ public final class StoreResolver {
 
     /** One nested hop: correlated child pipeline + the child's own envelope. */
     private TypedSerializeGraph.Child graphChild(ClassSource cs, TypedGraphTree node,
-            Context context, String parentRowVar) {
+            Context context, String parentRowVar,
+            com.legend.compiler.element.type.Type.RelationType parentRowType) {
         if (node.children().isEmpty()) {
             throw new NotImplementedException("graph child '" + node.property()
                     + "' of class '" + cs.classFqn() + "' has no sub-tree — a"
                     + " class-typed leaf serializes nothing; list its properties");
+        }
+        // A BINDING-backed head (embedded ctor, navigate slot, otherwise,
+        // M2M cast) is mapped — routing it to the association lookup gave a
+        // FALSE "not mapped" message (audit F4).
+        if (cs.bindings().containsKey(node.property())) {
+            throw new NotImplementedException("graph child '" + node.property()
+                    + "' of class '" + cs.classFqn() + "' is mapped as an"
+                    + " embedded/join-slot/otherwise/M2M binding — only"
+                    + " association children are supported yet (H4b/H5c)");
         }
         AssocJoin aj = associationJoin(cs, node.property(), context, /*forExists*/ true);
         var assoc = ctx.findAssociationOf(cs.classFqn(), node.property()).orElseThrow();
@@ -709,8 +731,6 @@ public final class StoreResolver {
         TypedLambda cond = aj.condition();
         String pVar = cond.parameters().get(0);
         String tVar = cond.parameters().get(1);
-        var parentRowType = (com.legend.compiler.element.type.Type.RelationType)
-                cs.pipeline().info().type();
         List<TypedSpec> corrBody = cond.body().stream().map(b ->
                 Pipelines.rewriteRowReads(b, pVar, Map.of(), java.util.Set.of(),
                         v -> new TypedVariable(parentRowVar,
@@ -729,7 +749,15 @@ public final class StoreResolver {
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
         TypedSpec childRel = new TypedFilter(aj.targetPipeline(), corr,
                 aj.targetPipeline().info());
-        String childVar = "_r" + freshVarCounter++;
+        Set<String> childParams = new java.util.LinkedHashSet<>();
+        for (TypedSpec b : aj.target().bindings().values()) {
+            collectLambdaParams(b, childParams);
+        }
+        childParams.addAll(cond.parameters());
+        String childVar;
+        do {
+            childVar = "_r" + freshVarCounter++;
+        } while (childParams.contains(childVar));
         var childInfo = new com.legend.compiler.element.type.ExprType(
                 new com.legend.compiler.element.type.Type.ClassType(aj.target().classFqn()),
                 toMany ? com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY

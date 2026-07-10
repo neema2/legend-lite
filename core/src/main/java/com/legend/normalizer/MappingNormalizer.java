@@ -1958,9 +1958,14 @@ public final class MappingNormalizer {
         }
         if (em == null) {
             throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
-                    "EnumeratedColumn '" + ec.propertyName() + "' references unknown "
-                  + "enum mapping '" + ec.enumMappingId() + "'; mapping="
-                  + md.qualifiedName());
+                    ec.enumMappingId() != null
+                            ? "EnumeratedColumn '" + ec.propertyName() + "' references unknown "
+                                    + "enum mapping '" + ec.enumMappingId() + "'; mapping="
+                                    + md.qualifiedName()
+                            : "EnumeratedColumn '" + ec.propertyName() + "' uses an anonymous"
+                                    + " EnumerationMapping but no mapping for the property's"
+                                    + " enum type exists (or the property is not enum-typed);"
+                                    + " mapping=" + md.qualifiedName());
         }
         ValueSpecification colRead = RelOpTranslator.columnRead(ec.table(), ec.column(),
                 tableScope, defaultTable, p == null ? RelOpTranslator.PipelineView.NONE : p.view());

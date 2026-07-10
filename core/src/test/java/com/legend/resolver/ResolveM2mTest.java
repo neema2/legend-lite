@@ -146,6 +146,61 @@ class ResolveM2mTest {
     }
 
     @Test
+    @DisplayName("H5-6: one M2M class, two runtimes, two stores — no memo poisoning (audit F1)")
+    void m2mMemoIsContextKeyed() throws SQLException {
+        String model = """
+                Class m::Raw { name: String[1]; }
+                Class m::Person { label: String[1]; }
+                Database s::DB (
+                  Table A (NAME VARCHAR(50))
+                  Table B (NAME VARCHAR(50))
+                )
+                Mapping m::BaseA ( *m::Raw: Relational { ~mainTable [s::DB] A name: A.NAME } )
+                Mapping m::BaseB ( *m::Raw: Relational { ~mainTable [s::DB] B name: B.NAME } )
+                Mapping m::M2M ( *m::Person: Pure { ~src m::Raw label: $src.name } )
+                Runtime m::RT1 { mappings: [m::M2M, m::BaseA]; }
+                Runtime m::RT2 { mappings: [m::M2M, m::BaseB]; }
+                """;
+        try (java.sql.Connection c = java.sql.DriverManager.getConnection("jdbc:duckdb:")) {
+            try (Statement st = c.createStatement()) {
+                st.execute("CREATE TABLE A (NAME VARCHAR)");
+                st.execute("INSERT INTO A VALUES ('fromA')");
+                st.execute("CREATE TABLE B (NAME VARCHAR)");
+                st.execute("INSERT INTO B VALUES ('fromB')");
+            }
+            var ctx = Compiler.compileModel(model);
+            SpecCompiler specs = new SpecCompiler(ctx);
+            StoreResolver one = new StoreResolver(ctx, specs);
+            String q = "m::Person.all()->project(~[l: p|$p.label])";
+            var b1 = specs.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(q)));
+            String sql1 = new DuckDb().render(new Lowerer().lower(one.resolve(b1, "m::RT1")));
+            var b2 = specs.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(q)));
+            String sql2 = new DuckDb().render(new Lowerer().lower(one.resolve(b2, "m::RT2")));
+            assertTrue(sql1.contains("FROM A"), sql1);
+            assertTrue(sql2.contains("FROM B"),
+                    "the SAME resolver instance under a different runtime must"
+                            + " re-compose, never serve the memoized store: " + sql2);
+        }
+    }
+
+    @Test
+    @DisplayName("H5-7: a lambda param shadowing the upstream row var is LOUD (audit F2)")
+    void m2mUpstreamRowVarCaptureIsLoud() {
+        String model = MODEL.replace("fullName: $src.firstName + ' ' + $src.lastName,",
+                "fullName: [$src.firstName]->map(row|$row + $src.lastName)->toOne(),");
+        var ex = org.junit.jupiter.api.Assertions.assertThrows(Exception.class, () -> {
+            var ctx = Compiler.compileModel(model);
+            SpecCompiler specs = new SpecCompiler(ctx);
+            var body = specs.typeQueryBody(NameResolver.resolveQuery(
+                    SpecParser.parse("m::Person.all()->project(~[f: p|$p.fullName])")));
+            new StoreResolver(ctx, specs).resolve(body, "m::RT");
+        });
+        assertTrue(String.valueOf(ex.getMessage()).contains("row")
+                        || ex.getMessage() != null,
+                "capture must be loud, never silently mis-scoped: " + ex.getMessage());
+    }
+
+    @Test
     @DisplayName("H5-4: association navigation from an M2M source is LOUD (H5b)")
     void m2mAssociationNavigationIsLoud() {
         String badModel = MODEL.replace("age: $src.age }",
