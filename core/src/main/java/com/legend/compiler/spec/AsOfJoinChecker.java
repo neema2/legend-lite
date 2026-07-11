@@ -64,9 +64,22 @@ final class AsOfJoinChecker {
         TypedLambda match = (TypedLambda) t.typeLambda(matchLam, sig.parameters().get(2).type(), b, env);
         TypedLambda cond = (TypedLambda) t.typeLambda(condLam, sig.parameters().get(3).type(), b, env);
         String prefix = Checkers.stringLiteralArg(t, af, 4, env, "asOfJoin prefix");
+        // The prefix SEPARATES with an underscore ('r' -> r_id, corpus
+        // semantics; no real-pure counterpart exists). A caller-supplied
+        // trailing underscore is already the separator.
+        if (!prefix.endsWith("_")) {
+            prefix = prefix + "_";
+        }
 
-        // Bespoke output: EVERY right column prefixed — consistent with join (see class doc).
-        Type.RelationType schema = Checkers.prefixedUnion(left, right, prefix, c -> true);
+        // Bespoke output: only COLLIDING right columns prefixed (asOfJoin's
+        // corpus semantics — join prefixes all; asOfJoin keeps disjoint
+        // names, so the match key reads unprefixed on the left).
+        java.util.Set<String> leftNames = new java.util.HashSet<>();
+        if (left.info().type() instanceof com.legend.compiler.element.type.Type.RelationType lr) {
+            lr.columns().forEach(c -> leftNames.add(c.name()));
+        }
+        Type.RelationType schema = Checkers.prefixedUnion(left, right, prefix,
+                c -> leftNames.contains(c.name()));
         return new TypedAsOfJoin(left, right, match, Optional.of(cond), Optional.of(prefix),
                 new ExprType(schema, sig.returnMultiplicity()));
     }

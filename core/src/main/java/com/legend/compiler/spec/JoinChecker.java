@@ -121,6 +121,12 @@ final class JoinChecker {
         }
         TypedLambda cond = (TypedLambda) t.typeLambda(condLam, sig.parameters().get(3).type(), b, env);
         String prefix = Checkers.stringLiteralArg(t, af, 4, env, "join prefix");
+        // The prefix SEPARATES with an underscore ('r' -> r_id, corpus
+        // semantics; no real-pure counterpart exists). A caller-supplied
+        // trailing underscore is already the separator.
+        if (!prefix.endsWith("_")) {
+            prefix = prefix + "_";
+        }
 
         // Bespoke output: left columns + EVERY right column renamed prefix+name.
         Type.RelationType schema = Checkers.prefixedUnion(left, right, prefix, c -> true);

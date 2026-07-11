@@ -1071,21 +1071,22 @@ class TypeCheckerTest {
     }
 
     @Test
-    void asOfJoinPrefixRenamesEveryRightColumnLikeJoin() {
-        // DELIBERATE divergence from engine-lite (which prefixes only overlapping
-        // columns here while join prefixes all): one prefix rule for both joins.
+    void asOfJoinPrefixRenamesOnlyCollidingRightColumns() {
+        // asOfJoin prefixes only COLLIDING right columns (the engine
+        // corpus's rule — the match key stays readable unprefixed on the
+        // non-overlapping side); join prefixes ALL right columns.
         Type.RelationType rt = schemaOf(typeQuery(T_PERSON
                 + "->asOfJoin(" + T_PERSON + ", {a, b | $a.AGE > $b.AGE},"
                 + " {a, b | $a.LAST_NAME == $b.LAST_NAME}, 'r_')"));
         assertEquals(12, rt.columns().size());
-        assertTrue(hasColumn(rt, "r_AGE"));
-        assertTrue(hasColumn(rt, "r_LAST_NAME"), "non-overlapping right columns are prefixed too");
+        assertTrue(hasColumn(rt, "r_AGE"), "colliding right column prefixed");
+        assertTrue(hasColumn(rt, "r_LAST_NAME"), "self-join: every column collides");
 
         Type.RelationType disjoint = schemaOf(typeQuery(T_PERSON
                 + "->asOfJoin(#>{test::PersonDatabase.T_FIRM}#, {a, b | $a.AGE > $b.ID},"
                 + " {a, b | $a.AGE == $b.ID}, 'r_')"));
-        assertTrue(hasColumn(disjoint, "r_ID"), "same rule regardless of overlap");
-        assertFalse(hasColumn(disjoint, "ID"));
+        assertTrue(hasColumn(disjoint, "ID"), "disjoint right column stays unprefixed");
+        assertFalse(hasColumn(disjoint, "r_ID"));
     }
 
     @Test

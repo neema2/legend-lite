@@ -589,11 +589,9 @@ public final class Lowerer {
                                          boolean keepExisting) {
         List<SqlSelect.Projection> ps = new ArrayList<>();
         if (keepExisting) {
-            if (base.projections().isEmpty()) {
-                ps.add(new SqlSelect.Projection(new SqlExpr.Star(base.from().alias()), null));
-            } else {
-                ps.addAll(base.projections());
-            }
+            // starProjections handles the JOIN-source case (no single alias:
+            // bare * over the disjoint-by-invariant sides).
+            ps.addAll(starProjections(base));
         }
         for (TypedFuncCol c : columns) {
             switch (attempt(() -> scalar(last(c.fn()), (v, name) -> resolveOrThrow(base, name)))) {
@@ -1056,8 +1054,10 @@ public final class Lowerer {
         if (aj.condition().isPresent()) {
             on = SqlExpr.Call.of(SqlFn.AND, sideCondition(aj.condition().get(), left, right), on);
         }
+        java.util.Set<String> leftNames = new java.util.HashSet<>();
+        schemaOf(aj.left()).columns().forEach(c -> leftNames.add(c.name()));
         return joined(new SqlSource.Join(left, right, SqlSource.Join.Kind.ASOF_LEFT, on),
-                aj.prefix(), aj.right(), aj.info());
+                aj.prefix(), aj.right(), aj.info(), null, leftNames::contains);
     }
 
     /**
@@ -1067,12 +1067,19 @@ public final class Lowerer {
      */
     private SqlSelect joined(SqlSource.Join source, java.util.Optional<String> prefix,
                              TypedSpec rightNode, com.legend.compiler.element.type.ExprType info) {
-        return joined(source, prefix, rightNode, info, null);
+        return joined(source, prefix, rightNode, info, null, name -> true);
     }
 
     private SqlSelect joined(SqlSource.Join source, java.util.Optional<String> prefix,
                              TypedSpec rightNode, com.legend.compiler.element.type.ExprType info,
                              List<SqlSelect.Projection> leftCarry) {
+        return joined(source, prefix, rightNode, info, leftCarry, name -> true);
+    }
+
+    private SqlSelect joined(SqlSource.Join source, java.util.Optional<String> prefix,
+                             TypedSpec rightNode, com.legend.compiler.element.type.ExprType info,
+                             List<SqlSelect.Projection> leftCarry,
+                             java.util.function.Predicate<String> renameWhen) {
         SqlSelect out = SqlSelect.starOf(source);
         if (prefix.isEmpty()) {
             return out.withProjections(List.of(), outputsOf(info));
@@ -1096,7 +1103,7 @@ public final class Lowerer {
         for (Type.Column c : schemaOf(rightNode).columns()) {
             ps.add(new SqlSelect.Projection(
                     new SqlExpr.Column(source.right().alias(), c.name()),
-                    prefix.get() + c.name()));
+                    renameWhen.test(c.name()) ? prefix.get() + c.name() : null));
         }
         return out.withProjections(ps, outputsOf(info));
     }
