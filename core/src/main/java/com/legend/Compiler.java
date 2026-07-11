@@ -158,6 +158,10 @@ public final class Compiler {
         for (var e : types.entrySet()) {
             switch (e.getValue()) {
                 case DuckDB, SQLite -> distinct.add(e.getValue().name());
+                // H2 rides the ANSI-flavored DuckDB renderer: the corpus
+                // executes H2-typed connections on the session's DuckDB, and
+                // every emission H2 sees is the ANSI subset.
+                case H2 -> distinct.add("DuckDB");
                 default -> throw new com.legend.error.NotImplementedException(
                         "SQL dialect for database type '" + e.getValue()
                                 + "' (connection '" + e.getKey() + "' of runtime '"

@@ -3468,3 +3468,16 @@ Top detail:
 ```
     1  SQL dialect for database type 'H2' (connection 'store::Conn' of runtim
 ```
+
+### Run 2026-07-11 @ e501d7f
+
+| tests | pass | failures | errors | skipped | green classes |
+|---|---|---|---|---|---|
+| 2721 | **2698** | 4 | 0 | 19 | 396 |
+
+| bucket | exception lines |
+|---|---|
+
+Top detail:
+```
+```
