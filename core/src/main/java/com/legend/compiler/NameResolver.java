@@ -964,6 +964,13 @@ public final class NameResolver {
             }
             case RelationalOperation.TargetColumnRef t -> t;
             case RelationalOperation.Literal l -> l;
+            // '@Type' dynafunction arguments: prelude primitives resolve bare
+            // downstream; user type names resolve against the imports here.
+            case RelationalOperation.TypeRef tr -> {
+                String resolved = resolveName(tr.typeName(), scope);
+                yield resolved.equals(tr.typeName()) ? tr
+                        : new RelationalOperation.TypeRef(resolved);
+            }
             case RelationalOperation.FunctionCall fc -> {
                 // DESIGN CONTRACT: fc.name() is always a DB-side function name
                 // (e.g. concat, coalesce, substring) dispatched by the SQL

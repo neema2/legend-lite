@@ -1371,6 +1371,7 @@ public final class MappingNormalizer {
             case RelationalOperation.ColumnRef ignored -> { }
             case RelationalOperation.TargetColumnRef ignored -> { }
             case RelationalOperation.Literal ignored -> { }
+            case RelationalOperation.TypeRef ignored -> { }
         }
     }
 
@@ -2058,6 +2059,7 @@ public final class MappingNormalizer {
             case RelationalOperation.TargetColumnRef ignored -> true;
             case RelationalOperation.ColumnRef ignored       -> false;
             case RelationalOperation.Literal ignored         -> false;
+            case RelationalOperation.TypeRef ignored         -> false;
             case RelationalOperation.FunctionCall fc         ->
                     fc.args().stream().anyMatch(MappingNormalizer::containsTargetColumnRef);
             case RelationalOperation.Comparison c            ->

@@ -2188,7 +2188,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 // have)
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
-                                "|[1, 2, 3]->map(x|$x->meta::pure::functions::variant::toVariant())->meta::pure::functions::collection::toMany(@Integer)",
+                                "|[1, 2, 3]->map(x|$x->meta::pure::functions::variant::convert::toVariant())->meta::pure::functions::variant::convert::toMany(@Integer)",
                                 "test::TestRuntime", connection);
                 assertNotNull(result.rows().get(0).get(0), "toVariant/toMany should produce a result");
         }

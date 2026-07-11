@@ -85,6 +85,7 @@ final class RelOpTranslator {
             case RelationalOperation.ColumnRef cr            -> sink.add(cr.table());
             case RelationalOperation.TargetColumnRef ignored -> { }
             case RelationalOperation.Literal ignored         -> { }
+            case RelationalOperation.TypeRef ignored          -> { }
             case RelationalOperation.FunctionCall fc         -> fc.args().forEach(a -> collectTablesIn(a, sink));
             case RelationalOperation.Comparison c            -> { collectTablesIn(c.left(), sink); collectTablesIn(c.right(), sink); }
             case RelationalOperation.BooleanOp b             -> { collectTablesIn(b.left(), sink); collectTablesIn(b.right(), sink); }
@@ -172,6 +173,20 @@ final class RelOpTranslator {
                     }
                     yield chain;
             }
+            // get(col, 'key', @Type): TYPED variant extraction — real pure's
+            // to(get(col, 'key'), @Type) (the same emission the JSON-source
+            // synthesizer uses: text-extraction then cast).
+            case RelationalOperation.FunctionCall call
+                    when call.name().equals("get") && call.args().size() == 3
+                    && call.args().get(2) instanceof RelationalOperation.TypeRef tr ->
+                    new AppliedFunction("to", List.of(
+                            new AppliedFunction("get", List.of(
+                                    translate(call.args().get(0), tableScope, targetVarOrNull,
+                                            rowBindOrNull, pipeline),
+                                    translate(call.args().get(1), tableScope, targetVarOrNull,
+                                            rowBindOrNull, pipeline))),
+                            new com.legend.parser.spec.TypeAnnotation.Named(
+                                    new com.legend.parser.TypeExpression.NameRef(tr.typeName()))));
             // Dynafunction spellings with no same-named pure native:
             // isNull/isNotNull ARE isEmpty/isNotEmpty on [0..1] values;
             // group(x) is parenthesization; if's branches must be THUNKS
@@ -235,6 +250,10 @@ final class RelOpTranslator {
             case RelationalOperation.Group g ->
                     translate(g.inner(), tableScope, targetVarOrNull,
                             rowBindOrNull, pipeline);
+            case RelationalOperation.TypeRef tr -> throw new com.legend.error.ModelException(
+                    com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                    "'@" + tr.typeName() + "' type argument is only supported as"
+                            + " the third argument of get(col, key, @Type)");
             case RelationalOperation.ArrayLiteral arr -> new PureCollection(
                     arr.elements().stream()
                             .map(e -> translate(e, tableScope, targetVarOrNull,

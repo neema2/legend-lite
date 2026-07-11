@@ -2128,6 +2128,17 @@ public final class ElementParser implements TokenStreamCursor {
                 table = tablePart;
                 column = second;
             }
+            // An ARROW continues into a dynafunction chain over the column
+            // (DATA->get('k', @String)) — an EXPRESSION binding, not a
+            // plain column read.
+            if (!atEnd() && peek() == TokenType.ARROW) {
+                if (enumMappingId != null || anonymousEnumMapping) {
+                    throw error("EnumerationMapping cannot be applied to an expression mapping");
+                }
+                RelationalOperation chained = parseArrowChain(
+                        new RelationalOperation.ColumnRef(db, table, column), db);
+                return new PropertyMapping.Expression(propName, chained);
+            }
             if (enumMappingId != null || anonymousEnumMapping) {
                 return new PropertyMapping.EnumeratedColumn(propName, enumMappingId, db, table, column);
             }
@@ -2548,6 +2559,8 @@ public final class ElementParser implements TokenStreamCursor {
             }
         }
 
+        expr = parseArrowChain(expr, dbScope);
+
         // Optional right side: comparison or null-test.
         if (!atEnd()) {
             TokenType next = peek();
@@ -2570,7 +2583,47 @@ public final class ElementParser implements TokenStreamCursor {
         return expr;
     }
 
+    /**
+     * Postfix ARROW chain: {@code col->get('k', @String)} is the dynafunction
+     * with the receiver as its first argument (engine's method-call spelling
+     * in mapping operations).
+     */
+    private RelationalOperation parseArrowChain(RelationalOperation receiver, String dbScope) {
+        RelationalOperation expr = receiver;
+        while (!atEnd() && peek() == TokenType.ARROW) {
+            advance();
+            String fn = parseRelationalIdentifier();
+            expect(TokenType.PAREN_OPEN);
+            List<RelationalOperation> chainArgs = new ArrayList<>();
+            chainArgs.add(expr);
+            if (peek() != TokenType.PAREN_CLOSE) {
+                chainArgs.add(parseDbFunctionArg(dbScope));
+                while (match(TokenType.COMMA)) {
+                    chainArgs.add(parseDbFunctionArg(dbScope));
+                }
+            }
+            expect(TokenType.PAREN_CLOSE);
+            expr = new RelationalOperation.FunctionCall(fn, chainArgs);
+        }
+        return expr;
+    }
+
     private RelationalOperation parseDbFunctionArg(String dbScope) {
+        // '@Type' in ARGUMENT position is a TYPE REFERENCE (get(col,'k',@String))
+        // — a bare join navigation never terminates at ',' or ')'.
+        if (peek() == TokenType.AT) {
+            int save = pos;
+            advance();
+            String name = parseQualifiedName();
+            if (!atEnd() && (peek() == TokenType.COMMA || peek() == TokenType.PAREN_CLOSE)) {
+                return new RelationalOperation.TypeRef(name);
+            }
+            pos = save;
+        }
+        return parseDbFunctionArgTail(dbScope);
+    }
+
+    private RelationalOperation parseDbFunctionArgTail(String dbScope) {
         // R4.4 prerequisite: distinguish [db]@joinName (a self-qualified
         // JoinNavigation) from [a, b, c] (an array literal). Without the
         // lookahead, every '[' was consumed as array-literal opening and

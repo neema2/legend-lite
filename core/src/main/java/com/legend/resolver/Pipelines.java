@@ -401,6 +401,13 @@ final class Pipelines {
                             l.body().stream().map(b ->
                                     prefixColumns(b, rowVar, colPrefix, varRewrite)).toList(),
                             l.info());
+            // to(get($row.DATA, 'k'), @T) — JSON/variant-source bindings wrap
+            // reads in a CAST; the substitution rides through it (the same
+            // arm rewriteRowReads has — plan §F12: substitution doesn't care).
+            case com.legend.compiler.spec.typed.TypedCast c ->
+                    new com.legend.compiler.spec.typed.TypedCast(
+                            prefixColumns(c.source(), rowVar, colPrefix, varRewrite),
+                            c.target(), c.info());
             case com.legend.compiler.spec.typed.TypedCString ignored -> n;
             case com.legend.compiler.spec.typed.TypedCInteger ignored -> n;
             case com.legend.compiler.spec.typed.TypedCFloat ignored -> n;

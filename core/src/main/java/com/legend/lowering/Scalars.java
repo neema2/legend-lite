@@ -950,6 +950,13 @@ final class Scalars {
         if (type == Type.Primitive.STRING) {
             return new SqlExpr.StringLit(cell);
         }
+        // A Variant cell is JSON TEXT (the TDS literal wraps it in quotes).
+        if (PlatformTypes.isVariant(type)) {
+            String json = cell.length() >= 2 && cell.startsWith("\"") && cell.endsWith("\"")
+                    ? cell.substring(1, cell.length() - 1) : cell;
+            return new SqlExpr.Cast(new SqlExpr.StringLit(json),
+                    com.legend.sql.SqlType.Scalar.JSON);
+        }
         throw new IllegalStateException(
                 "no TDS cell rendering for Pure type " + type.typeName());
     }

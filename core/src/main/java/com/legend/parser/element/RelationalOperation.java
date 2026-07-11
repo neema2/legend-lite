@@ -38,6 +38,7 @@ public sealed interface RelationalOperation
                 RelationalOperation.IsNotNull,
                 RelationalOperation.Group,
                 RelationalOperation.ArrayLiteral,
+                RelationalOperation.TypeRef,
                 RelationalOperation.JoinNavigation {
 
     /**
@@ -176,6 +177,10 @@ public sealed interface RelationalOperation
     }
 
     /** Array literal: {@code [e1, e2, ...]} as it appears inside function args. */
+    /** A {@code @Type} argument of a dynafunction ({@code get(col, 'k', @String)}). */
+    record TypeRef(String typeName) implements RelationalOperation {
+    }
+
     record ArrayLiteral(List<RelationalOperation> elements) implements RelationalOperation {
         public ArrayLiteral {
             elements = elements != null ? List.copyOf(elements) : List.of();

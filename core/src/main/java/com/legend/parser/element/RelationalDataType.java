@@ -136,7 +136,8 @@ public sealed interface RelationalDataType permits
             case "DATE"           -> new Date_();
             case "DISTINCT"       -> new Distinct();
             case "OTHER"          -> new Other();
-            case "SEMISTRUCTURED" -> new SemiStructured();
+            // JSON is the same semi-structured carrier (engine DDL accepts both).
+            case "SEMISTRUCTURED", "JSON" -> new SemiStructured();
             case "VARCHAR", "CHAR", "BINARY", "VARBINARY",
                  "DECIMAL", "NUMERIC", "ARRAY", "OBJECT"
                 -> throw new IllegalArgumentException(

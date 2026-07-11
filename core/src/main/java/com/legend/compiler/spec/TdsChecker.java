@@ -92,12 +92,14 @@ final class TdsChecker {
     private static List<String> splitCells(String line) {
         List<String> cells = new ArrayList<>();
         StringBuilder cell = new StringBuilder();
-        boolean quoted = false;
+        // Either quote kind protects commas — variant cells carry JSON in
+        // DOUBLE quotes (1, "[1,2,3]"); the opener must close the cell.
+        char quote = 0;
         for (int i = 0; i < line.length(); i++) {
             char ch = line.charAt(i);
-            if (ch == '\'') {
-                quoted = !quoted;
-            } else if (ch == ',' && !quoted) {
+            if ((ch == '\'' || ch == '"') && (quote == 0 || quote == ch)) {
+                quote = quote == 0 ? ch : 0;
+            } else if (ch == ',' && quote == 0) {
                 cells.add(unquote(cell.toString().strip()));
                 cell.setLength(0);
                 continue;
@@ -109,9 +111,9 @@ final class TdsChecker {
     }
 
     private static String unquote(String cell) {
-        return cell.length() >= 2 && cell.startsWith("'") && cell.endsWith("'")
-                ? cell.substring(1, cell.length() - 1)
-                : cell;
+        boolean single = cell.length() >= 2 && cell.startsWith("'") && cell.endsWith("'");
+        boolean dbl = cell.length() >= 2 && cell.startsWith("\"") && cell.endsWith("\"");
+        return single || dbl ? cell.substring(1, cell.length() - 1) : cell;
     }
 
     /** An explicit {@code col:Type} annotation (engine {@code mapTdsColumnType}); unknown types fail loudly. */
