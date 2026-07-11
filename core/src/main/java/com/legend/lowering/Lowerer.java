@@ -1322,6 +1322,25 @@ public final class Lowerer {
                 + " unbounded(), got " + arg.getClass().getSimpleName());
     }
 
+    /**
+     * Whether a write destination reaches a PHYSICAL store table. A
+     * TDS-accessor destination normalizes to the literal relation itself
+     * (no table anywhere) — the write is vacuous and only the count is
+     * observable.
+     */
+    private static boolean containsStoreTable(TypedSpec n) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedTableReference
+                || n instanceof com.legend.compiler.spec.typed.TypedPackageableRef) {
+            return true;
+        }
+        for (TypedSpec child : n.children()) {
+            if (containsStoreTable(child)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** The numeric value of a literal frame bound, or null (RANGE takes decimals). */
     private static Number numericBound(TypedSpec arg) {
         // A negative literal arrives as unary minus AROUND the number.
@@ -1651,6 +1670,27 @@ public final class Lowerer {
             }
             case TypedNativeCall n -> Scalars.lower(n,
                     n.args().stream().map(a -> scalar(a, columns)).toList());
+            // write(rel, accessor) returns the COUNT of rows written (the
+            // PCT contract). A TDS-relation accessor destination has no
+            // physical table — the write is vacuous and only the count is
+            // observable; a REAL store destination stays loud until the
+            // insert path exists.
+            case com.legend.compiler.spec.typed.TypedWrite w -> {
+                boolean accessor = w.destination().isEmpty()
+                        || !containsStoreTable(w.destination().get());
+                if (!accessor) {
+                    throw new com.legend.error.NotImplementedException(
+                            "TypedWrite to a store destination is not yet implemented");
+                }
+                SqlSelect src = relation(w.source());
+                SqlSelect count = SqlSelect.starOf(
+                                new SqlSource.Subselect(src, nextAlias()))
+                        .withProjections(List.of(new SqlSelect.Projection(
+                                        new SqlAgg.Reducer("COUNT", List.of(), false), null)),
+                                List.of(new com.legend.sql.OutputCol("count",
+                                        com.legend.sql.SqlType.Scalar.BIGINT, false)));
+                yield new SqlExpr.ScalarSubquery(count);
+            }
             // A CLASS REFERENCE in scalar position carries its SIMPLE name
             // (PCT: STR_Person->toString() == 'STR_Person').
             case com.legend.compiler.spec.typed.TypedPackageableRef ref -> {

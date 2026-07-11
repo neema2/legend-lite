@@ -611,6 +611,15 @@ public final class StoreResolver {
         // join). Target of each hop = its class's own pipeline.
         java.util.List<AssocJoin> assocJoins = new ArrayList<>();
         Map<String, AssocJoin> joinsByChain = new java.util.LinkedHashMap<>();
+        // Per chain-prefix leaf demand: for [firm, country], hop 'firm'
+        // must materialize firm's OWN slots feeding 'country'.
+        Map<String, Set<String>> leavesByChain = new java.util.LinkedHashMap<>();
+        for (java.util.List<String> path : paths) {
+            for (int i = 0; i + 1 < path.size(); i++) {
+                leavesByChain.computeIfAbsent(String.join(".", path.subList(0, i + 1)),
+                        k -> new java.util.LinkedHashSet<>()).add(path.get(i + 1));
+            }
+        }
         for (java.util.List<String> path : paths) {
             if (path.size() < 2 || cs.bindings().containsKey(path.get(0))) {
                 continue;   // 1-hop, or embedded/slot heads (substitution-side)
@@ -637,7 +646,8 @@ public final class StoreResolver {
                     parentPrefix = known.prefix();
                     continue;
                 }
-                AssocJoin aj = associationJoin(parent, path.get(hop), context, false);
+                AssocJoin aj = associationJoin(parent, path.get(hop), context, false,
+                        leavesByChain.getOrDefault(chainKey, Set.of()));
                 if (hop > 0) {
                     // A CHAINED hop: the parent's columns live PREFIXED on the
                     // accumulated joined row — re-point the condition's LEFT
@@ -668,14 +678,15 @@ public final class StoreResolver {
                     cond = new TypedLambda(cond.parameters(), java.util.List.of(body),
                             cond.info());
                     aj = new AssocJoin(chainPrefix, aj.target(), aj.targetPipeline(),
-                            aj.targetRow(), cond);
+                            aj.targetRow(), cond, aj.targetSlotPrefixes());
                 }
                 assocJoins.add(aj);
                 joinsByChain.put(chainKey, aj);
                 assocs.put(chainKey, new Substitution.AssocSub(aj.prefix(),
                         aj.target().rowVar(), aj.target().bindings(),
                         aj.target().classFqn(),
-                        Pipelines.slotAliases(aj.target().pipeline())));
+                        Pipelines.slotAliases(aj.target().pipeline()),
+                        aj.targetSlotPrefixes()));
                 parent = aj.target();
                 parentPrefix = aj.prefix();
             }
@@ -1051,7 +1062,8 @@ public final class StoreResolver {
     private record AssocJoin(String prefix, ClassSource target,
                              TypedSpec targetPipeline,
                              com.legend.compiler.element.type.Type.RelationType targetRow,
-                             TypedLambda condition) {}
+                             TypedLambda condition,
+                             Map<String, String> targetSlotPrefixes) {}
 
     /**
      * A chained hop's prefix, ordinal-bumped against the ACCUMULATED column
@@ -1121,6 +1133,11 @@ public final class StoreResolver {
      */
     private AssocJoin associationJoin(ClassSource cs, String head, Context context,
                                       boolean forExists) {
+        return associationJoin(cs, head, context, forExists, Set.of());
+    }
+
+    private AssocJoin associationJoin(ClassSource cs, String head, Context context,
+                                      boolean forExists, Set<String> demandedLeaves) {
         var assoc = ctx.findAssociationOf(cs.classFqn(), head).orElseThrow(() ->
                 new MappingResolutionException("property '" + head + "' of class '"
                         + cs.classFqn() + "' is not mapped in mapping '"
@@ -1141,8 +1158,23 @@ public final class StoreResolver {
         String targetClass = ((com.legend.parser.TypeExpression.NameRef)
                 end.targetClass()).name();
         ClassSource target = sources.get(cs.mappingFqn(), targetClass);
+        // The TARGET's own join slots materialize on demand too: a demanded
+        // leaf whose binding reads a slot ($p.firm.country where country is
+        // @FirmCountry-mapped) pulls that slot's LEFT join into the target
+        // pipeline — nested navigation joins, the W4 slice.
+        Set<String> targetSlots = Pipelines.slotAliases(target.pipeline());
+        Set<String> targetDemand = new java.util.LinkedHashSet<>();
+        if (!targetSlots.isEmpty()) {
+            for (String leaf : demandedLeaves) {
+                TypedSpec b = target.bindings().get(leaf);
+                if (b != null) {
+                    collectAliasReads(b, target.rowVar(), targetSlots, targetDemand);
+                }
+            }
+        }
+        targetDemand = Pipelines.closeOverConditions(target.pipeline(), targetDemand);
         Pipelines.Materialized tMat = Pipelines.materialize(
-                target.pipeline(), Set.of(), target.classFqn());
+                target.pipeline(), targetDemand, target.classFqn());
 
         // The predicate function: mapping's AssociationBinding for the assoc.
         var mapping = ctx.findMapping(cs.mappingFqn()).orElseThrow();
@@ -1203,7 +1235,7 @@ public final class StoreResolver {
         return new AssocJoin(prefixFor(head, cs), target, tMat.pipeline(),
                 (com.legend.compiler.element.type.Type.RelationType)
                         tMat.pipeline().info().type(),
-                oriented);
+                oriented, tMat.slotPrefixes());
     }
 
     /** Slot aliases a binding expression reads ($row.alias...). */

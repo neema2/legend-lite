@@ -70,13 +70,22 @@ final class Substitution {
     record AssocSub(String prefix, String targetRowVar,
                     Map<String, TypedSpec> targetBindings, String targetClassFqn,
                     java.util.Set<String> targetSlotAliases,
+                    Map<String, String> targetSlotPrefixes,
                     String readVar, Type.RelationType readRowType) {
 
         AssocSub(String prefix, String targetRowVar,
                  Map<String, TypedSpec> targetBindings, String targetClassFqn,
                  java.util.Set<String> targetSlotAliases) {
             this(prefix, targetRowVar, targetBindings, targetClassFqn,
-                    targetSlotAliases, null, null);
+                    targetSlotAliases, Map.of(), null, null);
+        }
+
+        AssocSub(String prefix, String targetRowVar,
+                 Map<String, TypedSpec> targetBindings, String targetClassFqn,
+                 java.util.Set<String> targetSlotAliases,
+                 Map<String, String> targetSlotPrefixes) {
+            this(prefix, targetRowVar, targetBindings, targetClassFqn,
+                    targetSlotAliases, targetSlotPrefixes, null, null);
         }
     }
 
@@ -379,15 +388,25 @@ final class Substitution {
                     + "' of association target '" + a.targetClassFqn()
                     + "' (embedded) is not supported yet");
         }
-        // The target pipeline materialized with EMPTY demand — its own join
-        // slots are STRIPPED. A leaf whose binding reads one would silently
-        // prefix a nonexistent column: loud instead (nested navigation
-        // through the target's joins is a later slice).
+        // A leaf reading the target's OWN join slots: DEMANDED slots were
+        // materialized (their columns ride the target pipeline slot-prefixed)
+        // and the read FLATTENS through the unified rewriter before the
+        // chain prefix applies; an UNDEMANDED slot read is loud — the
+        // demand scan and the rewrite disagreed, or the position (exists)
+        // doesn't materialize target slots yet.
         if (Pipelines.referencesAliasOn(leafBinding, a.targetRowVar(),
                 a.targetSlotAliases())) {
-            throw new NotImplementedException("property '" + leaf + "' of class '"
-                    + a.targetClassFqn() + "' is mapped through the target's own"
-                    + " join slots; nested navigation joins are not supported yet");
+            java.util.Set<String> unconverted = new java.util.HashSet<>(a.targetSlotAliases());
+            unconverted.removeAll(a.targetSlotPrefixes().keySet());
+            if (Pipelines.referencesAliasOn(leafBinding, a.targetRowVar(), unconverted)) {
+                throw new NotImplementedException("property '" + leaf + "' of class '"
+                        + a.targetClassFqn() + "' is mapped through the target's own"
+                        + " join slots; nested navigation joins are not supported"
+                        + " in this position yet");
+            }
+            leafBinding = Pipelines.rewriteRowReads(leafBinding, a.targetRowVar(),
+                    a.targetSlotPrefixes(), java.util.Set.of(),
+                    v -> new TypedVariable(a.targetRowVar(), v.info()));
         }
         String readVar = a.readVar() != null ? a.readVar() : target.freshRowVar();
         Type.RelationType readRow = a.readRowType() != null ? a.readRowType()
@@ -456,7 +475,7 @@ final class Substitution {
         // as usual (outer reads stay correlated).
         Map<String, AssocSub> inner = new java.util.LinkedHashMap<>(target.assocs());
         inner.put(head, new AssocSub("", ex.targetRowVar(), ex.targetBindings(),
-                ex.targetClassFqn(), ex.targetSlotAliases(), tVar, ex.targetRow()));
+                ex.targetClassFqn(), ex.targetSlotAliases(), Map.of(), tVar, ex.targetRow()));
         Substitution innerSub = new Substitution(new Target(
                 target.userVar(), target.freshRowVar(), target.classFqn(),
                 target.mappingFqn(), target.sourceRowVar(), target.bindings(),

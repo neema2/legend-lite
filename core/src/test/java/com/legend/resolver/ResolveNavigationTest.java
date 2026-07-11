@@ -217,8 +217,8 @@ class ResolveNavigationTest {
     }
 
     @Test
-    @DisplayName("audit: assoc leaf mapped through the TARGET's own join slot is loud")
-    void targetSlotLeafIsLoud() {
+    @DisplayName("W4: assoc leaf mapped through the TARGET's own join slot NESTS the join")
+    void targetSlotLeafNestsTheJoin() {
         String model = """
             Class m::P { name: String[1]; }
             Class m::E { orgName: String[1]; }
@@ -239,10 +239,14 @@ class ResolveNavigationTest {
         SpecCompiler specs = new SpecCompiler(ctx);
         var body = specs.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(
                 "m::P.all()->project(~[o: p|$p.emp.orgName])->from(m::RT)")));
-        var e = org.junit.jupiter.api.Assertions.assertThrows(
-                com.legend.error.NotImplementedException.class,
-                () -> new StoreResolver(ctx, specs).resolve(body, null));
-        assertTrue(e.getMessage().contains("join slots"), e.getMessage());
+        // The demanded leaf pulls the TARGET's own @EO slot into its
+        // pipeline: assoc hop + nested slot = two LEFT JOINs, and the leaf
+        // reads the doubly-prefixed flat column.
+        var resolved = new StoreResolver(ctx, specs).resolve(body, null);
+        String sql = new DuckDb().render(new Lowerer().lower(
+                resolved.get(resolved.size() - 1)));
+        assertEquals(2, sql.split("LEFT OUTER JOIN", -1).length - 1,
+                "assoc hop + nested slot join: " + sql);
     }
 
     // ---- part 3: class-typed Join PM (navigate-step) navigation ----

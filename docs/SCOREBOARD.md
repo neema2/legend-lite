@@ -3432,3 +3432,24 @@ Top detail:
     1  graph child 'address' of class 'model::ActivePersonWithAddress' is map
     1  SQL dialect for database type 'H2' (connection 'store::Conn' of runtim
 ```
+
+### Run 2026-07-11 @ 04f1c5a
+
+| tests | pass | failures | errors | skipped | green classes |
+|---|---|---|---|---|---|
+| 2478 | **2439** | 5 | 15 | 19 | 392 |
+
+| bucket | exception lines |
+|---|---|
+| OTHER | 15 |
+
+Top detail:
+```
+    6  model-to-model binding of 'model::StaffComplete' in 'model::DisjointDe
+    3  graph child 'department' of class 'model::StaffWithDept' is mapped as 
+    2  graph child 'address' of class 'model::PersonWithAddress' is mapped as
+    1  graph child 'department' of class 'model::StaffFull' is mapped as an e
+    1  graph child 'addresses' of class 'model::PersonWithAddresses' is mappe
+    1  graph child 'address' of class 'model::ActivePersonWithAddress' is map
+    1  SQL dialect for database type 'H2' (connection 'store::Conn' of runtim
+```
