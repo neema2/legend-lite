@@ -436,6 +436,14 @@ final class Typer {
         Type retType = ftype.result().type();
         if (retType instanceof Type.TypeVar rv && !b.hasType(rv.name())) {
             b.bindType(rv.name(), body.info().type());
+        } else if (retType instanceof Type.TypeVar rv
+                && kernel.resolve(retType, b) instanceof Type.ClassType nil
+                && nil.fqn().equals("meta::pure::metamodel::type::Nil")) {
+            // The return variable was solved to Nil by a []-born argument
+            // (fold's init): BOTTOM carries no constraint — the body's type
+            // IS the solution (covariant upgrade; Nil vanishes, the same rule
+            // as in collection LUBs and type-var accumulation).
+            b.bindType(rv.name(), body.info().type());
         } else if (retType instanceof Type.SchemaAlgebra || !kernel.hasFreeTypeVars(retType, b)) {
             kernel.unify(kernel.resolve(retType, b), body.info().type(), new Bindings());
         } else {

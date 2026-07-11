@@ -69,7 +69,9 @@ public sealed interface SqlSource {
             RIGHT("RIGHT OUTER JOIN"),
             FULL("FULL OUTER JOIN"),
             CROSS("CROSS JOIN"),
-            ASOF_LEFT("ASOF LEFT JOIN");
+            ASOF_LEFT("ASOF LEFT JOIN"),
+            /** Correlated derived table preserving left rows ({@code ... ON TRUE}) — array explosion. */
+            LEFT_LATERAL("LEFT JOIN LATERAL");
 
             public final String sql;
 

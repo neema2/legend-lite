@@ -213,6 +213,14 @@ public final class Lowerer {
 
             case TypedExtend e -> extend(relation(e.source()), e.columns(), e.info());
 
+            // project over INSTANCE LITERALS (PCT's ^X(...)->project(~[...])):
+            // no store exists — each instance becomes one SELECT over a 1-row
+            // anchor, its to-many property paths exploding via LEFT JOIN
+            // LATERAL UNNEST (cross-product across columns, real pure; LEFT so
+            // an empty array NULLs its column instead of killing the row).
+            case TypedProject p when isInstanceLiteral(p.source()) ->
+                    projectOverInstances(p);
+
             case TypedProject p -> project(relation(p.source()), p.columns(), p.info());
 
             case TypedConcatenate c -> SqlSelect.starOf(
@@ -1440,6 +1448,135 @@ public final class Lowerer {
             // SANCTIONED frontier default — see relation() above.
             default -> throw new com.legend.error.NotImplementedException("scalar lowering not yet implemented for "
                     + spec.getClass().getSimpleName());
+        };
+    }
+
+    /** An instance literal in relation position: {@code ^X(…)} or a collection of them. */
+    private static boolean isInstanceLiteral(TypedSpec source) {
+        return source instanceof com.legend.compiler.spec.typed.TypedNewInstance
+                || (source instanceof TypedCollection c
+                        && !c.elements().isEmpty()
+                        && c.elements().stream().allMatch(e ->
+                                e instanceof com.legend.compiler.spec.typed.TypedNewInstance));
+    }
+
+    /**
+     * Lower {@code <instances>->project(~[alias: x|$x.path…])}: one SELECT per
+     * instance (UNION ALL for a collection). A colspec whose path crosses a
+     * TO-MANY property becomes a {@code LEFT JOIN LATERAL
+     * (SELECT unnest(<array literal>) AS elem)} off a one-row anchor — LEFT
+     * so an empty array yields NULL, lateral chaining so independent arrays
+     * CROSS-multiply (real pure's project semantics over instances).
+     */
+    private SqlSelect projectOverInstances(TypedProject p) {
+        List<com.legend.compiler.spec.typed.TypedNewInstance> instances =
+                p.source() instanceof TypedCollection c
+                        ? c.elements().stream()
+                                .map(e -> (com.legend.compiler.spec.typed.TypedNewInstance) e)
+                                .toList()
+                        : List.of((com.legend.compiler.spec.typed.TypedNewInstance) p.source());
+        List<OutputCol> outputs = outputsOf(p.info());
+        List<SqlQuery> branches = new ArrayList<>(instances.size());
+        for (var inst : instances) {
+            branches.add(instanceSelect(inst, p.columns(), outputs));
+        }
+        if (branches.size() == 1) {
+            return (SqlSelect) branches.get(0);
+        }
+        return SqlSelect.starOf(new SqlSource.Subselect(
+                new com.legend.sql.SqlUnion(branches, true, outputs), nextAlias()));
+    }
+
+    private SqlSelect instanceSelect(com.legend.compiler.spec.typed.TypedNewInstance inst,
+                                     List<TypedFuncCol> columns, List<OutputCol> outputs) {
+        SqlSource src = null;
+        List<SqlSelect.Projection> ps = new ArrayList<>(columns.size());
+        for (TypedFuncCol col : columns) {
+            List<String> path = pathOf(col);
+            // Walk the path over the literal: to-one instance hops recurse;
+            // the first TO-MANY value becomes the unnest source.
+            TypedSpec cur = inst;
+            SqlExpr value = null;
+            for (int i = 0; i < path.size(); i++) {
+                if (!(cur instanceof com.legend.compiler.spec.typed.TypedNewInstance ni)) {
+                    throw new com.legend.error.NotImplementedException(
+                            "instance-literal project: '" + col.name()
+                                    + "' navigates through a non-instance value");
+                }
+                TypedSpec v = ni.properties().get(path.get(i));
+                if (v == null) {
+                    value = new SqlExpr.NullLit();   // unset property: NULL column
+                    break;
+                }
+                if (v instanceof TypedCollection many) {
+                    // TO-MANY: explode via lateral unnest; the residual path
+                    // reads fields off the element struct.
+                    String alias = nextAlias();
+                    SqlExpr array = many.elements().isEmpty()
+                            ? new SqlExpr.NullLit()
+                            : new SqlExpr.ArrayLit(many.elements().stream()
+                                    .map(e -> scalar(e, noScope())).toList());
+                    SqlSelect unnest = new SqlSelect(
+                            List.of(new SqlSelect.Projection(
+                                    SqlExpr.Call.of(com.legend.sql.SqlFn.UNNEST, array), "elem")),
+                            false, null, null, List.of(), null, null, List.of(), null, null,
+                            List.of(new OutputCol("elem",
+                                    com.legend.sql.SqlType.Scalar.VARCHAR, true)));
+                    SqlSource right = new SqlSource.Subselect(unnest, alias);
+                    src = src == null
+                            ? anchorJoin(right)
+                            : new SqlSource.Join(src, right,
+                                    SqlSource.Join.Kind.LEFT_LATERAL, new SqlExpr.BoolLit(true));
+                    value = new SqlExpr.Column(alias, "elem");
+                    for (int r = i + 1; r < path.size(); r++) {
+                        value = new SqlExpr.StructGet(value, path.get(r));
+                    }
+                    break;
+                }
+                if (i == path.size() - 1) {
+                    value = scalar(v, noScope());
+                } else {
+                    cur = v;
+                }
+            }
+            ps.add(new SqlSelect.Projection(java.util.Objects.requireNonNull(value), col.name()));
+        }
+        return new SqlSelect(ps, false, src, null, List.of(), null, null,
+                List.of(), null, null, outputs);
+    }
+
+    /** The 1-row anchor a lateral chain hangs off (an empty array must NULL, not kill, the row). */
+    private SqlSource anchorJoin(SqlSource right) {
+        SqlSource anchor = new SqlSource.Values(
+                List.of(List.of(new SqlExpr.IntLit(1))), List.of("_anchor"), nextAlias(),
+                List.of(new OutputCol("_anchor", com.legend.sql.SqlType.Scalar.BIGINT, false)));
+        return new SqlSource.Join(anchor, right,
+                SqlSource.Join.Kind.LEFT_LATERAL, new SqlExpr.BoolLit(true));
+    }
+
+    /** A colspec body as a bare property path rooted at the lambda parameter — loud otherwise. */
+    private static List<String> pathOf(TypedFuncCol col) {
+        String param = col.fn().parameters().get(0);
+        java.util.ArrayDeque<String> path = new java.util.ArrayDeque<>();
+        TypedSpec cur = col.fn().body().get(col.fn().body().size() - 1);
+        while (cur instanceof TypedPropertyAccess pa) {
+            path.addFirst(pa.property());
+            cur = pa.source();
+        }
+        if (!(cur instanceof TypedVariable v) || !v.name().equals(param) || path.isEmpty()) {
+            throw new com.legend.error.NotImplementedException(
+                    "instance-literal project supports bare property paths ($"
+                            + param + ".a.b) only");
+        }
+        return List.copyOf(path);
+    }
+
+    /** A resolver for positions where no row scope exists (literal evaluation). */
+    private ColumnResolver noScope() {
+        return (var, name) -> {
+            throw new IllegalStateException(
+                    "an instance literal has no row scope for $" + var
+                            + (name == null ? "" : "." + name));
         };
     }
 

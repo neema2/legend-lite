@@ -626,10 +626,11 @@ class LowerRelationTest {
         // CollectionBuild (G can't decompose the mixed-type body): sum of lengths.
         assertEquals(List.of("6"), exec(sqlOf(
                 "['ab', 'cdef']->fold({e, a | $e->length() + $a}, 0)")));
-        // Concatenation: accumulate the source onto init.
-        assertEquals(List.of("[9, 1, 2]"), exec(sqlOf(
-                "[1, 2]->fold({e, a | $a->add($e)}, [9])")).stream()
-                .map(String::valueOf).toList());
+        // Concatenation: accumulate the source onto init. The fold's shared
+        // multiplicity variable WIDENS covariantly (init [1], body [*] -> [*],
+        // real pure) — the result is a COLLECTION, one row per element.
+        assertEquals(List.of("9", "1", "2"), exec(sqlOf(
+                "[1, 2]->fold({e, a | $a->add($e)}, [9])")));
     }
 
     @Test

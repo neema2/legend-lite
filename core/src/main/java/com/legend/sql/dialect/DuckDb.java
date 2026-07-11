@@ -138,6 +138,11 @@ public final class DuckDb extends AnsiSqlRenderer {
                             unwrapElemRefs(w.condition(), elem),
                             unwrapElemRefs(w.then(), elem))).toList(),
                     cs.otherwise() == null ? null : unwrapElemRefs(cs.otherwise(), elem));
+            case SqlExpr.StructLit s -> new SqlExpr.StructLit(s.fields().stream()
+                    .map(fld -> new SqlExpr.StructLit.Field(fld.name(),
+                            unwrapElemRefs(fld.value(), elem))).toList());
+            case SqlExpr.StructGet g -> new SqlExpr.StructGet(
+                    unwrapElemRefs(g.source(), elem), g.field());
             case SqlExpr.Lambda l -> l.params().contains(elem)
                     ? l   // inner lambda shadows the element name
                     : new SqlExpr.Lambda(l.params(), unwrapElemRefs(l.body(), elem));

@@ -32,6 +32,14 @@ class StructValueTest {
               lastName: String[1];
               nick: String[0..1];
             }
+            Class m::Holder
+            {
+              name: String[1];
+              addresses: m::Addr[*];
+              values: m::Val[*];
+            }
+            Class m::Addr { val: String[1]; }
+            Class m::Val { val: Integer[1]; }
             Database m::DB ( Table T (ID INTEGER) )
             """;
 
@@ -105,6 +113,29 @@ class StructValueTest {
         assertEquals(1L, ((Number) inner.get("first")).longValue());
         assertEquals("a", inner.get("second"));
         assertEquals(10L, ((Number) outer.get("second")).longValue());
+    }
+
+    @Test
+    @DisplayName("project over an instance literal: to-many paths CROSS-multiply")
+    void projectInstanceCrossProduct() throws SQLException {
+        var r = run("|^m::Holder(name='ok',"
+                + " addresses=[^m::Addr(val='no'), ^m::Addr(val='other')],"
+                + " values=[^m::Val(val=1), ^m::Val(val=2), ^m::Val(val=3)])"
+                + "->project(~[one:x|$x.name, two:x|$x.addresses.val, three:x|$x.values.val])");
+        ExecutionResult.Tabular t = assertInstanceOf(ExecutionResult.Tabular.class, r);
+        assertEquals(6, t.rows().size(), "2 addresses x 3 values = cross product");
+        assertEquals("ok", t.rows().get(0).get(0));
+    }
+
+    @Test
+    @DisplayName("project over an instance literal: an EMPTY array NULLs its column, keeps rows")
+    void projectInstanceEmptyArray() throws SQLException {
+        var r = run("|^m::Holder(name='ok',"
+                + " addresses=[^m::Addr(val='no'), ^m::Addr(val='other')], values=[])"
+                + "->project(~[one:x|$x.name, two:x|$x.addresses.val, three:x|$x.values.val])");
+        ExecutionResult.Tabular t = assertInstanceOf(ExecutionResult.Tabular.class, r);
+        assertEquals(2, t.rows().size(), "empty array NULLs, never kills, the row");
+        assertNull(t.rows().get(0).get(2));
     }
 
     @Test

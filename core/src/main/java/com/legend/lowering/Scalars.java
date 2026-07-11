@@ -64,8 +64,28 @@ final class Scalars {
                             ? new SqlExpr.Call(SqlFn.NOT_EQUAL, c.args())
                             : new SqlExpr.Call(SqlFn.NOT, args));
         }
-        family(SqlFn.PLUS, "plus");
-        family(SqlFn.MINUS, "minus");
+        // UNARY plus/minus (the parser's -x => minus(x) desugar): a 1-arg
+        // minus NEGATES — the binary operator renderer would silently DROP
+        // the sign of a lone operand (audit: [-5, -3] executed as [5, 3]).
+        for (String f : Pure.nativeKeysAt("plus")) {
+            RULES.put(f, (n, args) -> args.size() == 1 && isToOne(n.args().get(0))
+                    ? args.get(0)   // unary +x
+                    : new SqlExpr.Call(SqlFn.PLUS, args));
+        }
+        for (String f : Pure.nativeKeysAt("minus")) {
+            RULES.put(f, (n, args) -> {
+                if (args.size() != 1 || !isToOne(n.args().get(0))) {
+                    return new SqlExpr.Call(SqlFn.MINUS, args);
+                }
+                return switch (args.get(0)) {
+                    case SqlExpr.IntLit i -> new SqlExpr.IntLit(-i.value());
+                    case SqlExpr.FloatLit fl -> new SqlExpr.FloatLit(-fl.value());
+                    case SqlExpr.DecimalLit d -> new SqlExpr.DecimalLit(d.value().negate());
+                    case SqlExpr e -> new SqlExpr.Call(SqlFn.MINUS,
+                            List.of(new SqlExpr.IntLit(0), e));
+                };
+            });
+        }
         family(SqlFn.TIMES, "times");
         family(SqlFn.DIVIDE, "divide");
         family(SqlFn.MOD, "mod");
@@ -450,9 +470,14 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("zip")) {
             RULES.put(f, (n, args) -> {
                 SqlExpr a = args.get(0), b = args.get(1);
+                // An EMPTY side is SQL NULL and len(NULL) is NULL — which
+                // LEAST would IGNORE (it skips nulls), silently zipping
+                // against the non-empty side. Zero it explicitly.
                 SqlExpr count = SqlExpr.Call.of(SqlFn.LEAST,
-                        SqlExpr.Call.of(SqlFn.LIST_LENGTH, a),
-                        SqlExpr.Call.of(SqlFn.LIST_LENGTH, b));
+                        SqlExpr.Call.of(SqlFn.COALESCE,
+                                SqlExpr.Call.of(SqlFn.LIST_LENGTH, a), new SqlExpr.IntLit(0)),
+                        SqlExpr.Call.of(SqlFn.COALESCE,
+                                SqlExpr.Call.of(SqlFn.LIST_LENGTH, b), new SqlExpr.IntLit(0)));
                 SqlExpr i = new SqlExpr.Column(null, "_zip_i");
                 SqlExpr body = new SqlExpr.StructLit(List.of(
                         new SqlExpr.StructLit.Field("first",

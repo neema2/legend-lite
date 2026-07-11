@@ -437,6 +437,18 @@ public final class InferenceKernel {
             case Multiplicity.Var v -> {
                 if (!b.hasMult(v.name())) {
                     b.bindMult(v.name(), actual);
+                } else if (b.mult(v.name()).orElseThrow() instanceof Multiplicity.Bounded e
+                        && actual instanceof Multiplicity.Bounded a2
+                        && !contains(e, a2)) {
+                    // COVARIANT accumulation: a shared multiplicity variable
+                    // widens to the RANGE UNION of its occurrences — real
+                    // pure meets if-branches [1] and [0] at [0..1], and
+                    // fold's []-init [0] with a [*] body at [*]. Widening
+                    // only (a contained range keeps the solution stable).
+                    b.bindMult(v.name(), new Multiplicity.Bounded(
+                            Math.min(e.lower(), a2.lower()),
+                            e.upper() == null || a2.upper() == null ? null
+                                    : Math.max(e.upper(), a2.upper())));
                 }
             }
             case Multiplicity.Bounded fb -> {
@@ -533,6 +545,13 @@ public final class InferenceKernel {
             default -> throw new TypeInferenceException(
                     "schema-algebra operator not supported in resolution: " + sa.op());
         }
+    }
+
+    /** Whether range {@code outer} already contains range {@code inner}. */
+    private static boolean contains(Multiplicity.Bounded outer, Multiplicity.Bounded inner) {
+        boolean upperOk = outer.upper() == null
+                || (inner.upper() != null && inner.upper() <= outer.upper());
+        return outer.lower() <= inner.lower() && upperOk;
     }
 
     /** Resolve a return multiplicity: a {@link Multiplicity.Var} is looked up, otherwise identity. */
