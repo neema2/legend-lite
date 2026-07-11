@@ -91,4 +91,15 @@ the alias). over() gains the collapsed real-over.pure forms: (frame),
 over binds T to the EMPTY unknown fragment (the over(~city) containment
 mechanism, vacuous case). Relation 75 -> 56.
 
+**Slice 3a** (variant cell inference): JSON-shaped TDS cells
+([...]/{...}) infer VARIANT. Deephaven (real pure's inference engine)
+says String there, but the PCT fixtures pair such cells with
+Variant-annotated lambdas — the author's declared intent — and the
+String inference sent toMany(@Integer) down the scalar-cast path
+(list_sort(BIGINT) and friends: 13 tests). Corpus green — the gate
+arbitrated in favor. Relation 56 -> 43; PCT total 874/1109 (79%).
+Remaining Relation 43: variant::flatten + fromJson registrations (5),
+lateral lowering (3), assertError message parity (10), adapter TDS
+decode edges (5), subquery cardinality (2), singles.
+
 Update this file per slice, same as docs/SCOREBOARD.md.

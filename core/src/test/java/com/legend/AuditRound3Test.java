@@ -120,6 +120,20 @@ class AuditRound3Test {
         assertEquals("2024-01-29", d.toString().substring(0, 10));
     }
 
+    @Test
+    @DisplayName("PCT slice 3a: JSON-shaped TDS cells infer Variant")
+    void tdsVariantInference() throws Exception {
+        // "[3,1,2]" cells pair with Variant-annotated lambdas in the PCT
+        // fixtures; toMany(@Integer) over the inferred Variant column takes
+        // the ARRAY cast path (a String inference sent list_sort a scalar).
+        Object v = scalar("#TDS\n id, payload\n 1, \"[3,1,2]\"\n"
+                + "#->extend(~s:x|$x.payload"
+                + "->meta::pure::functions::variant::convert::toMany(@Integer)"
+                + "->sort()->meta::pure::functions::variant::convert::toVariant())"
+                + "->select(~[s])");
+        assertEquals("[1,2,3]", v.toString());
+    }
+
     // ---- lowering values ----
 
     @Test

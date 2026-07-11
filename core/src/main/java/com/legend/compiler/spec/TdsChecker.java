@@ -172,6 +172,15 @@ final class TdsChecker {
             if (v.matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}.*")) {
                 return Type.Primitive.DATE_TIME;
             }
+            // JSON-shaped cells ([...] / {...}) infer VARIANT: Deephaven
+            // (real pure's inference engine) says String here, but the PCT
+            // fixtures pair such cells with Variant-annotated lambdas — the
+            // author's declared intent; the corpus gate arbitrates.
+            if ((v.startsWith("[") && v.endsWith("]"))
+                    || (v.startsWith("{") && v.endsWith("}"))) {
+                return new Type.ClassType(
+                        com.legend.builtin.Pure.VARIANT.qualifiedName());
+            }
             return Type.Primitive.STRING;
         }
         return Type.Primitive.STRING;
