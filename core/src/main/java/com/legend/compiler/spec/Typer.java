@@ -265,7 +265,7 @@ final class Typer {
         }
         List<ExprType> argTypes = args.stream().map(TypedSpec::info).toList();
 
-        List<TypedFunction> candidates = ctx.findFunction(af.function());
+        List<TypedFunction> candidates = functionCandidates(af.function());
         if (candidates.isEmpty()) {
             throw new TypeInferenceException("unknown function '" + af.function() + "'");
         }
@@ -293,7 +293,7 @@ final class Typer {
      */
     private Application checkWithDeferred(AppliedFunction af, Env env) {
         List<ValueSpecification> raw = af.parameters();
-        List<TypedFunction> arity = ctx.findFunction(af.function()).stream()
+        List<TypedFunction> arity = functionCandidates(af.function()).stream()
                 .filter(c -> c.parameters().size() == raw.size())
                 .filter(c -> deferredShapesMatch(c, raw))
                 .toList();
@@ -572,6 +572,28 @@ final class Typer {
     // =====================================================================
     // Forms &mdash; the non-application ValueSpecification shapes
     // =====================================================================
+
+    /**
+     * PCT function-POINTER spellings carry the engine's mangled signature
+     * tail ({@code tanh_Number_1__Float_1_}) — strip it and resolve the
+     * plain name; the call's ACTUAL arguments pick the overload. A plain
+     * name that resolves directly never demangles.
+     */
+    private List<TypedFunction> functionCandidates(String name) {
+        List<TypedFunction> found = ctx.findFunction(name);
+        if (!found.isEmpty()) {
+            return found;
+        }
+        java.util.regex.Matcher m = MANGLED_TAIL.matcher(name);
+        if (m.find()) {
+            return ctx.findFunction(name.substring(0, m.start()));
+        }
+        return found;
+    }
+
+    /** {@code _Type_mult} segments (mult: digits, MANY, or {@code $a_b$} ranges), trailing underscore. */
+    private static final java.util.regex.Pattern MANGLED_TAIL = java.util.regex.Pattern
+            .compile("(?:_?_[A-Za-z][A-Za-z0-9]*_(?:\\d+|MANY|\\$[^$]*\\$))+_?$");
 
     /**
      * A packageable-element reference used as a value &mdash; currently a class
