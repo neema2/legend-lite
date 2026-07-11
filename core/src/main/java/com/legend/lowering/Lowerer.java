@@ -53,6 +53,7 @@ import java.util.function.Function;
 public final class Lowerer {
 
     private int aliasCounter = 0;
+    private int tdsCounter;
 
     /**
      * The CANONICAL class-value layout resolver (ClassLayouts, supplied by the
@@ -960,7 +961,9 @@ public final class Lowerer {
     private SqlSelect tdsLiteral(TypedTds tds) {
         Type.RelationType schema = (Type.RelationType) tds.info().type();
         List<String> names = schema.columns().stream().map(Type.Column::name).toList();
-        String alias = nextAlias();
+        // The _tds alias names the literal's VALUES source (engine parity;
+        // the shared counter keeps multiple literals distinct).
+        String alias = "_tds" + tdsCounter++;
         if (tds.rows().isEmpty()) {
             List<SqlExpr> nulls = names.stream().map(n -> (SqlExpr) new SqlExpr.NullLit()).toList();
             SqlSource.Values v = new SqlSource.Values(List.of(nulls), names, alias, outputsOf(tds.info()));

@@ -148,7 +148,7 @@ public class ComputedProjectIntegrationTest {
             //   Firm X, John
             //   Firm X, John
             //   Firm X, Peter
-            var rows = result.rows();
+            var rows = new java.util.ArrayList<>(result.rows());
             assertEquals(4, rows.size(), "Should have 4 rows for Firm X employees");
 
             // Sort by firstName for deterministic ordering (matches PCT ->sort(~firstName->ascending()))

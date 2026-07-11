@@ -636,6 +636,30 @@ final class Typer {
         if (ctx.isExecutionContextElement(ref.fullPath())) {
             return new TypedPackageableRef(ref.fullPath(), ExprType.one(InferenceKernel.anyType()));
         }
+        // A FUNCTION REFERENCE used as a value (removeDuplicates(eq_Any_1__...))
+        // ETA-EXPANDS: the reference becomes the lambda calling it — one
+        // uniform function-value story, no new node kind. Only an
+        // UNAMBIGUOUS (single-overload) target expands.
+        List<TypedFunction> fns = functionCandidates(ref.fullPath());
+        if (fns.size() == 1) {
+            TypedFunction fn = fns.get(0);
+            List<String> params = new ArrayList<>(fn.parameters().size());
+            List<TypedSpec> argRefs = new ArrayList<>(fn.parameters().size());
+            List<Type.FunctionType.Param> ftParams = new ArrayList<>(fn.parameters().size());
+            for (int i = 0; i < fn.parameters().size(); i++) {
+                var fp = fn.parameters().get(i);
+                String name = "_fr" + i;
+                params.add(name);
+                argRefs.add(new TypedVariable(name,
+                        new ExprType(fp.type(), fp.multiplicity())));
+                ftParams.add(new Type.FunctionType.Param(fp.type(), fp.multiplicity()));
+            }
+            ExprType out = new ExprType(fn.returnType(), fn.returnMultiplicity());
+            TypedSpec body = Typer.emitCall(fn, argRefs, out);
+            Type ft = new Type.FunctionType(ftParams,
+                    new Type.FunctionType.Param(fn.returnType(), fn.returnMultiplicity()));
+            return new TypedLambda(params, List.of(body), ExprType.one(ft));
+        }
         // Semantically a RESOLUTION failure (an unresolvable name), even
         // though it surfaces during type-checking — typed for what it MEANS.
         throw new com.legend.error.ResolutionException("'" + ref.fullPath()

@@ -2015,8 +2015,16 @@ public final class MappingNormalizer {
                 tableScope, defaultTable, p == null ? RelOpTranslator.PipelineView.NONE : p.view());
         ValueSpecification tail = new PureCollection(List.of());
         List<EnumerationMapping.EnumValueMapping> values = em.valueMappings();
+        // Entries naming a NON-EXISTENT enum value are SKIPPED, not fatal —
+        // the engine tolerates a stale entry as long as nothing reads it
+        // (referencing the value in a query still fails loudly at typing).
+        java.util.List<String> knownValues = model.findEnum(em.enumName())
+                .map(com.legend.parser.element.EnumDefinition::values).orElse(null);
         for (int i = values.size() - 1; i >= 0; i--) {
             EnumerationMapping.EnumValueMapping ev = values.get(i);
+            if (knownValues != null && !knownValues.contains(ev.enumValue())) {
+                continue;
+            }
             ValueSpecification disj = null;
             for (EnumerationMapping.SourceValue sv : ev.sourceValues()) {
                 ValueSpecification srcLit;

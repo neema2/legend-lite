@@ -269,7 +269,6 @@ final class Scalars {
                 Map.entry("today", SqlFn.TODAY), Map.entry("now", SqlFn.NOW),
 
                 // Lists / collections
-                Map.entry("removeDuplicates", SqlFn.LIST_DISTINCT),
 
 
                 Map.entry("median", SqlFn.LIST_MEDIAN),
@@ -849,6 +848,18 @@ final class Scalars {
                                 new SqlExpr.ArrayLit(List.of(args.get(2)))),
                         SqlExpr.Call.of(SqlFn.LIST_SLICE, l, plusOne(idx),
                                 SqlExpr.Call.of(SqlFn.LIST_LENGTH, l)));
+            });
+        }
+        // removeDuplicates: bare distinct; an EQUALITY comparator (the
+        // eta-expanded eq/equal reference) is distinct's own semantics —
+        // anything richer has no set-based shape.
+        for (String f : Pure.nativeKeysAt("removeDuplicates")) {
+            RULES.put(f, (n, args) -> {
+                if (args.size() >= 2 && !isEqualityComparator(n.args().get(n.args().size() - 1))) {
+                    throw new IllegalStateException("removeDuplicates with a"
+                            + " non-equality comparator has no scalar lowering");
+                }
+                return new SqlExpr.Call(SqlFn.LIST_DISTINCT, List.of(args.get(0)));
             });
         }
         // Collection concatenate only — the relation overload is the
@@ -1480,6 +1491,19 @@ final class Scalars {
      * needle when squeezed into a 1-param SQL lambda. Inner lambdas that
      * rebind the name SHADOW (no substitution inside).
      */
+    /** A comparator whose body is bare eq/equal over its two parameters. */
+    private static boolean isEqualityComparator(com.legend.compiler.spec.typed.TypedSpec spec) {
+        if (!(spec instanceof com.legend.compiler.spec.typed.TypedLambda cmp)
+                || cmp.parameters().size() != 2 || cmp.body().size() != 1
+                || !(cmp.body().get(0) instanceof TypedNativeCall cc)
+                || cc.args().size() != 2) {
+            return false;
+        }
+        String fqn = cc.callee().qualifiedName();
+        return fqn.equals("meta::pure::functions::boolean::eq")
+                || fqn.equals("meta::pure::functions::boolean::equal");
+    }
+
     /**
      * The direction of a bare-compare comparator: {@code {x,y|$x->compare($y)}}
      * ascending, {@code {x,y|$y->compare($x)}} descending; anything richer
