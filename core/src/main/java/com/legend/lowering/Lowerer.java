@@ -203,6 +203,69 @@ public final class Lowerer {
             case TypedSelect sel -> narrowTo(relation(sel.source()), sel.columns(), sel.info());
 
             case TypedDistinct d -> distinct(d);
+            // lateral(rel, {row | relationOf(row)}): the lambda's relation
+            // body lowers with the row param CORRELATED to the left alias
+            // (the enclosing-resolver channel); DuckDB joins it per-row via
+            // CROSS JOIN LATERAL. Schema = T+V (checker's schema algebra).
+            case TypedNativeCall nc when nc.callee().qualifiedName()
+                    .equals("meta::pure::functions::relation::lateral")
+                    && nc.args().size() == 2
+                    && nc.args().get(1) instanceof TypedLambda lam -> {
+                SqlSelect left = relation(nc.args().get(0));
+                SqlSource leftSide = asLeftJoinSide(left);
+                String param = lam.parameters().get(0);
+                ColumnResolver leftCols = (v, name) ->
+                        (v == null || v.equals(param))
+                                ? resolveOrThrow(SqlSelect.starOf(leftSide), name)
+                                : null;
+                enclosing.push((v, name) -> {
+                    SqlExpr r = leftCols.resolve(v, name);
+                    if (r == null) {
+                        throw new IllegalStateException("lateral lambda references"
+                                + " unknown variable '" + v + "'");
+                    }
+                    return r;
+                });
+                SqlSelect right;
+                try {
+                    right = relation(lam.body().get(lam.body().size() - 1));
+                } finally {
+                    enclosing.pop();
+                }
+                SqlSource.Join join = new SqlSource.Join(leftSide,
+                        new SqlSource.Subselect(right, nextAlias()),
+                        SqlSource.Join.Kind.CROSS_LATERAL,
+                        null);   // CROSS JOIN takes no ON clause
+                yield SqlSelect.starOf(join)
+                        .withProjections(List.of(), outputsOf(nc.info()));
+            }
+            // relation::variant::flatten(collection, ~col): the collection
+            // UNNESTs as the single column (real flatten.pure semantics).
+            case com.legend.compiler.spec.typed.TypedCollectionRelation cr -> {
+                SqlExpr value = scalar(cr.value(), (v, name) -> {
+                    throw new IllegalStateException("collection-relation value must"
+                            + " be self-contained, referenced column: " + name);
+                });
+                Type elem = ((Type.RelationType) cr.info().type())
+                        .columns().get(0).type();
+                SqlExpr list = elem instanceof Type.ClassType
+                        ? SqlExpr.Call.of(com.legend.sql.SqlFn.VARIANT_ELEMENTS, value)
+                        : value;
+                // A VARIANT ELEMENT column keeps JSON elements; the list may
+                // itself be a variant (fromJson(...)->toMany(@Variant)).
+                if (cr.value().info().type() instanceof Type.ClassType vc
+                        && com.legend.compiler.element.type.PlatformTypes.isVariant(vc)
+                        && !(elem instanceof Type.ClassType)) {
+                    list = SqlExpr.Call.of(com.legend.sql.SqlFn.VARIANT_ELEMENTS, value);
+                }
+                yield SqlSelect.starOf(new SqlSource.Subselect(
+                        new com.legend.sql.SqlSelect(List.of(new SqlSelect.Projection(
+                                        SqlExpr.Call.of(com.legend.sql.SqlFn.UNNEST, list),
+                                        cr.column())),
+                                false, null, null, List.of(), null, null, List.of(),
+                                null, null, outputsOf(cr.info())),
+                        nextAlias()));
+            }
 
             case TypedRename r -> rename(r);
 

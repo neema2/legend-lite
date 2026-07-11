@@ -31,10 +31,21 @@ final class FlattenChecker {
             throw new TypeInferenceException("flatten expects (source, ~column)");
         }
         TypedSpec source = t.synth(af.parameters().get(0), env);
-        if (!(source.info().type() instanceof Type.RelationType schema)) {
-            throw new TypeInferenceException("flatten requires a relation source, got "
-                    + source.info().type().typeName());
+        // relation::variant::flatten(collection, ~col): a scalar/variant
+        // COLLECTION becomes a ONE-COLUMN relation (real flatten.pure:
+        // flatten<T,Z>(valueToFlatten:T[*], col:ColSpec<Z=(?:T)>):Relation<Z>).
+        // Validated against the registered VARIANT_FLATTEN signature by the
+        // COLLECTION shape; emission is TypedCollectionRelation (UNNEST).
+        if (!(source.info().type() instanceof Type.RelationType)) {
+            Type elem = source.info().type();
+            var row = new Type.RelationType(List.of(new Type.Column(cs.name(), elem,
+                    com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE)));
+            return new com.legend.compiler.spec.typed.TypedCollectionRelation(source,
+                    cs.name(),
+                    new com.legend.compiler.element.type.ExprType(row,
+                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
         }
+        Type.RelationType schema = (Type.RelationType) source.info().type();
         // Validate the CALL against the registered native signature — never
         // bypassed (the tableReference lesson). The re-audit showed unifying
         // T[*] against anything is VACUOUS, so the REAL checks are: the

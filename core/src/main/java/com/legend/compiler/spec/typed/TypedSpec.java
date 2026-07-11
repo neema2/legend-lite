@@ -50,7 +50,7 @@ public sealed interface TypedSpec permits
         TypedEval,
         TypedTds,
         TypedSourceUrl,
-        TypedFlatten,
+        TypedFlatten, TypedCollectionRelation,
         TypedPivot,
         TypedSortBy,
         TypedGetAll,

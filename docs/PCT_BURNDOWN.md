@@ -102,4 +102,15 @@ Remaining Relation 43: variant::flatten + fromJson registrations (5),
 lateral lowering (3), assertError message parity (10), adapter TDS
 decode edges (5), subquery cardinality (2), singles.
 
+**Slice 3b** (variant sources + lateral): fromJson(String):Variant
+registers and lowers as the JSON cast. relation::variant::flatten
+(collection, ~col) — real flatten.pure's scalar/variant-collection →
+ONE-COLUMN relation — lands as TypedCollectionRelation lowering to
+SELECT UNNEST(value) AS col (variant lists pass through
+VARIANT_ELEMENTS). lateral(rel, {row|relationOf(row)}) lowers: the
+lambda's relation body compiles with the row param CORRELATED to the
+left alias through the enclosing-resolver channel, joined per-row via
+CROSS JOIN LATERAL (no ON clause); schema T+V from the checker's
+schema algebra. Relation 43 -> 36; PCT total 881/1109 (79%).
+
 Update this file per slice, same as docs/SCOREBOARD.md.

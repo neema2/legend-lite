@@ -879,6 +879,11 @@ final class Scalars {
                 return new SqlExpr.Call(SqlFn.LIST_DISTINCT, List.of(args.get(0)));
             });
         }
+        // fromJson(String): the string IS the variant — a JSON cast.
+        for (String f : Pure.nativeKeysAt("fromJson")) {
+            RULES.put(f, (n, args) -> new SqlExpr.Cast(args.get(0),
+                    com.legend.sql.SqlType.Scalar.JSON));
+        }
         // Collection concatenate only — the relation overload is the
         // TypedConcatenate set-op and never reaches scalar lowering. A
         // MIXED concatenation (T solved to Any) travels as the variant

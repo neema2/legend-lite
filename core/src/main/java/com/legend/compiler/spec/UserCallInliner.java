@@ -425,6 +425,9 @@ public final class UserCallInliner {
                     rewrite(d.count(), env), d.info());
             case TypedSlice s -> new TypedSlice(rewrite(s.source(), env),
                     rewrite(s.start(), env), rewrite(s.stop(), env), s.info());
+            case com.legend.compiler.spec.typed.TypedCollectionRelation cr ->
+                    new com.legend.compiler.spec.typed.TypedCollectionRelation(
+                            rewrite(cr.value(), env), cr.column(), cr.info());
             case TypedFlatten f -> new TypedFlatten(rewrite(f.source(), env),
                     f.column(), f.info());
             case TypedPivot p -> new TypedPivot(rewrite(p.source(), env),

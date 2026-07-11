@@ -69,6 +69,9 @@ public sealed interface SqlSource {
             RIGHT("RIGHT OUTER JOIN"),
             FULL("FULL OUTER JOIN"),
             CROSS("CROSS JOIN"),
+            // Per-row correlated right side (real relation lateral.pure);
+            // the right subselect references the left alias.
+            CROSS_LATERAL("CROSS JOIN LATERAL"),
             ASOF_LEFT("ASOF LEFT JOIN"),
             /** Correlated derived table preserving left rows ({@code ... ON TRUE}) — array explosion. */
             LEFT_LATERAL("LEFT JOIN LATERAL");
