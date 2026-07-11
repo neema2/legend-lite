@@ -611,6 +611,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 case BOOLEAN -> "BOOLEAN";
                 case BIGINT -> "BIGINT";
                 case HUGEINT -> "HUGEINT";
+                case TIMESTAMPTZ -> "TIMESTAMPTZ";
                 case DOUBLE -> "DOUBLE PRECISION";
                 case VARCHAR -> "VARCHAR";
                 case DATE -> "DATE";

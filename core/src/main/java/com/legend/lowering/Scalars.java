@@ -556,14 +556,50 @@ final class Scalars {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_AGG, List.of(
                     new SqlExpr.StringLit("quantile_disc"), args.get(0), args.get(1))));
         }
-        // collection sort (no comparator): list_sort.
+        // collection sort: bare list_sort; a COMPARATOR must be a bare
+        // compare over the two parameters (its argument order IS the
+        // direction); a KEY function sorts {k, i, v} structs by key —
+        // index second, so equal keys stay stable — then unwraps.
         for (String f : Pure.nativeKeysAt("sort")) {
             RULES.put(f, (n, args) -> {
-                if (n.args().size() > 1) {
-                    throw new IllegalStateException(
-                            "sort with a comparator has no scalar lowering yet");
+                if (n.args().size() == 1) {
+                    return new SqlExpr.Call(SqlFn.LIST_SORT, List.of(args.get(0)));
                 }
-                return new SqlExpr.Call(SqlFn.LIST_SORT, List.of(args.get(0)));
+                Boolean asc = comparatorDirection(
+                        n.args().get(n.args().size() - 1));
+                if (asc == null) {
+                    throw new IllegalStateException("sort comparator must be a"
+                            + " bare compare over its two parameters");
+                }
+                if (n.args().size() == 2) {
+                    return new SqlExpr.Call(
+                            asc ? SqlFn.LIST_SORT : SqlFn.LIST_SORT_DESC,
+                            List.of(args.get(0)));
+                }
+                if (!(args.get(1) instanceof SqlExpr.Lambda key)
+                        || key.params().size() != 1) {
+                    throw new IllegalStateException(
+                            "sort expects (values, key-function, comparator)");
+                }
+                SqlExpr i = new SqlExpr.Column(null, "_st_i");
+                SqlExpr valAt = SqlExpr.Call.of(SqlFn.LIST_GET, args.get(0), i);
+                SqlExpr keyExpr = substituteRef(key.body(), key.params().get(0), valAt);
+                SqlExpr idxField = asc ? i
+                        : SqlExpr.Call.of(SqlFn.MINUS, new SqlExpr.IntLit(0), i);
+                SqlExpr pairs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
+                        SqlExpr.Call.of(SqlFn.RANGE_FN, new SqlExpr.IntLit(1),
+                                plusOne(SqlExpr.Call.of(SqlFn.LIST_LENGTH, args.get(0)))),
+                        new SqlExpr.Lambda(List.of("_st_i"),
+                                new SqlExpr.StructLit(List.of(
+                                        new SqlExpr.StructLit.Field("k", keyExpr),
+                                        new SqlExpr.StructLit.Field("i", idxField),
+                                        new SqlExpr.StructLit.Field("v", valAt)))));
+                SqlExpr sorted = new SqlExpr.Call(
+                        asc ? SqlFn.LIST_SORT : SqlFn.LIST_SORT_DESC, List.of(pairs));
+                return SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, sorted,
+                        new SqlExpr.Lambda(List.of("_st_e"),
+                                new SqlExpr.StructGet(
+                                        new SqlExpr.Column(null, "_st_e"), "v")));
             });
         }
         for (String f : Pure.nativeKeysAt("isBeforeDay")) {
@@ -1096,6 +1132,13 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 SqlExpr in = args.get(0);
                 if (in instanceof SqlExpr.StringLit lit) {
+                    // A ZONE-carrying literal keeps its instant: TIMESTAMPTZ
+                    // (the JDBC cell is an OffsetDateTime — real pure's
+                    // parseDate preserves the offset).
+                    if (lit.value().matches(".*([+-]\\d{4}|[+-]\\d{2}:\\d{2}|Z)$")) {
+                        return new SqlExpr.Cast(in,
+                                com.legend.sql.SqlType.Scalar.TIMESTAMPTZ);
+                    }
                     String v = lit.value().replace('T', ' ');
                     if (v.matches("\\d{4}-\\d{2}-\\d{2} \\d{2}")) {
                         v += ":00:00";
@@ -1118,6 +1161,23 @@ final class Scalars {
                     return new SqlExpr.Call(SqlFn.MAKE_DATE, args);
                 }
                 if (args.size() == 6) {
+                    // FLOAT seconds = SUB-SECOND precision: real pure prints
+                    // the ISO form with the fraction trimmed to its minimal
+                    // digits (11.0, not 11.000) — the string carrier again.
+                    if (n.args().get(5).info().type() == Type.Primitive.FLOAT
+                            || n.args().get(5).info().type() == Type.Primitive.DECIMAL) {
+                        SqlExpr iso = SqlExpr.Call.of(SqlFn.STRFTIME,
+                                new SqlExpr.Call(SqlFn.MAKE_TIMESTAMP, args),
+                                new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S.%g"));
+                        SqlExpr trimmed = SqlExpr.Call.of(SqlFn.RTRIM, iso,
+                                new SqlExpr.StringLit("0"));
+                        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                                SqlExpr.Call.of(SqlFn.ENDS_WITH, trimmed,
+                                        new SqlExpr.StringLit(".")),
+                                SqlExpr.Call.of(SqlFn.CONCAT, trimmed,
+                                        new SqlExpr.StringLit("0")))),
+                                trimmed);
+                    }
                     return new SqlExpr.Call(SqlFn.MAKE_TIMESTAMP, args);
                 }
                 String[] seps = {"", "-", "-", "T", ":"};
@@ -1407,6 +1467,32 @@ final class Scalars {
      * needle when squeezed into a 1-param SQL lambda. Inner lambdas that
      * rebind the name SHADOW (no substitution inside).
      */
+    /**
+     * The direction of a bare-compare comparator: {@code {x,y|$x->compare($y)}}
+     * ascending, {@code {x,y|$y->compare($x)}} descending; anything richer
+     * has no relational sort shape (null).
+     */
+    private static Boolean comparatorDirection(com.legend.compiler.spec.typed.TypedSpec spec) {
+        if (!(spec instanceof com.legend.compiler.spec.typed.TypedLambda cmp)
+                || cmp.parameters().size() != 2 || cmp.body().size() != 1
+                || !(cmp.body().get(0) instanceof TypedNativeCall cc)
+                || !cc.callee().qualifiedName().equals("meta::pure::functions::lang::compare")
+                || cc.args().size() != 2
+                || !(cc.args().get(0) instanceof com.legend.compiler.spec.typed.TypedVariable a)
+                || !(cc.args().get(1) instanceof com.legend.compiler.spec.typed.TypedVariable b)) {
+            return null;
+        }
+        String p0 = cmp.parameters().get(0);
+        String p1 = cmp.parameters().get(1);
+        if (a.name().equals(p0) && b.name().equals(p1)) {
+            return Boolean.TRUE;
+        }
+        if (a.name().equals(p1) && b.name().equals(p0)) {
+            return Boolean.FALSE;
+        }
+        return null;
+    }
+
     private static SqlExpr substituteRef(SqlExpr e, String name, SqlExpr replacement) {
         return switch (e) {
             case SqlExpr.Column c when c.table() == null && name.equals(c.name()) -> replacement;
