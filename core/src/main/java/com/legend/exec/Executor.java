@@ -88,7 +88,7 @@ public final class Executor {
         }
         String t = s.trim();
         if (t.length() >= 2 && t.startsWith("\"") && t.endsWith("\"")) {
-            return t.substring(1, t.length() - 1);
+            return jsonUnescape(t.substring(1, t.length() - 1));
         }
         if (t.equals("true") || t.equals("false")) {
             return Boolean.valueOf(t);
@@ -106,6 +106,44 @@ public final class Executor {
         } catch (NumberFormatException ignored) {
             return s;
         }
+    }
+
+    /**
+     * JSON string-escape decoding — the variant carrier emits PROPER JSON, so
+     * a value like {@code he said "hi"} arrives as {@code "he said \"hi\""};
+     * a raw quote-strip would keep the backslashes (audit finding).
+     */
+    private static String jsonUnescape(String s) {
+        if (s.indexOf('\\') < 0) {
+            return s;
+        }
+        StringBuilder out = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c != '\\' || i == s.length() - 1) {
+                out.append(c);
+                continue;
+            }
+            char e = s.charAt(++i);
+            switch (e) {
+                case '"' -> out.append('"');
+                case '\\' -> out.append('\\');
+                case '/' -> out.append('/');
+                case 'n' -> out.append('\n');
+                case 't' -> out.append('\t');
+                case 'r' -> out.append('\r');
+                case 'b' -> out.append('\b');
+                case 'f' -> out.append('\f');
+                case 'u' -> {
+                    if (i + 4 < s.length()) {
+                        out.append((char) Integer.parseInt(s.substring(i + 1, i + 5), 16));
+                        i += 4;
+                    }
+                }
+                default -> out.append('\\').append(e);
+            }
+        }
+        return out.toString();
     }
 
     /**

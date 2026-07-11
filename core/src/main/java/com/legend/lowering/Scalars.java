@@ -68,14 +68,43 @@ final class Scalars {
         // minus NEGATES — the binary operator renderer would silently DROP
         // the sign of a lone operand (audit: [-5, -3] executed as [5, 3]).
         for (String f : Pure.nativeKeysAt("plus")) {
-            RULES.put(f, (n, args) -> args.size() == 1 && isToOne(n.args().get(0))
-                    ? args.get(0)   // unary +x
-                    : new SqlExpr.Call(SqlFn.PLUS, args));
+            RULES.put(f, (n, args) -> {
+                if (args.size() == 1 && isToOne(n.args().get(0))) {
+                    return args.get(0);   // unary +x
+                }
+                // plus<T>(values:T[*]) is the COLLECTION SUM (real pure) —
+                // the infix renderer would emit a lone list bare (audit).
+                if (args.size() == 1) {
+                    return new SqlExpr.Call(SqlFn.LIST_SUM, args);
+                }
+                return new SqlExpr.Call(SqlFn.PLUS, args);
+            });
+        }
+        for (String f : Pure.nativeKeysAt("times")) {
+            RULES.put(f, (n, args) -> {
+                if (args.size() == 1 && isToOne(n.args().get(0))) {
+                    return args.get(0);
+                }
+                // times<T>(values:T[*]) is the COLLECTION PRODUCT (real pure).
+                if (args.size() == 1) {
+                    return new SqlExpr.Call(SqlFn.LIST_PRODUCT, args);
+                }
+                return new SqlExpr.Call(SqlFn.TIMES, args);
+            });
         }
         for (String f : Pure.nativeKeysAt("minus")) {
             RULES.put(f, (n, args) -> {
-                if (args.size() != 1 || !isToOne(n.args().get(0))) {
+                if (args.size() != 1) {
                     return new SqlExpr.Call(SqlFn.MINUS, args);
+                }
+                // minus<T>(values:T[*]) LEFT-FOLDS subtraction (real pure:
+                // [10,3,2] -> 5); the seed is the first element.
+                if (!isToOne(n.args().get(0))) {
+                    return SqlExpr.Call.of(SqlFn.LIST_REDUCE, args.get(0),
+                            new SqlExpr.Lambda(List.of("_ma", "_mb"),
+                                    SqlExpr.Call.of(SqlFn.MINUS,
+                                            new SqlExpr.Column(null, "_ma"),
+                                            new SqlExpr.Column(null, "_mb"))));
                 }
                 return switch (args.get(0)) {
                     case SqlExpr.IntLit i -> new SqlExpr.IntLit(-i.value());
@@ -86,7 +115,7 @@ final class Scalars {
                 };
             });
         }
-        family(SqlFn.TIMES, "times");
+        // times registers ABOVE (collection-product overload needs its own rule).
         family(SqlFn.DIVIDE, "divide");
         family(SqlFn.MOD, "mod");
         family(SqlFn.REM, "rem");
@@ -521,13 +550,18 @@ final class Scalars {
                         args.get(0)));
             });
         }
+        // first/head/last over a TO-ONE value are the IDENTITY — the list
+        // encoding CHAR-INDEXES a lone string ('Doe'[1] = 'D', the at()/last()
+        // trap; audit made the family uniform).
         for (String f : Pure.nativeKeysAt("first")) {
-            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_GET,
-                    List.of(args.get(0), new SqlExpr.IntLit(1))));
+            RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
+                    : new SqlExpr.Call(SqlFn.LIST_GET,
+                            List.of(args.get(0), new SqlExpr.IntLit(1))));
         }
         for (String f : Pure.nativeKeysAt("head")) {
-            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_GET,
-                    List.of(args.get(0), new SqlExpr.IntLit(1))));
+            RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
+                    : new SqlExpr.Call(SqlFn.LIST_GET,
+                            List.of(args.get(0), new SqlExpr.IntLit(1))));
         }
         for (String f : Pure.nativeKeysAt("last")) {
             RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
@@ -544,7 +578,11 @@ final class Scalars {
         }
         for (String f : Pure.nativeKeysAt("indexOf")) {
             RULES.put(f, (n, args) -> {
-                if (n.args().get(0).info().type() != Type.Primitive.STRING) {
+                // A String[*] source is a LIST of strings — list search, not
+                // substring search (audit: the type-only gate sent
+                // ['a','b']->indexOf('b') to strpos).
+                if (n.args().get(0).info().type() != Type.Primitive.STRING
+                        || !isToOne(n.args().get(0))) {
                     // LIST indexOf: 0-based, -1 on a miss.
                     return new SqlExpr.Call(SqlFn.MINUS, List.of(
                             new SqlExpr.Call(SqlFn.COALESCE, List.of(
@@ -617,18 +655,21 @@ final class Scalars {
                     return new SqlExpr.Call(SqlFn.GREATER, List.of(
                             new SqlExpr.Call(SqlFn.STRPOS, args), new SqlExpr.IntLit(0)));
                 }
-                // Pure equality never relates an instance to a primitive —
-                // cross-kind containment is statically FALSE (SQL list_contains
-                // would refuse to even type it).
-                if (isClassish(elem) != isClassish(val)) {
-                    return new SqlExpr.BoolLit(false);
-                }
                 // A heterogeneous (Any) list is variant-wrapped — wrap the
                 // needle the same way so containment compares JSON to JSON.
+                // This MUST precede the cross-kind rule: an Any list can
+                // legitimately contain an instance (audit: class-in-mixed-list
+                // containment was constant FALSE).
                 if (elem instanceof Type.ClassType ct
                         && ct.fqn().equals("meta::pure::metamodel::type::Any")) {
                     return new SqlExpr.Call(SqlFn.LIST_CONTAINS, List.of(args.get(0),
                             SqlExpr.Call.of(SqlFn.TO_VARIANT, args.get(1))));
+                }
+                // Pure equality never relates an instance to a primitive —
+                // CONCRETE cross-kind containment is statically FALSE (SQL
+                // list_contains would refuse to even type it).
+                if (isClassish(elem) != isClassish(val)) {
+                    return new SqlExpr.BoolLit(false);
                 }
                 return new SqlExpr.Call(SqlFn.LIST_CONTAINS, args);
             });

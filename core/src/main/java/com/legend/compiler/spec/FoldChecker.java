@@ -132,7 +132,12 @@ final class FoldChecker {
             return null;
         }
         boolean commutative = switch (simpleName(af.function())) {
-            case "plus", "times" -> !Type.Primitive.STRING.equals(init.type());
+            // Commutativity must be PROVEN from the init's type: plus on
+            // Strings is order-sensitive concatenation, and a []-born init
+            // types as Nil — which proves nothing (audit: a Nil-typed
+            // string fold would have been reordered).
+            case "plus", "times" -> init.type() instanceof Type.Primitive p
+                    && p != Type.Primitive.STRING;
             case "and", "or" -> true;
             default -> false;
         };

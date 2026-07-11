@@ -450,10 +450,13 @@ public final class InferenceKernel {
                         && actual instanceof Multiplicity.Bounded a2
                         && !contains(e, a2)) {
                     // COVARIANT accumulation: a shared multiplicity variable
-                    // widens to the RANGE UNION of its occurrences — real
-                    // pure meets if-branches [1] and [0] at [0..1], and
-                    // fold's []-init [0] with a [*] body at [*]. Widening
-                    // only (a contained range keeps the solution stable).
+                    // widens to the RANGE UNION of its occurrences — fold's
+                    // []-init [0] meets a [*] body at [*] (real pure's own
+                    // PCT folds carry [2]-annotated accumulators with [1..3]
+                    // bodies). Reachable via the shared-mult-var natives
+                    // (fold/eval); if() computes its multiplicity in
+                    // IfChecker and never routes here. Widening only (a
+                    // contained range keeps the solution stable).
                     b.bindMult(v.name(), new Multiplicity.Bounded(
                             Math.min(e.lower(), a2.lower()),
                             e.upper() == null || a2.upper() == null ? null
@@ -495,7 +498,11 @@ public final class InferenceKernel {
                     g.arguments().stream().map(a -> resolve(a, b)).toList());
 
             case Type.SchemaAlgebra sa -> resolveSchemaAlgebra(sa, b);
-            case Type.RelationType r -> new Type.RelationType(resolveColumns(r.columns(), b));
+            // dynamicColumns (pivot templates) RIDE resolution — rebuilding
+            // without them silently degraded downstream pivot column typing
+            // to SQL-type derivation (audit finding).
+            case Type.RelationType r -> new Type.RelationType(
+                    resolveColumns(r.columns(), b), r.dynamicColumns());
 
             // Leaves: no variables to substitute.
             case Type.Primitive ignored -> t;
@@ -536,7 +543,9 @@ public final class InferenceKernel {
                         cols.add(c);
                     }
                 }
-                return new Type.RelationType(cols);
+                // The LEFT operand's pivot templates ride through schema
+                // UNION (extend over a pivot keeps its dynamic columns).
+                return new Type.RelationType(cols, lr.dynamicColumns());
             }
             case DIFFERENCE -> {
                 Set<String> drop = new LinkedHashSet<>();
@@ -549,7 +558,7 @@ public final class InferenceKernel {
                         cols.add(c);
                     }
                 }
-                return new Type.RelationType(cols);
+                return new Type.RelationType(cols, lr.dynamicColumns());
             }
             default -> throw new TypeInferenceException(
                     "schema-algebra operator not supported in resolution: " + sa.op());
@@ -957,6 +966,12 @@ public final class InferenceKernel {
                 && isUnknownFragment(ar)) {
             return ar.columns().stream().allMatch(c ->
                     er.columns().stream().anyMatch(e -> e.name().equals(c.name())));
+        }
+        // Relation identity is the COLUMNS — dynamicColumns (pivot templates)
+        // are executor metadata; a template-carrying schema re-binding against
+        // its template-less rebuild must not spuriously conflict (audit).
+        if (existing instanceof Type.RelationType er2 && actual instanceof Type.RelationType ar2) {
+            return er2.columns().equals(ar2.columns());
         }
         return existing.equals(actual);
     }

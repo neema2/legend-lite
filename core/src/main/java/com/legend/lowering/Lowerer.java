@@ -1389,16 +1389,19 @@ public final class Lowerer {
                                 + "(…) has no canonical layout — the class declares no"
                                 + " stored properties (or no model rides this lowering)"));
                 yield new SqlExpr.StructLit(layout.stream().map(c -> {
-                    SqlExpr v = n.properties().containsKey(c.name())
-                            ? scalar(n.properties().get(c.name()), columns)
-                            : new SqlExpr.NullLit();
+                    TypedSpec value = n.properties().get(c.name());
+                    SqlExpr v = value != null ? scalar(value, columns) : new SqlExpr.NullLit();
                     // A TO-MANY property is LIST-shaped in the canonical
                     // layout even when this instance supplies one value —
-                    // every instance of a class shares ONE struct shape.
+                    // every instance of a class shares ONE struct shape. The
+                    // wrap decision uses the VALUE's typed multiplicity: an
+                    // already-many expression ($p.nicknames) is a list even
+                    // when it doesn't lower to a literal array (audit:
+                    // structural-only check double-wrapped it).
                     if (c.multiplicity() instanceof
                             com.legend.compiler.element.type.Multiplicity.Bounded b
                             && b.isMany()) {
-                        v = asList(v, false);
+                        v = asList(v, value != null && isMany(value));
                     }
                     return new SqlExpr.StructLit.Field(c.name(), v);
                 }).toList());
@@ -1527,6 +1530,11 @@ public final class Lowerer {
     private SqlSelect instanceSelect(com.legend.compiler.spec.typed.TypedNewInstance inst,
                                      List<TypedFuncCol> columns, List<OutputCol> outputs) {
         SqlSource src = null;
+        // ONE unnest per to-many PATH PREFIX (the NavPath-registry rule):
+        // two colspecs over $x.addresses iterate the SAME collection — real
+        // pure yields (city, zip) pairs, never their cross product. Only
+        // INDEPENDENT collections cross-multiply.
+        java.util.Map<String, String> unnestByPrefix = new java.util.LinkedHashMap<>();
         List<SqlSelect.Projection> ps = new ArrayList<>(columns.size());
         for (TypedFuncCol col : columns) {
             List<String> path = pathOf(col);
@@ -1546,24 +1554,31 @@ public final class Lowerer {
                     break;
                 }
                 if (v instanceof TypedCollection many) {
-                    // TO-MANY: explode via lateral unnest; the residual path
-                    // reads fields off the element struct.
-                    String alias = nextAlias();
-                    SqlExpr array = many.elements().isEmpty()
-                            ? new SqlExpr.NullLit()
-                            : new SqlExpr.ArrayLit(many.elements().stream()
-                                    .map(e -> scalar(e, noScope())).toList());
-                    SqlSelect unnest = new SqlSelect(
-                            List.of(new SqlSelect.Projection(
-                                    SqlExpr.Call.of(com.legend.sql.SqlFn.UNNEST, array), "elem")),
-                            false, null, null, List.of(), null, null, List.of(), null, null,
-                            List.of(new OutputCol("elem",
-                                    com.legend.sql.SqlType.Scalar.VARCHAR, true)));
-                    SqlSource right = new SqlSource.Subselect(unnest, alias);
-                    src = src == null
-                            ? anchorJoin(right)
-                            : new SqlSource.Join(src, right,
-                                    SqlSource.Join.Kind.LEFT_LATERAL, new SqlExpr.BoolLit(true));
+                    // TO-MANY: explode via lateral unnest (shared per path
+                    // prefix); the residual path reads fields off the element.
+                    String prefix = String.join(".", path.subList(0, i + 1));
+                    String alias = unnestByPrefix.get(prefix);
+                    if (alias == null) {
+                        alias = nextAlias();
+                        unnestByPrefix.put(prefix, alias);
+                        SqlExpr array = many.elements().isEmpty()
+                                ? new SqlExpr.NullLit()
+                                : new SqlExpr.ArrayLit(many.elements().stream()
+                                        .map(e -> scalar(e, noScope())).toList());
+                        SqlSelect unnest = new SqlSelect(
+                                List.of(new SqlSelect.Projection(
+                                        SqlExpr.Call.of(com.legend.sql.SqlFn.UNNEST, array),
+                                        "elem")),
+                                false, null, null, List.of(), null, null, List.of(), null, null,
+                                List.of(new OutputCol("elem",
+                                        com.legend.sql.SqlType.Scalar.VARCHAR, true)));
+                        SqlSource right = new SqlSource.Subselect(unnest, alias);
+                        src = src == null
+                                ? anchorJoin(right)
+                                : new SqlSource.Join(src, right,
+                                        SqlSource.Join.Kind.LEFT_LATERAL,
+                                        new SqlExpr.BoolLit(true));
+                    }
                     value = new SqlExpr.Column(alias, "elem");
                     for (int r = i + 1; r < path.size(); r++) {
                         value = new SqlExpr.StructGet(value, path.get(r));

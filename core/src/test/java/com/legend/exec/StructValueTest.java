@@ -139,6 +139,40 @@ class StructValueTest {
     }
 
     @Test
+    @DisplayName("two colspecs over the SAME to-many path share one iteration (no cross product)")
+    void samePathColumnsShareIteration() throws SQLException {
+        var r = run("|^m::Holder(name='ok',"
+                + " addresses=[^m::Addr(val='A'), ^m::Addr(val='B')], values=[])"
+                + "->project(~[a1:x|$x.addresses.val, a2:x|$x.addresses.val])");
+        ExecutionResult.Tabular t = assertInstanceOf(ExecutionResult.Tabular.class, r);
+        assertEquals(2, t.rows().size(),
+                "same collection iterated ONCE — (A,A),(B,B), never a 2x2 cross product");
+        assertEquals(t.rows().get(0).get(0), t.rows().get(0).get(1));
+    }
+
+    @Test
+    @DisplayName("contains: an instance IS found in a heterogeneous (Any) list")
+    void containsInstanceInMixedList() throws SQLException {
+        var r = run("|[1, 'a', ^m::Addr(val='x')]->contains(^m::Addr(val='x'))");
+        assertEquals(true, ((ExecutionResult.Scalar) r).value(),
+                "audit: cross-kind FALSE must not fire before the Any-variant branch");
+    }
+
+    @Test
+    @DisplayName("collection arithmetic: plus sums, minus left-folds, indexOf searches string lists")
+    void collectionArithmeticAndSearch() throws SQLException {
+        assertEquals(6L, ((Number) ((ExecutionResult.Scalar)
+                run("|[1, 2, 3]->plus()")).value()).longValue());
+        assertEquals(5L, ((Number) ((ExecutionResult.Scalar)
+                run("|[10, 3, 2]->minus()")).value()).longValue());
+        assertEquals(24L, ((Number) ((ExecutionResult.Scalar)
+                run("|[2, 3, 4]->times()")).value()).longValue());
+        assertEquals(1L, ((Number) ((ExecutionResult.Scalar)
+                run("|['apple', 'banana']->indexOf('banana')")).value()).longValue(),
+                "a String[*] source is LIST search, not strpos");
+    }
+
+    @Test
     @DisplayName("instance equality is structural (SQL struct equality)")
     void instanceEquality() throws SQLException {
         var r = run("|^m::Person(firstName='A', lastName='B') =="

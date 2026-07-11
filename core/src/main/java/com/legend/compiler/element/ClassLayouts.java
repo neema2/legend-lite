@@ -4,7 +4,6 @@ import com.legend.compiler.element.type.Type;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -49,22 +48,35 @@ public final class ClassLayouts {
 
     private static Optional<List<Type.Column>> layout(ModelContext ctx, TypedClass cls,
                                                       Map<String, Type> typeArgs) {
-        List<Type.Column> fields = new ArrayList<>();
-        LinkedHashSet<String> seen = new LinkedHashSet<>();
-        collect(ctx, cls, typeArgs, fields, seen);
-        return fields.isEmpty() ? Optional.empty() : Optional.of(fields);
+        LinkedHashMap<String, Type.Column> fields = new LinkedHashMap<>();
+        collect(ctx, cls, typeArgs, fields, false);
+        return fields.isEmpty() ? Optional.empty()
+                : Optional.of(List.copyOf(fields.values()));
     }
 
-    /** Inherited stored properties first (super walk), then locally declared ones. */
+    /**
+     * Inherited stored properties first (super walk), then locally declared
+     * ones. A SUBCLASS redeclaration overrides its inherited field (in the
+     * inherited position); two SUPERS declaring the same name with different
+     * types is a genuine conflict — LOUD, never first-wins (audit).
+     */
     private static void collect(ModelContext ctx, TypedClass cls, Map<String, Type> typeArgs,
-                                List<Type.Column> out, LinkedHashSet<String> seen) {
+                                LinkedHashMap<String, Type.Column> out, boolean isSuper) {
         for (String superFqn : cls.superClassFqns()) {
-            ctx.findClass(superFqn).ifPresent(s -> collect(ctx, s, typeArgs, out, seen));
+            ctx.findClass(superFqn).ifPresent(s -> collect(ctx, s, typeArgs, out, true));
         }
         for (Property p : cls.properties()) {
-            if (p instanceof Property.Stored stored && seen.add(stored.name())) {
-                out.add(new Type.Column(stored.name(),
-                        substitute(stored.type(), typeArgs), stored.multiplicity()));
+            if (!(p instanceof Property.Stored stored)) {
+                continue;
+            }
+            Type.Column col = new Type.Column(stored.name(),
+                    substitute(stored.type(), typeArgs), stored.multiplicity());
+            Type.Column prev = out.put(stored.name(), col);   // keeps the first position
+            if (prev != null && isSuper && !prev.type().equals(col.type())) {
+                throw new IllegalStateException("class '" + cls.qualifiedName()
+                        + "' inherits conflicting declarations of property '"
+                        + stored.name() + "' (" + prev.type().typeName() + " vs "
+                        + col.type().typeName() + ")");
             }
         }
     }
