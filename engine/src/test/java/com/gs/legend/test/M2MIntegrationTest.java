@@ -369,7 +369,15 @@ class M2MIntegrationTest {
      * parse → TypeChecker → PlanGenerator (JSON SQL) → PlanExecutor → GraphResult
      */
     private String executeNew(String pureQuery) throws SQLException {
-        var result = queryService.execute(PURE_MODEL, pureQuery, "test::TestRuntime", connection);
+        com.gs.legend.exec.ExecutionResult result;
+        try {
+            result = queryService.execute(PURE_MODEL, pureQuery, "test::TestRuntime", connection);
+        } catch (com.legend.error.LegendCompileException e) {
+            // The engine's one compile-error surface (the executeRelation
+            // convention): core compile-phase failures read as
+            // PureCompileException.
+            throw new com.gs.legend.compiler.PureCompileException(e.getMessage(), e);
+        }
         assertInstanceOf(com.gs.legend.exec.ExecutionResult.GraphResult.class, result,
                 "graphFetch/serialize should return GraphResult, got: " + result.getClass().getSimpleName());
         return result.asGraph().json();

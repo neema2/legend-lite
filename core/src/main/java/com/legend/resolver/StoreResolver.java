@@ -942,10 +942,48 @@ public final class StoreResolver {
                     + "' of class '" + cs.classFqn() + "' has no sub-tree — a"
                     + " class-typed leaf serializes nothing; list its properties");
         }
-        // A BINDING-backed head (embedded ctor, navigate slot, otherwise,
-        // M2M cast) is mapped — routing it to the association lookup gave a
-        // FALSE "not mapped" message (audit F4).
+        // A BINDING-backed head: the M2M SOURCE-NAV MARKER ($src.assocProp,
+        // re-pointed at the composed row var by ClassSources) fans out as a
+        // correlated child through the UPSTREAM association; every other
+        // binding kind (embedded ctor, navigate slot, otherwise) stays loud.
         if (cs.bindings().containsKey(node.property())) {
+            TypedSpec b0 = cs.bindings().get(node.property());
+            TypedSpec inner = b0;
+            // Unwrap the M2M cast (^Target($src.assocProp)) and toOne.
+            if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstanceCast nic) {
+                inner = nic.source();
+            }
+            if (inner instanceof com.legend.compiler.spec.typed.TypedNativeCall c1
+                    && c1.args().size() == 1
+                    && c1.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
+                inner = c1.args().get(0);
+            }
+            if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstanceCast nic2) {
+                inner = nic2.source();
+            }
+            if (inner instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                    && pa.source() instanceof TypedVariable v
+                    && v.name().equals(cs.rowVar())
+                    && v.info().type() instanceof com.legend.compiler.element.type.Type.ClassType srcCls
+                    && ctx.findAssociationOf(srcCls.fqn(), pa.property()).isPresent()) {
+                return m2mAssocChild(cs, node, srcCls.fqn(), pa.property(),
+                        context, parentRowVar, parentRowType);
+            }
+            // A NAVIGATE-SLOT read ($row.<alias>, the relational
+            // association injected into the source pipeline): the slot's
+            // TypedNavigate carries the raw target and the join predicate.
+            if (inner instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa2
+                    && pa2.source() instanceof TypedVariable v2
+                    && v2.name().equals(cs.rowVar())) {
+                var navSteps = Pipelines.navSteps(cs.pipeline());
+                var nav = navSteps.get(pa2.property());
+                if (nav != null) {
+                    return navSlotChild(cs, node, nav,
+                            b0 instanceof com.legend.compiler.spec.typed.TypedNewInstanceCast nic0
+                                    ? nic0.classFqn() : null,
+                            context, parentRowVar, parentRowType);
+                }
+            }
             throw new NotImplementedException("graph child '" + node.property()
                     + "' of class '" + cs.classFqn() + "' is mapped as an"
                     + " embedded/join-slot/otherwise/M2M binding — only"
@@ -958,10 +996,115 @@ public final class StoreResolver {
         boolean toMany = !(end.multiplicity()
                 instanceof com.legend.parser.Multiplicity.Concrete emc
                 && Integer.valueOf(1).equals(emc.upperBound()));
+        return correlatedGraphChild(aj.target(), aj.targetPipeline(), aj.targetRow(),
+                aj.condition(), toMany, node, parentRowVar, parentRowType, context);
+    }
+
+    /**
+     * A graph child through a NAVIGATE SLOT: the slot's raw target composes
+     * into the child's declared (possibly M2M) class; the slot predicate
+     * λ(sourceRow, targetRow) correlates them.
+     */
+    private TypedSerializeGraph.Child navSlotChild(ClassSource cs, TypedGraphTree node,
+            com.legend.compiler.spec.typed.TypedNavigate nav, String castClassFqn,
+            Context context, String parentRowVar,
+            com.legend.compiler.element.type.Type.RelationType parentRowType) {
+        String key = (context.explicitMapping() == null ? "" : context.explicitMapping())
+                + '\u0000'
+                + (context.runtimeFqn() == null ? "" : context.runtimeFqn());
+        String rawTarget = ((TypedGetAll) nav.target()).classFqn();
+        var prop = ctx.findProperty(cs.classFqn(), node.property()).orElseThrow(
+                () -> new IllegalStateException("resolver bug: graph child '"
+                        + node.property() + "' is not a property of '"
+                        + cs.classFqn() + "'"));
+        String childClass = castClassFqn != null ? castClassFqn
+                : prop.type() instanceof com.legend.compiler.element.type.Type.ClassType cc
+                        ? cc.fqn() : null;
+        if (childClass == null) {
+            throw new IllegalStateException("resolver bug: navigate-slot graph child '"
+                    + node.property() + "' is not class-typed");
+        }
+        boolean toMany = !(prop.multiplicity()
+                instanceof com.legend.compiler.element.type.Multiplicity.Bounded bm
+                && Integer.valueOf(1).equals(bm.upper()));
+        ClassSource child = childClass.equals(rawTarget)
+                ? sources.get(dispatch(context, rawTarget), rawTarget,
+                        target -> dispatch(context, target), key)
+                : sources.get(cs.mappingFqn(), childClass,
+                        target -> dispatch(context, target), key);
+        Pipelines.Materialized cMat = Pipelines.materialize(
+                child.pipeline(), Set.of(), childClass);
+        return correlatedGraphChild(child, cMat.pipeline(),
+                (com.legend.compiler.element.type.Type.RelationType)
+                        cMat.pipeline().info().type(),
+                nav.predicate(), toMany, node, parentRowVar, parentRowType, context);
+    }
+
+    /**
+     * An M2M child through the SOURCE class's association: the upstream
+     * association supplies the condition and the RAW target; the child
+     * serialized is the node property's DECLARED M2M class, whose composed
+     * pipeline bottoms at that same raw target row (M2M composition
+     * preserves the inner pipeline and row var — the correlation aligns by
+     * construction, asserted loudly).
+     */
+    private TypedSerializeGraph.Child m2mAssocChild(ClassSource cs, TypedGraphTree node,
+            String srcClassFqn, String assocProp, Context context,
+            String parentRowVar,
+            com.legend.compiler.element.type.Type.RelationType parentRowType) {
+        String key = (context.explicitMapping() == null ? "" : context.explicitMapping())
+                + '\u0000'
+                + (context.runtimeFqn() == null ? "" : context.runtimeFqn());
+        ClassSource rawParent = sources.get(dispatch(context, srcClassFqn), srcClassFqn,
+                target -> dispatch(context, target), key);
+        AssocJoin aj = associationJoin(rawParent, assocProp, context, /*forExists*/ true);
+        var assoc = ctx.findAssociationOf(srcClassFqn, assocProp).orElseThrow();
+        var end = assoc.property1().propertyName().equals(assocProp)
+                ? assoc.property1() : assoc.property2();
+        boolean toMany = !(end.multiplicity()
+                instanceof com.legend.parser.Multiplicity.Concrete emc
+                && Integer.valueOf(1).equals(emc.upperBound()));
+        var prop = ctx.findProperty(cs.classFqn(), node.property()).orElseThrow(
+                () -> new IllegalStateException("resolver bug: graph child '"
+                        + node.property() + "' is not a property of '"
+                        + cs.classFqn() + "'"));
+        if (!(prop.type() instanceof com.legend.compiler.element.type.Type.ClassType childCls)) {
+            throw new IllegalStateException("resolver bug: M2M graph child '"
+                    + node.property() + "' is not class-typed");
+        }
+        ClassSource child = sources.get(cs.mappingFqn(), childCls.fqn(),
+                target -> dispatch(context, target), key);
+        if (!child.rowVar().equals(aj.target().rowVar())) {
+            throw new NotImplementedException("M2M graph child '" + node.property()
+                    + "': the child class '" + childCls.fqn() + "' does not compose"
+                    + " the association target '" + aj.target().classFqn()
+                    + "' — cross-source M2M children are not supported yet");
+        }
+        Pipelines.Materialized cMat = Pipelines.materialize(
+                child.pipeline(), Set.of(), childCls.fqn());
+        return correlatedGraphChild(child, cMat.pipeline(),
+                (com.legend.compiler.element.type.Type.RelationType)
+                        cMat.pipeline().info().type(),
+                aj.condition(), toMany, node, parentRowVar, parentRowType, context);
+    }
+
+    /**
+     * The correlated-child tail shared by ASSOCIATION children and M2M
+     * source-association children: the condition λ(parent, target) frees its
+     * parent reads onto the enclosing row var, filters the target pipeline,
+     * and the child's own envelope builds beneath.
+     */
+    private TypedSerializeGraph.Child correlatedGraphChild(ClassSource target,
+            TypedSpec targetPipeline,
+            com.legend.compiler.element.type.Type.RelationType targetRow,
+            TypedLambda condition, boolean toMany, TypedGraphTree node,
+            String parentRowVar,
+            com.legend.compiler.element.type.Type.RelationType parentRowType,
+            Context context) {
         // The association condition λ(parent, target): parent reads become
         // the FREE parent row var (the lowerer's enclosing-scope channel);
         // the target param stays as the child filter's own row.
-        TypedLambda cond = aj.condition();
+        TypedLambda cond = condition;
         String pVar = cond.parameters().get(0);
         String tVar = cond.parameters().get(1);
         List<TypedSpec> corrBody = cond.body().stream().map(b ->
@@ -974,16 +1117,16 @@ public final class StoreResolver {
                 new com.legend.compiler.element.type.ExprType(
                         new com.legend.compiler.element.type.Type.FunctionType(
                                 List.of(new com.legend.compiler.element.type.Type.Param(
-                                        aj.targetRow(),
+                                        targetRow,
                                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
                                 new com.legend.compiler.element.type.Type.Param(
                                         com.legend.compiler.element.type.Type.Primitive.BOOLEAN,
                                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
-        TypedSpec childRel = new TypedFilter(aj.targetPipeline(), corr,
-                aj.targetPipeline().info());
+        TypedSpec childRel = new TypedFilter(targetPipeline, corr,
+                targetPipeline.info());
         Set<String> childParams = new java.util.LinkedHashSet<>();
-        for (TypedSpec b : aj.target().bindings().values()) {
+        for (TypedSpec b : target.bindings().values()) {
             collectLambdaParams(b, childParams);
         }
         childParams.addAll(cond.parameters());
@@ -992,11 +1135,11 @@ public final class StoreResolver {
             childVar = "_r" + freshVarCounter++;
         } while (childParams.contains(childVar));
         var childInfo = new com.legend.compiler.element.type.ExprType(
-                new com.legend.compiler.element.type.Type.ClassType(aj.target().classFqn()),
+                new com.legend.compiler.element.type.Type.ClassType(target.classFqn()),
                 toMany ? com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY
                         : com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE);
-        TypedSerializeGraph child = buildGraphNode(aj.target(), childRel, Map.of(),
-                Pipelines.slotAliases(aj.target().pipeline()), childVar,
+        TypedSerializeGraph child = buildGraphNode(target, childRel, Map.of(),
+                Pipelines.slotAliases(target.pipeline()), childVar,
                 node.children(), context, toMany, childInfo);
         return new TypedSerializeGraph.Child(node.property(), child);
     }

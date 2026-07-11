@@ -209,7 +209,7 @@ public final class ClassSources {
             TypedLambda lam = filters.get(i).predicate();
             String v = lam.parameters().get(0);
             List<TypedSpec> body = lam.body().stream().map(b ->
-                    substituteSourceReads(b, v, inner, classFqn, mappingFqn)).toList();
+                    substituteSourceReads(b, v, inner, classFqn, mappingFqn, false)).toList();
             var fnType = new Type.FunctionType(
                     List.of(new Type.Param(inner.rowType(),
                             com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
@@ -243,16 +243,39 @@ public final class ClassSources {
      */
     private TypedSpec substituteSourceReads(TypedSpec n, String srcVar,
             ClassSource inner, String classFqn, String mappingFqn) {
+        return substituteSourceReads(n, srcVar, inner, classFqn, mappingFqn, true);
+    }
+
+    private TypedSpec substituteSourceReads(TypedSpec n, String srcVar,
+            ClassSource inner, String classFqn, String mappingFqn,
+            boolean bindingPosition) {
         if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
                 && pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
                 && v.name().equals(srcVar)) {
             TypedSpec bound = inner.bindings().get(pa.property());
             if (bound == null) {
+                // An ASSOCIATION property of the source class: in BINDING
+                // position the read becomes a SOURCE-NAV MARKER — the access
+                // re-pointed at the composed row var, source-class-typed —
+                // consumed only by the GRAPH-CHILD path (address:
+                // $src.rawAddresses fans out as a correlated child). A read
+                // THROUGH the association ($src.boss.age) stays loud: it
+                // would need a scalar join this composition cannot emit.
+                if (bindingPosition
+                        && ctx.findAssociationOf(inner.classFqn(), pa.property()).isPresent()) {
+                    return new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                            new com.legend.compiler.spec.typed.TypedVariable(
+                                    inner.rowVar(),
+                                    com.legend.compiler.element.type.ExprType.one(
+                                            new com.legend.compiler.element.type.Type
+                                                    .ClassType(inner.classFqn()))),
+                            pa.property(), pa.info());
+                }
                 throw new NotImplementedException("model-to-model binding of '"
                         + classFqn + "' in '" + mappingFqn + "' navigates '$"
-                        + srcVar + "." + pa.property() + "' — an association or"
-                        + " unmapped property of source class '" + inner.classFqn()
-                        + "' is not supported yet (H5b)");
+                        + srcVar + "." + pa.property() + "' — an unmapped"
+                        + " non-association property of source class '"
+                        + inner.classFqn() + "' is not supported yet (H5b)");
             }
             return bound;
         }
@@ -270,31 +293,31 @@ public final class ClassSources {
                     new com.legend.compiler.spec.typed.TypedNewInstanceCast(
                             nic.classFqn(),
                             substituteSourceReads(nic.source(), srcVar, inner,
-                                    classFqn, mappingFqn),
+                                    classFqn, mappingFqn, bindingPosition),
                             nic.info());
             case com.legend.compiler.spec.typed.TypedPropertyAccess pa ->
                     new com.legend.compiler.spec.typed.TypedPropertyAccess(
                             substituteSourceReads(pa.source(), srcVar, inner,
-                                    classFqn, mappingFqn),
+                                    classFqn, mappingFqn, false),
                             pa.property(), pa.info());
             case com.legend.compiler.spec.typed.TypedNativeCall c ->
                     new com.legend.compiler.spec.typed.TypedNativeCall(c.callee(),
                             c.args().stream().map(a -> substituteSourceReads(a,
-                                    srcVar, inner, classFqn, mappingFqn)).toList(),
+                                    srcVar, inner, classFqn, mappingFqn, false)).toList(),
                             c.info());
             case com.legend.compiler.spec.typed.TypedCollection c ->
                     new com.legend.compiler.spec.typed.TypedCollection(
                             c.elements().stream().map(a -> substituteSourceReads(a,
-                                    srcVar, inner, classFqn, mappingFqn)).toList(),
+                                    srcVar, inner, classFqn, mappingFqn, false)).toList(),
                             c.info());
             case com.legend.compiler.spec.typed.TypedIf i ->
                     new com.legend.compiler.spec.typed.TypedIf(
                             substituteSourceReads(i.condition(), srcVar, inner,
-                                    classFqn, mappingFqn),
+                                    classFqn, mappingFqn, false),
                             substituteSourceReads(i.thenBranch(), srcVar, inner,
-                                    classFqn, mappingFqn),
+                                    classFqn, mappingFqn, false),
                             i.elseBranch().map(e2 -> substituteSourceReads(e2,
-                                    srcVar, inner, classFqn, mappingFqn)),
+                                    srcVar, inner, classFqn, mappingFqn, false)),
                             i.info());
             case TypedLambda l -> {
                 if (l.parameters().contains(srcVar)) {
@@ -313,7 +336,7 @@ public final class ClassSources {
                 }
                 yield new TypedLambda(l.parameters(),
                         l.body().stream().map(b -> substituteSourceReads(b,
-                                srcVar, inner, classFqn, mappingFqn)).toList(),
+                                srcVar, inner, classFqn, mappingFqn, false)).toList(),
                         l.info());
             }
             case com.legend.compiler.spec.typed.TypedCString ignored -> n;

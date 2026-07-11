@@ -3453,3 +3453,18 @@ Top detail:
     1  graph child 'address' of class 'model::ActivePersonWithAddress' is map
     1  SQL dialect for database type 'H2' (connection 'store::Conn' of runtim
 ```
+
+### Run 2026-07-11 @ 9acc797
+
+| tests | pass | failures | errors | skipped | green classes |
+|---|---|---|---|---|---|
+| 2721 | **2697** | 4 | 1 | 19 | 395 |
+
+| bucket | exception lines |
+|---|---|
+| OTHER | 1 |
+
+Top detail:
+```
+    1  SQL dialect for database type 'H2' (connection 'store::Conn' of runtim
+```
