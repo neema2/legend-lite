@@ -320,36 +320,19 @@ public final class Lowerer {
     private SqlSelect groupBy(TypedGroupBy g) {
         SqlSelect src = relation(g.source());
         SqlSelect base = Fold.groupByFolds(src) ? src : isolate(src);
+        return foldOrIsolate(base, "groupBy", b -> buildGroupBy(b, g));
+    }
+
+    private SqlSelect buildGroupBy(SqlSelect base, TypedGroupBy g) {
         List<SqlExpr> keys = new ArrayList<>(g.keys().size());
         List<SqlSelect.Projection> ps = new ArrayList<>();
         for (TypedGroupBy.GroupKey k : g.keys()) {
             SqlExpr e = k.fn().isPresent()
                     ? scalar(last(k.fn().get()), (v, name) -> resolveOrThrow(base, name))
-                    : Fold.resolveInto(base, k.column());
-            if (e == null) {
-                return groupByOnto(isolate(base), g);
-            }
+                    : resolveOrThrow(base, k.column());
             keys.add(e);
             ps.add(new SqlSelect.Projection(e,
                     e instanceof SqlExpr.Column c && c.name().equals(k.column()) ? null : k.column()));
-        }
-        for (TypedAggCol a : g.aggs()) {
-            ps.add(new SqlSelect.Projection(aggValue(base, a), a.name()));
-        }
-        return base.withGroupBy(keys).withProjections(ps, outputsOf(g.info()));
-    }
-
-    private SqlSelect groupByOnto(SqlSelect base, TypedGroupBy g) {
-        List<SqlExpr> keys = new ArrayList<>();
-        List<SqlSelect.Projection> ps = new ArrayList<>();
-        for (TypedGroupBy.GroupKey k : g.keys()) {
-            SqlExpr e = Fold.sourceColumn(base.from(), k.column());
-            if (e == null) {
-                throw new IllegalStateException("groupBy key '" + k.column()
-                        + "' cannot be resolved after isolation");
-            }
-            keys.add(e);
-            ps.add(new SqlSelect.Projection(e, null));
         }
         for (TypedAggCol a : g.aggs()) {
             ps.add(new SqlSelect.Projection(aggValue(base, a), a.name()));
@@ -406,11 +389,13 @@ public final class Lowerer {
     private SqlSelect aggregate(TypedAggregate a) {
         SqlSelect src = relation(a.source());
         SqlSelect base = Fold.groupByFolds(src) ? src : isolate(src);
-        List<SqlSelect.Projection> ps = new ArrayList<>(a.aggs().size());
-        for (TypedAggCol col : a.aggs()) {
-            ps.add(new SqlSelect.Projection(aggValue(base, col), col.name()));
-        }
-        return base.withProjections(ps, outputsOf(a.info()));
+        return foldOrIsolate(base, "aggregate", b -> {
+            List<SqlSelect.Projection> ps = new ArrayList<>(a.aggs().size());
+            for (TypedAggCol col : a.aggs()) {
+                ps.add(new SqlSelect.Projection(aggValue(b, col), col.name()));
+            }
+            return b.withProjections(ps, outputsOf(a.info()));
+        });
     }
 
     /**
@@ -773,7 +758,28 @@ public final class Lowerer {
         record Unfoldable(String column) implements Resolution { }
     }
 
-    /** THE one {@link UnfoldableRef} catch site: run the attempt, name the outcome. */
+    /**
+     * The RELATION-LEVEL try boundary: build the op over the folded select;
+     * a computed-column reference (extend'ed expression, window column) is
+     * unfoldable in place, so ISOLATE and rebuild — references then resolve
+     * to plain columns of the subselect. Loud when isolation cannot cure it.
+     */
+    private SqlSelect foldOrIsolate(SqlSelect base, String op,
+            java.util.function.Function<SqlSelect, SqlSelect> build) {
+        try {
+            return build.apply(base);
+        } catch (UnfoldableRef first) {
+            try {
+                return build.apply(isolate(base));
+            } catch (UnfoldableRef second) {
+                throw new IllegalStateException(op + " reference '"
+                        + second.getMessage() + "' cannot be resolved even after"
+                        + " isolation");
+            }
+        }
+    }
+
+    /** The EXPRESSION-LEVEL {@link UnfoldableRef} catch site: run the attempt, name the outcome. */
     private Resolution attempt(java.util.function.Supplier<SqlExpr> attemptFn) {
         try {
             return new Resolution.Resolved(attemptFn.get());
@@ -784,8 +790,9 @@ public final class Lowerer {
 
     /**
      * The resolve-or-fold SIGNAL (not an error): thrown per unresolvable
-     * reference and converted to a {@link Resolution} at {@link #attempt} —
-     * never caught anywhere else. Stack traces are suppressed — this is
+     * reference and converted to a {@link Resolution} at {@link #attempt}
+     * or retried after isolation at {@link #foldOrIsolate} — never caught
+     * anywhere else. Stack traces are suppressed — this is
      * control flow in a hot path, pending the sealed-Resolution redesign
      * (docs/DESIGN_DEBT.md).
      */
@@ -1194,32 +1201,36 @@ public final class Lowerer {
     private SqlSelect extendWindow(TypedExtendWindow w) {
         SqlSelect src = relation(w.source());
         SqlSelect base = Fold.windowFolds(src) ? src : isolate(src);
-        Over over = lowerOver(base, w.window());
-        List<SqlSelect.Projection> ps = new ArrayList<>(starProjections(base));
-        for (com.legend.compiler.spec.typed.TypedFuncCol c : w.columns()) {
-            SqlExpr e = windowScalar(last(c.fn()), base, over);
-            ps.add(new SqlSelect.Projection(e, c.name()));
-        }
-        for (TypedAggCol a : w.aggs()) {
-            ps.add(new SqlSelect.Projection(
-                    windowize(aggValue(base, a), over.partitionBy(), over.orderBy(),
-                            over.frame()),
-                    a.name()));
-        }
-        return base.withProjections(ps, outputsOf(w.info()));
+        return foldOrIsolate(base, "extend window", b -> {
+            Over over = lowerOver(b, w.window());
+            List<SqlSelect.Projection> ps = new ArrayList<>(starProjections(b));
+            for (com.legend.compiler.spec.typed.TypedFuncCol c : w.columns()) {
+                SqlExpr e = windowScalar(last(c.fn()), b, over);
+                ps.add(new SqlSelect.Projection(e, c.name()));
+            }
+            for (TypedAggCol a : w.aggs()) {
+                ps.add(new SqlSelect.Projection(
+                        windowize(aggValue(b, a), over.partitionBy(), over.orderBy(),
+                                over.frame()),
+                        a.name()));
+            }
+            return b.withProjections(ps, outputsOf(w.info()));
+        });
     }
 
     /** extend(~total : x|$x.AGE : y|$y->sum()) — whole-relation window: SUM(x) OVER (). */
     private SqlSelect extendAgg(TypedExtendAgg ea) {
         SqlSelect src = relation(ea.source());
         SqlSelect base = Fold.windowFolds(src) ? src : isolate(src);
-        List<SqlSelect.Projection> ps = new ArrayList<>(starProjections(base));
-        for (TypedAggCol a : ea.aggs()) {
-            ps.add(new SqlSelect.Projection(
-                    windowize(aggValue(base, a), List.of(), List.of(), null),
-                    a.name()));
-        }
-        return base.withProjections(ps, outputsOf(ea.info()));
+        return foldOrIsolate(base, "extend aggregate", b -> {
+            List<SqlSelect.Projection> ps = new ArrayList<>(starProjections(b));
+            for (TypedAggCol a : ea.aggs()) {
+                ps.add(new SqlSelect.Projection(
+                        windowize(aggValue(b, a), List.of(), List.of(), null),
+                        a.name()));
+            }
+            return b.withProjections(ps, outputsOf(ea.info()));
+        });
     }
 
     private List<SqlSelect.Projection> starProjections(SqlSelect base) {
