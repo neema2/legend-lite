@@ -3481,3 +3481,16 @@ Top detail:
 Top detail:
 ```
 ```
+
+### Run 2026-07-11 @ 0507f85
+
+| tests | pass | failures | errors | skipped | green classes |
+|---|---|---|---|---|---|
+| 2721 | **2702** | 0 | 0 | 19 | 397 |
+
+| bucket | exception lines |
+|---|---|
+
+Top detail:
+```
+```
