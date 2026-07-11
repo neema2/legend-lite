@@ -3050,3 +3050,46 @@ Top detail:
     1  Out of Range Error: Overflow in subtraction of INT64 (-922337203685477
     1  in call to 'meta::pure::functions::string::splitPart', argument 1: exp
 ```
+
+### Run 2026-07-11 @ 3d467bf
+
+| tests | pass | failures | errors | skipped | green classes |
+|---|---|---|---|---|---|
+| 2721 | **2617** | 30 | 55 | 19 | 366 |
+
+| bucket | exception lines |
+|---|---|
+| OTHER | 41 |
+| CORE(parse): query syntax gaps | 6 |
+| CORE: unlowered constructs | 2 |
+| CORE(G): overload/typing gaps | 2 |
+| FIXTURE: unknown refs (to diagnose) | 2 |
+
+Top detail:
+```
+    6  multi-column pivot is not lowered yet
+    6  model-to-model binding of 'model::StaffComplete' in 'model::DisjointDe
+    3  class java.lang.String cannot be cast to class java.lang.Number (java.
+    3  graph child 'department' of class 'model::StaffWithDept' is mapped as 
+    3  property 'country' of class 'test::Firm' is mapped through the target'
+    2  a nested join has no single alias — resolve per side
+    2  in call to 'meta::pure::functions::collection::concatenate', argument 
+    2  scalar lowering not yet implemented for TypedWrite
+    2  expected at most one value, got many ([*])
+    2  flatten source column 'items' cannot be resolved (unresolvable project
+    2  graph child 'address' of class 'model::PersonWithAddress' is mapped as
+    2  sort with a comparator has no scalar lowering yet
+    1  in function 'model::TaskMapping$class$model::Task': enumeration model:
+    1  class java.lang.Boolean cannot be cast to class java.lang.Number (java
+    1  graph child 'department' of class 'model::StaffFull' is mapped as an e
+    1  graph child 'addresses' of class 'model::PersonWithAddresses' is mappe
+    1  graph child 'address' of class 'model::ActivePersonWithAddress' is map
+    1  ~[] is empty: a column-specification array needs columns
+    1  type 'VARCHAR' requires arguments; use its record constructor
+    1  'meta::pure::functions::boolean::eq_Any_1__Any_1__Boolean_1_' is not a
+    1  SQL dialect for database type 'H2' (connection 'store::Conn' of runtim
+    1  Out of Range Error: Overflow in multiplication of INT64 (2 * 922337203
+    1  in call to 'meta::pure::functions::math::corr', argument 2: expected N
+    1  Out of Range Error: Overflow in subtraction of INT64 (-922337203685477
+    1  in call to 'meta::pure::functions::string::splitPart', argument 1: exp
+```

@@ -201,14 +201,46 @@ public final class UserCallInliner {
         try {
             List<TypedSpec> body = specs.compile(call.callee()).body();
             Map<String, TypedSpec> callEnv = new LinkedHashMap<>();
+            // A relation param accepts a SUPERSET schema (covariant call);
+            // the spliced body then carries the caller's extra columns in
+            // SQL while the call site is typed by the DECLARED return —
+            // conform by EMISSION with a select down to the declared columns.
+            boolean widened = false;
             for (int i = 0; i < call.callee().parameters().size(); i++) {
                 callEnv.put(call.callee().parameters().get(i).name(), args.get(i));
+                if (rowType(call.callee().parameters().get(i).type()) instanceof
+                            com.legend.compiler.element.type.Type.RelationType dp
+                        && rowType(args.get(i).info().type()) instanceof
+                            com.legend.compiler.element.type.Type.RelationType ap
+                        && ap.columns().size() > dp.columns().size()) {
+                    widened = true;
+                }
             }
-            return reduceStatements(body, callEnv);
+            TypedSpec reduced = reduceStatements(body, callEnv);
+            if (widened && call.info().type()
+                    instanceof com.legend.compiler.element.type.Type.RelationType rt) {
+                reduced = new com.legend.compiler.spec.typed.TypedSelect(reduced,
+                        rt.columns().stream()
+                                .map(com.legend.compiler.element.type.Type.Column::name)
+                                .toList(),
+                        call.info());
+            }
+            return reduced;
         } finally {
             stack.pop();
             names.pop();
         }
+    }
+
+    /** The row type of a relation-valued type: bare RelationType, or Relation<(...)>. */
+    private static com.legend.compiler.element.type.Type rowType(
+            com.legend.compiler.element.type.Type t) {
+        if (t instanceof com.legend.compiler.element.type.Type.GenericType g
+                && g.rawFqn().equals("meta::pure::metamodel::relation::Relation")
+                && g.arguments().size() == 1) {
+            return g.arguments().get(0);
+        }
+        return t;
     }
 
     /**

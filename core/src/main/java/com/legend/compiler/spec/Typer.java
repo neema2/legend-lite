@@ -838,7 +838,7 @@ final class Typer {
     // =====================================================================
 
     /** Check mode: the synthesized type/multiplicity must conform to {@code expected}. */
-    private void requireConforms(ExprType actual, ExprType expected) {
+    void requireConforms(ExprType actual, ExprType expected) {
         // Reuse the kernel: unify(expected, actual) checks actual <: expected for scalars
         // (throws on mismatch). Empty bindings — expected is concrete, nothing to solve.
         // NOTE: class-subtype conformance for user-call arguments is deferred with the user path.

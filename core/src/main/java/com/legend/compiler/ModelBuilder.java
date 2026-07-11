@@ -555,7 +555,26 @@ public final class ModelBuilder {
 
     /** O(1). Returns {@link DatabaseDefinition} for {@code fqn}, if any. */
     public Optional<DatabaseDefinition> findDatabase(String fqn) {
-        return Optional.ofNullable(idGet(databases, symbols.resolveId(fqn)));
+        DatabaseDefinition exact = idGet(databases, symbols.resolveId(fqn));
+        if (exact != null) {
+            return Optional.of(exact);
+        }
+        // A BARE store name ([PersonDatabase] T_EMPLOYEE) resolves by simple
+        // name when UNIQUE across the model — the engine's lenient store
+        // reference; ambiguity stays a miss (the caller's error names the ref).
+        if (!fqn.contains("::")) {
+            DatabaseDefinition found = null;
+            for (DatabaseDefinition db : databases) {
+                if (db != null && db.qualifiedName().endsWith("::" + fqn)) {
+                    if (found != null) {
+                        return Optional.empty();
+                    }
+                    found = db;
+                }
+            }
+            return Optional.ofNullable(found);
+        }
+        return Optional.empty();
     }
 
     /**

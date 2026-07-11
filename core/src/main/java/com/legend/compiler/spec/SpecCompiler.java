@@ -142,8 +142,21 @@ public final class SpecCompiler {
         List<TypedSpec> typed = new ArrayList<>(body.size());
         int last = body.size() - 1;
         for (int i = 0; i < body.size(); i++) {
-            Expected expected = (i == last) ? Expected.check(declaredReturn) : Expected.infer();
-            TypedSpec stmt = typeBody(body.get(i), scope, expected);
+            TypedSpec stmt = typeBody(body.get(i), scope, Expected.infer());
+            if (i == last) {
+                // The return-position conformance names the CONTRACT: the
+                // generic "expected X, got Y" reads like an inner expression
+                // error, and callers (the corpus included) grep for the
+                // declared-return wording.
+                try {
+                    typer.requireConforms(stmt.info(), declaredReturn);
+                } catch (TypeInferenceException e) {
+                    throw new TypeInferenceException("declares return type "
+                            + simpleName(declaredReturn.type().typeName())
+                            + " but body returns " + simpleName(stmt.info().type().typeName())
+                            + " (" + e.getMessage() + ")");
+                }
+            }
             typed.add(stmt);
             if (stmt instanceof TypedLet let) {
                 scope = scope.with(let.name(), let.value().info());   // bind for the following statements
@@ -187,6 +200,11 @@ public final class SpecCompiler {
             return body;
         }
         return List.of(typer.typeBody(query, Env.empty(), Expected.infer()));
+    }
+
+    private static String simpleName(String typeName) {
+        int idx = typeName.lastIndexOf("::");
+        return idx < 0 ? typeName : typeName.substring(idx + 2);
     }
 
     /**
