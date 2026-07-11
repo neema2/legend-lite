@@ -32,16 +32,13 @@ public class Test_LegendLite_RelationFunctions_PCT extends PCTReportConfiguratio
 
     // Expected failures — HARNESS representation limits, not semantic gaps.
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
-            // The adapter wires relation results back through the TDS parser,
-            // whose null literals are ["", "null"] (TDSExtension
-            // makePureCsvSpecs) — an EMPTY STRING cell cannot round-trip
-            // (both "" and bare-empty parse as MISSING and print null).
-            // joinStrings over the empty collection is '' — semantically
-            // right in SQL (COALESCE to ''), unrepresentable on the wire.
-            // Matching is CONTAINS: the pinned fragment is the null-printed
-            // row four of the actual output.
-            one("meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings_Function_1__Boolean_1_",
-                    "4,\"null\",null"));
+            // The result wire (TDS parser, null literals ["", "null"]) cannot
+            // represent an EMPTY STRING cell; joinStrings over the empty
+            // collection is '' — right in SQL, unrepresentable on the wire.
+            // Pin is the FULL expected+actual text, verbatim the official
+            // legend-engine DuckDB PCT's pin for the SAME failure — a loose
+            // fragment would keep matching if the test regressed elsewhere.
+            one("meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload,joined\n   1,\"[1,2,3]\",1,2,3\n   2,\"[4,5,6]\",4,5,6\n   3,\"[7,8,9]\",7,8,9\n   4,\"null\",\n#'\nactual:   '#TDS\n   id,payload,joined\n   1,\"[1,2,3]\",1,2,3\n   2,\"[4,5,6]\",4,5,6\n   3,\"[7,8,9]\",7,8,9\n   4,\"null\",null\n#'\""));
 
     /**
      * JUnit 3 test suite entry point.

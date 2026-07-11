@@ -221,8 +221,10 @@ public final class Lowerer {
                 enclosing.push((v, name) -> {
                     SqlExpr r = leftCols.resolve(v, name);
                     if (r == null) {
-                        throw new IllegalStateException("lateral lambda references"
-                                + " unknown variable '" + v + "'");
+                        // NOT this scope's variable: the UnfoldableRef SIGNAL
+                        // lets scopedResolver continue outward (a hard throw
+                        // severed the whole enclosing chain behind lateral).
+                        throw new UnfoldableRef(name);
                     }
                     return r;
                 });
@@ -1544,7 +1546,9 @@ public final class Lowerer {
                 }
                 return new SqlExpr.WindowCall(
                         new SqlAgg.Reducer(Windows.aggregate(call.callee()),
-                                List.of(new SqlExpr.Column(base.from().alias(), cs.name())),
+                                // resolve through the select — a folded
+                                // project's alias substitutes its expression
+                                List.of(resolveOrThrow(base, cs.name())),
                                 false),
                         over.partitionBy(), over.orderBy(), over.frame());
             }
@@ -1684,20 +1688,37 @@ public final class Lowerer {
             // native call's struct result, a nested pair): the visible-literal
             // case inlines the field's own expression (no struct round-trip);
             // anything opaque extracts from the struct.
-            // A property read THROUGH to(@Class) over a VARIANT: JSON field
-            // extraction — the class instance is never materialized (the
-            // real runtime supports the read but not the bare class value).
-            case TypedPropertyAccess p when p.source()
-                        instanceof com.legend.compiler.spec.typed.TypedCast vc
-                    && vc.source().info().type() instanceof Type.ClassType vsrc
-                    && com.legend.compiler.element.type.PlatformTypes.isVariant(vsrc)
-                    && vc.target() instanceof Type.ClassType vtgt
-                    && !com.legend.compiler.element.type.PlatformTypes.isVariant(vtgt)
-                    -> new SqlExpr.Cast(
-                            SqlExpr.Call.of(com.legend.sql.SqlFn.VARIANT_GET,
-                                    scalar(vc.source(), columns),
-                                    new SqlExpr.StringLit(p.property())),
-                            PureSql.type(p.info().type()));
+            // A property CHAIN over to(@Class) on a VARIANT (to(@Firm).boss.name):
+            // every hop is a JSON field extraction; only the LEAF materializes
+            // (real PCT testToClassAndAccessNestedProperty pins multi-hop).
+            case TypedPropertyAccess p when variantCastBase(p) != null -> {
+                java.util.ArrayDeque<String> path = new java.util.ArrayDeque<>();
+                TypedSpec cur = p;
+                while (cur instanceof TypedPropertyAccess pa) {
+                    path.addFirst(pa.property());
+                    cur = pa.source();
+                }
+                var vc = (com.legend.compiler.spec.typed.TypedCast) cur;
+                SqlExpr e = scalar(vc.source(), columns);
+                for (String seg : path) {
+                    e = SqlExpr.Call.of(com.legend.sql.SqlFn.VARIANT_GET, e,
+                            new SqlExpr.StringLit(seg));
+                }
+                Type leaf = p.info().type();
+                if (leaf instanceof Type.ClassType lc
+                        && !com.legend.compiler.element.type.PlatformTypes.isVariant(lc)
+                        && !com.legend.compiler.element.type.PlatformTypes.isAny(lc)) {
+                    // a class-typed LEAF is the unsupported-column case —
+                    // real relation runtime's verbatim rejection
+                    throw new com.legend.error.ModelException(
+                            com.legend.error.LegendCompileException.Phase.LOWER,
+                            "The type " + lc.fqn() + " is not supported yet!");
+                }
+                yield p.info().multiplicity().isMany()
+                        ? new SqlExpr.Cast(e,
+                                new com.legend.sql.SqlType.Array(PureSql.type(leaf)))
+                        : new SqlExpr.Cast(e, PureSql.type(leaf));
+            }
             case TypedPropertyAccess p when p.source()
                         instanceof com.legend.compiler.spec.typed.TypedNewInstance ni -> {
                 TypedSpec v = ni.properties().get(p.property());
@@ -1958,7 +1979,17 @@ public final class Lowerer {
             if (path == null) {
                 // COMPUTED column ($v.a + $v.b, coalesce($x.f, ...)): the row
                 // param's property accesses resolve to the instance's literal
-                // values; the body lowers as an ordinary scalar.
+                // values; the body lowers as an ordinary scalar. A MANY-valued
+                // body has no relational cell shape (bare to-many paths
+                // explode via unnest; a computed one must be loud, never a
+                // silent list-in-a-cell).
+                TypedSpec bodyLast = last(col.fn());
+                if (bodyLast.info().multiplicity().isMany()) {
+                    throw new com.legend.error.NotImplementedException(
+                            "instance-literal project: computed column '" + col.name()
+                                    + "' is collection-valued — only bare to-many"
+                                    + " property paths explode");
+                }
                 String param = col.fn().parameters().get(0);
                 SqlExpr computed = scalar(last(col.fn()), (v, name) -> {
                     if (!param.equals(v)) {
@@ -2052,6 +2083,26 @@ public final class Lowerer {
             return null;   // COMPUTED body — the caller lowers it as a scalar
         }
         return List.copyOf(path);
+    }
+
+    /**
+     * The variant→class cast at the base of a property-access chain
+     * ({@code to(@C).a.b} — every {@code source()} hop a property access),
+     * or null when the chain roots elsewhere.
+     */
+    private static com.legend.compiler.spec.typed.TypedCast variantCastBase(TypedSpec spec) {
+        TypedSpec cur = spec;
+        while (cur instanceof TypedPropertyAccess pa) {
+            cur = pa.source();
+        }
+        if (cur instanceof com.legend.compiler.spec.typed.TypedCast vc
+                && vc.source().info().type() instanceof Type.ClassType vsrc
+                && com.legend.compiler.element.type.PlatformTypes.isVariant(vsrc)
+                && vc.target() instanceof Type.ClassType vtgt
+                && !com.legend.compiler.element.type.PlatformTypes.isVariant(vtgt)) {
+            return vc;
+        }
+        return null;
     }
 
     /** A resolver for positions where no row scope exists (literal evaluation). */
@@ -2432,7 +2483,8 @@ public final class Lowerer {
             // group — a multi-row scalar subquery).
             return (lw, call) -> {
                 SqlSelect src = lw.relation(call.args().get(0));
-                SqlSelect base = Fold.groupByFolds(src) ? src : lw.isolate(src);
+                SqlSelect base = Fold.groupByFolds(src) && !Fold.unnestInProjections(src)
+                        ? src : lw.isolate(src);
                 return new SqlExpr.ScalarSubquery(base
                         .withProjections(List.of(new SqlSelect.Projection(
                                 SqlAgg.Reducer.of("COUNT"), null)), List.of()));

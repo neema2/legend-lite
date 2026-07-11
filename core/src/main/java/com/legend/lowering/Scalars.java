@@ -896,18 +896,13 @@ final class Scalars {
                     throw new IllegalStateException("removeDuplicates with a"
                             + " non-equality comparator has no scalar lowering");
                 }
-                return new SqlExpr.Call(SqlFn.LIST_DISTINCT, List.of(args.get(0)));
+                return orderedDedup(args.get(0));
             });
         }
-        // collection::distinct = removeDuplicates (real distinct.pure). The
-        // key set filters to the COLLECTION overload — relation::distinct is
-        // a relop with its own checker and never reaches scalar lowering.
-        for (String f : Pure.nativeKeysAt("distinct")) {
-            if (f.contains("Relation")) {
-                continue;
-            }
-            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_DISTINCT, List.of(args.get(0))));
-        }
+        // collection::distinct = removeDuplicates (real distinct.pure) —
+        // registered by the EXACT collection overload key.
+        RULES.put(Pure.DISTINCT_COLLECTION_KEY,
+                (n, args) -> orderedDedup(args.get(0)));
         // fromJson(String): the string IS the variant — a JSON cast.
         for (String f : Pure.nativeKeysAt("fromJson")) {
             RULES.put(f, (n, args) -> new SqlExpr.Cast(args.get(0),
@@ -1389,6 +1384,20 @@ final class Scalars {
      */
     private static boolean listValued(com.legend.compiler.spec.typed.TypedSpec arg) {
         return arg.info().multiplicity().isMany();
+    }
+
+    /**
+     * FIRST-OCCURRENCE dedup (real removeDuplicates semantics — its PCT
+     * asserts order without sorting). LIST_DISTINCT is UNORDERED in DuckDB;
+     * keep element x at 1-based index i iff its first position is i.
+     */
+    private static SqlExpr orderedDedup(SqlExpr list) {
+        return new SqlExpr.Call(SqlFn.LIST_FILTER, List.of(list,
+                new SqlExpr.Lambda(List.of("_ddx", "_ddi"),
+                        new SqlExpr.Call(SqlFn.EQUAL, List.of(
+                                SqlExpr.Call.of(SqlFn.LIST_POSITION, list,
+                                        new SqlExpr.Column(null, "_ddx")),
+                                new SqlExpr.Column(null, "_ddi"))))));
     }
 
     /** Literal cell of a TDS row → typed SQL literal, by the column's Pure type. */

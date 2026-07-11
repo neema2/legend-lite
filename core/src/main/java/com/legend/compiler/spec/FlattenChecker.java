@@ -34,8 +34,10 @@ final class FlattenChecker {
         // relation::variant::flatten(collection, ~col): a scalar/variant
         // COLLECTION becomes a ONE-COLUMN relation (real flatten.pure:
         // flatten<T,Z>(valueToFlatten:T[*], col:ColSpec<Z=(?:T)>):Relation<Z>).
-        // Validated against the registered VARIANT_FLATTEN signature by the
-        // COLLECTION shape; emission is TypedCollectionRelation (UNNEST).
+        // KNOWN GAP (audit round 4): this arm computes the schema directly
+        // instead of resolving through the registered VARIANT_FLATTEN
+        // signature — the registration's Z=(?:T) colspec form is not yet
+        // expressible to checkGeneric. Emission is TypedCollectionRelation.
         if (!(source.info().type() instanceof Type.RelationType)) {
             Type elem = source.info().type();
             var row = new Type.RelationType(List.of(new Type.Column(cs.name(), elem,

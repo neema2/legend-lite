@@ -412,11 +412,9 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                             .ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS")) + "+0000";
         }
         String str = value.toString();
-        if (str.isEmpty()) {
-            // A bare empty cell parses as MISSING — quote it so the EMPTY
-            // STRING survives the TDS wire (joinStrings over none = '').
-            return "\"\"";
-        }
+        // NOTE: an empty string CANNOT survive the TDS wire — the parser's
+        // null literals are ["", "null"], quoted or not (probe-verified);
+        // the one affected test is the ledgered expected failure.
         if (str.contains(",") || str.contains("\"") || str.contains("\n")) {
             return "\"" + str.replace("\"", "\"\"") + "\"";
         }
@@ -539,7 +537,12 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                     continue;
                 }
                 CoreInstance cls = ps.package_getByUserPath(fqn);
-                if (cls != null && Instance.instanceOf(cls, "meta::pure::metamodel::type::Class", ps)) {
+                // Never inject a class core knows NATIVELY (Pair, List, ...):
+                // the extraction degrades type parameters to Any and a
+                // redefinition could silently shift platform semantics.
+                if (cls != null
+                        && com.legend.builtin.Pure.findNativeClass(fqn).isEmpty()
+                        && Instance.instanceOf(cls, "meta::pure::metamodel::type::Class", ps)) {
                     extractClassRecursive(fqn, classes, visited, ps);
                 }
             }

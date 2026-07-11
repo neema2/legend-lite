@@ -79,6 +79,22 @@ final class Fold {
      * window projections also block: their windows compute over the
      * UNGROUPED rows, which no longer exist once GROUP BY lands.
      */
+    /**
+     * Whether any projection is ROW-MULTIPLYING (a select-list UNNEST —
+     * flatten's emission). COUNT(*)-replacement and other whole-row
+     * summaries must isolate first: swapping projections out would count
+     * the PRE-explosion rows.
+     */
+    static boolean unnestInProjections(SqlSelect s) {
+        return s.projections().stream().anyMatch(p -> containsUnnest(p.expr()));
+    }
+
+    private static boolean containsUnnest(SqlExpr e) {
+        return e instanceof SqlExpr.Call c
+                && (c.fn() == com.legend.sql.SqlFn.UNNEST
+                        || c.args().stream().anyMatch(Fold::containsUnnest));
+    }
+
     static boolean groupByFolds(SqlSelect s) {
         return s.groupBy().isEmpty() && !s.distinct() && s.orderBy().isEmpty()
                 && s.limit() == null && s.offset() == null && s.qualify() == null
@@ -193,7 +209,12 @@ final class Fold {
      * joins rename). Null when no side claims the column.
      */
     static SqlExpr.Column sourceColumn(SqlSource src, String column) {
-        column = pivotIdentity(column);   // quote-bearing pivot identity -> SQL name
+        // A quote-bearing pivot IDENTITY ('2011__|__newCol') strips to its
+        // bare SQL name ONLY when the source does not claim the exact name —
+        // a genuine column carrying that spelling (its own extend) wins.
+        if (src.outputs().isEmpty() || !claims(src.outputs(), column)) {
+            column = pivotIdentity(column);
+        }
         return switch (src) {
             case SqlSource.Table t -> claims(t.outputs(), column)
                     ? new SqlExpr.Column(t.alias(), column) : null;

@@ -143,8 +143,13 @@ final class TdsChecker {
             case "DateTime" -> Type.Primitive.DATE_TIME;
             case "Variant", "meta::pure::metamodel::variant::Variant" ->
                     new Type.ClassType(Pure.VARIANT.qualifiedName());
-            default -> throw new TypeInferenceException(
-                    "TDS column type '" + typeName + "' is not a known primitive");
+            // FQN-spelled primitives (meta::pure::precisePrimitives::Int)
+            // resolve through the one primitive FQN table — same aliases the
+            // type annotations (@Int) use.
+            default -> Type.Primitive.findByFqn(typeName)
+                    .map(t -> (Type) t)
+                    .orElseThrow(() -> new TypeInferenceException(
+                            "TDS column type '" + typeName + "' is not a known primitive"));
         };
     }
 
@@ -167,25 +172,173 @@ final class TdsChecker {
             if (v.equals("true") || v.equals("false")) {
                 return Type.Primitive.BOOLEAN;
             }
-            // Full ISO DATETIMES infer as DateTime — real pure's TDS
-            // inference is Deephaven CSV's, whose DATETIME_AS_LONG parser
-            // takes 2024-01-29T00:32:34.000000000+0000 but NOT date-only
-            // strings: a bare 2024-06-15 stays String (parseDate over a
-            // date-shaped string column is a real corpus fixture).
-            if (v.matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}.*")) {
-                return Type.Primitive.DATE_TIME;
+            // ZONE-SUFFIXED full timestamps infer as the abstract Date —
+            // real pure's TDS inference is Deephaven CSV's, whose
+            // DATETIME_AS_LONG parser requires seconds AND a zone
+            // (2024-01-29T00:32:34.000000000+0000); no-zone or partial-time
+            // strings stay String, date-only strings stay String, and the
+            // mapped M3 type is Date, not DateTime (TDSExtension.convertType).
+            if (v.matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?([+-]\\d{4}|Z)")) {
+                return Type.Primitive.DATE;
             }
-            // JSON-shaped cells ([...] / {...}) infer VARIANT: Deephaven
-            // (real pure's inference engine) says String here, but the PCT
-            // fixtures pair such cells with Variant-annotated lambdas — the
-            // author's declared intent; the corpus gate arbitrates.
-            if ((v.startsWith("[") && v.endsWith("]"))
-                    || (v.startsWith("{") && v.endsWith("}"))) {
+            // VALID-JSON array/object cells infer VARIANT. DELIBERATE,
+            // LEDGERED divergence: Deephaven (real pure's inference) says
+            // String — but the PCT wire drops the fixtures' explicit
+            // payload:Variant annotations (toPureGrammar serialization), so
+            // inference is the only signal left. Gating on a strict JSON
+            // parse keeps bracket-shaped STRING data ('[tag]') a String.
+            if (((v.startsWith("[") && v.endsWith("]"))
+                    || (v.startsWith("{") && v.endsWith("}")))
+                    && isValidJson(v)) {
                 return new Type.ClassType(
                         com.legend.builtin.Pure.VARIANT.qualifiedName());
             }
             return Type.Primitive.STRING;
         }
         return Type.Primitive.STRING;
+    }
+
+    /** Strict RFC-8259 value check — the gate keeping non-JSON bracket text a String. */
+    private static boolean isValidJson(String s) {
+        int[] pos = {0};
+        boolean ok = jsonValue(s, pos);
+        skipWs(s, pos);
+        return ok && pos[0] == s.length();
+    }
+
+    private static boolean jsonValue(String s, int[] p) {
+        skipWs(s, p);
+        if (p[0] >= s.length()) {
+            return false;
+        }
+        char c = s.charAt(p[0]);
+        return switch (c) {
+            case '{' -> jsonObject(s, p);
+            case '[' -> jsonArray(s, p);
+            case '"' -> jsonString(s, p);
+            case 't' -> jsonLiteral(s, p, "true");
+            case 'f' -> jsonLiteral(s, p, "false");
+            case 'n' -> jsonLiteral(s, p, "null");
+            default -> jsonNumber(s, p);
+        };
+    }
+
+    private static boolean jsonObject(String s, int[] p) {
+        p[0]++;   // '{'
+        skipWs(s, p);
+        if (p[0] < s.length() && s.charAt(p[0]) == '}') {
+            p[0]++;
+            return true;
+        }
+        while (true) {
+            skipWs(s, p);
+            if (!(p[0] < s.length() && s.charAt(p[0]) == '"' && jsonString(s, p))) {
+                return false;
+            }
+            skipWs(s, p);
+            if (!(p[0] < s.length() && s.charAt(p[0]) == ':')) {
+                return false;
+            }
+            p[0]++;
+            if (!jsonValue(s, p)) {
+                return false;
+            }
+            skipWs(s, p);
+            if (p[0] < s.length() && s.charAt(p[0]) == ',') {
+                p[0]++;
+                continue;
+            }
+            if (p[0] < s.length() && s.charAt(p[0]) == '}') {
+                p[0]++;
+                return true;
+            }
+            return false;
+        }
+    }
+
+    private static boolean jsonArray(String s, int[] p) {
+        p[0]++;   // '['
+        skipWs(s, p);
+        if (p[0] < s.length() && s.charAt(p[0]) == ']') {
+            p[0]++;
+            return true;
+        }
+        while (true) {
+            if (!jsonValue(s, p)) {
+                return false;
+            }
+            skipWs(s, p);
+            if (p[0] < s.length() && s.charAt(p[0]) == ',') {
+                p[0]++;
+                continue;
+            }
+            if (p[0] < s.length() && s.charAt(p[0]) == ']') {
+                p[0]++;
+                return true;
+            }
+            return false;
+        }
+    }
+
+    private static boolean jsonString(String s, int[] p) {
+        p[0]++;   // opening '"'
+        while (p[0] < s.length()) {
+            char c = s.charAt(p[0]);
+            if (c == '\\') {
+                p[0] += 2;
+                continue;
+            }
+            if (c == '"') {
+                p[0]++;
+                return true;
+            }
+            p[0]++;
+        }
+        return false;
+    }
+
+    private static boolean jsonLiteral(String s, int[] p, String lit) {
+        if (s.startsWith(lit, p[0])) {
+            p[0] += lit.length();
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean jsonNumber(String s, int[] p) {
+        int start = p[0];
+        if (p[0] < s.length() && s.charAt(p[0]) == '-') {
+            p[0]++;
+        }
+        int digits = 0;
+        while (p[0] < s.length() && Character.isDigit(s.charAt(p[0]))) {
+            p[0]++;
+            digits++;
+        }
+        if (digits == 0) {
+            return false;
+        }
+        if (p[0] < s.length() && s.charAt(p[0]) == '.') {
+            p[0]++;
+            while (p[0] < s.length() && Character.isDigit(s.charAt(p[0]))) {
+                p[0]++;
+            }
+        }
+        if (p[0] < s.length() && (s.charAt(p[0]) == 'e' || s.charAt(p[0]) == 'E')) {
+            p[0]++;
+            if (p[0] < s.length() && (s.charAt(p[0]) == '+' || s.charAt(p[0]) == '-')) {
+                p[0]++;
+            }
+            while (p[0] < s.length() && Character.isDigit(s.charAt(p[0]))) {
+                p[0]++;
+            }
+        }
+        return true;
+    }
+
+    private static void skipWs(String s, int[] p) {
+        while (p[0] < s.length() && Character.isWhitespace(s.charAt(p[0]))) {
+            p[0]++;
+        }
     }
 }

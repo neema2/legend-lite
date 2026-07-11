@@ -181,4 +181,61 @@ round-trip.
 | Unclassified | 94 | 21 | 78% |
 | **total** | **1109** | **192** | **83%** |
 
+**Audit round 4** (four parallel adversarial auditors over
+b55cd3f2..003c15a3 — correctness + HACKINESS/overfit; every finding
+probe-verified before fixing). FIXED: (1) BLOCKER `flatten()->size()`
+counted PRE-explosion rows — COUNT(*) replacement now isolates when any
+projection is a row-multiplying UNNEST; (2) BLOCKER
+`distinct`/`removeDuplicates` lowered to UNORDERED LIST_DISTINCT — real
+removeDuplicates pins FIRST-OCCURRENCE order (its PCT asserts unsorted);
+both now emit `list_filter(l, (x,i) -> list_position(l,x) = i)`; (3)
+lateral's pushed resolver threw IllegalStateException instead of the
+UnfoldableRef SIGNAL, severing the enclosing-scope chain behind lateral;
+(4) the colToAgg window-aggregate arm kept a raw FROM-qualified column
+where the lead/lag fix used resolveOrThrow — folded-project aliases now
+substitute; (5) `to(@Class)` property extraction was ONE-HOP-keyed to
+the PCT shape — now collapses whole chains (to(@Firm).boss.name) into
+nested VARIANT_GETs, real testToClassAndAccessNestedProperty semantics;
+a class-typed LEAF throws the verbatim parity message instead of an
+internal crash; (6) computed instance-literal columns with MANY-valued
+bodies emitted a list-in-a-cell — now loud; (7) `Fold.sourceColumn`'s
+UNCONDITIONAL pivot-identity quote-strip could silently mis-resolve a
+genuine quote-bearing column — outputs-claimed exact names now win,
+stripping is the fallback; (8) the two SYNTHETIC over() forms
+(`over(Frame)`, `over(SortInfo,Rows)`), the OverChecker frame-only
+pre-arm, and both kernel empty-fragment escapes are REMOVED — real
+over.pure has exactly 16 overloads and rejects those shapes (the
+motivating PCT tests use the 3-arg forms); the pre-existing
+`over(ColSpec, SortInfo[*], _Range)` tightened to real's `[1]`; (9) TDS
+datetime inference now requires seconds+zone (Deephaven's actual
+grammar; `T00:32`/no-zone stay String) and maps to the abstract `Date`
+(real convertType), not DateTime; (10) JSON-shape→Variant inference
+gated on a STRICT JSON parse — bracket-shaped string data (`[tag]`)
+stays String; the divergence itself remains (ledgered below); (11)
+`annotatedType` resolves FQN-spelled primitives through the one
+Primitive table (precisePrimitives::Int annotations work, matching the
+cast path); (12) the joinStrings ledger pin is the FULL expected+actual
+text verbatim the official DuckDB PCT's pin (the fragment pin could
+mask regressions); (13) the adapter never injects classes core knows
+natively (Pair redefinition hazard); the dead `""` emission and false
+comments removed.
+
+LEDGERED DEBT (documented, deliberately not fixed): the JSON-cell
+Variant inference diverges from Deephaven because the PCT wire
+(toPureGrammar serialization) DROPS the fixtures' explicit
+payload:Variant annotations — the hack is load-bearing until the wire
+carries annotations; the typed-header overlay + data-driven
+multiplicities mean PCT verifies VALUES ONLY, never core's relation
+typing (a core typing every column [0..1] would still go green);
+reEscapeStringLiterals guesses at a mixed escape convention and will
+corrupt backslash-bearing literals in other suites (needs a
+deterministic wire convention); precisePrimitives aliasing drops range
+CONSTRAINTS (real casts enforce [-128,128) etc. — a width-carrying Type
+is the promised follow-up); pivot identity is recovered by name-shape
+at resolution rather than carried as provenance (pivot→cast→pivot
+still confused); remapErrorMessage (pre-existing) rewrites DuckDB shift
+errors into the pure message. Verified loop: core 1391, corpus 2721
+zero regressions, PCT 917/1109 with Relation 348/348 — all UNCHANGED by
+the fixes.
+
 Update this file per slice, same as docs/SCOREBOARD.md.
