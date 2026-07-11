@@ -46,10 +46,34 @@ final class Scalars {
     }
 
     static {
-        family(SqlFn.EQUAL, "equal");
-        // eq = strict equality; over our SQL value set (scalars, structs —
-        // DuckDB compares structs structurally) it IS the = operator.
-        family(SqlFn.EQUAL, "eq");
+        // equal/eq are PRECISION-AWARE over dates: a partial-date literal
+        // (%2014, %2014-01) equals only a SAME-precision value — real pure's
+        // rule, decided STATICALLY (partial precision is a literal-only
+        // phenomenon; columns are always full-precision). Same-precision
+        // partials compare as their ISO-prefix strings. eq = strict equality;
+        // over our SQL value set it IS the = operator.
+        for (String name : List.of("equal", "eq")) {
+            for (String f : Pure.nativeKeysAt(name)) {
+                RULES.put(f, (n, args) -> {
+                    Integer p0 = partialPrecision(n.args().get(0));
+                    Integer p1 = partialPrecision(n.args().get(1));
+                    if (p0 != null || p1 != null) {
+                        if (java.util.Objects.equals(p0, p1)) {
+                            return new SqlExpr.Call(SqlFn.EQUAL, args);
+                        }
+                        Type other = (p0 != null ? n.args().get(1) : n.args().get(0))
+                                .info().type();
+                        // Covers both a full-precision opposite side AND a
+                        // different-precision partial (whose static type is
+                        // also Date) — never equal.
+                        if (isFullPrecisionDate(other)) {
+                            return new SqlExpr.BoolLit(false);
+                        }
+                    }
+                    return new SqlExpr.Call(SqlFn.EQUAL, args);
+                });
+            }
+        }
         family(SqlFn.LESS, "lessThan");
         family(SqlFn.LESS_EQUAL, "lessThanEqual");
         family(SqlFn.GREATER, "greaterThan");
@@ -190,7 +214,7 @@ final class Scalars {
                 Map.entry("coalesce", SqlFn.COALESCE),
                 // Temporal
                 Map.entry("today", SqlFn.TODAY), Map.entry("now", SqlFn.NOW),
-                Map.entry("datePart", SqlFn.DATE_TRUNC_DAY),
+
                 // Lists / collections
                 // collection concatenate only — the relation overload is the
                 // TypedConcatenate set-op and never reaches scalar lowering
@@ -251,6 +275,14 @@ final class Scalars {
                 SqlExpr added = new SqlExpr.Call(SqlFn.ADD_INTERVAL, List.of(
                         new SqlExpr.StringLit(intervalFn(n.args().get(2))),
                         args.get(1), dateArg(n.args().get(0), args.get(0))));
+                // A PARTIAL-date operand keeps its precision: pad in (dateArg),
+                // adjust, then truncate BACK to the written form —
+                // adjust(%2016, 1, YEARS) is %2017, not 2017-01-01.
+                Integer pp = partialPrecision(n.args().get(0));
+                if (pp != null) {
+                    return SqlExpr.Call.of(SqlFn.STRFTIME, added,
+                            new SqlExpr.StringLit(pp == 1 ? "%Y" : "%Y-%m"));
+                }
                 // SQL date+interval widens to TIMESTAMP; a StrictDate input
                 // adjusted by a DAY-or-coarser unit stays a StrictDate.
                 boolean strictIn = n.args().get(0).info().type()
@@ -263,6 +295,13 @@ final class Scalars {
                         ? new SqlExpr.Cast(added, com.legend.sql.SqlType.Scalar.DATE)
                         : added;
             });
+        }
+        // datePart of a PARTIAL literal is the IDENTITY (a year has no finer
+        // date part); full-precision values truncate to the day.
+        for (String f : Pure.nativeKeysAt("datePart")) {
+            RULES.put(f, (n, args) -> partialPrecision(n.args().get(0)) != null
+                    ? args.get(0)
+                    : new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY, args));
         }
         for (String f : Pure.nativeKeysAt("timeBucket")) {
             RULES.put(f, (n, args) -> {
@@ -793,7 +832,23 @@ final class Scalars {
             });
         }
         castFamily("parseBoolean", Type.Primitive.BOOLEAN);
-        castFamily("parseDate", Type.Primitive.DATE_TIME);
+        // parseDate accepts PARTIAL-time text ('2015-04-15T17') — pad the
+        // literal to a full timestamp shape (SQL's cast demands one).
+        for (String f : Pure.nativeKeysAt("parseDate")) {
+            RULES.put(f, (n, args) -> {
+                SqlExpr in = args.get(0);
+                if (in instanceof SqlExpr.StringLit lit) {
+                    String v = lit.value().replace('T', ' ');
+                    if (v.matches("\\d{4}-\\d{2}-\\d{2} \\d{2}")) {
+                        v += ":00:00";
+                    } else if (v.matches("\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}")) {
+                        v += ":00";
+                    }
+                    in = new SqlExpr.StringLit(v);
+                }
+                return new SqlExpr.Cast(in, PureSql.type(Type.Primitive.DATE_TIME));
+            });
+        }
         // date(y,m,d[,h,mi,s]) constructors.
         for (String f : Pure.nativeKeysAt("date")) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(
@@ -1080,6 +1135,25 @@ final class Scalars {
         return (t instanceof Type.ClassType && !PlatformTypes.isVariant(t)
                         && !PlatformTypes.isAny(t) && !PlatformTypes.isNil(t))
                 || t instanceof Type.GenericType;
+    }
+
+    /** Partial-date-literal precision: 1 = year, 2 = year-month; null otherwise. */
+    private static Integer partialPrecision(com.legend.compiler.spec.typed.TypedSpec t) {
+        if (t instanceof com.legend.compiler.spec.typed.TypedCDate d) {
+            if (d.value() instanceof com.legend.values.PureDateLiteral.Year) {
+                return 1;
+            }
+            if (d.value() instanceof com.legend.values.PureDateLiteral.YearMonth) {
+                return 2;
+            }
+        }
+        return null;
+    }
+
+    /** A date type whose VALUES are always full-precision (columns, full literals). */
+    private static boolean isFullPrecisionDate(Type t) {
+        return t == Type.Primitive.STRICT_DATE || t == Type.Primitive.DATE_TIME
+                || t == Type.Primitive.DATE;
     }
 
     /** Whether an argument's Pure multiplicity is at most one. */

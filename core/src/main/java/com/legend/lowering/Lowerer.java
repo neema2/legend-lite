@@ -1339,10 +1339,13 @@ public final class Lowerer {
                         new SqlExpr.StringLit(ym.toEngineString());
                 // Every time-bearing precision is a TIMESTAMP — exhaustive,
                 // so a new precision variant demands a decision here.
+                // HOUR/MINUTE-precision literals PAD to the full timestamp
+                // shape SQL demands (%2015-04-15T17 is 17:00:00); second-level
+                // precision is already full.
                 case com.legend.values.PureDateLiteral.DateWithHour h ->
-                        new SqlExpr.TimestampLit(h.toEngineString());
+                        new SqlExpr.TimestampLit(h.toEngineString() + ":00:00");
                 case com.legend.values.PureDateLiteral.DateWithMinute mi ->
-                        new SqlExpr.TimestampLit(mi.toEngineString());
+                        new SqlExpr.TimestampLit(mi.toEngineString() + ":00");
                 case com.legend.values.PureDateLiteral.DateWithSecond se ->
                         new SqlExpr.TimestampLit(se.toEngineString());
                 case com.legend.values.PureDateLiteral.DateWithSubsecond su ->
