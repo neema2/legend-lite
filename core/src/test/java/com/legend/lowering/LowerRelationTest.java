@@ -613,7 +613,7 @@ class LowerRelationTest {
                 "#>{test::DB.T_ORDERS}#->flatten(~ITEMS)"));
         String sql = new DuckDb().render(q);
         assertEquals(1, count(sql, "SELECT"), "flatten folds: " + sql);
-        assertTrue(sql.contains("unnest(CAST(t0.ITEMS AS JSON[])) AS ITEMS"), sql);
+        assertTrue(sql.contains("UNNEST(CAST(t0.ITEMS AS JSON[])) AS ITEMS"), sql);
         assertEquals(List.of("1|10", "1|20", "2|30"), exec(sql + "\nORDER BY ID, ITEMS"),
                 "rows explode per element; NULL list yields no rows");
     }
@@ -668,9 +668,11 @@ class LowerRelationTest {
                 "#>{test::DB.T_DOCS}#->extend(~sku : x |"
                         + " $x.PAYLOAD->get('items')->get(0)->get('sku')->to(@String))"));
         String sql = new DuckDb().render(q);
+        // -> hops parenthesize (the JSON arrow collides with DuckDB's lambda
+        // arrow inside list lambdas) and INTEGER keys render as subscripts.
         assertTrue(sql.contains(
-                "CAST(t0.PAYLOAD -> 'items' -> 0 ->> 'sku' AS VARCHAR) AS sku"),
-                "-> hops, ->> at the conversion: " + sql);
+                "CAST((((t0.PAYLOAD -> 'items'))[0] ->> 'sku') AS VARCHAR) AS sku"),
+                "-> hops, subscript index, ->> at the conversion: " + sql);
         assertEquals(List.of("1|A-7", "2|B-2"),
                 exec("SELECT ID, sku FROM (" + sql + ")\nORDER BY ID"));
     }

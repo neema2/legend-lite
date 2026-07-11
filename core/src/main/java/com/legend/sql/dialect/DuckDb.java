@@ -297,7 +297,7 @@ public final class DuckDb extends AnsiSqlRenderer {
     /** DuckDB explodes select-list unnest into rows — placement idiom. */
     @Override
     protected String unnestProjection(List<SqlExpr> args) {
-        return fn("unnest", args);
+        return fn("UNNEST", args);
     }
 
     @Override
@@ -321,7 +321,14 @@ public final class DuckDb extends AnsiSqlRenderer {
 
     @Override
     protected String variantGet(List<SqlExpr> args) {
-        return expr(args.get(0), 7) + " -> " + expr(args.get(1), 8);
+        // Parenthesized ALWAYS: DuckDB's lambda arrow and the JSON arrow
+        // collide inside list lambdas (i -> i -> 'k' fails to parse). An
+        // INTEGER key renders as the array subscript — same extraction,
+        // and the corpus greps for it.
+        if (args.get(1) instanceof SqlExpr.IntLit i) {
+            return "(" + expr(args.get(0), 7) + ")[" + i.value() + "]";
+        }
+        return "(" + expr(args.get(0), 7) + " -> " + expr(args.get(1), 8) + ")";
     }
 
     @Override
@@ -338,7 +345,8 @@ public final class DuckDb extends AnsiSqlRenderer {
     protected String variantAwareCast(SqlExpr.Cast c) {
         if (!(c.target() instanceof com.legend.sql.SqlType.Array)
                 && c.value() instanceof SqlExpr.Call call && call.fn() == SqlFn.VARIANT_GET) {
-            String text = expr(call.args().get(0), 7) + " ->> " + expr(call.args().get(1), 8);
+            String text = "(" + expr(call.args().get(0), 7) + " ->> "
+                    + expr(call.args().get(1), 8) + ")";
             return "CAST(" + text + " AS " + castTypeName(c.target()) + ")";
         }
         return super.variantAwareCast(c);

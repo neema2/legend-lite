@@ -2175,6 +2175,15 @@ public final class MappingNormalizer {
      * (statically {@code T[*]} by design; conformance is the Phase H
      * resolver's question) and nested {@code new} (already {@code [1]}).
      */
+    private static String simpleTypeName(String name) {
+        int idx = name.lastIndexOf("::");
+        return idx < 0 ? name : name.substring(idx + 2);
+    }
+
+    private static final Set<String> PRIMITIVE_TYPE_NAMES = Set.of(
+            "Integer", "String", "Float", "Boolean", "Decimal", "Number",
+            "StrictDate", "DateTime", "Date");
+
     private static ValueSpecification buildNewInstanceToOne(String classFqn,
                                                             Map<String, KeyExpression> fields,
                                                             ModelBuilder model) {
@@ -2187,6 +2196,20 @@ public final class MappingNormalizer {
                     && prop.multiplicity() instanceof Multiplicity.Concrete c
                     && c.lowerBound() == 1 && Integer.valueOf(1).equals(c.upperBound());
             ValueSpecification v = key.value();
+            // An UNTYPED variant read (PAYLOAD->get('price')) bound to a
+            // PRIMITIVE-declared property coerces by EMISSION — the same
+            // to(get, @Type) the typed-get spelling and the JSON-source
+            // synthesizer produce; the declared property type IS the type.
+            String primitiveName = prop != null
+                    && prop.type() instanceof TypeExpression.NameRef ptn
+                    ? simpleTypeName(ptn.name()) : null;
+            if (v instanceof AppliedFunction gf && gf.function().equals("get")
+                    && primitiveName != null
+                    && PRIMITIVE_TYPE_NAMES.contains(primitiveName)) {
+                v = new AppliedFunction("to", List.of(v,
+                        new com.legend.parser.spec.TypeAnnotation.Named(
+                                new TypeExpression.NameRef(primitiveName))));
+            }
             boolean exempt = v instanceof AppliedFunction af
                     && (af.function().equals("navigate")
                         || af.function().equals("legacyNavigate")
@@ -2195,7 +2218,7 @@ public final class MappingNormalizer {
             wrapped.put(name, toOneDeclared && !exempt
                     ? new KeyExpression(new AppliedFunction("toOne", List.of(v)),
                             key.isAdd(), key.isLocal())
-                    : key);
+                    : new KeyExpression(v, key.isAdd(), key.isLocal()));
         });
         return buildNewInstance(classFqn, wrapped);
     }

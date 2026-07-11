@@ -511,8 +511,13 @@ public final class InferenceKernel {
             }
             case Multiplicity.Bounded fb -> {
                 // Only [*] -> [1] is rejected, and relation sources skip validation (§3.2).
+                // A Variant MANY additionally conforms: a collection of
+                // variants IS a variant (one JSON array value) — the
+                // carrier's own semantics (toMany(@Variant) results flow
+                // into to-one column/argument slots as array cells).
                 boolean relationSource = relationRow(actualType) != null;
-                if (!relationSource && fb.isToOne() && actual.isMany()) {
+                if (!relationSource && fb.isToOne() && actual.isMany()
+                        && !com.legend.compiler.element.type.PlatformTypes.isVariant(actualType)) {
                     throw new TypeInferenceException(
                             "expected at most one value, got many (" + actual.text() + ")");
                 }

@@ -1826,14 +1826,15 @@ public final class Lowerer {
     private SqlSelect flatten(com.legend.compiler.spec.typed.TypedFlatten fl) {
         SqlSelect src = relation(fl.source());
         SqlSelect base = Fold.extendFolds(src) ? src : isolate(src);
+        return foldOrIsolate(base, "flatten", b -> buildFlatten(b, fl));
+    }
+
+    private SqlSelect buildFlatten(SqlSelect base,
+            com.legend.compiler.spec.typed.TypedFlatten fl) {
         Type.RelationType schema = schemaOf(fl.source());
         List<SqlSelect.Projection> ps = new ArrayList<>();
         for (Type.Column c : schema.columns()) {
-            SqlExpr col = Fold.resolveInto(base, c.name());
-            if (col == null) {
-                throw new IllegalStateException("flatten source column '" + c.name()
-                        + "' cannot be resolved (unresolvable projection)");
-            }
+            SqlExpr col = resolveOrThrow(base, c.name());
             if (c.name().equals(fl.column())) {
                 SqlExpr list = c.type() instanceof Type.ClassType
                         ? new SqlExpr.Call(SqlFn.VARIANT_ELEMENTS, List.of(col))
