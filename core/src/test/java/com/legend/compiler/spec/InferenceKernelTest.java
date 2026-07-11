@@ -73,12 +73,22 @@ class InferenceKernelTest {
     }
 
     @Test
-    void typeVar_conflictingRebindThrows() {
+    void typeVar_crossKindRebindLubsToAny() {
+        // Real pure covariance (getBestGenericTypeUsingCovariance): two
+        // incompatible VALUE kinds meeting at a covariantly-bound variable
+        // LUB to Any (mixed concatenate/pair are legal); numerics meet at
+        // Number. Contravariantly-bound variables stay rigid (see
+        // CompileFunctionTest.evalOnFunctionTypedParameterRejectsWrongArgType).
         InferenceKernel k = kernel();
         Bindings b = new Bindings();
         k.unify(new Type.TypeVar("T"), Type.Primitive.INTEGER, b);
-        assertThrows(TypeInferenceException.class,
-                () -> k.unify(new Type.TypeVar("T"), Type.Primitive.STRING, b));
+        k.unify(new Type.TypeVar("T"), Type.Primitive.STRING, b);
+        assertEquals(new Type.ClassType(Pure.ANY.qualifiedName()), b.type("T").orElseThrow());
+
+        Bindings b2 = new Bindings();
+        k.unify(new Type.TypeVar("T"), Type.Primitive.INTEGER, b2);
+        k.unify(new Type.TypeVar("T"), Type.Primitive.FLOAT, b2);
+        assertEquals(Type.Primitive.NUMBER, b2.type("T").orElseThrow());
     }
 
     @Test
@@ -453,8 +463,10 @@ class InferenceKernelTest {
     }
 
     @Test
-    void overload_typeVarMustBeConsistentAcrossParams() {
-        // f<T>(a:T[1], b:T[1]):T[1] — consistent args resolve T; conflicting args throw.
+    void overload_typeVarCovariantAcrossParams() {
+        // f<T>(a:T[1], b:T[1]):T[1] — consistent args resolve T exactly;
+        // cross-kind args LUB to Any (real pure covariance — pair(1, 'a')
+        // is legal and yields Pair<Any>).
         TypedFunction f = new TypedFunction("f", List.of("T"), List.of(),
                 List.of(new TypedParameter("a", new Type.TypeVar("T"), Multiplicity.Bounded.ONE),
                         new TypedParameter("b", new Type.TypeVar("T"), Multiplicity.Bounded.ONE)),
@@ -465,9 +477,10 @@ class InferenceKernelTest {
                         et(Type.Primitive.INTEGER, Multiplicity.Bounded.ONE)));
         assertEquals(Type.Primitive.INTEGER, ok.output().type());
 
-        assertThrows(TypeInferenceException.class, () -> kernel().resolveOverload(List.of(f),
+        InferenceKernel.Resolution mixed = kernel().resolveOverload(List.of(f),
                 List.of(et(Type.Primitive.INTEGER, Multiplicity.Bounded.ONE),
-                        et(Type.Primitive.STRING, Multiplicity.Bounded.ONE))));
+                        et(Type.Primitive.STRING, Multiplicity.Bounded.ONE)));
+        assertEquals(new Type.ClassType(Pure.ANY.qualifiedName()), mixed.output().type());
     }
 
     @Test

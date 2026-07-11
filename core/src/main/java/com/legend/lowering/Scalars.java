@@ -240,9 +240,6 @@ final class Scalars {
                 Map.entry("today", SqlFn.TODAY), Map.entry("now", SqlFn.NOW),
 
                 // Lists / collections
-                // collection concatenate only — the relation overload is the
-                // TypedConcatenate set-op and never reaches scalar lowering
-                Map.entry("concatenate", SqlFn.LIST_CONCAT),
                 Map.entry("removeDuplicates", SqlFn.LIST_DISTINCT),
 
 
@@ -774,6 +771,30 @@ final class Scalars {
                                 new SqlExpr.ArrayLit(List.of(args.get(2)))),
                         SqlExpr.Call.of(SqlFn.LIST_SLICE, l, plusOne(idx),
                                 SqlExpr.Call.of(SqlFn.LIST_LENGTH, l)));
+            });
+        }
+        // Collection concatenate only — the relation overload is the
+        // TypedConcatenate set-op and never reaches scalar lowering. A
+        // MIXED concatenation (T solved to Any) travels as the variant
+        // carrier: each non-Any side's elements wrap TO_VARIANT so DuckDB
+        // concatenates JSON[] to JSON[].
+        for (String f : Pure.nativeKeysAt("concatenate")) {
+            RULES.put(f, (n, args) -> {
+                if (!PlatformTypes.isAny(n.info().type())) {
+                    return new SqlExpr.Call(SqlFn.LIST_CONCAT, args);
+                }
+                List<SqlExpr> wrapped = new ArrayList<>(args.size());
+                for (int i = 0; i < args.size(); i++) {
+                    if (PlatformTypes.isAny(n.args().get(i).info().type())) {
+                        wrapped.add(args.get(i));
+                    } else {
+                        wrapped.add(SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, args.get(i),
+                                new SqlExpr.Lambda(List.of("_cv"),
+                                        SqlExpr.Call.of(SqlFn.TO_VARIANT,
+                                                new SqlExpr.Column(null, "_cv")))));
+                    }
+                }
+                return new SqlExpr.Call(SqlFn.LIST_CONCAT, wrapped);
             });
         }
         // tail/init of a TO-ONE value is the EMPTY collection (all-but-first

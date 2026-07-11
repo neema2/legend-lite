@@ -148,15 +148,20 @@ public final class InferenceKernel {
                             + f.params().size() + " parameter(s), got " + af.params().size()
                             + " (" + actual.typeName() + ")");
                 }
-                for (int i = 0; i < f.params().size(); i++) {
-                    Type formalParam = f.params().get(i).type();
-                    if (formalParam instanceof Type.ClassType c && c.fqn().equals(NIL_FQN)) {
-                        continue;   // bottom type: any actual param conforms
+                b.enterContravariant();
+                try {
+                    for (int i = 0; i < f.params().size(); i++) {
+                        Type formalParam = f.params().get(i).type();
+                        if (formalParam instanceof Type.ClassType c && c.fqn().equals(NIL_FQN)) {
+                            continue;   // bottom type: any actual param conforms
+                        }
+                        unify(formalParam, af.params().get(i).type(), b);
+                        unifyMult(f.params().get(i).multiplicity(),
+                                af.params().get(i).multiplicity(),
+                                af.params().get(i).type(), b);
                     }
-                    unify(formalParam, af.params().get(i).type(), b);
-                    unifyMult(f.params().get(i).multiplicity(),
-                            af.params().get(i).multiplicity(),
-                            af.params().get(i).type(), b);
+                } finally {
+                    b.exitContravariant();
                 }
                 unify(f.result().type(), af.result().type(), b);
                 unifyMult(f.result().multiplicity(), af.result().multiplicity(),
@@ -370,13 +375,54 @@ public final class InferenceKernel {
                 return;
             }
             if (!compatibleRebind(existing, actual)) {
+                // Real pure covariance closes over VALUE kinds too: two
+                // incompatible value types meet at their LUB — the numeric
+                // lattice for numbers, Any otherwise (mixed collections
+                // travel as the variant carrier). Relation schemas stay
+                // LOUD: a relation's identity is its columns.
+                if (isValueKind(existing) && isValueKind(actual)
+                        && !b.isRigid(v.name()) && !b.contravariant()) {
+                    b.bindType(v.name(), valueLub(existing, actual));
+                    return;
+                }
+                if (existing instanceof Type.RelationType er
+                        && actual instanceof Type.RelationType ar) {
+                    throw new TypeInferenceException("column mismatch: type variable "
+                            + v.name() + " bound to relation "
+                            + er.columns().stream().map(Type.Column::name).toList()
+                            + " cannot also bind relation "
+                            + ar.columns().stream().map(Type.Column::name).toList());
+                }
                 throw new TypeInferenceException(
                         "type variable " + v.name() + " bound to " + existing.typeName()
                                 + " cannot also bind " + actual.typeName());
             }
         } else {
             b.bindType(v.name(), actual);   // bind the actual unchanged
+            if (b.contravariant()) {
+                b.markRigid(v.name());
+            }
         }
+    }
+
+    /** A concrete VALUE kind — the types real-pure covariance LUBs to Any. */
+    private static boolean isValueKind(Type t) {
+        return t instanceof Type.Primitive || t instanceof Type.PrecisionDecimal
+                || t instanceof Type.EnumType || t instanceof Type.ClassType;
+    }
+
+    private static Type valueLub(Type a, Type b2) {
+        if (isNumeric(a) && isNumeric(b2)) {
+            return Type.Primitive.NUMBER;
+        }
+        return new Type.ClassType(ANY_FQN);
+    }
+
+    private static boolean isNumeric(Type t) {
+        return t instanceof Type.PrecisionDecimal
+                || (t instanceof Type.Primitive p
+                        && (p == Type.Primitive.NUMBER || p == Type.Primitive.INTEGER
+                                || p == Type.Primitive.FLOAT || p == Type.Primitive.DECIMAL));
     }
 
     private static boolean isNil(Type t) {

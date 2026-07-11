@@ -21,6 +21,35 @@ import java.util.Optional;
  */
 public final class Bindings {
 
+    // Contravariance rigidity: variables bound while unifying FUNCTION
+    // PARAMETER types must not covariantly widen on a later conflict —
+    // an argument flowing INTO a declared parameter type is checked
+    // exactly (the eval-wrong-arg engine spec); only covariantly-bound
+    // (value-position) variables LUB.
+    private final java.util.Set<String> rigid = new java.util.HashSet<>();
+    private int contravariantDepth;
+
+    void enterContravariant() {
+        contravariantDepth++;
+    }
+
+    void exitContravariant() {
+        contravariantDepth--;
+    }
+
+    boolean contravariant() {
+        return contravariantDepth > 0;
+    }
+
+    void markRigid(String name) {
+        rigid.add(name);
+    }
+
+    boolean isRigid(String name) {
+        return rigid.contains(name);
+    }
+
+
     private final Map<String, Type> types = new LinkedHashMap<>();
     private final Map<String, Multiplicity> mults = new LinkedHashMap<>();
 
