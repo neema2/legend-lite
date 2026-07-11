@@ -143,7 +143,7 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             System.out.println("Cross-Product SQL: " + sql);
 
             // Verify SQL structure uses UNNEST with cross-join
-            assertTrue(sql.contains("UNNEST"), "Should use UNNEST for array access");
+            assertTrue(sql.toUpperCase().contains("UNNEST"), "Should use UNNEST for array access");
 
             // Execute and verify cross-product row count
             var result = executeRelation(pureQuery);

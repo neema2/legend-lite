@@ -80,10 +80,16 @@ final class FoldChecker {
         String elemParam = lf.parameters().get(0).name();
         String accParam = lf.parameters().get(1).name();
         return lf.body().get(0) instanceof AppliedFunction body
-                && body.function().equals("add")
+                && simpleName(body.function()).equals("add")
                 && body.parameters().size() == 2
                 && body.parameters().get(0) instanceof Variable acc && acc.name().equals(accParam)
                 && body.parameters().get(1) instanceof Variable elem && elem.name().equals(elemParam);
+    }
+
+    /** Corpus queries spell natives FULLY QUALIFIED — patterns match the simple name. */
+    private static String simpleName(String fn) {
+        int i = fn.lastIndexOf("::");
+        return i < 0 ? fn : fn.substring(i + 2);
     }
 
     /**
@@ -125,7 +131,7 @@ final class FoldChecker {
         if (!(body instanceof AppliedFunction af) || af.parameters().size() != 2) {
             return null;
         }
-        boolean commutative = switch (af.function()) {
+        boolean commutative = switch (simpleName(af.function())) {
             case "plus", "times" -> !Type.Primitive.STRING.equals(init.type());
             case "and", "or" -> true;
             default -> false;

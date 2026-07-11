@@ -86,11 +86,12 @@ public class FoldCheckerTest extends AbstractDatabaseTest {
         return ((Number) v).doubleValue();
     }
 
-    @SuppressWarnings("unchecked")
     private List<Object> scalarList(ExecutionResult r) {
-        Object v = scalar(r);
-        assertInstanceOf(List.class, v, "Expected List but got " + (v == null ? "null" : v.getClass()));
-        return (List<Object>) v;
+        // REAL pure: fold's V[m] widens covariantly, so a list-building fold
+        // returns a COLLECTION — one row per element — not a list-valued cell
+        // (the old engine-lite shape).
+        return r.rows().stream().map(row -> (Object) row.get(0))
+                .collect(java.util.stream.Collectors.toList());
     }
 
     // ==================== SameType: T == V ====================

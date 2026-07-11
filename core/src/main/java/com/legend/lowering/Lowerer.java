@@ -64,13 +64,18 @@ public final class Lowerer {
     private final java.util.function.Function<Type,
             java.util.Optional<java.util.List<Type.Column>>> classLayout;
 
+    /** Whether a class FQN exists in the driving model (layoutless-LUB detection). */
+    private final java.util.function.Predicate<String> classExists;
+
     public Lowerer() {
-        this(t -> java.util.Optional.empty());
+        this(t -> java.util.Optional.empty(), f -> false);
     }
 
     public Lowerer(java.util.function.Function<Type,
-            java.util.Optional<java.util.List<Type.Column>>> classLayout) {
+            java.util.Optional<java.util.List<Type.Column>>> classLayout,
+                   java.util.function.Predicate<String> classExists) {
         this.classLayout = classLayout;
+        this.classExists = classExists;
     }
 
     /** SQL type of a value, seeing through class layouts (structs) before {@link PureSql}. */
@@ -84,7 +89,20 @@ public final class Lowerer {
                             return new com.legend.sql.SqlType.Struct.Field(c.name(),
                                     many ? new com.legend.sql.SqlType.Array(ft) : ft);
                         }).toList()))
-                .orElseGet(() -> PureSql.type(t));
+                .orElseGet(() -> {
+                    // A MODEL class with no layoutable properties reaching a
+                    // VALUE boundary is a heterogeneous LUB (mixed instance
+                    // kinds meeting at an abstract ancestor) — it travels as
+                    // variant JSON, like Any. Non-model classes keep
+                    // PureSql's loud wall.
+                    if (t instanceof Type.ClassType ct && !ct.fqn().endsWith("::Variant")
+                            && !ct.fqn().equals("meta::pure::metamodel::type::Nil")
+                            && !ct.fqn().equals("meta::pure::metamodel::type::Any")
+                            && classExists.test(ct.fqn())) {
+                        return com.legend.sql.SqlType.Scalar.JSON;
+                    }
+                    return PureSql.type(t);
+                });
     }
 
     /**
@@ -1320,11 +1338,15 @@ public final class Lowerer {
             // NULL — a [0] value has no cell representation other than null
             // (the mapping enum decode chain's tail: CASE ... ELSE NULL).
             case TypedCollection c when c.elements().isEmpty() -> new SqlExpr.NullLit();
-            // A HETEROGENEOUS literal ([1, 'a'] — element LUB Any): each
-            // element wraps as variant JSON, the one SQL carrier that keeps
-            // per-element runtime kinds (a raw mixed array cannot even type).
+            // A HETEROGENEOUS literal — element LUB Any ([1, 'a']) or a class
+            // LUB with NO canonical layout (mixed instance kinds meeting at
+            // an abstract ancestor): each element wraps as variant JSON, the
+            // one SQL carrier that keeps per-element runtime kinds (a raw
+            // mixed array cannot even type).
             case TypedCollection c when c.info().type() instanceof Type.ClassType ct
-                    && ct.fqn().equals("meta::pure::metamodel::type::Any") ->
+                    && !ct.fqn().endsWith("::Variant")
+                    && !ct.fqn().equals("meta::pure::metamodel::type::Nil")
+                    && classLayout.apply(ct).isEmpty() ->
                     new SqlExpr.ArrayLit(c.elements().stream()
                             .map(e -> (SqlExpr) SqlExpr.Call.of(
                                     com.legend.sql.SqlFn.TO_VARIANT, scalar(e, columns)))
@@ -1366,11 +1388,20 @@ public final class Lowerer {
                         new IllegalStateException("class value ^" + n.classFqn()
                                 + "(…) has no canonical layout — the class declares no"
                                 + " stored properties (or no model rides this lowering)"));
-                yield new SqlExpr.StructLit(layout.stream().map(c ->
-                        new SqlExpr.StructLit.Field(c.name(),
-                                n.properties().containsKey(c.name())
-                                        ? scalar(n.properties().get(c.name()), columns)
-                                        : new SqlExpr.NullLit())).toList());
+                yield new SqlExpr.StructLit(layout.stream().map(c -> {
+                    SqlExpr v = n.properties().containsKey(c.name())
+                            ? scalar(n.properties().get(c.name()), columns)
+                            : new SqlExpr.NullLit();
+                    // A TO-MANY property is LIST-shaped in the canonical
+                    // layout even when this instance supplies one value —
+                    // every instance of a class shares ONE struct shape.
+                    if (c.multiplicity() instanceof
+                            com.legend.compiler.element.type.Multiplicity.Bounded b
+                            && b.isMany()) {
+                        v = asList(v, false);
+                    }
+                    return new SqlExpr.StructLit.Field(c.name(), v);
+                }).toList());
             }
             // A bare variable: a query-level let binding substitutes; else a
             // lambda variable (a list element inside exists/forAll etc.).
@@ -1449,6 +1480,12 @@ public final class Lowerer {
             default -> throw new com.legend.error.NotImplementedException("scalar lowering not yet implemented for "
                     + spec.getClass().getSimpleName());
         };
+    }
+
+    /** A value in LIST position: singleton-wrap unless it is already a list (or NULL = empty). */
+    private static SqlExpr asList(SqlExpr e, boolean many) {
+        return many || e instanceof SqlExpr.ArrayLit || e instanceof SqlExpr.NullLit
+                ? e : new SqlExpr.ArrayLit(List.of(e));
     }
 
     /** An instance literal in relation position: {@code ^X(…)} or a collection of them. */
@@ -1694,8 +1731,14 @@ public final class Lowerer {
         SqlExpr init = scalar(f.init(), columns);
         List<String> ps = f.reducer().parameters();
         return switch (f.strategy()) {
+            // A TO-ONE side (1->fold(add, …), scalar init) concatenates as a
+            // singleton list. Already-list-shaped values ([9] lowers to an
+            // ArrayLit despite mult [1]) and NULL (the []-born empty, which
+            // DuckDB list_concat treats as []) pass through.
             case com.legend.compiler.spec.typed.FoldStrategy.Concatenation c ->
-                    new SqlExpr.Call(SqlFn.LIST_CONCAT, List.of(init, source));
+                    new SqlExpr.Call(SqlFn.LIST_CONCAT,
+                            List.of(asList(init, isMany(f.init())),
+                                    asList(source, isMany(f.source()))));
             case com.legend.compiler.spec.typed.FoldStrategy.SameType st ->
                     new SqlExpr.FoldCall(source,
                             new SqlExpr.Lambda(ps,

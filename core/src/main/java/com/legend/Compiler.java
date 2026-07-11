@@ -118,7 +118,8 @@ public final class Compiler {
         TypedSpec root = body.get(body.size() - 1);
         String sql = dialectOf(ctx, runtime)
                 .render(new com.legend.lowering.Lowerer(
-                        t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t)).lower(body));
+                        t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
+                        f -> ctx.findClass(f).isPresent()).lower(body));
         return new com.legend.exec.QueryPlan(sql, root.info(),
                 com.legend.exec.ResultShape.of(root));
     }
@@ -204,7 +205,8 @@ public final class Compiler {
                 .resolve(body, runtimeFqn);                       // Phase H
         TypedSpec root = body.get(body.size() - 1);
         com.legend.sql.SqlQuery plan = new com.legend.lowering.Lowerer(
-                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t)).lower(body);
+                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
+                f -> ctx.findClass(f).isPresent()).lower(body);
         com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn);
         return com.legend.exec.Executor.execute(
                 dialect.render(plan), plan, root.info(),

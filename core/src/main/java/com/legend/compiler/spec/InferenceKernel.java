@@ -360,6 +360,15 @@ public final class InferenceKernel {
                 b.bindType(v.name(), actual);
                 return;
             }
+            // COVARIANT class binding (real pure's getBestGenericTypeUsingCovariance):
+            // two INSTANCE kinds meet at their least common ancestor —
+            // concatenate(CO_Address[*], CO_Location[*]) binds T to their
+            // shared CO_GeographicEntity. Primitives stay strict (loud).
+            if (existing instanceof Type.ClassType && actual instanceof Type.ClassType
+                    && !isAny(existing) && !isAny(actual)) {
+                b.bindType(v.name(), commonSupertype(existing, actual));
+                return;
+            }
             if (!compatibleRebind(existing, actual)) {
                 throw new TypeInferenceException(
                         "type variable " + v.name() + " bound to " + existing.typeName()

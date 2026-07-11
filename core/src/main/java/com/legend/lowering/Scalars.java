@@ -529,6 +529,11 @@ final class Scalars {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_GET,
                     List.of(args.get(0), new SqlExpr.IntLit(1))));
         }
+        for (String f : Pure.nativeKeysAt("last")) {
+            RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
+                    : new SqlExpr.Call(SqlFn.LIST_GET,
+                            List.of(args.get(0), new SqlExpr.IntLit(-1))));
+        }
         // 0-based Pure -> 1-based SQL shifts (the semantics contract).
         for (String f : Pure.nativeKeysAt("substring")) {
             RULES.put(f, (n, args) -> {
@@ -592,6 +597,20 @@ final class Scalars {
         // to-one gate; audit: ['x','y']->contains('x') hit strpos).
         for (String f : Pure.nativeKeysAt("contains")) {
             RULES.put(f, (n, args) -> {
+                // contains(coll, val, comparator): filter by the comparator
+                // against the needle, then non-empty. SQL lambdas are
+                // positional and list_filter is 1-param — the needle
+                // parameter closes over by SUBSTITUTION.
+                if (args.size() == 3 && args.get(2) instanceof SqlExpr.Lambda comp
+                        && comp.params().size() == 2) {
+                    SqlExpr body = substituteRef(comp.body(), comp.params().get(1), args.get(1));
+                    return new SqlExpr.Call(SqlFn.GREATER, List.of(
+                            SqlExpr.Call.of(SqlFn.LIST_LENGTH,
+                                    SqlExpr.Call.of(SqlFn.LIST_FILTER, args.get(0),
+                                            new SqlExpr.Lambda(
+                                                    List.of(comp.params().get(0)), body))),
+                            new SqlExpr.IntLit(0)));
+                }
                 Type elem = n.args().get(0).info().type();
                 Type val = n.args().get(1).info().type();
                 if (elem == Type.Primitive.STRING && isToOne(n.args().get(0))) {
@@ -898,6 +917,41 @@ final class Scalars {
                 SqlExpr.Call.of(SqlFn.PLUS, ip, new SqlExpr.IntLit(2)));
         return new SqlExpr.Call(SqlFn.LIST_GET, List.of(sorted,
                 new SqlExpr.Cast(pick, com.legend.sql.SqlType.Scalar.BIGINT)));
+    }
+
+    /**
+     * Replace bare references to {@code name} with {@code replacement} across
+     * an expression tree — how a 2-param comparator lambda closes over the
+     * needle when squeezed into a 1-param SQL lambda. Inner lambdas that
+     * rebind the name SHADOW (no substitution inside).
+     */
+    private static SqlExpr substituteRef(SqlExpr e, String name, SqlExpr replacement) {
+        return switch (e) {
+            case SqlExpr.Column c when c.table() == null && name.equals(c.name()) -> replacement;
+            case SqlExpr.Column c when name.equals(c.table()) ->
+                    new SqlExpr.StructGet(replacement, c.name());   // $b.field over the needle
+            case SqlExpr.Call c -> new SqlExpr.Call(c.fn(),
+                    c.args().stream().map(a -> substituteRef(a, name, replacement)).toList());
+            case SqlExpr.Cast c ->
+                    new SqlExpr.Cast(substituteRef(c.value(), name, replacement), c.target());
+            case SqlExpr.ArrayLit a -> new SqlExpr.ArrayLit(a.elements().stream()
+                    .map(x -> substituteRef(x, name, replacement)).toList());
+            case SqlExpr.StructLit s -> new SqlExpr.StructLit(s.fields().stream()
+                    .map(fl -> new SqlExpr.StructLit.Field(fl.name(),
+                            substituteRef(fl.value(), name, replacement))).toList());
+            case SqlExpr.StructGet g ->
+                    new SqlExpr.StructGet(substituteRef(g.source(), name, replacement), g.field());
+            case SqlExpr.Case cs -> new SqlExpr.Case(
+                    cs.whens().stream().map(w -> new SqlExpr.Case.When(
+                            substituteRef(w.condition(), name, replacement),
+                            substituteRef(w.then(), name, replacement))).toList(),
+                    cs.otherwise() == null ? null
+                            : substituteRef(cs.otherwise(), name, replacement));
+            case SqlExpr.Lambda l -> l.params().contains(name)
+                    ? l
+                    : new SqlExpr.Lambda(l.params(), substituteRef(l.body(), name, replacement));
+            default -> e;   // leaves and query-carrying nodes: no bare lambda refs inside
+        };
     }
 
     /** Whether a type is an instance kind (a user class or parameterized class), not a primitive. */

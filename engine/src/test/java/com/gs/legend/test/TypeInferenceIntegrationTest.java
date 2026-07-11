@@ -3093,10 +3093,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|[1, 2, 3, 4]->meta::pure::functions::collection::fold({x: Integer[1], y: Integer[2]|$y->meta::pure::functions::collection::add($x)}, [-1, 0])",
                                 "test::TestRuntime", connection);
-                Object value = result.rows().get(0).get(0);
-                // Row.unwrapValue converts DuckDB arrays to List<Object>
-                @SuppressWarnings("unchecked")
-                List<Object> arr = (List<Object>) value;
+                // REAL pure: fold's V[m] widens covariantly — a COLLECTION, one row per element.
+                List<Object> arr = result.rows().stream().map(r -> (Object) r.get(0)).toList();
                 assertEquals(6, arr.size());
                 assertEquals(-1, ((Number) arr.get(0)).intValue());
                 assertEquals(0, ((Number) arr.get(1)).intValue());
@@ -3114,9 +3112,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|[1, 2, 3, 4]->meta::pure::functions::collection::fold({x: Integer[1], y: Integer[1..3]|meta::pure::functions::lang::if($y->meta::pure::functions::collection::size() < 3, |$y->meta::pure::functions::collection::add($x), |$y->meta::pure::functions::collection::add($x)->meta::pure::functions::collection::tail())}, [-1, 0])",
                                 "test::TestRuntime", connection);
-                Object value = result.rows().get(0).get(0);
-                @SuppressWarnings("unchecked")
-                List<Object> arr = (List<Object>) value;
+                // REAL pure: fold's V[m] widens covariantly — a COLLECTION, one row per element.
+                List<Object> arr = result.rows().stream().map(r -> (Object) r.get(0)).toList();
                 assertEquals(3, arr.size());
                 assertEquals(2, ((Number) arr.get(0)).intValue());
                 assertEquals(3, ((Number) arr.get(1)).intValue());
@@ -3130,9 +3127,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|[1, 2, 3]->meta::pure::functions::collection::fold({val: Integer[1], acc: meta::pure::metamodel::type::Nil[0]|$acc->meta::pure::functions::collection::add($val)}, [])",
                                 "test::TestRuntime", connection);
-                Object value = result.rows().get(0).get(0);
-                @SuppressWarnings("unchecked")
-                List<Object> arr = (List<Object>) value;
+                // REAL pure: fold's V[m] widens covariantly — a COLLECTION, one row per element.
+                List<Object> arr = result.rows().stream().map(r -> (Object) r.get(0)).toList();
                 assertEquals(3, arr.size());
                 assertEquals(1, ((Number) arr.get(0)).intValue());
                 assertEquals(2, ((Number) arr.get(1)).intValue());
@@ -3146,10 +3142,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|[]->meta::pure::functions::lang::cast(@Integer)->meta::pure::functions::collection::fold({val: Integer[1], acc: meta::pure::metamodel::type::Any[0]|$acc->meta::pure::functions::collection::add($val)}, []->meta::pure::functions::lang::cast(@meta::pure::metamodel::type::Any))",
                                 "test::TestRuntime", connection);
-                Object value = result.rows().get(0).get(0);
-                @SuppressWarnings("unchecked")
-                List<Object> arr = (List<Object>) value;
-                assertEquals(0, arr.size());
+                // REAL pure: an empty fold is the EMPTY collection — zero rows.
+                assertEquals(0, result.rows().size());
         }
 
         @Test
@@ -3159,9 +3153,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|1->meta::pure::functions::collection::fold({val: Integer[1], acc: meta::pure::metamodel::type::Nil[0]|$acc->meta::pure::functions::collection::add($val)}, [])",
                                 "test::TestRuntime", connection);
-                Object value = result.rows().get(0).get(0);
-                @SuppressWarnings("unchecked")
-                List<Object> arr = (List<Object>) value;
+                // REAL pure: fold's V[m] widens covariantly — a COLLECTION shape.
+                List<Object> arr = result.rows().stream().map(r -> (Object) r.get(0)).toList();
                 assertEquals(1, arr.size());
                 assertEquals(1, ((Number) arr.get(0)).intValue());
         }
