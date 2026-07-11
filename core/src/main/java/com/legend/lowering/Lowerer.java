@@ -1275,6 +1275,17 @@ public final class Lowerer {
                     + spec.getClass().getSimpleName());
         }
         boolean rows = com.legend.builtin.Pure.nativeNamed("rows", call.callee().signatureKey());
+        // LITERAL bounds validate here: a start beyond the end (2 FOLLOWING
+        // .. 1 FOLLOWING; 1 FOLLOWING .. 1 PRECEDING) is a COMPILE error,
+        // never bad SQL (PCT: invalid window frame boundary).
+        Number from = numericBound(call.args().get(0));
+        Number to = numericBound(call.args().get(1));
+        if (from != null && to != null && from.doubleValue() > to.doubleValue()) {
+            throw new com.legend.error.ModelException(
+                    com.legend.error.LegendCompileException.Phase.LOWER,
+                    "Invalid window frame boundary: start " + from
+                            + " is beyond end " + to);
+        }
         return new SqlExpr.WindowCall.Frame(
                 rows ? SqlExpr.WindowCall.Frame.Kind.ROWS : SqlExpr.WindowCall.Frame.Kind.RANGE,
                 bound(call.args().get(0), true), bound(call.args().get(1), false));
@@ -1310,6 +1321,13 @@ public final class Lowerer {
 
     /** The numeric value of a literal frame bound, or null (RANGE takes decimals). */
     private static Number numericBound(TypedSpec arg) {
+        // A negative literal arrives as unary minus AROUND the number.
+        if (arg instanceof TypedNativeCall neg
+                && com.legend.builtin.Pure.nativeNamed("minus", neg.callee().signatureKey())
+                && neg.args().size() == 1) {
+            Number inner = numericBound(neg.args().get(0));
+            return inner == null ? null : -inner.doubleValue();
+        }
         return switch (arg) {
             case TypedCInteger c -> c.value().longValue();
             case TypedCFloat c -> c.value();

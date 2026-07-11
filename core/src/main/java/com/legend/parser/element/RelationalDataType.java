@@ -138,7 +138,10 @@ public sealed interface RelationalDataType permits
             case "OTHER"          -> new Other();
             // JSON is the same semi-structured carrier (engine DDL accepts both).
             case "SEMISTRUCTURED", "JSON" -> new SemiStructured();
-            case "VARCHAR", "CHAR", "BINARY", "VARBINARY",
+            // A BARE VARCHAR is unbounded (DuckDB and the engine DDL both
+            // accept it); the size only ever feeds the String Pure type.
+            case "VARCHAR"        -> new Varchar(Integer.MAX_VALUE);
+            case "CHAR", "BINARY", "VARBINARY",
                  "DECIMAL", "NUMERIC", "ARRAY", "OBJECT"
                 -> throw new IllegalArgumentException(
                         "type '" + name + "' requires arguments; use its record constructor");

@@ -411,11 +411,18 @@ public abstract class AbstractDatabaseTest {
      * @return ExecutionResult containing column metadata and rows
      */
     protected ExecutionResult executeRelation(String pureQuery) throws SQLException {
-        return queryService.execute(
-                getCompletePureModelWithRuntime(),
-                pureQuery,
-                "test::TestRuntime",
-                connection);
+        try {
+            return queryService.execute(
+                    getCompletePureModelWithRuntime(),
+                    pureQuery,
+                    "test::TestRuntime",
+                    connection);
+        } catch (com.legend.error.LegendCompileException e) {
+            // The engine's compile-error surface: every core compile-phase
+            // failure (type inference, lowering validation, ...) reaches
+            // corpus callers as PureCompileException.
+            throw new com.gs.legend.compiler.PureCompileException(e.getMessage(), e);
+        }
     }
 
     // ==================== SQL Dialect ====================

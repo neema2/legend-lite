@@ -290,20 +290,26 @@ final class Scalars {
         }
         // Calendar-enum extractions: names match the Pure enum values
         // (Monday…, January… — the corpus's enum-by-name convention).
+        // dayOfWeek()/month(): real pure returns calendar ENUMS (Monday…,
+        // January…); the engine surface is NUMERIC (DuckDB dow: Sunday=0;
+        // month 1-12) — the corpus reads both as Numbers.
         for (String f : Pure.nativeKeysAt("dayOfWeek")) {
-            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.DAYNAME,
-                    List.of(dateArg(n.args().get(0), args.get(0)))));
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.EXTRACT, List.of(
+                    new SqlExpr.StringLit("dow"),
+                    dateArg(n.args().get(0), args.get(0)))));
         }
         for (String f : Pure.nativeKeysAt("month")) {
-            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.MONTHNAME,
-                    List.of(dateArg(n.args().get(0), args.get(0)))));
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.EXTRACT, List.of(
+                    new SqlExpr.StringLit("month"),
+                    dateArg(n.args().get(0), args.get(0)))));
         }
+        // quarter(): real pure returns the Quarter ENUM (Q1..Q4, with an
+        // upstream TODO to make them numbers); the engine surface is the
+        // bare integer — the corpus reads it as a Number.
         for (String f : Pure.nativeKeysAt("quarter")) {
-            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.CONCAT, List.of(
-                    new SqlExpr.StringLit("Q"),
-                    new SqlExpr.Cast(new SqlExpr.Call(SqlFn.EXTRACT, List.of(
-                            new SqlExpr.StringLit("quarter"), args.get(0))),
-                            com.legend.sql.SqlType.Scalar.VARCHAR))));
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.EXTRACT, List.of(
+                    new SqlExpr.StringLit("quarter"),
+                    dateArg(n.args().get(0), args.get(0)))));
         }
         // Truncations: DATE_TRUNC with the part literal.
         for (var e : Map.of("firstDayOfMonth", "month", "firstDayOfYear", "year",
@@ -429,8 +435,15 @@ final class Scalars {
         for (var e : Map.of("hasMonth", 1, "hasDay", 2, "hasHour", 3,
                 "hasMinute", 4, "hasSecond", 5, "hasSubsecond", 6).entrySet()) {
             for (String f : Pure.nativeKeysAt(e.getKey())) {
-                RULES.put(f, (n, args) -> new SqlExpr.BoolLit(
-                        datePrecision(n.args().get(0)) >= e.getValue()));
+                RULES.put(f, (n, args) -> {
+                    boolean has = datePrecision(n.args().get(0)) >= e.getValue();
+                    // A LITERAL answers boolean (the PCT spelling); a COLUMN
+                    // answers 1/0 — the engine's integer surface for date
+                    // precision checks over stored values.
+                    return n.args().get(0) instanceof com.legend.compiler.spec.typed.TypedCDate
+                            ? new SqlExpr.BoolLit(has)
+                            : new SqlExpr.IntLit(has ? 1 : 0);
+                });
             }
         }
         for (String f : Pure.nativeKeysAt("hasSubsecondWithAtLeastPrecision")) {
