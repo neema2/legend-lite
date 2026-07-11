@@ -1052,9 +1052,15 @@ public final class InferenceKernel {
         // over(~city)'s _Window<(city:?)> meets extend's _Window<T> with T bound to the
         // source row, and the containment check IS the partition/sort-column validation.
         if (existing instanceof Type.RelationType er && actual instanceof Type.RelationType ar
-                && isUnknownFragment(ar)) {
+                && (isUnknownFragment(ar) || ar.columns().isEmpty())) {
+            // An EMPTY fragment (frame-only over()'s _Window row) constrains
+            // nothing — containment over zero columns is vacuous.
             return ar.columns().stream().allMatch(c ->
                     er.columns().stream().anyMatch(e -> e.name().equals(c.name())));
+        }
+        if (existing instanceof Type.RelationType er0 && er0.columns().isEmpty()
+                && actual instanceof Type.RelationType) {
+            return true;   // empty EXISTING fragment: the actual row wins downstream
         }
         // Relation identity is the COLUMNS — dynamicColumns (pivot templates)
         // are executor metadata; a template-carrying schema re-binding against

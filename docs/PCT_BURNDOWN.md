@@ -75,4 +75,20 @@ behind three registrations. Old-stack numbers for the record: 903 run,
 | P-G | date adjust/interval edges | ~12 | huge-interval overflow (`12345678912 hours`), INT64 casts, far-past years, end-of-month adjust asserts |
 | P-H | singles tail | ~20 | LPAD/RPAD strict padding, between() over dates/strings, scalar-subquery cardinality, IN over structs, pivot `__\|__` column naming, parser edges |
 
+**Slice 2** (Relation harness + registrations): the adapter's
+reEscapeStringLiterals no longer corrupts ALREADY-escaped quotes (\'
+doubled its backslash into a string TERMINATOR and shredded pivot's
+quoted column names — six parse failures). Pivot decode carries the
+EMBEDDED-quote column identity ('UK__|__LDN__|__sum' including quotes;
+TDSExtension strips one outer layer) and DATA-DRIVEN multiplicities
+([1] when a column has no null cells) so results cast against declared
+Relation<(col:T[1])> shapes. relation::eval routes as a CURATED CoreFn
+alias to the EVAL checker's ColSpec arm — registering its ⊆-colspec
+signature polluted the shared bare-name 'eval' overload set and broke
+five higher-order corpus tests (caught by the corpus gate, reverted to
+the alias). over() gains the collapsed real-over.pure forms: (frame),
+(sortInfo, rows), (ColSpec, rows), (ColSpecArray, rows); frame-only
+over binds T to the EMPTY unknown fragment (the over(~city) containment
+mechanism, vacuous case). Relation 75 -> 56.
+
 Update this file per slice, same as docs/SCOREBOARD.md.

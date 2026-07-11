@@ -156,6 +156,15 @@ public enum CoreFn {
             int sep = parseName.lastIndexOf("::");
             return Optional.ofNullable(BY_NAME.get(parseName.substring(sep + 2)));
         }
+        // relation::eval(~col, $row) — the ColSpec accessor (real relation
+        // eval.pure) — routes to the EVAL checker whose ColSpec shape-arm
+        // desugars it to $row.col. A CURATED alias, not a registration: its
+        // ⊆-colspec signature would pollute the shared bare-name 'eval'
+        // overload set that variableEval resolves against (audit: five
+        // higher-order corpus tests broke).
+        if (parseName.equals("meta::pure::functions::relation::eval")) {
+            return Optional.of(EVAL);
+        }
         return Optional.empty();
     }
 }

@@ -332,11 +332,25 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             Column col = columns.get(i);
             String colName = col.name();
             if (colName.contains("__|__")) {
-                colName = "'" + colName + "'";
+                // Pure pivot column IDENTITY includes the quotes
+                // ('UK__|__LDN__|__sum'); TDSExtension strips ONE outer
+                // layer, so the header carries an escaped inner pair.
+                colName = "'\\'" + colName + "\\''";
             }
             // Pure 5.88's TDS parser resolves header types as PURE paths
-            // (VARCHAR was "not found") — spell the Pure primitive.
-            sb.append(colName).append(":").append(pureTypeName(col.sqlType()));
+            // (VARCHAR was "not found") — spell the Pure primitive, WITH a
+            // data-driven multiplicity: the tests cast results to declared
+            // Relation<(col:T[1])>/[0..1] shapes, and a header without the
+            // annotation builds [0..1] columns that no longer cast to [1].
+            boolean hasNull = false;
+            for (var row : result.rows()) {
+                if (row.values().get(i) == null) {
+                    hasNull = true;
+                    break;
+                }
+            }
+            sb.append(colName).append(":").append(pureTypeName(col.sqlType()))
+                    .append(hasNull ? "[0..1]" : "[1]");
         }
         for (var row : result.rows()) {
             sb.append("\n");
@@ -618,7 +632,18 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                     case '\n' -> sb.append("\\n");
                     case '\r' -> sb.append("\\r");
                     case '\t' -> sb.append("\\t");
-                    case '\\' -> sb.append("\\\\");
+                    case '\\' -> {
+                        // An ALREADY-escaped quote (\') must pass through
+                        // unchanged: doubling its backslash turned the escape
+                        // into a string TERMINATOR and shredded pivot's
+                        // quoted column names ('\'2011__|__newCol\'').
+                        if (i + 1 < expr.length() && expr.charAt(i + 1) == '\'') {
+                            sb.append("\\'");
+                            i++;
+                        } else {
+                            sb.append("\\\\");
+                        }
+                    }
                     default -> sb.append(c);
                 }
             } else {

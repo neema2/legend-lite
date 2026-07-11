@@ -30,6 +30,21 @@ final class OverChecker {
     }
 
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
+        // FRAME-ONLY over (over(rows(...)) — real over.pure admits it via
+        // empty String[*] cols): the row type is unconstrained here, so T
+        // binds to the EMPTY unknown fragment — extend's rebind containment
+        // (the same mechanism over(~city) uses) validates it vacuously.
+        if (af.parameters().size() == 1) {
+            TypedSpec sole = t.synth(af.parameters().get(0), env);
+            if (isFrame(sole)) {
+                Type row = new Type.RelationType(java.util.List.of());
+                return new TypedOver(java.util.List.of(), java.util.List.of(),
+                        Optional.of(sole),
+                        com.legend.compiler.element.type.ExprType.one(
+                                new Type.GenericType(Pure.WINDOW.qualifiedName(),
+                                        java.util.List.of(row))));
+            }
+        }
         Application a = t.checkGeneric(af, env);
         List<String> partitions = new ArrayList<>();
         List<TypedSort.TypedSortKey> keys = new ArrayList<>();
