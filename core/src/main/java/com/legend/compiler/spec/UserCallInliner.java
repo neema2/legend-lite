@@ -130,11 +130,24 @@ public final class UserCallInliner {
         for (TypedSpec stmt : body) {
             reserveFreshNames(stmt);
         }
-        List<TypedSpec> out = new ArrayList<>(body.size());
-        for (TypedSpec stmt : body) {
-            out.add(rewrite(stmt, Map.of()));
+        // QUERY-level lets β-reduce exactly like callee lets — binders die
+        // in the one substitution pass. A relation-typed let ($t = #TDS…#)
+        // splices its pipeline into every use; downstream phases never see
+        // a let. A TRAILING let IS its value (real pure: the let statement
+        // yields it).
+        Map<String, TypedSpec> scope = new LinkedHashMap<>();
+        for (int i = 0; i < body.size() - 1; i++) {
+            if (!(body.get(i) instanceof TypedLet let)) {
+                throw new NotImplementedException(
+                        "only let statements may precede the query expression");
+            }
+            scope.put(let.name(), rewrite(let.value(), scope));
         }
-        return out;
+        TypedSpec last = body.get(body.size() - 1);
+        TypedSpec root = last instanceof TypedLet let
+                ? rewrite(let.value(), scope)
+                : rewrite(last, scope);
+        return List.of(root);
     }
 
     private void reserveFreshNames(TypedSpec n) {
@@ -210,7 +223,13 @@ public final class UserCallInliner {
             }
             scope.put(let.name(), rewrite(let.value(), scope));
         }
-        return rewrite(body.get(body.size() - 1), scope);
+        // A TRAILING let IS its value (real pure: the let statement yields
+        // it) — `{ let r = $x + 100 }` returns the sum, and no let node
+        // survives into H/I.
+        TypedSpec last = body.get(body.size() - 1);
+        return last instanceof TypedLet let
+                ? rewrite(let.value(), scope)
+                : rewrite(last, scope);
     }
 
     /** &beta;-reduce {@code eval(<literal lambda>, args)}. */

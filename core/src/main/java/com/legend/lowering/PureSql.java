@@ -59,8 +59,15 @@ final class PureSql {
             case Type.EnumType e -> SqlType.Scalar.VARCHAR;
             case Type.TypeVar v -> throw new IllegalStateException(
                     "unresolved type variable " + v.typeName() + " reached the lowering boundary");
-            case Type.GenericType g -> throw new IllegalStateException(
-                    "no SQL type for generic " + g.typeName() + " at the lowering boundary");
+            case Type.GenericType g -> {
+                // List<T> is the platform's list CARRIER — an SQL array of
+                // the element type (real pure's list() over slice/etc.).
+                if (g.rawFqn().endsWith("::List") && g.arguments().size() == 1) {
+                    yield new SqlType.Array(type(g.arguments().get(0)));
+                }
+                throw new IllegalStateException(
+                        "no SQL type for generic " + g.typeName() + " at the lowering boundary");
+            }
             case Type.FunctionType f -> throw new IllegalStateException(
                     "a function value has no SQL type (" + f.typeName() + ")");
             case Type.RelationType r -> throw new IllegalStateException(

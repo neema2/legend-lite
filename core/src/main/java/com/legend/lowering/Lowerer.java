@@ -212,6 +212,15 @@ public final class Lowerer {
                 yield (Fold.limitFolds(src) ? src : isolate(src)).withLimit(intOf(l.count()));
             }
 
+            // first()/head() over a RELATION: the first row — LIMIT 1 (the
+            // result stays row-typed, one row's TABULAR).
+            case TypedNativeCall n when n.args().size() == 1
+                    && n.args().get(0).info().type() instanceof Type.RelationType
+                    && (isFamily(n, "first") || isFamily(n, "head")) -> {
+                SqlSelect src = relation(n.args().get(0));
+                yield (Fold.limitFolds(src) ? src : isolate(src)).withLimit(1L);
+            }
+
             case TypedDrop d -> {
                 SqlSelect src = relation(d.source());
                 yield (Fold.offsetFolds(src) ? src : isolate(src)).withOffset(intOf(d.count()));
@@ -1377,6 +1386,17 @@ public final class Lowerer {
                 // The MODEL declares the field; an unset optional is NULL.
                 yield v == null ? new SqlExpr.NullLit() : scalar(v, columns);
             }
+            // Field access over a TO-MANY class value (filter(...).legalName)
+            // MAPS the extraction; a to-one source extracts directly.
+            case TypedPropertyAccess p when classLayout.apply(p.source().info().type()).isPresent()
+                    && isMany(p.source()) -> {
+                String elem = "_pa" + aliasCounter++;
+                yield SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_TRANSFORM,
+                        scalar(p.source(), columns),
+                        new SqlExpr.Lambda(List.of(elem),
+                                new SqlExpr.StructGet(
+                                        new SqlExpr.Column(null, elem), p.property())));
+            }
             case TypedPropertyAccess p when classLayout.apply(p.source().info().type()).isPresent()
                     -> new SqlExpr.StructGet(scalar(p.source(), columns), p.property());
             // ^Class(prop=value, …) as a VALUE: a struct with the MODEL's
@@ -1477,12 +1497,60 @@ public final class Lowerer {
                                     + " strings; cross-type equality would be"
                                     + " silently wrong)");
 
+            // COLLECTION-VALUED relation nodes in scalar position: the list
+            // encodings ([1,2,3]->filter/slice/drop/take over a value, not a
+            // table). Relation-typed sources take the relation() arms.
+            case TypedFilter f when !(f.source().info().type() instanceof Type.RelationType) ->
+                    SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_FILTER,
+                            scalar(f.source(), columns), scalar(f.predicate(), columns));
+            // slice(start, stop): 0-based exclusive-stop -> 1-based inclusive
+            // array_slice; a NEGATIVE start clamps to the list head (PCT).
+            case TypedSlice s when !(s.source().info().type() instanceof Type.RelationType) ->
+                    SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_SLICE,
+                            scalar(s.source(), columns),
+                            onePlus(clamp0(scalar(s.start(), columns))),
+                            scalar(s.stop(), columns));
+            // drop(n): the suffix from n+1; negative n drops nothing (PCT).
+            case TypedDrop d when !(d.source().info().type() instanceof Type.RelationType) -> {
+                SqlExpr src = scalar(d.source(), columns);
+                yield SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_SLICE, src,
+                        onePlus(clamp0(scalar(d.count(), columns))),
+                        SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_LENGTH, src));
+            }
+            // take(n): the prefix; negative n takes nothing (PCT) — the clamp
+            // matters because DuckDB reads a negative bound FROM THE END.
+            case TypedLimit t when !(t.source().info().type() instanceof Type.RelationType) ->
+                    SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_SLICE,
+                            scalar(t.source(), columns), new SqlExpr.IntLit(1),
+                            clamp0(scalar(t.count(), columns)));
+            // A let in EXPRESSION position (a callee shape the statement
+            // folder didn't reach): bind and yield the value — the let IS
+            // its value.
+            case com.legend.compiler.spec.typed.TypedLet l -> {
+                SqlExpr v = scalar(l.value(), columns);
+                letBindings.put(l.name(), v);
+                yield v;
+            }
             case TypedNativeCall n -> Scalars.lower(n,
                     n.args().stream().map(a -> scalar(a, columns)).toList());
             // SANCTIONED frontier default — see relation() above.
             default -> throw new com.legend.error.NotImplementedException("scalar lowering not yet implemented for "
                     + spec.getClass().getSimpleName());
         };
+    }
+
+    /** Clamp a (possibly negative) index to zero — PCT's slice/drop/take edge semantics. */
+    private static SqlExpr clamp0(SqlExpr e) {
+        return e instanceof SqlExpr.IntLit i
+                ? new SqlExpr.IntLit(Math.max(0, i.value()))
+                : SqlExpr.Call.of(com.legend.sql.SqlFn.GREATEST, e, new SqlExpr.IntLit(0));
+    }
+
+    /** 0-based → 1-based shift, constant-folded for literals. */
+    private static SqlExpr onePlus(SqlExpr e) {
+        return e instanceof SqlExpr.IntLit i
+                ? new SqlExpr.IntLit(i.value() + 1)
+                : SqlExpr.Call.of(com.legend.sql.SqlFn.PLUS, e, new SqlExpr.IntLit(1));
     }
 
     /** A value in LIST position: singleton-wrap unless it is already a list (or NULL = empty). */

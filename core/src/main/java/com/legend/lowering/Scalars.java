@@ -618,6 +618,13 @@ final class Scalars {
                     : new SqlExpr.Call(SqlFn.LIST_GET,
                             List.of(args.get(0), plusOne(args.get(1)))));
         }
+        // list(items): the List<T> CARRIER — at SQL level the list value
+        // itself (a to-one item wraps as a singleton).
+        for (String f : Pure.nativeKeysAt("list")) {
+            RULES.put(f, (n, args) -> isToOne(n.args().get(0))
+                    ? new SqlExpr.ArrayLit(List.of(args.get(0)))
+                    : args.get(0));
+        }
         // find(coll, pred): the FIRST satisfying element, [0..1] — filter, then head.
         for (String f : Pure.nativeKeysAt("find")) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_GET, List.of(

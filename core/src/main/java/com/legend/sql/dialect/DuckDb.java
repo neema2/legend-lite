@@ -231,6 +231,7 @@ public final class DuckDb extends AnsiSqlRenderer {
             case LIST_MODE -> "list_aggregate(" + expr(args.get(0), 0) + ", 'mode')";
             case LIST_PRODUCT -> "list_aggregate(" + expr(args.get(0), 0) + ", 'product')";
             case LIST_REDUCE -> fn("list_reduce", args);
+            case LIST_SLICE -> fn("array_slice", args);
             case LIST_SORT -> fn("list_sort", args);
             case LIST_SORT_DESC -> fn("list_reverse_sort", args);
             // Generic list aggregation: the AGG NAME rides as a leading
