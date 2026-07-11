@@ -8,7 +8,14 @@ import com.legend.compiler.spec.typed.TypedConcatenate;
 import com.legend.compiler.spec.typed.TypedDistinct;
 import com.legend.compiler.spec.typed.TypedDrop;
 import com.legend.compiler.spec.typed.TypedExtend;
+import com.legend.compiler.spec.typed.TypedCBoolean;
+import com.legend.compiler.spec.typed.TypedCFloat;
+import com.legend.compiler.spec.typed.TypedCInteger;
+import com.legend.compiler.spec.typed.TypedCString;
+import com.legend.compiler.spec.typed.TypedExtendAgg;
 import com.legend.compiler.spec.typed.TypedExtendWindow;
+import com.legend.compiler.spec.typed.TypedIf;
+import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedFilter;
 import com.legend.compiler.spec.typed.TypedFrom;
 import com.legend.compiler.spec.typed.TypedFuncCol;
@@ -122,6 +129,33 @@ public final class StoreResolver {
                     resolveChain(f, context);
             case TypedProject p when isObjectSpace(p.source()) ->
                     resolveChain(p, context);
+            // project DISTRIBUTES over a class-collection concatenate
+            // (UNION ALL semantics): each side resolves as its own
+            // object-space chain, sharing the projection columns.
+            case TypedProject p when classConcatOf(p.source()) != null -> {
+                TypedNativeCall c = classConcatOf(p.source());
+                yield new TypedConcatenate(
+                        resolveNode(new TypedProject(c.args().get(0), p.columns(),
+                                p.info()), context),
+                        resolveNode(new TypedProject(c.args().get(1), p.columns(),
+                                p.info()), context),
+                        p.info());
+            }
+            // if() over class queries: the condition must be STATICALLY
+            // decidable (literal, or equal/eq over literals) — the chosen
+            // branch's thunk body resolves; a truly runtime condition over
+            // graph output has no SQL shape yet.
+            case TypedIf i when containsGetAll(i) -> {
+                Boolean cond = staticBool(i.condition());
+                if (cond == null) {
+                    throw new NotImplementedException("class query under if()"
+                            + " with a runtime condition is not resolvable yet");
+                }
+                TypedSpec branch = cond ? i.thenBranch()
+                        : i.elseBranch().orElseThrow(() -> new NotImplementedException(
+                                "class query under if() without an else branch"));
+                yield resolveNode(unthunk(branch), context);
+            }
             case TypedLimit l when isObjectSpace(l.source()) ->
                     resolveChain(l, context);
             case TypedDrop d when isObjectSpace(d.source()) ->
@@ -176,6 +210,9 @@ public final class StoreResolver {
             case TypedExtendWindow w when containsGetAll(w.source()) ->
                     new TypedExtendWindow(resolveNode(w.source(), context),
                             w.window(), w.columns(), w.aggs(), w.info());
+            case TypedExtendAgg e when containsGetAll(e.source()) ->
+                    new TypedExtendAgg(resolveNode(e.source(), context),
+                            e.aggs(), e.info());
             case TypedRename r when containsGetAll(r.source()) -> new TypedRename(
                     resolveNode(r.source(), context), r.renames(), r.info());
             case TypedSelect s when containsGetAll(s.source()) -> new TypedSelect(
@@ -214,8 +251,108 @@ public final class StoreResolver {
             case TypedDrop d -> isObjectSpace(d.source());
             case TypedSlice s -> isObjectSpace(s.source());
             case TypedSortBy sb -> isObjectSpace(sb.source());
+            case TypedNativeCall c when isFirstLike(c) ->
+                    isObjectSpace(c.args().get(0));
+            case TypedNativeCall c when classSortOf(c) != null ->
+                    isObjectSpace(c.args().get(0));
             default -> false;
         };
+    }
+
+    private static final String FIRST_FQN = "meta::pure::functions::collection::first";
+    private static final String HEAD_FQN = "meta::pure::functions::collection::head";
+    private static final String SORT_FQN = "meta::pure::functions::collection::sort";
+    private static final String CONCAT_FQN =
+            "meta::pure::functions::collection::concatenate";
+    private static final String COMPARE_FQN = "meta::pure::functions::lang::compare";
+    private static final String EQUAL_FQN = "meta::pure::functions::boolean::equal";
+    private static final String EQ_FQN = "meta::pure::functions::boolean::eq";
+
+    /** first()/head() over an object-space chain — LIMIT 1 in disguise. */
+    private static boolean isFirstLike(TypedNativeCall c) {
+        String fqn = c.callee().qualifiedName();
+        return c.args().size() == 1
+                && (FIRST_FQN.equals(fqn) || HEAD_FQN.equals(fqn));
+    }
+
+    /**
+     * Class-space {@code sort(key, {x,y|compare})}: the comparator must be a
+     * BARE compare over the two parameters — its argument order IS the
+     * direction ({@code $x->compare($y)} ascending, {@code $y->compare($x)}
+     * descending). Anything richer has no relation sort shape.
+     */
+    private static TypedSortBy classSortOf(TypedSpec n) {
+        if (!(n instanceof TypedNativeCall c) || c.args().size() != 3
+                || !SORT_FQN.equals(c.callee().qualifiedName())
+                || !(c.args().get(1) instanceof TypedLambda key)
+                || !(c.args().get(2) instanceof TypedLambda cmp)) {
+            return null;
+        }
+        Boolean ascending = comparatorDirection(cmp);
+        return ascending == null ? null
+                : new TypedSortBy(c.args().get(0), key, ascending, c.info());
+    }
+
+    private static Boolean comparatorDirection(TypedLambda cmp) {
+        if (cmp.parameters().size() != 2 || cmp.body().size() != 1
+                || !(cmp.body().get(0) instanceof TypedNativeCall cc)
+                || !COMPARE_FQN.equals(cc.callee().qualifiedName())
+                || cc.args().size() != 2
+                || !(cc.args().get(0) instanceof TypedVariable a)
+                || !(cc.args().get(1) instanceof TypedVariable b)) {
+            return null;
+        }
+        String p0 = cmp.parameters().get(0);
+        String p1 = cmp.parameters().get(1);
+        if (a.name().equals(p0) && b.name().equals(p1)) {
+            return Boolean.TRUE;
+        }
+        if (a.name().equals(p1) && b.name().equals(p0)) {
+            return Boolean.FALSE;
+        }
+        return null;
+    }
+
+    /** concatenate over two class-collection chains, both fetch-bearing. */
+    private static TypedNativeCall classConcatOf(TypedSpec n) {
+        return n instanceof TypedNativeCall c && c.args().size() == 2
+                && CONCAT_FQN.equals(c.callee().qualifiedName())
+                && containsGetAll(c.args().get(0)) && containsGetAll(c.args().get(1))
+                ? c : null;
+    }
+
+    /** Statically decide an if() condition, or null when genuinely runtime. */
+    private static Boolean staticBool(TypedSpec cond) {
+        return switch (cond) {
+            case TypedCBoolean b -> b.value();
+            case TypedNativeCall c when c.args().size() == 2
+                    && (EQUAL_FQN.equals(c.callee().qualifiedName())
+                            || EQ_FQN.equals(c.callee().qualifiedName())) -> {
+                Object l = literalValue(c.args().get(0));
+                Object r = literalValue(c.args().get(1));
+                yield l == null || r == null ? null : (Boolean) l.equals(r);
+            }
+            default -> null;
+        };
+    }
+
+    private static Object literalValue(TypedSpec n) {
+        return switch (n) {
+            case TypedCBoolean b -> b.value();
+            case TypedCInteger i -> i.value();
+            case TypedCFloat f -> f.value();
+            case TypedCString st -> st.value();
+            default -> null;
+        };
+    }
+
+    /** An if() branch is a zero-arg thunk; its single body statement is the value. */
+    private static TypedSpec unthunk(TypedSpec branch) {
+        if (branch instanceof TypedLambda l && l.parameters().isEmpty()
+                && l.body().size() == 1) {
+            return l.body().get(0);
+        }
+        return branch;
     }
 
     private static boolean containsGetAll(TypedSpec n) {
@@ -273,6 +410,22 @@ public final class StoreResolver {
         // 1. Collect the below-boundary op chain (top-down) to the getAll.
         List<TypedSpec> ops = new ArrayList<>();
         while (!(cur instanceof TypedGetAll)) {
+            // Normalize collection natives with relation shapes BEFORE
+            // collecting: first()/head() IS limit 1; class-space
+            // sort(key, comparator) IS sortBy with a direction.
+            if (cur instanceof TypedNativeCall nc && isFirstLike(nc)) {
+                cur = new TypedLimit(nc.args().get(0),
+                        new TypedCInteger(1L, com.legend.compiler.element.type
+                                .ExprType.one(com.legend.compiler.element.type
+                                        .Type.Primitive.INTEGER)),
+                        nc.info());
+                continue;
+            }
+            TypedSortBy asSort = classSortOf(cur);
+            if (asSort != null) {
+                cur = asSort;
+                continue;
+            }
             ops.add(cur);
             cur = switch (cur) {
                 case TypedFilter f -> f.source();
