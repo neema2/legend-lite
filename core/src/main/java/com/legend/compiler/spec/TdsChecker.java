@@ -97,6 +97,21 @@ final class TdsChecker {
         char quote = 0;
         for (int i = 0; i < line.length(); i++) {
             char ch = line.charAt(i);
+            // A backslash inside a quoted cell ESCAPES the next character
+            // (JSON payloads carry \" — it must neither close the cell nor
+            // survive as a literal backslash; audit).
+            if (quote != 0 && ch == '\\' && i + 1 < line.length()) {
+                cell.append(line.charAt(++i));
+                continue;
+            }
+            // CSV-style DOUBLED quotes inside a quoted cell are one literal
+            // quote ({""boolean"":true} carries JSON keys; audit follow-up).
+            if (quote != 0 && ch == quote && i + 1 < line.length()
+                    && line.charAt(i + 1) == quote) {
+                cell.append(ch);
+                i++;
+                continue;
+            }
             if ((ch == '\'' || ch == '"') && (quote == 0 || quote == ch)) {
                 quote = quote == 0 ? ch : 0;
             } else if (ch == ',' && quote == 0) {

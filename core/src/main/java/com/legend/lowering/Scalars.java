@@ -69,27 +69,51 @@ final class Scalars {
                         if (isFullPrecisionDate(other)) {
                             return new SqlExpr.BoolLit(false);
                         }
+                        // A Date is never equal to a NON-date kind — the
+                        // string carrier must not leak into '2014'=='2014'
+                        // being true (audit). Any stays dynamic (fall through).
+                        if (!PlatformTypes.isAny(other)) {
+                            return new SqlExpr.BoolLit(false);
+                        }
                     }
                     return new SqlExpr.Call(SqlFn.EQUAL, args);
                 });
             }
         }
-        family(SqlFn.LESS, "lessThan");
-        family(SqlFn.LESS_EQUAL, "lessThanEqual");
-        family(SqlFn.GREATER, "greaterThan");
-        family(SqlFn.GREATER_EQUAL, "greaterThanEqual");
+        // Ordering comparisons PAD partial-date literals to their instant
+        // (dateArg) — the string carrier must never meet a DATE operand
+        // (audit: '2014' < DATE '…' is a conversion error).
+        for (var cmp : Map.of("lessThan", SqlFn.LESS, "lessThanEqual", SqlFn.LESS_EQUAL,
+                "greaterThan", SqlFn.GREATER, "greaterThanEqual", SqlFn.GREATER_EQUAL)
+                .entrySet()) {
+            for (String f : Pure.nativeKeysAt(cmp.getKey())) {
+                RULES.put(f, (n, args) -> {
+                    List<SqlExpr> padded = new ArrayList<>(args.size());
+                    for (int i = 0; i < args.size(); i++) {
+                        padded.add(dateArg(n.args().get(i), args.get(i)));
+                    }
+                    return new SqlExpr.Call(cmp.getValue(), padded);
+                });
+            }
+        }
         // and(Boolean[*]) / or(Boolean[*]) are the COLLECTION reductions
         // (real pure) — the infix renderer would emit the lone list bare.
+        // The EMPTY collection takes each reduction's IDENTITY (and([]) is
+        // true, or([]) is false — list_aggregate over [] is NULL; audit).
         for (String f : Pure.nativeKeysAt("and")) {
             RULES.put(f, (n, args) -> args.size() == 1
                     ? (isToOne(n.args().get(0)) ? args.get(0)
-                            : new SqlExpr.Call(SqlFn.LIST_BOOL_AND, args))
+                            : SqlExpr.Call.of(SqlFn.COALESCE,
+                                    new SqlExpr.Call(SqlFn.LIST_BOOL_AND, args),
+                                    new SqlExpr.BoolLit(true)))
                     : new SqlExpr.Call(SqlFn.AND, args));
         }
         for (String f : Pure.nativeKeysAt("or")) {
             RULES.put(f, (n, args) -> args.size() == 1
                     ? (isToOne(n.args().get(0)) ? args.get(0)
-                            : new SqlExpr.Call(SqlFn.LIST_BOOL_OR, args))
+                            : SqlExpr.Call.of(SqlFn.COALESCE,
+                                    new SqlExpr.Call(SqlFn.LIST_BOOL_OR, args),
+                                    new SqlExpr.BoolLit(false)))
                     : new SqlExpr.Call(SqlFn.OR, args));
         }
         // not(equal(a,b)) renders as a <> b (lean SQL): the peephole keeps
@@ -280,8 +304,21 @@ final class Scalars {
                 // adjust(%2016, 1, YEARS) is %2017, not 2017-01-01.
                 Integer pp = partialPrecision(n.args().get(0));
                 if (pp != null) {
-                    return SqlExpr.Call.of(SqlFn.STRFTIME, added,
-                            new SqlExpr.StringLit(pp == 1 ? "%Y" : "%Y-%m"));
+                    // The result's precision is the FINER of the written
+                    // precision and the unit (real pure GROWS precision:
+                    // adjust(%2020, 1, MONTHS) is 2020-02; a coarse unit
+                    // keeps the written form: adjust(%2016, 1, YEARS) is
+                    // 2017; a day-or-finer unit yields the full-precision
+                    // carrier — the audit's truncate-everything write-back
+                    // silently erased finer adjustments).
+                    String fmt = switch (enumName(n.args().get(2))) {
+                        case "YEARS" -> pp == 1 ? "%Y" : "%Y-%m";
+                        case "MONTHS" -> "%Y-%m";
+                        default -> null;
+                    };
+                    return fmt == null ? added
+                            : SqlExpr.Call.of(SqlFn.STRFTIME, added,
+                                    new SqlExpr.StringLit(fmt));
                 }
                 // SQL date+interval widens to TIMESTAMP; a StrictDate input
                 // adjusted by a DAY-or-coarser unit stays a StrictDate.

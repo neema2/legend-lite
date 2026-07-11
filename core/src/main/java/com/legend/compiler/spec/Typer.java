@@ -591,9 +591,14 @@ final class Typer {
         return found;
     }
 
-    /** {@code _Type_mult} segments (mult: digits, MANY, or {@code $a_b$} ranges), trailing underscore. */
+    /**
+     * {@code _Type_mult} segments (mult: digits, MANY, or {@code $a_b$}
+     * ranges) with a MANDATORY trailing underscore — engine manglings always
+     * end with one, and requiring it keeps ordinary snake-case user names
+     * ({@code transform_step_3}) from falsely demangling (audit).
+     */
     private static final java.util.regex.Pattern MANGLED_TAIL = java.util.regex.Pattern
-            .compile("(?:_?_[A-Za-z][A-Za-z0-9]*_(?:\\d+|MANY|\\$[^$]*\\$))+_?$");
+            .compile("(?:_?_[A-Za-z][A-Za-z0-9]*_(?:\\d+|MANY|\\$[^$]*\\$))+_$");
 
     /**
      * A packageable-element reference used as a value &mdash; currently a class

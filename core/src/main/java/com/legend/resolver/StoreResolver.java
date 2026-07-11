@@ -478,8 +478,11 @@ public final class StoreResolver {
                     // A CHAINED hop: the parent's columns live PREFIXED on the
                     // accumulated joined row — re-point the condition's LEFT
                     // param reads (dept's raw $d.ID becomes dept_ID), and the
-                    // hop's own prefix extends the chain (dept_org_).
-                    String chainPrefix = parentPrefix + path.get(hop) + "_";
+                    // hop's own prefix extends the chain (dept_org_) with the
+                    // SAME collision guard hop 0 gets (audit: a physical
+                    // dept.org_id FK would collide with the chained prefix).
+                    String chainPrefix = chainedPrefix(
+                            parentPrefix + path.get(hop), cs, joinsByChain);
                     final String pp2 = parentPrefix;
                     TypedLambda cond = aj.condition();
                     java.util.List<com.legend.compiler.element.type.Type.Column>
@@ -875,6 +878,30 @@ public final class StoreResolver {
                              TypedSpec targetPipeline,
                              com.legend.compiler.element.type.Type.RelationType targetRow,
                              TypedLambda condition) {}
+
+    /**
+     * A chained hop's prefix, ordinal-bumped against the ACCUMULATED column
+     * set: the source row plus every already-registered join's prefixed
+     * columns — the same guard {@link #prefixFor} gives hop 0.
+     */
+    private static String chainedPrefix(String base, ClassSource cs,
+                                        Map<String, AssocJoin> joinsByChain) {
+        Set<String> taken = new java.util.LinkedHashSet<>();
+        for (com.legend.compiler.element.type.Type.Column c : cs.rowType().columns()) {
+            taken.add(c.name());
+        }
+        for (AssocJoin aj : joinsByChain.values()) {
+            for (com.legend.compiler.element.type.Type.Column c : aj.targetRow().columns()) {
+                taken.add(aj.prefix() + c.name());
+            }
+        }
+        String prefix = base + "_";
+        int ordinal = 2;
+        while (hasPrefixCollision(prefix, taken)) {
+            prefix = base + "_" + ordinal++ + "_";
+        }
+        return prefix;
+    }
 
     /** Deterministic prefix with ordinal bump on collision against the parent row (plan §2.3). */
     private static String prefixFor(String head, ClassSource cs) {

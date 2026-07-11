@@ -1517,7 +1517,10 @@ public final class Lowerer {
                     SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_SLICE,
                             scalar(s.source(), columns),
                             onePlus(clamp0(scalar(s.start(), columns))),
-                            scalar(s.stop(), columns));
+                            // STOP clamps too: DuckDB reads a negative bound
+                            // FROM THE END (slice(l,0,-1) returned the whole
+                            // list; pure says empty — audit).
+                            clamp0(scalar(s.stop(), columns)));
             // drop(n): the suffix from n+1; negative n drops nothing (PCT).
             case TypedDrop d when !(d.source().info().type() instanceof Type.RelationType) -> {
                 SqlExpr src = scalar(d.source(), columns);
@@ -1785,6 +1788,10 @@ public final class Lowerer {
             // the cast bucket). A WIDENING cast (Integer->@Number: the target
             // is the source's lattice supertype) is a type ASSERTION — the
             // value is already one; converting would corrupt it (42 -> 42.0).
+            // DELIBERATE corpus divergence from real pure: pure's cast never
+            // converts (a non-integral Number->@Integer is a runtime error
+            // there); the corpus contract (engine-lite lineage) is SQL-style
+            // conversion, so a narrowing cast converts here.
             Type src = c.source().info().type();
             if (isSqlPrimitive(c.target()) && isSqlPrimitive(src)
                     && !isWidening(src, c.target())
@@ -1846,9 +1853,16 @@ public final class Lowerer {
         if (!allKnown) {
             return base;   // dynamic (pivot) columns: re-type only
         }
-        boolean identity = tgtRow.columns().size() == srcRow.columns().size()
-                && tgtRow.columns().stream().allMatch(tc ->
-                        src.get(tc.name()).type().equals(tc.type()));
+        // Identity is POSITIONAL: a cast that merely REORDERS columns must
+        // project (the executor matches result columns to the schema by
+        // position — returning the source order would silently mislabel
+        // cells; audit).
+        boolean identity = tgtRow.columns().size() == srcRow.columns().size();
+        for (int i = 0; identity && i < tgtRow.columns().size(); i++) {
+            Type.Column tc = tgtRow.columns().get(i);
+            Type.Column sc = srcRow.columns().get(i);
+            identity = tc.name().equals(sc.name()) && tc.type().equals(sc.type());
+        }
         if (identity) {
             return base;
         }

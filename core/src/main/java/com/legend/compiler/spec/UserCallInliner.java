@@ -134,7 +134,10 @@ public final class UserCallInliner {
         // in the one substitution pass. A relation-typed let ($t = #TDS…#)
         // splices its pipeline into every use; downstream phases never see
         // a let. A TRAILING let IS its value (real pure: the let statement
-        // yields it).
+        // yields it). KNOWN TRADE (audit): a let used twice EVALUATES twice
+        // in SQL — for a non-deterministic row set (limit with no total
+        // order) the two splices may disagree where real pure's
+        // single-evaluation binding could not; CTE sharing is the future fix.
         Map<String, TypedSpec> scope = new LinkedHashMap<>();
         for (int i = 0; i < body.size() - 1; i++) {
             if (!(body.get(i) instanceof TypedLet let)) {
