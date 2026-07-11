@@ -1285,6 +1285,34 @@ public final class Lowerer {
             throw new IllegalStateException("window frame lowering expects rows()/range(), got "
                     + spec.getClass().getSimpleName());
         }
+        // INTERVAL ranges (_range(n, DurationUnit, m, DurationUnit) and the
+        // unbounded mixes): each bounded side pairs an Integer with its
+        // DurationUnit — RANGE BETWEEN INTERVAL n UNIT PRECEDING/FOLLOWING.
+        {
+            java.util.List<TypedSpec> as = call.args();
+            boolean interval = as.stream().anyMatch(a ->
+                    a instanceof com.legend.compiler.spec.typed.TypedEnumValue ev
+                            && ev.enumFqn().equals("meta::pure::functions::date::DurationUnit"));
+            if (interval) {
+                SqlExpr.WindowCall.Frame.Bound from;
+                SqlExpr.WindowCall.Frame.Bound to;
+                int i = 0;
+                if (isUnboundedCall(as.get(i))) {
+                    from = new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding();
+                    i += 1;
+                } else {
+                    from = intervalBound(as.get(i), as.get(i + 1), true);
+                    i += 2;
+                }
+                if (i < as.size() && isUnboundedCall(as.get(i))) {
+                    to = new SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing();
+                } else {
+                    to = intervalBound(as.get(i), as.get(i + 1), false);
+                }
+                return new SqlExpr.WindowCall.Frame(
+                        SqlExpr.WindowCall.Frame.Kind.RANGE, from, to);
+            }
+        }
         boolean rows = com.legend.builtin.Pure.nativeNamed("rows", call.callee().signatureKey());
         // LITERAL bounds validate here: a start beyond the end (2 FOLLOWING
         // .. 1 FOLLOWING; 1 FOLLOWING .. 1 PRECEDING) is a COMPILE error,
@@ -1349,6 +1377,29 @@ public final class Lowerer {
         return false;
     }
 
+    private static boolean isUnboundedCall(TypedSpec arg) {
+        return arg instanceof TypedNativeCall c
+                && com.legend.builtin.Pure.nativeNamed("unbounded", c.callee().signatureKey());
+    }
+
+    /** One INTERVAL frame side: signed Integer + DurationUnit literal. */
+    private SqlExpr.WindowCall.Frame.Bound intervalBound(TypedSpec amount, TypedSpec unit,
+            boolean fromSide) {
+        Number n = numericBound(amount);
+        if (n == null || !(unit instanceof com.legend.compiler.spec.typed.TypedEnumValue ev)) {
+            throw new IllegalStateException("interval frame bound needs a literal"
+                    + " Integer and a DurationUnit literal");
+        }
+        long v = n.longValue();
+        if (v < 0) {
+            return new SqlExpr.WindowCall.Frame.Bound.IntervalPreceding(-v, ev.value());
+        }
+        if (v > 0) {
+            return new SqlExpr.WindowCall.Frame.Bound.IntervalFollowing(v, ev.value());
+        }
+        return new SqlExpr.WindowCall.Frame.Bound.CurrentRow();
+    }
+
     /** The numeric value of a literal frame bound, or null (RANGE takes decimals). */
     private static Number numericBound(TypedSpec arg) {
         // A negative literal arrives as unary minus AROUND the number.
@@ -1391,6 +1442,20 @@ public final class Lowerer {
                 args.add(new SqlExpr.Column(base.from().alias(), p.property()));
                 trailingIntArgs(call, args);
                 return new SqlExpr.WindowCall(new SqlAgg.ValueFn(fn.sqlName(), args),
+                        over.partitionBy(), over.orderBy(), over.frame());
+            }
+            // reduce(rel, w, row, map, agg): the WINDOWED map+reduce — the
+            // agg-col machinery arriving as a native call (real reduce.pure).
+            // The synthetic TypedAggCol reuses aggValue's whole reducer
+            // dispatch (rowMapper decomposition, composed aggs, casts), and
+            // windowize stamps the shared window spec on every reducer.
+            case TypedNativeCall call
+                    when call.callee().qualifiedName()
+                            .equals("meta::pure::functions::relation::reduce")
+                    && call.args().size() == 5
+                    && call.args().get(3) instanceof TypedLambda mapFn
+                    && call.args().get(4) instanceof TypedLambda aggFn -> {
+                return windowize(aggValue(base, new TypedAggCol("_reduce", mapFn, aggFn)),
                         over.partitionBy(), over.orderBy(), over.frame());
             }
             // Real pure's 4-arg colToAgg window aggregates: average(p,w,r,~col).

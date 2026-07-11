@@ -44,11 +44,12 @@ final class OverChecker {
         return new TypedOver(partitions, keys, frame, a.out());
     }
 
-    /** A checked {@code Rows}/{@code _Range} frame value (the signature admits it in last position). */
+    /** A checked {@code Rows}/{@code _Range}/{@code _RangeInterval} frame value (the signature admits it in last position). */
     private static boolean isFrame(TypedSpec arg) {
         return arg.info().type() instanceof Type.ClassType ct
                 && (ct.fqn().equals(Pure.ROWS.qualifiedName())
-                        || ct.fqn().equals(Pure._RANGE.qualifiedName()));
+                        || ct.fqn().equals(Pure._RANGE.qualifiedName())
+                        || ct.fqn().equals(Pure._RANGE_INTERVAL.qualifiedName()));
     }
 
     private static void collect(TypedSpec arg, List<String> partitions,

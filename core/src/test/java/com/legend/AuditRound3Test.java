@@ -105,6 +105,21 @@ class AuditRound3Test {
         assertTrue(ex.getMessage().contains("fully qualified"), ex.getMessage());
     }
 
+    @Test
+    @DisplayName("PCT slice: TDS inference is Deephaven's — full datetimes are DateTime, bare dates stay String")
+    void tdsDateInference() throws Exception {
+        // Real pure's TDS inference (TDSExtension -> Deephaven CSV): a full
+        // ISO datetime cell infers DateTime (interval-RANGE windows work);
+        // a DATE-ONLY cell stays String (parseDate over a date-shaped
+        // string column is a real corpus fixture).
+        Object v = scalar("#TDS\n d\n 2024-01-29T00:32:34.000000000+0000\n"
+                + "#->extend(~y: x|$x.d->datePart())->select(~[y])");
+        assertEquals("2024-01-29", v.toString().substring(0, 10));
+        Object d = scalar("#TDS\n d\n 2024-01-29\n"
+                + "#->extend(~p: x|$x.d->parseDate())->select(~[p])");
+        assertEquals("2024-01-29", d.toString().substring(0, 10));
+    }
+
     // ---- lowering values ----
 
     @Test

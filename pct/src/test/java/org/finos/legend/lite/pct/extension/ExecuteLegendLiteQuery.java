@@ -361,14 +361,29 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             case "DOUBLE", "FLOAT", "REAL" -> "Float";
             case "DECIMAL", "NUMERIC" -> "Decimal";
             case "BOOLEAN" -> "Boolean";
-            case "DATE" -> "StrictDate";
-            case "TIMESTAMP", "TIMESTAMPTZ", "TIMESTAMP WITH TIME ZONE" -> "DateTime";
+            // The interpreted TestTDS cannot BUILD Date columns
+            // (getDataAsType: "Not supported data type") and PCT compares
+            // TDS results via toString() — dates travel as STRINGS spelled
+            // in pure's print form (formatValue below).
+            case "DATE", "TIMESTAMP", "TIMESTAMPTZ", "TIMESTAMP WITH TIME ZONE" -> "String";
             default -> "String";
         };
     }
 
     private String formatValue(Object value) {
         if (value == null) return "null";
+        // Pure's date print forms: DateTime = ISO with millis + +0000
+        // offset; StrictDate = plain date (the PCT expected strings).
+        if (value instanceof java.sql.Timestamp ts) {
+            var ldt = ts.toLocalDateTime();
+            return ldt.format(java.time.format.DateTimeFormatter
+                    .ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS")) + "+0000";
+        }
+        if (value instanceof java.time.OffsetDateTime odt) {
+            return odt.withOffsetSameInstant(java.time.ZoneOffset.UTC)
+                    .format(java.time.format.DateTimeFormatter
+                            .ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS")) + "+0000";
+        }
         String str = value.toString();
         if (str.contains(",") || str.contains("\"") || str.contains("\n")) {
             return "\"" + str.replace("\"", "\"\"") + "\"";

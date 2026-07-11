@@ -389,7 +389,7 @@ class NativeFunctionTest {
     void nativeClassCatalogSizeIsPinned() {
         // Update this deliberately when adding or removing native classes.
         // 37: +StrictTime (real legend-pure meta::pure::metamodel::type::StrictTime).
-        assertEquals(38, Pure.allNativeClasses().size(),
+        assertEquals(39, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 

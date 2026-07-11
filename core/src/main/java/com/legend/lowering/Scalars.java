@@ -1364,7 +1364,17 @@ final class Scalars {
             return new SqlExpr.DateLit(cell.startsWith("%") ? cell.substring(1) : cell);
         }
         if (type == Type.Primitive.DATE_TIME || type == Type.Primitive.DATE) {
-            return new SqlExpr.TimestampLit(cell.startsWith("%") ? cell.substring(1) : cell);
+            String v = cell.startsWith("%") ? cell.substring(1) : cell;
+            // Normalize the PCT fixture spelling: a +0000/Z suffix drops
+            // (values are UTC) and sub-second digits truncate to DuckDB's
+            // microsecond precision.
+            v = v.replaceFirst("(\\+0000|Z)$", "");
+            java.util.regex.Matcher frac = java.util.regex.Pattern
+                    .compile("\\.(\\d{7,9})$").matcher(v);
+            if (frac.find()) {
+                v = v.substring(0, frac.start()) + "." + frac.group(1).substring(0, 6);
+            }
+            return new SqlExpr.TimestampLit(v);
         }
         if (type == Type.Primitive.STRING) {
             return new SqlExpr.StringLit(cell);

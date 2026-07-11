@@ -144,6 +144,13 @@ public sealed interface SqlExpr
 
                 record UnboundedFollowing() implements Bound {
                 }
+
+                /** {@code INTERVAL n UNIT PRECEDING} — the _RangeInterval frame side. */
+                record IntervalPreceding(long n, String unit) implements Bound {
+                }
+
+                record IntervalFollowing(long n, String unit) implements Bound {
+                }
             }
         }
     }

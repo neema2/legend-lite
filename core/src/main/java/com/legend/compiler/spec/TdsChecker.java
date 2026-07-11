@@ -164,6 +164,14 @@ final class TdsChecker {
             if (v.equals("true") || v.equals("false")) {
                 return Type.Primitive.BOOLEAN;
             }
+            // Full ISO DATETIMES infer as DateTime — real pure's TDS
+            // inference is Deephaven CSV's, whose DATETIME_AS_LONG parser
+            // takes 2024-01-29T00:32:34.000000000+0000 but NOT date-only
+            // strings: a bare 2024-06-15 stays String (parseDate over a
+            // date-shaped string column is a real corpus fixture).
+            if (v.matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}.*")) {
+                return Type.Primitive.DATE_TIME;
+            }
             return Type.Primitive.STRING;
         }
         return Type.Primitive.STRING;

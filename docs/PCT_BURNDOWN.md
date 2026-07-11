@@ -21,14 +21,29 @@ TDS headers now spell PURE type names (the parser resolves them as
 paths — 'VARCHAR not found' was ours) and carry column MULTIPLICITIES
 ([1]/[0..1] only; richer forms throw in processMultiplicity).
 
-| suite | run | errors | passing |
-|---|---|---|---|
-| Essential | 327 | 86 | 74% |
-| Standard | 204 | 57 | 72% |
-| Relation | 348 | 164 | 53% |
-| Grammar | 136 | 30 | 78% |
-| Unclassified | 94 | 21 | 78% |
-| **total** | **1109** | **358** | **68%** |
+| suite | run | errors | passing | after slice 1 |
+|---|---|---|---|---|
+| Essential | 327 | 86 | 74% | 86 (74%) |
+| Standard | 204 | 57 | 72% | 55 (73%) |
+| Relation | 348 | 164 | 53% | **75 (78%)** |
+| Grammar | 136 | 30 | 78% | 30 (78%) |
+| Unclassified | 94 | 21 | 78% | 21 (78%) |
+| **total** | **1109** | **358** | **68%** | **267 (76%)** |
+
+**Slice 1** (reduce + interval ranges): registered `relation::reduce`
+(windowed map+agg — lowered by reusing the agg-col machinery through a
+synthetic TypedAggCol under windowize), the three `_RangeInterval`
+overloads of `_range` + the rangeInterval `over()`s (INTERVAL n UNIT
+PRECEDING/FOLLOWING frame bounds; DurationUnit names are valid DuckDB
+interval units as-is), `lateral` (registered; lowering pending), and
+_RangeInterval as an over() frame argument. TDS literal columns with
+FULL ISO datetime cells infer DateTime — real pure's inference is
+Deephaven CSV's (DATETIME_AS_LONG), which does NOT take date-only
+strings: bare 2024-06-15 stays String (a corpus fixture parseDates such
+a column; first attempt inferred StrictDate and broke it). The PCT
+adapter returns date columns as STRINGS spelled in pure's print form
+(millis + +0000) — the interpreted TestTDS cannot build Date columns and
+the PCT asserts compare toString().
 
 The suite GREW +206 tests over the old stack (Relation nearly doubled)
 — new real-pure coverage, new gaps: `_range` interval arities (52),

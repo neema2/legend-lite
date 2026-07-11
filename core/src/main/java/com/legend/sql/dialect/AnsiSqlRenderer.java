@@ -569,6 +569,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.WindowCall.Frame.Bound.CurrentRow c -> "CURRENT ROW";
             case SqlExpr.WindowCall.Frame.Bound.Following f -> f.n() + " FOLLOWING";
             case SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing u -> "UNBOUNDED FOLLOWING";
+            // DuckDB interval spelling; DurationUnit names (DAYS, MONTHS...)
+            // are valid interval units as-is.
+            case SqlExpr.WindowCall.Frame.Bound.IntervalPreceding p ->
+                    "INTERVAL " + p.n() + " " + p.unit() + " PRECEDING";
+            case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing f ->
+                    "INTERVAL " + f.n() + " " + f.unit() + " FOLLOWING";
         };
     }
 
