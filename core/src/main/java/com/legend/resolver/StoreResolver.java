@@ -554,8 +554,19 @@ public final class StoreResolver {
         }
         demanded = Pipelines.closeOverConditions(cs.pipeline(), demanded);
 
+        // Mapping ~distinct under a PROJECT terminal: the engine stamps
+        // DISTINCT on the GENERATED select, not the class rows — defer the
+        // pipeline's whole-row distinct (a no-op over a keyed table) to the
+        // projected output. Non-project terminals keep it in-pipeline.
+        TypedSpec csPipe = cs.pipeline();
+        boolean deferredDistinct = false;
+        if (top instanceof TypedProject
+                && csPipe instanceof com.legend.compiler.spec.typed.TypedDistinct dd) {
+            deferredDistinct = true;
+            csPipe = dd.source();
+        }
         Pipelines.Materialized m = Pipelines.materialize(
-                cs.pipeline(), demanded, demandedNavs, cs.classFqn(),
+                csPipe, demanded, demandedNavs, cs.classFqn(),
                 targetClass -> Pipelines.materialize(
                         sources.get(cs.mappingFqn(), targetClass).pipeline(),
                         Set.of(), targetClass).pipeline());
@@ -770,11 +781,21 @@ public final class StoreResolver {
                                         false, fv, a.map()).identityLambda(a.map())
                                 : sub.apply(a.map()),
                         a.reduce());
+        final boolean distinctOutput = deferredDistinct;
         return switch (top) {
-            case TypedProject p -> new TypedProject(base,
-                    p.columns().stream().map(col -> new TypedFuncCol(col.name(),
-                            sub.apply(col.fn()))).toList(),
-                    p.info());
+            case TypedProject p -> {
+                TypedSpec proj = new TypedProject(base,
+                        p.columns().stream().map(col -> new TypedFuncCol(col.name(),
+                                sub.apply(col.fn()))).toList(),
+                        p.info());
+                if (!distinctOutput) {
+                    yield proj;
+                }
+                List<String> names = ((com.legend.compiler.element.type.Type.RelationType)
+                        p.info().type()).columns().stream()
+                        .map(com.legend.compiler.element.type.Type.Column::name).toList();
+                yield new com.legend.compiler.spec.typed.TypedDistinct(proj, names, p.info());
+            }
             case TypedGroupBy gb -> new TypedGroupBy(base,
                     gb.keys().stream().map(k -> new TypedGroupBy.GroupKey(k.column(),
                             java.util.Optional.of(sub.apply(k.fn().orElseThrow(() ->

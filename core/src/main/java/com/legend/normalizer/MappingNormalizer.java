@@ -218,9 +218,20 @@ public final class MappingNormalizer {
         // §5.6.1 standalone predicate.
         md = injectMultiHopAssociationPMs(md, model);
 
+        // A class mapped through MULTIPLE set IDs synthesizes its ROOT set
+        // only — .all() dispatches to the root; non-root sets await the H5
+        // set-ID dispatch story (ModelBuilder's R2 already guaranteed the
+        // one-root shape).
+        java.util.Map<String, Long> mappingsPerClass = new java.util.HashMap<>();
+        for (ClassMapping cm : md.classMappings()) {
+            mappingsPerClass.merge(cm.className(), 1L, Long::sum);
+        }
         List<MappingDefinition.ClassBinding> classBindings =
                 new ArrayList<>(md.classMappings().size());
         for (ClassMapping cm : md.classMappings()) {
+            if (mappingsPerClass.get(cm.className()) > 1 && !cm.root()) {
+                continue;
+            }
             FunctionDefinition fn = synthesizeClassMapping(md, cm, model);
             lifted.add(fn);
             classBindings.add(new MappingDefinition.ClassBinding(
@@ -1663,7 +1674,7 @@ public final class MappingNormalizer {
             }
             int matchIdx = -1;
             for (int i = 0; i < keyOps.size(); i++) {
-                if (!claimedKeys.contains(i) && Objects.equals(pmOp, keyOps.get(i))) {
+                if (!claimedKeys.contains(i) && groupByOpsMatch(pmOp, keyOps.get(i))) {
                     matchIdx = i; break;
                 }
             }
@@ -1732,6 +1743,20 @@ public final class MappingNormalizer {
         return null;
     }
 
+    /**
+     * Structural equality MODULO the database qualifier: a PM rewritten
+     * through a view carries the mapping's db FQN while the view's own
+     * ~groupBy keys parse unqualified — same table+column IS the same key.
+     */
+    private static boolean groupByOpsMatch(RelationalOperation a, RelationalOperation b) {
+        if (a instanceof RelationalOperation.ColumnRef ca
+                && b instanceof RelationalOperation.ColumnRef cb) {
+            return Objects.equals(ca.table(), cb.table())
+                    && Objects.equals(ca.column(), cb.column());
+        }
+        return Objects.equals(a, b);
+    }
+
     private static String keyBaseName(RelationalOperation op) {
         if (op instanceof RelationalOperation.ColumnRef cr) return cr.column();
         if (op instanceof RelationalOperation.TargetColumnRef tr) return tr.column();
@@ -1783,6 +1808,14 @@ public final class MappingNormalizer {
         // cannot bind the intermediate row, so no standalone predicate is
         // emitted — return null and let injectMultiHopAssociationPMs handle it.
         if (firstJoin.joins().size() >= 2) {
+            return null;
+        }
+        // An end class with NO ~mainTable mapping (its properties live only
+        // as Join PMs on the other end) cannot anchor a standalone
+        // (A,B)->Boolean predicate — no binding is emitted, and NAVIGATING
+        // the association stays loud at resolve time ("association not
+        // mapped in mapping"). Declaring it is not an error.
+        if (!hasMainTable(md, classA) || !hasMainTable(md, classB)) {
             return null;
         }
 
@@ -1891,6 +1924,16 @@ public final class MappingNormalizer {
         throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                 context + " has non-NameRef target class type: "
               + t.getClass().getSimpleName());
+    }
+
+    private static boolean hasMainTable(LegacyMappingDefinition md, String classFqn) {
+        for (ClassMapping cm : md.classMappings()) {
+            if (cm instanceof ClassMapping.Relational rcm
+                    && classFqn.equals(rcm.className()) && rcm.mainTable() != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** {@code classFqn}'s ~mainTable declaration in {@code md} (loud if absent). */

@@ -1756,7 +1756,7 @@ class MappingNormalizerTest {
         // firmIdStr value: concat($row.firmName_h1.ID, '')
         AppliedFunction firmIdStr = (AppliedFunction) toOneInner(ni.properties().get("firmIdStr").value());
         assertEquals("plus", firmIdStr.function());   // concat -> plus-chain
-        AppliedProperty idRef = (AppliedProperty) firmIdStr.parameters().get(0);
+        AppliedProperty idRef = (AppliedProperty) unwrapToString(firmIdStr.parameters().get(0));
         assertEquals("ID", idRef.property());
         AppliedProperty firmAlias = (AppliedProperty) idRef.receiver();
         assertEquals("Person_Firm", firmAlias.property(),
@@ -1883,7 +1883,7 @@ class MappingNormalizerTest {
         // design hoists ALL joins before project translation runs.
         AppliedFunction firmIdStr = (AppliedFunction) toOneInner(ni.properties().get("firmIdStr").value());
         assertEquals("plus", firmIdStr.function());   // concat -> plus-chain
-        AppliedProperty idRef = (AppliedProperty) firmIdStr.parameters().get(0);
+        AppliedProperty idRef = (AppliedProperty) unwrapToString(firmIdStr.parameters().get(0));
         AppliedProperty firmAlias = (AppliedProperty) idRef.receiver();
         assertEquals("Person_Firm", firmAlias.property(),
                 "Column PM declared BEFORE its required Join PM still resolves "
@@ -2469,11 +2469,21 @@ class MappingNormalizerTest {
                     "expected a plus-chain node");
             assertEquals("plus", af.function());
             assertEquals(2, af.parameters().size());
-            out.addFirst(af.parameters().get(1));
+            out.addFirst(unwrapToString(af.parameters().get(1)));
             cur = af.parameters().get(0);
         }
-        out.addFirst(cur);
+        out.addFirst(unwrapToString(cur));
         return List.copyOf(out);
+    }
+
+    /**
+     * Peels the {@code toString(...)} coercion the normalizer wraps around
+     * every concat argument (SQL concat coerces; plus(String, String) needs
+     * the wrap said at emission).
+     */
+    private static ValueSpecification unwrapToString(ValueSpecification v) {
+        return v instanceof AppliedFunction af && af.function().equals("toString")
+                && af.parameters().size() == 1 ? af.parameters().get(0) : v;
     }
 
     /**
@@ -3412,7 +3422,7 @@ class MappingNormalizerTest {
                 "displayFirm is a +local field (isLocal=true)");
         AppliedFunction concat = (AppliedFunction) displayKe.value();
         assertEquals("plus", concat.function());   // concat -> plus-chain
-        AppliedProperty subRowCol = (AppliedProperty) concat.parameters().get(0);
+        AppliedProperty subRowCol = (AppliedProperty) unwrapToString(concat.parameters().get(0));
         assertEquals("LEGAL_NAME", subRowCol.property());
         assertEquals("Person_Firm",
                 ((AppliedProperty) subRowCol.receiver()).property(),
@@ -3477,7 +3487,7 @@ class MappingNormalizerTest {
         NewInstance ni = (NewInstance) ((AppliedFunction) sole(projectLambda.body()))
                 .parameters().get(1);
         AppliedFunction concat = (AppliedFunction) toOneInner(ni.properties().get("tagline").value());
-        AppliedProperty terminal = (AppliedProperty) concat.parameters().get(0);
+        AppliedProperty terminal = (AppliedProperty) unwrapToString(concat.parameters().get(0));
         assertEquals("NAME", terminal.property());
         assertEquals("Person_Firm__Firm_Org",
                 ((AppliedProperty) terminal.receiver()).property(),

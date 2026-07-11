@@ -174,7 +174,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     protected void source(StringBuilder sb, SqlSource src, int depth) {
         switch (src) {
             case SqlSource.Table t -> {
-                sb.append(ident(t.name()));
+                sb.append(tableName(t.name()));
                 if (t.alias() != null) {
                     sb.append(" AS ").append(ident(t.alias()));
                 }
@@ -652,6 +652,20 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     private boolean inlineMode;
 
     /** Quote ONLY when necessary (the lean tenet), per this dialect's rules. */
+    /**
+     * A table name may be schema-qualified (hr.EMPLOYEES): each part quotes
+     * UNCONDITIONALLY — the engine's emission for schema tables, pinned by
+     * the corpus ("hr"."EMPLOYEES").
+     */
+    protected String tableName(String name) {
+        int dot = name.indexOf('.');
+        if (dot <= 0) {
+            return ident(name);
+        }
+        char q = quoteChar();
+        return q + name.substring(0, dot) + q + "." + q + name.substring(dot + 1) + q;
+    }
+
     protected String ident(String name) {
         if (PLAIN.matcher(name).matches() && !reservedWords().contains(name.toLowerCase())) {
             return name;

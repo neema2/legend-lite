@@ -189,6 +189,27 @@ public final class PureModelContext implements ModelContext {
         Objects.requireNonNull(dbFqn, "dbFqn");
         Objects.requireNonNull(name, "name");
         return model.findDatabase(dbFqn)
-                .flatMap(db -> StoreCompiler.resolveTable(db, name));
+                .flatMap(db -> resolveTableWithIncludes(db, name, new java.util.HashSet<>()));
+    }
+
+    /** Own tables first, then each {@code include}d database, depth-first (cycle-safe). */
+    private Optional<Type.RelationType> resolveTableWithIncludes(
+            com.legend.parser.element.DatabaseDefinition db, String name,
+            java.util.Set<String> seen) {
+        Optional<Type.RelationType> own = StoreCompiler.resolveTable(db, name);
+        if (own.isPresent()) {
+            return own;
+        }
+        for (String include : db.includes()) {
+            if (!seen.add(include)) {
+                continue;
+            }
+            Optional<Type.RelationType> found = model.findDatabase(include)
+                    .flatMap(d -> resolveTableWithIncludes(d, name, seen));
+            if (found.isPresent()) {
+                return found;
+            }
+        }
+        return Optional.empty();
     }
 }

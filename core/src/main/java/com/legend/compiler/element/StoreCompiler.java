@@ -33,6 +33,24 @@ final class StoreCompiler {
 
     private static Optional<DatabaseDefinition.TableDefinition> findTableDef(
             DatabaseDefinition db, String name) {
+        // A DOTTED name is schema-qualified (~mainTable [db] hr.EMPLOYEES):
+        // match the named schema's table only.
+        int dot = name.indexOf('.');
+        if (dot > 0) {
+            String schemaName = name.substring(0, dot);
+            String tableName = name.substring(dot + 1);
+            for (var s : db.schemas()) {
+                if (!s.name().equals(schemaName)) {
+                    continue;
+                }
+                for (var t : s.tables()) {
+                    if (t.name().equals(tableName)) {
+                        return Optional.of(t);
+                    }
+                }
+            }
+            return Optional.empty();
+        }
         for (var t : db.tables()) {
             if (t.name().equals(name)) {
                 return Optional.of(t);

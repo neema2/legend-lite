@@ -302,22 +302,32 @@ public final class ModelBuilder {
 
     private void ingestLegacyMapping(LegacyMappingDefinition md) {
         putAtId(legacyMappings, intern(md.qualifiedName()), md);
-        // R2: enforce single ClassMapping per class FQN within one MappingDefinition.
-        // Cross-mapping duplication is allowed (each is its own setId
-        // namespace); set semantics collapse cross-mapping repeats.
-        Set<String> seen = new LinkedHashSet<>();
+        // R2: within one MappingDefinition a class maps EITHER once, or
+        // through multiple set-ID'd ClassMappings of which exactly ONE
+        // carries the root marker (* picks the .all() set). Anything else —
+        // duplicate set IDs, zero roots, two roots — is the R2 error.
+        java.util.Map<String, java.util.List<ClassMapping>> byClass = new java.util.LinkedHashMap<>();
         for (ClassMapping cm : md.classMappings()) {
-            String classFqn = cm.className();
-            if (!seen.add(classFqn)) {
+            byClass.computeIfAbsent(cm.className(), k -> new java.util.ArrayList<>()).add(cm);
+            mappedClassIds.add(intern(cm.className()));
+        }
+        for (var e : byClass.entrySet()) {
+            if (e.getValue().size() == 1) {
+                continue;
+            }
+            long roots = e.getValue().stream().filter(ClassMapping::root).count();
+            Set<String> setIds = new LinkedHashSet<>();
+            boolean idsDistinct = e.getValue().stream()
+                    .allMatch(cm -> cm.setId() != null && setIds.add(cm.setId()));
+            if (roots != 1 || !idsDistinct) {
                 throw new com.legend.error.ModelException(
                               com.legend.error.LegendCompileException.Phase.NORMALIZE,
                         "MappingDefinition '" + md.qualifiedName() + "' contains multiple "
-                              + "ClassMappings for class '" + classFqn + "'. Each "
-                              + "MappingDefinition may map a given class at most once "
-                              + "(use distinct MappingDefinitions for alternative "
-                              + "ClassMappings of the same class).");
+                              + "ClassMappings for class '" + e.getKey() + "'. Each "
+                              + "MappingDefinition may map a given class at most once, "
+                              + "or through distinct set IDs with exactly one root "
+                              + "marker (*) naming the .all() set.");
             }
-            mappedClassIds.add(intern(classFqn));
         }
     }
 
