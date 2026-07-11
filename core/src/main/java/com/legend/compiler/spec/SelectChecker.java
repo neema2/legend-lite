@@ -1,5 +1,6 @@
 package com.legend.compiler.spec;
 
+import java.util.List;
 import com.legend.compiler.spec.typed.TypedSelect;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.parser.spec.AppliedFunction;
@@ -16,6 +17,12 @@ final class SelectChecker {
 
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
         Application a = t.checkGeneric(af, env);
-        return new TypedSelect(a.args().get(0), Args.outputColumns(a), a.out());
+        List<String> columns = Args.outputColumns(a);
+        // ~[] is legal where zero columns MEAN something (groupBy's
+        // whole-relation aggregate); a zero-column PROJECTION is not it.
+        if (columns.isEmpty()) {
+            throw new TypeInferenceException("select(~[]) selects no columns");
+        }
+        return new TypedSelect(a.args().get(0), columns, a.out());
     }
 }

@@ -66,9 +66,10 @@ class CompilerFacadeTest {
 
     @Test
     void queryRequiresFullPathsForUserElements() {
-        // …and user elements need full paths, exactly like an ad-hoc engine lambda.
+        // A UNIQUE bare name resolves by simple name (engine leniency);
+        // an unknown one still says how to fix it.
         Exception ex = assertThrows(Exception.class,
-                () -> Compiler.compileQuery(MODEL, "Person.all()"));
+                () -> Compiler.compileQuery(MODEL, "Nobody.all()"));
         assertTrue(ex.getMessage().contains("fully qualified"),
                 "the error must say how to fix it; got: " + ex.getMessage());
     }

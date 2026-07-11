@@ -444,7 +444,26 @@ public final class ModelBuilder {
 
     /** O(1). Returns {@link ClassDefinition} for {@code fqn}, if any. */
     public Optional<ClassDefinition> findClass(String fqn) {
-        return Optional.ofNullable(idGet(classes, symbols.resolveId(fqn)));
+        ClassDefinition exact = idGet(classes, symbols.resolveId(fqn));
+        if (exact != null) {
+            return Optional.of(exact);
+        }
+        // A BARE class name (Person.all() under `import model::*;`) resolves
+        // by simple name when UNIQUE across the model — the same lenient
+        // reference findDatabase gives stores; ambiguity stays a miss.
+        if (!fqn.contains("::")) {
+            ClassDefinition found = null;
+            for (ClassDefinition cd : classes) {
+                if (cd != null && cd.qualifiedName().endsWith("::" + fqn)) {
+                    if (found != null) {
+                        return Optional.empty();
+                    }
+                    found = cd;
+                }
+            }
+            return Optional.ofNullable(found);
+        }
+        return Optional.empty();
     }
 
     /** O(1). Returns {@link AssociationDefinition} for {@code fqn}, if any. */

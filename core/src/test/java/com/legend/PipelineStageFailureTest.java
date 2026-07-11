@@ -64,12 +64,15 @@ class PipelineStageFailureTest {
     // ---- stage: NAME RESOLUTION scope ----
 
     @Test
-    @DisplayName("resolve: bare user-element name fails with the qualification hint")
+    @DisplayName("resolve: a bare name resolves when UNIQUE; unknown names keep the hint")
     void bareNameFails() {
+        // A UNIQUE bare class name resolves by simple name (the engine's
+        // lenient reference — import-scoped queries spell bare names); an
+        // UNKNOWN name still fails with the qualification hint.
         var ex = failsWith(com.legend.error.ResolutionException.class, MODEL + """
                 Class test::Person { name: String[1]; }
-                """, "Person.all()");
-        messageNames(ex, "Person", "fully qualified");
+                """, "Nobody.all()");
+        messageNames(ex, "Nobody", "fully qualified");
     }
 
     // ---- stage: PHASE F (element compile) ----

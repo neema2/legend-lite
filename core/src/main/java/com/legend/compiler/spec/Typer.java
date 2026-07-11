@@ -626,10 +626,15 @@ final class Typer {
      * {@code Person[*]} via the generic native path.
      */
     private TypedSpec classReference(PackageableElementPtr ref) {
-        if (ctx.findClass(ref.fullPath()).isPresent()) {
+        var cls = ctx.findClass(ref.fullPath());
+        if (cls.isPresent()) {
+            // The node carries the RESOLVED FQN — a bare name accepted by
+            // the simple-name fallback must not leak downstream (the H
+            // resolver's mapping bindings are FQN-keyed).
+            String fqn = cls.get().qualifiedName();
             Type classOf = new Type.GenericType(Pure.CLASS.qualifiedName(),
-                    List.of(new Type.ClassType(ref.fullPath())));
-            return new TypedPackageableRef(ref.fullPath(), ExprType.one(classOf));
+                    List.of(new Type.ClassType(fqn)));
+            return new TypedPackageableRef(fqn, ExprType.one(classOf));
         }
         // An execution-context element (mapping/runtime/connection/database) is a value
         // of type Any[1] — exactly what from/write's signature parameters declare.
@@ -850,8 +855,12 @@ final class Typer {
 
     /** A bare {@code ~[a,b]}: a first-class {@code ColSpecArray<(a:?, b:?)>[1]} value. */
     private TypedSpec typedColSpecArray(ColSpecArray arr) {
+        // ~[] is LEGAL where zero columns mean something: groupBy(~[], aggs)
+        // is the whole-relation aggregate (the engine's empty-key grouping).
         if (arr.colSpecs().isEmpty()) {
-            throw new TypeInferenceException("~[] is empty: a column-specification array needs columns");
+            return new TypedColSpecArray(List.of(),
+                    ExprType.one(new Type.GenericType(Pure.COL_SPEC_ARRAY.qualifiedName(),
+                            List.of(new Type.RelationType(List.of())))));
         }
         List<Type.Column> cols = new ArrayList<>(arr.colSpecs().size());
         List<String> names = new ArrayList<>(arr.colSpecs().size());

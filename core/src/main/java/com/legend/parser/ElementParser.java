@@ -1113,7 +1113,9 @@ public final class ElementParser implements TokenStreamCursor {
 
         if (dbType == null) error("RelationalDatabaseConnection '" + qualifiedName + "' missing required 'type:' key");
         if (specification == null) error("RelationalDatabaseConnection '" + qualifiedName + "' missing required 'specification:' key");
-        if (authentication == null) error("RelationalDatabaseConnection '" + qualifiedName + "' missing required 'auth:' key");
+        // auth: defaults to NoAuth — the engine's connections omit it for
+        // local specs (LocalFile / InMemory).
+        if (authentication == null) authentication = new AuthenticationSpec.NoAuth();
 
         return new ConnectionDefinition(qualifiedName, storeName, dbType, specification, authentication);
     }
@@ -1138,6 +1140,14 @@ public final class ElementParser implements TokenStreamCursor {
             String value;
             if (peek() == TokenType.STRING) {
                 value = unquoteString(consume(TokenType.STRING));
+            } else if (peek() == TokenType.QUOTED_STRING) {
+                // Double-quoted values appear in connection specs
+                // (path: "/tmp/db.duckdb") — same string payload, the
+                // OTHER quote character.
+                String raw = consume(TokenType.QUOTED_STRING);
+                value = raw.length() >= 2 && raw.charAt(0) == '"'
+                        && raw.charAt(raw.length() - 1) == '"'
+                        ? raw.substring(1, raw.length() - 1) : raw;
             } else if (peek() == TokenType.INTEGER) {
                 value = consume(TokenType.INTEGER);
             } else {
