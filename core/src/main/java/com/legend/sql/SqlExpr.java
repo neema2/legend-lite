@@ -9,7 +9,7 @@ import java.util.List;
  * (an unknown semantic name is a loud rendering error, never a fallback).
  */
 public sealed interface SqlExpr
-        permits SqlExpr.Column, SqlExpr.Star, SqlExpr.StringLit, SqlExpr.IntLit,
+        permits SqlExpr.Column, SqlExpr.Star, SqlExpr.StarExcept, SqlExpr.StringLit, SqlExpr.IntLit,
                 SqlExpr.FloatLit, SqlExpr.DecimalLit, SqlExpr.BoolLit, SqlExpr.NullLit,
                 SqlExpr.DateLit, SqlExpr.TimestampLit, SqlExpr.ArrayLit,
                 SqlExpr.StructLit, SqlExpr.StructGet, SqlExpr.Call,
@@ -22,6 +22,13 @@ public sealed interface SqlExpr
     }
 
     /** {@code *} or {@code alias.*}. */
+    /** {@code alias.* EXCLUDE (a, b)} — the star minus named columns (pivot key synthesis). */
+    record StarExcept(String table, List<String> except) implements SqlExpr {
+        public StarExcept {
+            except = List.copyOf(except);
+        }
+    }
+
     record Star(String table) implements SqlExpr {
     }
 

@@ -241,6 +241,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.Column c -> c.table() == null
                     ? ident(c.name()) : ident(c.table()) + "." + ident(c.name());
             case SqlExpr.Star s -> s.table() == null ? "*" : ident(s.table()) + ".*";
+            // DuckDB's EXCLUDE spelling (the one PIVOT backend); the dropped
+            // names quote UNCONDITIONALLY — the corpus pins the quoted form.
+            case SqlExpr.StarExcept se -> (se.table() == null ? "*" : ident(se.table()) + ".*")
+                    + " EXCLUDE (" + se.except().stream()
+                            .map(n -> quoteChar() + n + quoteChar())
+                            .collect(java.util.stream.Collectors.joining(", ")) + ")";
             case SqlExpr.StringLit s -> stringLit(s.value());
             case SqlExpr.IntLit i -> String.valueOf(i.value());
             case SqlExpr.FloatLit f -> String.valueOf(f.value());

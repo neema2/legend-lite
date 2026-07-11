@@ -3408,3 +3408,27 @@ Top detail:
     1  graph child 'address' of class 'model::ActivePersonWithAddress' is map
     1  SQL dialect for database type 'H2' (connection 'store::Conn' of runtim
 ```
+
+### Run 2026-07-11 @ 95883b2
+
+| tests | pass | failures | errors | skipped | green classes |
+|---|---|---|---|---|---|
+| 2721 | **2677** | 5 | 20 | 19 | 389 |
+
+| bucket | exception lines |
+|---|---|
+| OTHER | 18 |
+| CORE: unlowered constructs | 2 |
+
+Top detail:
+```
+    6  model-to-model binding of 'model::StaffComplete' in 'model::DisjointDe
+    3  graph child 'department' of class 'model::StaffWithDept' is mapped as 
+    3  property 'country' of class 'test::Firm' is mapped through the target'
+    2  scalar lowering not yet implemented for TypedWrite
+    2  graph child 'address' of class 'model::PersonWithAddress' is mapped as
+    1  graph child 'department' of class 'model::StaffFull' is mapped as an e
+    1  graph child 'addresses' of class 'model::PersonWithAddresses' is mappe
+    1  graph child 'address' of class 'model::ActivePersonWithAddress' is map
+    1  SQL dialect for database type 'H2' (connection 'store::Conn' of runtim
+```

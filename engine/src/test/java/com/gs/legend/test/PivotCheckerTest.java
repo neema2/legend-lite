@@ -696,7 +696,7 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
             // Pivot-key alias is synthetic (minted via ctx.nextAlias()) —
             // assert only that some alias is introduced and used as the
             // PIVOT key, not its exact spelling.
-            assertTrue(sql.matches(".*EXCLUDE \\(\"country\", \"city\"\\),.*"),
+            assertTrue(sql.matches("(?s).*EXCLUDE \\(\"country\", \"city\"\\),.*"),
                     "EXCLUDE should drop the source pivot columns");
             assertTrue(sql.contains("|| '__|__' ||"),
                     "Should concatenate pivot columns with __|__ separator");

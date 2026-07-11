@@ -55,8 +55,13 @@ public final class DuckDb extends AnsiSqlRenderer {
     protected void pivotSource(StringBuilder sb, SqlSource.Pivot p, int depth) {
         sb.append("(PIVOT ");
         source(sb, p.source(), depth);
+        // ON columns quote UNCONDITIONALLY (the corpus pins "year" — the
+        // usual pivot keys are date-part words DuckDB half-reserves).
         sb.append(" ON ").append(p.on().stream()
-                .map(e -> expr(unqualify(e), 0)).collect(Collectors.joining(", ")));
+                .map(e -> unqualify(e) instanceof SqlExpr.Column c
+                        ? quoteChar() + c.name() + quoteChar()
+                        : expr(unqualify(e), 0))
+                .collect(Collectors.joining(", ")));
         sb.append(" USING ").append(p.usings().stream()
                 .map(u -> reducer(new SqlAgg.Reducer(u.agg().fn(),
                         u.agg().args().stream().map(DuckDb::unqualify).toList(),
@@ -141,6 +146,7 @@ public final class DuckDb extends AnsiSqlRenderer {
                     SqlExpr.Call.of(SqlFn.LIST_GET,
                             new SqlExpr.Column(null, elem), new SqlExpr.IntLit(1));
             case SqlExpr.Column c -> c;
+            case SqlExpr.StarExcept se -> se;
             case SqlExpr.Call call -> new SqlExpr.Call(call.fn(),
                     call.args().stream().map(x -> unwrapElemRefs(x, elem)).toList());
             case SqlExpr.Cast c -> new SqlExpr.Cast(unwrapElemRefs(c.value(), elem),

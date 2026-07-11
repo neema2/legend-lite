@@ -4583,7 +4583,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Synthetic pivot-key column name is minted via ctx.nextAlias() —
         // assert structural shape (EXCLUDE drops both source columns)
         // rather than the exact spelling of the synthetic alias.
-        assertTrue(sql.matches(".*EXCLUDE \\(\"country\", \"city\"\\),.*"),
+        assertTrue(sql.matches("(?s).*EXCLUDE \\(\"country\", \"city\"\\),.*"),
                 "EXCLUDE should drop the source pivot columns");
 
         var result = executeRelation(pureQuery);

@@ -1831,12 +1831,44 @@ public final class Lowerer {
      * reduce-overload dispatch as groupBy.
      */
     private SqlSelect pivot(com.legend.compiler.spec.typed.TypedPivot pv) {
-        if (pv.pivotColumns().size() != 1) {
-            throw new com.legend.error.NotImplementedException("multi-column pivot is not lowered yet");
-        }
         SqlSelect src = relation(pv.source());
         SqlSource inner = asRightSide(src);
-        List<SqlExpr> on = List.of(Fold.sourceColumn(inner, pv.pivotColumns().get(0)));
+        List<SqlExpr> on;
+        if (pv.pivotColumns().size() == 1) {
+            on = List.of(Fold.sourceColumn(inner, pv.pivotColumns().get(0)));
+        } else {
+            // MULTI-column pivot: synthesize the COMPOSITE KEY — the pivot
+            // columns concatenated with the '__|__' separator (the same
+            // separator the dynamic-column templates carry), the originals
+            // EXCLUDE'd — then pivot the single synthetic key.
+            String keyName = nextAlias();
+            SqlExpr key = null;
+            for (String c : pv.pivotColumns()) {
+                SqlExpr col = new SqlExpr.Cast(Fold.sourceColumn(inner, c),
+                        com.legend.sql.SqlType.Scalar.VARCHAR);
+                key = key == null ? col
+                        : SqlExpr.Call.of(SqlFn.CONCAT,
+                                SqlExpr.Call.of(SqlFn.CONCAT, key,
+                                        new SqlExpr.StringLit(com.legend.compiler.element.type
+                                                .Type.RelationType.PIVOT_SEPARATOR)),
+                                col);
+            }
+            List<com.legend.sql.OutputCol> keyedOutputs = new ArrayList<>();
+            for (com.legend.sql.OutputCol oc : inner.outputs()) {
+                if (!pv.pivotColumns().contains(oc.name())) {
+                    keyedOutputs.add(oc);
+                }
+            }
+            keyedOutputs.add(new com.legend.sql.OutputCol(keyName,
+                    com.legend.sql.SqlType.Scalar.VARCHAR, false));
+            SqlSelect keyed = SqlSelect.starOf(inner).withProjections(
+                    List.of(new SqlSelect.Projection(
+                                    new SqlExpr.StarExcept(inner.alias(), pv.pivotColumns()), null),
+                            new SqlSelect.Projection(key, keyName)),
+                    keyedOutputs);
+            inner = new SqlSource.Subselect(keyed, nextAlias());
+            on = List.of(Fold.sourceColumn(inner, keyName));
+        }
         List<SqlSource.Pivot.Using> usings = new ArrayList<>();
         SqlSelect forAgg = SqlSelect.starOf(inner);
         for (TypedAggCol a : pv.aggs()) {
