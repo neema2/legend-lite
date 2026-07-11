@@ -45,12 +45,24 @@ final class Windows {
         family("FIRST_VALUE", Kind.VALUE, "first");
         family("LAST_VALUE", Kind.VALUE, "last");
         family("NTH_VALUE", Kind.VALUE, "nth");
+        // variance/stdDev window forms exist ONLY in the _Window-bearing
+        // overload — the reducer overloads of the same names must stay out.
+        windowOnly("VARIANCE", Kind.VALUE, "variance");
+        windowOnly("STDDEV", Kind.VALUE, "stdDev");
         // The 4-arg colToAgg window AGGREGATES — real pure has exactly these
         // (average, stdDevPopulation; everything else windows via the
         // agg-col spelling). Keyed by the _Window-bearing overload only —
         // the REDUCER overloads of the same names are Aggregates' domain.
         aggregate("AVG", "average");
         aggregate("STDDEV_POP", "stdDevPopulation");
+    }
+
+    private static void windowOnly(String sqlName, Kind kind, String pureName) {
+        for (String key : Pure.nativeKeysAt(pureName)) {
+            if (key.contains("_Window")) {
+                FNS.put(key, new WindowFn(sqlName, kind));
+            }
+        }
     }
 
     private static void aggregate(String sqlName, String pureName) {

@@ -271,8 +271,8 @@ public final class DuckDb extends AnsiSqlRenderer {
     protected String roundHalfEven(List<SqlExpr> a) {
         // round_even is a 2-arg macro — bare round(x) means precision 0.
         return a.size() == 1
-                ? "round_even(" + expr(a.get(0), 0) + ", 0)"
-                : fn("round_even", a);
+                ? "ROUND_EVEN(" + expr(a.get(0), 0) + ", 0)"
+                : fn("ROUND_EVEN", a);
     }
 
     @Override

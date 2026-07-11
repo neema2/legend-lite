@@ -126,13 +126,13 @@ public sealed interface SqlExpr
                 record UnboundedPreceding() implements Bound {
                 }
 
-                record Preceding(long n) implements Bound {
+                record Preceding(Number n) implements Bound {
                 }
 
                 record CurrentRow() implements Bound {
                 }
 
-                record Following(long n) implements Bound {
+                record Following(Number n) implements Bound {
                 }
 
                 record UnboundedFollowing() implements Bound {

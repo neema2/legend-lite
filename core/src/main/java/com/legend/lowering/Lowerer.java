@@ -422,10 +422,29 @@ public final class Lowerer {
         SqlExpr e = aggValue(base, a);
         if (!(e instanceof SqlAgg.Reducer r)) {
             throw new IllegalStateException("aggregate '" + a.name()
-                    + "' composes multiple reducers (wavg) — not usable in"
-                    + " window position yet");
+                    + "' composes multiple reducers (wavg) — PIVOT USING"
+                    + " takes exactly one");
         }
         return r;
+    }
+
+    /**
+     * Window position accepts COMPOSED aggregates (wavg = SUM(v*w)/SUM(w),
+     * hashCode = HASH(LIST(x))): every bare reducer inside the value
+     * expression gets the SAME window spec.
+     */
+    private static SqlExpr windowize(SqlExpr e, List<SqlExpr> partitionBy,
+            List<SqlSelect.SortKey> orderBy, SqlExpr.WindowCall.Frame frame) {
+        return switch (e) {
+            case SqlAgg.Reducer r ->
+                    new SqlExpr.WindowCall(r, partitionBy, orderBy, frame);
+            case SqlExpr.Call c -> new SqlExpr.Call(c.fn(), c.args().stream()
+                    .map(x -> windowize(x, partitionBy, orderBy, frame)).toList());
+            case SqlExpr.Cast c ->
+                    new SqlExpr.Cast(windowize(c.value(), partitionBy, orderBy, frame),
+                            c.target());
+            default -> e;
+        };
     }
 
     private SqlExpr aggValue(SqlSelect base, TypedAggCol a) {
@@ -1182,9 +1201,9 @@ public final class Lowerer {
             ps.add(new SqlSelect.Projection(e, c.name()));
         }
         for (TypedAggCol a : w.aggs()) {
-            SqlAgg.Reducer r = aggExpr(base, a);
             ps.add(new SqlSelect.Projection(
-                    new SqlExpr.WindowCall(r, over.partitionBy(), over.orderBy(), over.frame()),
+                    windowize(aggValue(base, a), over.partitionBy(), over.orderBy(),
+                            over.frame()),
                     a.name()));
         }
         return base.withProjections(ps, outputsOf(w.info()));
@@ -1197,7 +1216,7 @@ public final class Lowerer {
         List<SqlSelect.Projection> ps = new ArrayList<>(starProjections(base));
         for (TypedAggCol a : ea.aggs()) {
             ps.add(new SqlSelect.Projection(
-                    new SqlExpr.WindowCall(aggExpr(base, a), List.of(), List.of(), null),
+                    windowize(aggValue(base, a), List.of(), List.of(), null),
                     a.name()));
         }
         return base.withProjections(ps, outputsOf(ea.info()));
@@ -1244,18 +1263,19 @@ public final class Lowerer {
     }
 
     private SqlExpr.WindowCall.Frame.Bound bound(TypedSpec arg, boolean fromSide) {
-        // A negative literal arrives as unary minus AROUND the integer — unwrap.
+        // A negative literal arrives as unary minus AROUND the number — unwrap.
         if (arg instanceof TypedNativeCall neg
                 && com.legend.builtin.Pure.nativeNamed("minus", neg.callee().signatureKey())
-                && neg.args().size() == 1 && neg.args().get(0) instanceof TypedCInteger inner) {
-            return new SqlExpr.WindowCall.Frame.Bound.Preceding(inner.value().longValue());
+                && neg.args().size() == 1 && numericBound(neg.args().get(0)) != null) {
+            return new SqlExpr.WindowCall.Frame.Bound.Preceding(numericBound(neg.args().get(0)));
         }
-        if (arg instanceof TypedCInteger c) {
-            long n = c.value().longValue();
-            if (n < 0) {
-                return new SqlExpr.WindowCall.Frame.Bound.Preceding(-n);
+        Number n = numericBound(arg);
+        if (n != null) {
+            double v = n.doubleValue();
+            if (v < 0) {
+                return new SqlExpr.WindowCall.Frame.Bound.Preceding(negate(n));
             }
-            if (n > 0) {
+            if (v > 0) {
                 return new SqlExpr.WindowCall.Frame.Bound.Following(n);
             }
             return new SqlExpr.WindowCall.Frame.Bound.CurrentRow();
@@ -1266,8 +1286,27 @@ public final class Lowerer {
                     : new SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing();
         }
         // NO fallback: an unrecognized bound is a loud error, never UNBOUNDED.
-        throw new IllegalStateException("window frame bound must be an integer literal or"
+        throw new IllegalStateException("window frame bound must be a numeric literal or"
                 + " unbounded(), got " + arg.getClass().getSimpleName());
+    }
+
+    /** The numeric value of a literal frame bound, or null (RANGE takes decimals). */
+    private static Number numericBound(TypedSpec arg) {
+        return switch (arg) {
+            case TypedCInteger c -> c.value().longValue();
+            case TypedCFloat c -> c.value();
+            case com.legend.compiler.spec.typed.TypedCDecimal c -> c.value();
+            default -> null;
+        };
+    }
+
+    private static Number negate(Number n) {
+        return switch (n) {
+            case Long l -> -l;
+            case Double d -> -d;
+            case java.math.BigDecimal b -> b.negate();
+            default -> -n.doubleValue();
+        };
     }
 
     /**

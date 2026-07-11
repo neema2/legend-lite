@@ -1151,7 +1151,8 @@ final class Scalars {
 
     /** Literal cell of a TDS row → typed SQL literal, by the column's Pure type. */
     static SqlExpr tdsCell(String cell, Type type) {
-        if (cell == null || cell.isEmpty()) {
+        if (cell == null || cell.isEmpty()
+                || (cell.equals("null") && type != Type.Primitive.STRING)) {
             return new SqlExpr.NullLit();
         }
         if (type == Type.Primitive.INTEGER) {
