@@ -430,6 +430,17 @@ public final class Lowerer {
 
     private SqlExpr aggValue(SqlSelect base, TypedAggCol a) {
         TypedSpec reduceBody = last(a.reduce());
+        // A cast WRAPPING the reducer (y|$y->plus()->cast(@Integer)) rides
+        // AROUND the SQL aggregate: unwrap, lower the inner reducer, re-wrap
+        // by the cast policy (widening/same-type is the assertion no-op —
+        // the PCT shapes are Integer->Integer).
+        if (reduceBody instanceof com.legend.compiler.spec.typed.TypedCast rc
+                && rc.source() instanceof TypedNativeCall) {
+            SqlExpr inner = aggValue(base, new TypedAggCol(a.name(), a.map(),
+                    new TypedLambda(a.reduce().parameters(),
+                            List.of(rc.source()), a.reduce().info())));
+            return castByPolicy(inner, rc.source().info().type(), rc.target());
+        }
         if (!(reduceBody instanceof TypedNativeCall call)) {
             throw new IllegalStateException("aggregate reduce must be a native reducer call, got "
                     + reduceBody.getClass().getSimpleName());
@@ -442,6 +453,7 @@ public final class Lowerer {
         // collection params; anything ELSE is unsupported and must be LOUD.
         List<SqlExpr> extra = new ArrayList<>();
         List<Boolean> flags = new ArrayList<>();
+        com.legend.compiler.spec.typed.TypedCast valueCast = null;
         for (TypedSpec argSpec : call.args()) {
             if (argSpec instanceof com.legend.compiler.spec.typed.TypedCBoolean b) {
                 flags.add(b.value());
@@ -450,6 +462,11 @@ public final class Lowerer {
                     || argSpec instanceof com.legend.compiler.spec.typed.TypedCFloat
                     || argSpec instanceof com.legend.compiler.spec.typed.TypedCDecimal) {
                 extra.add(scalar(argSpec, (v, name) -> resolveOrThrow(base, name)));
+            } else if (argSpec instanceof com.legend.compiler.spec.typed.TypedCast vc
+                    && vc.source() instanceof TypedVariable) {
+                // $x->cast(@T)->plus(): the grouped VALUES cast before
+                // reducing — a value-cast on the aggregated expression.
+                valueCast = vc;
             } else if (!(argSpec instanceof TypedVariable)) {
                 throw new IllegalStateException("aggregate reducer argument of kind "
                         + argSpec.getClass().getSimpleName()
@@ -499,6 +516,9 @@ public final class Lowerer {
             return new SqlAgg.Reducer(fn, List.of(), false);
         }
         SqlExpr value = scalar(mapBody, (v, name) -> resolveOrThrow(base, name));
+        if (valueCast != null) {
+            value = castByPolicy(value, valueCast.source().info().type(), valueCast.target());
+        }
         // joinStrings(prefix, sep, suffix): STRING_AGG takes only the
         // separator — prefix/suffix concatenate AROUND the aggregate
         // (the audit: three extras produced an invalid 4-arg string_agg).
@@ -1814,6 +1834,20 @@ public final class Lowerer {
         // The dialect may render this cast through its text-extraction idiom
         // (DuckDB ->>) — that is RENDERING knowledge; the IR keeps the access.
         return new SqlExpr.Cast(value, PureSql.type(c.target()));
+    }
+
+    /**
+     * The one cast policy, applied to an already-lowered expression: a
+     * CONVERTING primitive cast emits SQL; widening/same-type/non-primitive
+     * is the assertion no-op.
+     */
+    private static SqlExpr castByPolicy(SqlExpr e, Type src, Type target) {
+        if (isSqlPrimitive(target) && isSqlPrimitive(src)
+                && !isWidening(src, target)
+                && !PureSql.type(src).equals(PureSql.type(target))) {
+            return new SqlExpr.Cast(e, PureSql.type(target));
+        }
+        return e;
     }
 
     /** Whether {@code tgt} is {@code src}'s primitive-lattice supertype (cast-as-assertion). */

@@ -204,7 +204,8 @@ public class ComputedProjectIntegrationTest {
             assertEquals("grp", result.columns().get(0).name());
             assertEquals("newCol", result.columns().get(1).name());
 
-            var rows = result.rows();
+            // Result rows are immutable — sort a local copy.
+            var rows = new java.util.ArrayList<>(result.rows());
             assertEquals(6, rows.size(), "Should have 6 groups");
 
             // Sort by grp for deterministic ordering
@@ -253,7 +254,8 @@ public class ComputedProjectIntegrationTest {
             assertNotNull(result, "Result should not be null");
             assertEquals(2, result.columns().size(), "Should have 2 columns: grp, newCol");
 
-            var rows = result.rows();
+            // Result rows are immutable — sort a local copy.
+            var rows = new java.util.ArrayList<>(result.rows());
             assertEquals(6, rows.size(), "Should have 6 groups");
 
             rows.sort((a, b) -> Integer.compare(
