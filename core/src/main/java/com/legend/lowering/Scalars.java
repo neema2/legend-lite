@@ -745,6 +745,109 @@ final class Scalars {
                     ? new SqlExpr.ArrayLit(List.of(args.get(0)))
                     : args.get(0));
         }
+        // reverse(T[*]): the list reversed; a to-one value is its own reverse.
+        for (String f : Pure.nativeKeysAt("reverse")) {
+            RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
+                    : new SqlExpr.Call(SqlFn.LIST_REVERSE, args));
+        }
+        // type(x): the value's runtime SQL type name (engine-lite parity —
+        // DuckDB's typeof; the corpus pins 'INTEGER' for 1).
+        for (String f : Pure.nativeKeysAt("type")) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.TYPEOF, args));
+        }
+        // minBy/maxBy(values, key[, count]): sort {k,v} structs by key (list
+        // sort over structs orders by the FIRST field), take the head or the
+        // top count, then unwrap the values.
+        for (String name : List.of("minBy", "maxBy")) {
+            boolean asc = name.equals("minBy");
+            for (String f : Pure.nativeKeysAt(name)) {
+                RULES.put(f, (n, args) -> {
+                    if (args.size() < 2) {
+                        throw new IllegalStateException(name
+                                + " expects (values, key-function|keys[, count]) here");
+                    }
+                    // Pair BY INDEX for both forms so ties resolve to the
+                    // FIRST occurrence (real pure): the middle sort field is
+                    // the original position — negated under the descending
+                    // sort so ties still come out first-occurrence.
+                    SqlExpr i = new SqlExpr.Column(null, "_by_i");
+                    SqlExpr valAt = SqlExpr.Call.of(SqlFn.LIST_GET, args.get(0), i);
+                    SqlExpr keyExpr = args.get(1) instanceof SqlExpr.Lambda key
+                            && key.params().size() == 1
+                            ? substituteRef(key.body(), key.params().get(0), valAt)
+                            : SqlExpr.Call.of(SqlFn.LIST_GET, args.get(1), i);
+                    SqlExpr idxField = asc ? i
+                            : SqlExpr.Call.of(SqlFn.MINUS, new SqlExpr.IntLit(0), i);
+                    SqlExpr pairs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
+                            SqlExpr.Call.of(SqlFn.RANGE_FN, new SqlExpr.IntLit(1),
+                                    plusOne(SqlExpr.Call.of(SqlFn.LIST_LENGTH, args.get(0)))),
+                            new SqlExpr.Lambda(List.of("_by_i"),
+                                    new SqlExpr.StructLit(List.of(
+                                            new SqlExpr.StructLit.Field("k", keyExpr),
+                                            new SqlExpr.StructLit.Field("i", idxField),
+                                            new SqlExpr.StructLit.Field("v", valAt)))));
+                    SqlExpr sorted = new SqlExpr.Call(
+                            asc ? SqlFn.LIST_SORT : SqlFn.LIST_SORT_DESC, List.of(pairs));
+                    if (args.size() == 3) {
+                        String e = "_by_e";
+                        return SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
+                                SqlExpr.Call.of(SqlFn.LIST_SLICE, sorted,
+                                        new SqlExpr.IntLit(1), args.get(2)),
+                                new SqlExpr.Lambda(List.of(e),
+                                        new SqlExpr.StructGet(new SqlExpr.Column(null, e), "v")));
+                    }
+                    return new SqlExpr.StructGet(
+                            SqlExpr.Call.of(SqlFn.LIST_GET, sorted, new SqlExpr.IntLit(1)), "v");
+                });
+            }
+        }
+        // removeDuplicatesBy(values, key): keep each key's FIRST occurrence —
+        // an element survives iff the first position of its key is its own.
+        for (String f : Pure.nativeKeysAt("removeDuplicatesBy")) {
+            RULES.put(f, (n, args) -> {
+                if (!(args.get(1) instanceof SqlExpr.Lambda key && key.params().size() == 1)) {
+                    throw new IllegalStateException(
+                            "removeDuplicatesBy expects (values, key-function)");
+                }
+                String x = key.params().get(0);
+                SqlExpr keys = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, args.get(0), key);
+                return SqlExpr.Call.of(SqlFn.LIST_FILTER, args.get(0),
+                        new SqlExpr.Lambda(List.of(x, "_rd_i"),
+                                SqlExpr.Call.of(SqlFn.EQUAL,
+                                        SqlExpr.Call.of(SqlFn.LIST_POSITION, keys, key.body()),
+                                        new SqlExpr.Column(null, "_rd_i"))));
+            });
+        }
+        // corr/covarPopulation/covarSample over two LISTS: the paired-unnest
+        // subquery recipe — (SELECT CORR(a, b) FROM (SELECT unnest(x) AS a,
+        // unnest(y) AS b)); DuckDB zips parallel select-list unnests.
+        for (var e : Map.of("corr", "CORR", "covarPopulation", "COVAR_POP",
+                "covarSample", "COVAR_SAMP").entrySet()) {
+            for (String f : Pure.nativeKeysAt(e.getKey())) {
+                RULES.put(f, (n, args) -> {
+                    if (args.size() != 2) {
+                        throw new IllegalStateException(e.getKey()
+                                + " expects two value lists in scalar position");
+                    }
+                    var inner = new com.legend.sql.SqlSelect(List.of(
+                            new com.legend.sql.SqlSelect.Projection(
+                                    SqlExpr.Call.of(SqlFn.UNNEST, args.get(0)), "a"),
+                            new com.legend.sql.SqlSelect.Projection(
+                                    SqlExpr.Call.of(SqlFn.UNNEST, args.get(1)), "b")),
+                            false, null, null, List.of(), null, null, List.of(), null, null,
+                            List.of());
+                    var outer = new com.legend.sql.SqlSelect(List.of(
+                            new com.legend.sql.SqlSelect.Projection(
+                                    new com.legend.sql.SqlAgg.Reducer(e.getValue(),
+                                            List.of(new SqlExpr.Column(null, "a"),
+                                                    new SqlExpr.Column(null, "b")), false),
+                                    null)),
+                            false, new com.legend.sql.SqlSource.Subselect(inner, "_uz"),
+                            null, List.of(), null, null, List.of(), null, null, List.of());
+                    return new SqlExpr.ScalarSubquery(outer);
+                });
+            }
+        }
         // find(coll, pred): the FIRST satisfying element, [0..1] — filter, then head.
         for (String f : Pure.nativeKeysAt("find")) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_GET, List.of(

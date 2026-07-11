@@ -235,9 +235,9 @@ class LowerRelationTest {
         IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 IllegalStateException.class,
                 () -> sqlOf("#>{test::DB.T_PERSON}#->filter(x|"
-                        + "['a','b']->removeDuplicatesBy(v|$v)->size() > 1)"));
+                        + "['a','b']->removeAllOptimized(['a'])->size() > 1)"));
         org.junit.jupiter.api.Assertions.assertTrue(
-                ex.getMessage().contains("removeDuplicatesBy"),
+                ex.getMessage().contains("removeAllOptimized"),
                 "error names the overload; got: " + ex.getMessage());
     }
 

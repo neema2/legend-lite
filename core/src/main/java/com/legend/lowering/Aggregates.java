@@ -59,6 +59,8 @@ final class Aggregates {
         // wavg has NO single SQL reducer: SUM(v*w)/SUM(w), composed in
         // aggExpr — the marker name never reaches the renderer.
         family("__WAVG__", "wavg");
+        // hashCode of a GROUP is HASH(LIST(values)) — composed in aggValue.
+        family("__HASH_LIST__", "hashCode");
     }
 
     /**

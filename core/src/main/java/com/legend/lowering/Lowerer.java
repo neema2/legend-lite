@@ -519,6 +519,11 @@ public final class Lowerer {
         if (valueCast != null) {
             value = castByPolicy(value, valueCast.source().info().type(), valueCast.target());
         }
+        // hashCode over a group: HASH(LIST(values)) — no single SQL reducer.
+        if ("__HASH_LIST__".equals(fn)) {
+            return SqlExpr.Call.of(com.legend.sql.SqlFn.HASH,
+                    new SqlAgg.Reducer("LIST", List.of(value), false));
+        }
         // joinStrings(prefix, sep, suffix): STRING_AGG takes only the
         // separator — prefix/suffix concatenate AROUND the aggregate
         // (the audit: three extras produced an invalid 4-arg string_agg).

@@ -171,7 +171,7 @@ class PipelineStageFailureTest {
     void unregisteredScalar() {
         Exception ex = failsWith(IllegalStateException.class, MODEL,
                 "#>{test::DB.T_PERSON}#->filter(x|"
-                        + "['a','b']->removeDuplicatesBy(v|$v)->size() > 1)");
-        messageNames(ex, "removeDuplicatesBy");
+                        + "['a','b']->removeAllOptimized(['a'])->size() > 1)");
+        messageNames(ex, "removeAllOptimized");
     }
 }
