@@ -92,11 +92,18 @@ function meta::legend::lite::pct::buildTypedHeader(funcReturnType:GenericType[1]
     | let relType = $funcReturnType.typeArguments->at(0).rawType->cast(@RelationType<Any>)->toOne();
       let columns = $relType.columns->map(col |
         let colName = $col.name->toOne();
+        // Column IDENTITY may include quotes ('2011__|__newCol'): the TDS
+        // parser strips ONE outer layer, so quote-bearing names wrap in an
+        // ESCAPED outer pair, and bare pivot-spread names gain the embedded
+        // pair (matching the result decode's spelling).
         let quotedName = if($colName->startsWith('\''),
-          | $colName,
+          | '\'' + $colName->replace('\'', '\\\'') + '\'',
           | if($colName->contains('__|__'),
-              | '\'' + $colName + '\'',
-              | $colName
+              | '\'\\\'' + $colName + '\\\'\'',
+              | if($colName->contains(' '),
+                  | '\'' + $colName + '\'',
+                  | $colName
+                )
             )
         );
         let colType = getSimpleTypeName($col->functionReturnType());

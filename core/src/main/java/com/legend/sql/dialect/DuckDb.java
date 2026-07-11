@@ -62,6 +62,11 @@ public final class DuckDb extends AnsiSqlRenderer {
                         ? quoteChar() + c.name() + quoteChar()
                         : expr(unqualify(e), 0))
                 .collect(Collectors.joining(", ")));
+        if (!p.in().isEmpty()) {
+            sb.append(" IN (").append(p.in().stream()
+                    .map(e -> expr(e, 0))
+                    .collect(Collectors.joining(", "))).append(")");
+        }
         sb.append(" USING ").append(p.usings().stream()
                 .map(u -> reducer(new SqlAgg.Reducer(u.agg().fn(),
                         u.agg().args().stream().map(DuckDb::unqualify).toList(),

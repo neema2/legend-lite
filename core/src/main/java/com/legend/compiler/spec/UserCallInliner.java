@@ -431,7 +431,9 @@ public final class UserCallInliner {
             case TypedFlatten f -> new TypedFlatten(rewrite(f.source(), env),
                     f.column(), f.info());
             case TypedPivot p -> new TypedPivot(rewrite(p.source(), env),
-                    p.pivotColumns(), aggCols(p.aggs(), env), p.info());
+                    p.pivotColumns(),
+                    p.values().stream().map(v -> rewrite(v, env)).toList(),
+                    aggCols(p.aggs(), env), p.info());
             case TypedJoin j -> new TypedJoin(rewrite(j.left(), env),
                     rewrite(j.right(), env), j.kind(),
                     lambda(j.condition(), env), j.prefix(), j.info());

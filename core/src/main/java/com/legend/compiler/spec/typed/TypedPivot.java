@@ -16,14 +16,18 @@ import java.util.List;
  *
  * @param source       the relation being pivoted
  * @param pivotColumns the columns whose values become output columns
+ * @param values       STATIC pivot values ({@code pivot(~col, [v…], ~agg…)}) —
+ *                     the output holds exactly one column set per listed value;
+ *                     empty = dynamic (one per distinct data value)
  * @param aggs         the aggregate columns (the dynamic-column templates)
  * @param info         the static half of the schema &mdash; the group-by columns, {@code [1]}
  */
-public record TypedPivot(TypedSpec source, List<String> pivotColumns, List<TypedAggCol> aggs,
-                         ExprType info) implements TypedSpec {
+public record TypedPivot(TypedSpec source, List<String> pivotColumns, List<TypedSpec> values,
+                         List<TypedAggCol> aggs, ExprType info) implements TypedSpec {
 
     public TypedPivot {
         pivotColumns = List.copyOf(pivotColumns);
+        values = List.copyOf(values);
         aggs = List.copyOf(aggs);
     }
 
@@ -31,6 +35,7 @@ public record TypedPivot(TypedSpec source, List<String> pivotColumns, List<Typed
     public List<TypedSpec> children() {
         List<TypedSpec> out = new ArrayList<>();
         out.add(source);
+        out.addAll(values);
         aggs.forEach(a -> {
             out.add(a.map());
             out.add(a.reduce());

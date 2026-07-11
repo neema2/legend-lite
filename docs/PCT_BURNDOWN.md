@@ -113,4 +113,33 @@ left alias through the enclosing-resolver channel, joined per-row via
 CROSS JOIN LATERAL (no ON clause); schema T+V from the checker's
 schema algebra. Relation 43 -> 36; PCT total 881/1109 (79%).
 
+**Slice 4** (static pivot + window channel + frames): STATIC pivot
+values (`pivot(~year, [2000, 2011], ~agg)`) thread checker → TypedPivot
+→ `PIVOT … IN (v…)` — without the IN list DuckDB emitted a column per
+DISTINCT data value and the declared 4-column cast saw 5 (the "Row 2
+has too many columns" pair + 3 typed-header casts, which also needed
+the ESCAPED outer quote pair on quote-bearing declared names).
+`size()` after groupBy isolates before COUNT(*) (a zero-key aggregation
+over a grouped select was a multi-row scalar subquery). Collection
+values inside `lateral` resolve through the ENCLOSING scopes (the
+correlated `$x.payload->toMany(@Integer)->flatten(~c)` shape).
+windowScalar keeps the WINDOW channel through TypedCast, TypedIf and
+zero-param thunks — `if($r.a == $r.b, |$p->lead($r).x->adjust(…),
+|$r.y)->cast(@Date)` previously fell to plain scalar lowering and died
+on the lead property access. Registered the three missing over()
+forms: (ColSpecArray, SortInfo[*], Rows), (ColSpecArray, SortInfo,
+_Range), (ColSpecArray, SortInfo, _RangeInterval) — real over.pure has
+16 overloads, the 3-arg array-partition forms were the "no overload"
+five. Frame-boundary validation message now VERBATIM real pure
+('Invalid window frame boundary - lower bound of window frame cannot
+be greater than the upper bound!') — 5 assertError parity tests.
+Result headers quote non-identifier column names ('other kind').
+Relation 36 -> 14; PCT total 903/1109 (81%).
+Remaining Relation 14: variant-column semantics family (8: contains /
+isEmpty / isNotEmpty / joinStrings value asserts, slice ARRAY_SLICE
+binder, ~distinct token, projectModelProperty + modelOutputNotSupported
+model types), instance-literal project non-bare paths (2), "Values
+list" binder pair (2), joinStrings-on-null (1), precisePrimitives Int
+(1).
+
 Update this file per slice, same as docs/SCOREBOARD.md.

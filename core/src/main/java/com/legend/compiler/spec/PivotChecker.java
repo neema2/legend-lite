@@ -5,6 +5,7 @@ import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedAggCol;
 import com.legend.compiler.spec.typed.TypedColSpec;
 import com.legend.compiler.spec.typed.TypedColSpecArray;
+import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedPivot;
 import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedSpec;
@@ -41,6 +42,12 @@ final class PivotChecker {
             throw new TypeInferenceException("pivot requires a relation source");
         }
         List<String> pivotCols = pivotColumns(args.get(1));
+        // STATIC form pivot(~col, [values], ~agg): the value list pins the
+        // pivoted output columns to exactly those values, whether or not
+        // they occur in the data (real pure's 4-arg overload).
+        List<TypedSpec> values = args.size() >= 4
+                ? (args.get(2) instanceof TypedCollection tc ? tc.elements() : List.of(args.get(2)))
+                : List.of();
         List<TypedAggCol> aggs = Args.aggCols(args.get(args.size() - 1));
 
         // Group-by columns = source − pivot − aggregate value columns (a value column is
@@ -68,7 +75,7 @@ final class PivotChecker {
                     return new Type.Column(agg.name(), out.type(), out.multiplicity());
                 })
                 .toList();
-        return new TypedPivot(source, pivotCols, aggs,
+        return new TypedPivot(source, pivotCols, values, aggs,
                 new ExprType(new Type.RelationType(groupCols, templates), a.out().multiplicity()));
     }
 

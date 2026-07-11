@@ -336,6 +336,10 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 // ('UK__|__LDN__|__sum'); TDSExtension strips ONE outer
                 // layer, so the header carries an escaped inner pair.
                 colName = "'\\'" + colName + "\\''";
+            } else if (!colName.matches("[A-Za-z_][A-Za-z0-9_$]*")) {
+                // Non-identifier names ('other kind') quote — the parser
+                // strips the pair; the IDENTITY stays unquoted.
+                colName = "'" + colName + "'";
             }
             // Pure 5.88's TDS parser resolves header types as PURE paths
             // (VARCHAR was "not found") — spell the Pure primitive, WITH a

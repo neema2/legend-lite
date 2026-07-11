@@ -242,7 +242,17 @@ public final class Lowerer {
             // relation::variant::flatten(collection, ~col): the collection
             // UNNESTs as the single column (real flatten.pure semantics).
             case com.legend.compiler.spec.typed.TypedCollectionRelation cr -> {
+                // Inside lateral(...) the collection may read the OUTER row
+                // (the enclosing-resolver channel); otherwise it must be
+                // self-contained.
+                var outerScopes = java.util.List.copyOf(enclosing);
                 SqlExpr value = scalar(cr.value(), (v, name) -> {
+                    for (var outer : outerScopes) {
+                        if (attempt(() -> outer.resolve(v, name))
+                                instanceof Resolution.Resolved o) {
+                            return o.expr();
+                        }
+                    }
                     throw new IllegalStateException("collection-relation value must"
                             + " be self-contained, referenced column: " + name);
                 });
@@ -1383,10 +1393,11 @@ public final class Lowerer {
         Number from = numericBound(call.args().get(0));
         Number to = numericBound(call.args().get(1));
         if (from != null && to != null && from.doubleValue() > to.doubleValue()) {
+            // Real rows()/_range() assert text verbatim (PCT message parity).
             throw new com.legend.error.ModelException(
                     com.legend.error.LegendCompileException.Phase.LOWER,
-                    "Invalid window frame boundary: start " + from
-                            + " is beyond end " + to);
+                    "Invalid window frame boundary - lower bound of window frame"
+                            + " cannot be greater than the upper bound!");
         }
         return new SqlExpr.WindowCall.Frame(
                 rows ? SqlExpr.WindowCall.Frame.Kind.ROWS : SqlExpr.WindowCall.Frame.Kind.RANGE,
@@ -1550,6 +1561,26 @@ public final class Lowerer {
                 List<SqlExpr> args = call.args().stream()
                         .map(a -> windowScalar(a, base, over)).toList();
                 return Scalars.lower(call, args);
+            }
+            // Thunk lambdas (if branches) stay on the WINDOW channel — their
+            // bodies may hold lag/lead property accesses that plain scalar
+            // lowering cannot place.
+            case TypedLambda l when l.parameters().isEmpty() -> {
+                return new SqlExpr.Lambda(l.parameters(), windowScalar(last(l), base, over));
+            }
+            // Casts keep the channel too (window bodies end in ->cast(@Date)).
+            case com.legend.compiler.spec.typed.TypedCast c -> {
+                return cast(c, windowScalar(c.source(), base, over));
+            }
+            // if(cond, |then, |else) in a window body: CASE WHEN whose arms
+            // stay on the window channel (lead/lag accesses inside branches).
+            case com.legend.compiler.spec.typed.TypedIf i -> {
+                return new SqlExpr.Case(
+                        List.of(new SqlExpr.Case.When(
+                                windowScalar(i.condition(), base, over),
+                                windowScalar(thunkBody(i.thenBranch()), base, over))),
+                        i.elseBranch().map(e -> windowScalar(thunkBody(e), base, over))
+                                .orElse(new SqlExpr.NullLit()));
             }
             default -> {
                 return scalar(body, (v, name) -> resolveOrThrow(base, name));
@@ -2050,9 +2081,16 @@ public final class Lowerer {
         for (TypedAggCol a : pv.aggs()) {
             usings.add(new SqlSource.Pivot.Using(aggExpr(forAgg, a), a.name()));
         }
+        // Static pivot values pin the output columns via PIVOT ... IN (v…).
+        List<SqlExpr> in = pv.values().stream()
+                .map(v -> scalar(v, (var, name) -> {
+                    throw new IllegalStateException(
+                            "pivot values must be literal, referenced column: " + name);
+                }))
+                .toList();
         // Fully-qualified refs; a dialect whose PIVOT forbids qualifiers in
         // USING (DuckDB) strips them AT RENDER TIME.
-        return SqlSelect.starOf(new SqlSource.Pivot(inner, on, usings, nextAlias(),
+        return SqlSelect.starOf(new SqlSource.Pivot(inner, on, in, usings, nextAlias(),
                 outputsOf(pv.info())));
     }
 
@@ -2102,7 +2140,11 @@ public final class Lowerer {
      */
     private SqlExpr cast(com.legend.compiler.spec.typed.TypedCast c,
                          ColumnResolver columns) {
-        SqlExpr value = scalar(c.source(), columns);
+        return cast(c, scalar(c.source(), columns));
+    }
+
+    /** The cast policy over an ALREADY-LOWERED source (scalar or window channel). */
+    private SqlExpr cast(com.legend.compiler.spec.typed.TypedCast c, SqlExpr value) {
         boolean variantSource = c.source().info().type()
                 instanceof Type.ClassType ct && com.legend.compiler.element.type.PlatformTypes.isVariant(ct);
         if (!variantSource) {
@@ -2340,9 +2382,16 @@ public final class Lowerer {
 
     private static RelationPredicate relationPredicate(TypedNativeCall n) {
         if (isFamily(n, "size")) {
-            return (lw, call) -> new SqlExpr.ScalarSubquery(lw.relation(call.args().get(0))
-                    .withProjections(List.of(new SqlSelect.Projection(
-                            SqlAgg.Reducer.of("COUNT"), null)), List.of()));
+            // COUNT(*) is a zero-key aggregation: a grouped/deduped/truncated
+            // source must count from OUTSIDE (COUNT(*) per group is a row per
+            // group — a multi-row scalar subquery).
+            return (lw, call) -> {
+                SqlSelect src = lw.relation(call.args().get(0));
+                SqlSelect base = Fold.groupByFolds(src) ? src : lw.isolate(src);
+                return new SqlExpr.ScalarSubquery(base
+                        .withProjections(List.of(new SqlSelect.Projection(
+                                SqlAgg.Reducer.of("COUNT"), null)), List.of()));
+            };
         }
         if (isFamily(n, "exists")) {
             return (lw, call) -> new SqlExpr.Exists(select1(
