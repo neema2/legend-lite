@@ -333,6 +333,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case CEILING -> "CAST(ceil(" + expr(a.get(0), 0) + ") AS BIGINT)";
             case FLOOR -> "CAST(floor(" + expr(a.get(0), 0) + ") AS BIGINT)";
             case ROUND -> roundHalfEven(a);
+            // Pure's divide-with-scale is BigDecimal HALF_UP — plain SQL
+            // ROUND (half away from zero) says exactly that.
+            case ROUND_HALF_UP -> fn("ROUND", a);
             case SIGN -> "CAST(sign(" + expr(a.get(0), 0) + ") AS BIGINT)";
             case XOR -> {
                 String x = expr(a.get(0), 3);
@@ -607,6 +610,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case com.legend.sql.SqlType.Scalar s -> switch (s) {
                 case BOOLEAN -> "BOOLEAN";
                 case BIGINT -> "BIGINT";
+                case HUGEINT -> "HUGEINT";
                 case DOUBLE -> "DOUBLE PRECISION";
                 case VARCHAR -> "VARCHAR";
                 case DATE -> "DATE";

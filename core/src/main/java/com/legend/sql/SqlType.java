@@ -9,7 +9,7 @@ package com.legend.sql;
 public sealed interface SqlType {
 
     enum Scalar implements SqlType {
-        BOOLEAN, BIGINT, DOUBLE, VARCHAR, DATE, TIMESTAMP, JSON
+        BOOLEAN, BIGINT, HUGEINT, DOUBLE, VARCHAR, DATE, TIMESTAMP, JSON
     }
 
     record Decimal(int precision, int scale) implements SqlType {

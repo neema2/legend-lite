@@ -57,6 +57,7 @@ public enum SqlFn {
     LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_AGG, LIST_SORT, LIST_SORT_DESC,
     LIST_TAIL, LIST_INIT, RANGE_FN, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE,
     LIST_BOOL_AND, LIST_BOOL_OR, IS_DISTINCT, STRFTIME, LIST_REVERSE, TYPEOF,
+    ROUND_HALF_UP,
     // Variant construction
     TO_VARIANT,
     // Variant navigation: logical JSON access; text-extraction idioms are rendering

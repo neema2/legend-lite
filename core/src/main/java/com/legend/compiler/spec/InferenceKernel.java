@@ -455,6 +455,11 @@ public final class InferenceKernel {
     }
 
     private void requirePrimitiveSubtype(Type actual, Type formal) {
+        // Nil is BOTTOM: the []-born value conforms to every primitive slot
+        // (corr(x, []) / splitPart([], ...) are the empty-in, empty-out PCTs).
+        if (isNil(actual)) {
+            return;
+        }
         if (!isPrimitiveSubtype(actual, formal)) {
             throw fail(formal, actual);
         }

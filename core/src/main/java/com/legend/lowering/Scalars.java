@@ -138,7 +138,7 @@ final class Scalars {
                 if (args.size() == 1) {
                     return new SqlExpr.Call(SqlFn.LIST_SUM, args);
                 }
-                return new SqlExpr.Call(SqlFn.PLUS, args);
+                return new SqlExpr.Call(SqlFn.PLUS, hugeWiden(args));
             });
         }
         for (String f : Pure.nativeKeysAt("times")) {
@@ -150,13 +150,13 @@ final class Scalars {
                 if (args.size() == 1) {
                     return new SqlExpr.Call(SqlFn.LIST_PRODUCT, args);
                 }
-                return new SqlExpr.Call(SqlFn.TIMES, args);
+                return new SqlExpr.Call(SqlFn.TIMES, hugeWiden(args));
             });
         }
         for (String f : Pure.nativeKeysAt("minus")) {
             RULES.put(f, (n, args) -> {
                 if (args.size() != 1) {
-                    return new SqlExpr.Call(SqlFn.MINUS, args);
+                    return new SqlExpr.Call(SqlFn.MINUS, hugeWiden(args));
                 }
                 // minus<T>(values:T[*]) LEFT-FOLDS subtraction (real pure:
                 // [10,3,2] -> 5); the seed is the first element.
@@ -177,7 +177,37 @@ final class Scalars {
             });
         }
         // times registers ABOVE (collection-product overload needs its own rule).
-        family(SqlFn.DIVIDE, "divide");
+        // Bit shifts: the shifted value casts to BIGINT (a bare literal is
+        // INT32 to DuckDB, and 1 << 46 overflows it); real pure bounds the
+        // shift amount at 62 — beyond is a LOUD error, not a silent 0.
+        for (String name : List.of("bitShiftLeft", "bitShiftRight")) {
+            SqlFn fn = name.equals("bitShiftLeft")
+                    ? SqlFn.BIT_SHIFT_LEFT : SqlFn.BIT_SHIFT_RIGHT;
+            for (String f : Pure.nativeKeysAt(name)) {
+                RULES.put(f, (n, args) -> {
+                    if (args.get(1) instanceof SqlExpr.IntLit sh
+                            && (sh.value() < 0 || sh.value() > 62)) {
+                        throw new IllegalStateException(name + " shift amount "
+                                + sh.value() + " is out of range [0, 62]");
+                    }
+                    return SqlExpr.Call.of(fn,
+                            new SqlExpr.Cast(args.get(0),
+                                    com.legend.sql.SqlType.Scalar.BIGINT),
+                            args.get(1));
+                });
+            }
+        }
+        // divide: the 3-arg overload carries a SCALE — BigDecimal HALF_UP
+        // (SQL ROUND, half away from zero); plain division otherwise.
+        // Integer arithmetic near the INT64 edge computes in HUGEINT
+        // (2 * maxLong is a real PCT value).
+        for (String f : Pure.nativeKeysAt("divide")) {
+            RULES.put(f, (n, args) -> args.size() == 3
+                    ? new SqlExpr.Call(SqlFn.ROUND_HALF_UP, List.of(
+                            SqlExpr.Call.of(SqlFn.DIVIDE, args.get(0), args.get(1)),
+                            args.get(2)))
+                    : new SqlExpr.Call(SqlFn.DIVIDE, args));
+        }
         family(SqlFn.MOD, "mod");
         family(SqlFn.REM, "rem");
         family(SqlFn.ABS, "abs");
@@ -216,8 +246,7 @@ final class Scalars {
                 Map.entry("xor", SqlFn.XOR),
                 Map.entry("bitAnd", SqlFn.BIT_AND), Map.entry("bitOr", SqlFn.BIT_OR),
                 Map.entry("bitXor", SqlFn.BIT_XOR),
-                Map.entry("bitShiftLeft", SqlFn.BIT_SHIFT_LEFT),
-                Map.entry("bitShiftRight", SqlFn.BIT_SHIFT_RIGHT),
+
                 // Strings — plain families first; index-shifted below.
                 Map.entry("startsWith", SqlFn.STARTS_WITH),
                 Map.entry("endsWith", SqlFn.ENDS_WITH),
@@ -800,14 +829,16 @@ final class Scalars {
         // tail/init of a TO-ONE value is the EMPTY collection (all-but-first
         // / all-but-last of a singleton).
         for (String f : Pure.nativeKeysAt("tail")) {
-            RULES.put(f, (n, args) -> isToOne(n.args().get(0))
-                    && !(args.get(0) instanceof SqlExpr.ArrayLit)
+            RULES.put(f, (n, args) -> args.get(0) instanceof SqlExpr.NullLit
+                    || (isToOne(n.args().get(0))
+                            && !(args.get(0) instanceof SqlExpr.ArrayLit))
                     ? new SqlExpr.NullLit()
                     : new SqlExpr.Call(SqlFn.LIST_TAIL, args));
         }
         for (String f : Pure.nativeKeysAt("init")) {
-            RULES.put(f, (n, args) -> isToOne(n.args().get(0))
-                    && !(args.get(0) instanceof SqlExpr.ArrayLit)
+            RULES.put(f, (n, args) -> args.get(0) instanceof SqlExpr.NullLit
+                    || (isToOne(n.args().get(0))
+                            && !(args.get(0) instanceof SqlExpr.ArrayLit))
                     ? new SqlExpr.NullLit()
                     : new SqlExpr.Call(SqlFn.LIST_INIT, args));
         }
@@ -894,6 +925,12 @@ final class Scalars {
                     if (args.size() != 2) {
                         throw new IllegalStateException(e.getKey()
                                 + " expects two value lists in scalar position");
+                    }
+                    // An EMPTY side has no pairs: the statistic is empty
+                    // (NULL) — and unnest(NULL) can't correlate anyway.
+                    if (args.get(0) instanceof SqlExpr.NullLit
+                            || args.get(1) instanceof SqlExpr.NullLit) {
+                        return new SqlExpr.NullLit();
                     }
                     var inner = new com.legend.sql.SqlSelect(List.of(
                             new com.legend.sql.SqlSelect.Projection(
@@ -1168,6 +1205,23 @@ final class Scalars {
                     + " parameter(s)");
         }
         return rule.apply(call, loweredArgs);
+    }
+
+    /**
+     * Integer arithmetic NEAR THE INT64 EDGE computes in HUGEINT (real
+     * pure's 2 * maxLong PCT value): a literal within a factor of ~2 of
+     * overflow widens the first operand, and DuckDB propagates.
+     */
+    private static List<SqlExpr> hugeWiden(List<SqlExpr> args) {
+        boolean nearEdge = args.stream().anyMatch(a ->
+                a instanceof SqlExpr.IntLit i
+                        && (i.value() > (Long.MAX_VALUE >> 2) || i.value() < (Long.MIN_VALUE >> 2)));
+        if (!nearEdge) {
+            return args;
+        }
+        List<SqlExpr> out = new ArrayList<>(args);
+        out.set(0, new SqlExpr.Cast(out.get(0), com.legend.sql.SqlType.Scalar.HUGEINT));
+        return out;
     }
 
     /** Literal cell of a TDS row → typed SQL literal, by the column's Pure type. */

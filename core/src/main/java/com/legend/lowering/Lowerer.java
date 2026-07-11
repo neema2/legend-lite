@@ -1403,7 +1403,11 @@ public final class Lowerer {
     /** {@code columns} resolves (lambda variable, property) to a SQL expression in scope. */
     private SqlExpr scalar(TypedSpec spec, ColumnResolver columns) {
         return switch (spec) {
-            case TypedCInteger c -> new SqlExpr.IntLit(c.value().longValue());
+            // A literal BEYOND long (the parser kept it a BigInteger)
+            // renders as a plain numeric literal — DuckDB reads HUGEINT.
+            case TypedCInteger c -> c.value() instanceof java.math.BigInteger big
+                    ? new SqlExpr.DecimalLit(new java.math.BigDecimal(big))
+                    : new SqlExpr.IntLit(c.value().longValue());
             case TypedCString c -> new SqlExpr.StringLit(c.value());
             case TypedCBoolean c -> new SqlExpr.BoolLit(c.value());
             case TypedCFloat c -> new SqlExpr.FloatLit(c.value());

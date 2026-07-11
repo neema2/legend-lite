@@ -270,7 +270,7 @@ final class Typer {
             throw new TypeInferenceException("unknown function '" + af.function() + "'");
         }
         InferenceKernel.Resolution r = kernel.resolveOverload(candidates, argTypes);
-        return new Application(r.chosen(), args, r.output());
+        return new Application(r.chosen(), args, refineDecimalCarrier(r.chosen(), r.output()));
     }
 
     /** Build the call node for the chosen overload &mdash; the resolved callee rides the node, never a name. */
@@ -329,8 +329,27 @@ final class Typer {
         }
 
         ExprType out = kernel.resolveOutput(chosen.returnType(), chosen.returnMultiplicity(), b);
-        return new Application(chosen, List.of(typed), out);
+        return new Application(chosen, List.of(typed), refineDecimalCarrier(chosen, out));
     }
+
+    /**
+     * Decimal-PRODUCING conversions refine their declared bare Decimal to
+     * the carrier precision — the engine's Decimal(38,18); a refinement of
+     * the registered signature's output, never a bypass of its checks.
+     */
+    private static ExprType refineDecimalCarrier(TypedFunction chosen, ExprType out) {
+        if (out.type() == com.legend.compiler.element.type.Type.Primitive.DECIMAL
+                && DECIMAL_CARRIER_PRODUCERS.contains(chosen.qualifiedName())) {
+            return new ExprType(
+                    new com.legend.compiler.element.type.Type.PrecisionDecimal(38, 18),
+                    out.multiplicity());
+        }
+        return out;
+    }
+
+    private static final java.util.Set<String> DECIMAL_CARRIER_PRODUCERS = java.util.Set.of(
+            "meta::pure::functions::string::parseDecimal",
+            "meta::pure::functions::math::toDecimal");
 
     /** An argument whose typing must wait for the chosen signature: a lambda, or a colspec carrying one. */
     private static boolean deferredArg(ValueSpecification p) {
