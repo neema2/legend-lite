@@ -30,8 +30,18 @@ public class Test_LegendLite_RelationFunctions_PCT extends PCTReportConfiguratio
     private static final Adapter adapter = LegendLitePCTReportProvider.LegendLiteAdapter;
     private static final String platform = "interpreted";
 
-    // Expected failures - functions not yet implemented in legend-lite
-    private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.empty();
+    // Expected failures — HARNESS representation limits, not semantic gaps.
+    private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
+            // The adapter wires relation results back through the TDS parser,
+            // whose null literals are ["", "null"] (TDSExtension
+            // makePureCsvSpecs) — an EMPTY STRING cell cannot round-trip
+            // (both "" and bare-empty parse as MISSING and print null).
+            // joinStrings over the empty collection is '' — semantically
+            // right in SQL (COALESCE to ''), unrepresentable on the wire.
+            // Matching is CONTAINS: the pinned fragment is the null-printed
+            // row four of the actual output.
+            one("meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings_Function_1__Boolean_1_",
+                    "4,\"null\",null"));
 
     /**
      * JUnit 3 test suite entry point.

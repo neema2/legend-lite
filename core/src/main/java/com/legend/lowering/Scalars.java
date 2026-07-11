@@ -220,8 +220,28 @@ final class Scalars {
         family(SqlFn.MOD, "mod");
         family(SqlFn.REM, "rem");
         family(SqlFn.ABS, "abs");
-        family(SqlFn.IS_NULL, "isEmpty");
-        family(SqlFn.IS_NOT_NULL, "isNotEmpty");
+        // isEmpty/isNotEmpty are TYPE-aware: a to-MANY argument is a SQL
+        // LIST value (toMany(@T) et al.) — emptiness is length, not
+        // NULL-ness (isEmpty([]) = true; IS NULL said false). Scalar
+        // ([0..1]) stays the null test.
+        for (String f : Pure.nativeKeysAt("isEmpty")) {
+            RULES.put(f, (n, args) -> listValued(n.args().get(0))
+                    ? new SqlExpr.Call(SqlFn.EQUAL, List.of(
+                            SqlExpr.Call.of(SqlFn.COALESCE,
+                                    SqlExpr.Call.of(SqlFn.LIST_LENGTH, args.get(0)),
+                                    new SqlExpr.IntLit(0)),
+                            new SqlExpr.IntLit(0)))
+                    : new SqlExpr.Call(SqlFn.IS_NULL, args));
+        }
+        for (String f : Pure.nativeKeysAt("isNotEmpty")) {
+            RULES.put(f, (n, args) -> listValued(n.args().get(0))
+                    ? new SqlExpr.Call(SqlFn.GREATER, List.of(
+                            SqlExpr.Call.of(SqlFn.COALESCE,
+                                    SqlExpr.Call.of(SqlFn.LIST_LENGTH, args.get(0)),
+                                    new SqlExpr.IntLit(0)),
+                            new SqlExpr.IntLit(0)))
+                    : new SqlExpr.Call(SqlFn.IS_NOT_NULL, args));
+        }
         family(SqlFn.LENGTH, "length");
         family(SqlFn.UPPER, "toUpper");
         family(SqlFn.LOWER, "toLower");
@@ -879,6 +899,15 @@ final class Scalars {
                 return new SqlExpr.Call(SqlFn.LIST_DISTINCT, List.of(args.get(0)));
             });
         }
+        // collection::distinct = removeDuplicates (real distinct.pure). The
+        // key set filters to the COLLECTION overload — relation::distinct is
+        // a relop with its own checker and never reaches scalar lowering.
+        for (String f : Pure.nativeKeysAt("distinct")) {
+            if (f.contains("Relation")) {
+                continue;
+            }
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_DISTINCT, List.of(args.get(0))));
+        }
         // fromJson(String): the string IS the variant — a JSON cast.
         for (String f : Pure.nativeKeysAt("fromJson")) {
             RULES.put(f, (n, args) -> new SqlExpr.Cast(args.get(0),
@@ -1102,7 +1131,11 @@ final class Scalars {
                 if (isClassish(elem) != isClassish(val)) {
                     return new SqlExpr.BoolLit(false);
                 }
-                return new SqlExpr.Call(SqlFn.LIST_CONTAINS, args);
+                // NULL-safe: containment in a NULL list (toMany over JSON
+                // null) is pure's empty-collection FALSE, not SQL NULL.
+                return SqlExpr.Call.of(SqlFn.COALESCE,
+                        new SqlExpr.Call(SqlFn.LIST_CONTAINS, args),
+                        new SqlExpr.BoolLit(false));
             });
         }
         // format('%s...', [args]) -> printf(fmt, args...): the array spreads.
@@ -1349,10 +1382,23 @@ final class Scalars {
         return out == null ? args : out;
     }
 
+    /**
+     * Whether a typed argument lowers to a SQL LIST value: an upper bound
+     * beyond one. Relation columns are at most [0..1], so to-many here means
+     * a collection expression (toMany(@T), literal lists, split, ...).
+     */
+    private static boolean listValued(com.legend.compiler.spec.typed.TypedSpec arg) {
+        return arg.info().multiplicity().isMany();
+    }
+
     /** Literal cell of a TDS row → typed SQL literal, by the column's Pure type. */
     static SqlExpr tdsCell(String cell, Type type) {
         if (cell == null || cell.isEmpty()
-                || (cell.equals("null") && type != Type.Primitive.STRING)) {
+                || (cell.equals("null") && !PlatformTypes.isVariant(type))) {
+            // A bare 'null' cell is SQL NULL for EVERY non-variant type —
+            // String included (a 'null' name must vanish from joinStrings
+            // window collections, pure's empty semantics). A VARIANT 'null'
+            // is the JSON null VALUE (variant arm below).
             return new SqlExpr.NullLit();
         }
         if (type == Type.Primitive.INTEGER) {

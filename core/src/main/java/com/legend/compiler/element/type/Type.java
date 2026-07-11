@@ -123,6 +123,18 @@ public sealed interface Type permits
         static {
             Map<String, Primitive> m = new LinkedHashMap<>();
             for (Primitive p : values()) m.put(p.qualifiedName, p);
+            // meta::pure::precisePrimitives: width-annotated SUBTYPES of the
+            // base primitives (real precisePrimitives.pure: 'Primitive Int
+            // extends Integer'). Value semantics are the base's — the width
+            // is storage annotation; a dedicated width-carrying Type can
+            // replace this aliasing when SQL narrowing parity is built.
+            String pp = "meta::pure::precisePrimitives::";
+            for (String n : new String[]{"TinyInt", "UTinyInt", "SmallInt",
+                    "USmallInt", "Int", "UInt", "BigInt", "UBigInt"}) {
+                m.put(pp + n, INTEGER);
+            }
+            m.put(pp + "Float4", FLOAT);
+            m.put(pp + "Double", FLOAT);
             BY_FQN = Map.copyOf(m);
         }
 

@@ -142,4 +142,43 @@ model types), instance-literal project non-bare paths (2), "Values
 list" binder pair (2), joinStrings-on-null (1), precisePrimitives Int
 (1).
 
+**Slice 5** (RELATION TO ZERO — 14 -> 0): variant semantics — a TDS
+'null' cell is SQL NULL for every non-variant type (String included: a
+null name must VANISH from joinStrings window collections) but the JSON
+null VALUE for variant columns; 'null' cells are NEUTRAL in column-type
+inference (a later JSON-shaped cell still makes the column Variant);
+toMany over JSON null stays SQL NULL (the real relation runtime pins
+toVariant(NULL)='null' vs toVariant([])='[]' — null PROPAGATES) while
+the list CONSUMERS are null-safe (contains COALESCE false; isEmpty/
+isNotEmpty are TYPE-aware LIST-length tests, not IS NULL — isEmpty("[]")
+is true). collection::distinct registered (= removeDuplicates, real
+distinct.pure) with the DistinctChecker falling through to the plain
+call for non-relation sources. ~distinct & friends: the lexer's fused
+mapping-command tokens parse as ordinary colspecs in EXPRESSION
+position. Instance-literal project supports COMPUTED columns ($v.a +
+$v.b, coalesce($x.f, ...)) — property accesses resolve to the
+instance's literal values. Window channel: value-fn columns resolve
+through the select (a folded project's alias substitutes its defining
+expr). Pivot dynamic-column identity ('2011__|__newCol', quote-bearing)
+normalizes to the bare SQL name in Fold resolution (resolveInto +
+sourceColumn). meta::pure::precisePrimitives integer/float family
+aliases to base primitives (width-annotated subtypes; a width-carrying
+Type is future work). to(@ModelClass) property reads extract the JSON
+field (VARIANT_GET + cast); MATERIALIZING the class value throws real
+pure's "The type X is not supported yet!". The adapter injects model
+classes referenced as @-type arguments (to(@Person)), not just
+^-instantiations. ONE expected-failure ledger entry (documented wire
+limit, not semantics): testVariantArrayColumn_joinStrings — the TDS
+parser's null literals are ["", "null"], so an EMPTY-STRING cell cannot
+round-trip.
+
+| suite | run | errors | passing |
+|---|---|---|---|
+| Essential | 327 | 86 | 74% |
+| Standard | 204 | 55 | 73% |
+| **Relation** | **348** | **0** | **100%** |
+| Grammar | 136 | 30 | 78% |
+| Unclassified | 94 | 21 | 78% |
+| **total** | **1109** | **192** | **83%** |
+
 Update this file per slice, same as docs/SCOREBOARD.md.

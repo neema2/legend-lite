@@ -152,7 +152,10 @@ final class TdsChecker {
     private static Type inferredType(List<List<String>> rows, int col) {
         for (List<String> row : rows) {
             String v = row.get(col);
-            if (v.isEmpty()) {
+            // 'null' cells are NEUTRAL — they fit every type, so a later
+            // JSON-shaped cell may still make the column Variant (the
+            // "null" / "[1,2,3]" mixed-payload PCT shape).
+            if (v.isEmpty() || v.equals("null")) {
                 continue;
             }
             if (v.matches("[+-]?\\d+")) {

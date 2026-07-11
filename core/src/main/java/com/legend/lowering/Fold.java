@@ -143,6 +143,27 @@ final class Fold {
      * legal but deferred until the corpus pins it).
      */
     static SqlExpr resolveInto(SqlSelect s, String column) {
+        SqlExpr r = resolveIntoExact(s, column);
+        if (r == null) {
+            // A pivot dynamic column's PURE identity carries quotes
+            // ('2011__|__newCol'); its SQL name is the bare inner text —
+            // retry unquoted.
+            String bare = pivotIdentity(column);
+            if (!bare.equals(column)) {
+                r = resolveIntoExact(s, bare);
+            }
+        }
+        return r;
+    }
+
+    private static String pivotIdentity(String column) {
+        return column.length() >= 2 && column.startsWith("'") && column.endsWith("'")
+                && column.contains(com.legend.compiler.element.type.Type.RelationType.PIVOT_SEPARATOR)
+                ? column.substring(1, column.length() - 1)
+                : column;
+    }
+
+    private static SqlExpr resolveIntoExact(SqlSelect s, String column) {
         if (s.projections().isEmpty()) {
             return sourceColumn(s.from(), column);
         }
@@ -172,6 +193,7 @@ final class Fold {
      * joins rename). Null when no side claims the column.
      */
     static SqlExpr.Column sourceColumn(SqlSource src, String column) {
+        column = pivotIdentity(column);   // quote-bearing pivot identity -> SQL name
         return switch (src) {
             case SqlSource.Table t -> claims(t.outputs(), column)
                     ? new SqlExpr.Column(t.alias(), column) : null;

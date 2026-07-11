@@ -620,6 +620,11 @@ public final class SpecParser implements TokenStreamCursor {
             case BRACE_OPEN -> parseLambdaFunction();
             case PIPE -> parseLambdaPipe();
             case TILDE -> parseColumnBuilders();
+            // The lexer fuses '~distinct' & friends into MAPPING-grammar
+            // command tokens; in EXPRESSION position they are ordinary
+            // colspecs whose column happens to bear the command's name.
+            case DISTINCT_CMD, FILTER_CMD, GROUP_BY_CMD, MAIN_TABLE_CMD,
+                    PRIMARY_KEY_CMD, SRC_CMD -> parseTildeCommandColSpec();
             case AT -> parseTypeAnnotation();
             case COMPARATOR -> parseComparatorExpression();
             case TDS_LITERAL -> parseTdsLiteral();
@@ -1699,6 +1704,23 @@ public final class SpecParser implements TokenStreamCursor {
      * optional lambda slots; the type-checker (which knows the
      * enclosing function) dispatches downstream.
      */
+    /** A fused mapping-command token ({@code ~distinct}) read as a ColSpec. */
+    private ColSpec parseTildeCommandColSpec() {
+        String name = text().substring(1);
+        pos++;
+        LambdaFunction function1 = null;
+        LambdaFunction function2 = null;
+        if (!atEnd() && peek() == TokenType.COLON) {
+            pos++;
+            function1 = parseColumnLambda();
+            if (!atEnd() && peek() == TokenType.COLON) {
+                pos++;
+                function2 = parseColumnLambda();
+            }
+        }
+        return new ColSpec(name, function1, function2);
+    }
+
     private ColumnInstance parseColumnBuilders() {
         pos++; // consume '~'
         if (!atEnd() && peek() == TokenType.BRACKET_OPEN) {

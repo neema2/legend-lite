@@ -1513,7 +1513,10 @@ public final class Lowerer {
                     && Windows.lookup(call.callee()) != null -> {
                 Windows.WindowFn fn = Windows.lookup(call.callee());
                 List<SqlExpr> args = new ArrayList<>();
-                args.add(new SqlExpr.Column(base.from().alias(), p.property()));
+                // Resolve through the select — a folded project's column is
+                // an ALIAS whose defining expression must substitute (a raw
+                // FROM-qualified ref binds to nothing).
+                args.add(resolveOrThrow(base, p.property()));
                 trailingIntArgs(call, args);
                 return new SqlExpr.WindowCall(new SqlAgg.ValueFn(fn.sqlName(), args),
                         over.partitionBy(), over.orderBy(), over.frame());
@@ -1681,6 +1684,20 @@ public final class Lowerer {
             // native call's struct result, a nested pair): the visible-literal
             // case inlines the field's own expression (no struct round-trip);
             // anything opaque extracts from the struct.
+            // A property read THROUGH to(@Class) over a VARIANT: JSON field
+            // extraction — the class instance is never materialized (the
+            // real runtime supports the read but not the bare class value).
+            case TypedPropertyAccess p when p.source()
+                        instanceof com.legend.compiler.spec.typed.TypedCast vc
+                    && vc.source().info().type() instanceof Type.ClassType vsrc
+                    && com.legend.compiler.element.type.PlatformTypes.isVariant(vsrc)
+                    && vc.target() instanceof Type.ClassType vtgt
+                    && !com.legend.compiler.element.type.PlatformTypes.isVariant(vtgt)
+                    -> new SqlExpr.Cast(
+                            SqlExpr.Call.of(com.legend.sql.SqlFn.VARIANT_GET,
+                                    scalar(vc.source(), columns),
+                                    new SqlExpr.StringLit(p.property())),
+                            PureSql.type(p.info().type()));
             case TypedPropertyAccess p when p.source()
                         instanceof com.legend.compiler.spec.typed.TypedNewInstance ni -> {
                 TypedSpec v = ni.properties().get(p.property());
@@ -1938,6 +1955,22 @@ public final class Lowerer {
         List<SqlSelect.Projection> ps = new ArrayList<>(columns.size());
         for (TypedFuncCol col : columns) {
             List<String> path = pathOf(col);
+            if (path == null) {
+                // COMPUTED column ($v.a + $v.b, coalesce($x.f, ...)): the row
+                // param's property accesses resolve to the instance's literal
+                // values; the body lowers as an ordinary scalar.
+                String param = col.fn().parameters().get(0);
+                SqlExpr computed = scalar(last(col.fn()), (v, name) -> {
+                    if (!param.equals(v)) {
+                        throw new IllegalStateException("instance-literal project:"
+                                + " unresolved variable $" + v);
+                    }
+                    TypedSpec pv = inst.properties().get(name);
+                    return pv == null ? new SqlExpr.NullLit() : scalar(pv, noScope());
+                });
+                ps.add(new SqlSelect.Projection(computed, col.name()));
+                continue;
+            }
             // Walk the path over the literal: to-one instance hops recurse;
             // the first TO-MANY value becomes the unnest source.
             TypedSpec cur = inst;
@@ -2006,7 +2039,7 @@ public final class Lowerer {
                 SqlSource.Join.Kind.LEFT_LATERAL, new SqlExpr.BoolLit(true));
     }
 
-    /** A colspec body as a bare property path rooted at the lambda parameter — loud otherwise. */
+    /** A colspec body as a bare property path rooted at the lambda parameter; null = computed. */
     private static List<String> pathOf(TypedFuncCol col) {
         String param = col.fn().parameters().get(0);
         java.util.ArrayDeque<String> path = new java.util.ArrayDeque<>();
@@ -2016,9 +2049,7 @@ public final class Lowerer {
             cur = pa.source();
         }
         if (!(cur instanceof TypedVariable v) || !v.name().equals(param) || path.isEmpty()) {
-            throw new com.legend.error.NotImplementedException(
-                    "instance-literal project supports bare property paths ($"
-                            + param + ".a.b) only");
+            return null;   // COMPUTED body — the caller lowers it as a scalar
         }
         return List.copyOf(path);
     }
@@ -2172,9 +2203,23 @@ public final class Lowerer {
             return variantTarget
                     ? SqlExpr.Call.of(com.legend.sql.SqlFn.VARIANT_ELEMENTS, value)
                     // A to-many cast targets an ARRAY of the element type —
-                    // expressed in the TYPE (SqlType.Array), not a side flag.
+                    // expressed in the TYPE (SqlType.Array). JSON null stays
+                    // SQL NULL (real relation-land pins toVariant(NULL) =
+                    // 'null' vs toVariant([]) = '[]'); the list CONSUMERS
+                    // (contains/isEmpty/joinStrings) are null-safe instead.
                     : new SqlExpr.Cast(value,
                             new com.legend.sql.SqlType.Array(PureSql.type(c.target())));
+        }
+        if (c.target() instanceof Type.ClassType tc
+                && !com.legend.compiler.element.type.PlatformTypes.isVariant(tc)
+                && !com.legend.compiler.element.type.PlatformTypes.isAny(tc)) {
+            // to(@ModelClass) MATERIALIZED as a value: the real relation
+            // runtime rejects class-typed columns — message verbatim
+            // (property reads through the cast never come here; the
+            // extraction arm in scalar() fields them).
+            throw new com.legend.error.ModelException(
+                    com.legend.error.LegendCompileException.Phase.LOWER,
+                    "The type " + tc.fqn() + " is not supported yet!");
         }
         // The dialect may render this cast through its text-extraction idiom
         // (DuckDB ->>) — that is RENDERING knowledge; the IR keeps the access.

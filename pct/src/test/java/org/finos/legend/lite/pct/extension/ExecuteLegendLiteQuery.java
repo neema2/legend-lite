@@ -108,6 +108,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             """;
 
     private static final Pattern INSTANCE_CLASS_PATTERN = Pattern.compile("\\^([\\w:]+)\\(");
+    private static final Pattern TYPE_REF_PATTERN = Pattern.compile("@(\\w+(?:::\\w+)+)");
 
     private final ModelRepository modelRepository;
 
@@ -361,7 +362,15 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             var values = row.values();
             for (int i = 0; i < values.size(); i++) {
                 if (i > 0) sb.append(",");
-                sb.append(formatValue(values.get(i)));
+                // Pure prints VARIANT cells ALWAYS quoted ("[]", "null"),
+                // comma or not.
+                boolean variant = "JSON".equalsIgnoreCase(columns.get(i).sqlType());
+                Object v = values.get(i);
+                if (variant && v != null) {
+                    sb.append("\"").append(v.toString().replace("\"", "\"\"")).append("\"");
+                } else {
+                    sb.append(formatValue(v));
+                }
             }
         }
         return sb.toString();
@@ -403,6 +412,11 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                             .ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS")) + "+0000";
         }
         String str = value.toString();
+        if (str.isEmpty()) {
+            // A bare empty cell parses as MISSING — quote it so the EMPTY
+            // STRING survives the TDS wire (joinStrings over none = '').
+            return "\"\"";
+        }
         if (str.contains(",") || str.contains("\"") || str.contains("\n")) {
             return "\"" + str.replace("\"", "\"\"") + "\"";
         }
@@ -513,6 +527,21 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             Matcher matcher = INSTANCE_CLASS_PATTERN.matcher(pureExpression);
             while (matcher.find()) {
                 extractClassRecursive(matcher.group(1), classes, visited, ps);
+            }
+            // MODEL classes referenced as type arguments (to(@X), cast(@X)):
+            // multi-segment FQNs outside the metamodel/platform space whose
+            // resolved element is a Class.
+            Matcher typeRef = TYPE_REF_PATTERN.matcher(pureExpression);
+            while (typeRef.find()) {
+                String fqn = typeRef.group(1);
+                if (fqn.startsWith("meta::pure::metamodel")
+                        || fqn.startsWith("meta::pure::precisePrimitives")) {
+                    continue;
+                }
+                CoreInstance cls = ps.package_getByUserPath(fqn);
+                if (cls != null && Instance.instanceOf(cls, "meta::pure::metamodel::type::Class", ps)) {
+                    extractClassRecursive(fqn, classes, visited, ps);
+                }
             }
             return classes;
         } catch (Exception e) {
