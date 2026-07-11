@@ -151,6 +151,12 @@ public final class StoreResolver {
                     resolveNode(p.source(), context), p.columns(), p.info());
             case TypedSort s when containsGetAll(s.source()) -> new TypedSort(
                     resolveNode(s.source(), context), s.keys(), s.info());
+            case com.legend.compiler.spec.typed.TypedCast c
+                    when containsGetAll(c.source())
+                    && c.info().type() instanceof com.legend.compiler.element.type.Type
+                            .RelationType ->
+                    new com.legend.compiler.spec.typed.TypedCast(
+                            resolveNode(c.source(), context), c.target(), c.info());
             case TypedSortBy sb when containsGetAll(sb.source()) -> new TypedSortBy(
                     resolveNode(sb.source(), context), sb.key(), sb.ascending(), sb.info());
             case TypedLimit l when containsGetAll(l.source()) -> new TypedLimit(

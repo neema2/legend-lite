@@ -266,11 +266,15 @@ public final class Lowerer {
             // concern; the relation flows through unchanged.
             case com.legend.compiler.spec.typed.TypedFrom fr -> relation(fr.source());
 
-            // cast(@Relation<(…)>) re-TYPES the schema (the pivot idiom);
-            // values are untouched — zero SQL footprint.
+            // cast(@Relation<(…)>): when EVERY target column exists in the
+            // source, the cast is a real projection — surviving columns only,
+            // each SQL-CAST where its type changed (String->Integer). Target
+            // names ABSENT from the source are the pivot idiom's dynamic
+            // columns — those stay type-only (zero SQL footprint).
             case com.legend.compiler.spec.typed.TypedCast c
-                    when c.source().info().type() instanceof Type.RelationType ->
-                    relation(c.source());
+                    when c.source().info().type() instanceof Type.RelationType srcRow
+                    && c.info().type() instanceof Type.RelationType tgtRow ->
+                    relationCast(c, srcRow, tgtRow);
 
             case com.legend.compiler.spec.typed.TypedFlatten fl -> flatten(fl);
 
@@ -1773,6 +1777,17 @@ public final class Lowerer {
         boolean variantSource = c.source().info().type()
                 instanceof Type.ClassType ct && com.legend.compiler.element.type.PlatformTypes.isVariant(ct);
         if (!variantSource) {
+            // A CONVERTING primitive cast (String->@Integer) must reach SQL —
+            // returning the value bare left VARCHAR in arithmetic (audit:
+            // the cast bucket). A WIDENING cast (Integer->@Number: the target
+            // is the source's lattice supertype) is a type ASSERTION — the
+            // value is already one; converting would corrupt it (42 -> 42.0).
+            Type src = c.source().info().type();
+            if (isSqlPrimitive(c.target()) && isSqlPrimitive(src)
+                    && !isWidening(src, c.target())
+                    && !PureSql.type(src).equals(PureSql.type(c.target()))) {
+                return new SqlExpr.Cast(value, PureSql.type(c.target()));
+            }
             return value;
         }
         boolean many = isMany(c);
@@ -1789,6 +1804,84 @@ public final class Lowerer {
         // The dialect may render this cast through its text-extraction idiom
         // (DuckDB ->>) — that is RENDERING knowledge; the IR keeps the access.
         return new SqlExpr.Cast(value, PureSql.type(c.target()));
+    }
+
+    /** Whether {@code tgt} is {@code src}'s primitive-lattice supertype (cast-as-assertion). */
+    private static boolean isWidening(Type src, Type tgt) {
+        if (tgt == Type.Primitive.NUMBER) {
+            return src == Type.Primitive.INTEGER || src == Type.Primitive.FLOAT
+                    || src == Type.Primitive.DECIMAL || src instanceof Type.PrecisionDecimal;
+        }
+        if (tgt == Type.Primitive.DATE) {
+            return src == Type.Primitive.STRICT_DATE || src == Type.Primitive.DATE_TIME;
+        }
+        return false;
+    }
+
+    /** A Pure type with a direct scalar SQL carrier (primitives and sized decimals). */
+    private static boolean isSqlPrimitive(Type t) {
+        return (t instanceof Type.Primitive p
+                        && p != Type.Primitive.BYTE && p != Type.Primitive.LATEST_DATE
+                        && p != Type.Primitive.STRICT_TIME)
+                || t instanceof Type.PrecisionDecimal;
+    }
+
+    /**
+     * A relation cast whose target columns ALL exist in the source projects
+     * them (SQL-CAST where the type changed); any absent name means the
+     * pivot idiom's dynamic columns — type-only pass-through.
+     */
+    private SqlSelect relationCast(com.legend.compiler.spec.typed.TypedCast c,
+                                   Type.RelationType srcRow, Type.RelationType tgtRow) {
+        java.util.Map<String, Type.Column> src = new java.util.LinkedHashMap<>();
+        for (Type.Column col : srcRow.columns()) {
+            src.put(col.name(), col);
+        }
+        boolean allKnown = tgtRow.columns().stream()
+                .allMatch(tc -> src.containsKey(tc.name()));
+        SqlSelect base = relation(c.source());
+        if (!allKnown) {
+            return base;   // dynamic (pivot) columns: re-type only
+        }
+        boolean identity = tgtRow.columns().size() == srcRow.columns().size()
+                && tgtRow.columns().stream().allMatch(tc ->
+                        src.get(tc.name()).type().equals(tc.type()));
+        if (identity) {
+            return base;
+        }
+        SqlSelect first = Fold.projectionFolds(base) ? base : isolate(base);
+        SqlSelect out = tryRelationCast(first, src, tgtRow, c);
+        if (out == null) {
+            out = tryRelationCast(isolate(first), src, tgtRow, c);
+        }
+        if (out == null) {
+            throw new IllegalStateException("relation cast columns unresolvable"
+                    + " even after isolation: " + tgtRow.typeName());
+        }
+        return out;
+    }
+
+    /** One pass; null when any target column would not fold against {@code base}. */
+    private SqlSelect tryRelationCast(SqlSelect base, java.util.Map<String, Type.Column> src,
+                                      Type.RelationType tgtRow,
+                                      com.legend.compiler.spec.typed.TypedCast c) {
+        List<SqlSelect.Projection> ps = new ArrayList<>(tgtRow.columns().size());
+        for (Type.Column tc : tgtRow.columns()) {
+            switch (attempt(() -> resolveOrThrow(base, tc.name()))) {
+                case Resolution.Resolved r -> {
+                    Type from = src.get(tc.name()).type();
+                    SqlExpr v = from.equals(tc.type())
+                            || !isSqlPrimitive(tc.type()) || !isSqlPrimitive(from)
+                            ? r.expr()
+                            : new SqlExpr.Cast(r.expr(), PureSql.type(tc.type()));
+                    ps.add(new SqlSelect.Projection(v, tc.name()));
+                }
+                case Resolution.Unfoldable u -> {
+                    return null;
+                }
+            }
+        }
+        return base.withProjections(ps, outputsOf(c.info()));
     }
 
     private static ColumnResolver lambdaResolver(
