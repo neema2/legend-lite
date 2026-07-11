@@ -1651,6 +1651,13 @@ public final class Lowerer {
             }
             case TypedNativeCall n -> Scalars.lower(n,
                     n.args().stream().map(a -> scalar(a, columns)).toList());
+            // A CLASS REFERENCE in scalar position carries its SIMPLE name
+            // (PCT: STR_Person->toString() == 'STR_Person').
+            case com.legend.compiler.spec.typed.TypedPackageableRef ref -> {
+                String fqn = ref.fullPath();
+                int idx = fqn.lastIndexOf("::");
+                yield new SqlExpr.StringLit(idx < 0 ? fqn : fqn.substring(idx + 2));
+            }
             // SANCTIONED frontier default — see relation() above.
             default -> throw new com.legend.error.NotImplementedException("scalar lowering not yet implemented for "
                     + spec.getClass().getSimpleName());

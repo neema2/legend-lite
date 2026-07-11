@@ -3383,3 +3383,28 @@ Top detail:
     1  no overload of 'meta::pure::functions::collection::pair' matches 2 arg
     1  'meta::pure::functions::string::tests::toString::STR_Person' is not a 
 ```
+
+### Run 2026-07-11 @ e169102
+
+| tests | pass | failures | errors | skipped | green classes |
+|---|---|---|---|---|---|
+| 2721 | **2670** | 6 | 26 | 19 | 387 |
+
+| bucket | exception lines |
+|---|---|
+| OTHER | 24 |
+| CORE: unlowered constructs | 2 |
+
+Top detail:
+```
+    6  multi-column pivot is not lowered yet
+    6  model-to-model binding of 'model::StaffComplete' in 'model::DisjointDe
+    3  graph child 'department' of class 'model::StaffWithDept' is mapped as 
+    3  property 'country' of class 'test::Firm' is mapped through the target'
+    2  scalar lowering not yet implemented for TypedWrite
+    2  graph child 'address' of class 'model::PersonWithAddress' is mapped as
+    1  graph child 'department' of class 'model::StaffFull' is mapped as an e
+    1  graph child 'addresses' of class 'model::PersonWithAddresses' is mappe
+    1  graph child 'address' of class 'model::ActivePersonWithAddress' is map
+    1  SQL dialect for database type 'H2' (connection 'store::Conn' of runtim
+```

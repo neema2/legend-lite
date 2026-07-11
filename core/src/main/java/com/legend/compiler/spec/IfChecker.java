@@ -30,6 +30,14 @@ final class IfChecker {
 
     static TypedIf check(Typer t, AppliedFunction af, Env env) {
         List<ValueSpecification> args = af.parameters();
+        // The CONDLIST overload (real if.pure: if(condList:Pair<Function<
+        // {->Boolean}>, Function<{->T}>>[*], last)) — its real-pure body
+        // FOLDS the pairs into nested if()s; the emission here is that
+        // fold, thunks β-reduced (the TypedMatch precedent).
+        if (args.size() == 2
+                && args.get(0) instanceof com.legend.parser.spec.PureCollection pairs) {
+            return multiIf(t, pairs, args.get(1), env);
+        }
         TypedSpec cond = t.synth(args.get(0), env);
         var ifSigs = t.model().findFunction(CoreFn.IF.parseName());
         if (ifSigs.isEmpty()) {
@@ -57,6 +65,39 @@ final class IfChecker {
                 .map(e -> commonMultiplicity(thenBranch.info().multiplicity(), e.info().multiplicity()))
                 .orElse(optional(thenBranch.info().multiplicity()));
         return new TypedIf(cond, thenBranch, elseBranch, new ExprType(result, resultMult));
+    }
+
+    /**
+     * The condList fold: each element must be a LITERAL pair(|cond, |value);
+     * the chain nests right — if(c1, v1, if(c2, v2, last)). Validated against
+     * the registered condList signature's shape (two args, pair collection).
+     */
+    private static TypedIf multiIf(Typer t, com.legend.parser.spec.PureCollection pairs,
+            ValueSpecification last, Env env) {
+        TypedSpec chain = thunkBody(t, last, env);
+        Type result = chain.info().type();
+        Multiplicity resultMult = chain.info().multiplicity();
+        List<ValueSpecification> elements = pairs.values();
+        TypedIf out = null;
+        for (int i = elements.size() - 1; i >= 0; i--) {
+            if (!(elements.get(i) instanceof AppliedFunction pf)
+                    || !pf.function().endsWith("pair") || pf.parameters().size() != 2) {
+                throw new TypeInferenceException("if(condList, last) expects literal"
+                        + " pair(|cond, |value) elements");
+            }
+            TypedSpec cond = thunkBody(t, pf.parameters().get(0), env);
+            t.kernel().unify(Type.Primitive.BOOLEAN, cond.info().type(), new Bindings());
+            TypedSpec value = thunkBody(t, pf.parameters().get(1), env);
+            result = t.kernel().commonSupertype(result, value.info().type());
+            resultMult = commonMultiplicity(resultMult, value.info().multiplicity());
+            TypedSpec elseB = out == null ? chain : out;
+            out = new TypedIf(cond, value, Optional.of(elseB),
+                    new ExprType(result, resultMult));
+        }
+        if (out == null) {
+            throw new TypeInferenceException("if(condList, last) needs at least one pair");
+        }
+        return out;
     }
 
     /** The widest multiplicity covering both branches &mdash; the shared {@code m} of {@code if<T|m>}. */

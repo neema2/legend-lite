@@ -173,6 +173,12 @@ public abstract class AbstractDatabaseTest {
             import meta::pure::functions::lang::tests::model::*;
             import meta::pure::functions::string::tests::plus::model::*;
 
+            Class meta::pure::functions::string::tests::toString::STR_Person
+            {
+                firstName: String[1];
+                lastName: String[1];
+            }
+
             Class meta::pure::functions::collection::tests::model::CO_Person
             {
                 firstName: String[1];
