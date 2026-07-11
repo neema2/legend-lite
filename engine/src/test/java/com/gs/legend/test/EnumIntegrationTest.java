@@ -430,7 +430,7 @@ class EnumIntegrationTest {
                         TaskStatus: EnumerationMapping TaskStatusMap {
                             PENDING: 'PENDING',
                             IN_PROGRESS: 'IN_PROGRESS',
-                            COMPLETED: 'COMPLETED',
+                            DONE: 'DONE',
                             CANCELLED: 'CANCELLED'
                         }
                     )

@@ -84,7 +84,14 @@ public final class Executor {
             java.math.BigDecimal stripped = d.stripTrailingZeros();
             // INTEGRAL only: a fractional value may genuinely be a Decimal —
             // demoting it to double loses precision (audit regression).
-            return stripped.scale() <= 0 ? (Object) stripped.longValueExact() : v;
+            // BEYOND-long integrals (HUGEINT arithmetic) stay BigDecimal —
+            // longValueExact threw where the value was correct (audit).
+            if (stripped.scale() <= 0
+                    && stripped.compareTo(java.math.BigDecimal.valueOf(Long.MAX_VALUE)) <= 0
+                    && stripped.compareTo(java.math.BigDecimal.valueOf(Long.MIN_VALUE)) >= 0) {
+                return stripped.longValueExact();
+            }
+            return v;
         }
         if (rootType == Type.Primitive.DATE && v instanceof java.sql.Timestamp t
                 && t.toLocalDateTime().toLocalTime()

@@ -22,7 +22,14 @@ final class DistinctChecker {
 
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
         Application a = t.checkGeneric(arrayIfBare(af), env);
-        return new TypedDistinct(a.args().get(0), Args.outputColumns(a), a.out());
+        java.util.List<String> columns = Args.outputColumns(a);
+        // ~[] is legal where zero columns MEAN something (groupBy's
+        // whole-relation aggregate); a zero-column dedup is not it — the
+        // typed schema would be () while the SQL is DISTINCT * (audit).
+        if (columns.isEmpty()) {
+            throw new TypeInferenceException("distinct(~[]) names no columns");
+        }
+        return new TypedDistinct(a.args().get(0), columns, a.out());
     }
 
     /**

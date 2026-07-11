@@ -368,9 +368,21 @@ public final class InferenceKernel {
             // COVARIANT class binding (real pure's getBestGenericTypeUsingCovariance):
             // two INSTANCE kinds meet at their least common ancestor —
             // concatenate(CO_Address[*], CO_Location[*]) binds T to their
-            // shared CO_GeographicEntity. Primitives stay strict (loud).
-            if (existing instanceof Type.ClassType && actual instanceof Type.ClassType
+            // shared CO_GeographicEntity. A RIGID variable (bound while
+            // unifying a declared function-parameter type) never widens:
+            // the actual must CONFORM — subtype in, or loud (the
+            // eval-wrong-arg engine spec, class edition; audit).
+            if (existing instanceof Type.ClassType ec && actual instanceof Type.ClassType ac
                     && !isAny(existing) && !isAny(actual)) {
+                if (b.isRigid(v.name()) || b.contravariant()) {
+                    if (ac.fqn().equals(ec.fqn()) || ctx.isSubtype(ac.fqn(), ec.fqn())) {
+                        return;
+                    }
+                    throw new TypeInferenceException("type variable " + v.name()
+                            + " is bound to " + existing.typeName()
+                            + " (a declared function parameter) and cannot accept "
+                            + actual.typeName());
+                }
                 b.bindType(v.name(), commonSupertype(existing, actual));
                 return;
             }
@@ -525,6 +537,16 @@ public final class InferenceKernel {
                         && !com.legend.compiler.element.type.PlatformTypes.isVariant(actualType)) {
                     throw new TypeInferenceException(
                             "expected at most one value, got many (" + actual.text() + ")");
+                }
+                // A STATICALLY EMPTY actual ([0..0], the [] literal) never
+                // satisfies a required slot — Nil-as-bottom conforms on the
+                // TYPE lattice, but multiplicity still binds (abs([]) and
+                // f():Integer[1]{[]} are real-pure errors; audit).
+                if (!relationSource && fb.lower() >= 1
+                        && actual instanceof Multiplicity.Bounded ab
+                        && ab.upper() != null && ab.upper() == 0) {
+                    throw new TypeInferenceException(
+                            "expected at least one value, got none ([0])");
                 }
             }
         }
@@ -833,6 +855,16 @@ public final class InferenceKernel {
                 }
                 if (fb.isToOne() && actual.isMany() && relationRow(actualType) == null) {
                     yield -1;   // [*] cannot satisfy a to-one slot (unless a relation source, §3.2)
+                }
+                // [0] never satisfies a REQUIRED slot — scoring must agree
+                // with resolveChosen's rejection, or selection picks the
+                // [1]-param overload over a [0..1] sibling and the check
+                // then rejects a program the sibling accepts (audit:
+                // coalesce('x', [])).
+                if (fb.lower() >= 1 && actual instanceof Multiplicity.Bounded ab
+                        && ab.upper() != null && ab.upper() == 0
+                        && relationRow(actualType) == null) {
+                    yield -1;
                 }
                 yield multiplicityTightness(fb);
             }

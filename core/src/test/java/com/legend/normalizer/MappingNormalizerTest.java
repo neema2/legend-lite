@@ -2482,8 +2482,11 @@ class MappingNormalizerTest {
      * the wrap said at emission).
      */
     private static ValueSpecification unwrapToString(ValueSpecification v) {
-        return v instanceof AppliedFunction af && af.function().equals("toString")
-                && af.parameters().size() == 1 ? af.parameters().get(0) : v;
+        // Peels the cast(..., @String) coercion around every concat argument
+        // (SQL concat coerces via the DATABASE's VARCHAR cast — audit: pure
+        // toString's ISO datetime form diverged from SQL-concat semantics).
+        return v instanceof AppliedFunction af && af.function().equals("cast")
+                && af.parameters().size() == 2 ? af.parameters().get(0) : v;
     }
 
     /**

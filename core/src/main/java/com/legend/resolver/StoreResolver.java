@@ -330,7 +330,7 @@ public final class StoreResolver {
                             || EQ_FQN.equals(c.callee().qualifiedName())) -> {
                 Object l = literalValue(c.args().get(0));
                 Object r = literalValue(c.args().get(1));
-                yield l == null || r == null ? null : (Boolean) l.equals(r);
+                yield l == null || r == null ? null : (Boolean) literalEquals(l, r);
             }
             default -> null;
         };
@@ -344,6 +344,19 @@ public final class StoreResolver {
             case TypedCString st -> st.value();
             default -> null;
         };
+    }
+
+    /**
+     * Literal equality with SQL's semantics: NUMBERS compare numerically
+     * (1 == 1.0 — SQL '=' would say true, so the fold must too; audit),
+     * cross-kind value/string is a plain equals.
+     */
+    private static boolean literalEquals(Object l, Object r) {
+        if (l instanceof Number ln && r instanceof Number rn) {
+            return new java.math.BigDecimal(ln.toString())
+                    .compareTo(new java.math.BigDecimal(rn.toString())) == 0;
+        }
+        return l.equals(r);
     }
 
     /** An if() branch is a zero-arg thunk; its single body statement is the value. */
@@ -557,10 +570,16 @@ public final class StoreResolver {
         // Mapping ~distinct under a PROJECT terminal: the engine stamps
         // DISTINCT on the GENERATED select, not the class rows — defer the
         // pipeline's whole-row distinct (a no-op over a keyed table) to the
-        // projected output. Non-project terminals keep it in-pipeline.
+        // projected output. Deferral is sound ONLY when nothing between the
+        // getAll and the project is row-count- or row-order-sensitive:
+        // limit/drop/slice must run over the DEDUPED rows, and a sortBy's
+        // ORDER BY would be buried beneath the deferred DISTINCT (audit —
+        // both produce verified wrong answers). Filters commute with
+        // whole-row dedup and stay deferral-safe.
         TypedSpec csPipe = cs.pipeline();
         boolean deferredDistinct = false;
         if (top instanceof TypedProject
+                && ops.stream().allMatch(op -> op instanceof TypedFilter)
                 && csPipe instanceof com.legend.compiler.spec.typed.TypedDistinct dd) {
             deferredDistinct = true;
             csPipe = dd.source();
@@ -1032,6 +1051,20 @@ public final class StoreResolver {
                         target -> dispatch(context, target), key)
                 : sources.get(cs.mappingFqn(), childClass,
                         target -> dispatch(context, target), key);
+        // The slot predicate's right side reads the RAW TARGET's physical
+        // columns — the child's composed pipeline must bottom at that same
+        // row or the correlation filters the wrong relation (audit: the
+        // m2mAssocChild guard, applied to this sibling too).
+        if (!childClass.equals(rawTarget)) {
+            ClassSource rawSource = sources.get(dispatch(context, rawTarget), rawTarget,
+                    target -> dispatch(context, target), key);
+            if (!child.rowVar().equals(rawSource.rowVar())) {
+                throw new NotImplementedException("navigate-slot graph child '"
+                        + node.property() + "': the child class '" + childClass
+                        + "' does not compose the slot target '" + rawTarget
+                        + "' — cross-source children are not supported yet");
+            }
+        }
         Pipelines.Materialized cMat = Pipelines.materialize(
                 child.pipeline(), Set.of(), childClass);
         return correlatedGraphChild(child, cMat.pipeline(),
@@ -1058,16 +1091,16 @@ public final class StoreResolver {
         ClassSource rawParent = sources.get(dispatch(context, srcClassFqn), srcClassFqn,
                 target -> dispatch(context, target), key);
         AssocJoin aj = associationJoin(rawParent, assocProp, context, /*forExists*/ true);
-        var assoc = ctx.findAssociationOf(srcClassFqn, assocProp).orElseThrow();
-        var end = assoc.property1().propertyName().equals(assocProp)
-                ? assoc.property1() : assoc.property2();
-        boolean toMany = !(end.multiplicity()
-                instanceof com.legend.parser.Multiplicity.Concrete emc
-                && Integer.valueOf(1).equals(emc.upperBound()));
         var prop = ctx.findProperty(cs.classFqn(), node.property()).orElseThrow(
                 () -> new IllegalStateException("resolver bug: graph child '"
                         + node.property() + "' is not a property of '"
                         + cs.classFqn() + "'"));
+        // Cardinality from the DECLARED property — the spec the consumer
+        // typed against — not the source association's end (consistent with
+        // navSlotChild; audit).
+        boolean toMany = !(prop.multiplicity()
+                instanceof com.legend.compiler.element.type.Multiplicity.Bounded bm
+                && Integer.valueOf(1).equals(bm.upper()));
         if (!(prop.type() instanceof com.legend.compiler.element.type.Type.ClassType childCls)) {
             throw new IllegalStateException("resolver bug: M2M graph child '"
                     + node.property() + "' is not class-typed");

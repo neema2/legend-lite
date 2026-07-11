@@ -52,10 +52,19 @@ final class Checkers {
             throw new TypeInferenceException("both join sides must be relations");
         }
         List<Type.Column> cols = new ArrayList<>(lr.columns());
+        java.util.Set<String> names = new java.util.LinkedHashSet<>();
+        lr.columns().forEach(c -> names.add(c.name()));
         for (Type.Column c : rr.columns()) {
-            cols.add(renameWhen.test(c)
-                    ? new Type.Column(prefix + c.name(), c.type(), c.multiplicity())
-                    : c);
+            String name = renameWhen.test(c) ? prefix + c.name() : c.name();
+            // A MANUFACTURED collision (the prefix renames a right column
+            // onto an existing name) is a TYPE error naming the fix — not a
+            // raw invariant blowup from the RelationType constructor (audit).
+            if (!names.add(name)) {
+                throw new TypeInferenceException("join prefix '" + prefix
+                        + "' produces duplicate column '" + name
+                        + "' — choose a prefix that does not collide");
+            }
+            cols.add(new Type.Column(name, c.type(), c.multiplicity()));
         }
         return new Type.RelationType(cols);
     }

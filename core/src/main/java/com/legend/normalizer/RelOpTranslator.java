@@ -114,6 +114,13 @@ final class RelOpTranslator {
         return new AppliedProperty(base, column);
     }
 
+    /** {@code cast(v, @String)} — the SQL VARCHAR coercion emission. */
+    private static ValueSpecification strCast(ValueSpecification v) {
+        return new AppliedFunction("cast", List.of(v,
+                new com.legend.parser.spec.TypeAnnotation.Named(
+                        new com.legend.parser.TypeExpression.NameRef("String"))));
+    }
+
     private static com.legend.error.ModelException ambiguousTableRef(String table, String column) {
         return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
                 "Ambiguous column reference '" + table + "." + column + "': the join "
@@ -162,18 +169,17 @@ final class RelOpTranslator {
                     // The variadic 'concat' dynafunction has NO pure-function
                     // counterpart (engine renders it per-dialect straight to
                     // SQL); real pure spells string concatenation with plus.
-                    // SQL concat COERCES its arguments — each one wraps in
-                    // toString() so a numeric column types through
-                    // plus(String, String) (the cast is a VARCHAR no-op for
-                    // strings).
-                    ValueSpecification chain = new AppliedFunction("toString",
-                            List.of(translate(call.args().get(0), tableScope,
-                                    targetVarOrNull, rowBindOrNull, pipeline)));
+                    // SQL concat COERCES its arguments — each wraps in
+                    // cast(@String), whose lowering is the SQL VARCHAR cast
+                    // (the DATABASE's own formatting: '2014-01-01 06:30:00',
+                    // not pure toString's ISO form — audit), a no-op for
+                    // strings.
+                    ValueSpecification chain = strCast(translate(call.args().get(0),
+                            tableScope, targetVarOrNull, rowBindOrNull, pipeline));
                     for (int i = 1; i < call.args().size(); i++) {
                         chain = new AppliedFunction("plus", List.of(chain,
-                                new AppliedFunction("toString",
-                                        List.of(translate(call.args().get(i), tableScope,
-                                                targetVarOrNull, rowBindOrNull, pipeline)))));
+                                strCast(translate(call.args().get(i), tableScope,
+                                        targetVarOrNull, rowBindOrNull, pipeline))));
                     }
                     yield chain;
             }

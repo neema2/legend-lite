@@ -1751,7 +1751,13 @@ public final class MappingNormalizer {
     private static boolean groupByOpsMatch(RelationalOperation a, RelationalOperation b) {
         if (a instanceof RelationalOperation.ColumnRef ca
                 && b instanceof RelationalOperation.ColumnRef cb) {
-            return Objects.equals(ca.table(), cb.table())
+            // The qualifier is ignored only when ONE side lacks it (the
+            // view-rewrite stamps the mapping's db onto PMs while view keys
+            // parse unqualified); two EXPLICIT different dbs never match
+            // (same-named tables across included dbs; audit).
+            boolean dbOk = ca.databaseName() == null || cb.databaseName() == null
+                    || ca.databaseName().equals(cb.databaseName());
+            return dbOk && Objects.equals(ca.table(), cb.table())
                     && Objects.equals(ca.column(), cb.column());
         }
         return Objects.equals(a, b);
@@ -1939,12 +1945,25 @@ public final class MappingNormalizer {
     /** {@code classFqn}'s ~mainTable declaration in {@code md} (loud if absent). */
     private static LegacyMappingDefinition.TableReference mainTableDefOf(
             LegacyMappingDefinition md, String classFqn) {
+        // The ROOT set's table — with multiple set IDs, .all() and every
+        // synthesized association predicate anchor on the root; taking the
+        // FIRST declared set bound predicates to the wrong table whenever a
+        // non-root set was declared first (audit).
+        LegacyMappingDefinition.TableReference first = null;
         for (ClassMapping cm : md.classMappings()) {
             if (cm instanceof ClassMapping.Relational rcm
                     && classFqn.equals(rcm.className())
                     && rcm.mainTable() != null) {
-                return rcm.mainTable();
+                if (rcm.root()) {
+                    return rcm.mainTable();
+                }
+                if (first == null) {
+                    first = rcm.mainTable();
+                }
             }
+        }
+        if (first != null) {
+            return first;
         }
         throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE,
                 "No ~mainTable for class '" + classFqn + "' in mapping="
@@ -2015,15 +2034,20 @@ public final class MappingNormalizer {
                 tableScope, defaultTable, p == null ? RelOpTranslator.PipelineView.NONE : p.view());
         ValueSpecification tail = new PureCollection(List.of());
         List<EnumerationMapping.EnumValueMapping> values = em.valueMappings();
-        // Entries naming a NON-EXISTENT enum value are SKIPPED, not fatal —
-        // the engine tolerates a stale entry as long as nothing reads it
-        // (referencing the value in a query still fails loudly at typing).
+        // An entry naming a NON-EXISTENT enum value is a COMPILE error —
+        // the real engine resolves every entry against the enumeration
+        // (HelperMappingBuilder.processEnumMapping); silently skipping it
+        // turned typos into NULL rows in [1] slots (audit).
         java.util.List<String> knownValues = model.findEnum(em.enumName())
                 .map(com.legend.parser.element.EnumDefinition::values).orElse(null);
         for (int i = values.size() - 1; i >= 0; i--) {
             EnumerationMapping.EnumValueMapping ev = values.get(i);
             if (knownValues != null && !knownValues.contains(ev.enumValue())) {
-                continue;
+                throw new com.legend.error.ModelException(
+                        com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                        "EnumerationMapping '" + em.mappingId() + "' maps value '"
+                                + ev.enumValue() + "' which enumeration '"
+                                + em.enumName() + "' does not declare");
             }
             ValueSpecification disj = null;
             for (EnumerationMapping.SourceValue sv : ev.sourceValues()) {
@@ -2208,12 +2232,19 @@ public final class MappingNormalizer {
             // PRIMITIVE-declared property coerces by EMISSION — the same
             // to(get, @Type) the typed-get spelling and the JSON-source
             // synthesizer produce; the declared property type IS the type.
-            String primitiveName = prop != null
+            // EXACT primitive identification: the bare spelling or the
+            // platform FQN — a user class named model::Integer must not be
+            // coerced (audit; the exact-FQN rule).
+            String ptName = prop != null
                     && prop.type() instanceof TypeExpression.NameRef ptn
-                    ? simpleTypeName(ptn.name()) : null;
+                    ? ptn.name() : null;
+            String primitiveName = ptName == null ? null
+                    : PRIMITIVE_TYPE_NAMES.contains(ptName) ? ptName
+                    : ptName.startsWith("meta::pure::metamodel::type::")
+                            && PRIMITIVE_TYPE_NAMES.contains(simpleTypeName(ptName))
+                            ? simpleTypeName(ptName) : null;
             if (v instanceof AppliedFunction gf && gf.function().equals("get")
-                    && primitiveName != null
-                    && PRIMITIVE_TYPE_NAMES.contains(primitiveName)) {
+                    && primitiveName != null) {
                 v = new AppliedFunction("to", List.of(v,
                         new com.legend.parser.spec.TypeAnnotation.Named(
                                 new TypeExpression.NameRef(primitiveName))));

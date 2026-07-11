@@ -342,6 +342,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // Pure's divide-with-scale is BigDecimal HALF_UP — plain SQL
             // ROUND (half away from zero) says exactly that.
             case ROUND_HALF_UP -> fn("ROUND", a);
+            // Runtime assertion: raises with the message when evaluated
+            // (guards that must fail LOUD, never clamp).
+            case ERROR -> fn("error", a);
+            // floor WITHOUT the BIGINT cast (FLOOR casts — overflows at
+            // 1e18): fraction-free tests over the full double range.
+            case FLOOR_RAW -> fn("floor", a);
             case SIGN -> "CAST(sign(" + expr(a.get(0), 0) + ") AS BIGINT)";
             case XOR -> {
                 String x = expr(a.get(0), 3);

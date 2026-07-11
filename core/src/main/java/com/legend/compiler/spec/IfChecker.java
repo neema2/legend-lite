@@ -80,13 +80,23 @@ final class IfChecker {
         List<ValueSpecification> elements = pairs.values();
         TypedIf out = null;
         for (int i = elements.size() - 1; i >= 0; i--) {
+            // EXACT names only — a user function merely ENDING in "pair"
+            // must not be hijacked and silently never called (audit; the
+            // exact-FQN identification rule).
             if (!(elements.get(i) instanceof AppliedFunction pf)
-                    || !pf.function().endsWith("pair") || pf.parameters().size() != 2) {
+                    || !(pf.function().equals("pair")
+                            || pf.function().equals("meta::pure::functions::collection::pair"))
+                    || pf.parameters().size() != 2) {
                 throw new TypeInferenceException("if(condList, last) expects literal"
                         + " pair(|cond, |value) elements");
             }
             TypedSpec cond = thunkBody(t, pf.parameters().get(0), env);
             t.kernel().unify(Type.Primitive.BOOLEAN, cond.info().type(), new Bindings());
+            if (!(cond.info().multiplicity() instanceof Multiplicity.Bounded cb)
+                    || cb.lower() != 1 || cb.upper() == null || cb.upper() != 1) {
+                throw new TypeInferenceException("if condition must be Boolean[1],"
+                        + " got multiplicity " + cond.info().multiplicity());
+            }
             TypedSpec value = thunkBody(t, pf.parameters().get(1), env);
             result = t.kernel().commonSupertype(result, value.info().type());
             resultMult = commonMultiplicity(resultMult, value.info().multiplicity());

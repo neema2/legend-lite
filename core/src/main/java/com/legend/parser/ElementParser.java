@@ -1113,9 +1113,17 @@ public final class ElementParser implements TokenStreamCursor {
 
         if (dbType == null) error("RelationalDatabaseConnection '" + qualifiedName + "' missing required 'type:' key");
         if (specification == null) error("RelationalDatabaseConnection '" + qualifiedName + "' missing required 'specification:' key");
-        // auth: defaults to NoAuth — the engine's connections omit it for
-        // local specs (LocalFile / InMemory).
-        if (authentication == null) authentication = new AuthenticationSpec.NoAuth();
+        // auth: defaults to NoAuth for LOCAL specs only (LocalFile /
+        // InMemory / LocalH2 — the engine's 'mode: local' shape); a Static
+        // (remote) connection without auth stays the loud error the real
+        // engine gives (audit).
+        if (authentication == null) {
+            if (specification instanceof ConnectionSpecification.StaticDatasource) {
+                error("RelationalDatabaseConnection '" + qualifiedName
+                        + "' missing required 'auth:' key");
+            }
+            authentication = new AuthenticationSpec.NoAuth();
+        }
 
         return new ConnectionDefinition(qualifiedName, storeName, dbType, specification, authentication);
     }

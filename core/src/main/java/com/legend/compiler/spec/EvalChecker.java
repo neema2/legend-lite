@@ -82,6 +82,20 @@ final class EvalChecker {
                             p.multiplicity() != null ? Multiplicity.from(p.multiplicity())
                                     : arg.info().multiplicity())
                     : arg.info();
+            // A DECLARED param type is a contract the argument must meet —
+            // binding the declared type while ignoring the arg's let
+            // {x:Integer[1]|...}->eval('s') through (the eval-wrong-arg
+            // engine spec; audit).
+            if (p.type() != null) {
+                try {
+                    t.kernel().unify(bound.type(), arg.info().type(), new Bindings());
+                    t.kernel().unifyMult(bound.multiplicity(), arg.info().multiplicity(),
+                            arg.info().type(), new Bindings());
+                } catch (TypeInferenceException e) {
+                    throw new TypeInferenceException("eval argument " + (i + 1)
+                            + ": " + e.getMessage(), e);
+                }
+            }
             names.add(p.name());
             paramTypes.add(new Type.Param(bound.type(), bound.multiplicity()));
             scope = scope.with(p.name(), bound);

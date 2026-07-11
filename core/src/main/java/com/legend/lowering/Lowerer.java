@@ -429,6 +429,14 @@ public final class Lowerer {
             case SqlExpr.Cast c ->
                     new SqlExpr.Cast(windowize(c.value(), partitionBy, orderBy, frame),
                             c.target());
+            // A reducer under a CASE arm must window too (audit: the first
+            // agg recipe that guards with CASE would render bare).
+            case SqlExpr.Case cs -> new SqlExpr.Case(
+                    cs.whens().stream().map(w -> new SqlExpr.Case.When(
+                            windowize(w.condition(), partitionBy, orderBy, frame),
+                            windowize(w.then(), partitionBy, orderBy, frame))).toList(),
+                    cs.otherwise() == null ? null
+                            : windowize(cs.otherwise(), partitionBy, orderBy, frame));
             default -> e;
         };
     }

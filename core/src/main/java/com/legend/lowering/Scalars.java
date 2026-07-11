@@ -102,7 +102,9 @@ final class Scalars {
         // true, or([]) is false — list_aggregate over [] is NULL; audit).
         for (String f : Pure.nativeKeysAt("and")) {
             RULES.put(f, (n, args) -> args.size() == 1
-                    ? (isToOne(n.args().get(0)) ? args.get(0)
+                    ? (isToOne(n.args().get(0))
+                            && !(args.get(0) instanceof SqlExpr.ArrayLit)
+                            ? args.get(0)
                             : SqlExpr.Call.of(SqlFn.COALESCE,
                                     new SqlExpr.Call(SqlFn.LIST_BOOL_AND, args),
                                     new SqlExpr.BoolLit(true)))
@@ -110,7 +112,9 @@ final class Scalars {
         }
         for (String f : Pure.nativeKeysAt("or")) {
             RULES.put(f, (n, args) -> args.size() == 1
-                    ? (isToOne(n.args().get(0)) ? args.get(0)
+                    ? (isToOne(n.args().get(0))
+                            && !(args.get(0) instanceof SqlExpr.ArrayLit)
+                            ? args.get(0)
                             : SqlExpr.Call.of(SqlFn.COALESCE,
                                     new SqlExpr.Call(SqlFn.LIST_BOOL_OR, args),
                                     new SqlExpr.BoolLit(false)))
@@ -130,7 +134,8 @@ final class Scalars {
         // the sign of a lone operand (audit: [-5, -3] executed as [5, 3]).
         for (String f : Pure.nativeKeysAt("plus")) {
             RULES.put(f, (n, args) -> {
-                if (args.size() == 1 && isToOne(n.args().get(0))) {
+                if (args.size() == 1 && isToOne(n.args().get(0))
+                        && !(args.get(0) instanceof SqlExpr.ArrayLit)) {
                     return args.get(0);   // unary +x
                 }
                 // plus<T>(values:T[*]) is the COLLECTION SUM (real pure) —
@@ -143,7 +148,8 @@ final class Scalars {
         }
         for (String f : Pure.nativeKeysAt("times")) {
             RULES.put(f, (n, args) -> {
-                if (args.size() == 1 && isToOne(n.args().get(0))) {
+                if (args.size() == 1 && isToOne(n.args().get(0))
+                        && !(args.get(0) instanceof SqlExpr.ArrayLit)) {
                     return args.get(0);
                 }
                 // times<T>(values:T[*]) is the COLLECTION PRODUCT (real pure).
@@ -159,8 +165,11 @@ final class Scalars {
                     return new SqlExpr.Call(SqlFn.MINUS, hugeWiden(args));
                 }
                 // minus<T>(values:T[*]) LEFT-FOLDS subtraction (real pure:
-                // [10,3,2] -> 5); the seed is the first element.
-                if (!isToOne(n.args().get(0))) {
+                // [10,3,2] -> 5); the seed is the first element. A SINGLETON
+                // LIST LITERAL is a list (the reduction of [x] is x, via the
+                // fold), not a unary negate (audit).
+                if (!isToOne(n.args().get(0))
+                        || args.get(0) instanceof SqlExpr.ArrayLit) {
                     return SqlExpr.Call.of(SqlFn.LIST_REDUCE, args.get(0),
                             new SqlExpr.Lambda(List.of("_ma", "_mb"),
                                     SqlExpr.Call.of(SqlFn.MINUS,
@@ -841,13 +850,21 @@ final class Scalars {
                 }
                 SqlExpr l = args.get(0);
                 SqlExpr idx = args.get(1);
-                return SqlExpr.Call.of(SqlFn.LIST_CONCAT,
+                SqlExpr inserted = SqlExpr.Call.of(SqlFn.LIST_CONCAT,
                         SqlExpr.Call.of(SqlFn.LIST_CONCAT,
                                 SqlExpr.Call.of(SqlFn.LIST_SLICE, l,
                                         new SqlExpr.IntLit(1), idx),
                                 new SqlExpr.ArrayLit(List.of(args.get(2)))),
                         SqlExpr.Call.of(SqlFn.LIST_SLICE, l, plusOne(idx),
                                 SqlExpr.Call.of(SqlFn.LIST_LENGTH, l)));
+                // An out-of-range index ERRORS (real pure) — the slice
+                // recipe would silently clamp to an append (audit).
+                return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.GREATER, idx,
+                                SqlExpr.Call.of(SqlFn.LIST_LENGTH, l)),
+                        SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(
+                                "add(set, index, value): index out of bounds")))),
+                        inserted);
             });
         }
         // removeDuplicates: bare distinct; an EQUALITY comparator (the
@@ -1007,7 +1024,17 @@ final class Scalars {
                                     null)),
                             false, new com.legend.sql.SqlSource.Subselect(inner, "_uz"),
                             null, List.of(), null, null, List.of(), null, null, List.of());
-                    return new SqlExpr.ScalarSubquery(outer);
+                    // MISMATCHED lengths would zip-pad with NULLs and the
+                    // reducer would silently drop the unpaired tail (audit:
+                    // corr([1,2,3],[2,4]) said 1.0) — unpaired data is LOUD.
+                    return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                            SqlExpr.Call.of(SqlFn.NOT_EQUAL,
+                                    SqlExpr.Call.of(SqlFn.LIST_LENGTH, args.get(0)),
+                                    SqlExpr.Call.of(SqlFn.LIST_LENGTH, args.get(1))),
+                            SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(
+                                    e.getKey() + ": the two value lists differ"
+                                            + " in length")))),
+                            new SqlExpr.ScalarSubquery(outer));
                 });
             }
         }
@@ -1192,7 +1219,10 @@ final class Scalars {
                             || n.args().get(5).info().type() == Type.Primitive.DECIMAL) {
                         SqlExpr iso = SqlExpr.Call.of(SqlFn.STRFTIME,
                                 new SqlExpr.Call(SqlFn.MAKE_TIMESTAMP, args),
-                                new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S.%g"));
+                                // %f = MICROseconds — %g's milliseconds
+                                // silently truncated 59.999999 (audit); the
+                                // zero-trim below reduces to minimal digits.
+                                new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S.%f"));
                         SqlExpr trimmed = SqlExpr.Call.of(SqlFn.RTRIM, iso,
                                 new SqlExpr.StringLit("0"));
                         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
@@ -1297,15 +1327,21 @@ final class Scalars {
      * overflow widens the first operand, and DuckDB propagates.
      */
     private static List<SqlExpr> hugeWiden(List<SqlExpr> args) {
-        boolean nearEdge = args.stream().anyMatch(a ->
-                a instanceof SqlExpr.IntLit i
-                        && (i.value() > (Long.MAX_VALUE >> 2) || i.value() < (Long.MIN_VALUE >> 2)));
-        if (!nearEdge) {
-            return args;
+        // Widen the near-edge INTEGER LITERAL itself — never a float
+        // operand (CAST(2.5 AS HUGEINT) rounds to 3 and poisons the
+        // product; audit). DuckDB propagates HUGEINT from either side.
+        List<SqlExpr> out = null;
+        for (int i = 0; i < args.size(); i++) {
+            if (args.get(i) instanceof SqlExpr.IntLit lit
+                    && (lit.value() > (Long.MAX_VALUE >> 2)
+                            || lit.value() < (Long.MIN_VALUE >> 2))) {
+                if (out == null) {
+                    out = new ArrayList<>(args);
+                }
+                out.set(i, new SqlExpr.Cast(lit, com.legend.sql.SqlType.Scalar.HUGEINT));
+            }
         }
-        List<SqlExpr> out = new ArrayList<>(args);
-        out.set(0, new SqlExpr.Cast(out.get(0), com.legend.sql.SqlType.Scalar.HUGEINT));
-        return out;
+        return out == null ? args : out;
     }
 
     /** Literal cell of a TDS row → typed SQL literal, by the column's Pure type. */
@@ -1570,6 +1606,15 @@ final class Scalars {
      */
     private static SqlExpr floatRepr(SqlExpr x) {
         SqlExpr s = new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR);
+        // FRACTION-FREE values render through HUGEINT — exact plain digits
+        // for the whole [1e16, 1e38) band where the DECIMAL(38,18) cast
+        // fabricates garbage (audit: 1e18 printed ...042.42...); every
+        // double >= 2^53 is fraction-free, so all large magnitudes take
+        // this branch.
+        SqlExpr intPlain = SqlExpr.Call.of(SqlFn.CONCAT,
+                new SqlExpr.Cast(new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.HUGEINT),
+                        com.legend.sql.SqlType.Scalar.VARCHAR),
+                new SqlExpr.StringLit(".0"));
         SqlExpr plain = SqlExpr.Call.of(SqlFn.RTRIM,
                 new SqlExpr.Cast(new SqlExpr.Cast(x, new com.legend.sql.SqlType.Decimal(38, 18)),
                         com.legend.sql.SqlType.Scalar.VARCHAR),
@@ -1581,13 +1626,23 @@ final class Scalars {
         SqlExpr hasExp = SqlExpr.Call.of(SqlFn.GREATER,
                 SqlExpr.Call.of(SqlFn.STRPOS, s, new SqlExpr.StringLit("e")),
                 new SqlExpr.IntLit(0));
+        SqlExpr fractionFree = SqlExpr.Call.of(SqlFn.AND,
+                SqlExpr.Call.of(SqlFn.EQUAL, x, SqlExpr.Call.of(SqlFn.FLOOR_RAW, x)),
+                SqlExpr.Call.of(SqlFn.LESS,
+                        SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.FloatLit(1e38)));
+        // The DECIMAL path stays only where the scale-18 cast is exact for
+        // short-decimal values: fractional magnitudes in [1e-17, 2^53)
+        // (below 1e-17 the scale rounds — 1.5e-18 gained a digit; audit).
         SqlExpr inRange = SqlExpr.Call.of(SqlFn.AND,
                 SqlExpr.Call.of(SqlFn.GREATER_EQUAL,
-                        SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.FloatLit(1e-18)),
-                SqlExpr.Call.of(SqlFn.LESS_EQUAL,
-                        SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.FloatLit(1e18)));
-        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.AND, hasExp, inRange), fixed)), s);
+                        SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.FloatLit(1e-17)),
+                SqlExpr.Call.of(SqlFn.LESS,
+                        SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.FloatLit(9.007199254740992e15)));
+        return new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.AND, hasExp, fractionFree), intPlain),
+                new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.AND, hasExp, inRange), fixed)), s);
     }
 
     /**
@@ -1672,7 +1727,15 @@ final class Scalars {
                 }
             }
             if (!matched) {
-                out.append(pattern.charAt(i));
+                char ch = pattern.charAt(i);
+                // A pattern LETTER outside the token table would silently
+                // pass through as literal text ('MMM' -> '03M'; audit) —
+                // loud instead; punctuation/separators pass.
+                if (Character.isLetter(ch)) {
+                    throw new IllegalStateException("unsupported date-format"
+                            + " token '" + ch + "' in pattern '" + pattern + "'");
+                }
+                out.append(ch);
                 i++;
             }
         }
@@ -1746,6 +1809,24 @@ final class Scalars {
                 case com.legend.values.PureDateLiteral.DateWithMinute ignored -> 4;
                 case com.legend.values.PureDateLiteral.DateWithSecond ignored -> 5;
                 default -> 6;
+            };
+        }
+        // A date() CONSTRUCTOR call's precision is its ARITY — the static
+        // return type says DateTime for every arity (audit: hasMinute of
+        // date(y,mo,d,h) answered true).
+        if (arg instanceof TypedNativeCall dc
+                && dc.callee().qualifiedName().equals("meta::pure::functions::date::date")) {
+            return switch (dc.args().size()) {
+                case 1 -> 0;
+                case 2 -> 1;
+                case 3 -> 2;
+                case 4 -> 3;
+                case 5 -> 4;
+                default -> dc.args().get(5).info().type()
+                        == com.legend.compiler.element.type.Type.Primitive.FLOAT
+                        || dc.args().get(5).info().type()
+                                == com.legend.compiler.element.type.Type.Primitive.DECIMAL
+                        ? 6 : 5;
             };
         }
         var t = arg.info().type();
