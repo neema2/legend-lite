@@ -297,6 +297,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case IS_NULL -> expr(a.get(0), 4) + " IS NULL";
             case IS_NOT_NULL -> expr(a.get(0), 4) + " IS NOT NULL";
             case IN -> expr(a.get(0), 4) + " IN (" + list(a.subList(1, a.size())) + ")";
+            case IS_DISTINCT -> "(" + expr(a.get(0), 4) + " IS DISTINCT FROM "
+                    + expr(a.get(1), 4) + ")";
+            case STRFTIME -> fn("strftime", a);
             // MUST-honor semantics (PHASE_HIJ_LOWERING.md):
             case DIVIDE -> "((1.0 * " + expr(a.get(0), 0) + ") / " + expr(a.get(1), 0) + ")";
             case MOD -> "MOD(MOD(" + expr(a.get(0), 0) + ", " + expr(a.get(1), 0) + ") + "

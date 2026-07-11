@@ -46,11 +46,14 @@ public final class Executor {
             return switch (shape) {
                 case TABULAR -> tabular(rs, plan, rootType, dialect);
                 case SCALAR -> new ExecutionResult.Scalar(
-                        rs.next() ? cell(rs, plan, dialect, anyRoot) : null, rootType.type());
+                        rs.next() ? latticeKind(cell(rs, plan, dialect, anyRoot),
+                                rootType.type()) : null,
+                        rootType.type());
                 case COLLECTION -> {
                     List<Object> values = new ArrayList<>();
                     while (rs.next()) {
-                        values.add(cell(rs, plan, dialect, anyRoot));
+                        values.add(latticeKind(cell(rs, plan, dialect, anyRoot),
+                                rootType.type()));
                     }
                     yield new ExecutionResult.Collection(values, rootType.type());
                 }
@@ -65,6 +68,30 @@ public final class Executor {
             throws SQLException {
         Object v = unwrap(rs.getObject(1), sqlTypeOf(plan, 0), dialect);
         return anyRoot ? decodeAny(v) : v;
+    }
+
+    /**
+     * LATTICE-typed roots recover their values' own kinds. A NUMBER root's
+     * SQL carrier is the coerced DECIMAL — an integral value was an Integer
+     * (greatest([1.23, 2]) is the Long 2, not 2.00); a DATE root's carrier
+     * is TIMESTAMP — a midnight value was a StrictDate. Fractional /
+     * time-carrying values keep their carrier kind. (The carrier cannot
+     * distinguish a genuine Float 2.0 or midnight DateTime — the documented
+     * abstract-lattice limitation; concrete-typed roots never take this path.)
+     */
+    private static Object latticeKind(Object v, Type rootType) {
+        if (rootType == Type.Primitive.NUMBER && v instanceof java.math.BigDecimal d) {
+            java.math.BigDecimal stripped = d.stripTrailingZeros();
+            // INTEGRAL only: a fractional value may genuinely be a Decimal —
+            // demoting it to double loses precision (audit regression).
+            return stripped.scale() <= 0 ? (Object) stripped.longValueExact() : v;
+        }
+        if (rootType == Type.Primitive.DATE && v instanceof java.sql.Timestamp t
+                && t.toLocalDateTime().toLocalTime()
+                        .equals(java.time.LocalTime.MIDNIGHT)) {
+            return t.toLocalDateTime().toLocalDate();
+        }
+        return v;
     }
 
     /**

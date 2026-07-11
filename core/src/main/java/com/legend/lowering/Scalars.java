@@ -662,18 +662,6 @@ final class Scalars {
                     : new SqlExpr.Call(SqlFn.LIST_GET,
                             List.of(args.get(0), plusOne(args.get(1)))));
         }
-        // in(val, coll) is contains with the arguments reversed — same
-        // variant-wrap rule for heterogeneous (Any) collections.
-        for (String f : Pure.nativeKeysAt("in")) {
-            RULES.put(f, (n, args) -> {
-                SqlExpr needle = n.args().get(1).info().type() instanceof Type.ClassType ct
-                        && ct.fqn().equals(PlatformTypes.ANY)
-                        ? SqlExpr.Call.of(SqlFn.TO_VARIANT, args.get(0))
-                        : args.get(0);
-                return new SqlExpr.Call(SqlFn.LIST_CONTAINS,
-                        List.of(args.get(1), needle));
-            });
-        }
         // list(items): the List<T> CARRIER — at SQL level the list value
         // itself (a to-one item wraps as a singleton).
         for (String f : Pure.nativeKeysAt("list")) {
@@ -780,7 +768,16 @@ final class Scalars {
         }
 
         // Parses and toString are CASTS (the Type rides the IR).
-        castFamily("toString", Type.Primitive.STRING);
+        // toString of a DATETIME prints Pure's ISO form
+        // (2014-01-01T00:00:00.000+0000) — SQL's VARCHAR cast uses a space
+        // separator and no offset. Other types keep the plain cast.
+        for (String f : Pure.nativeKeysAt("toString")) {
+            RULES.put(f, (n, args) -> n.args().get(0).info().type() == Type.Primitive.DATE_TIME
+                    ? SqlExpr.Call.of(SqlFn.STRFTIME, args.get(0),
+                            new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S.%g+0000"))
+                    : new SqlExpr.Cast(args.get(0), PureSql.type(Type.Primitive.STRING)));
+        }
+        family(SqlFn.IS_DISTINCT, "isDistinct");
         castFamily("parseInteger", Type.Primitive.INTEGER);
         castFamily("parseFloat", Type.Primitive.FLOAT);
         castFamily("toFloat", Type.Primitive.FLOAT);
@@ -812,8 +809,13 @@ final class Scalars {
             if (args.get(1) instanceof SqlExpr.NullLit) {
                 return new SqlExpr.BoolLit(false);
             }
+            // A heterogeneous (Any) collection is variant-wrapped — wrap the
+            // needle the same way so IN compares JSON to JSON.
+            SqlExpr needle = PlatformTypes.isAny(n.args().get(1).info().type())
+                    ? SqlExpr.Call.of(SqlFn.TO_VARIANT, args.get(0))
+                    : args.get(0);
             List<SqlExpr> flat = new ArrayList<>();
-            flat.add(args.get(0));
+            flat.add(needle);
             if (args.get(1) instanceof SqlExpr.ArrayLit arr) {
                 flat.addAll(arr.elements());
             } else {
