@@ -70,7 +70,21 @@ public final class DuckDb extends AnsiSqlRenderer {
     }
 
     private static SqlExpr unqualify(SqlExpr e) {
-        return e instanceof SqlExpr.Column c ? new SqlExpr.Column(null, c.name()) : e;
+        return switch (e) {
+            case SqlExpr.Column c -> new SqlExpr.Column(null, c.name());
+            case SqlExpr.Call c -> new SqlExpr.Call(c.fn(),
+                    c.args().stream().map(DuckDb::unqualify).toList());
+            case SqlExpr.Cast c -> new SqlExpr.Cast(unqualify(c.value()), c.target());
+            case SqlExpr.Case c -> new SqlExpr.Case(
+                    c.whens().stream().map(w -> new SqlExpr.Case.When(
+                            unqualify(w.condition()), unqualify(w.then()))).toList(),
+                    c.otherwise() == null ? null : unqualify(c.otherwise()));
+            case SqlExpr.ArrayLit a -> new SqlExpr.ArrayLit(
+                    a.elements().stream().map(DuckDb::unqualify).toList());
+            case SqlExpr.StructGet g ->
+                    new SqlExpr.StructGet(unqualify(g.source()), g.field());
+            default -> e;
+        };
     }
 
     // ---- list idioms: DuckDB is the lambda backend ----

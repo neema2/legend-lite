@@ -244,11 +244,10 @@ final class Scalars {
                 // TypedConcatenate set-op and never reaches scalar lowering
                 Map.entry("concatenate", SqlFn.LIST_CONCAT),
                 Map.entry("removeDuplicates", SqlFn.LIST_DISTINCT),
-                Map.entry("add", SqlFn.LIST_APPEND),
+
 
                 Map.entry("median", SqlFn.LIST_MEDIAN),
-                Map.entry("tail", SqlFn.LIST_TAIL),
-                Map.entry("init", SqlFn.LIST_INIT),
+
                 Map.entry("range", SqlFn.RANGE_FN),
                 Map.entry("toVariant", SqlFn.TO_VARIANT)).entrySet()) {
             familyIfPresent(e.getValue(), e.getKey());
@@ -480,10 +479,19 @@ final class Scalars {
         // (list, prefix, sep, suffix).
         for (String f : Pure.nativeKeysAt("joinStrings")) {
             RULES.put(f, (n, args) -> {
-                SqlExpr sep = args.size() == 2 ? args.get(1)
-                        : args.size() == 4 ? args.get(2) : new SqlExpr.StringLit("");
-                SqlExpr joined = new SqlExpr.Call(SqlFn.LIST_AGG, List.of(
-                        new SqlExpr.StringLit("string_agg"), args.get(0), sep));
+                // A TO-ONE source IS the joined string; an EMPTY list joins
+                // to '' (list_aggregate over NULL/[] is NULL — coalesce).
+                SqlExpr joined;
+                if (isToOne(n.args().get(0)) && !(args.get(0) instanceof SqlExpr.ArrayLit)) {
+                    joined = args.get(0);
+                } else {
+                    SqlExpr sep = args.size() == 2 ? args.get(1)
+                            : args.size() == 4 ? args.get(2) : new SqlExpr.StringLit("");
+                    joined = SqlExpr.Call.of(SqlFn.COALESCE,
+                            new SqlExpr.Call(SqlFn.LIST_AGG, List.of(
+                                    new SqlExpr.StringLit("string_agg"), args.get(0), sep)),
+                            new SqlExpr.StringLit(""));
+                }
                 if (args.size() == 4) {
                     return SqlExpr.Call.of(SqlFn.CONCAT,
                             SqlExpr.Call.of(SqlFn.CONCAT, args.get(1), joined),
@@ -674,17 +682,20 @@ final class Scalars {
         // encoding CHAR-INDEXES a lone string ('Doe'[1] = 'D', the at()/last()
         // trap; audit made the family uniform).
         for (String f : Pure.nativeKeysAt("first")) {
-            RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
+            RULES.put(f, (n, args) -> isToOne(n.args().get(0))
+                    && !(args.get(0) instanceof SqlExpr.ArrayLit) ? args.get(0)
                     : new SqlExpr.Call(SqlFn.LIST_GET,
                             List.of(args.get(0), new SqlExpr.IntLit(1))));
         }
         for (String f : Pure.nativeKeysAt("head")) {
-            RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
+            RULES.put(f, (n, args) -> isToOne(n.args().get(0))
+                    && !(args.get(0) instanceof SqlExpr.ArrayLit) ? args.get(0)
                     : new SqlExpr.Call(SqlFn.LIST_GET,
                             List.of(args.get(0), new SqlExpr.IntLit(1))));
         }
         for (String f : Pure.nativeKeysAt("last")) {
-            RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
+            RULES.put(f, (n, args) -> isToOne(n.args().get(0))
+                    && !(args.get(0) instanceof SqlExpr.ArrayLit) ? args.get(0)
                     : new SqlExpr.Call(SqlFn.LIST_GET,
                             List.of(args.get(0), new SqlExpr.IntLit(-1))));
         }
@@ -702,7 +713,8 @@ final class Scalars {
                 // substring search (audit: the type-only gate sent
                 // ['a','b']->indexOf('b') to strpos).
                 if (n.args().get(0).info().type() != Type.Primitive.STRING
-                        || !isToOne(n.args().get(0))) {
+                        || !isToOne(n.args().get(0))
+                        || args.get(0) instanceof SqlExpr.ArrayLit) {
                     // LIST indexOf: 0-based, -1 on a miss.
                     return new SqlExpr.Call(SqlFn.MINUS, List.of(
                             new SqlExpr.Call(SqlFn.COALESCE, List.of(
@@ -733,6 +745,7 @@ final class Scalars {
             // at(x, 0) over a TO-ONE value is the IDENTITY — the list encoding
             // would CHAR-INDEX a lone string ('Doe'[1] = 'D' in DuckDB).
             RULES.put(f, (n, args) -> isToOne(n.args().get(0))
+                    && !(args.get(0) instanceof SqlExpr.ArrayLit)
                     && args.get(1) instanceof SqlExpr.IntLit i && i.value() == 0
                     ? args.get(0)
                     : new SqlExpr.Call(SqlFn.LIST_GET,
@@ -744,6 +757,38 @@ final class Scalars {
             RULES.put(f, (n, args) -> isToOne(n.args().get(0))
                     ? new SqlExpr.ArrayLit(List.of(args.get(0)))
                     : args.get(0));
+        }
+        // add(set, val) appends; add(set, index, val) INSERTS at the 0-based
+        // index: prefix || [val] || suffix.
+        for (String f : Pure.nativeKeysAt("add")) {
+            RULES.put(f, (n, args) -> {
+                if (args.size() == 2) {
+                    return new SqlExpr.Call(SqlFn.LIST_APPEND, args);
+                }
+                SqlExpr l = args.get(0);
+                SqlExpr idx = args.get(1);
+                return SqlExpr.Call.of(SqlFn.LIST_CONCAT,
+                        SqlExpr.Call.of(SqlFn.LIST_CONCAT,
+                                SqlExpr.Call.of(SqlFn.LIST_SLICE, l,
+                                        new SqlExpr.IntLit(1), idx),
+                                new SqlExpr.ArrayLit(List.of(args.get(2)))),
+                        SqlExpr.Call.of(SqlFn.LIST_SLICE, l, plusOne(idx),
+                                SqlExpr.Call.of(SqlFn.LIST_LENGTH, l)));
+            });
+        }
+        // tail/init of a TO-ONE value is the EMPTY collection (all-but-first
+        // / all-but-last of a singleton).
+        for (String f : Pure.nativeKeysAt("tail")) {
+            RULES.put(f, (n, args) -> isToOne(n.args().get(0))
+                    && !(args.get(0) instanceof SqlExpr.ArrayLit)
+                    ? new SqlExpr.NullLit()
+                    : new SqlExpr.Call(SqlFn.LIST_TAIL, args));
+        }
+        for (String f : Pure.nativeKeysAt("init")) {
+            RULES.put(f, (n, args) -> isToOne(n.args().get(0))
+                    && !(args.get(0) instanceof SqlExpr.ArrayLit)
+                    ? new SqlExpr.NullLit()
+                    : new SqlExpr.Call(SqlFn.LIST_INIT, args));
         }
         // reverse(T[*]): the list reversed; a to-one value is its own reverse.
         for (String f : Pure.nativeKeysAt("reverse")) {
@@ -887,7 +932,8 @@ final class Scalars {
                 }
                 Type elem = n.args().get(0).info().type();
                 Type val = n.args().get(1).info().type();
-                if (elem == Type.Primitive.STRING && isToOne(n.args().get(0))) {
+                if (elem == Type.Primitive.STRING && isToOne(n.args().get(0))
+                        && !(args.get(0) instanceof SqlExpr.ArrayLit)) {
                     return new SqlExpr.Call(SqlFn.GREATER, List.of(
                             new SqlExpr.Call(SqlFn.STRPOS, args), new SqlExpr.IntLit(0)));
                 }
@@ -910,6 +956,10 @@ final class Scalars {
             });
         }
         // format('%s...', [args]) -> printf(fmt, args...): the array spreads.
+        // Two directives printf cannot honor rewrite to %s over a literal
+        // format string: %t{javaDatePattern} formats its date argument
+        // (strftime, pattern converted), and bare %f is pure's MINIMAL float
+        // repr, not printf's fixed six decimals.
         for (String f : Pure.nativeKeysAt("format")) {
             RULES.put(f, (n, args) -> {
                 List<SqlExpr> spread = new ArrayList<>();
@@ -923,6 +973,9 @@ final class Scalars {
                                     ? c.args().get(0) : e));
                 } else {
                     spread.add(args.get(1));
+                }
+                if (spread.get(0) instanceof SqlExpr.StringLit fmt) {
+                    rewriteFormatDirectives(fmt.value(), spread);
                 }
                 return new SqlExpr.Call(SqlFn.FORMAT, spread);
             });
@@ -951,10 +1004,17 @@ final class Scalars {
         // (2014-01-01T00:00:00.000+0000) — SQL's VARCHAR cast uses a space
         // separator and no offset. Other types keep the plain cast.
         for (String f : Pure.nativeKeysAt("toString")) {
-            RULES.put(f, (n, args) -> n.args().get(0).info().type() == Type.Primitive.DATE_TIME
-                    ? SqlExpr.Call.of(SqlFn.STRFTIME, args.get(0),
-                            new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S.%g+0000"))
-                    : new SqlExpr.Cast(args.get(0), PureSql.type(Type.Primitive.STRING)));
+            RULES.put(f, (n, args) -> {
+                Type t = n.args().get(0).info().type();
+                if (t == Type.Primitive.DATE_TIME) {
+                    return SqlExpr.Call.of(SqlFn.STRFTIME, args.get(0),
+                            new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S.%g+0000"));
+                }
+                if (t == Type.Primitive.FLOAT) {
+                    return floatRepr(args.get(0));
+                }
+                return new SqlExpr.Cast(args.get(0), PureSql.type(Type.Primitive.STRING));
+            });
         }
         family(SqlFn.IS_DISTINCT, "isDistinct");
         castFamily("parseInteger", Type.Primitive.INTEGER);
@@ -990,9 +1050,32 @@ final class Scalars {
             });
         }
         // date(y,m,d[,h,mi,s]) constructors.
+        // date(y[,m[,d[,h[,mi[,s]]]]]): every arity SHORT of seconds is a
+        // PARTIAL date — the ISO-prefix string carrier at that precision
+        // (real pure prints date(1973,11,13,23) as 1973-11-13T23). Only the
+        // full six-part form is a real timestamp; three parts is make_date.
         for (String f : Pure.nativeKeysAt("date")) {
-            RULES.put(f, (n, args) -> new SqlExpr.Call(
-                    args.size() <= 3 ? SqlFn.MAKE_DATE : SqlFn.MAKE_TIMESTAMP, args));
+            RULES.put(f, (n, args) -> {
+                if (args.size() == 3) {
+                    return new SqlExpr.Call(SqlFn.MAKE_DATE, args);
+                }
+                if (args.size() == 6) {
+                    return new SqlExpr.Call(SqlFn.MAKE_TIMESTAMP, args);
+                }
+                String[] seps = {"", "-", "-", "T", ":"};
+                int[] widths = {4, 2, 2, 2, 2};
+                SqlExpr out = null;
+                for (int i = 0; i < args.size(); i++) {
+                    SqlExpr part = SqlExpr.Call.of(SqlFn.LPAD,
+                            new SqlExpr.Cast(args.get(i),
+                                    com.legend.sql.SqlType.Scalar.VARCHAR),
+                            new SqlExpr.IntLit(widths[i]), new SqlExpr.StringLit("0"));
+                    out = out == null ? part
+                            : SqlExpr.Call.of(SqlFn.CONCAT, SqlExpr.Call.of(SqlFn.CONCAT,
+                                    out, new SqlExpr.StringLit(seps[i])), part);
+                }
+                return out;
+            });
         }
 
         // Overload-specific overrides — the resolved signature IS the decision.
@@ -1278,6 +1361,125 @@ final class Scalars {
     }
 
     /** Whether a type is an instance kind (a user class or parameterized class), not a primitive. */
+    /**
+     * Pure prints a Float via its MINIMAL decimal repr: DuckDB's shortest
+     * round-trip VARCHAR cast already matches ('1.5', '2.0') EXCEPT where it
+     * chooses exponent notation — those re-render plain through a
+     * DECIMAL(38,18) cast with trailing zeros trimmed (and a bare trailing
+     * dot restored to '.0'). Magnitudes outside DECIMAL(38,18) keep the
+     * exponent form.
+     */
+    private static SqlExpr floatRepr(SqlExpr x) {
+        SqlExpr s = new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR);
+        SqlExpr plain = SqlExpr.Call.of(SqlFn.RTRIM,
+                new SqlExpr.Cast(new SqlExpr.Cast(x, new com.legend.sql.SqlType.Decimal(38, 18)),
+                        com.legend.sql.SqlType.Scalar.VARCHAR),
+                new SqlExpr.StringLit("0"));
+        SqlExpr fixed = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.ENDS_WITH, plain, new SqlExpr.StringLit(".")),
+                SqlExpr.Call.of(SqlFn.CONCAT, plain, new SqlExpr.StringLit("0")))),
+                plain);
+        SqlExpr hasExp = SqlExpr.Call.of(SqlFn.GREATER,
+                SqlExpr.Call.of(SqlFn.STRPOS, s, new SqlExpr.StringLit("e")),
+                new SqlExpr.IntLit(0));
+        SqlExpr inRange = SqlExpr.Call.of(SqlFn.AND,
+                SqlExpr.Call.of(SqlFn.GREATER_EQUAL,
+                        SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.FloatLit(1e-18)),
+                SqlExpr.Call.of(SqlFn.LESS_EQUAL,
+                        SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.FloatLit(1e18)));
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.AND, hasExp, inRange), fixed)), s);
+    }
+
+    /**
+     * Scans a LITERAL printf format string for the pure-only directives,
+     * rewriting each to %s and wrapping the matching spread argument
+     * (spread = [fmt, arg1, ...]; directive order maps to argument order).
+     */
+    private static void rewriteFormatDirectives(String fmt, List<SqlExpr> spread) {
+        StringBuilder out = new StringBuilder();
+        int argIdx = 1;
+        int i = 0;
+        while (i < fmt.length()) {
+            char c = fmt.charAt(i);
+            if (c != '%' || i + 1 >= fmt.length()) {
+                out.append(c);
+                i++;
+                continue;
+            }
+            char d = fmt.charAt(i + 1);
+            if (d == '%') {
+                out.append("%%");
+                i += 2;
+                continue;
+            }
+            if (d == 't' && i + 2 < fmt.length() && fmt.charAt(i + 2) == '{') {
+                int close = fmt.indexOf('}', i + 3);
+                if (close < 0) {
+                    throw new IllegalStateException("unterminated %t{ in format: " + fmt);
+                }
+                spread.set(argIdx, SqlExpr.Call.of(SqlFn.STRFTIME, spread.get(argIdx),
+                        new SqlExpr.StringLit(javaDateToStrftime(fmt.substring(i + 3, close)))));
+                out.append("%s");
+                argIdx++;
+                i = close + 1;
+                continue;
+            }
+            if (d == 'f') {
+                spread.set(argIdx, floatRepr(spread.get(argIdx)));
+                out.append("%s");
+                argIdx++;
+                i += 2;
+                continue;
+            }
+            out.append('%').append(d);
+            argIdx++;
+            i += 2;
+        }
+        spread.set(0, new SqlExpr.StringLit(out.toString()));
+    }
+
+    /**
+     * Java SimpleDateFormat pattern -> strftime, longest token first. Values
+     * are UTC throughout, so the ZONE directives are literals: Z prints the
+     * +0000 offset, X the ISO 'Z'.
+     */
+    private static String javaDateToStrftime(String pattern) {
+        StringBuilder out = new StringBuilder();
+        int i = 0;
+        while (i < pattern.length()) {
+            if (pattern.charAt(i) == '"') {
+                int close = pattern.indexOf('"', i + 1);
+                if (close < 0) {
+                    throw new IllegalStateException("unterminated quote in date pattern: " + pattern);
+                }
+                out.append(pattern, i + 1, close);
+                i = close + 1;
+                continue;
+            }
+            String rest = pattern.substring(i);
+            String[][] tokens = {
+                    {"yyyy", "%Y"}, {"SSS", "%g"}, {"MM", "%m"}, {"dd", "%d"},
+                    {"HH", "%H"}, {"hh", "%I"}, {"mm", "%M"}, {"ss", "%S"},
+                    {"h", "%-I"}, {"a", "%p"}, {"Z", "+0000"}, {"X", "Z"},
+            };
+            boolean matched = false;
+            for (String[] t : tokens) {
+                if (rest.startsWith(t[0])) {
+                    out.append(t[1]);
+                    i += t[0].length();
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched) {
+                out.append(pattern.charAt(i));
+                i++;
+            }
+        }
+        return out.toString();
+    }
+
     private static boolean isClassish(Type t) {
         return (t instanceof Type.ClassType && !PlatformTypes.isVariant(t)
                         && !PlatformTypes.isAny(t) && !PlatformTypes.isNil(t))

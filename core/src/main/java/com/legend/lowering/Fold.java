@@ -75,11 +75,15 @@ final class Fold {
     /**
      * GROUP BY replaces the select's row space; it folds only onto a select
      * with nothing group-sensitive accumulated (no prior grouping/dedup/
-     * truncation/order — grouping does not preserve order).
+     * truncation/order — grouping does not preserve order). QUALIFY and
+     * window projections also block: their windows compute over the
+     * UNGROUPED rows, which no longer exist once GROUP BY lands.
      */
     static boolean groupByFolds(SqlSelect s) {
         return s.groupBy().isEmpty() && !s.distinct() && s.orderBy().isEmpty()
-                && s.limit() == null && s.offset() == null;
+                && s.limit() == null && s.offset() == null && s.qualify() == null
+                && s.projections().stream()
+                        .noneMatch(p -> p.expr() instanceof SqlExpr.WindowCall);
     }
 
     /**
