@@ -530,4 +530,30 @@ class ResolveNavigationTest {
                 () -> new StoreResolver(ctx, specs).resolve(body, null));
         assertTrue(e.getMessage().contains("nested navigation"), e.getMessage());
     }
+
+    // ---- multi-hop chains (A5): one join per hop, chained by path prefix ----
+
+    @Test
+    @DisplayName("3-hop across two associations: boss.employer.legal — 2 chained LEFT joins")
+    void threeHopAcrossTwoAssociations() throws SQLException {
+        String sql = sqlOf("m::Person.all()->project(~[n: p|$p.name,"
+                + " bn: p|$p.boss.name, bl: p|$p.boss.employer.legal])->from(m::RT)");
+        // boss.name and boss.employer.legal SHARE the boss join (chain dedup);
+        // the employer hop chains off it — exactly two LEFT joins.
+        assertEquals(2, count(sql, "LEFT OUTER JOIN"), sql);
+        assertEquals(List.of("Ann|Bob|null", "Bob|null|null", "Cat|null|null"),
+                exec(sql + "\nORDER BY n"),
+                "hop 1 proves the shared join; NULL bosses stay NULL through hop 2");
+    }
+
+    @Test
+    @DisplayName("3-hop SELF-association: boss.boss.name — two joins, distinct prefixes")
+    void threeHopSelfAssociation() throws SQLException {
+        String sql = sqlOf("m::Person.all()->project(~[n: p|$p.name,"
+                + " bb: p|$p.boss.boss.name])->from(m::RT)");
+        assertEquals(2, count(sql, "LEFT OUTER JOIN"), sql);
+        assertEquals(List.of("Ann|null", "Bob|null", "Cat|null"),
+                exec(sql + "\nORDER BY n"),
+                "Ann's boss Bob has no boss — NULL rides the whole chain");
+    }
 }

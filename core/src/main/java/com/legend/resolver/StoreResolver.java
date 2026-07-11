@@ -434,22 +434,18 @@ public final class StoreResolver {
                     Pipelines.slotAliases(aj.target().pipeline()), isToMany));
         }
 
-        // Association demand: 2-hop paths whose head is NOT a binding are
-        // association navigations — one LEFT join per head (dedup by head:
-        // the whole-chain registry), target = the class's own pipeline.
+        // Association demand: paths whose head is NOT a binding are
+        // association navigations — ONE LEFT join PER HOP, chained by path
+        // prefix (plan §2.3: longer prefixes chain off shorter; dedup by
+        // chain key, so $p.dept.name and $p.dept.org.name share the dept
+        // join). Target of each hop = its class's own pipeline.
         java.util.List<AssocJoin> assocJoins = new ArrayList<>();
+        Map<String, AssocJoin> joinsByChain = new java.util.LinkedHashMap<>();
         for (java.util.List<String> path : paths) {
             if (path.size() < 2 || cs.bindings().containsKey(path.get(0))) {
                 continue;   // 1-hop, or embedded/slot heads (substitution-side)
             }
             String head = path.get(0);
-            if (path.size() > 2) {
-                throw new NotImplementedException("multi-hop navigation "
-                        + String.join(".", path) + " is not supported yet");
-            }
-            if (assocs.containsKey(head)) {
-                continue;
-            }
             // Filter-ONLY TO-MANY paths take the implicit-EXISTS route; a
             // projection-position to-many path joins with ROW EXPLOSION
             // (the unanimous reference semantics). A TO-ONE head always gets
@@ -461,12 +457,55 @@ public final class StoreResolver {
                     && existsSubs.get(head).toMany()) {
                 continue;
             }
-            AssocJoin aj = associationJoin(cs, head, context, false);
-            assocJoins.add(aj);
-            assocs.put(head, new Substitution.AssocSub(aj.prefix(),
-                    aj.target().rowVar(), aj.target().bindings(),
-                    aj.target().classFqn(),
-                    Pipelines.slotAliases(aj.target().pipeline())));
+            ClassSource parent = cs;
+            String parentPrefix = "";
+            for (int hop = 0; hop + 1 < path.size(); hop++) {
+                String chainKey = String.join(".", path.subList(0, hop + 1));
+                AssocJoin known = joinsByChain.get(chainKey);
+                if (known != null) {
+                    parent = known.target();
+                    parentPrefix = known.prefix();
+                    continue;
+                }
+                AssocJoin aj = associationJoin(parent, path.get(hop), context, false);
+                if (hop > 0) {
+                    // A CHAINED hop: the parent's columns live PREFIXED on the
+                    // accumulated joined row — re-point the condition's LEFT
+                    // param reads (dept's raw $d.ID becomes dept_ID), and the
+                    // hop's own prefix extends the chain (dept_org_).
+                    String chainPrefix = parentPrefix + path.get(hop) + "_";
+                    final String pp2 = parentPrefix;
+                    TypedLambda cond = aj.condition();
+                    java.util.List<com.legend.compiler.element.type.Type.Column>
+                            leftCols = new ArrayList<>();
+                    for (com.legend.compiler.element.type.Type.Column c
+                            : ((com.legend.compiler.element.type.Type.RelationType)
+                                    parent.rowType()).columns()) {
+                        leftCols.add(new com.legend.compiler.element.type.Type.Column(
+                                pp2 + c.name(), c.type(), c.multiplicity()));
+                    }
+                    var leftRow = new com.legend.compiler.element.type.Type.RelationType(leftCols);
+                    String leftParam = cond.parameters().get(0);
+                    TypedSpec body = Pipelines.prefixColumns(
+                            cond.body().get(cond.body().size() - 1), leftParam, pp2,
+                            v -> new com.legend.compiler.spec.typed.TypedVariable(leftParam,
+                                    new com.legend.compiler.element.type.ExprType(leftRow,
+                                            com.legend.compiler.element.type.Multiplicity
+                                                    .Bounded.ONE)));
+                    cond = new TypedLambda(cond.parameters(), java.util.List.of(body),
+                            cond.info());
+                    aj = new AssocJoin(chainPrefix, aj.target(), aj.targetPipeline(),
+                            aj.targetRow(), cond);
+                }
+                assocJoins.add(aj);
+                joinsByChain.put(chainKey, aj);
+                assocs.put(chainKey, new Substitution.AssocSub(aj.prefix(),
+                        aj.target().rowVar(), aj.target().bindings(),
+                        aj.target().classFqn(),
+                        Pipelines.slotAliases(aj.target().pipeline())));
+                parent = aj.target();
+                parentPrefix = aj.prefix();
+            }
         }
 
         // 2b. Materialize the association joins (descriptor -> emission,

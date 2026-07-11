@@ -199,8 +199,16 @@ final class Substitution {
             return rewritePath(path.get(0), path.get(1), n);
         }
         if (path != null && path.size() > 2) {
+            // MULTI-HOP association chain ($p.dept.org.name): the demand scan
+            // registered one join per hop under its chain key — the leaf reads
+            // the DEEPEST hop's target with the chained prefix (dept_org_).
+            String chainKey = String.join(".", path.subList(0, path.size() - 1));
+            if (target.assocs().containsKey(chainKey)) {
+                return assocLeaf(chainKey, path.get(path.size() - 1));
+            }
             throw new NotImplementedException("multi-hop navigation "
-                    + String.join(".", path) + " is not supported yet");
+                    + String.join(".", path) + " through an embedded/slot head"
+                    + " is not supported yet");
         }
         String prop = propertyOnUserVar(n, target.userVar());
         if (prop != null) {
