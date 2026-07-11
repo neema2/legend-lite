@@ -1,5 +1,6 @@
 package com.legend.compiler.element;
 
+import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 
 import java.util.ArrayList;
@@ -30,7 +31,7 @@ public final class ClassLayouts {
     /** The layout of a class-typed VALUE, or empty when {@code t} is not a layoutable class. */
     public static Optional<List<Type.Column>> layoutOf(ModelContext ctx, Type t) {
         return switch (t) {
-            case Type.ClassType ct when !ct.fqn().endsWith("::Variant") ->
+            case Type.ClassType ct when !PlatformTypes.isVariant(ct) ->
                     ctx.findClass(ct.fqn()).flatMap(c -> layout(ctx, c, Map.of()));
             case Type.GenericType g -> ctx.findClass(g.rawFqn()).flatMap(c -> {
                 if (c.typeParameters().size() != g.arguments().size()) {

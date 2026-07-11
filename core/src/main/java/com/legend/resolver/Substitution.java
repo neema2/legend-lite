@@ -145,7 +145,7 @@ final class Substitution {
         // spelling after an optional navigation — the coercion is
         // multiplicity-only and transparent to the path (audit R3).
         if (n instanceof TypedNativeCall c && c.args().size() == 1
-                && c.callee().qualifiedName().endsWith("toOne")) {
+                && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
             return pathOf(c.args().get(0), userVar);
         }
         if (!(n instanceof TypedPropertyAccess pa)) {
@@ -219,7 +219,7 @@ final class Substitution {
                 // not a "resolver bug" from the rewriter's vocabulary wall.
                 TypedSpec inner = binding;
                 if (inner instanceof TypedNativeCall c1 && c1.args().size() == 1
-                        && c1.callee().qualifiedName().endsWith("toOne")) {
+                        && c1.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
                     inner = c1.args().get(0);
                 }
                 if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstance
@@ -292,7 +292,7 @@ final class Substitution {
         if (headBinding != null) {
             TypedSpec inner = headBinding;
             if (inner instanceof TypedNativeCall c && c.args().size() == 1
-                    && c.callee().qualifiedName().endsWith("toOne")) {
+                    && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
                 inner = c.args().get(0);
             }
             // A class-typed navigate-slot read ($row.alias): the step was
@@ -371,7 +371,7 @@ final class Substitution {
         }
         TypedSpec leafInner = leafBinding;
         if (leafInner instanceof TypedNativeCall lc && lc.args().size() == 1
-                && lc.callee().qualifiedName().endsWith("toOne")) {
+                && lc.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
             leafInner = lc.args().get(0);
         }
         if (leafInner instanceof com.legend.compiler.spec.typed.TypedNewInstance) {
@@ -546,7 +546,7 @@ final class Substitution {
     static TypedNativeCall otherwiseOf(TypedSpec binding) {
         TypedSpec inner = binding;
         if (inner instanceof TypedNativeCall c && c.args().size() == 1
-                && c.callee().qualifiedName().endsWith("toOne")) {
+                && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
             inner = c.args().get(0);
         }
         if (inner instanceof TypedNativeCall oc && oc.args().size() == 2

@@ -652,7 +652,7 @@ public final class StoreResolver {
             TypedSpec inner = e.getValue();
             if (inner instanceof com.legend.compiler.spec.typed.TypedNativeCall c
                     && c.args().size() == 1
-                    && c.callee().qualifiedName().endsWith("toOne")) {
+                    && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
                 inner = c.args().get(0);
             }
             if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstance
@@ -701,7 +701,7 @@ public final class StoreResolver {
             TypedSpec inner = binding;
             if (inner instanceof com.legend.compiler.spec.typed.TypedNativeCall c
                     && c.args().size() == 1
-                    && c.callee().qualifiedName().endsWith("toOne")) {
+                    && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
                 inner = c.args().get(0);
             }
             if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstance) {
@@ -830,7 +830,7 @@ public final class StoreResolver {
         TypedSpec inner = binding;
         if (inner instanceof com.legend.compiler.spec.typed.TypedNativeCall c
                 && c.args().size() == 1
-                && c.callee().qualifiedName().endsWith("toOne")) {
+                && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
             inner = c.args().get(0);
         }
         if (inner instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
@@ -953,7 +953,7 @@ public final class StoreResolver {
         var cf = specs.compile(fns.get(0));
         TypedSpec last = cf.body().get(cf.body().size() - 1);
         if (!(last instanceof com.legend.compiler.spec.typed.TypedNativeCall call)
-                || !call.callee().qualifiedName().endsWith("legacyAssocPredicate")
+                || !call.callee().qualifiedName().equals("meta::legend::lite::legacyAssocPredicate")
                 || call.args().size() != 5
                 || !(call.args().get(4) instanceof TypedLambda cond)) {
             throw new IllegalStateException("resolver bug: association predicate body"

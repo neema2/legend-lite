@@ -41,7 +41,7 @@ public final class InferenceKernel {
 
     private static final String RELATION_FQN = Pure.RELATION.qualifiedName();
     private static final String ANY_FQN = Pure.ANY.qualifiedName();
-    private static final String NIL_FQN = "meta::pure::metamodel::type::Nil";
+    private static final String NIL_FQN = com.legend.compiler.element.type.PlatformTypes.NIL;
 
     private final ModelContext ctx;
 
@@ -381,7 +381,7 @@ public final class InferenceKernel {
 
     private static boolean isNil(Type t) {
         return t instanceof Type.ClassType c
-                && c.fqn().equals("meta::pure::metamodel::type::Nil");
+                && c.fqn().equals(NIL_FQN);
     }
 
     /**
@@ -855,7 +855,8 @@ public final class InferenceKernel {
 
     /** {@code Function<{sig}>} unwraps to its bare {@code FunctionType}; everything else passes through. */
     private static Type unwrapFunction(Type t) {
-        if (t instanceof Type.GenericType g && g.rawFqn().endsWith("::Function")
+        if (t instanceof Type.GenericType g
+                && g.rawFqn().equals(com.legend.compiler.element.type.PlatformTypes.FUNCTION)
                 && g.arguments().size() == 1
                 && g.arguments().get(0) instanceof Type.FunctionType inner) {
             return inner;

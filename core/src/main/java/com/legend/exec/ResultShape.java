@@ -1,6 +1,7 @@
 package com.legend.exec;
 
 import com.legend.compiler.element.type.Multiplicity;
+import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.element.type.ExprType;
 
@@ -26,8 +27,8 @@ public enum ResultShape {
         if (root instanceof com.legend.compiler.spec.typed.TypedSerializeGraph) {
             return GRAPH;
         }
-        if (root.info().type() instanceof Type.ClassType ct && !ct.fqn().endsWith("::Variant")
-                && !ct.fqn().equals("meta::pure::metamodel::type::Nil")) {
+        if (root.info().type() instanceof Type.ClassType ct
+                && !PlatformTypes.isVariant(ct) && !PlatformTypes.isNil(ct)) {
             return isMany(root.info().multiplicity()) ? COLLECTION : SCALAR;
         }
         return of(root.info());
@@ -41,12 +42,12 @@ public enum ResultShape {
             // Variant is a SCALAR JSON value, not an object graph — the
             // lowering types it as JSON (audit L8); every other class value
             // is a graph fetch.
-            if (ct.fqn().endsWith("::Variant")) {
+            if (PlatformTypes.isVariant(ct)) {
                 return isMany(root.multiplicity()) ? COLLECTION : SCALAR;
             }
             // Nil is the []-born BOTTOM type — an always-empty VALUE
             // ([]->head() is Nil[0..1] = null), never an object graph.
-            if (ct.fqn().equals("meta::pure::metamodel::type::Nil")) {
+            if (PlatformTypes.isNil(ct)) {
                 return isMany(root.multiplicity()) ? COLLECTION : SCALAR;
             }
             return GRAPH;

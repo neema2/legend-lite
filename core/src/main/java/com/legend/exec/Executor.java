@@ -1,5 +1,6 @@
 package com.legend.exec;
 
+import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.sql.OutputCol;
@@ -39,8 +40,7 @@ public final class Executor {
                                           ResultShape shape, Connection connection,
                                           com.legend.sql.dialect.SqlDialect dialect)
             throws SQLException {
-        boolean anyRoot = rootType.type() instanceof Type.ClassType ct
-                && ct.fqn().equals("meta::pure::metamodel::type::Any");
+        boolean anyRoot = PlatformTypes.isAny(rootType.type());
         try (Statement st = connection.createStatement();
              ResultSet rs = st.executeQuery(sql)) {
             return switch (shape) {
@@ -76,12 +76,12 @@ public final class Executor {
      */
     private static Object decodeAny(Object v) {
         // Drivers hand JSON cells back as their own node type (DuckDB:
-        // org.duckdb.JsonNode) or as text — matched by NAME so the executor
-        // needs no driver import; the node's toString IS the JSON text.
+        // org.duckdb.JsonNode) or as text — matched by FULL class name so the
+        // executor needs no driver import; the node's toString IS the JSON text.
         String s;
         if (v instanceof String str) {
             s = str;
-        } else if (v != null && v.getClass().getSimpleName().equals("JsonNode")) {
+        } else if (v != null && v.getClass().getName().equals("org.duckdb.JsonNode")) {
             s = v.toString();
         } else {
             return v;

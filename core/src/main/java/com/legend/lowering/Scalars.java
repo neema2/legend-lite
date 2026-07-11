@@ -1,6 +1,7 @@
 package com.legend.lowering;
 
 import com.legend.builtin.Pure;
+import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.sql.SqlExpr;
@@ -667,8 +668,7 @@ final class Scalars {
                 // This MUST precede the cross-kind rule: an Any list can
                 // legitimately contain an instance (audit: class-in-mixed-list
                 // containment was constant FALSE).
-                if (elem instanceof Type.ClassType ct
-                        && ct.fqn().equals("meta::pure::metamodel::type::Any")) {
+                if (PlatformTypes.isAny(elem)) {
                     return new SqlExpr.Call(SqlFn.LIST_CONTAINS, List.of(args.get(0),
                             SqlExpr.Call.of(SqlFn.TO_VARIANT, args.get(1))));
                 }
@@ -1004,9 +1004,8 @@ final class Scalars {
 
     /** Whether a type is an instance kind (a user class or parameterized class), not a primitive. */
     private static boolean isClassish(Type t) {
-        return (t instanceof Type.ClassType ct && !ct.fqn().endsWith("::Variant")
-                        && !ct.fqn().equals("meta::pure::metamodel::type::Any")
-                        && !ct.fqn().equals("meta::pure::metamodel::type::Nil"))
+        return (t instanceof Type.ClassType && !PlatformTypes.isVariant(t)
+                        && !PlatformTypes.isAny(t) && !PlatformTypes.isNil(t))
                 || t instanceof Type.GenericType;
     }
 

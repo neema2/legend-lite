@@ -1,6 +1,7 @@
 package com.legend.lowering;
 
 import com.legend.compiler.element.type.Multiplicity;
+import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 import com.legend.sql.SqlType;
 
@@ -35,10 +36,10 @@ final class PureSql {
             };
             case Type.PrecisionDecimal d -> new SqlType.Decimal(d.precision(), d.scale());
             case Type.ClassType ct -> {
-                if (ct.fqn().endsWith("::Variant")) {
+                if (PlatformTypes.isVariant(ct)) {
                     yield SqlType.Scalar.JSON;
                 }
-                if (ct.fqn().equals("meta::pure::metamodel::type::Any")) {
+                if (PlatformTypes.isAny(ct)) {
                     // Any = a heterogeneous VALUE position ([1,'a'] roots):
                     // the carrier is variant JSON — the one SQL type that
                     // keeps each element's own runtime kind (engine-lite's
@@ -46,7 +47,7 @@ final class PureSql {
                     // managed yet!' and excludes these from relational PCT).
                     yield SqlType.Scalar.JSON;
                 }
-                if (ct.fqn().equals("meta::pure::metamodel::type::Nil")) {
+                if (PlatformTypes.isNil(ct)) {
                     // Nil is the BOTTOM type — it types only []-born values, whose
                     // sole inhabitant is emptiness. The cell is always SQL NULL;
                     // VARCHAR is the carrier of an always-null column.
@@ -62,7 +63,7 @@ final class PureSql {
             case Type.GenericType g -> {
                 // List<T> is the platform's list CARRIER — an SQL array of
                 // the element type (real pure's list() over slice/etc.).
-                if (g.rawFqn().endsWith("::List") && g.arguments().size() == 1) {
+                if (PlatformTypes.isListCarrier(g)) {
                     yield new SqlType.Array(type(g.arguments().get(0)));
                 }
                 throw new IllegalStateException(

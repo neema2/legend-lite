@@ -438,7 +438,7 @@ final class Typer {
             b.bindType(rv.name(), body.info().type());
         } else if (retType instanceof Type.TypeVar rv
                 && kernel.resolve(retType, b) instanceof Type.ClassType nil
-                && nil.fqn().equals("meta::pure::metamodel::type::Nil")) {
+                && nil.fqn().equals(com.legend.compiler.element.type.PlatformTypes.NIL)) {
             // The return variable was solved to Nil by a []-born argument
             // (fold's init): BOTTOM carries no constraint — the body's type
             // IS the solution (covariant upgrade; Nil vanishes, the same rule
@@ -611,7 +611,7 @@ final class Typer {
                 // (real pure), so it conforms to any expected element type
                 // and vanishes in LUBs: if(c, {|Status}, {|[]}) is
                 // Status[0..1], not Any.
-                .orElseGet(() -> new Type.ClassType("meta::pure::metamodel::type::Nil"));
+                .orElseGet(() -> new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.NIL));
         Multiplicity mult = new Multiplicity.Bounded(elements.size(), elements.size());
         return new TypedCollection(elements, new ExprType(elementType, mult));
     }

@@ -95,9 +95,10 @@ public final class Lowerer {
                     // kinds meeting at an abstract ancestor) — it travels as
                     // variant JSON, like Any. Non-model classes keep
                     // PureSql's loud wall.
-                    if (t instanceof Type.ClassType ct && !ct.fqn().endsWith("::Variant")
-                            && !ct.fqn().equals("meta::pure::metamodel::type::Nil")
-                            && !ct.fqn().equals("meta::pure::metamodel::type::Any")
+                    if (t instanceof Type.ClassType ct
+                            && !com.legend.compiler.element.type.PlatformTypes.isVariant(ct)
+                            && !com.legend.compiler.element.type.PlatformTypes.isNil(ct)
+                            && !com.legend.compiler.element.type.PlatformTypes.isAny(ct)
                             && classExists.test(ct.fqn())) {
                         return com.legend.sql.SqlType.Scalar.JSON;
                     }
@@ -473,7 +474,7 @@ public final class Lowerer {
         // BI-VARIATE map: rowMapper(value, key) decomposes into the SQL
         // aggregate's two arguments — CORR(a, b), ARG_MAX(v, k), ...
         if (mapBody instanceof TypedNativeCall rm
-                && rm.callee().qualifiedName().endsWith("::rowMapper")
+                && rm.callee().qualifiedName().equals("meta::pure::functions::math::mathUtility::rowMapper")
                 && rm.args().size() == 2) {
             SqlExpr first = scalar(rm.args().get(0), (v, name) -> resolveOrThrow(base, name));
             SqlExpr second = scalar(rm.args().get(1), (v, name) -> resolveOrThrow(base, name));
@@ -1353,8 +1354,8 @@ public final class Lowerer {
             // one SQL carrier that keeps per-element runtime kinds (a raw
             // mixed array cannot even type).
             case TypedCollection c when c.info().type() instanceof Type.ClassType ct
-                    && !ct.fqn().endsWith("::Variant")
-                    && !ct.fqn().equals("meta::pure::metamodel::type::Nil")
+                    && !com.legend.compiler.element.type.PlatformTypes.isVariant(ct)
+                    && !com.legend.compiler.element.type.PlatformTypes.isNil(ct)
                     && classLayout.apply(ct).isEmpty() ->
                     new SqlExpr.ArrayLit(c.elements().stream()
                             .map(e -> (SqlExpr) SqlExpr.Call.of(
@@ -1770,14 +1771,14 @@ public final class Lowerer {
                          ColumnResolver columns) {
         SqlExpr value = scalar(c.source(), columns);
         boolean variantSource = c.source().info().type()
-                instanceof Type.ClassType ct && ct.fqn().endsWith("::Variant");
+                instanceof Type.ClassType ct && com.legend.compiler.element.type.PlatformTypes.isVariant(ct);
         if (!variantSource) {
             return value;
         }
         boolean many = isMany(c);
         if (many) {
             boolean variantTarget = c.target() instanceof Type.ClassType t
-                    && t.fqn().endsWith("::Variant");
+                    && com.legend.compiler.element.type.PlatformTypes.isVariant(t);
             return variantTarget
                     ? SqlExpr.Call.of(com.legend.sql.SqlFn.VARIANT_ELEMENTS, value)
                     // A to-many cast targets an ARRAY of the element type —

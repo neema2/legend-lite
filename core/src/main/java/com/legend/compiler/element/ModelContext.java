@@ -127,7 +127,7 @@ public interface ModelContext {
         // m3 navigation Type.subTypeOf's explicit isBottomType arm). It is
         // the type of the empty collection [], so LUB(X, Nil) = X and a
         // Nil value conforms to any expected type.
-        if (childFqn.equals("meta::pure::metamodel::type::Nil")) {
+        if (childFqn.equals(com.legend.compiler.element.type.PlatformTypes.NIL)) {
             return true;
         }
         Optional<TypedClass> child = findClass(childFqn);
