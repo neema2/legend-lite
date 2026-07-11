@@ -100,7 +100,20 @@ function meta::legend::lite::pct::buildTypedHeader(funcReturnType:GenericType[1]
             )
         );
         let colType = getSimpleTypeName($col->functionReturnType());
-        $quotedName + ':' + $colType;
+        // Pure 5.88 RelationType columns carry MULTIPLICITY — a header
+        // without it builds Integer[0..1]-shaped columns that no longer
+        // cast to the declared Integer[1] (the 115-test cast bucket).
+        let colMult = $col->functionReturnMultiplicity();
+        // The 5.88 TDS header parser supports ONLY [1] and [0..1]
+        // (processMultiplicity throws otherwise) — anything else stays bare.
+        let multStr = if($colMult->isToOne(),
+          | '[1]',
+          | if($colMult->hasLowerBound() && $colMult->getLowerBound() == 0
+                  && $colMult->hasUpperBound() && $colMult->getUpperBound() == 1,
+              | '[0..1]',
+              | '')
+        );
+        $quotedName + ':' + $colType + $multStr;
       );
       $columns->joinStrings(',');,
     | []

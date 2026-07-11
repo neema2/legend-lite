@@ -334,7 +334,9 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             if (colName.contains("__|__")) {
                 colName = "'" + colName + "'";
             }
-            sb.append(colName).append(":").append(col.sqlType());
+            // Pure 5.88's TDS parser resolves header types as PURE paths
+            // (VARCHAR was "not found") — spell the Pure primitive.
+            sb.append(colName).append(":").append(pureTypeName(col.sqlType()));
         }
         for (var row : result.rows()) {
             sb.append("\n");
@@ -345,6 +347,24 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             }
         }
         return sb.toString();
+    }
+
+    private static String pureTypeName(String sqlType) {
+        String t = sqlType.toUpperCase();
+        int paren = t.indexOf('(');
+        if (paren > 0) {
+            t = t.substring(0, paren);
+        }
+        return switch (t) {
+            case "VARCHAR", "CHAR", "TEXT" -> "String";
+            case "INTEGER", "INT", "BIGINT", "HUGEINT", "SMALLINT", "TINYINT" -> "Integer";
+            case "DOUBLE", "FLOAT", "REAL" -> "Float";
+            case "DECIMAL", "NUMERIC" -> "Decimal";
+            case "BOOLEAN" -> "Boolean";
+            case "DATE" -> "StrictDate";
+            case "TIMESTAMP", "TIMESTAMPTZ", "TIMESTAMP WITH TIME ZONE" -> "DateTime";
+            default -> "String";
+        };
     }
 
     private String formatValue(Object value) {

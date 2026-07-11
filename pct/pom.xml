@@ -17,8 +17,8 @@
 
     <properties>
         <!-- Legend Engine versions (isolated to this module only) -->
-        <legend.engine.version>4.91.0</legend.engine.version>
-        <legend.pure.version>5.52.4</legend.pure.version>
+        <legend.engine.version>4.133.0</legend.engine.version>
+        <legend.pure.version>5.88.0</legend.pure.version>
         <eclipse.collections.version>10.2.0</eclipse.collections.version>
     </properties>
 
