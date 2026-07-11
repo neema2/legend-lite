@@ -1898,21 +1898,31 @@ public final class Lowerer {
                             SqlAgg.Reducer.of("COUNT"), null)), List.of()));
         }
         if (isFamily(n, "exists")) {
-            return (lw, call) -> new SqlExpr.Exists(
-                    lw.whereLambda(call.args().get(0), call.args().get(1), false));
+            return (lw, call) -> new SqlExpr.Exists(select1(
+                    lw.whereLambda(call.args().get(0), call.args().get(1), false)));
         }
         if (isFamily(n, "forAll")) {
-            return (lw, call) -> SqlExpr.Call.of(SqlFn.NOT, new SqlExpr.Exists(
-                    lw.whereLambda(call.args().get(0), call.args().get(1), true)));
+            return (lw, call) -> SqlExpr.Call.of(SqlFn.NOT, new SqlExpr.Exists(select1(
+                    lw.whereLambda(call.args().get(0), call.args().get(1), true))));
         }
         if (isFamily(n, "isEmpty")) {
             return (lw, call) -> SqlExpr.Call.of(SqlFn.NOT,
-                    new SqlExpr.Exists(lw.relation(call.args().get(0))));
+                    new SqlExpr.Exists(select1(lw.relation(call.args().get(0)))));
         }
         if (isFamily(n, "isNotEmpty")) {
-            return (lw, call) -> new SqlExpr.Exists(lw.relation(call.args().get(0)));
+            return (lw, call) -> new SqlExpr.Exists(select1(lw.relation(call.args().get(0))));
         }
         return null;
+    }
+
+    /**
+     * An EXISTS subquery projects the constant {@code 1} — its columns are
+     * never read, and {@code SELECT 1} is the reference engines' lean shape
+     * ({@code buildExistsPredicate}).
+     */
+    private static SqlSelect select1(SqlSelect s) {
+        return s.withProjections(List.of(new SqlSelect.Projection(
+                new SqlExpr.IntLit(1), null)), List.of());
     }
 
     /** Lower {@code rel} and fold {@code pred} (negated for forAll) into its WHERE. */

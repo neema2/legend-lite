@@ -54,8 +54,20 @@ final class Scalars {
         family(SqlFn.LESS_EQUAL, "lessThanEqual");
         family(SqlFn.GREATER, "greaterThan");
         family(SqlFn.GREATER_EQUAL, "greaterThanEqual");
-        family(SqlFn.AND, "and");
-        family(SqlFn.OR, "or");
+        // and(Boolean[*]) / or(Boolean[*]) are the COLLECTION reductions
+        // (real pure) — the infix renderer would emit the lone list bare.
+        for (String f : Pure.nativeKeysAt("and")) {
+            RULES.put(f, (n, args) -> args.size() == 1
+                    ? (isToOne(n.args().get(0)) ? args.get(0)
+                            : new SqlExpr.Call(SqlFn.LIST_BOOL_AND, args))
+                    : new SqlExpr.Call(SqlFn.AND, args));
+        }
+        for (String f : Pure.nativeKeysAt("or")) {
+            RULES.put(f, (n, args) -> args.size() == 1
+                    ? (isToOne(n.args().get(0)) ? args.get(0)
+                            : new SqlExpr.Call(SqlFn.LIST_BOOL_OR, args))
+                    : new SqlExpr.Call(SqlFn.OR, args));
+        }
         // not(equal(a,b)) renders as a <> b (lean SQL): the peephole keeps
         // SqlFn.NOT_EQUAL alive even though the QUERY spelling is not(equal)
         // (real pure has no notEqual — FQN_MIGRATION finding).
@@ -152,7 +164,7 @@ final class Scalars {
                 Map.entry("atan2", SqlFn.ATAN2), Map.entry("sinh", SqlFn.SINH),
                 Map.entry("cosh", SqlFn.COSH), Map.entry("tanh", SqlFn.TANH),
                 Map.entry("ceiling", SqlFn.CEILING), Map.entry("floor", SqlFn.FLOOR),
-                Map.entry("round", SqlFn.ROUND), Map.entry("sign", SqlFn.SIGN),
+                Map.entry("sign", SqlFn.SIGN),
                 Map.entry("xor", SqlFn.XOR),
                 Map.entry("bitAnd", SqlFn.BIT_AND), Map.entry("bitOr", SqlFn.BIT_OR),
                 Map.entry("bitXor", SqlFn.BIT_XOR),
@@ -363,7 +375,29 @@ final class Scalars {
         familyIfPresent(SqlFn.DEGREES, "toDegrees");
         familyIfPresent(SqlFn.REPEAT_STR, "repeatString");
         familyIfPresent(SqlFn.JARO_WINKLER, "jaroWinklerSimilarity");
-        familyIfPresent(SqlFn.DECODE_BASE64, "decodeBase64");
+        // decodeBase64 accepts UNPADDED input (real pure; SQL from_base64
+        // demands padding) — restore the '=' tail: literal-folded, or
+        // s || repeat('=', (4 - length(s) % 4) % 4) at runtime.
+        for (String f : Pure.nativeKeysAt("decodeBase64")) {
+            RULES.put(f, (n, args) -> {
+                SqlExpr in = args.get(0);
+                if (in instanceof SqlExpr.StringLit lit) {
+                    String v = lit.value();
+                    in = new SqlExpr.StringLit(v + "=".repeat((4 - v.length() % 4) % 4));
+                } else {
+                    SqlExpr pad = SqlExpr.Call.of(SqlFn.MOD,
+                            SqlExpr.Call.of(SqlFn.MINUS, new SqlExpr.IntLit(4),
+                                    SqlExpr.Call.of(SqlFn.MOD,
+                                            SqlExpr.Call.of(SqlFn.LENGTH, in),
+                                            new SqlExpr.IntLit(4))),
+                            new SqlExpr.IntLit(4));
+                    in = SqlExpr.Call.of(SqlFn.CONCAT, in,
+                            SqlExpr.Call.of(SqlFn.REPEAT_STR,
+                                    new SqlExpr.StringLit("="), pad));
+                }
+                return SqlExpr.Call.of(SqlFn.DECODE_BASE64, in);
+            });
+        }
         familyIfPresent(SqlFn.LIST_LENGTH, "size");
         familyIfPresent(SqlFn.MINUS, "sub");
         // joinStrings over a LIST value: (list), (list, sep), or
@@ -478,6 +512,15 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("sum")) {
             RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
                     : new SqlExpr.Call(SqlFn.LIST_SUM, args));
+        }
+        // round(Number[1]) RETURNS Integer (real pure) — banker's round,
+        // then the integral cast the signature promises; round(x, scale)
+        // keeps its operand's type.
+        for (String f : Pure.nativeKeysAt("round")) {
+            RULES.put(f, (n, args) -> args.size() == 1
+                    ? new SqlExpr.Cast(new SqlExpr.Call(SqlFn.ROUND, args),
+                            com.legend.sql.SqlType.Scalar.BIGINT)
+                    : new SqlExpr.Call(SqlFn.ROUND, args));
         }
         // greatest/least/mode take ONE collection argument (real pure: values:X[*]);
         // like min/max/sum, a to-one argument is the identity and a list reduces
@@ -619,6 +662,18 @@ final class Scalars {
                     : new SqlExpr.Call(SqlFn.LIST_GET,
                             List.of(args.get(0), plusOne(args.get(1)))));
         }
+        // in(val, coll) is contains with the arguments reversed — same
+        // variant-wrap rule for heterogeneous (Any) collections.
+        for (String f : Pure.nativeKeysAt("in")) {
+            RULES.put(f, (n, args) -> {
+                SqlExpr needle = n.args().get(1).info().type() instanceof Type.ClassType ct
+                        && ct.fqn().equals(PlatformTypes.ANY)
+                        ? SqlExpr.Call.of(SqlFn.TO_VARIANT, args.get(0))
+                        : args.get(0);
+                return new SqlExpr.Call(SqlFn.LIST_CONTAINS,
+                        List.of(args.get(1), needle));
+            });
+        }
         // list(items): the List<T> CARRIER — at SQL level the list value
         // itself (a to-one item wraps as a singleton).
         for (String f : Pure.nativeKeysAt("list")) {
@@ -633,6 +688,12 @@ final class Scalars {
         }
         for (String f : Pure.nativeKeysAt("splitPart")) {
             RULES.put(f, (n, args) -> {
+                // An EMPTY delimiter never splits: index 0 IS the whole
+                // string (PCT; SQL split_part('', …) returns '' instead).
+                if (args.get(1) instanceof SqlExpr.StringLit d && d.value().isEmpty()) {
+                    return args.get(2) instanceof SqlExpr.IntLit i && i.value() == 0
+                            ? args.get(0) : new SqlExpr.NullLit();
+                }
                 List<SqlExpr> shifted = new ArrayList<>(args);
                 shifted.set(2, plusOne(args.get(2)));
                 return new SqlExpr.Call(SqlFn.SPLIT_PART, shifted);
@@ -723,7 +784,17 @@ final class Scalars {
         castFamily("parseInteger", Type.Primitive.INTEGER);
         castFamily("parseFloat", Type.Primitive.FLOAT);
         castFamily("toFloat", Type.Primitive.FLOAT);
-        castFamily("parseDecimal", Type.Primitive.DECIMAL);
+        // parseDecimal accepts the 'd'/'D' Pure-literal suffix ('3.14159d');
+        // SQL DECIMAL casts do not — strip it (literal-folded or RTRIM).
+        for (String f : Pure.nativeKeysAt("parseDecimal")) {
+            RULES.put(f, (n, args) -> {
+                SqlExpr in = args.get(0) instanceof SqlExpr.StringLit lit
+                        ? new SqlExpr.StringLit(lit.value().replaceAll("[dD]$", ""))
+                        : SqlExpr.Call.of(SqlFn.RTRIM, args.get(0),
+                                new SqlExpr.StringLit("dD"));
+                return new SqlExpr.Cast(in, PureSql.type(Type.Primitive.DECIMAL));
+            });
+        }
         castFamily("parseBoolean", Type.Primitive.BOOLEAN);
         castFamily("parseDate", Type.Primitive.DATE_TIME);
         // date(y,m,d[,h,mi,s]) constructors.

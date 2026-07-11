@@ -10,6 +10,7 @@ import com.legend.parser.element.ComparisonOp;
 import com.legend.parser.element.LogicalOp;
 import com.legend.parser.spec.PureCollection;
 import com.legend.parser.spec.AppliedFunction;
+import com.legend.parser.spec.LambdaFunction;
 import com.legend.parser.spec.AppliedProperty;
 import com.legend.parser.spec.CBoolean;
 import com.legend.parser.spec.CFloat;
@@ -171,6 +172,34 @@ final class RelOpTranslator {
                     }
                     yield chain;
             }
+            // Dynafunction spellings with no same-named pure native:
+            // isNull/isNotNull ARE isEmpty/isNotEmpty on [0..1] values;
+            // group(x) is parenthesization; if's branches must be THUNKS
+            // (real pure's if takes zero-param lambdas — the dynafunction
+            // spelling passes plain expressions).
+            case RelationalOperation.FunctionCall call
+                    when call.name().equals("isNull") && call.args().size() == 1 ->
+                    new AppliedFunction("isEmpty", List.of(translate(call.args().get(0),
+                            tableScope, targetVarOrNull, rowBindOrNull, pipeline)));
+            case RelationalOperation.FunctionCall call
+                    when call.name().equals("isNotNull") && call.args().size() == 1 ->
+                    new AppliedFunction("isNotEmpty", List.of(translate(call.args().get(0),
+                            tableScope, targetVarOrNull, rowBindOrNull, pipeline)));
+            case RelationalOperation.FunctionCall call
+                    when call.name().equals("group") && call.args().size() == 1 ->
+                    translate(call.args().get(0), tableScope, targetVarOrNull,
+                            rowBindOrNull, pipeline);
+            case RelationalOperation.FunctionCall call
+                    when call.name().equals("if") && call.args().size() == 3 ->
+                    new AppliedFunction("if", List.of(
+                            translate(call.args().get(0), tableScope, targetVarOrNull,
+                                    rowBindOrNull, pipeline),
+                            new LambdaFunction(List.of(), List.of(
+                                    translate(call.args().get(1), tableScope, targetVarOrNull,
+                                            rowBindOrNull, pipeline))),
+                            new LambdaFunction(List.of(), List.of(
+                                    translate(call.args().get(2), tableScope, targetVarOrNull,
+                                            rowBindOrNull, pipeline)))));
             case RelationalOperation.FunctionCall call -> new AppliedFunction(
                     call.name(),
                     call.args().stream()

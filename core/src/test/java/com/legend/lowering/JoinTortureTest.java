@@ -152,8 +152,10 @@ class JoinTortureTest {
     void relationExists() throws SQLException {
         String sql = sqlOf(P + "->filter(x|"
                 + F + "->exists(f|$f.F_NAME == $x.FIRM))");
+        // SELECT 1: the reference engines' lean EXISTS shape (its columns
+        // are never read).
         assertTrue(sql.contains(
-                "WHERE EXISTS (SELECT * FROM T_FIRM AS t1 WHERE t1.F_NAME = t0.FIRM)"), sql);
+                "WHERE EXISTS (SELECT 1 FROM T_FIRM AS t1 WHERE t1.F_NAME = t0.FIRM)"), sql);
         assertEquals(List.of("Ann|25|ACME", "Bob|35|ACME", "Cat|45|Widget"),
                 exec(sql + "\nORDER BY t0.AGE"), "Dan's null firm matches nothing");
     }
