@@ -628,6 +628,7 @@ public final class SpecParser implements TokenStreamCursor {
             case AT -> parseTypeAnnotation();
             case COMPARATOR -> parseComparatorExpression();
             case TDS_LITERAL -> parseTdsLiteral();
+            case PATH_LITERAL -> parsePathLiteral();
             case ISLAND_OPEN -> parseDsl();
             default -> {
                 if (isIdentifierToken(t)) {
@@ -2082,6 +2083,34 @@ public final class SpecParser implements TokenStreamCursor {
     // -------------------------------------------------------------------
     // TDS literal (C.7a)
     // -------------------------------------------------------------------
+
+    /**
+     * {@code #/Type/prop1/prop2#} — a navigation PATH. Its value semantics
+     * for plain property segments IS the navigation lambda
+     * {@code x | $x.prop1.prop2} (real pure evaluates a Path by walking its
+     * property chain); richer path features (parameterized segments,
+     * subtype casts {@code @X}, indices) are LOUD until built.
+     */
+    private ValueSpecification parsePathLiteral() {
+        String text = text();
+        pos++;
+        String inner = text.substring(2, text.length() - 1);   // strip '#/' and '#'
+        String[] segs = inner.split("/");
+        if (segs.length < 2) {
+            throw error("navigation path needs at least one property segment: " + text);
+        }
+        ValueSpecification body = new Variable("_path");
+        for (int i = 1; i < segs.length; i++) {
+            String seg = segs[i].strip();
+            if (!seg.matches("\\w+")) {
+                throw error("navigation path segment '" + seg
+                        + "' uses an unsupported path feature (only plain"
+                        + " property segments desugar): " + text);
+            }
+            body = new AppliedProperty(body, seg);
+        }
+        return new LambdaFunction(List.of(new Variable("_path")), List.of(body));
+    }
 
     /**
      * Parse a TDS literal. {@code TDS_LITERAL} is a lexer-side

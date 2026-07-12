@@ -203,6 +203,7 @@ public final class NameResolver {
     private static PackageableElement resolveElement(
             PackageableElement element, Scope scope) {
         return switch (element) {
+            case com.legend.parser.element.PrimitiveExtensionDefinition pe -> pe;
             case ClassDefinition cd -> resolveClass(cd, scope);
             case AssociationDefinition ad -> resolveAssociation(ad, scope);
             case FunctionDefinition fd -> resolveFunction(fd, scope);
@@ -730,6 +731,7 @@ public final class NameResolver {
                 yield db.equals(c.database()) ? c
                         : new PropertyMapping.Column(c.propertyName(), db, c.table(), c.column());
             }
+            case PropertyMapping.EnumeratedExpression ee -> ee;
             case PropertyMapping.EnumeratedColumn ec -> {
                 String db = resolveName(ec.database(), scope);
                 yield db.equals(ec.database()) ? ec

@@ -4,6 +4,7 @@ import com.legend.parser.TypeExpression;
 
 import com.legend.parser.Multiplicity;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -30,12 +31,22 @@ import java.util.Objects;
 public record AssociationDefinition(
         String qualifiedName,
         AssociationEndDefinition property1,
-        AssociationEndDefinition property2) implements PackageableElement {
+        AssociationEndDefinition property2,
+        List<ClassDefinition.DerivedPropertyDefinition> derivedProperties)
+        implements PackageableElement {
 
     public AssociationDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
         Objects.requireNonNull(property1, "Property1 cannot be null");
         Objects.requireNonNull(property2, "Property2 cannot be null");
+        derivedProperties = derivedProperties == null ? List.of() : List.copyOf(derivedProperties);
+    }
+
+    /** The common two-end form (no qualified properties). */
+    public AssociationDefinition(String qualifiedName,
+                                 AssociationEndDefinition property1,
+                                 AssociationEndDefinition property2) {
+        this(qualifiedName, property1, property2, List.of());
     }
 
     /**

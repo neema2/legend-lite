@@ -675,10 +675,22 @@ public final class MappingNormalizer {
             return synthJsonSourceMapping(md, rcm, model);
         }
         if (rcm.mainTable() == null) {
-            throw new com.legend.error.NotImplementedException(
-                    "Relational mapping without ~mainTable or sourceUrl not supported; class="
-                  + rcm.className() + ", mapping=" + md.qualifiedName()
-                  + ". See docs/MAPPING_LEGACY_TO_FUNCTION.md §5.2.3.");
+            // real engine INFERS the main table when ~mainTable is absent:
+            // the table of the first direct column binding (corpus mappings
+            // rarely spell ~mainTable). No column binding to infer from
+            // stays a loud wall.
+            LegacyMappingDefinition.TableReference inferred = inferMainTable(rcm);
+            if (inferred == null) {
+                throw new com.legend.error.NotImplementedException(
+                        "Relational mapping without ~mainTable, sourceUrl, or an"
+                      + " inferable column binding; class="
+                      + rcm.className() + ", mapping=" + md.qualifiedName()
+                      + ". See docs/MAPPING_LEGACY_TO_FUNCTION.md §5.2.3.");
+            }
+            rcm = new ClassMapping.Relational(rcm.className(), rcm.setId(),
+                    rcm.extendsSetId(), rcm.root(), inferred, rcm.filter(),
+                    rcm.distinct(), rcm.groupBy(), rcm.primaryKey(),
+                    rcm.propertyMappings(), rcm.sourceUrl());
         }
         DatabaseDefinition.ViewDefinition view = model.findView(
                 rcm.mainTable().database(), rcm.mainTable().table()).orElse(null);
@@ -686,6 +698,32 @@ public final class MappingNormalizer {
             return synthViewBackedMapping(md, rcm, view, model);
         }
         return synthTableBackedMapping(md, rcm, model);
+    }
+
+    /** The first direct column binding's table — the engine's inferred main table. */
+    private static LegacyMappingDefinition.TableReference inferMainTable(
+            ClassMapping.Relational rcm) {
+        for (PropertyMapping pm : rcm.propertyMappings()) {
+            LegacyMappingDefinition.TableReference t = mainTableOf(pm);
+            if (t != null) {
+                return t;
+            }
+        }
+        return null;
+    }
+
+    private static LegacyMappingDefinition.TableReference mainTableOf(PropertyMapping pm) {
+        return switch (pm) {
+            case PropertyMapping.Column c ->
+                    new LegacyMappingDefinition.TableReference(c.database(), c.table());
+            case PropertyMapping.EnumeratedColumn ec ->
+                    new LegacyMappingDefinition.TableReference(ec.database(), ec.table());
+            case PropertyMapping.Embedded emb -> emb.propertyMappings().stream()
+                    .map(MappingNormalizer::mainTableOf)
+                    .filter(java.util.Objects::nonNull).findFirst().orElse(null);
+            case PropertyMapping.LocalProperty lp -> mainTableOf(lp.body());
+            default -> null;
+        };
     }
 
     // ====================================================================
@@ -812,6 +850,7 @@ public final class MappingNormalizer {
                                                        Map<String, RelationalOperation> viewCols,
                                                        String dbFqn, String mainTable) {
         return switch (pm) {
+            case PropertyMapping.EnumeratedExpression ee -> ee;
             case PropertyMapping.Column col when viewCols.containsKey(col.column()) ->
                     rewriteColumnPmAsViewExpr(col, viewCols.get(col.column()), dbFqn, mainTable);
             case PropertyMapping.LocalProperty lp -> new PropertyMapping.LocalProperty(
@@ -1340,6 +1379,7 @@ public final class MappingNormalizer {
                                                    List<JoinNavSpec> out) {
         for (PropertyMapping pm : pms) {
             switch (pm) {
+                case PropertyMapping.EnumeratedExpression ee -> collectJoinNavigations(ee.expression(), out);
                 case PropertyMapping.Expression expr -> collectJoinNavigations(expr.expression(), out);
                 case PropertyMapping.LocalProperty lp -> collectJoinNavigationsInPms(List.of(lp.body()), out);
                 case PropertyMapping.Embedded emb -> collectJoinNavigationsInPms(emb.propertyMappings(), out);
@@ -1406,6 +1446,10 @@ public final class MappingNormalizer {
                     new AppliedProperty(rowBind, pm.propertyName()), false);
         }
         return switch (pm) {
+            case PropertyMapping.EnumeratedExpression ee ->
+                    throw new com.legend.error.NotImplementedException(
+                            "enum-mapped constant/expression source for property '"
+                                    + ee.propertyName() + "' is not resolvable yet");
             case PropertyMapping.Column col -> new CtorField(col.propertyName(),
                     RelOpTranslator.columnRead(col.table(), col.column(), tableScope, defaultTable, pipeline.view()),
                     false);

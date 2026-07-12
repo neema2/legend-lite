@@ -34,6 +34,12 @@ final class TypeClassifier {
         if (prim.isPresent()) {
             return Optional.of(prim.get());
         }
+        // a PRECISE PRIMITIVE is its base primitive in the query path
+        // (constraints are instantiation-time; see PrimitiveExtensionDefinition)
+        Optional<Type.Primitive> ext = model.findPrimitiveExtension(fqn);
+        if (ext.isPresent()) {
+            return Optional.of(ext.get());
+        }
         if (isClassFqn(fqn)) {
             return Optional.of(new Type.ClassType(fqn));
         }

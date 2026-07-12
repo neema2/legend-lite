@@ -246,8 +246,10 @@ final class LexerTest {
         // TERMINATE.
         assertTrue(Lexer.tokenize("$x->subType(@Foo)").asList().stream()
                 .anyMatch(t -> t.type() == TokenType.INVALID), "->subType(@ is INVALID");
+        // navigation paths LEX now (PATH_LITERAL; the parser desugars the
+        // plain-property subset) — the termination property still pins
         assertTrue(Lexer.tokenize("#/Person/name#").asList().stream()
-                .anyMatch(t -> t.type() == TokenType.INVALID), "#/...# is INVALID");
+                .anyMatch(t -> t.type() == TokenType.PATH_LITERAL), "#/...# lexes as PATH_LITERAL");
         assertTrue(Lexer.tokenize("?[data.csv").asList().stream()
                 .anyMatch(t -> t.type() == TokenType.INVALID), "?[file is INVALID");
     }

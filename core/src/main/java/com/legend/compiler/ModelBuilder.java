@@ -218,6 +218,8 @@ public final class ModelBuilder {
         for (PackageableElement el : model.elements()) {
             switch (el) {
                 case ClassDefinition cd -> putAtId(mb.classes, mb.intern(cd.qualifiedName()), cd);
+                case com.legend.parser.element.PrimitiveExtensionDefinition pe ->
+                        mb.primitiveExtensions.put(pe.qualifiedName(), pe.baseTypeName());
                 case AssociationDefinition ad -> putAtId(mb.associations, mb.intern(ad.qualifiedName()), ad);
                 case EnumDefinition ed -> putAtId(mb.enums, mb.intern(ed.qualifiedName()), ed);
                 case ProfileDefinition pd -> putAtId(mb.profiles, mb.intern(pd.qualifiedName()), pd);
@@ -300,6 +302,43 @@ public final class ModelBuilder {
         }
     }
 
+    /** Precise primitives: extension FQN → declared base type name (chains allowed). */
+    final java.util.Map<String, String> primitiveExtensions = new java.util.LinkedHashMap<>();
+
+    /**
+     * The BASE {@link Type.Primitive} behind a primitive-extension FQN (or
+     * simple name), chasing extension-of-extension chains. Empty when the
+     * name is not a registered extension.
+     */
+    public java.util.Optional<com.legend.compiler.element.type.Type.Primitive> findPrimitiveExtension(String name) {
+        String cur = name;
+        for (int hops = 0; hops < 16; hops++) {
+            String base = primitiveExtensions.get(cur);
+            if (base == null && cur.contains("::")) {
+                base = primitiveExtensions.get(cur.substring(cur.lastIndexOf("::") + 2));
+            }
+            if (base == null) {
+                // also match by SIMPLE name (imports strip packages)
+                String finalCur = cur;
+                base = primitiveExtensions.entrySet().stream()
+                        .filter(e -> e.getKey().endsWith("::" + finalCur))
+                        .map(java.util.Map.Entry::getValue).findFirst().orElse(null);
+            }
+            if (base == null) {
+                return java.util.Optional.empty();
+            }
+            var prim = com.legend.compiler.element.type.Type.Primitive.findByFqn(base);
+            if (prim.isEmpty()) {
+                prim = com.legend.compiler.element.type.Type.Primitive.findByFqn("meta::pure::metamodel::type::" + base);
+            }
+            if (prim.isPresent()) {
+                return prim;
+            }
+            cur = base;
+        }
+        return java.util.Optional.empty();
+    }
+
     private void ingestLegacyMapping(LegacyMappingDefinition md) {
         putAtId(legacyMappings, intern(md.qualifiedName()), md);
         // R2: within one MappingDefinition a class maps EITHER once, or
@@ -320,6 +359,15 @@ public final class ModelBuilder {
             boolean idsDistinct = e.getValue().stream()
                     .allMatch(cm -> cm.setId() != null && setIds.add(cm.setId()));
             if (roots != 1 || !idsDistinct) {
+                // ZERO roots with distinct set IDs is the UNION shape: the
+                // root lives in an Operation class mapping (a roadmap
+                // family the parser skips). The model must still LOAD —
+                // other classes in it are queryable; fetching THIS class
+                // stays loud at resolution (multi-set wall). Duplicate set
+                // IDs / two roots remain build errors.
+                if (roots == 0 && idsDistinct) {
+                    continue;
+                }
                 throw new com.legend.error.ModelException(
                               com.legend.error.LegendCompileException.Phase.NORMALIZE,
                         "MappingDefinition '" + md.qualifiedName() + "' contains multiple "

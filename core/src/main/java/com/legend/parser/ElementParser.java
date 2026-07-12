@@ -257,6 +257,13 @@ public final class ElementParser implements TokenStreamCursor {
             case RELATIONAL_DATABASE_CONNECTION -> parseConnection();
             case DATABASE -> parseDatabase();
             case MAPPING -> parseMapping();
+            // Primitive my::Ext extends Base [constraint]? — precise primitive
+            case VALID_STRING -> {
+                if ("Primitive".equals(safeText())) {
+                    yield parsePrimitiveExtension();
+                }
+                throw error("unsupported top-level keyword: " + t + " ('" + safeText() + "')");
+            }
             default -> throw error("unsupported top-level keyword: " + t + " ('" + safeText() + "')");
         };
     }
@@ -476,6 +483,58 @@ public final class ElementParser implements TokenStreamCursor {
 
     private ConstraintDefinition parseConstraint() {
         String name = "unnamed";
+        // EXTENDED form (real m3): name( ~function: expr ~enforcementLevel: X
+        // ~message: expr ) — the predicate is the ~function expression;
+        // enforcement level and message are instantiation-time concerns,
+        // parsed and dropped (engine parity for query compilation).
+        if (isIdentifierToken(peek()) && peek(1) == TokenType.PAREN_OPEN) {
+            name = parseIdentifier();
+            expect(TokenType.PAREN_OPEN);
+            expect(TokenType.TILDE);
+            String kw = parseIdentifier();
+            if (!kw.equals("function")) {
+                throw error("extended constraint must lead with ~function:, got ~" + kw);
+            }
+            expect(TokenType.COLON);
+            int fnStart = pos;
+            int d = 0;
+            while (!atEnd()) {
+                TokenType t = peek();
+                if (t == TokenType.TILDE && d == 0) {
+                    break;
+                }
+                if (t == TokenType.BRACKET_OPEN || t == TokenType.PAREN_OPEN
+                        || t == TokenType.BRACE_OPEN) {
+                    d++;
+                } else if (t == TokenType.BRACKET_CLOSE || t == TokenType.PAREN_CLOSE
+                        || t == TokenType.BRACE_CLOSE) {
+                    if (d == 0) {
+                        break;
+                    }
+                    d--;
+                }
+                advance();
+            }
+            ValueSpecification fn = SpecParser.parse(tokens.slice(fnStart, pos));
+            // consume remaining ~key: value sections up to the closing paren
+            int dd = 0;
+            while (!atEnd()) {
+                TokenType t = peek();
+                if (t == TokenType.PAREN_CLOSE && dd == 0) {
+                    break;
+                }
+                if (t == TokenType.BRACKET_OPEN || t == TokenType.PAREN_OPEN
+                        || t == TokenType.BRACE_OPEN) {
+                    dd++;
+                } else if (t == TokenType.BRACKET_CLOSE || t == TokenType.PAREN_CLOSE
+                        || t == TokenType.BRACE_CLOSE) {
+                    dd--;
+                }
+                advance();
+            }
+            expect(TokenType.PAREN_CLOSE);
+            return new ConstraintDefinition(name, realizationOf(List.of(fn)));
+        }
         if (isIdentifierToken(peek()) && peek(1) == TokenType.COLON) {
             name = parseIdentifier();
             advance(); // consume :
@@ -506,6 +565,23 @@ public final class ElementParser implements TokenStreamCursor {
         return new ConstraintDefinition(name, realizationOf(List.of(expression)));
     }
 
+    /** {@code Primitive fqn extends Base} with an optional dropped constraint block. */
+    private PackageableElement parsePrimitiveExtension() {
+        advance();   // 'Primitive'
+        String fqn = parseQualifiedName();
+        expect(TokenType.EXTENDS);
+        String base = parseQualifiedName();
+        // optional (args) on the base (e.g. Decimal(10,2)) — dropped
+        if (peek() == TokenType.PAREN_OPEN) {
+            skipBalancedBlock();
+        }
+        // optional [constraints] — instantiation-time; dropped
+        if (peek() == TokenType.BRACKET_OPEN) {
+            skipBalancedBlock();
+        }
+        return new com.legend.parser.element.PrimitiveExtensionDefinition(fqn, base);
+    }
+
     // ============================================================
     // Association
     // ============================================================
@@ -519,7 +595,15 @@ public final class ElementParser implements TokenStreamCursor {
         expect(TokenType.BRACE_OPEN);
 
         List<AssociationEndDefinition> ends = new ArrayList<>();
+        List<ClassDefinition.DerivedPropertyDefinition> derived = new ArrayList<>();
         while (peek() != TokenType.BRACE_CLOSE && !atEnd()) {
+            // real pure allows QUALIFIED properties in associations — they
+            // are alternate accessors of one end, owned by the OPPOSITE
+            // end's class (adopted there during normalization)
+            if (isDerivedPropertyStart()) {
+                derived.add(parseDerivedProperty());
+                continue;
+            }
             String name = parseIdentifier();
             expect(TokenType.COLON);
             TypeExpression type = parseType();
@@ -532,7 +616,7 @@ public final class ElementParser implements TokenStreamCursor {
         if (ends.size() != 2) {
             throw error("Association must have exactly 2 properties, found: " + ends.size());
         }
-        return new AssociationDefinition(qualifiedName, ends.get(0), ends.get(1));
+        return new AssociationDefinition(qualifiedName, ends.get(0), ends.get(1), derived);
     }
 
     // ============================================================
@@ -1754,8 +1838,41 @@ public final class ElementParser implements TokenStreamCursor {
             accum.classMappings.add(cm);
             return;
         }
-        // Reject anything else (Operation, AggregationAware, Relation, etc.)
+        // Operation (union) and AggregationAware are ROADMAP mapping
+        // families (docs/LEGEND_ENGINE_TEST_PORTING.md): their bodies parse-
+        // and-skip so the surrounding mapping loads; a query against the
+        // class stays LOUD at resolution ("no mapping for class").
+        if (isIdentifierToken(peek())
+                && ("Operation".equals(text()) || "AggregationAware".equals(text()))) {
+            advance();
+            skipBalancedBlock();
+            return;
+        }
+        // Reject anything else (Relation, etc.)
         throw error("unsupported class mapping type: '" + safeText() + "'");
+    }
+
+    /** Consume a balanced {@code {...}} or {@code (...)} block (strings skipped by the lexer). */
+    private void skipBalancedBlock() {
+        // the body opens with '{' (kind block) — consume to its close,
+        // balancing every bracket kind
+        int depth = 0;
+        boolean started = false;
+        while (!atEnd()) {
+            TokenType t = peek();
+            if (t == TokenType.BRACE_OPEN || t == TokenType.PAREN_OPEN
+                    || t == TokenType.BRACKET_OPEN) {
+                depth++;
+                started = true;
+            } else if (t == TokenType.BRACE_CLOSE || t == TokenType.PAREN_CLOSE
+                    || t == TokenType.BRACKET_CLOSE) {
+                depth--;
+            }
+            advance();
+            if (started && depth == 0) {
+                return;
+            }
+        }
     }
 
     /**
@@ -1770,6 +1887,10 @@ public final class ElementParser implements TokenStreamCursor {
     private boolean isCleanSheetBody() {
         if (isLegacyMappingCommand(peek())) return false;                  // ~mainTable / ~filter / ~src / ...
         if (isIdentifierToken(peek()) && peek(1) == TokenType.COLON) return false;  // prop: legacy PM
+        if (isIdentifierToken(peek()) && "scope".equals(text())
+                && peek(1) == TokenType.PAREN_OPEN) return false;          // scope([db]...)( legacy PMs )
+        if (isIdentifierToken(peek()) && peek(1) == TokenType.PAREN_OPEN) return false;  // prop( embedded )
+        if (peek() == TokenType.PLUS) return false;                        // +localProp:
         return true;
     }
 
@@ -1921,6 +2042,12 @@ public final class ElementParser implements TokenStreamCursor {
                             + " ~filter, ~distinct, ~groupBy, ~primaryKey, ~mainTable,"
                             + " then property mappings");
                 }
+                if (isIdentifierToken(t) && "scope".equals(text())
+                        && peek(1) == TokenType.PAREN_OPEN) {
+                    parseScopeBlock(mainTable, propertyMappings);
+                    match(TokenType.COMMA);
+                    continue;
+                }
                 propertyMappings.add(parsePropertyMapping(mainTable));
                 match(TokenType.COMMA);
             }
@@ -1954,10 +2081,57 @@ public final class ElementParser implements TokenStreamCursor {
         };
     }
 
+    /** {@code scope([db] path[.path2]) ( propertyMappings )} — see {@link ScopeBlock}. */
+    private void parseScopeBlock(LegacyMappingDefinition.TableReference mainTable,
+                                 List<PropertyMapping> out) {
+        advance();   // 'scope'
+        expect(TokenType.PAREN_OPEN);
+        String db = null;
+        if (peek() == TokenType.BRACKET_OPEN) {
+            advance();
+            db = parseQualifiedName();
+            expect(TokenType.BRACKET_CLOSE);
+        }
+        String path = null;
+        if (peek() != TokenType.PAREN_CLOSE) {
+            path = parseRelationalIdentifier();
+            while (peek() == TokenType.DOT) {
+                advance();
+                path = path + "." + parseRelationalIdentifier();
+            }
+        }
+        expect(TokenType.PAREN_CLOSE);
+        expect(TokenType.PAREN_OPEN);
+        ScopeBlock saved = currentScopeBlock;
+        currentScopeBlock = new ScopeBlock(db, path);
+        try {
+            out.add(parsePropertyMapping(mainTable));
+            while (match(TokenType.COMMA)) {
+                if (peek() == TokenType.PAREN_CLOSE) {
+                    break;
+                }
+                out.add(parsePropertyMapping(mainTable));
+            }
+        } finally {
+            currentScopeBlock = saved;
+        }
+        expect(TokenType.PAREN_CLOSE);
+    }
+
     /**
      * Parse {@code [db::DB] TABLE_NAME} or {@code [db::DB] SCHEMA.TABLE}.
      * The {@code ~mainTable} command has already been consumed.
      */
+    /**
+     * An active {@code scope([db]path)(...)} block (real mapping grammar):
+     * inside it, BARE identifiers are columns of the scoped table and
+     * single-segment scopes prefix dotted refs as a schema. Resolution is
+     * deferred to each use site — no store lookup at parse time.
+     */
+    private record ScopeBlock(String db, String path) { }
+
+    private ScopeBlock currentScopeBlock;
+
     private LegacyMappingDefinition.TableReference parseMappingMainTable() {
         expect(TokenType.BRACKET_OPEN);
         String db = parseQualifiedName();
@@ -1999,6 +2173,15 @@ public final class ElementParser implements TokenStreamCursor {
             return parseLocalPropertyMapping(mainTable);
         }
         String propName = parseIdentifier();
+        // prop[targetSetId] : ... routes the property to a SPECIFIC mapping
+        // set of the target class. Parsed and DROPPED: multi-set targets are
+        // already a loud resolver wall (H5), so no silent divergence — the
+        // set id becomes meaningful only when that wall opens.
+        if (peek() == TokenType.BRACKET_OPEN) {
+            advance();
+            parseIdentifier();
+            expect(TokenType.BRACKET_CLOSE);
+        }
         if (peek() == TokenType.PAREN_OPEN) {
             return parseEmbeddedPropertyMapping(propName, mainTable);
         }
@@ -2109,7 +2292,9 @@ public final class ElementParser implements TokenStreamCursor {
         }
         String db = explicitDb != null
                 ? explicitDb
-                : (mainTable != null ? mainTable.database() : null);
+                : currentScopeBlock != null && currentScopeBlock.db() != null
+                        ? currentScopeBlock.db()
+                        : (mainTable != null ? mainTable.database() : null);
 
         // Branch by what follows the optional [DB].
         if (peek() == TokenType.AT) {
@@ -2127,6 +2312,20 @@ public final class ElementParser implements TokenStreamCursor {
         }
 
         // Column reference or structured expression.
+        // Inside a scope block, a BARE identifier is a column of the
+        // scoped table (scope([db]schemaA.firmSet)( legalName: name )).
+        if (currentScopeBlock != null && currentScopeBlock.path() != null
+                && isIdentifierToken(peek())
+                && peek(1) != TokenType.DOT && peek(1) != TokenType.PAREN_OPEN
+                && peek(1) != TokenType.ARROW) {
+            requirePropertyMappingDb(propName, db, "scoped column reference");
+            String column = parseRelationalIdentifier();
+            if (enumMappingId != null || anonymousEnumMapping) {
+                return new PropertyMapping.EnumeratedColumn(propName, enumMappingId,
+                        db, currentScopeBlock.path(), column);
+            }
+            return new PropertyMapping.Column(propName, db, currentScopeBlock.path(), column);
+        }
         // We peek a couple of tokens ahead to distinguish a simple
         // TABLE.COL column read from a function call / expression.
         if (looksLikeBareColumnRef()) {
@@ -2143,7 +2342,13 @@ public final class ElementParser implements TokenStreamCursor {
                 table = tablePart + "." + second;
                 column = parseRelationalIdentifier();
             } else {
-                table = tablePart;
+                // a SINGLE-segment scope is a schema prefix for dotted refs
+                // (scope([db]productSchema)( name: synonymTable.NAME ))
+                table = currentScopeBlock != null
+                        && currentScopeBlock.path() != null
+                        && !currentScopeBlock.path().contains(".")
+                        ? currentScopeBlock.path() + "." + tablePart
+                        : tablePart;
                 column = second;
             }
             // An ARROW continues into a dynafunction chain over the column
@@ -2165,10 +2370,12 @@ public final class ElementParser implements TokenStreamCursor {
 
         // Structured expression: parse via the existing relational
         // expression grammar with mapping-scope bare-id resolution.
-        if (enumMappingId != null || anonymousEnumMapping) {
-            throw error("EnumerationMapping with a computed expression is not supported in B.4b");
-        }
         RelationalOperation expr = parseDbOperation(db);
+        if (enumMappingId != null || anonymousEnumMapping) {
+            // faithful parse; a loud resolution wall (enum decode over
+            // constants/expressions is unbuilt)
+            return new PropertyMapping.EnumeratedExpression(propName, enumMappingId, expr);
+        }
         return new PropertyMapping.Expression(propName, expr);
     }
 

@@ -44,7 +44,8 @@ import java.util.Objects;
  * </ul>
  */
 public sealed interface PropertyMapping
-        permits PropertyMapping.Column,
+        permits PropertyMapping.EnumeratedExpression,
+                PropertyMapping.Column,
                 PropertyMapping.EnumeratedColumn,
                 PropertyMapping.Join,
                 PropertyMapping.JoinTerminalColumn,
@@ -99,6 +100,20 @@ public sealed interface PropertyMapping
      * @param table            table name
      * @param column           column name
      */
+    /**
+     * An enum-mapped NON-COLUMN source ({@code type: EnumerationMapping M: 'CUSIP'}
+     * — a constant, or a computed expression). Parsed faithfully; resolution
+     * is a loud wall until the enum-decode path learns expressions.
+     */
+    record EnumeratedExpression(String propertyName, String enumMappingId,
+                                RelationalOperation expression)
+            implements PropertyMapping {
+        public EnumeratedExpression {
+            Objects.requireNonNull(propertyName, "Property name cannot be null");
+            Objects.requireNonNull(expression, "Expression cannot be null");
+        }
+    }
+
     record EnumeratedColumn(String propertyName, String enumMappingId,
                             String database, String table, String column)
             implements PropertyMapping {

@@ -399,14 +399,14 @@ public final class Lexer {
             if (pos < length) pos++;
             emit(TokenType.TDS_LITERAL, start, pos); return;
         }
-        // #/...# navigation paths are UNSUPPORTED: consume the WHOLE span
-        // as INVALID (the first purge cut kept consuming but emitted
-        // nothing, mangling everything after it into island garbage).
+        // #/Type/prop...# navigation path — one token; the parser desugars
+        // simple property paths to their lambda meaning and is LOUD on the
+        // richer path features (parameters, subtype casts).
         if (pos + 1 < length && source.charAt(pos + 1) == '/') {
             pos++;
             while (pos < length && source.charAt(pos) != '#') pos++;
             if (pos < length) pos++;
-            emit(TokenType.INVALID, start, pos);
+            emit(TokenType.PATH_LITERAL, start, pos);
             return;
         }
         // #...{ → ISLAND_OPEN

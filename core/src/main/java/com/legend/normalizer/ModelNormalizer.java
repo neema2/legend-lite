@@ -22,6 +22,7 @@ import com.legend.parser.spec.Variable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -94,6 +95,13 @@ public final class ModelNormalizer {
      */
     public static NormalizedModel normalize(ParsedModel parsed) {
         Objects.requireNonNull(parsed, "parsed");
+        // E.0 — association QUALIFIED properties adopt into the class that
+        // owns them (the end OPPOSITE the one the property returns — real
+        // pure: an association qualified property is an alternate accessor
+        // of one end, callable on the other end's class). After adoption the
+        // single class-derived funnel (E.2, findProperty, $prop$ lifting)
+        // covers them with no second path.
+        parsed = adoptAssociationDerivedProperties(parsed);
         // Build the resolution index ONCE, shared across every sub-slice.
         // Each lifter (E.2-E.4) and the legacy-mapping desugarer (E.1)
         // resolves classes/associations/joins/filters against the same view;
@@ -116,6 +124,64 @@ public final class ModelNormalizer {
         elements.addAll(normalized.elements());
         elements.addAll(lifted);
         return new NormalizedModel(elements, normalized.imports());
+    }
+
+    private static ParsedModel adoptAssociationDerivedProperties(ParsedModel parsed) {
+        Map<String, List<ClassDefinition.DerivedPropertyDefinition>> adoptions =
+                new java.util.LinkedHashMap<>();
+        for (PackageableElement el : parsed.elements()) {
+            if (!(el instanceof com.legend.parser.element.AssociationDefinition ad)
+                    || ad.derivedProperties().isEmpty()) {
+                continue;
+            }
+            String t1 = rawName(ad.property1().targetClass());
+            String t2 = rawName(ad.property2().targetClass());
+            for (ClassDefinition.DerivedPropertyDefinition dp : ad.derivedProperties()) {
+                String ret = rawName(dp.type());
+                String owner;
+                if (simpleName(ret).equals(simpleName(t1)) && !simpleName(ret).equals(simpleName(t2))) {
+                    owner = t2;
+                } else if (simpleName(ret).equals(simpleName(t2)) && !simpleName(ret).equals(simpleName(t1))) {
+                    owner = t1;
+                } else {
+                    throw new IllegalStateException("association '" + ad.qualifiedName()
+                            + "' qualified property '" + dp.name() + "' returns '" + ret
+                            + "', which does not identify a unique owning end");
+                }
+                adoptions.computeIfAbsent(simpleName(owner), k -> new ArrayList<>()).add(dp);
+            }
+        }
+        if (adoptions.isEmpty()) {
+            return parsed;
+        }
+        List<PackageableElement> out = new ArrayList<>(parsed.elements().size());
+        for (PackageableElement el : parsed.elements()) {
+            if (el instanceof ClassDefinition cd
+                    && adoptions.containsKey(simpleName(cd.qualifiedName()))) {
+                List<ClassDefinition.DerivedPropertyDefinition> merged =
+                        new ArrayList<>(cd.derivedProperties());
+                merged.addAll(adoptions.get(simpleName(cd.qualifiedName())));
+                out.add(new ClassDefinition(cd.qualifiedName(), cd.typeParams(),
+                        cd.superClasses(), cd.properties(), merged, cd.constraints(),
+                        cd.stereotypes(), cd.taggedValues(), cd.isNative()));
+            } else {
+                out.add(el);
+            }
+        }
+        return new ParsedModel(out, parsed.imports());
+    }
+
+    private static String rawName(com.legend.parser.TypeExpression t) {
+        return switch (t) {
+            case com.legend.parser.TypeExpression.NameRef n -> n.name();
+            case com.legend.parser.TypeExpression.Generic g -> g.name();
+            default -> t.toString();
+        };
+    }
+
+    private static String simpleName(String fqn) {
+        int i = fqn.lastIndexOf("::");
+        return i < 0 ? fqn : fqn.substring(i + 2);
     }
 
     /**

@@ -164,6 +164,7 @@ public enum TokenType {
     ISLAND_BRACE_OPEN,  // { (inside island)
     ISLAND_BRACE_CLOSE, // } (inside island)
     TDS_LITERAL,        // #TDS...#
+    PATH_LITERAL,       // #/Type/prop...# (navigation path)
 
     // ==================== Identifiers ====================
     VALID_STRING,       // [A-Za-z_$][A-Za-z0-9_$]*
