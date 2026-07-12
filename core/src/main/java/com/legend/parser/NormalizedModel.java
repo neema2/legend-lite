@@ -31,13 +31,23 @@ import java.util.Map;
  * @param elements structural elements + all functions (user-written and lifted)
  * @param imports  import scope carried through from the parsed model
  */
-public record NormalizedModel(List<PackageableElement> elements, ImportScope imports) {
+public record NormalizedModel(List<PackageableElement> elements, ImportScope imports,
+        java.util.Map<String, String> mappingPoisons) {
+
+    /** Without poisons (tests, poison-free paths). */
+    public NormalizedModel(List<PackageableElement> elements, ImportScope imports) {
+        this(elements, imports, java.util.Map.of());
+    }
 
     public NormalizedModel {
         elements = elements == null ? List.of() : List.copyOf(elements);
         if (imports == null) {
             imports = ImportScope.empty();
         }
+        // "mapping::class -> reason" for class mappings whose synthesis hit
+        // a roadmap/user-model wall (binding withheld; loud at query time)
+        mappingPoisons = mappingPoisons == null
+                ? java.util.Map.of() : java.util.Map.copyOf(mappingPoisons);
     }
 
     /**

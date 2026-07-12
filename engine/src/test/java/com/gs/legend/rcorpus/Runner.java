@@ -102,6 +102,17 @@ public final class Runner {
      * their DDL and executeInDb literals seed too.
      */
     public void useFamily(String familyKey, List<String> setupSources) {
+        useFamily(familyKey, setupSources, List.of());
+    }
+
+    /**
+     * {@code modelOnlySources}: sibling TEST files whose ELEMENTS join the
+     * family model (cross-file references are normal — the engine compiles
+     * the whole module together) but whose SEEDS stay per-file (a sibling's
+     * DDL must not reshape tables under another file's test).
+     */
+    public void useFamily(String familyKey, List<String> setupSources,
+            List<String> modelOnlySources) {
         currentFamilyKey = familyKey;
         if (familyModels.containsKey(familyKey)) {
             return;
@@ -138,6 +149,22 @@ public final class Runner {
                 }
                 sql.add(d.createSql());
             }
+        }
+        // pass 1b: model-only sources contribute elements, not seeds
+        for (String src : modelOnlySources) {
+            StringBuilder part = new StringBuilder();
+            for (String[] el : splitSectioned(Corpus.modelElements(src))) {
+                if (!seen.add(el[0] + "::" + el[1])) {
+                    continue;
+                }
+                if (el[0].equals("Mapping")) {
+                    mappings.add(el);
+                } else {
+                    part.append(el[2]).append(el[3]).append('\n');
+                }
+            }
+            assembled.append('\n').append(part);
+            ext.append('\n').append(part);
         }
         // pass 2: probe-compile every family mapping against the full base
         for (String[] m : mappings) {

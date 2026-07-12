@@ -1395,6 +1395,15 @@ public final class ElementParser implements TokenStreamCursor {
         advance(); // "Table"
         String tableName = parseRelationalIdentifier();
         expect(TokenType.PAREN_OPEN);
+        // milestoning(business(...)/processing(...)) is a table DIRECTIVE
+        // preceding the columns (no comma after it) — parsed and dropped:
+        // the milestoning columns are physically declared in the column
+        // list; temporal query semantics stay a loud wall elsewhere
+        if (isIdentifierToken(peek()) && "milestoning".equals(text())
+                && peek(1) == TokenType.PAREN_OPEN) {
+            advance();
+            skipBalancedContent(TokenType.PAREN_OPEN, TokenType.PAREN_CLOSE);
+        }
         List<DatabaseDefinition.ColumnDefinition> columns = new ArrayList<>();
         if (peek() != TokenType.PAREN_CLOSE) {
             columns.add(parseColumnDefinition());
@@ -2354,6 +2363,10 @@ public final class ElementParser implements TokenStreamCursor {
         // scoped table (scope([db]schemaA.firmSet)( legalName: name )).
         if (currentScopeBlock != null && currentScopeBlock.path() != null
                 && isIdentifierToken(peek())
+                // a single-quoted STRING here is a CONSTANT literal binding
+                // (issuer( name: 'test' )), not a quoted column name —
+                // relational identifiers quote with double quotes
+                && peek() != TokenType.STRING
                 && peek(1) != TokenType.DOT && peek(1) != TokenType.PAREN_OPEN
                 && peek(1) != TokenType.ARROW) {
             requirePropertyMappingDb(propName, db, "scoped column reference");

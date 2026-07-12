@@ -55,12 +55,25 @@ final class ProjectChecker {
                     List.of(ps.get(0), lambdas, names)));
         }
         if (ps.size() == 2 && ps.get(1) instanceof PureCollection lambdas) {
+            List<ValueSpecification> exprs = new ArrayList<>(lambdas.values().size());
             List<ValueSpecification> names = new ArrayList<>(lambdas.values().size());
             for (ValueSpecification v : lambdas.values()) {
+                // #/Person/address/name!address# — the path ALIAS names the
+                // column (real pure Path.name); the parser wraps the lambda
+                // in a pathWithAlias carrier
+                if (v instanceof AppliedFunction pa
+                        && pa.function().equals("pathWithAlias")
+                        && pa.parameters().size() == 2
+                        && pa.parameters().get(1) instanceof CString alias) {
+                    exprs.add(pa.parameters().get(0));
+                    names.add(alias);
+                    continue;
+                }
+                exprs.add(v);
                 names.add(new CString(derivedColumnName(v)));
             }
             return legacyToModern(new AppliedFunction(af.function(),
-                    List.of(ps.get(0), lambdas, new PureCollection(names))));
+                    List.of(ps.get(0), new PureCollection(exprs), new PureCollection(names))));
         }
         return af;
     }

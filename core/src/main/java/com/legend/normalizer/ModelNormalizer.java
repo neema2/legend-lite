@@ -114,6 +114,10 @@ public final class ModelNormalizer {
         // E.1 rewrites MappingDefinitions (extends flattening, multi-hop
         // association injection) and lifts the mapping functions.
         NormalizedModel normalized = MappingNormalizer.normalize(parsed, model);
+        // per-class poisons recorded during mapping synthesis ride the
+        // normalized model into Phase F (StoreResolver's 0-binder reasons)
+        normalized = new NormalizedModel(normalized.elements(), normalized.imports(),
+                model.mappingPoisons);
         List<FunctionDefinition> lifted = new ArrayList<>();
         liftDerivedProperties(parsed, lifted);  // E.2
         liftConstraints(parsed, lifted);        // E.3
@@ -123,7 +127,7 @@ public final class ModelNormalizer {
                 new ArrayList<>(normalized.elements().size() + lifted.size());
         elements.addAll(normalized.elements());
         elements.addAll(lifted);
-        return new NormalizedModel(elements, normalized.imports());
+        return new NormalizedModel(elements, normalized.imports(), model.mappingPoisons);
     }
 
     private static ParsedModel adoptAssociationDerivedProperties(ParsedModel parsed) {

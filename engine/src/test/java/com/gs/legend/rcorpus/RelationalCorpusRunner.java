@@ -91,7 +91,8 @@ class RelationalCorpusRunner {
                     testSources.put(f, src);
                 }
             }
-            runner.useFamily(family, familySources);
+            runner.useFamily(family, familySources,
+                    new ArrayList<>(testSources.values()));
             for (Map.Entry<Path, String> e : testSources.entrySet()) {
                 runner.useFile(e.getKey().toString(), e.getValue());
                 for (Corpus.TestFn fn : Corpus.testFunctions(e.getValue())) {

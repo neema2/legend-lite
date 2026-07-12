@@ -2100,8 +2100,16 @@ public final class SpecParser implements TokenStreamCursor {
             throw error("navigation path needs at least one property segment: " + text);
         }
         ValueSpecification body = new Variable("_path");
+        String alias = null;
         for (int i = 1; i < segs.length; i++) {
             String seg = segs[i].strip();
+            // real pure: the LAST segment may carry '!alias' — the Path's
+            // NAME (buildColumnNameOutOfPath uses it for the column)
+            if (i == segs.length - 1 && seg.matches("\\w+!\\w+")) {
+                int bang = seg.indexOf('!');
+                alias = seg.substring(bang + 1);
+                seg = seg.substring(0, bang);
+            }
             if (!seg.matches("\\w+")) {
                 throw error("navigation path segment '" + seg
                         + "' uses an unsupported path feature (only plain"
@@ -2109,7 +2117,13 @@ public final class SpecParser implements TokenStreamCursor {
             }
             body = new AppliedProperty(body, seg);
         }
-        return new LambdaFunction(List.of(new Variable("_path")), List.of(body));
+        LambdaFunction fn = new LambdaFunction(List.of(new Variable("_path")), List.of(body));
+        if (alias == null) {
+            return fn;
+        }
+        // carrier for the alias: consumed by ProjectChecker's legacy-form
+        // normalization; any other position fails LOUD (unknown function)
+        return new AppliedFunction("pathWithAlias", List.of(fn, new CString(alias)));
     }
 
     /**

@@ -68,8 +68,12 @@ public final class PureModelContext implements ModelContext {
         // normalized model AT THE SIGNATURE LEVEL. (ModelBuilder itself is
         // phase-agnostic indexing and must not depend on the normalizer —
         // that was the compiler<->normalizer package cycle.)
-        return new PureModelContext(ModelBuilder.from(new com.legend.parser.ParsedModel(
-                normalized.elements(), normalized.imports())));
+        ModelBuilder mb = ModelBuilder.from(new com.legend.parser.ParsedModel(
+                normalized.elements(), normalized.imports()));
+        // Phase-E poisons must survive into the queryable context — the
+        // 0-binder error's "failed to normalize" reasons read them here
+        mb.mappingPoisons.putAll(normalized.mappingPoisons());
+        return new PureModelContext(mb);
     }
 
     @Override
