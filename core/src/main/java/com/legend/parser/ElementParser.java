@@ -2826,6 +2826,12 @@ public final class ElementParser implements TokenStreamCursor {
                 } else {
                     expr = new RelationalOperation.ColumnRef(null, firstId, second);
                 }
+            } else if (currentScopeBlock != null && currentScopeBlock.path() != null) {
+                // Bare identifier inside a scope BLOCK's expression
+                // (scope([db]TRADE)( quantity: sum(QTY) )) — the scoped
+                // table's column (engine ScopeInfo parity)
+                expr = new RelationalOperation.ColumnRef(
+                        currentScopeBlock.db(), currentScopeBlock.path(), firstId);
             } else if (currentMappingScope != null) {
                 // Bare identifier in mapping context: unambiguously the
                 // class mapping's main table's column. Both table AND

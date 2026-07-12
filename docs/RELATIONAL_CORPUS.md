@@ -17,28 +17,20 @@ runner does not yet recognize (accounted, not skipped silently).
 | mapping/join | 29 | 14 | 1 | 13 | 1 |
 | mapping/embedded | 70 | 0 | 0 | 65 | 5 |
 | mapping/enumeration | 27 | 0 | 0 | 14 | 13 |
-| mapping/distinct | 18 | 3 | 5 | 9 | 1 |
+| mapping/distinct | 18 | 1 | 7 | 9 | 1 |
 | mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
 | mapping/filter | 10 | 3 | 0 | 6 | 1 |
 | mapping/inheritance | 51 | 0 | 0 | 46 | 5 |
 | mapping/selfJoin | 3 | 0 | 0 | 2 | 1 |
 | mapping/boolean.pure | 3 | 0 | 0 | 3 | 0 |
 | mapping/dates.pure | 7 | 0 | 0 | 4 | 3 |
-| **total** | 351 | **32** | 7 | 252 | 60 |
+| **total** | 351 | **30** | 9 | 252 | 60 |
 
 ### mapping walls (dropped at assembly)
 
 - meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
-- tests/query meta::relational::tests::groupBy::datePeriods::mapping::myMapping => [2764:22] Missing table or alias for column 'date'
 - tests/mapping/association meta::relational::tests::mapping::association::embedded::associationMappingInlinedEmbedded => [2617:1] AssociationMapping join 'Firm_Organizations' not found in db 'myDB'; association='meta::relational::tests::model::simple::FirmOrganizations', mapping=meta::relational::tests::mapping::association::embedded::associationMappingInlinedEmbedded
-- tests/mapping/enumeration meta::relational::tests::mapping::enumeration::model::mapping::employeeTestMapping => [3106:78] Missing table or alias for column 'type'
-- tests/mapping/enumeration meta::relational::tests::mapping::enumeration::model::mapping::employeeTestMappingWithFunction => [3135:59] Missing table or alias for column 'type'
-- tests/mapping/enumeration meta::relational::tests::mapping::enumeration::model::mapping::employeeTestMappingWithTransposeFunction => [3313:68] Missing table or alias for column 'skills'
-- tests/mapping/distinct meta::relational::tests::mapping::distinct::model::mapping::testMappingWithCase => [3131:36] Missing table or alias for column 'IF_NAME'
-- tests/mapping/groupBy meta::relational::tests::mapping::groupBy::model::mapping::testMapping => [2779:28] Missing table or alias for column 'QTY'
-- tests/mapping/groupBy meta::relational::tests::mapping::groupBy::model::mapping::testMappingWithFilter => [2780:28] Missing table or alias for column 'QTY'
-- tests/mapping/groupBy meta::relational::tests::mapping::groupBy::model::mapping::testMappingWithTwoGroupBysAndFilters => [2780:28] Missing table or alias for column 'QTY'
 - tests/mapping/inheritance meta::relational::tests::model::inheritance::milestoned::MilestonedInheritanceMapping => [3341:4] Association mappings cannot be marked root (the leading '*' is only valid for class mappings)
 - tests/mapping/inheritance meta::relational::tests::mapping::subType::SubTypeMappingValidWhenMappedExplicitly => [3508:3] clean-sheet mapping binding for 'MyProduct' has an empty body
 - tests/mapping/inheritance meta::relational::tests::mapping::subType::MyMapping => [3511:14] expected integer or string inside '[...]' index, got VALID_STRING ('meta_relational_tests_model_simple_Trade')
@@ -51,9 +43,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - 12x Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Catalog Error: Table with name PRODUCT_DENORM does not exist! | Did you mean "Org"? |  | LINE 2: FROM PRODUCT_DENORM AS t0 |              ^
 - 10x class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - 10x project expects ~[…] column specifications
-- 9x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::groupBy::model::domain::Position' (of 1 candidates); class-query dispatch needs exactly one
-- 9x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::inheritance::inheritanceMain' failed to normalize this class: property 'roadVehicles' of class 'meta::relational::tests::model::inheritance::Person' routes to NON-root mapping set 'map2' — multi-set target routing is a roadmap feature (navigating the root set instead would be wrong rows)
+- 9x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::inheritance::inheritanceMain' failed to normalize this class: property 'cars' of class 'meta::relational::tests::model::inheritance::Person' routes to NON-root mapping set 'map1' — multi-set target routing is a roadmap feature (navigating the root set instead would be wrong rows)
 - 7x 'Product' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- 7x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::groupBy::model::domain::Position' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::groupBy::model::mapping::testMapping' failed to normalize this class: PropertyMapping 'Join' for property 'product' is not supported under ~groupBy (only Column, Expression, JoinTerminalColumn, and aggregate Expression PMs are allowed). Mapping=meta::relational::tests::mapping::groupBy::model::mapping::testMapping
 - 6x [1:95] expected ']' to close collection literal
 - 6x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exactly one
 - 5x serialize expects (classCollection, #{Class{…}}#)
@@ -61,7 +53,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - 4x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::association::inheritence::childMapping' failed to normalize this class: property 'vehicles' of class 'meta::relational::tests::model::inheritance::Person' routes to NON-root mapping set 'map2' — multi-set target routing is a roadmap feature (navigating the root set instead would be wrong rows)
 - 4x no overload of 'agg' matches 3 argument(s) of these shapes
 - 4x class-typed property '$p.bondDetails' used as a whole value is graph output (Phase H4)
-- 4x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::enumeration::model::domain::Employee' (of 1 candidates); class-query dispatch needs exactly one
+- 4x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::enumeration::model::domain::Employee' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::enumeration::model::mapping::employeeTestMapping' failed to normalize this class: enum-mapped constant/expression source for property 'role' is not resolvable yet
 - 4x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion' failed to normalize this class: property 'vehicles' of class 'meta::relational::tests::model::inheritance::Person' routes to NON-root mapping set 'map2' — multi-set target routing is a roadmap feature (navigating the root set instead would be wrong rows)
 - 3x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Account' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: Join 'AccountPnlView_Account' targets view 'accountOrderPnlView'; views as JOIN TARGETS are a roadmap feature (the view must expand as a relation at the join hop). mapping=meta::relational::tests::simpleRelationalMapping
 - 3x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
@@ -312,7 +304,14 @@ IF 2
 IF 1
 IF 2
 >
-- FAIL testDistinctMappingWithFilterSelectAll [mapping/distinct]: name: expected [IF 1, IF 2, IF 2], got [IF 2, IF 2, IF 1, IF 2]
+- FAIL testDistinctMappingSimpleProjectDistinct [mapping/distinct]: toCSV: expected <name
+IF 1
+IF 2
+>, got <name
+IF 2
+IF 1
+>
+- FAIL testDistinctMappingWithFilterSelectAll [mapping/distinct]: name: expected [IF 1, IF 2, IF 2], got [IF 2, IF 2, IF 2, IF 1]
 - FAIL testDistinctMappingWithFilterSelectOneProperty [mapping/distinct]: toCSV: expected <name
 IF 1
 IF 2
@@ -322,6 +321,15 @@ IF 1
 IF 2
 >
 - ERROR testDistinctMappingWithJoinSelectAll [mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
+- FAIL testDistinctMappingWithJoinProject [mapping/distinct]: toCSV: expected <IfName
+IfName1
+IfName2
+
+>, got <IfName
+
+IfName2
+IfName1
+>
 - ERROR testProjectDistinctMappingWithDistinctInJoin [mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testProjectDistinctMappingWithDistinctInJoinWithDup [mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testDistinctMappingWithDistinctInJoinWithFilter [mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
@@ -339,7 +347,7 @@ IF 2
 - ERROR testGroupByMappingProject [mapping/groupBy]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::groupBy::model::domain::Position' (of 1 candidates); class-query dispatch 
 - ERROR testGroupByMappingProjectWithJoin [mapping/groupBy]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::groupBy::model::domain::Position' (of 1 candidates); class-query dispatch 
 - ERROR testGroupByMappingProjectWithJoinAndTableFilter [mapping/groupBy]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::groupBy::model::domain::Position' (of 1 candidates); class-query dispatch 
-- ERROR testGroupByMappingProjectWithGroupByInJoin [mapping/groupBy]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::groupBy::model::domain::Product' (of 1 candidates); class-query dispatch n
+- ERROR testGroupByMappingProjectWithGroupByInJoin [mapping/groupBy]: class 'meta::relational::tests::mapping::groupBy::model::domain::Position' is not mapped in mapping 'meta::relational::tests::mapping::groupBy::model::mapping::
 - ERROR testGroupByMappingProjectWithMultipleGroupBys [mapping/groupBy]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::groupBy::model::domain::Position' (of 1 candidates); class-query dispatch 
 - ERROR filterMappingWithJoinInFilterAndPropertyGetAll [mapping/filter]: mapping ~filter for 'meta::relational::tests::model::simple::Person' reads through a join slot; join-mediated mapping filters are H3-pending
 - ERROR testFilterMappingWithJoin [mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending
