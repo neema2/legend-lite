@@ -33,8 +33,7 @@ public class Test_LegendLite_StandardFunctions_PCT extends PCTReportConfiguratio
     // its set IS the parity target. Pins are OUR full actual messages
     // (contains-matched), so any regression that changes the failure
     // shape — or a fix that makes one pass — fails loudly.
-    private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
-            one("meta::pure::functions::math::hashCode::tests::testHashCodeAggregate_Function_1__Boolean_1_", "\"Not supported data type :'DOUBLE' for Pure type: 'Integer'\""));
+    private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.empty();
 
     public static Test suite() {
         return wrapSuite(

@@ -192,10 +192,18 @@ final class Typer {
             case LET -> LetChecker.check(this, af, env);
             case IF -> IfChecker.check(this, af, env);
             // ^Class(...) desugars to new(PackageableElementPtr, NewInstance); the inner node
-            // carries the payload. Other arities/shapes of `new` ride the generic path.
-            case NEW -> (af.parameters().size() == 2 && af.parameters().get(1) instanceof NewInstance ni)
-                    ? NewChecker.check(this, ni, env)
-                    : applyGeneric(af, env);
+            // carries the payload. ^$var(...) (a Variable receiver) is COPY-
+            // with-update — the class is the variable's static type. Other
+            // arities/shapes of `new` ride the generic path.
+            case NEW -> {
+                if (af.parameters().size() == 2
+                        && af.parameters().get(1) instanceof NewInstance ni) {
+                    yield af.parameters().get(0) instanceof com.legend.parser.spec.Variable
+                            ? NewChecker.checkCopy(this, af.parameters().get(0), ni, env)
+                            : NewChecker.check(this, ni, env);
+                }
+                yield applyGeneric(af, env);
+            }
             case CAST, TO, TO_MANY -> CastChecker.check(this, af, env);
             case MATCH -> MatchChecker.check(this, af, env);
             case EVAL -> EvalChecker.check(this, af, env);

@@ -79,7 +79,8 @@ public sealed interface TypedSpec permits
         TypedTableReference,
         TypedSort,
         TypedRename,
-        TypedNewInstance {
+        TypedNewInstance,
+        TypedCopyInstance {
 
     /** This node's resolved type and multiplicity. */
     ExprType info();

@@ -588,4 +588,21 @@ function crosses) normalize to their faithful lambda equivalent, which
 also un-broke contains(collection, value, comparator). Gates: core
 1391, corpus 2721, PCT 1109/1109.
 
+**Slice 18b** (copy-with-update + inheritance injection + group hash —
+2 net removed + honest re-pins, 29 remain; STANDARD SUITE LEDGER NOW
+EMPTY): the language grew ^$var(prop=value, ...) COPY-WITH-UPDATE
+(TypedCopyInstance: the class is the variable's static type, overrides
+validate like construction, lowering rebuilds the canonical struct
+with overridden fields — no new SQL shapes) — probed working with real
+fold semantics. The adapter now extracts SUPERCLASS CHAINS (extends
+rides the injected defs — concatenate's sibling-class LUB was
+collapsing to Any without them; testConcatenateTypeInference passes
+genuinely). hashCode over a group shifts DuckDB's UBIGINT hash into
+signed BIGINT (pure Integer; hash VALUES are platform-specific — type
+and determinism are the contract); the Standard-suite ledger emptied.
+HONESTLY RE-PINNED: the fold trio — the harness serializes
+^$x(prop = expr) as copy('', prop), the override VALUE is LOST before
+the wire; the feature works, the tests are unrunnable from the
+serialized text. Gates: core 1391, corpus 2721, PCT 1109/1109.
+
 Update this file per slice, same as docs/SCOREBOARD.md.

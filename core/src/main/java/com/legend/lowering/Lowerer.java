@@ -633,9 +633,19 @@ public final class Lowerer {
             value = castByPolicy(value, valueCast.source().info().type(), valueCast.target());
         }
         // hashCode over a group: HASH(LIST(values)) — no single SQL reducer.
+        // DuckDB hash() is UBIGINT (surfaces as a non-integer through JDBC);
+        // the result is a pure Integer — shift into signed BIGINT range
+        // (deterministic; real pure's hash VALUES are platform-specific,
+        // only determinism and type are the contract).
         if ("__HASH_LIST__".equals(fn)) {
-            return SqlExpr.Call.of(com.legend.sql.SqlFn.HASH,
-                    new SqlAgg.Reducer("LIST", List.of(value), false));
+            return new SqlExpr.Cast(
+                    SqlExpr.Call.of(com.legend.sql.SqlFn.MINUS,
+                            new SqlExpr.Cast(
+                                    SqlExpr.Call.of(com.legend.sql.SqlFn.HASH,
+                                            new SqlAgg.Reducer("LIST", List.of(value), false)),
+                                    com.legend.sql.SqlType.Scalar.HUGEINT),
+                            new SqlExpr.IntLit(Long.MAX_VALUE)),
+                    com.legend.sql.SqlType.Scalar.BIGINT);
         }
         // joinStrings(prefix, sep, suffix): STRING_AGG takes only the
         // separator — prefix/suffix concatenate AROUND the aggregate
@@ -1813,6 +1823,26 @@ public final class Lowerer {
             // canonical layout (declared stored properties, declaration
             // order) — never the instance's own field set; an omitted
             // property is a NULL field.
+            // ^$existing(prop=value, …): the copy is the source's canonical
+            // struct with the overridden fields replaced — pure layout
+            // rebuild, no new SQL shapes.
+            case com.legend.compiler.spec.typed.TypedCopyInstance cp -> {
+                var layout = classLayout.apply(cp.info().type()).orElseThrow(() ->
+                        new IllegalStateException("^$var(…) copy of " + cp.classFqn()
+                                + " has no canonical layout"));
+                SqlExpr src = scalar(cp.source(), columns);
+                yield new SqlExpr.StructLit(layout.stream().map(c -> {
+                    TypedSpec ov = cp.overrides().get(c.name());
+                    SqlExpr v = ov != null ? scalar(ov, columns)
+                            : new SqlExpr.StructGet(src, c.name());
+                    if (ov != null && c.multiplicity() instanceof
+                            com.legend.compiler.element.type.Multiplicity.Bounded b
+                            && b.isMany()) {
+                        v = asList(v, isMany(ov));
+                    }
+                    return new SqlExpr.StructLit.Field(c.name(), v);
+                }).toList());
+            }
             case com.legend.compiler.spec.typed.TypedNewInstance n -> {
                 // ^List(values=[...]): the List CARRIER is the bare SQL list
                 // (the same carrier list() produces — one carrier per type).

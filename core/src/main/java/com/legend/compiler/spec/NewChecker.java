@@ -21,6 +21,33 @@ final class NewChecker {
     private NewChecker() {
     }
 
+    /**
+     * Copy-with-update {@code ^$existing(prop=value, …)}: the class is the
+     * VARIABLE's static type; each override validates against its declared
+     * property exactly like construction.
+     */
+    static TypedSpec checkCopy(Typer t, com.legend.parser.spec.ValueSpecification receiver,
+                               NewInstance ni, Env env) {
+        TypedSpec source = t.synth(receiver, env);
+        Type st = source.info().type();
+        String classFqn = switch (st) {
+            case Type.ClassType ct -> ct.fqn();
+            case Type.GenericType g -> g.rawFqn();
+            default -> throw new TypeInferenceException(
+                    "^$var(...) copies a CLASS instance; the variable is " + st.typeName());
+        };
+        Map<String, TypedSpec> overrides = new LinkedHashMap<>();
+        ni.properties().forEach((name, key) -> {
+            Property prop = t.model().findProperty(classFqn, name).orElseThrow(() ->
+                    new TypeInferenceException("class '" + classFqn + "' has no property '" + name + "'"));
+            TypedSpec value = t.synth(key.value(), env);
+            t.kernel().unify(prop.type(), value.info().type(), new Bindings());
+            overrides.put(name, value);
+        });
+        return new com.legend.compiler.spec.typed.TypedCopyInstance(source, classFqn, overrides,
+                new ExprType(st, Multiplicity.Bounded.ONE));
+    }
+
     static TypedSpec check(Typer t, NewInstance ni, Env env) {
         if (t.model().findClass(ni.className()).isEmpty()) {
             throw new TypeInferenceException("unknown class '" + ni.className() + "' in ^" + ni.className() + "(…)");

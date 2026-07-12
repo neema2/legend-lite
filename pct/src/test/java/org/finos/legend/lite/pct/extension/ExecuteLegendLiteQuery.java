@@ -911,6 +911,27 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             properties.add(new Property(propName, propType, multiplicity));
         }
 
+        // SUPERCLASSES ride along (concatenate's LUB is the common
+        // supertype; without the extends chain everything collapses to Any)
+        List<String> superFqns = new ArrayList<>();
+        for (CoreInstance gen : Instance.getValueForMetaPropertyToManyResolved(
+                cls, M3Properties.generalizations, ps)) {
+            CoreInstance general = gen.getValueForMetaPropertyToOne(M3Properties.general);
+            CoreInstance raw = general == null ? null
+                    : general.getValueForMetaPropertyToOne(M3Properties.rawType);
+            if (raw != null) {
+                raw = org.finos.legend.pure.m3.navigation.importstub.ImportStub
+                        .withImportStubByPass(raw, ps);
+            }
+            String superFqn = raw == null ? null : getQualifiedName(raw);
+            if (superFqn != null && !superFqn.startsWith("meta::pure::metamodel")) {
+                extractClassRecursive(superFqn, classes, visited, discoveredEnums, ps);
+                if (classes.containsKey(superFqn)) {
+                    superFqns.add(superFqn);
+                }
+            }
+        }
+
         String qualifiedName = getQualifiedName(cls);
         String packagePath = "";
         String simpleName = className;
@@ -923,7 +944,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         }
 
         classes.put(qualifiedName != null ? qualifiedName : className,
-                new PureClass(packagePath, simpleName, properties));
+                new PureClass(packagePath, simpleName, superFqns, properties));
     }
 
     private String getQualifiedName(CoreInstance element) {

@@ -373,6 +373,12 @@ public final class UserCallInliner {
                 ni.properties().forEach((k, v) -> props.put(k, rewrite(v, env)));
                 yield new TypedNewInstance(ni.classFqn(), props, ni.info());
             }
+            case com.legend.compiler.spec.typed.TypedCopyInstance cp -> {
+                Map<String, TypedSpec> ov = new LinkedHashMap<>();
+                cp.overrides().forEach((k, v) -> ov.put(k, rewrite(v, env)));
+                yield new com.legend.compiler.spec.typed.TypedCopyInstance(
+                        rewrite(cp.source(), env), cp.classFqn(), ov, cp.info());
+            }
             case TypedNewInstanceCast nc -> new TypedNewInstanceCast(nc.classFqn(),
                     rewrite(nc.source(), env), nc.info());
             case TypedFold f -> new TypedFold(rewrite(f.source(), env),
