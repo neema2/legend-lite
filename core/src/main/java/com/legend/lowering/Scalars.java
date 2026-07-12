@@ -133,7 +133,8 @@ final class Scalars {
         // minus NEGATES — the binary operator renderer would silently DROP
         // the sign of a lone operand (audit: [-5, -3] executed as [5, 3]).
         for (String f : Pure.nativeKeysAt("plus")) {
-            RULES.put(f, (n, args) -> {
+            RULES.put(f, (n, rawArgs) -> {
+                var args = decimalJoin(rawArgs);
                 if (args.size() == 1 && isToOne(n.args().get(0))
                         && !(args.get(0) instanceof SqlExpr.ArrayLit)) {
                     return args.get(0);   // unary +x
@@ -147,7 +148,8 @@ final class Scalars {
             });
         }
         for (String f : Pure.nativeKeysAt("times")) {
-            RULES.put(f, (n, args) -> {
+            RULES.put(f, (n, rawArgs) -> {
+                var args = decimalJoin(rawArgs);
                 if (args.size() == 1 && isToOne(n.args().get(0))
                         && !(args.get(0) instanceof SqlExpr.ArrayLit)) {
                     return args.get(0);
@@ -160,7 +162,8 @@ final class Scalars {
             });
         }
         for (String f : Pure.nativeKeysAt("minus")) {
-            RULES.put(f, (n, args) -> {
+            RULES.put(f, (n, rawArgs) -> {
+                var args = decimalJoin(rawArgs);
                 if (args.size() != 1) {
                     return new SqlExpr.Call(SqlFn.MINUS, hugeWiden(args));
                 }
@@ -221,11 +224,14 @@ final class Scalars {
         family(SqlFn.MOD, "mod");
         // rem(a, 0): real pure raises 'Cannot divide 5 by zero'
         for (String f : Pure.nativeKeysAt("rem")) {
-            RULES.put(f, (n, args) -> guarded(
-                    SqlExpr.Call.of(SqlFn.EQUAL, args.get(1), new SqlExpr.IntLit(0)),
-                    cat(new SqlExpr.StringLit("Cannot divide "), str(args.get(0)),
-                            new SqlExpr.StringLit(" by zero")),
-                    new SqlExpr.Call(SqlFn.REM, args)));
+            RULES.put(f, (n, rawArgs) -> {
+                var args = decimalJoin(rawArgs);
+                return guarded(
+                        SqlExpr.Call.of(SqlFn.EQUAL, args.get(1), new SqlExpr.IntLit(0)),
+                        cat(new SqlExpr.StringLit("Cannot divide "), str(args.get(0)),
+                                new SqlExpr.StringLit(" by zero")),
+                        new SqlExpr.Call(SqlFn.REM, args));
+            });
         }
         family(SqlFn.ABS, "abs");
         // isEmpty/isNotEmpty are TYPE-aware: a to-MANY argument is a SQL
@@ -1301,10 +1307,27 @@ final class Scalars {
             RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
                     : new SqlExpr.Call(SqlFn.LIST_REVERSE, args));
         }
-        // type(x): the value's runtime SQL type name (engine-lite parity —
-        // DuckDB's typeof; the corpus pins 'INTEGER' for 1).
+        // type(x): real pure returns THE Type instance ('Integer', not
+        // DuckDB's 'INTEGER'). A CONCRETE static type is the runtime type —
+        // emit its pure name; the wire resolves it to the canonical Type
+        // instance (assertIs checks identity). Abstract statics (Number,
+        // Date, Any) fall back to DuckDB's typeof — honest, still a name.
         for (String f : Pure.nativeKeysAt("type")) {
-            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.TYPEOF, args));
+            RULES.put(f, (n, args) -> {
+                Type t = n.args().get(0).info().type();
+                String name = switch (t) {
+                    case Type.Primitive p when p != Type.Primitive.NUMBER
+                            && p != Type.Primitive.DATE ->
+                            p.qualifiedName().substring(p.qualifiedName().lastIndexOf(':') + 1);
+                    case Type.PrecisionDecimal ignored -> "Decimal";
+                    case Type.ClassType ct -> ct.fqn();
+                    case Type.EnumType et -> et.fqn();
+                    case Type.GenericType g -> g.rawFqn();
+                    default -> null;
+                };
+                return name != null ? new SqlExpr.StringLit(name)
+                        : new SqlExpr.Call(SqlFn.TYPEOF, args);
+            });
         }
         // minBy/maxBy(values, key[, count]): sort {k,v} structs by key (list
         // sort over structs orders by the FIRST field), take the head or the
@@ -1570,13 +1593,35 @@ final class Scalars {
         castFamily("toFloat", Type.Primitive.FLOAT);
         // parseDecimal accepts the 'd'/'D' Pure-literal suffix ('3.14159d');
         // SQL DECIMAL casts do not — strip it (literal-folded or RTRIM).
+        // Real pure is new BigDecimal(s): the SCALE comes from the string
+        // ('0.0' is 0.0D, never 0.000000000000000000D). A literal's scale is
+        // static program text — the cast targets DECIMAL(38, that scale).
+        // The 3-arg overload is setScale(scale, HALF_UP) with a precision
+        // bound: DuckDB's string→DECIMAL(p,s) cast rounds half away from
+        // zero and raises on overflow, both matching.
         for (String f : Pure.nativeKeysAt("parseDecimal")) {
             RULES.put(f, (n, args) -> {
-                SqlExpr in = args.get(0) instanceof SqlExpr.StringLit lit
-                        ? new SqlExpr.StringLit(lit.value().replaceAll("[dD]$", ""))
-                        : SqlExpr.Call.of(SqlFn.RTRIM, args.get(0),
-                                new SqlExpr.StringLit("dD"));
-                return new SqlExpr.Cast(in, PureSql.type(Type.Primitive.DECIMAL));
+                if (args.size() == 3) {
+                    if (!(args.get(1) instanceof SqlExpr.IntLit p
+                            && args.get(2) instanceof SqlExpr.IntLit s)) {
+                        throw new IllegalStateException(
+                                "parseDecimal precision/scale must be literal integers");
+                    }
+                    SqlExpr in = args.get(0) instanceof SqlExpr.StringLit lit
+                            ? new SqlExpr.StringLit(lit.value().replaceAll("[dD]$", ""))
+                            : SqlExpr.Call.of(SqlFn.RTRIM, args.get(0),
+                                    new SqlExpr.StringLit("dD"));
+                    return new SqlExpr.Cast(in, new com.legend.sql.SqlType.Decimal(
+                            (int) p.value(), (int) s.value()));
+                }
+                if (args.get(0) instanceof SqlExpr.StringLit lit) {
+                    String clean = lit.value().replaceAll("[dD]$", "");
+                    return new SqlExpr.Cast(new SqlExpr.StringLit(clean),
+                            new com.legend.sql.SqlType.Decimal(38, literalScale(clean)));
+                }
+                return new SqlExpr.Cast(
+                        SqlExpr.Call.of(SqlFn.RTRIM, args.get(0), new SqlExpr.StringLit("dD")),
+                        PureSql.type(Type.Primitive.DECIMAL));
             });
         }
         castFamily("parseBoolean", Type.Primitive.BOOLEAN);
@@ -2021,6 +2066,61 @@ final class Scalars {
         } catch (IllegalStateException undecidable) {
             return -1;
         }
+    }
+
+    /**
+     * Real pure computes in BigDecimal the moment ONE operand of an
+     * arithmetic native is Decimal. In SQL that means the whole expression
+     * must stay DECIMAL — one {@code CAST(x AS DOUBLE)} operand poisons
+     * DuckDB's type resolution to DOUBLE and the scale (the value surface
+     * of a Decimal: 6.0D, not 6.000000000000000000D) is lost. When a
+     * decimal operand is present, FLOAT literals join as native DECIMAL
+     * literals at their PRINTED scale — exactly what real pure does
+     * (BigDecimal.valueOf(double) is the printed repr) — and DuckDB's
+     * DECIMAL arithmetic then reproduces BigDecimal's scale rules
+     * (add/sub = max scale, mul = sum of scales, mod = max scale).
+     * Only literals transform: a genuinely runtime DOUBLE stays DOUBLE.
+     */
+    /** new BigDecimal(s)'s scale: digits after the point (exponent forms fall back to 18). */
+    private static int literalScale(String s) {
+        if (s.indexOf('e') >= 0 || s.indexOf('E') >= 0) {
+            return 18;
+        }
+        int dot = s.indexOf('.');
+        return dot < 0 ? 0 : s.length() - dot - 1;
+    }
+
+    private static List<SqlExpr> decimalJoin(List<SqlExpr> args) {
+        return args.stream().anyMatch(Scalars::decimalKind)
+                ? args.stream().map(Scalars::undoubled).toList()
+                : args;
+    }
+
+    private static boolean decimalKind(SqlExpr e) {
+        return switch (e) {
+            case SqlExpr.DecimalLit ignored -> true;
+            case SqlExpr.ArrayLit a -> a.elements().stream().anyMatch(Scalars::decimalKind);
+            case SqlExpr.Cast c -> c.target() instanceof com.legend.sql.SqlType.Decimal
+                    || decimalKind(c.value());
+            // a chain like 1.0D - 2 - 3.0 nests the decimal inside the
+            // first subtraction — the detector looks through calls/cases
+            case SqlExpr.Call c -> c.args().stream().anyMatch(Scalars::decimalKind);
+            case SqlExpr.Case c -> decimalKind(c.otherwise());
+            default -> false;
+        };
+    }
+
+    private static SqlExpr undoubled(SqlExpr e) {
+        return switch (e) {
+            case SqlExpr.Cast c when c.value() instanceof SqlExpr.FloatLit f
+                    && c.target() == com.legend.sql.SqlType.Scalar.DOUBLE ->
+                    new SqlExpr.DecimalLit(java.math.BigDecimal.valueOf(f.value()));
+            case SqlExpr.FloatLit f ->
+                    new SqlExpr.DecimalLit(java.math.BigDecimal.valueOf(f.value()));
+            case SqlExpr.ArrayLit a -> new SqlExpr.ArrayLit(
+                    a.elements().stream().map(Scalars::undoubled).toList());
+            default -> e;
+        };
     }
 
     /** {@code CASE WHEN cond THEN error(msg) ELSE value END} — a DATABASE-raised guard. */

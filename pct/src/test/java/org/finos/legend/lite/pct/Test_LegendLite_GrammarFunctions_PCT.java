@@ -47,10 +47,6 @@ public class Test_LegendLite_GrammarFunctions_PCT extends PCTReportConfiguration
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne_Function_1__Boolean_1_", "\"expected meta::pure::functions::collection::tests::map::model::M_GeographicEntityType, got meta::pure::functions::collection::tests::map::model::M_GeographicEntityType\""),
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\""),
             one("meta::pure::functions::lang::tests::letFn::testLetChainedWithAnotherFunction_Function_1__Boolean_1_", "\"'meta::pure::functions::lang::tests::letFn::TestClass' is not a known class, mapping, runtime, connection, or database\""),
-            one("meta::pure::functions::math::tests::minus::testDecimalMinus_Function_1__Boolean_1_", "\"\nexpected: -4.0D\nactual:   -4.0\""),
-            one("meta::pure::functions::math::tests::minus::testSingleMinusType_Function_1__Boolean_1_", "\"Cast exception: String cannot be cast to Type\""),
-            one("meta::pure::functions::math::tests::plus::testDecimalPlus_Function_1__Boolean_1_", "\"\nexpected: 6.0D\nactual:   6.0\""),
-            one("meta::pure::functions::math::tests::plus::testSinglePlusType_Function_1__Boolean_1_", "\"Cast exception: String cannot be cast to Type\""),
             one("meta::pure::functions::string::tests::plus::testMultiPlusWithPropertyExpressions_Function_1__Boolean_1_", "\"expected meta::pure::functions::string::tests::plus::model::P_GeographicEntityType, got meta::pure::functions::string::tests::plus::model::P_GeographicEntityType\""));
 
     public static Test suite() {

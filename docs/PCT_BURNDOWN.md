@@ -483,4 +483,24 @@ call runs in DuckDB; no interpreted frame exists — 6 tests re-pinned
 with message+line matching, column unrecoverable; the reference
 excludes them too). Gates: core 1391, corpus 2721, PCT 1109/1109.
 
+**Slice 14** (Decimal scale semantics — 8 more removed, 58 remain):
+real pure computes in BigDecimal the moment ONE operand is Decimal, and
+the SCALE is part of the value's surface (6.0D, not
+6.000000000000000000D). DuckDB's own DECIMAL arithmetic reproduces
+BigDecimal's scale rules exactly (add/sub = max scale, mul = sum,
+mod = max) — the whole fix is keeping the computation IN DECIMAL: when
+a decimal operand is present anywhere in an arithmetic chain, FLOAT
+literals join as native DECIMAL literals at their printed scale instead
+of CAST(x AS DOUBLE) (one DOUBLE operand poisons DuckDB's resolution
+and the scale is lost). parseDecimal is new BigDecimal(s): the string's
+own scale, statically known for literals — the cast targets
+DECIMAL(38, literal scale); the 3-arg overload (registered; real pure
+signature) is setScale(scale, HALF_UP), which DuckDB's string→
+DECIMAL(p,s) cast matches (rounds half away from zero, raises on
+overflow). type(x) now returns real pure's Type ('Integer', not
+DuckDB's 'INTEGER' — an engine-lite dialect leak, corpus pin
+corrected): a concrete static type IS the runtime type; the wire
+resolves the name to the canonical Type instance (assertIs checks
+identity). Gates: core 1391, corpus 2721, PCT 1109/1109.
+
 Update this file per slice, same as docs/SCOREBOARD.md.

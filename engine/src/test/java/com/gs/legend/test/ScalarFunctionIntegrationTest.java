@@ -52,8 +52,10 @@ public class ScalarFunctionIntegrationTest extends AbstractDatabaseTest {
 
     @Test
     void testTypeOf() throws SQLException {
+        // real pure's type(1) is the Integer type (engine-lite's DuckDB
+        // 'INTEGER' was a dialect leak)
         var result = executeRelation("|1->type()");
-        assertEquals("INTEGER", result.rows().get(0).get(0));
+        assertEquals("Integer", result.rows().get(0).get(0));
     }
 
     @Test

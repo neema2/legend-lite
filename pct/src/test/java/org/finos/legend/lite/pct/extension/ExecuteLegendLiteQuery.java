@@ -437,6 +437,15 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         }
         // Strings
         if (value instanceof String s) {
+            // type(x) crosses the wire as the type's NAME; resolve it to the
+            // canonical Type instance — assertIs compares IDENTITY, and
+            // package lookup returns the one true instance.
+            if ("meta::pure::metamodel::type::Type".equals(classFqnOf(type))) {
+                CoreInstance typeInstance = ps.package_getByUserPath(s);
+                if (typeInstance != null) {
+                    return typeInstance;
+                }
+            }
             return modelRepository.newStringCoreInstance(s);
         }
         // Struct → class instance
