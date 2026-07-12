@@ -289,4 +289,29 @@ Doubles print pure-float PLAIN decimal (2.25e19 ->
 '22500000000000000000.0', integral keeps .0). Standard 50 -> 38,
 Essential 86 -> 74, Grammar 30 -> 28; total 969/1109 (87%).
 
+**Slice 8** (registrations + carriers, in flight): between() gains the
+real FOUR overloads (Number/String/StrictDate/DateTime, all [0..1] —
+ours had one [1] Number form); corr/covar's paired-unnest recipe wraps
+TO-ONE sides into single-element lists ([1] fits Number[*]);
+BIT_NOT renders its ARG (the arm concatenated the raw record);
+element-selecting DECIMAL roots keep the Decimal WITH SCALE
+(greatest([1.0d,...]) is 1.0D — the strip-and-narrow arm now serves
+only COMPUTED HUGEINT integrals). Standard 38 -> 33.
+
+KNOWN DESIGN ITEM (mixed-Number element carrier): greatest/least/max/
+min/mode over MIXED Number collections cannot preserve the winning
+element's own kind (2 vs 2.0 vs 2D) — DuckDB promotes at collection
+construction. Full fidelity needs JSON-element carriers for
+Number-LUB collections (the Any-list mechanism, extended). ~8 Standard
+value tests + relation-agg decode cousins sit behind it.
+
+| suite | run | errors | passing |
+|---|---|---|---|
+| Essential | 327 | 74 | 77% |
+| Standard | 204 | 33 | 84% |
+| **Relation** | **348** | **0** | **100%** |
+| Grammar | 136 | 28 | 79% |
+| **Unclassified** | **94** | **0** | **100%** |
+| **total** | **1109** | **135** | **88%** |
+
 Update this file per slice, same as docs/SCOREBOARD.md.

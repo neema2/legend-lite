@@ -1125,11 +1125,17 @@ final class Scalars {
                             || args.get(1) instanceof SqlExpr.NullLit) {
                         return new SqlExpr.NullLit();
                     }
+                    // A TO-ONE side is the single-element list ([1] fits
+                    // Number[*]) — unnest needs the list shape.
+                    SqlExpr xs = n.args().get(0).info().multiplicity().isMany()
+                            ? args.get(0) : new SqlExpr.ArrayLit(List.of(args.get(0)));
+                    SqlExpr ys = n.args().get(1).info().multiplicity().isMany()
+                            ? args.get(1) : new SqlExpr.ArrayLit(List.of(args.get(1)));
                     var inner = new com.legend.sql.SqlSelect(List.of(
                             new com.legend.sql.SqlSelect.Projection(
-                                    SqlExpr.Call.of(SqlFn.UNNEST, args.get(0)), "a"),
+                                    SqlExpr.Call.of(SqlFn.UNNEST, xs), "a"),
                             new com.legend.sql.SqlSelect.Projection(
-                                    SqlExpr.Call.of(SqlFn.UNNEST, args.get(1)), "b")),
+                                    SqlExpr.Call.of(SqlFn.UNNEST, ys), "b")),
                             false, null, null, List.of(), null, null, List.of(), null, null,
                             List.of());
                     var outer = new com.legend.sql.SqlSelect(List.of(

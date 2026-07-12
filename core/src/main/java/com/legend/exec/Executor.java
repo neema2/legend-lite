@@ -81,10 +81,18 @@ public final class Executor {
      */
     private static Object latticeKind(Object v, Type rootType, SqlQuery plan) {
         if (rootType == Type.Primitive.NUMBER && v instanceof java.math.BigDecimal d) {
+            // ELEMENT-SELECTING roots return one of their INPUTS: with float
+            // literals now DOUBLE-carried, a DECIMAL under a selection root
+            // is a GENUINE Decimal element — keep it, scale included
+            // (greatest([1.0d, ...]) is 1.0D, never 1).
+            if (selectionRoot(plan)) {
+                return v;
+            }
             java.math.BigDecimal stripped = d.stripTrailingZeros();
-            // INTEGRAL only: a fractional value may genuinely be a Decimal —
-            // demoting it to double loses precision (audit regression).
-            // BEYOND-long integrals (HUGEINT arithmetic) stay BigDecimal —
+            // COMPUTED integral (HUGEINT sums/products): the value was an
+            // Integer. INTEGRAL only: a fractional value may genuinely be a
+            // Decimal — demoting it to double loses precision (audit
+            // regression). BEYOND-long integrals stay BigDecimal —
             // longValueExact threw where the value was correct (audit).
             if (stripped.scale() <= 0
                     && stripped.compareTo(java.math.BigDecimal.valueOf(Long.MAX_VALUE)) <= 0
