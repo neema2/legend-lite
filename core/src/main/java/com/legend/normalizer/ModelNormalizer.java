@@ -138,17 +138,33 @@ public final class ModelNormalizer {
             String t2 = rawName(ad.property2().targetClass());
             for (ClassDefinition.DerivedPropertyDefinition dp : ad.derivedProperties()) {
                 String ret = rawName(dp.type());
+                // EXACT FQN comparison — this pass runs post-NameResolver, so
+                // end targets and return types are FQNs. Real pure resolves
+                // the owner as the OTHER end; a self-association (both ends
+                // the same class) owns its qualified properties itself
+                // (AssociationProcessor: leftRawType == returnType ? right : left).
                 String owner;
-                if (simpleName(ret).equals(simpleName(t1)) && !simpleName(ret).equals(simpleName(t2))) {
+                if (t1.equals(t2)) {
+                    if (!ret.equals(t1)) {
+                        throw new com.legend.error.ModelException(
+                                com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                                "association '" + ad.qualifiedName()
+                                + "' qualified property '" + dp.name() + "' returns '" + ret
+                                + "', which is neither end of the self-association");
+                    }
+                    owner = t1;
+                } else if (ret.equals(t1)) {
                     owner = t2;
-                } else if (simpleName(ret).equals(simpleName(t2)) && !simpleName(ret).equals(simpleName(t1))) {
+                } else if (ret.equals(t2)) {
                     owner = t1;
                 } else {
-                    throw new IllegalStateException("association '" + ad.qualifiedName()
+                    throw new com.legend.error.ModelException(
+                            com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                            "association '" + ad.qualifiedName()
                             + "' qualified property '" + dp.name() + "' returns '" + ret
                             + "', which does not identify a unique owning end");
                 }
-                adoptions.computeIfAbsent(simpleName(owner), k -> new ArrayList<>()).add(dp);
+                adoptions.computeIfAbsent(owner, k -> new ArrayList<>()).add(dp);
             }
         }
         if (adoptions.isEmpty()) {
@@ -157,10 +173,10 @@ public final class ModelNormalizer {
         List<PackageableElement> out = new ArrayList<>(parsed.elements().size());
         for (PackageableElement el : parsed.elements()) {
             if (el instanceof ClassDefinition cd
-                    && adoptions.containsKey(simpleName(cd.qualifiedName()))) {
+                    && adoptions.containsKey(cd.qualifiedName())) {
                 List<ClassDefinition.DerivedPropertyDefinition> merged =
                         new ArrayList<>(cd.derivedProperties());
-                merged.addAll(adoptions.get(simpleName(cd.qualifiedName())));
+                merged.addAll(adoptions.get(cd.qualifiedName()));
                 out.add(new ClassDefinition(cd.qualifiedName(), cd.typeParams(),
                         cd.superClasses(), cd.properties(), merged, cd.constraints(),
                         cd.stereotypes(), cd.taggedValues(), cd.isNative()));
@@ -168,7 +184,9 @@ public final class ModelNormalizer {
                 out.add(el);
             }
         }
-        return new ParsedModel(out, parsed.imports());
+        // full-arg pass-through: source/offsets/per-element imports survive
+        return new ParsedModel(out, parsed.imports(), parsed.source(),
+                parsed.elementOffsets(), parsed.elementImports());
     }
 
     private static String rawName(com.legend.parser.TypeExpression t) {

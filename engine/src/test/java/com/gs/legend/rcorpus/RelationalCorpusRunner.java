@@ -93,8 +93,16 @@ class RelationalCorpusRunner {
                 + "RUN-as-data over the local legend-engine checkout; row equality is the\n"
                 + "contract, golden SQL is advisory. SHAPE = test body/assert form the\n"
                 + "runner does not yet recognize (accounted, not skipped silently).\n";
+        List<String> seedFails = runner.seedFailures();
+        if (!seedFails.isEmpty()) {
+            StringBuilder sf = new StringBuilder("\n## Failed seed statements ("
+                    + seedFails.size() + ")\n\n");
+            seedFails.forEach(f -> sf.append("- `").append(f).append("`\n"));
+            header = header + sf;
+        }
         Runner.writeScoreboard(Path.of("../docs/RELATIONAL_CORPUS.md"), byFamily,
                 runner.walls(), header);
+        System.out.println("[rcorpus] failed seeds: " + seedFails.size());
         byFamily.forEach((f, outs) -> {
             long p = outs.stream().filter(o -> o.status() == Runner.Status.PASS).count();
             System.out.println("[rcorpus] " + f + ": " + p + "/" + outs.size() + " pass");

@@ -218,7 +218,14 @@ public final class NameResolver {
     private static PackageableElement resolveElement(
             PackageableElement element, Scope scope) {
         return switch (element) {
-            case com.legend.parser.element.PrimitiveExtensionDefinition pe -> pe;
+            case com.legend.parser.element.PrimitiveExtensionDefinition pe -> {
+                // base primitives (String, Integer...) pass through resolveName
+                // unchanged; an extension-of-extension base resolves via imports
+                String base = resolveName(pe.baseTypeName(), scope);
+                yield base.equals(pe.baseTypeName()) ? pe
+                        : new com.legend.parser.element.PrimitiveExtensionDefinition(
+                                pe.qualifiedName(), base);
+            }
             case ClassDefinition cd -> resolveClass(cd, scope);
             case AssociationDefinition ad -> resolveAssociation(ad, scope);
             case FunctionDefinition fd -> resolveFunction(fd, scope);
@@ -431,8 +438,13 @@ public final class NameResolver {
             AssociationDefinition ad, Scope scope) {
         AssociationEndDefinition p1 = resolveAssocEnd(ad.property1(), scope);
         AssociationEndDefinition p2 = resolveAssocEnd(ad.property2(), scope);
-        if (p1 == ad.property1() && p2 == ad.property2()) return ad;
-        return new AssociationDefinition(ad.qualifiedName(), p1, p2);
+        List<DerivedPropertyDefinition> derived =
+                resolveDerivedList(ad.derivedProperties(), scope);
+        if (p1 == ad.property1() && p2 == ad.property2()
+                && derived == ad.derivedProperties()) {
+            return ad;
+        }
+        return new AssociationDefinition(ad.qualifiedName(), p1, p2, derived);
     }
 
     private static AssociationEndDefinition resolveAssocEnd(
@@ -665,7 +677,8 @@ public final class NameResolver {
                 }
                 yield new ClassMapping.Relational(className, r.setId(), r.extendsSetId(),
                         r.root(), mainTable, filter, r.distinct(),
-                        groupBy, primaryKey, props, r.sourceUrl());
+                        groupBy, primaryKey, props, r.sourceUrl(),
+                        r.propertyTargetSets());
             }
             case ClassMapping.Pure p -> {
                 String className = resolveName(p.className(), scope);

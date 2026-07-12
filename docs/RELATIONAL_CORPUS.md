@@ -4,9 +4,19 @@ RUN-as-data over the local legend-engine checkout; row equality is the
 contract, golden SQL is advisory. SHAPE = test body/assert form the
 runner does not yet recognize (accounted, not skipped silently).
 
+## Failed seed statements (7)
+
+- `Create Table testTable(quantity INT, Class VARCHAR(200),boolean  INT, abstract  INT, assert  INT, break  INT, byte  INT, catch  INT, char  INT, const  INT, continue  INT, default  INT, do  INT, double  INT, else  INT, enum  INT, final  INT, finally  INT, float  INT, goto  INT, implements  INT, instanceof  INT, interface VARCHAR(100), long VARCHAR(100), new VARCHAR(100), package VARCHAR(100), private VARCHAR(100), protected VARCHAR(100), public VARCHAR(100), return VARCHAR(100), short VARCHAR(100), static VARCHAR(100), strictfp VARCHAR(100), super VARCHAR(100), switch VARCHAR(100), synchronized VARCHAR(100), this VARCHAR(100), throw VARCHAR(100), throws VARCHAR(100), transient VARCHAR(100), try VARCHAR(100), void VARCHAR(100), volatile VARCHAR(100), while VARCHAR(100)); => Parser Error: syntax error at or near "default"`
+- `insert into testTable ("quantity", "Class", "boolean", "abstract", "assert", "break", "byte", "catch", "char", "const", "continue", "default", "do", "double", "else", "enum", "final", "finally", "float", "goto", "implements", "instanceof", "interface", "long", "new", "package", "private", "protected", "public", "return", "short", "static", "strictfp", "super", "switch", "synchronized", "this", "throw", "throws", "transient", "try", "void", "volatile", "while") values (1, 'Department A',1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into testTable ("quantity", "Class", "boolean", "abstract", "assert", "break", "byte", "catch", "char", "const", "continue", "default", "do", "double", "else", "enum", "final", "finally", "float", "goto", "implements", "instanceof", "interface", "long", "new", "package", "private", "protected", "public", "return", "short", "static", "strictfp", "super", "switch", "synchronized", "this", "throw", "throws", "transient", "try", "void", "volatile", "while") values (2, 'Department B',20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,'v','u','t','s','r','q','p','o','n','m','l','k','j','i','h','g','f','e','d','c','b','a'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `CREATE TABLE Person ("milestoning" ( => Parser Error: syntax error at or near "("`
+- `CREATE TABLE Owner ("milestoning" ( => Parser Error: syntax error at or near "("`
+- `CREATE TABLE Car ("milestoning" ( => Parser Error: syntax error at or near "("`
+- `CREATE TABLE Bicycle ("milestoning" ( => Parser Error: syntax error at or near "("`
+
 | family | tests | pass | fail | error | shape |
 |---|---|---|---|---|---|
-| query | 99 | 11 | 1 | 63 | 24 |
+| query | 99 | 10 | 1 | 63 | 25 |
 | mapping/association | 24 | 1 | 0 | 17 | 6 |
 | mapping/join | 29 | 0 | 0 | 29 | 0 |
 | mapping/embedded | 70 | 0 | 0 | 65 | 5 |
@@ -18,7 +28,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | mapping/selfJoin | 3 | 0 | 0 | 3 | 0 |
 | mapping/boolean.pure | 3 | 0 | 0 | 3 | 0 |
 | mapping/dates.pure | 7 | 0 | 0 | 4 | 3 |
-| **total** | 351 | **12** | 7 | 272 | 60 |
+| **total** | 351 | **11** | 7 | 272 | 61 |
 
 ### mapping walls (dropped at assembly)
 
@@ -54,6 +64,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - 28x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
 - 25x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDate' in database 'meta::relational::tests::db'
 - 21x class meta::relational::tests::model::simple::Product has no property 'bondDetails'
+- 13x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one
 - 11x 'BondDetail' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 10x project expects ~[…] column specifications
 - 9x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::groupBy::model::domain::Position' (of 1 candidates); class-query dispatch needs exactly one
@@ -64,11 +75,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - 6x mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross' includes unknown mapping 'meta::relational::tests::mapping::inheritance::inheritanceMain' (a silently-unresolved include hid class bindings)
 - 5x serialize expects (classCollection, #{Class{…}}#)
 - 5x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exactly one
-- 4x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one
 - 4x no overload of 'agg' matches 3 argument(s) of these shapes
 - 4x class meta::relational::tests::model::simple::Employee has no property 'name'
-- 4x in function 'meta::relational::tests::mapping::inheritance::inheritanceMain$class$meta::relational::tests::model::inheritance::Person': expected meta::relational::tests::model::inheritance::Vehicle, got (ID:Integer[1], db_bic_wheelCount:Integer[0..1], b_Description:String[0..1], b_PersonID:Integer[0..1])
-- 4x in function 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion$class$meta::relational::tests::model::inheritance::Person': expected meta::relational::tests::model::inheritance::Vehicle, got (ID:Integer[1], db_bic_wheelCount:Integer[0..1], b_Description:String[0..1], b_PersonID:Integer[0..1])
 - 3x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Account': unknown table 'accountOrderPnlView' in database 'meta::relational::tests::db'
 - 3x [1:97] expected ']' to close collection literal
 - 3x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
@@ -81,6 +89,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - 2x unknown function 'nameWithTitle'
 - 2x mapping pipeline for 'meta::relational::tests::model::simple::OrderPnl' has TypedDistinct above join slot(s); H3-pending
 - 2x unbound variable '$input'
+- 2x class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- 2x a bare lambda has no type outside a call position (lambdas type against their call's signature)
 
 ### per-test outcomes (non-passing)
 
@@ -103,6 +113,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testAssociationToManyWithConstantPredicate [query]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - ERROR testTwoAssociationsToManyDeepWithOr [query]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - ERROR testAssociationToManyWithTwoSeparateExists [query]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
+- SHAPE testSimpleAndAssociationToOne [query]: assertEmpty unverifiable: 3 seed statement(s) failed: Create Table testTable(quantity INT, Class VARCHAR(200),boolean  INT, abstract  INT, assert  INT, break  I
 - ERROR testTwoAssociationsToOneDeep [query]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testGroupOpenVariable [query]: unbound variable '$other'
 - ERROR testExistsOpenVariable [query]: unbound variable '$var'
@@ -367,11 +378,11 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProjectTwoLambdas [mapping/inheritance]: mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross' includes unknown mapping 'meta::relational::tests::mapping::inheritance:
 - ERROR testFilterProject [mapping/inheritance]: mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross' includes unknown mapping 'meta::relational::tests::mapping::inheritance:
 - ERROR testProjectTwoLambdasWithAutomap [mapping/inheritance]: mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross' includes unknown mapping 'meta::relational::tests::mapping::inheritance:
-- ERROR testProjectTwoLambdas [mapping/inheritance]: in function 'meta::relational::tests::mapping::inheritance::inheritanceMain$class$meta::relational::tests::model::inheritance::Person': expected meta::relationa
+- ERROR testProjectTwoLambdas [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly o
 - ERROR testGroupBy [mapping/inheritance]: no overload of 'agg' matches 3 argument(s) of these shapes
-- ERROR testQuery [mapping/inheritance]: in function 'meta::relational::tests::mapping::inheritance::inheritanceMain$class$meta::relational::tests::model::inheritance::Person': expected meta::relationa
-- ERROR testFilterProject [mapping/inheritance]: in function 'meta::relational::tests::mapping::inheritance::inheritanceMain$class$meta::relational::tests::model::inheritance::Person': expected meta::relationa
-- ERROR testFilterProjectBooleanInFilter [mapping/inheritance]: in function 'meta::relational::tests::mapping::inheritance::inheritanceMain$class$meta::relational::tests::model::inheritance::Person': expected meta::relationa
+- ERROR testQuery [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly o
+- ERROR testFilterProject [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly o
+- ERROR testFilterProjectBooleanInFilter [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly o
 - ERROR testGetAll [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exac
 - ERROR testGetAllFilter [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exac
 - SHAPE testGetAllFilterWithAssociation [mapping/inheritance]: multiple execute() calls
@@ -388,15 +399,15 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testEmbeddMappingInSubTypes [mapping/inheritance]: [1:93] expected ']' to close collection literal
 - ERROR testMilestonedSubTyping [mapping/inheritance]: [2314:4] expected identifier, got PAREN_OPEN
 - ERROR testMilestonedSubTypingWithDifferentDates [mapping/inheritance]: [2314:4] expected identifier, got PAREN_OPEN
-- ERROR testProjectAssociation [mapping/inheritance]: in function 'meta::relational::tests::mapping::inheritance::relational::multiJoins::inheritance$class$meta::relational::tests::model::inheritance::Person': expe
+- ERROR testProjectAssociation [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly o
 - ERROR testSubTypeProjectDirect [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exac
 - ERROR testForcedSubTypeProjectDirect [mapping/inheritance]: [1:122] expected ']' to close collection literal
 - ERROR testSubTypeProjectSharedNonDirectlyRouted [mapping/inheritance]: [1:95] expected ']' to close collection literal
-- ERROR testProjectTwoLambdas [mapping/inheritance]: in function 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion$class$meta::relational::tests::model::inheritance::Person': expe
+- ERROR testProjectTwoLambdas [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly o
 - ERROR testGroupBy [mapping/inheritance]: no overload of 'agg' matches 3 argument(s) of these shapes
-- ERROR testQuery [mapping/inheritance]: in function 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion$class$meta::relational::tests::model::inheritance::Person': expe
-- ERROR testFilterProject [mapping/inheritance]: in function 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion$class$meta::relational::tests::model::inheritance::Person': expe
-- ERROR testFilterProjectBooleanInFilter [mapping/inheritance]: in function 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion$class$meta::relational::tests::model::inheritance::Person': expe
+- ERROR testQuery [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly o
+- ERROR testFilterProject [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly o
+- ERROR testFilterProjectBooleanInFilter [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly o
 - ERROR testGetAll [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exac
 - ERROR testGetAllFilter [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exac
 - SHAPE testGetAllFilterWithAssociation [mapping/inheritance]: multiple execute() calls

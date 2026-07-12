@@ -501,11 +501,25 @@ public final class ElementParser implements TokenStreamCursor {
         // ~message: expr ) — the predicate is the ~function expression;
         // enforcement level and message are instantiation-time concerns,
         // parsed and dropped (engine parity for query compilation).
-        if (isIdentifierToken(peek()) && peek(1) == TokenType.PAREN_OPEN) {
+        // Dispatch on `name( ~` — a bare function-call constraint like
+        // [ eq($this.a, 1) ] is the SIMPLE form (the real grammar allows any
+        // expression there); only `name(~...)` opens the extended clause block.
+        if (isIdentifierToken(peek()) && peek(1) == TokenType.PAREN_OPEN
+                && peek(2) == TokenType.TILDE) {
             name = parseIdentifier();
             expect(TokenType.PAREN_OPEN);
             expect(TokenType.TILDE);
             String kw = parseIdentifier();
+            // real clause order: ~owner? ~externalId? ~function
+            // ~enforcementLevel? ~message? — leading clauses skip to the next ~
+            while (kw.equals("owner") || kw.equals("externalId")) {
+                expect(TokenType.COLON);
+                while (!atEnd() && peek() != TokenType.TILDE) {
+                    advance();
+                }
+                expect(TokenType.TILDE);
+                kw = parseIdentifier();
+            }
             if (!kw.equals("function")) {
                 throw error("extended constraint must lead with ~function:, got ~" + kw);
             }
@@ -1996,6 +2010,8 @@ public final class ElementParser implements TokenStreamCursor {
         List<RelationalOperation> primaryKey = new ArrayList<>();
         LegacyMappingDefinition.TableReference mainTable = null;
         List<PropertyMapping> propertyMappings = new ArrayList<>();
+        java.util.Map<String, String> savedTargetSets = currentTargetSets;
+        currentTargetSets = new java.util.LinkedHashMap<>();
 
         LegacyMappingDefinition.TableReference savedScope = currentMappingScope;
         try {
@@ -2069,11 +2085,16 @@ public final class ElementParser implements TokenStreamCursor {
             currentMappingScope = savedScope;
         }
 
+        java.util.Map<String, String> targetSets = currentTargetSets;
+        currentTargetSets = savedTargetSets;
         return new ClassMapping.Relational(
                 className, setId, extendsSetId, root,
                 mainTable, filter, distinct, groupBy, primaryKey, propertyMappings,
-                /* sourceUrl */ null);
+                /* sourceUrl */ null, targetSets);
     }
+
+    /** {@code prop[setId]} routings of the class mapping being parsed. */
+    private java.util.Map<String, String> currentTargetSets;
 
     /**
      * Surface spelling of a {@code ~}-command token, for error messages.
@@ -2188,13 +2209,16 @@ public final class ElementParser implements TokenStreamCursor {
         }
         String propName = parseIdentifier();
         // prop[targetSetId] : ... routes the property to a SPECIFIC mapping
-        // set of the target class. Parsed and DROPPED: multi-set targets are
-        // already a loud resolver wall (H5), so no silent divergence — the
-        // set id becomes meaningful only when that wall opens.
+        // set of the target class. RECORDED (currentTargetSets): the
+        // normalizer poisons the class when the id names a non-root set —
+        // silently navigating the root set instead would be wrong rows.
         if (peek() == TokenType.BRACKET_OPEN) {
             advance();
-            parseIdentifier();
+            String targetSetId = parseIdentifier();
             expect(TokenType.BRACKET_CLOSE);
+            if (currentTargetSets != null) {
+                currentTargetSets.put(propName, targetSetId);
+            }
         }
         if (peek() == TokenType.PAREN_OPEN) {
             return parseEmbeddedPropertyMapping(propName, mainTable);

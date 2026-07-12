@@ -638,4 +638,73 @@ helpers), wrapPctList enumeration (loud fallback), inlineFunctionLiterals
 (misfires fail compilation loudly). AuditRound5Test pins all of it
 (core 1400). Gates: corpus 2721, PCT 1109/1109.
 
+## Audit round 6 (relational-corpus arc, 05d886d6..HEAD)
+
+Two independent auditors: core correctness/weakening; harness honesty +
+tenet. Every confirmed finding fixed; the runner's PASS column was
+INFLATED by three independent holes, all closed.
+
+RUNNER (honesty): (R1) recognized++ fired BEFORE the expected value
+parsed — %date literals, Enum.VALUE, and expressions returned null from
+pureLiteral and the comparison silently never ran, yet the assert
+counted toward PASS. Now recognition REQUIRES a parsed expected value;
+pureLiteral learned %dates (DateExpected), Enum.VALUE (EnumExpected,
+compared by value name), and string-CONCAT folding ('a' + 'b', the
+toCSV spelling). (R2) golden-SQL asserts are advisory, but a test whose
+asserts were ALL advisory reached PASS having verified nothing —
+`verified` now counts non-advisory comparisons and sql-only tests score
+SHAPE; the never-incremented sqlMatches counter is gone. (R3) seed
+failures were swallowed (`catch ignore`) — the corpus's keyword-column
+INSERTs (default, do, else…) failed on DuckDB leaving tables EMPTY, and
+assertEmpty over a failed-seed table false-passed. Seeds now track
+failures per run, the scoreboard lists them, assertEmpty is
+UNVERIFIABLE (SHAPE) under any failed seed, and executeInDb INSERT
+column lists are dialect-quoted at the wire boundary (CREATE was
+already quoted). (R4) valueEquals collapsed types through
+String.valueOf (Boolean 'true' == 'true', 2^53 double collapse) — now
+same-kind strict with float tolerance only when floats are involved;
+multisetEquals greedy-matches via valueEquals instead of sorting string
+images. (R5) assertSameElements honored ->at(N) by DROPPING the index —
+now indexed. (R6) BeforePackage prefix match gained the :: boundary
+(tests::map setUp no longer covers tests::mapping::*).
+
+CORE: (C1) NameResolver.resolveAssociation rebuilt through the 3-arg
+ctor whenever an end resolved — association qualified properties
+SILENTLY VANISHED; now resolved via resolveDerivedList and passed
+through the 4-arg ctor. (H1) findPrimitiveExtension endsWith/simple-
+name fallbacks (the banned suffix-match pattern) deleted — exact-FQN
+lookup only; NameResolver resolves extension base-type names (chains)
+and references resolve via knownFqns. (H2) inferMainTable took the
+FIRST column's table; engine requires the SINGLE distinct table —
+now collects all direct (non-join) tables incl. Expression PMs, errors
+with the engine's message on >1 (schema-canonicalized: personTable ==
+default.personTable), quiet probe variants for association-synthesis
+callers. (H3) extended-constraint dispatch swallowed simple
+function-call constraints ([eq($this.a,1)]) — dispatch needs
+name( ~ (peek 2), and ~owner:/~externalId: leading clauses skip per the
+real clause order. (H4) association-derived-property adoption keyed by
+SIMPLE name (a::Person and b::Person both adopted) — exact FQN now;
+self-associations allowed (engine: same-type ends own their qualified
+properties); errors are ModelException (decorated), not ISE. (M1)
+prop[targetSetId] was parse-and-DROPPED — silently navigating the root
+set; now recorded on ClassMapping.Relational.propertyTargetSets and a
+non-root target set poisons the class. (M2) view-in-join substitution
+guarded: non-plain views (filter/distinct/groupBy) poison EXCEPT the
+class's own backing view (its pipeline already applies those
+semantics — threading p.backingView; the first attempt poisoned
+OrderPnl/AccountPnl-style view-backed classes and killed 10 query
+passes; an eager view-target wall was likewise wrong vs the lazy
+slot-elision architecture and was dropped: a DEMANDED view-target join
+fails loudly at execution, un-demanded ones strip). (M3) poisons carry
+the FULL message; StoreResolver's 0-binder reason walk covers INCLUDED
+mappings and only fires on the zero-binder case. (LOW) literal
+fractional seconds validate statically ([0,60)); capturingParen skips
+character classes.
+
+NOT ours: 4 PhaseBEagerCompileSpike errors reproduce without these
+changes (user's uncommitted engine WIP: ExtendChecker/
+TypedAssociationExtendCol). Scoreboard after honesty: 11 verified
+passes (was 22 inflated; ~11 were unchecked/sql-only). Gates: core
+1400, corpus 2725, PCT 1109/1109.
+
 Update this file per slice, same as docs/SCOREBOARD.md.

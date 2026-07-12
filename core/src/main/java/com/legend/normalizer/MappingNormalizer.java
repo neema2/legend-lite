@@ -249,8 +249,14 @@ public final class MappingNormalizer {
                 // roadmap feature must not sink the whole mapping. The
                 // binding is withheld; fetching THIS class raises the
                 // recorded reason (loud at use, never silent).
+                // DELIBERATE TRADE (audit 6, adjudicated): ModelException
+                // here means a USER-model error the real engine rejects at
+                // compile time; we defer it to query time so the rest of a
+                // partially-broken model stays loadable/queryable. The full
+                // message rides on the poison and surfaces via
+                // StoreResolver's 0-binder error.
                 model.mappingPoisons.put(md.qualifiedName() + "::" + cm.className(),
-                        String.valueOf(e.getMessage()).split("\n")[0]);
+                        String.valueOf(e.getMessage()));
                 continue;
             }
             lifted.add(fn);
@@ -599,6 +605,31 @@ public final class MappingNormalizer {
     private static FunctionDefinition synthesizeClassMapping(LegacyMappingDefinition md,
                                                             ClassMapping cm,
                                                             ModelBuilder model) {
+        if (cm instanceof ClassMapping.Relational r && !r.propertyTargetSets().isEmpty()) {
+            // prop[setId] routing: honoring only ROOT-set targets is exactly
+            // the un-routed navigation we synthesize; a NON-root target set
+            // would need multi-set dispatch (roadmap) — poison, never
+            // silently navigate the root set instead.
+            for (var e : r.propertyTargetSets().entrySet()) {
+                ClassMapping target = md.classMappings().stream()
+                        .filter(x -> e.getValue().equals(x.setId()))
+                        .findFirst().orElse(null);
+                if (target == null) {
+                    throw new com.legend.error.NotImplementedException(
+                            "property '" + e.getKey() + "' of class '" + r.className()
+                          + "' routes to mapping set '" + e.getValue()
+                          + "', which is not a set of mapping " + md.qualifiedName()
+                          + " (cross-mapping set routing is a roadmap feature)");
+                }
+                if (!(target instanceof ClassMapping.Relational tr) || !tr.root()) {
+                    throw new com.legend.error.NotImplementedException(
+                            "property '" + e.getKey() + "' of class '" + r.className()
+                          + "' routes to NON-root mapping set '" + e.getValue()
+                          + "' — multi-set target routing is a roadmap feature"
+                          + " (navigating the root set instead would be wrong rows)");
+                }
+            }
+        }
         ValueSpecification body = switch (cm) {
             case ClassMapping.Pure pcm       -> synthM2M(md, pcm, model, new HashSet<>());
             case ClassMapping.Relational rcm -> synthRelational(md, rcm, model);
@@ -720,30 +751,92 @@ public final class MappingNormalizer {
         return synthTableBackedMapping(md, rcm, model);
     }
 
-    /** The first direct column binding's table — the engine's inferred main table. */
+    /**
+     * The engine's inferred main table when {@code ~mainTable} is absent:
+     * every property mapping's DIRECT (non-join) table must agree on ONE
+     * table (RelationalCompilerExtension collects all aliases and errors on
+     * more than one distinct table — "Please specify a main table"). First
+     * table wins only when it is the SOLE table; disagreement is loud.
+     */
     private static LegacyMappingDefinition.TableReference inferMainTable(
             ClassMapping.Relational rcm) {
+        List<LegacyMappingDefinition.TableReference> refs = new ArrayList<>();
         for (PropertyMapping pm : rcm.propertyMappings()) {
-            LegacyMappingDefinition.TableReference t = mainTableOf(pm);
-            if (t != null) {
-                return t;
-            }
+            collectMainTables(pm, refs);
         }
-        return null;
+        Set<String> names = new LinkedHashSet<>();
+        refs.forEach(r -> names.add(r.table().startsWith("default.")
+                ? r.table().substring("default.".length()) : r.table()));
+        if (names.size() > 1) {
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                    "Can't find the main table for class '" + rcm.className()
+                  + "': property mappings span tables " + names
+                  + ". Please specify a main table using the ~mainTable directive.");
+        }
+        return refs.isEmpty() ? null : refs.get(0);
     }
 
-    private static LegacyMappingDefinition.TableReference mainTableOf(PropertyMapping pm) {
-        return switch (pm) {
+    /** {@link #inferMainTable} as a PROBE: null on ambiguity instead of loud. */
+    private static LegacyMappingDefinition.TableReference inferMainTableQuiet(
+            ClassMapping.Relational rcm) {
+        try {
+            return inferMainTable(rcm);
+        } catch (com.legend.error.ModelException e) {
+            return null;
+        }
+    }
+
+    private static void collectMainTables(PropertyMapping pm,
+            List<LegacyMappingDefinition.TableReference> sink) {
+        switch (pm) {
             case PropertyMapping.Column c ->
-                    new LegacyMappingDefinition.TableReference(c.database(), c.table());
+                    sink.add(new LegacyMappingDefinition.TableReference(c.database(), c.table()));
             case PropertyMapping.EnumeratedColumn ec ->
-                    new LegacyMappingDefinition.TableReference(ec.database(), ec.table());
-            case PropertyMapping.Embedded emb -> emb.propertyMappings().stream()
-                    .map(MappingNormalizer::mainTableOf)
-                    .filter(java.util.Objects::nonNull).findFirst().orElse(null);
-            case PropertyMapping.LocalProperty lp -> mainTableOf(lp.body());
-            default -> null;
-        };
+                    sink.add(new LegacyMappingDefinition.TableReference(ec.database(), ec.table()));
+            case PropertyMapping.Embedded emb ->
+                    emb.propertyMappings().forEach(inner -> collectMainTables(inner, sink));
+            case PropertyMapping.LocalProperty lp -> collectMainTables(lp.body(), sink);
+            case PropertyMapping.Expression ex -> {
+                // a computed column reads its columns off the main table —
+                // unless it navigates a join (those reference OTHER tables)
+                List<JoinNavSpec> navs = new ArrayList<>();
+                collectJoinNavigations(ex.expression(), navs);
+                if (navs.isEmpty()) {
+                    collectExprTables(ex.expression(), sink);
+                }
+            }
+            default -> { }
+        }
+    }
+
+    private static void collectExprTables(com.legend.parser.element.RelationalOperation op,
+            List<LegacyMappingDefinition.TableReference> sink) {
+        if (op instanceof com.legend.parser.element.RelationalOperation.ColumnRef cr
+                && cr.databaseName() != null && !cr.databaseName().isEmpty()) {
+            sink.add(new LegacyMappingDefinition.TableReference(cr.databaseName(), cr.table()));
+            return;
+        }
+        switch (op) {
+            case com.legend.parser.element.RelationalOperation.FunctionCall fc ->
+                    fc.args().forEach(a -> collectExprTables(a, sink));
+            case com.legend.parser.element.RelationalOperation.Comparison c -> {
+                collectExprTables(c.left(), sink);
+                collectExprTables(c.right(), sink);
+            }
+            case com.legend.parser.element.RelationalOperation.BooleanOp b -> {
+                collectExprTables(b.left(), sink);
+                collectExprTables(b.right(), sink);
+            }
+            case com.legend.parser.element.RelationalOperation.IsNull n ->
+                    collectExprTables(n.operand(), sink);
+            case com.legend.parser.element.RelationalOperation.IsNotNull n ->
+                    collectExprTables(n.operand(), sink);
+            case com.legend.parser.element.RelationalOperation.Group g ->
+                    collectExprTables(g.inner(), sink);
+            case com.legend.parser.element.RelationalOperation.ArrayLiteral a ->
+                    a.elements().forEach(e -> collectExprTables(e, sink));
+            default -> { }
+        }
     }
 
     // ====================================================================
@@ -850,7 +943,8 @@ public final class MappingNormalizer {
                 new LegacyMappingDefinition.TableReference(mainDb, physicalTable),
                 mergedFilter, mergedDistinct, mergedGroupBy, rcm.primaryKey(),
                 rewrittenPms, null);
-        ValueSpecification body = synthTableBackedMapping(md, effective, model);
+        ValueSpecification body = synthTableBackedMapping(md, effective, model,
+                rcm.mainTable().table());
         // When BOTH a view filter and a mapping filter exist, the pipeline
         // above applied only the view filter (effective.filter). Apply the
         // mapping filter too &mdash; pre-map, after the view filter &mdash;
@@ -1034,6 +1128,12 @@ public final class MappingNormalizer {
         // instead of silently resolving to an arbitrary sub-row. Pin the
         // intended sub-row with a join-terminal column (| T.COL) instead.
         final Set<String> ambiguousTables = new HashSet<>();
+        // The VIEW this class's source pipeline materializes (null for plain
+        // table-backed classes). Join conditions referencing THIS view's
+        // columns may substitute the physical expressions even when the view
+        // carries filter/distinct/groupBy — those row semantics already live
+        // in the class pipeline; any OTHER non-plain view stays a wall.
+        String backingView;
         Pipeline(ValueSpecification expr) { this.expr = expr; }
 
         /** The translator-facing view of this pipeline (seam b). */
@@ -1056,8 +1156,15 @@ public final class MappingNormalizer {
     }
 
     private static ValueSpecification synthTableBackedMapping(LegacyMappingDefinition md,
+                                                              ClassMapping.Relational rcm,
+                                                              ModelBuilder model) {
+        return synthTableBackedMapping(md, rcm, model, null);
+    }
+
+    private static ValueSpecification synthTableBackedMapping(LegacyMappingDefinition md,
                                                              ClassMapping.Relational rcm,
-                                                             ModelBuilder model) {
+                                                             ModelBuilder model,
+                                                              String backingView) {
         validatePmNames(rcm, model, md);
 
         String mainDb    = rcm.mainTable().database();
@@ -1069,6 +1176,7 @@ public final class MappingNormalizer {
         // TableReferenceChecker serves both surfaces.
         Pipeline p = new Pipeline(new AppliedFunction("tableReference",
                 List.of(new PackageableElementPtr(mainDb), new CString(mainTable))));
+        p.backingView = backingView;
 
         // Pass 1: structural chain emission (Join, JoinTerminalColumn,
         // LocalProperty-wrapping-JTC). Class-typed Join PMs to mapped
@@ -1298,7 +1406,7 @@ public final class MappingNormalizer {
             // SOURCE relation substitutes the view's column expressions
             // (the view is a projection, not a physical relation here)
             RelationalOperation joinCond = resolveViewRefsInJoin(
-                    jd.operation(), hopDb, prevTable, model, md);
+                    jd.operation(), hopDb, prevTable, model, md, p.backingView);
             String targetTable = determineTargetTable(joinCond, prevTable,
                     hop.joinName(), propName == null ? "<nested>" : propName,
                     i + 1, md.qualifiedName());
@@ -1962,7 +2070,8 @@ public final class MappingNormalizer {
                           + "' not found in db '" + hopDb + "'; association='"
                           + associationName + "', mapping=" + md.qualifiedName()));
             RelationalOperation cond2 = resolveViewRefsInJoin(
-                    jd.operation(), hopDb, sourceTable, model, md);
+                    jd.operation(), hopDb, sourceTable, model, md,
+                    model.findView(hopDb, sourceTable).isPresent() ? sourceTable : null);
             String targetTable = determineTargetTable(cond2, sourceTable,
                     hop.joinName(), associationName, 1, md.qualifiedName());
             // The synthesized legacyAssocPredicate call declares tgtRow's row
@@ -2007,7 +2116,7 @@ public final class MappingNormalizer {
         for (ClassMapping cm : md.classMappings()) {
             if (cm instanceof ClassMapping.Relational rcm
                     && classFqn.equals(rcm.className())
-                    && (rcm.mainTable() != null || inferMainTable(rcm) != null)) {
+                    && (rcm.mainTable() != null || inferMainTableQuiet(rcm) != null)) {
                 return true;
             }
         }
@@ -2026,7 +2135,7 @@ public final class MappingNormalizer {
             if (cm instanceof ClassMapping.Relational rcm
                     && classFqn.equals(rcm.className())) {
                 LegacyMappingDefinition.TableReference mt = rcm.mainTable() != null
-                        ? rcm.mainTable() : inferMainTable(rcm);
+                        ? rcm.mainTable() : inferMainTableQuiet(rcm);
                 if (mt == null) {
                     continue;
                 }
@@ -2187,7 +2296,8 @@ public final class MappingNormalizer {
 
     /** Substitute view-column refs whose view's physical root IS the source relation. */
     private static RelationalOperation resolveViewRefsInJoin(RelationalOperation op,
-            String db, String sourceTable, ModelBuilder model, LegacyMappingDefinition md) {
+            String db, String sourceTable, ModelBuilder model, LegacyMappingDefinition md,
+            String backingView) {
         return switch (op) {
             case RelationalOperation.ColumnRef cr -> {
                 var view = model.findView(cr.databaseName() != null ? cr.databaseName() : db,
@@ -2199,6 +2309,21 @@ public final class MappingNormalizer {
                 if (!phys.equals(sourceTable)) {
                     yield cr;
                 }
+                if ((view.filter() != null || !view.groupByColumns().isEmpty()
+                        || view.distinct()) && !cr.table().equals(backingView)) {
+                    // substituting the column expression alone would DROP the
+                    // view's row semantics (filter/distinct/groupBy) — the
+                    // join would match rows the view excludes. EXEMPT: the
+                    // class's OWN backing view (its pipeline already applies
+                    // those semantics; the condition only needs the columns).
+                    throw new com.legend.error.NotImplementedException(
+                            "Join references view '" + cr.table() + "' with "
+                          + (view.filter() != null ? "~filter" : view.distinct()
+                                  ? "~distinct" : "~groupBy")
+                          + " semantics as its source side; joins over"
+                          + " non-plain views are a roadmap feature. mapping="
+                          + md.qualifiedName());
+                }
                 for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc
                         : view.columnMappings()) {
                     if (vc.name().equals(cr.column())) {
@@ -2208,20 +2333,20 @@ public final class MappingNormalizer {
                 yield cr;
             }
             case RelationalOperation.Comparison c -> new RelationalOperation.Comparison(
-                    resolveViewRefsInJoin(c.left(), db, sourceTable, model, md), c.op(),
-                    resolveViewRefsInJoin(c.right(), db, sourceTable, model, md));
+                    resolveViewRefsInJoin(c.left(), db, sourceTable, model, md, backingView), c.op(),
+                    resolveViewRefsInJoin(c.right(), db, sourceTable, model, md, backingView));
             case RelationalOperation.BooleanOp b -> new RelationalOperation.BooleanOp(
-                    resolveViewRefsInJoin(b.left(), db, sourceTable, model, md), b.op(),
-                    resolveViewRefsInJoin(b.right(), db, sourceTable, model, md));
+                    resolveViewRefsInJoin(b.left(), db, sourceTable, model, md, backingView), b.op(),
+                    resolveViewRefsInJoin(b.right(), db, sourceTable, model, md, backingView));
             case RelationalOperation.Group g -> new RelationalOperation.Group(
-                    resolveViewRefsInJoin(g.inner(), db, sourceTable, model, md));
+                    resolveViewRefsInJoin(g.inner(), db, sourceTable, model, md, backingView));
             case RelationalOperation.IsNull n -> new RelationalOperation.IsNull(
-                    resolveViewRefsInJoin(n.operand(), db, sourceTable, model, md));
+                    resolveViewRefsInJoin(n.operand(), db, sourceTable, model, md, backingView));
             case RelationalOperation.IsNotNull n -> new RelationalOperation.IsNotNull(
-                    resolveViewRefsInJoin(n.operand(), db, sourceTable, model, md));
+                    resolveViewRefsInJoin(n.operand(), db, sourceTable, model, md, backingView));
             case RelationalOperation.FunctionCall f -> new RelationalOperation.FunctionCall(
                     f.name(), f.args().stream()
-                            .map(a -> resolveViewRefsInJoin(a, db, sourceTable, model, md))
+                            .map(a -> resolveViewRefsInJoin(a, db, sourceTable, model, md, backingView))
                             .toList());
             default -> op;
         };

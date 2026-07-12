@@ -106,7 +106,20 @@ public sealed interface ClassMapping permits ClassMapping.Relational, ClassMappi
             List<RelationalOperation> groupBy,
             List<RelationalOperation> primaryKey,
             List<PropertyMapping> propertyMappings,
-            String sourceUrl) implements ClassMapping {
+            String sourceUrl,
+            java.util.Map<String, String> propertyTargetSets) implements ClassMapping {
+
+        /** Without {@code prop[setId]} routing (synthetic constructions). */
+        public Relational(String className, String setId, String extendsSetId,
+                boolean root, LegacyMappingDefinition.TableReference mainTable,
+                FilterMapping filter, boolean distinct,
+                List<RelationalOperation> groupBy,
+                List<RelationalOperation> primaryKey,
+                List<PropertyMapping> propertyMappings, String sourceUrl) {
+            this(className, setId, extendsSetId, root, mainTable, filter,
+                    distinct, groupBy, primaryKey, propertyMappings, sourceUrl,
+                    java.util.Map.of());
+        }
 
         public Relational {
             Objects.requireNonNull(className, "Class name cannot be null");
@@ -126,6 +139,8 @@ public sealed interface ClassMapping permits ClassMapping.Relational, ClassMappi
             groupBy = groupBy == null ? List.of() : List.copyOf(groupBy);
             primaryKey = primaryKey == null ? List.of() : List.copyOf(primaryKey);
             propertyMappings = propertyMappings == null ? List.of() : List.copyOf(propertyMappings);
+            propertyTargetSets = propertyTargetSets == null
+                    ? java.util.Map.of() : java.util.Map.copyOf(propertyTargetSets);
         }
     }
 

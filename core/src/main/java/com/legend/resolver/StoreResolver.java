@@ -1466,12 +1466,24 @@ public final class StoreResolver {
                 .toList();
         if (binders.size() != 1) {
             // a poisoned class mapping (per-class normalization failure)
-            // explains a zero-binder miss — surface the recorded reason
+            // explains a ZERO-binder miss — surface the recorded reason,
+            // walking includes (the poisoned set may live in an included
+            // mapping). A 2-binder error is ambiguity, not poisoning.
             StringBuilder why = new StringBuilder();
-            for (String m : rt.mappings()) {
-                ctx.mappingPoison(m, classFqn).ifPresent(reason ->
-                        why.append("; '").append(m).append("' failed to normalize "
-                                + "this class: ").append(reason));
+            if (binders.isEmpty()) {
+                java.util.Set<String> seen = new java.util.LinkedHashSet<>();
+                java.util.ArrayDeque<String> queue = new java.util.ArrayDeque<>(rt.mappings());
+                while (!queue.isEmpty()) {
+                    String m = queue.poll();
+                    if (!seen.add(m)) {
+                        continue;
+                    }
+                    ctx.mappingPoison(m, classFqn).ifPresent(reason ->
+                            why.append("; '").append(m).append("' failed to normalize "
+                                    + "this class: ").append(reason));
+                    ctx.findMapping(m).ifPresent(def -> def.includes().forEach(inc ->
+                            queue.add(inc.mappingPath())));
+                }
             }
             throw new MappingResolutionException("runtime '" + context.runtimeFqn()
                     + "' has " + binders.size() + " mappings binding class '"

@@ -154,9 +154,35 @@ public final class Corpus {
             int strStart = m.end() - 1;
             int strEnd = skipString(source, strStart);
             String lit = source.substring(strStart + 1, strEnd - 1);
-            out.add(lit.replace("\\'", "'").replace("\\\\", "\\"));
+            out.add(quoteInsertColumns(lit.replace("\\'", "'").replace("\\\\", "\\")));
         }
         return out;
+    }
+
+    private static final Pattern INSERT_COLS = Pattern.compile(
+            "(?i)^(\\s*insert\\s+into\\s+[\\w.\"]+\\s*\\()([^)]*)(\\))");
+
+    /**
+     * Dialect adaptation at the wire boundary: quote every identifier in an
+     * INSERT's column list. The corpus seeds use SQL-keyword column names
+     * ({@code default, do, else, ...}) unquoted — legal on the engine's H2
+     * setup, a syntax error on DuckDB. CREATE TABLE generation already
+     * quotes; unquoted INSERTs would fail and leave the table empty.
+     */
+    static String quoteInsertColumns(String sql) {
+        Matcher m = INSERT_COLS.matcher(sql);
+        if (!m.find()) {
+            return sql;
+        }
+        StringBuilder cols = new StringBuilder();
+        for (String c : m.group(2).split(",")) {
+            if (cols.length() > 0) {
+                cols.append(", ");
+            }
+            String name = c.strip();
+            cols.append(name.startsWith("\"") ? name : "\"" + name + "\"");
+        }
+        return m.group(1) + cols + m.group(3) + sql.substring(m.end(3));
     }
 
     // ===== table DDL from the store text =====

@@ -42,7 +42,6 @@ public final class Runner {
     private final List<Corpus.BeforePackage> beforePackages = new ArrayList<>();
     /** Advisory golden-SQL diffs: counted, never failed on. */
     public int sqlAsserts;
-    public int sqlMatches;
 
     public Runner(List<String> sharedSources, List<String> seedSources) {
         StringBuilder mandatory = new StringBuilder();
@@ -147,6 +146,13 @@ public final class Runner {
         return walls;
     }
 
+    /** Distinct failed seed statements across the whole run (scoreboard-reported). */
+    private final java.util.LinkedHashSet<String> seedFailures = new java.util.LinkedHashSet<>();
+
+    public List<String> seedFailures() {
+        return new ArrayList<>(seedFailures);
+    }
+
     /** kind, fqn, text triples of top-level elements (brace/paren matched). */
     private static List<String[]> splitTopLevel(String elements) {
         List<String[]> out = new ArrayList<>();
@@ -209,20 +215,27 @@ public final class Runner {
                 List<String> allSeeds = new ArrayList<>(seeds);
                 allSeeds.addAll(fileSeeds.getOrDefault(currentFileKey, List.of()));
                 for (Corpus.BeforePackage bp : beforePackages) {
-                    if (fn.fqn().startsWith(bp.pkg())) {
+                    if (fn.fqn().startsWith(bp.pkg() + "::")) {
                         allSeeds.addAll(bp.sql());
                     }
                 }
+                List<String> failedSeeds = new ArrayList<>();
                 for (String sql : allSeeds) {
                     try (var st = conn.createStatement()) {
                         st.execute(sql);
-                    } catch (Exception ignore) {
-                        // seed dialect gaps surface as row diffs, loudly, in
-                        // the tests that read the affected table
+                    } catch (Exception e) {
+                        // a failed seed leaves a table EMPTY, not wrong — an
+                        // empty-expectation assert over it would false-pass.
+                        // Track and report; checkAsserts refuses to verify
+                        // emptiness under any failed seed.
+                        String head = sql.strip().split("\n")[0];
+                        failedSeeds.add(head + " => "
+                                + String.valueOf(e.getMessage()).split("\n")[0]);
                     }
                 }
+                seedFailures.addAll(failedSeeds);
                 ExecutionResult r = new QueryService().execute(fullModel, qualified, runtimeFqn, conn);
-                return checkAsserts(fn, r);
+                return checkAsserts(fn, r, failedSeeds);
             }
         } catch (Exception e) {
             return new Outcome(fn.fqn(), Status.ERROR,
@@ -250,10 +263,15 @@ public final class Runner {
 
     // ===== assertion evaluation =====
 
-    private Outcome checkAsserts(Corpus.TestFn fn, ExecutionResult r) {
+    private Outcome checkAsserts(Corpus.TestFn fn, ExecutionResult r, List<String> failedSeeds) {
         List<Map<String, Object>> rows = graphRows(r);
         List<String> problems = new ArrayList<>();
+        // recognized = asserts whose SHAPE matched AND whose expected value
+        // PARSED (an unparseable expected value is NOT recognized — counting
+        // it would score an assert that never ran its comparison).
+        // verified = recognized minus advisory golden-SQL asserts.
         int recognized = 0;
+        int verified = 0;
         // the RESULT variable: `let x = execute(...)...;` binds x; bare
         // calls use $result by convention. All result-suffix spellings
         // ($x.values, ->at(0), .rows) collapse onto the one result.
@@ -276,10 +294,11 @@ public final class Runner {
             switch (head) {
                 case "assertSize" -> {
                     String target = args.get(0).strip();
-                    if (args.size() == 2
+                    if (args.size() == 2 && args.get(1).strip().matches("\\d+")
                             && (target.equals("$R.values") || target.equals("$R.rows")
                                     || target.equals("$R"))) {
                         recognized++;
+                        verified++;
                         int expected = Integer.parseInt(args.get(1).strip());
                         if (rows.size() != expected) {
                             problems.add("size: expected " + expected + ", got " + rows.size());
@@ -288,28 +307,44 @@ public final class Runner {
                 }
                 case "assertEmpty" -> {
                     if (args.size() == 1 && args.get(0).strip().equals("$R.values")) {
+                        if (!failedSeeds.isEmpty()) {
+                            // an empty table proves nothing when a seed failed
+                            return new Outcome(fn.fqn(), Status.SHAPE,
+                                    "assertEmpty unverifiable: " + failedSeeds.size()
+                                            + " seed statement(s) failed: " + failedSeeds.get(0));
+                        }
                         recognized++;
+                        verified++;
                         if (!rows.isEmpty()) {
                             problems.add("expected empty, got " + rows.size() + " rows");
                         }
                     }
                 }
                 case "assertSameElements" -> {
-                    Matcher pm = Pattern.compile("^\\$R(?:\\.values)?(?:->at\\(\\d+\\))?\\.(\\w+)$")
+                    Matcher pm = Pattern.compile("^\\$R(?:\\.values)?(?:->at\\((\\d+)\\))?\\.(\\w+)$")
                             .matcher(args.size() == 2 ? args.get(1).strip() : "");
                     if (pm.matches()) {
-                        recognized++;
                         List<Object> expected = pureLiteralList(args.get(0).strip());
-                        List<Object> actual = column(rows, pm.group(1));
-                        if (expected != null && !multisetEquals(expected, actual)) {
-                            problems.add(pm.group(1) + ": expected " + expected + ", got " + actual);
+                        if (expected != null) {
+                            recognized++;
+                            verified++;
+                            String prop = pm.group(2);
+                            List<Object> actual = pm.group(1) == null
+                                    ? column(rows, prop)
+                                    : Integer.parseInt(pm.group(1)) < rows.size()
+                                            ? column(rows.subList(Integer.parseInt(pm.group(1)),
+                                                    Integer.parseInt(pm.group(1)) + 1), prop)
+                                            : List.of();
+                            if (!multisetEquals(expected, actual)) {
+                                problems.add(prop + ": expected " + expected + ", got " + actual);
+                            }
                         }
                     }
                 }
                 case "assertEquals", "assertEqualsHNCompatible" -> {
                     String second = args.size() == 2 ? args.get(1).strip() : "";
                     if (second.endsWith("->sqlRemoveFormatting()") || second.endsWith("->sql()")) {
-                        sqlAsserts++;   // advisory golden-SQL diff
+                        sqlAsserts++;   // advisory golden-SQL: recognized, NOT verified
                         recognized++;
                         continue;
                     }
@@ -327,51 +362,66 @@ public final class Runner {
                     Matcher sizeOf = Pattern.compile(
                             "^\\$R(?:\\.rows)?->size\\(\\)$").matcher(second);
                     if (colGet.matches()) {
-                        recognized++;
                         List<Object> expected = pureLiteralList(args.get(0).strip());
-                        List<Object> actual = column(rows, colGet.group(1));
-                        if (expected != null && !orderedEquals(expected, actual)) {
-                            problems.add(colGet.group(1) + ": expected " + expected + ", got " + actual);
+                        if (expected != null) {
+                            recognized++;
+                            verified++;
+                            List<Object> actual = column(rows, colGet.group(1));
+                            if (!orderedEquals(expected, actual)) {
+                                problems.add(colGet.group(1) + ": expected " + expected + ", got " + actual);
+                            }
                         }
                         continue;
                     }
                     if (rowAtGet.matches()) {
-                        recognized++;
                         Object expected = pureLiteral(args.get(0).strip());
-                        int idx = Integer.parseInt(rowAtGet.group(1));
-                        Object actual = idx < rows.size() ? rows.get(idx).get(rowAtGet.group(2)) : null;
-                        if (expected != null && !valueEquals(expected, actual)) {
-                            problems.add("row " + idx + "." + rowAtGet.group(2)
-                                    + ": expected " + expected + ", got " + actual);
+                        if (expected != null) {
+                            recognized++;
+                            verified++;
+                            int idx = Integer.parseInt(rowAtGet.group(1));
+                            Object actual = idx < rows.size() ? rows.get(idx).get(rowAtGet.group(2)) : null;
+                            if (!valueEquals(expected, actual)) {
+                                problems.add("row " + idx + "." + rowAtGet.group(2)
+                                        + ": expected " + expected + ", got " + actual);
+                            }
                         }
                         continue;
                     }
                     if (rowAtCells.matches()) {
-                        recognized++;
                         List<Object> expected = pureLiteralList(args.get(0).strip());
-                        int idx = Integer.parseInt(rowAtCells.group(1));
-                        List<Object> actual = idx < rows.size()
-                                ? new ArrayList<>(rows.get(idx).values()) : List.of();
-                        if (expected != null && !orderedEquals(expected, actual)) {
-                            problems.add("row " + idx + ": expected " + expected + ", got " + actual);
+                        if (expected != null) {
+                            recognized++;
+                            verified++;
+                            int idx = Integer.parseInt(rowAtCells.group(1));
+                            List<Object> actual = idx < rows.size()
+                                    ? new ArrayList<>(rows.get(idx).values()) : List.of();
+                            if (!orderedEquals(expected, actual)) {
+                                problems.add("row " + idx + ": expected " + expected + ", got " + actual);
+                            }
                         }
                         continue;
                     }
                     if (allCells.matches()) {
-                        recognized++;
                         List<Object> expected = pureLiteralList(args.get(0).strip());
-                        List<Object> actual = new ArrayList<>();
-                        rows.forEach(row -> actual.addAll(row.values()));
-                        if (expected != null && !orderedEquals(expected, actual)) {
-                            problems.add("cells: expected " + expected + ", got " + actual);
+                        if (expected != null) {
+                            recognized++;
+                            verified++;
+                            List<Object> actual = new ArrayList<>();
+                            rows.forEach(row -> actual.addAll(row.values()));
+                            if (!orderedEquals(expected, actual)) {
+                                problems.add("cells: expected " + expected + ", got " + actual);
+                            }
                         }
                         continue;
                     }
                     if (sizeOf.matches()) {
-                        recognized++;
                         Object expected = pureLiteral(args.get(0).strip());
-                        if (expected instanceof Long n && rows.size() != n) {
-                            problems.add("size: expected " + n + ", got " + rows.size());
+                        if (expected instanceof Long n) {
+                            recognized++;
+                            verified++;
+                            if (rows.size() != n) {
+                                problems.add("size: expected " + n + ", got " + rows.size());
+                            }
                         }
                         continue;
                     }
@@ -381,22 +431,28 @@ public final class Runner {
                     Matcher at = Pattern.compile(
                             "^\\$R(?:\\.values)?->at\\((\\d+)\\)\\.(\\w+)$").matcher(second);
                     if (one.matches()) {
-                        recognized++;
                         Object expected = pureLiteral(args.get(0).strip());
-                        Object actual = rows.isEmpty() ? null
-                                : one.group(1) == null ? rows.get(0)
-                                        : rows.get(0).get(one.group(1));
-                        if (expected != null && !valueEquals(expected, actual)) {
-                            problems.add("expected " + expected + ", got " + actual);
+                        if (expected != null) {
+                            recognized++;
+                            verified++;
+                            Object actual = rows.isEmpty() ? null
+                                    : one.group(1) == null ? rows.get(0)
+                                            : rows.get(0).get(one.group(1));
+                            if (!valueEquals(expected, actual)) {
+                                problems.add("expected " + expected + ", got " + actual);
+                            }
                         }
                     } else if (at.matches()) {
-                        recognized++;
                         Object expected = pureLiteral(args.get(0).strip());
-                        int idx = Integer.parseInt(at.group(1));
-                        Object actual = idx < rows.size() ? rows.get(idx).get(at.group(2)) : null;
-                        if (expected != null && !valueEquals(expected, actual)) {
-                            problems.add("at(" + idx + ")." + at.group(2)
-                                    + ": expected " + expected + ", got " + actual);
+                        if (expected != null) {
+                            recognized++;
+                            verified++;
+                            int idx = Integer.parseInt(at.group(1));
+                            Object actual = idx < rows.size() ? rows.get(idx).get(at.group(2)) : null;
+                            if (!valueEquals(expected, actual)) {
+                                problems.add("at(" + idx + ")." + at.group(2)
+                                        + ": expected " + expected + ", got " + actual);
+                            }
                         }
                     }
                 }
@@ -409,16 +465,21 @@ public final class Runner {
         if (!problems.isEmpty()) {
             return new Outcome(fn.fqn(), Status.FAIL, String.join("; ", problems));
         }
-        // NEVER a false pass on partial verification: a PASS requires every
-        // assert to be recognized (advisory SQL counted); anything short is
-        // honest SHAPE accounting.
+        // NEVER a false pass: PASS requires every assert recognized AND at
+        // least one non-advisory comparison to have actually run — a test
+        // whose asserts are all golden-SQL proves only "executed", which is
+        // SHAPE, not PASS.
         int total = assertCalls(fn.body()).size();
         if (recognized < total) {
             return new Outcome(fn.fqn(), Status.SHAPE,
                     "partial: " + recognized + "/" + total + " asserts recognized"
                             + " (recognized ones hold)");
         }
-        return new Outcome(fn.fqn(), Status.PASS, recognized + " assert(s)");
+        if (verified == 0) {
+            return new Outcome(fn.fqn(), Status.SHAPE,
+                    "sql-only: " + recognized + " advisory golden-SQL assert(s), no row verification");
+        }
+        return new Outcome(fn.fqn(), Status.PASS, verified + " assert(s)");
     }
 
     /** Class results arrive as the GRAPH envelope (JSON rows); TDS as tabular. */
@@ -490,28 +551,97 @@ public final class Runner {
         return true;
     }
 
-    private static boolean multisetEquals(List<Object> a, List<Object> b) {
-        if (a.size() != b.size()) {
+    private static boolean multisetEquals(List<Object> expected, List<Object> actual) {
+        if (expected.size() != actual.size()) {
             return false;
         }
-        List<String> x = new ArrayList<>(a.stream().map(String::valueOf).sorted().toList());
-        List<String> y = new ArrayList<>(b.stream().map(String::valueOf).sorted().toList());
-        return x.equals(y);
+        List<Object> pool = new ArrayList<>(actual);
+        for (Object e : expected) {
+            int hit = -1;
+            for (int i = 0; i < pool.size(); i++) {
+                if (valueEquals(e, pool.get(i))) {
+                    hit = i;
+                    break;
+                }
+            }
+            if (hit < 0) {
+                return false;
+            }
+            pool.remove(hit);
+        }
+        return true;
     }
 
     private static boolean valueEquals(Object expected, Object actual) {
-        if (expected instanceof Number en && actual instanceof Number an) {
-            return Math.abs(en.doubleValue() - an.doubleValue()) < 1e-9;
+        if (actual == null) {
+            return false;   // null never equals a literal expectation
         }
-        return String.valueOf(expected).equals(String.valueOf(actual));
+        if (expected instanceof DateExpected de) {
+            // canonical date compare: normalize both to ISO-ish text
+            String a = String.valueOf(actual).replace(' ', 'T')
+                    .replaceAll("\\.0$", "").replaceAll("T00:00(:00)?$", "");
+            String e = de.iso().replaceAll("T00:00(:00)?$", "");
+            return a.equals(e) || String.valueOf(actual).equals(de.iso());
+        }
+        if (expected instanceof EnumExpected ee) {
+            return ee.valueName().equals(String.valueOf(actual));
+        }
+        if (expected instanceof Long el) {
+            if (actual instanceof Long al) {
+                return el.longValue() == al.longValue();
+            }
+            if (actual instanceof Integer ai) {
+                return el.longValue() == ai.longValue();
+            }
+            if (actual instanceof java.math.BigDecimal bd) {
+                return bd.compareTo(java.math.BigDecimal.valueOf(el)) == 0;
+            }
+            if (actual instanceof Double ad) {
+                return Math.abs(el.doubleValue() - ad) < 1e-9;
+            }
+            return false;
+        }
+        if (expected instanceof Double ed) {
+            return actual instanceof Number an
+                    && Math.abs(ed - an.doubleValue()) < 1e-9;
+        }
+        if (expected instanceof Boolean eb) {
+            return actual instanceof Boolean ab ? eb.equals(ab) : false;
+        }
+        return expected instanceof String es && es.equals(String.valueOf(actual));
     }
 
     // ===== pure literal parsing (expected values) =====
 
     static Object pureLiteral(String text) {
         text = text.strip();
-        if (text.startsWith("'") && text.endsWith("'")) {
-            return text.substring(1, text.length() - 1).replace("\\'", "'");
+        // single string literal OR literal-CONCAT chain 'a' + 'b' (toCSV
+        // expectations are spelled as concatenated string literals)
+        if (text.startsWith("'")) {
+            StringBuilder out = new StringBuilder();
+            int i = 0;
+            while (i < text.length()) {
+                if (text.charAt(i) != '\'') {
+                    return null;
+                }
+                int end = Corpus.skipString(text, i);
+                out.append(text, i + 1, end - 1);
+                i = end;
+                while (i < text.length() && Character.isWhitespace(text.charAt(i))) {
+                    i++;
+                }
+                if (i >= text.length()) {
+                    return out.toString().replace("\\'", "'").replace("\\n", "\n");
+                }
+                if (text.charAt(i) != '+') {
+                    return null;
+                }
+                i++;
+                while (i < text.length() && Character.isWhitespace(text.charAt(i))) {
+                    i++;
+                }
+            }
+            return out.toString().replace("\\'", "'").replace("\\n", "\n");
         }
         if (text.matches("-?\\d+")) {
             return Long.parseLong(text);
@@ -522,8 +652,24 @@ public final class Runner {
         if (text.equals("true") || text.equals("false")) {
             return Boolean.parseBoolean(text);
         }
+        // %date literals — compared through their canonical print form
+        if (text.matches("%-?\\d{4}[-\\dT:.+Z]*")) {
+            return new DateExpected(text.substring(1));
+        }
+        // Enum.VALUE references — compared by VALUE NAME (the wire carries
+        // enum names)
+        Matcher em = Pattern.compile("^((?:\\w+::)*\\w+)\\.(\\w+)$").matcher(text);
+        if (em.matches() && !text.contains("(")) {
+            return new EnumExpected(em.group(2));
+        }
         return null;   // not a literal — unrecognized assert shape
     }
+
+    /** A %date expectation: equality via canonical date-print comparison. */
+    record DateExpected(String iso) { }
+
+    /** An Enum.VALUE expectation: equality via the value NAME (wire convention). */
+    record EnumExpected(String valueName) { }
 
     static List<Object> pureLiteralList(String text) {
         text = text.strip();

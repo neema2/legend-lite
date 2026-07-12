@@ -314,24 +314,17 @@ public final class ModelBuilder {
     final java.util.Map<String, String> primitiveExtensions = new java.util.LinkedHashMap<>();
 
     /**
-     * The BASE {@link Type.Primitive} behind a primitive-extension FQN (or
-     * simple name), chasing extension-of-extension chains. Empty when the
-     * name is not a registered extension.
+     * The BASE {@link Type.Primitive} behind a primitive-extension FQN,
+     * chasing extension-of-extension chains. EXACT-FQN lookup only —
+     * references resolve to FQNs in NameResolver (extensions are in
+     * knownFqns), so fuzzy matching here would be the banned suffix-match
+     * pattern (two same-simple-named extensions, or an extension whose FQN
+     * suffix collides with a class, would silently mis-resolve).
      */
     public java.util.Optional<com.legend.compiler.element.type.Type.Primitive> findPrimitiveExtension(String name) {
         String cur = name;
         for (int hops = 0; hops < 16; hops++) {
             String base = primitiveExtensions.get(cur);
-            if (base == null && cur.contains("::")) {
-                base = primitiveExtensions.get(cur.substring(cur.lastIndexOf("::") + 2));
-            }
-            if (base == null) {
-                // also match by SIMPLE name (imports strip packages)
-                String finalCur = cur;
-                base = primitiveExtensions.entrySet().stream()
-                        .filter(e -> e.getKey().endsWith("::" + finalCur))
-                        .map(java.util.Map.Entry::getValue).findFirst().orElse(null);
-            }
             if (base == null) {
                 return java.util.Optional.empty();
             }

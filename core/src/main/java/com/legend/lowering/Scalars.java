@@ -1803,8 +1803,19 @@ final class Scalars {
                             return SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(
                                     "Invalid " + comps[i] + ": " + lit.value()));
                         }
-                    } else if (!(args.get(i) instanceof SqlExpr.FloatLit)
-                            && !(args.get(i) instanceof SqlExpr.DecimalLit)) {
+                    } else if (args.get(i) instanceof SqlExpr.FloatLit
+                            || args.get(i) instanceof SqlExpr.DecimalLit) {
+                        // a LITERAL fractional seconds component validates
+                        // statically: [0, 60) — exclusive top (59.999 legal)
+                        java.math.BigDecimal v = args.get(i) instanceof SqlExpr.FloatLit fl
+                                ? java.math.BigDecimal.valueOf(fl.value())
+                                : ((SqlExpr.DecimalLit) args.get(i)).value();
+                        if (v.signum() < 0
+                                || v.compareTo(java.math.BigDecimal.valueOf(60)) >= 0) {
+                            return SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(
+                                    "Invalid " + comps[i] + ": " + v.toPlainString()));
+                        }
+                    } else {
                         // FRACTIONAL seconds are legal up to (not including)
                         // 60 — the integer ranges guard integers; a
                         // fractional bound is exclusive at the top
@@ -3169,10 +3180,23 @@ final class Scalars {
     /** Char index of the {@code k}-th CAPTURING paren in a literal pattern. */
     private static int capturingParen(String pattern, int k) {
         int count = 0;
+        boolean inClass = false;
         for (int i = 0; i < pattern.length(); i++) {
             char c = pattern.charAt(i);
             if (c == '\\') {
                 i++;
+                continue;
+            }
+            // a '(' inside a character class ([...]) is a literal, not a group
+            if (c == '[' && !inClass) {
+                inClass = true;
+                continue;
+            }
+            if (c == ']' && inClass) {
+                inClass = false;
+                continue;
+            }
+            if (inClass) {
                 continue;
             }
             if (c == '(' && (i + 1 >= pattern.length() || pattern.charAt(i + 1) != '?')) {
