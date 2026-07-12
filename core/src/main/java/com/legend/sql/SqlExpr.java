@@ -11,7 +11,7 @@ import java.util.List;
 public sealed interface SqlExpr
         permits SqlExpr.Column, SqlExpr.Star, SqlExpr.StarExcept, SqlExpr.StringLit, SqlExpr.IntLit,
                 SqlExpr.FloatLit, SqlExpr.DecimalLit, SqlExpr.BoolLit, SqlExpr.NullLit,
-                SqlExpr.DateLit, SqlExpr.TimestampLit, SqlExpr.ArrayLit,
+                SqlExpr.DateLit, SqlExpr.TimestampLit, SqlExpr.ArrayLit, SqlExpr.OrderedListAgg,
                 SqlExpr.StructLit, SqlExpr.StructGet, SqlExpr.Call,
                 SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.WindowCall,
                 SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlExpr.JsonObject,
@@ -59,6 +59,10 @@ public sealed interface SqlExpr
     }
 
     /** A list literal, {@code [a, b, c]} in DuckDB. */
+    /** {@code list(value ORDER BY key)} — identity-preserving ordered aggregation. */
+    record OrderedListAgg(SqlExpr value, SqlExpr orderBy) implements SqlExpr {
+    }
+
     record ArrayLit(List<SqlExpr> elements) implements SqlExpr {
     }
 

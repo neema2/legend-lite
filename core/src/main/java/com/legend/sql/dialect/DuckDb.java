@@ -157,6 +157,7 @@ public final class DuckDb extends AnsiSqlRenderer {
                             new SqlExpr.Column(null, elem), new SqlExpr.IntLit(1));
             case SqlExpr.Column c -> c;
             case SqlExpr.StarExcept se -> se;
+            case SqlExpr.OrderedListAgg ola -> ola;   // no elem refs inside
             case SqlExpr.Call call -> new SqlExpr.Call(call.fn(),
                     call.args().stream().map(x -> unwrapElemRefs(x, elem)).toList());
             case SqlExpr.Cast c -> new SqlExpr.Cast(unwrapElemRefs(c.value(), elem),

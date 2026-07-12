@@ -505,7 +505,7 @@ class WindowFunctionTest {
         String pureQuery = """
                 model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
-                    ->extend(over(~department, ~salary->ascending(), rows(unbounded(), 0)), ~runningTotal:{p,w,r|$p->sum($w,$r).salary})
+                    ->extend(over(~department, ~salary->ascending(), rows(unbounded(), 0)), ~runningTotal:{p,w,r|$r.salary}:y|$y->sum())
                 """;
 
         String sql = generateSql(pureQuery);
@@ -534,7 +534,7 @@ class WindowFunctionTest {
         String pureQuery = """
                 model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
-                    ->extend(over(~department, ~salary->ascending(), rows(-1, 1)), ~movingAvg:{p,w,r|$p->avg($w,$r).salary})
+                    ->extend(over(~department, ~salary->ascending(), rows(-1, 1)), ~movingAvg:{p,w,r|$p->average($w, $r, ~salary)})
                 """;
 
         String sql = generateSql(pureQuery);
@@ -563,7 +563,7 @@ class WindowFunctionTest {
         String pureQuery = """
                 model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
-                    ->extend(over(~department, ~salary->ascending(), rows(-2, 0)), ~trailing3Sum:{p,w,r|$p->sum($w,$r).salary})
+                    ->extend(over(~department, ~salary->ascending(), rows(-2, 0)), ~trailing3Sum:{p,w,r|$r.salary}:y|$y->sum())
                 """;
 
         String sql = generateSql(pureQuery);
@@ -591,7 +591,7 @@ class WindowFunctionTest {
         String pureQuery = """
                 model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
-                    ->extend(over(~department, ~salary->ascending(), rows(0, unbounded())), ~remainingSum:{p,w,r|$p->sum($w,$r).salary})
+                    ->extend(over(~department, ~salary->ascending(), rows(0, unbounded())), ~remainingSum:{p,w,r|$r.salary}:y|$y->sum())
                 """;
 
         String sql = generateSql(pureQuery);
@@ -619,7 +619,7 @@ class WindowFunctionTest {
         String pureQuery = """
                 model::Employee.all()
                     ->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])
-                    ->extend(over(~department, ~salary->ascending(), rows(-1, 1)), ~neighborCount:{p,w,r|$p->count($w,$r)})
+                    ->extend(over(~department, ~salary->ascending(), rows(-1, 1)), ~neighborCount:{p,w,r|$r.salary}:y|$y->count())
                 """;
 
         String sql = generateSql(pureQuery);

@@ -5498,10 +5498,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 "|[%2025-02-09, %2025-04-09, %2025-02-09T01:15:20+0000, %2025-01-10T15:25:30+0000]->meta::pure::functions::collection::greatest()",
                 "test::TestRuntime", connection);
         Object val = result.rows().get(0).get(0);
-        assertInstanceOf(java.time.LocalDate.class, val,
-                "greatest of mixed dates where StrictDate wins should return LocalDate, got: " + val.getClass());
-        assertTrue(val.toString().contains("2025-04-09"),
-                "greatest should be 2025-04-09, got: " + val);
+        // the IDENTITY channel returns the winner's pure PRINT FORM —
+        // a StrictDate prints date-only (partial precision preserved)
+        assertEquals("2025-04-09", val.toString(),
+                "greatest of mixed dates where StrictDate wins keeps its own print form");
     }
 
     @Test
@@ -5513,10 +5513,8 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 "|[%2025-02-10T20:10:20+0000, %2025-02-10]->meta::pure::functions::collection::greatest()",
                 "test::TestRuntime", connection);
         Object val = result.rows().get(0).get(0);
-        assertInstanceOf(java.sql.Timestamp.class, val,
-                "greatest where DateTime wins should return java.sql.Timestamp, got: " + val.getClass());
-        assertTrue(val.toString().contains("2025-02-10"),
-                "greatest should be 2025-02-10 timestamp, got: " + val);
+        assertEquals("2025-02-10T20:10:20+0000", val.toString(),
+                "greatest where DateTime wins keeps the DateTime print form");
     }
 
     @Test
@@ -5528,10 +5526,8 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 "|[%2025-02-10T20:10:20+0000, %2025-02-10]->meta::pure::functions::collection::least()",
                 "test::TestRuntime", connection);
         Object val = result.rows().get(0).get(0);
-        assertInstanceOf(java.time.LocalDate.class, val,
-                "least of mixed dates where StrictDate wins should return LocalDate, got: " + val.getClass());
-        assertTrue(val.toString().contains("2025-02-10"),
-                "least should be 2025-02-10, got: " + val);
+        assertEquals("2025-02-10", val.toString(),
+                "least of mixed dates where StrictDate wins keeps its own print form");
     }
 
     @Test

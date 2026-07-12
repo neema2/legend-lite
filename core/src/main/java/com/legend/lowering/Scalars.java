@@ -661,6 +661,27 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("sort")) {
             RULES.put(f, (n, args) -> {
                 if (n.args().size() == 1) {
+                    MixedElems mx = mixedElems(n.args().get(0));
+                    if (mx != null) {
+                        // identity-preserving mixed sort: order the ids by
+                        // their comparables (parallel select-list unnests)
+                        var inner = new com.legend.sql.SqlSelect(List.of(
+                                new com.legend.sql.SqlSelect.Projection(
+                                        SqlExpr.Call.of(SqlFn.UNNEST, mx.idList()), "i"),
+                                new com.legend.sql.SqlSelect.Projection(
+                                        SqlExpr.Call.of(SqlFn.UNNEST, mx.valList()), "v")),
+                                false, null, null, List.of(), null, null, List.of(),
+                                null, null, List.of());
+                        var src = new com.legend.sql.SqlSource.Subselect(inner, "_mx");
+                        var outer = new com.legend.sql.SqlSelect(List.of(
+                                new com.legend.sql.SqlSelect.Projection(
+                                        new SqlExpr.OrderedListAgg(
+                                                new SqlExpr.Column("_mx", "i"),
+                                                new SqlExpr.Column("_mx", "v")), "s")),
+                                false, src, null, List.of(), null, null, List.of(),
+                                null, null, List.of());
+                        return new SqlExpr.ScalarSubquery(outer);
+                    }
                     return new SqlExpr.Call(SqlFn.LIST_SORT, List.of(args.get(0)));
                 }
                 Boolean asc = comparatorDirection(
@@ -757,14 +778,46 @@ final class Scalars {
         // A TO-ONE argument (sum(7), average of one value) is the IDENTITY —
         // the list encodings choke on scalars.
         for (String f : Pure.nativeKeysAt("min")) {
-            RULES.put(f, (n, args) -> args.size() != 1 ? new SqlExpr.Call(SqlFn.LEAST, args)
-                    : isToOne(n.args().get(0)) ? args.get(0)
-                    : new SqlExpr.Call(SqlFn.LIST_MIN, args));
+            RULES.put(f, (n, args) -> {
+                MixedElems mx = args.size() == 1 ? mixedElems(n.args().get(0)) : null;
+                if (mx != null) {
+                    return mx.select(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()));
+                }
+                if (args.size() == 2 && args.get(1) instanceof SqlExpr.Lambda cmp) {
+                    // a TO-ONE collection is its own extreme
+                    return isToOne(n.args().get(0)) ? args.get(0)
+                            : comparatorSelect(args.get(0), cmp, false);
+                }
+                if (args.size() > 1) {
+                    MixedElems ma = mixedArgs(n.args());
+                    return ma != null
+                            ? ma.select(SqlExpr.Call.of(SqlFn.LIST_MIN, ma.valList()))
+                            : new SqlExpr.Call(SqlFn.LEAST, args);
+                }
+                return isToOne(n.args().get(0)) ? args.get(0)
+                        : new SqlExpr.Call(SqlFn.LIST_MIN, args);
+            });
         }
         for (String f : Pure.nativeKeysAt("max")) {
-            RULES.put(f, (n, args) -> args.size() != 1 ? new SqlExpr.Call(SqlFn.GREATEST, args)
-                    : isToOne(n.args().get(0)) ? args.get(0)
-                    : new SqlExpr.Call(SqlFn.LIST_MAX, args));
+            RULES.put(f, (n, args) -> {
+                MixedElems mx = args.size() == 1 ? mixedElems(n.args().get(0)) : null;
+                if (mx != null) {
+                    return mx.select(SqlExpr.Call.of(SqlFn.LIST_MAX, mx.valList()));
+                }
+                if (args.size() == 2 && args.get(1) instanceof SqlExpr.Lambda cmp) {
+                    // a TO-ONE collection is its own extreme
+                    return isToOne(n.args().get(0)) ? args.get(0)
+                            : comparatorSelect(args.get(0), cmp, true);
+                }
+                if (args.size() > 1) {
+                    MixedElems ma = mixedArgs(n.args());
+                    return ma != null
+                            ? ma.select(SqlExpr.Call.of(SqlFn.LIST_MAX, ma.valList()))
+                            : new SqlExpr.Call(SqlFn.GREATEST, args);
+                }
+                return isToOne(n.args().get(0)) ? args.get(0)
+                        : new SqlExpr.Call(SqlFn.LIST_MAX, args);
+            });
         }
         for (String f : Pure.nativeKeysAt("sum")) {
             RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
@@ -783,16 +836,45 @@ final class Scalars {
         // like min/max/sum, a to-one argument is the identity and a list reduces
         // with the list encoding — SQL's variadic GREATEST/LEAST never applies.
         for (String f : Pure.nativeKeysAt("greatest")) {
-            RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
-                    : new SqlExpr.Call(SqlFn.LIST_MAX, args));
+            RULES.put(f, (n, args) -> {
+                MixedElems mx = mixedElems(n.args().get(0));
+                if (mx != null) {
+                    return mx.select(SqlExpr.Call.of(SqlFn.LIST_MAX, mx.valList()));
+                }
+                return isToOne(n.args().get(0)) ? args.get(0)
+                        : new SqlExpr.Call(SqlFn.LIST_MAX, args);
+            });
         }
         for (String f : Pure.nativeKeysAt("least")) {
-            RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
-                    : new SqlExpr.Call(SqlFn.LIST_MIN, args));
+            RULES.put(f, (n, args) -> {
+                MixedElems mx = mixedElems(n.args().get(0));
+                if (mx != null) {
+                    return mx.select(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()));
+                }
+                return isToOne(n.args().get(0)) ? args.get(0)
+                        : new SqlExpr.Call(SqlFn.LIST_MIN, args);
+            });
         }
         for (String f : Pure.nativeKeysAt("mode")) {
-            RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
-                    : new SqlExpr.Call(SqlFn.LIST_MODE, args));
+            RULES.put(f, (n, args) -> {
+                MixedElems mx = mixedElems(n.args().get(0));
+                if (mx != null) {
+                    // real mode.pure SORTS then folds runs: the representative
+                    // is the LAST-ENCOUNTERED equal element (stable sort keeps
+                    // encounter order) — the winner's last position in vals
+                    SqlExpr winner = SqlExpr.Call.of(SqlFn.LIST_MODE, mx.valList());
+                    SqlExpr lastPos = SqlExpr.Call.of(SqlFn.MINUS,
+                            SqlExpr.Call.of(SqlFn.PLUS,
+                                    SqlExpr.Call.of(SqlFn.LIST_LENGTH, mx.valList()),
+                                    new SqlExpr.IntLit(1)),
+                            SqlExpr.Call.of(SqlFn.LIST_POSITION,
+                                    SqlExpr.Call.of(SqlFn.LIST_REVERSE, mx.valList()),
+                                    winner));
+                    return SqlExpr.Call.of(SqlFn.LIST_GET, mx.idList(), lastPos);
+                }
+                return isToOne(n.args().get(0)) ? args.get(0)
+                        : new SqlExpr.Call(SqlFn.LIST_MODE, args);
+            });
         }
         // zip(a, b) -> Pair<T,U>[*]: index over the SHORTER list (real pure
         // truncates; DuckDB's native list_zip PADS with NULL — wrong
@@ -1663,6 +1745,143 @@ final class Scalars {
         };
     }
 
+    /**
+     * The MIXED-ELEMENT two-channel encoding: a LITERAL collection whose
+     * elements carry DIFFERENT concrete kinds under the Number or Date LUB
+     * (2 vs 2.0 vs 7.345D; %2014 vs %2014-02-13T13:15:19) splits into an
+     * IDENTITY channel (each element's pure PRINT FORM, the thing SQL type
+     * promotion erases) and a COMPARABLE channel (DOUBLE / TIMESTAMP
+     * literals computed here, statically). Selections order by the
+     * comparable and RETURN the identity — the reference engine ledgers
+     * this whole family; the two channels make it pass.
+     *
+     * <p>Null when the collection is not literal-analyzable or not mixed.
+     */
+    record MixedElems(java.util.List<SqlExpr> ids, java.util.List<SqlExpr> vals) {
+
+        SqlExpr idList() {
+            return new SqlExpr.ArrayLit(ids);
+        }
+
+        SqlExpr valList() {
+            return new SqlExpr.ArrayLit(vals);
+        }
+
+        /** {@code ids[list_position(vals, <winner>)]} — the selection recipe. */
+        SqlExpr select(SqlExpr winner) {
+            return SqlExpr.Call.of(SqlFn.LIST_GET, idList(),
+                    SqlExpr.Call.of(SqlFn.LIST_POSITION, valList(), winner));
+        }
+    }
+
+    /** The n-ary form: each ARG a literal, kinds mixed (max(2D, 1.23)). */
+    static MixedElems mixedArgs(java.util.List<com.legend.compiler.spec.typed.TypedSpec> args) {
+        java.util.List<SqlExpr> ids = new java.util.ArrayList<>();
+        java.util.List<SqlExpr> vals = new java.util.ArrayList<>();
+        java.util.Set<Class<?>> kinds = new java.util.HashSet<>();
+        for (var a : args) {
+            var el = literalOf(a);
+            if (el == null || !encodeMixed(el, ids, vals)) {
+                return null;
+            }
+            kinds.add(el.getClass());
+        }
+        return kinds.size() > 1 ? new MixedElems(ids, vals) : null;
+    }
+
+    static MixedElems mixedElems(com.legend.compiler.spec.typed.TypedSpec arg) {
+        if (!(arg instanceof com.legend.compiler.spec.typed.TypedCollection c)
+                || c.elements().size() < 2) {
+            return null;
+        }
+        Type lub = c.info().type();
+        boolean number = lub == Type.Primitive.NUMBER;
+        boolean date = lub == Type.Primitive.DATE;
+        if (!number && !date) {
+            return null;   // uniform-kind collections keep their native carrier
+        }
+        java.util.List<SqlExpr> ids = new java.util.ArrayList<>();
+        java.util.List<SqlExpr> vals = new java.util.ArrayList<>();
+        for (var e : c.elements()) {
+            var el = literalOf(e);
+            if (el == null || !encodeMixed(el, ids, vals)) {
+                return null;   // non-literal or unencodable: existing behavior
+            }
+        }
+        return new MixedElems(ids, vals);
+    }
+
+    /** Unwraps unary minus around a numeric literal (the parser keeps it a call). */
+    private static com.legend.compiler.spec.typed.TypedSpec literalOf(
+            com.legend.compiler.spec.typed.TypedSpec e) {
+        if (e instanceof com.legend.compiler.spec.typed.TypedNativeCall m
+                && m.args().size() == 1
+                && Pure.nativeNamed("minus", m.callee().signatureKey())) {
+            var inner = literalOf(m.args().get(0));
+            return switch (inner) {
+                case com.legend.compiler.spec.typed.TypedCInteger i ->
+                        new com.legend.compiler.spec.typed.TypedCInteger(
+                                -i.value().longValue(), i.info());
+                case com.legend.compiler.spec.typed.TypedCFloat f ->
+                        new com.legend.compiler.spec.typed.TypedCFloat(-f.value(), f.info());
+                case com.legend.compiler.spec.typed.TypedCDecimal d ->
+                        new com.legend.compiler.spec.typed.TypedCDecimal(
+                                d.value().negate(), d.info());
+                case null, default -> null;
+            };
+        }
+        return e;
+    }
+
+    private static boolean encodeMixed(com.legend.compiler.spec.typed.TypedSpec e,
+                                       java.util.List<SqlExpr> ids,
+                                       java.util.List<SqlExpr> vals) {
+        switch (e) {
+            case com.legend.compiler.spec.typed.TypedCInteger i -> {
+                ids.add(new SqlExpr.StringLit(String.valueOf(i.value())));
+                vals.add(new SqlExpr.FloatLit(i.value().doubleValue()));
+            }
+            case com.legend.compiler.spec.typed.TypedCFloat f -> {
+                ids.add(new SqlExpr.StringLit(pureFloatPrint(f.value())));
+                vals.add(new SqlExpr.FloatLit(f.value()));
+            }
+            case com.legend.compiler.spec.typed.TypedCDecimal d -> {
+                ids.add(new SqlExpr.StringLit(d.value().toPlainString() + "D"));
+                vals.add(new SqlExpr.FloatLit(d.value().doubleValue()));
+            }
+            case com.legend.compiler.spec.typed.TypedCDate cd -> {
+                // time-bearing prints carry the +0000 zone (the wire's
+                // pure DateTime print convention)
+                boolean timed = switch (cd.value()) {
+                    case com.legend.values.PureDateLiteral.DateWithHour ignored -> true;
+                    case com.legend.values.PureDateLiteral.DateWithMinute ignored -> true;
+                    case com.legend.values.PureDateLiteral.DateWithSecond ignored -> true;
+                    case com.legend.values.PureDateLiteral.DateWithSubsecond ignored -> true;
+                    default -> false;
+                };
+                ids.add(new SqlExpr.StringLit(
+                        cd.value().toEngineString() + (timed ? "+0000" : "")));
+                int[] f = dateFields(cd.value());
+                String sub = subsecondOf(cd.value());
+                vals.add(new SqlExpr.TimestampLit(String.format(
+                        "%04d-%02d-%02dT%02d:%02d:%02d%s",
+                        f[0], Math.max(f[1], 1), Math.max(f[2], 1), f[3], f[4], f[5],
+                        sub.isEmpty() ? "" : "." + sub)));
+            }
+            default -> {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** pure float PRINT: plain decimal, integral keeps .0 (the wire convention). */
+    private static String pureFloatPrint(double d) {
+        java.math.BigDecimal bd = java.math.BigDecimal.valueOf(d);
+        String plain = bd.toPlainString();
+        return bd.scale() <= 0 ? plain + ".0" : plain;
+    }
+
     /** Cast a map operand to the call's RESOLVED Map(K, V) SQL type. */
     private static SqlExpr castToMapType(com.legend.compiler.spec.typed.TypedNativeCall n,
                                          SqlExpr m) {
@@ -1695,6 +1914,65 @@ final class Scalars {
             return SqlExpr.Call.of(SqlFn.MAP_EMPTY);
         }
         return SqlExpr.Call.of(SqlFn.MAP_FROM_ENTRIES, pairs);
+    }
+
+    /**
+     * Comparator max/min (real collection max.pure: fold with STRICT
+     * {@code >} — the FIRST max wins ties). The comparator must be a
+     * KEY DIFFERENCE ({@code {x,y| f($x) - f($y)}}); the winner is the
+     * element with the extreme key, earliest index on ties:
+     * {@code (SELECT x FROM (UNNEST(l) x, UNNEST(range) i) ORDER BY key
+     * DESC/ASC, i LIMIT 1)}.
+     */
+    private static SqlExpr comparatorSelect(SqlExpr list, SqlExpr.Lambda cmp, boolean maxIn) {
+        boolean max = maxIn;
+        if (!(cmp.body() instanceof SqlExpr.Call mc) || mc.fn() != SqlFn.MINUS
+                || mc.args().size() != 2) {
+            throw new IllegalStateException("comparator max/min supports key-difference"
+                    + " comparators ({x,y | f($x) - f($y)}) only");
+        }
+        String px = cmp.params().get(0);
+        String py = cmp.params().get(1);
+        SqlExpr keyOfX = mc.args().get(0);
+        // the two sides must be the SAME key over the two params —
+        // {x,y | f($x) - f($y)} ascending, {x,y | f($y) - f($x)} REVERSED
+        SqlExpr rightAsX = substituteRef(mc.args().get(1), py, new SqlExpr.Column(null, px));
+        if (!keyOfX.equals(rightAsX)) {
+            SqlExpr leftAsY = substituteRef(mc.args().get(0), py, new SqlExpr.Column(null, px));
+            SqlExpr rightSide = mc.args().get(1);
+            if (leftAsY.equals(rightSide)
+                    || substituteRef(rightSide, px, new SqlExpr.Column(null, py)).equals(
+                            substituteRef(mc.args().get(0),
+                                    px, new SqlExpr.Column(null, py)))) {
+                // reversed comparator: max-by-it is MIN by the key
+                keyOfX = substituteRef(mc.args().get(1), px, new SqlExpr.Column(null, px));
+                keyOfX = substituteRef(keyOfX, py, new SqlExpr.Column(null, px));
+                max = !max;
+            } else {
+                throw new IllegalStateException("comparator max/min: the two comparator"
+                        + " sides must apply the SAME key to each parameter");
+            }
+        }
+        SqlExpr keyOverElem = substituteRef(keyOfX, px, new SqlExpr.Column("_cx", "x"));
+        var inner = new com.legend.sql.SqlSelect(List.of(
+                new com.legend.sql.SqlSelect.Projection(
+                        SqlExpr.Call.of(SqlFn.UNNEST, list), "x"),
+                new com.legend.sql.SqlSelect.Projection(
+                        SqlExpr.Call.of(SqlFn.UNNEST, SqlExpr.Call.of(SqlFn.RANGE_FN,
+                                new SqlExpr.IntLit(1),
+                                SqlExpr.Call.of(SqlFn.PLUS,
+                                        SqlExpr.Call.of(SqlFn.LIST_LENGTH, list),
+                                        new SqlExpr.IntLit(1)))), "i")),
+                false, null, null, List.of(), null, null, List.of(), null, null, List.of());
+        var src = new com.legend.sql.SqlSource.Subselect(inner, "_cx");
+        var outer = new com.legend.sql.SqlSelect(List.of(
+                new com.legend.sql.SqlSelect.Projection(new SqlExpr.Column("_cx", "x"), "w")),
+                false, src, null, List.of(), null, null,
+                List.of(new com.legend.sql.SqlSelect.SortKey(keyOverElem, !max,
+                                com.legend.sql.SqlSelect.SortKey.NullOrder.NULLS_LAST),
+                        com.legend.sql.SqlSelect.SortKey.asc(new SqlExpr.Column("_cx", "i"))),
+                1L, null, List.of());
+        return new SqlExpr.ScalarSubquery(outer);
     }
 
     /** Literal cell of a TDS row → typed SQL literal, by the column's Pure type. */

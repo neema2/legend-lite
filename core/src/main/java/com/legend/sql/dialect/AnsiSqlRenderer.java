@@ -257,6 +257,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.NullLit n -> "NULL";
             case SqlExpr.DateLit d -> dateLit(d.iso());
             case SqlExpr.TimestampLit t -> timestampLit(t.iso());
+            case SqlExpr.OrderedListAgg ola -> "list(" + expr(ola.value(), 0)
+                    + " ORDER BY " + expr(ola.orderBy(), 0) + ")";
             case SqlExpr.ArrayLit a -> arrayLit(a.elements());
             case SqlExpr.StructLit s -> structLit(s);
             case SqlExpr.StructGet g -> structGet(g);

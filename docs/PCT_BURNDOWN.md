@@ -389,4 +389,27 @@ joinStrings wire limit) — we PASS several tests the reference
 excludes. Gates held throughout: core suite 1391, corpus 2721, zero
 regressions.
 
+**Slice 11** (BEATING THE REFERENCE — the mixed-element identity
+carrier): the reference-ledgered family now GENUINELY PASSES. A LITERAL
+collection whose elements carry different concrete kinds under the
+Number or Date LUB splits at LOWERING into TWO CHANNELS — IDENTITY
+(each element's pure PRINT FORM: '2', '2.0', '7.345D', '2014-02',
+'2014-02-13T13:15:19+0000') and COMPARABLE (DOUBLE / padded-TIMESTAMP
+literals computed statically). Selections order by the comparable and
+return {@code ids[list_position(vals, winner)]}: greatest/least,
+max/min (1-arg, n-ary AND comparator forms), mode (representative =
+END of the winning run in sorted order — real mode.pure's fold), and
+identity-preserving mixed SORT (list(id ORDER BY val) over parallel
+unnests). Comparator max/min decompose KEY-DIFFERENCE comparators
+({x,y| f($x)-f($y)}, both orientations; first-extreme wins ties via
+ORDER BY key, index LIMIT 1 — real fold's strict >). Generic
+collection::max/min<X> registered (strings order lexically). The
+executor parses identity strings back to their kinds (D -> Decimal,
+fraction -> Float, else Integer; dates stay print-form strings);
+DECIMAL narrowing now gates on ORIGINAL scale (1.0D keeps scale — only
+scale-0 HUGEINT sums narrow). NINE exclusions REMOVED (greatest/least/
+max/min/mode Number+Date families, mixed sort) — 84 remain (from 96).
+The three engine mixed-date pins converted to the print-form identity
+surface. Gates: core 1391, corpus 2721, PCT 1109/1109 — all green.
+
 Update this file per slice, same as docs/SCOREBOARD.md.

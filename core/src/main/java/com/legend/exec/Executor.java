@@ -80,6 +80,19 @@ public final class Executor {
      * abstract-lattice limitation; concrete-typed roots never take this path.)
      */
     private static Object latticeKind(Object v, Type rootType, SqlQuery plan) {
+        // The MIXED-ELEMENT IDENTITY channel: selections over mixed-kind
+        // Number collections return each element's pure PRINT FORM as text
+        // ('2', '2.0', '7.345D') — parsed back to its own kind here. (DATE
+        // identities stay strings — the wire's date convention.)
+        if (rootType == Type.Primitive.NUMBER && v instanceof String s) {
+            if (s.endsWith("D")) {
+                return new java.math.BigDecimal(s.substring(0, s.length() - 1));
+            }
+            if (s.contains(".") || s.contains("e") || s.contains("E")) {
+                return Double.valueOf(s);
+            }
+            return Long.valueOf(s);
+        }
         if (rootType == Type.Primitive.NUMBER && v instanceof java.math.BigDecimal d) {
             // ELEMENT-SELECTING roots return one of their INPUTS: with float
             // literals now DOUBLE-carried, a DECIMAL under a selection root
@@ -88,16 +101,14 @@ public final class Executor {
             if (selectionRoot(plan)) {
                 return v;
             }
-            java.math.BigDecimal stripped = d.stripTrailingZeros();
-            // COMPUTED integral (HUGEINT sums/products): the value was an
-            // Integer. INTEGRAL only: a fractional value may genuinely be a
-            // Decimal — demoting it to double loses precision (audit
-            // regression). BEYOND-long integrals stay BigDecimal —
-            // longValueExact threw where the value was correct (audit).
-            if (stripped.scale() <= 0
-                    && stripped.compareTo(java.math.BigDecimal.valueOf(Long.MAX_VALUE)) <= 0
-                    && stripped.compareTo(java.math.BigDecimal.valueOf(Long.MIN_VALUE)) >= 0) {
-                return stripped.longValueExact();
+            // COMPUTED integral (HUGEINT sums/products) — those carriers
+            // arrive at SCALE 0. A POSITIVE-scale decimal (1.0D) is a
+            // genuine Decimal VALUE whose scale is part of its identity;
+            // stripping first narrowed it to 1 (PCT max/min singles).
+            if (d.scale() <= 0
+                    && d.compareTo(java.math.BigDecimal.valueOf(Long.MAX_VALUE)) <= 0
+                    && d.compareTo(java.math.BigDecimal.valueOf(Long.MIN_VALUE)) >= 0) {
+                return d.longValueExact();
             }
             return v;
         }

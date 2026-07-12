@@ -34,20 +34,12 @@ public class Test_LegendLite_StandardFunctions_PCT extends PCTReportConfiguratio
     // (contains-matched), so any regression that changes the failure
     // shape — or a fix that makes one pass — fails loudly.
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
-            one("meta::pure::functions::collection::tests::greatest::testGreatest_Number_Function_1__Boolean_1_", "\"\nexpected: 7.345D\nactual:   7.345\""),
             one("meta::pure::functions::collection::tests::in::testInIsEmpty_Function_1__Boolean_1_", "\"in call to 'meta::pure::functions::collection::in', argument 1: expected at least one value, got none ([0])\""),
             one("meta::pure::functions::collection::tests::in::testInNonPrimitive_Function_1__Boolean_1_", "\"Conversion Error: Unimplemented type for cast (INTEGER -> STRUCT(legalName VARCHAR))\n\nLINE 1: SELECT 3 IN ({'legalName': 'f1'}, {'legalName': 'f2'}) AS value\n               ^\""),
-            one("meta::pure::functions::collection::tests::least::testLeast_Number_Function_1__Boolean_1_", "\"\nexpected: 1.0\nactual:   1\""),
-            one("meta::pure::functions::collection::tests::max::testMax_Function_1__Boolean_1_", "\"no overload of 'meta::pure::functions::collection::max' matches 2 argument(s) of these shapes\""),
-            one("meta::pure::functions::collection::tests::min::testMin_Function_1__Boolean_1_", "\"no overload of 'meta::pure::functions::collection::min' matches 2 argument(s) of these shapes\""),
             one("meta::pure::functions::math::hashCode::tests::testHashCodeAggregate_Function_1__Boolean_1_", "\"Not supported data type :'DOUBLE' for Pure type: 'Integer'\""),
             one("meta::pure::functions::math::tests::bitShiftLeft::testBitShiftLeft_MoreThan62Bits_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"bitShiftLeft shift amount 63 is out of range [0, 62]\"\nwhere the expected message was:\"Unsupported number of bits to shift - max bits allowed is 62\"\""),
             one("meta::pure::functions::math::tests::bitShiftRight::testBitShiftRight_MoreThan62Bits_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"bitShiftRight shift amount 63 is out of range [0, 62]\"\nwhere the expected message was:\"Unsupported number of bits to shift - max bits allowed is 62\"\""),
             one("meta::pure::functions::math::tests::covarSample::testCovarSample_Function_1__Boolean_1_", "\"Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result\nError: Binder Error: No function matches the given name and argument types 'len(INTEGER_LITERAL)'. You might need to add explicit type casts.\n	Candidate functions:\n	len(VARCHAR) -> BIGINT\n	len(BIT) -> BIGINT\n	len(ANY[]) -> BIGINT\n\n\nLINE 1: SELECT CASE WHEN len(1) <> len(10) THEN error('covarSample: the two value...\n                         ^\""),
-            one("meta::pure::functions::math::tests::max::testMax_NumbersArray_Function_1__Boolean_1_", "\"\nexpected: 1.0D\nactual:   1\""),
-            one("meta::pure::functions::math::tests::max::testMax_Numbers_Function_1__Boolean_1_", "\"\nexpected: 2D\nactual:   2\""),
-            one("meta::pure::functions::math::tests::min::testMin_NumbersArray_Function_1__Boolean_1_", "\"\nexpected: 1.0D\nactual:   1\""),
-            one("meta::pure::functions::math::tests::mode::testMode_Number_Function_1__Boolean_1_", "\"\nexpected: 2.0\nactual:   2\""),
             one("meta::pure::functions::math::tests::percentile::testPercentile_Function_1__Boolean_1_", "\"\nexpected: [10]\nactual:   []\""));
 
     public static Test suite() {
