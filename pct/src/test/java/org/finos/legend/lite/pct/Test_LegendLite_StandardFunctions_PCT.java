@@ -34,11 +34,7 @@ public class Test_LegendLite_StandardFunctions_PCT extends PCTReportConfiguratio
     // (contains-matched), so any regression that changes the failure
     // shape — or a fix that makes one pass — fails loudly.
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
-            one("meta::pure::functions::collection::tests::in::testInIsEmpty_Function_1__Boolean_1_", "\"in call to 'meta::pure::functions::collection::in', argument 1: expected at least one value, got none ([0])\""),
-            one("meta::pure::functions::collection::tests::in::testInNonPrimitive_Function_1__Boolean_1_", "\"Unimplemented type for cast (INTEGER -> STRUCT(legalName VARCHAR))\n\nLINE 1: SELECT 3 IN ({'legalName': 'f1'}, {'legalName': 'f2'}) AS value\n               ^\""),
-            one("meta::pure::functions::math::hashCode::tests::testHashCodeAggregate_Function_1__Boolean_1_", "\"Not supported data type :'DOUBLE' for Pure type: 'Integer'\""),
-            one("meta::pure::functions::math::tests::covarSample::testCovarSample_Function_1__Boolean_1_", "\"Attempting to execute an unsuccessful or closed pending query result\nError: Binder Error: No function matches the given name and argument types 'len(INTEGER_LITERAL)'. You might need to add explicit type casts.\n	Candidate functions:\n	len(VARCHAR) -> BIGINT\n	len(BIT) -> BIGINT\n	len(ANY[]) -> BIGINT\n\n\nLINE 1: SELECT CASE WHEN len(1) <> len(10) THEN error('covarSample: the two value...\n                         ^\""),
-            one("meta::pure::functions::math::tests::percentile::testPercentile_Function_1__Boolean_1_", "\"\nexpected: [10]\nactual:   []\""));
+            one("meta::pure::functions::math::hashCode::tests::testHashCodeAggregate_Function_1__Boolean_1_", "\"Not supported data type :'DOUBLE' for Pure type: 'Integer'\""));
 
     public static Test suite() {
         return wrapSuite(

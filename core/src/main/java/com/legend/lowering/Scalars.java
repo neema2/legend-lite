@@ -1015,10 +1015,18 @@ final class Scalars {
                             List.of(args.get(0), new SqlExpr.IntLit(-1))));
         }
         // 0-based Pure -> 1-based SQL shifts (the semantics contract).
+        // The 3-arg form's third argument is the EXCLUSIVE END index (real
+        // pure = Java substring), not SQL's length: length = end - start.
         for (String f : Pure.nativeKeysAt("substring")) {
             RULES.put(f, (n, args) -> {
                 List<SqlExpr> shifted = new ArrayList<>(args);
                 shifted.set(1, plusOne(args.get(1)));
+                if (args.size() == 3) {
+                    shifted.set(2, args.get(2) instanceof SqlExpr.IntLit end
+                            && args.get(1) instanceof SqlExpr.IntLit start
+                            ? new SqlExpr.IntLit(end.value() - start.value())
+                            : SqlExpr.Call.of(SqlFn.MINUS, args.get(2), args.get(1)));
+                }
                 return new SqlExpr.Call(SqlFn.SUBSTRING, shifted);
             });
         }
@@ -1113,23 +1121,36 @@ final class Scalars {
                         inserted);
             });
         }
-        // removeDuplicates: bare distinct; an EQUALITY comparator (the
-        // eta-expanded eq/equal reference) is distinct's own semantics —
-        // anything richer has no set-based shape.
+        // removeDuplicates: bare distinct for the plain / equality-comparator
+        // forms; a CUSTOM comparator (or key + comparator) folds real pure's
+        // accumulate-then-compare-against-KEPT semantics — a list_reduce over
+        // singleton-wrapped elements (the accumulator IS the kept list), the
+        // candidate dropped when any KEPT element satisfies eq(kept, candidate).
         for (String f : Pure.nativeKeysAt("removeDuplicates")) {
             RULES.put(f, (n, args) -> {
-                if (args.size() >= 2 && !isEqualityComparator(n.args().get(n.args().size() - 1))) {
-                    throw new IllegalStateException("removeDuplicates with a"
-                            + " non-equality comparator has no scalar lowering");
-                }
                 // a TO-ONE value is its own dedup — but the output is
-                // [*]-typed, so it must stay LIST-shaped for consumers
+                // [*]-typed, so it must stay LIST-shaPED for consumers
                 // (the root UNNEST, downstream list ops)
                 if (isToOne(n.args().get(0))
                         && !(args.get(0) instanceof SqlExpr.ArrayLit)) {
                     return new SqlExpr.ArrayLit(List.of(args.get(0)));
                 }
-                return orderedDedup(args.get(0));
+                if (args.size() < 2 || isEqualityComparator(n.args().get(n.args().size() - 1))) {
+                    return orderedDedup(args.get(0));
+                }
+                if (!(args.get(args.size() - 1) instanceof SqlExpr.Lambda eq)
+                        || eq.params().size() != 2) {
+                    throw new IllegalStateException("removeDuplicates comparator"
+                            + " must be a 2-parameter function");
+                }
+                java.util.function.UnaryOperator<SqlExpr> key =
+                        args.size() == 3 && args.get(1) instanceof SqlExpr.Lambda k
+                                && k.params().size() == 1
+                        ? v -> substituteRef(k.body(), k.params().get(0), v)
+                        : java.util.function.UnaryOperator.identity();
+                return keptDedup(args.get(0), (prior, cand) -> substituteRef(
+                        substituteRef(eq.body(), eq.params().get(0), key.apply(prior)),
+                        eq.params().get(1), key.apply(cand)));
             });
         }
         // collection::distinct = removeDuplicates (real distinct.pure) —
@@ -1447,8 +1468,10 @@ final class Scalars {
                     // A TO-ONE side is the single-element list ([1] fits
                     // Number[*]) — unnest needs the list shape.
                     SqlExpr xs = n.args().get(0).info().multiplicity().isMany()
+                            || args.get(0) instanceof SqlExpr.ArrayLit
                             ? args.get(0) : new SqlExpr.ArrayLit(List.of(args.get(0)));
                     SqlExpr ys = n.args().get(1).info().multiplicity().isMany()
+                            || args.get(1) instanceof SqlExpr.ArrayLit
                             ? args.get(1) : new SqlExpr.ArrayLit(List.of(args.get(1)));
                     var inner = new com.legend.sql.SqlSelect(List.of(
                             new com.legend.sql.SqlSelect.Projection(
@@ -1468,10 +1491,12 @@ final class Scalars {
                     // MISMATCHED lengths would zip-pad with NULLs and the
                     // reducer would silently drop the unpaired tail (audit:
                     // corr([1,2,3],[2,4]) said 1.0) — unpaired data is LOUD.
+                    // (the guard measures the WRAPPED sides — a to-one side
+                    // is a 1-element list, never a bare scalar under len())
                     return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                             SqlExpr.Call.of(SqlFn.NOT_EQUAL,
-                                    SqlExpr.Call.of(SqlFn.LIST_LENGTH, args.get(0)),
-                                    SqlExpr.Call.of(SqlFn.LIST_LENGTH, args.get(1))),
+                                    SqlExpr.Call.of(SqlFn.LIST_LENGTH, xs),
+                                    SqlExpr.Call.of(SqlFn.LIST_LENGTH, ys)),
                             SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(
                                     e.getKey() + ": the two value lists differ"
                                             + " in length")))),
@@ -1756,7 +1781,23 @@ final class Scalars {
 
         // Overload-specific overrides — the resolved signature IS the decision.
         RULES.put(Pure.keyPlusString(), (n, args) -> new SqlExpr.Call(SqlFn.CONCAT, args));
+        // real pure declares BOTH in(Any[1], ...) and in(Any[0..1], ...):
+        // the optional-needle overload is FALSE for the empty needle
+        // (COALESCE — a NULL needle must never say NULL).
+        RULES.put(Pure.keyInOptional(), (n, args) ->
+                args.get(0) instanceof SqlExpr.NullLit
+                        ? new SqlExpr.BoolLit(false)
+                        : SqlExpr.Call.of(SqlFn.COALESCE,
+                                RULES.get(Pure.keyIn()).apply(n, args),
+                                new SqlExpr.BoolLit(false)));
         RULES.put(Pure.keyIn(), (n, args) -> {
+            // TYPE-aware membership (real pure): a needle of a different
+            // KIND than the collection's elements is never a member — a
+            // static FALSE, not a DB conversion error (3 in [^Firm(...)]).
+            if (kindMismatch(n.args().get(0).info().type(),
+                    n.args().get(1).info().type())) {
+                return new SqlExpr.BoolLit(false);
+            }
             // in(x, []) is FALSE in pure; the empty collection lowers to
             // NULL in scalar position, and `x IN (NULL)` would be NULL —
             // silently dropping rows under negation (audit finding).
@@ -2069,6 +2110,53 @@ final class Scalars {
                         new SqlExpr.IntLit(3)),
                 com.legend.sql.SqlType.Scalar.BIGINT) : one;
         return SqlExpr.Call.of(SqlFn.MAKE_TIMESTAMP, year, month, day, zero, zero, zero);
+    }
+
+    /**
+     * A primitive needle against class-typed elements (or vice versa) can
+     * never be a member — the kinds are disjoint in pure's type system.
+     * Any/mixed stays undecided (falls through to the SQL comparison).
+     */
+    private static boolean kindMismatch(Type needle, Type elems) {
+        boolean np = needle instanceof Type.Primitive || needle instanceof Type.PrecisionDecimal;
+        boolean ep = elems instanceof Type.Primitive || elems instanceof Type.PrecisionDecimal;
+        boolean nc = isClassish(needle) && !PlatformTypes.isAny(needle);
+        boolean ec = isClassish(elems) && !PlatformTypes.isAny(elems);
+        return (np && ec) || (nc && ep);
+    }
+
+    /**
+     * Real removeDuplicates-with-comparator: walk the list accumulating the
+     * KEPT prefix; a candidate joins iff no kept element satisfies
+     * eq(kept, candidate). Elements wrap into singleton lists so the reduce
+     * accumulator can BE the kept list (the seed is [first], trivially kept).
+     */
+    private static SqlExpr keptDedup(SqlExpr list,
+            java.util.function.BinaryOperator<SqlExpr> eq) {
+        SqlExpr wrapped = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, list,
+                new SqlExpr.Lambda(List.of("_rw"),
+                        new SqlExpr.ArrayLit(List.of(new SqlExpr.Column(null, "_rw")))));
+        SqlExpr kept = new SqlExpr.Column(null, "_ra");
+        SqlExpr cand = SqlExpr.Call.of(SqlFn.LIST_GET,
+                new SqlExpr.Column(null, "_rx"), new SqlExpr.IntLit(1));
+        SqlExpr dup = SqlExpr.Call.of(SqlFn.GREATER,
+                SqlExpr.Call.of(SqlFn.LIST_LENGTH,
+                        SqlExpr.Call.of(SqlFn.LIST_FILTER, kept,
+                                new SqlExpr.Lambda(List.of("_rp"),
+                                        eq.apply(new SqlExpr.Column(null, "_rp"), cand)))),
+                new SqlExpr.IntLit(0));
+        SqlExpr step = new SqlExpr.Case(List.of(new SqlExpr.Case.When(dup, kept)),
+                SqlExpr.Call.of(SqlFn.LIST_APPEND, kept, cand));
+        SqlExpr reduced = SqlExpr.Call.of(SqlFn.LIST_REDUCE, wrapped,
+                new SqlExpr.Lambda(List.of("_ra", "_rx"), step));
+        // list_reduce rejects the empty list — the empty dedup is itself
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.EQUAL,
+                        SqlExpr.Call.of(SqlFn.COALESCE,
+                                SqlExpr.Call.of(SqlFn.LIST_LENGTH, list),
+                                new SqlExpr.IntLit(0)),
+                        new SqlExpr.IntLit(0)),
+                list)), reduced);
     }
 
     /** {@code ', '}-joined string list ('' for empty) — composed in SQL. */
@@ -2492,11 +2580,24 @@ final class Scalars {
         SqlExpr ip = new SqlExpr.Call(SqlFn.FLOOR, List.of(
                 SqlExpr.Call.of(SqlFn.TIMES, p,
                         SqlExpr.Call.of(SqlFn.MINUS, n, new SqlExpr.IntLit(1)))));
-        SqlExpr pick = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.GREATER,
-                        SqlExpr.Call.of(SqlFn.PLUS, ip, new SqlExpr.IntLit(1)),
-                        SqlExpr.Call.of(SqlFn.TIMES, p, n)),
-                SqlExpr.Call.of(SqlFn.PLUS, ip, new SqlExpr.IntLit(1)))),
+        // real percentile.pure guards the BOUNDARIES before the rank rule:
+        // pos == 0 takes the first element, pos >= n-1 the last (p=1.0
+        // otherwise indexes past the end)
+        SqlExpr pos = SqlExpr.Call.of(SqlFn.TIMES, p,
+                SqlExpr.Call.of(SqlFn.MINUS, n, new SqlExpr.IntLit(1)));
+        SqlExpr pick = new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.LESS_EQUAL, pos, new SqlExpr.IntLit(0)),
+                        new SqlExpr.IntLit(1)),
+                new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.GREATER_EQUAL, pos,
+                                SqlExpr.Call.of(SqlFn.MINUS, n, new SqlExpr.IntLit(1))),
+                        n),
+                new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.GREATER,
+                                SqlExpr.Call.of(SqlFn.PLUS, ip, new SqlExpr.IntLit(1)),
+                                SqlExpr.Call.of(SqlFn.TIMES, p, n)),
+                        SqlExpr.Call.of(SqlFn.PLUS, ip, new SqlExpr.IntLit(1)))),
                 SqlExpr.Call.of(SqlFn.PLUS, ip, new SqlExpr.IntLit(2)));
         return new SqlExpr.Call(SqlFn.LIST_GET, List.of(sorted,
                 new SqlExpr.Cast(pick, com.legend.sql.SqlType.Scalar.BIGINT)));
@@ -2517,8 +2618,15 @@ final class Scalars {
             return false;
         }
         String fqn = cc.callee().qualifiedName();
-        return fqn.equals("meta::pure::functions::boolean::eq")
-                || fqn.equals("meta::pure::functions::boolean::equal");
+        if (!fqn.equals("meta::pure::functions::boolean::eq")
+                && !fqn.equals("meta::pure::functions::boolean::equal")) {
+            return false;
+        }
+        // BARE parameter references only ({x,y|eq($x,$y)}) — a body like
+        // {x,y|$x == 2+$y} is a CUSTOM comparator, not plain equality
+        return cc.args().stream().allMatch(arg ->
+                arg instanceof com.legend.compiler.spec.typed.TypedVariable v
+                        && cmp.parameters().contains(v.name()));
     }
 
     /**

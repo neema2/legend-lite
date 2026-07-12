@@ -105,6 +105,11 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 {
                     let classes = $elements->removeDuplicates()
                 }
+
+                function meta::pure::functions::collection::tests::removeDuplicates::cmp(a:Any[1],b:Any[1]):Boolean[1]
+                {
+                    $a->toString() == $b->toString()
+                }
             """;
 
     private static final Pattern INSTANCE_CLASS_PATTERN = Pattern.compile("\\^([\\w:]+)\\(");
@@ -139,6 +144,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         String pureExpression = PrimitiveUtilities.getStringValue(
                 Instance.getValueForMetaPropertyToOneResolved(params.get(0), M3Properties.values, processorSupport));
         pureExpression = reEscapeStringLiterals(pureExpression);
+        pureExpression = inlineFunctionLiterals(pureExpression);
 
         System.out.println("[LegendLite PCT] Executing: " + pureExpression);
 
@@ -994,6 +1000,28 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             }
         }
         return sb.toString();
+    }
+
+    /**
+     * The harness serializes a CAPTURED concrete function by printing its
+     * whole definition inline:
+     * {@code fqn(a: T[1], b: T[1]): R[1] { body }} — the faithful lambda
+     * equivalent is {@code {a: T[1], b: T[1] | body}} (a definition IS its
+     * lambda; only the name is lost, and the name is not semantics).
+     */
+    private static final Pattern FN_LITERAL_PATTERN = Pattern.compile(
+            "[\\w:]+\\(([^()]*)\\):\\s*[\\w:]+\\[[^\\]]*\\]\\s*\\{(.*?)\\}",
+            java.util.regex.Pattern.DOTALL);
+
+    private static String inlineFunctionLiterals(String expr) {
+        Matcher m = FN_LITERAL_PATTERN.matcher(expr);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            m.appendReplacement(out, Matcher.quoteReplacement(
+                    "{" + m.group(1).trim() + " | " + m.group(2).trim() + "}"));
+        }
+        m.appendTail(out);
+        return out.toString();
     }
 
     private String stripTrailingZeros(String subsecond) {

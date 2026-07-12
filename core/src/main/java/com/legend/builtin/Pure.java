@@ -450,6 +450,11 @@ public final class Pure {
         return IN__ANY_1__ANY_MANY.signatureKey();
     }
 
+    /** The real second overload: in(value:Any[0..1], ...) — an empty needle is FALSE. */
+    public static String keyInOptional() {
+        return IN__ANY_0_1__ANY_MANY.signatureKey();
+    }
+
     public static boolean nativeNamed(String name, String signatureKey) {
         return Index.KEYS_BY_NAME
                 .getOrDefault(name, java.util.Set.of())
@@ -716,6 +721,7 @@ public final class Pure {
     public static final NativeFunctionDefinition INIT__T_MANY = signature("native function meta::pure::functions::collection::init<T>(set:T[*]):T[*];");
     public static final NativeFunctionDefinition INSTANCE_OF__ANY_1__TYPE_1 = signature("native function meta::pure::functions::meta::instanceOf(instance:meta::pure::metamodel::type::Any[1], type:meta::pure::metamodel::type::Type[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition IN__ANY_1__ANY_MANY = signature("native function meta::pure::functions::collection::in(value:meta::pure::metamodel::type::Any[1], collection:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition IN__ANY_0_1__ANY_MANY = signature("native function meta::pure::functions::collection::in(value:meta::pure::metamodel::type::Any[0..1], collection:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition IS_AFTER_DAY__DATE_1__DATE_1 = signature("native function meta::pure::functions::date::isAfterDay(d1:meta::pure::metamodel::type::Date[1], d2:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition IS_BEFORE_DAY__DATE_1__DATE_1 = signature("native function meta::pure::functions::date::isBeforeDay(d1:meta::pure::metamodel::type::Date[1], d2:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition IS_DISTINCT__ANY_1__ANY_1 = signature("native function meta::pure::functions::collection::isDistinct(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");

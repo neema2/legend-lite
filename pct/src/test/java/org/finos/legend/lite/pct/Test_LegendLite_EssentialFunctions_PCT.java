@@ -47,15 +47,12 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             one("meta::pure::functions::date::tests::testNewDateError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 29\""),
             one("meta::pure::functions::date::tests::testSecondError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 36\""),
             one("meta::pure::functions::collection::tests::concatenate::testConcatenateTypeInference_Function_1__Boolean_1_", "\"Cast exception: String cannot be cast to CO_GeographicEntity\""),
-            one("meta::pure::functions::collection::tests::contains::testContainsWithFunction_Function_1__Boolean_1_", "\"[1:369] expected ')' to close argument list\""),
             one("meta::pure::functions::collection::tests::find::testFindInstance_Function_1__Boolean_1_", ""),
             one("meta::pure::functions::collection::tests::find::testFindUsingVarForFunction_Function_1__Boolean_1_", ""),
             one("meta::pure::functions::collection::tests::fold::testFoldFiltering_Function_1__Boolean_1_", "\"'otherNames' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),
             one("meta::pure::functions::collection::tests::fold::testFoldToMany_Function_1__Boolean_1_", "\"'otherNames' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),
             one("meta::pure::functions::collection::tests::fold::testFold_Function_1__Boolean_1_", "\"'lastName' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),
             one("meta::pure::functions::collection::tests::head::testHeadComplex_Function_1__Boolean_1_", ""),
-            one("meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveNonStandardFunction_Function_1__Boolean_1_", "\"\nexpected: [1, 2, '3']\nactual:   [1, 2, '1', '3', 3]\""),
-            one("meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionExplicit_Function_1__Boolean_1_", "\"in call to 'meta::pure::functions::collection::removeDuplicates', argument 2: expected at most one value, got many ([*])\""),
             // TIMESTAMP-DOMAIN limit: these expected results live at years
             // 1.4M-800M — beyond DuckDB's TIMESTAMP range entirely (290309 BC
             // to 294246 AD). Representing them would mean a string-domain
@@ -69,7 +66,6 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // object) — legend-lite compiles to SQL and holds no expression tree at
             // run time; metamodel reflection is out of vocabulary.
             one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "\"unknown function 'meta::pure::functions::meta::deactivate'\""),
-            one("meta::pure::functions::string::tests::substring::testStartEnd_Function_1__Boolean_1_", "\"\nexpected: 'he quick brown fox jumps over the lazy do'\nactual:   'he quick brown fox jumps over the lazy dog'\""),
             one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "expected: '// Warning: Good for gin -- Sad times no tonic'"));
 
     public static Test suite() {

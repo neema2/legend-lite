@@ -565,4 +565,27 @@ letFn's Class-through-ModelElement flows. removeDuplicates of a
 to-one stays LIST-shaped (its output is [*]). Gates: core 1391,
 corpus 2721, PCT 1109/1109.
 
+**Slice 18a** (misc semantics batch — 8 removed, 31 remain):
+substring's third argument is the EXCLUSIVE END (Java semantics), not
+SQL's length. percentile grew real percentile.pure's boundary guards
+(pos==0 → first, pos>=n-1 → last; p=1.0 indexed past the end).
+covarSample guards measure the WRAPPED sides (a to-one side is a
+1-element list — len(1) was a binder error) without double-wrapping.
+in() gained real pure's second overload in(Any[0..1],...) — the empty
+needle is FALSE (COALESCE'd, never NULL) — and membership is
+TYPE-aware: a needle of a different KIND than the elements is a static
+FALSE, not a DB conversion error. removeDuplicates with a CUSTOM
+comparator (or key+comparator) folds real pure's compare-against-KEPT
+semantics — a list_reduce over singleton-wrapped elements whose
+accumulator IS the kept list, entirely in SQL; isEqualityComparator
+now demands BARE parameter references (x==2+y was silently treated as
+plain equality — the fast path was wrong, not the tests). Function
+values: parameters are CONTRAVARIANT (equal(Any[*],Any[*]) is a legal
+{T[1],T[1]} comparator — the kernel's contravariant frame now covers
+multiplicity), and the harness's inline SERIALIZED function
+definitions (fqn(a: T[1]): R[1] { body } — how a captured concrete
+function crosses) normalize to their faithful lambda equivalent, which
+also un-broke contains(collection, value, comparator). Gates: core
+1391, corpus 2721, PCT 1109/1109.
+
 Update this file per slice, same as docs/SCOREBOARD.md.

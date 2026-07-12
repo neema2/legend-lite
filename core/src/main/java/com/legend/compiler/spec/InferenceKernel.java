@@ -539,7 +539,11 @@ public final class InferenceKernel {
                 // carrier's own semantics (toMany(@Variant) results flow
                 // into to-one column/argument slots as array cells).
                 boolean relationSource = relationRow(actualType) != null;
+                // CONTRAVARIANT position (a function value's parameters): a
+                // WIDER actual accepts — equal(Any[*],Any[*]) is a legal
+                // {T[1],T[1]->Boolean} comparator in real pure.
                 if (!relationSource && fb.isToOne() && actual.isMany()
+                        && !b.contravariant()
                         && !com.legend.compiler.element.type.PlatformTypes.isVariant(actualType)) {
                     throw new TypeInferenceException(
                             "expected at most one value, got many (" + actual.text() + ")");
