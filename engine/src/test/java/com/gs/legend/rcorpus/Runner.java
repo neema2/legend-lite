@@ -92,6 +92,7 @@ public final class Runner {
     /** Family-level extension: the family's SETUP files (no test functions). */
     private final Map<String, String> familyModels = new LinkedHashMap<>();
     private final Map<String, List<String>> familySeeds = new LinkedHashMap<>();
+    private final Map<String, java.util.Set<String>> familySeen = new LinkedHashMap<>();
     private String currentFamilyKey = "";
 
     /**
@@ -108,13 +109,21 @@ public final class Runner {
         StringBuilder ext = new StringBuilder();
         List<String> sql = new ArrayList<>();
         StringBuilder assembled = new StringBuilder(model);
-        // pass 1: every setup file's NON-mapping elements (a mapping in file
-        // A may reference classes from file B — mappings probe after ALL
-        // classes/stores across the family are present)
+        // pass 1: every family file's NON-mapping elements, deduped by
+        // kind::fqn (the real engine compiles the whole module together;
+        // cross-file references — embedded's BondDetail association,
+        // inheritance's cross-file includes — are normal). A mapping in
+        // file A may reference classes from file B, so mappings probe
+        // after ALL classes/stores across the family are present.
         List<String[]> mappings = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        familySeen.put(familyKey, seen);
         for (String src : setupSources) {
             StringBuilder part = new StringBuilder();
             for (String[] el : splitSectioned(Corpus.modelElements(src))) {
+                if (!seen.add(el[0] + "::" + el[1])) {
+                    continue;   // first definition wins
+                }
                 if (el[0].equals("Mapping")) {
                     mappings.add(el);
                 } else {
@@ -158,7 +167,11 @@ public final class Runner {
         }
         StringBuilder extension = new StringBuilder();
         List<String[]> fileMappings = new ArrayList<>();
+        java.util.Set<String> famSeen = familySeen.getOrDefault(currentFamilyKey, java.util.Set.of());
         for (String[] el : splitSectioned(Corpus.modelElements(source))) {
+            if (famSeen.contains(el[0] + "::" + el[1])) {
+                continue;   // already carried by the family extension
+            }
             if (el[0].equals("Mapping")) {
                 fileMappings.add(el);
             } else {

@@ -17,14 +17,14 @@ runner does not yet recognize (accounted, not skipped silently).
 | mapping/join | 29 | 14 | 1 | 13 | 1 |
 | mapping/embedded | 70 | 0 | 0 | 65 | 5 |
 | mapping/enumeration | 27 | 0 | 0 | 14 | 13 |
-| mapping/distinct | 18 | 3 | 5 | 9 | 1 |
+| mapping/distinct | 18 | 2 | 6 | 9 | 1 |
 | mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
 | mapping/filter | 10 | 3 | 0 | 6 | 1 |
 | mapping/inheritance | 51 | 0 | 0 | 46 | 5 |
 | mapping/selfJoin | 3 | 0 | 0 | 3 | 0 |
 | mapping/boolean.pure | 3 | 0 | 0 | 3 | 0 |
 | mapping/dates.pure | 7 | 0 | 0 | 4 | 3 |
-| **total** | 351 | **32** | 7 | 253 | 59 |
+| **total** | 351 | **31** | 8 | 253 | 59 |
 
 ### mapping walls (dropped at assembly)
 
@@ -309,7 +309,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testTdsProjectWithEnumVarEquality [mapping/enumeration]: no execute(|...) call
 - SHAPE testEnumValueReturnedInIfExp [mapping/enumeration]: no execute(|...) call
 - SHAPE testEnumValueReturnedInIfExpNotDistinctTransformers [mapping/enumeration]: no execute(|...) call
-- FAIL testDistinctMappingSelectAll [mapping/distinct]: name: expected [IF 1, IF 2, IF 2], got [IF 2, IF 1, IF 2, IF 2, IF 2]
+- FAIL testDistinctMappingSelectAll [mapping/distinct]: name: expected [IF 1, IF 2, IF 2], got [IF 2, IF 2, IF 2, IF 2, IF 1]
 - FAIL testDistinctMappingSelectAllWithFilter [mapping/distinct]: name: expected [IF 2], got [IF 2, IF 2, IF 2]; code: expected [1002], got [1002, 1002, 1002]
 - FAIL testDistinctMappingSimpleProjectSelectOneOfTheDistinctProperties [mapping/distinct]: toCSV: expected <name
 IF 1
@@ -319,7 +319,7 @@ IF 2
 IF 1
 IF 2
 >
-- FAIL testDistinctMappingWithFilterSelectAll [mapping/distinct]: name: expected [IF 1, IF 2, IF 2], got [IF 2, IF 1, IF 2, IF 2]
+- FAIL testDistinctMappingWithFilterSelectAll [mapping/distinct]: name: expected [IF 1, IF 2, IF 2], got [IF 1, IF 2, IF 2, IF 2]
 - FAIL testDistinctMappingWithFilterSelectOneProperty [mapping/distinct]: toCSV: expected <name
 IF 1
 IF 2
@@ -329,6 +329,15 @@ IF 1
 IF 2
 >
 - ERROR testDistinctMappingWithJoinSelectAll [mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
+- FAIL testDistinctMappingWithJoinProject [mapping/distinct]: toCSV: expected <IfName
+IfName1
+IfName2
+
+>, got <IfName
+
+IfName2
+IfName1
+>
 - ERROR testProjectDistinctMappingWithDistinctInJoin [mapping/distinct]: [1:285] navigation path segment 'name!incomeFunction' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mappin
 - ERROR testProjectDistinctMappingWithDistinctInJoinWithDup [mapping/distinct]: [1:285] navigation path segment 'name!incomeFunction' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mappin
 - ERROR testDistinctMappingWithDistinctInJoinWithFilter [mapping/distinct]: [1:319] navigation path segment 'name!incomeFunction' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mappin
