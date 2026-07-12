@@ -12,19 +12,19 @@ runner does not yet recognize (accounted, not skipped silently).
 
 | family | tests | pass | fail | error | shape |
 |---|---|---|---|---|---|
-| query | 99 | 11 | 1 | 63 | 24 |
+| query | 99 | 23 | 1 | 44 | 31 |
 | mapping/association | 24 | 1 | 0 | 17 | 6 |
 | mapping/join | 29 | 14 | 1 | 13 | 1 |
 | mapping/embedded | 70 | 0 | 0 | 65 | 5 |
 | mapping/enumeration | 27 | 0 | 0 | 14 | 13 |
-| mapping/distinct | 18 | 1 | 7 | 9 | 1 |
+| mapping/distinct | 18 | 2 | 6 | 9 | 1 |
 | mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
 | mapping/filter | 10 | 3 | 0 | 6 | 1 |
 | mapping/inheritance | 51 | 0 | 0 | 46 | 5 |
 | mapping/selfJoin | 3 | 0 | 0 | 2 | 1 |
 | mapping/boolean.pure | 3 | 0 | 0 | 3 | 0 |
-| mapping/dates.pure | 7 | 0 | 0 | 4 | 3 |
-| **total** | 351 | **30** | 9 | 252 | 60 |
+| mapping/dates.pure | 7 | 0 | 0 | 0 | 7 |
+| **total** | 351 | **43** | 8 | 229 | 71 |
 
 ### mapping walls (dropped at assembly)
 
@@ -38,12 +38,11 @@ runner does not yet recognize (accounted, not skipped silently).
 
 ### top error buckets
 
-- 25x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: Join 'Trade_TradeEventViewMaxTradeEventDate' targets view 'tradeEventViewMaxTradeEventDate'; views as JOIN TARGETS are a roadmap feature (the view must expand as a relation at the join hop). mapping=meta::relational::tests::simpleRelationalMapping
 - 17x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::embedded::model::mapping::testMappingEmbedded' failed to normalize this class: Embedded sub-PM 'employees' on 'firm' is a class-typed Join; nested Join PMs inside a value-position Embedded are not supported (would need a hoisted navigate keyed to the embedded slot). Mapping=meta::relational::tests::mapping::embedded::model::mapping::testMappingEmbedded
 - 12x Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Catalog Error: Table with name PRODUCT_DENORM does not exist! | Did you mean "Org"? |  | LINE 2: FROM PRODUCT_DENORM AS t0 |              ^
 - 10x class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - 10x project expects ~[…] column specifications
-- 9x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::inheritance::inheritanceMain' failed to normalize this class: property 'cars' of class 'meta::relational::tests::model::inheritance::Person' routes to NON-root mapping set 'map1' — multi-set target routing is a roadmap feature (navigating the root set instead would be wrong rows)
+- 9x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::inheritance::inheritanceMain' failed to normalize this class: property 'vehicles' of class 'meta::relational::tests::model::inheritance::Person' routes to NON-root mapping set 'map2' — multi-set target routing is a roadmap feature (navigating the root set instead would be wrong rows)
 - 7x 'Product' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 7x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::groupBy::model::domain::Position' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::groupBy::model::mapping::testMapping' failed to normalize this class: PropertyMapping 'Join' for property 'product' is not supported under ~groupBy (only Column, Expression, JoinTerminalColumn, and aggregate Expression PMs are allowed). Mapping=meta::relational::tests::mapping::groupBy::model::mapping::testMapping
 - 6x [1:95] expected ']' to close collection literal
@@ -55,19 +54,20 @@ runner does not yet recognize (accounted, not skipped silently).
 - 4x class-typed property '$p.bondDetails' used as a whole value is graph output (Phase H4)
 - 4x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::enumeration::model::domain::Employee' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::enumeration::model::mapping::employeeTestMapping' failed to normalize this class: enum-mapped constant/expression source for property 'role' is not resolvable yet
 - 4x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion' failed to normalize this class: property 'vehicles' of class 'meta::relational::tests::model::inheritance::Person' routes to NON-root mapping set 'map2' — multi-set target routing is a roadmap feature (navigating the root set instead would be wrong rows)
-- 3x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Account' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: Join 'AccountPnlView_Account' targets view 'accountOrderPnlView'; views as JOIN TARGETS are a roadmap feature (the view must expand as a relation at the join hop). mapping=meta::relational::tests::simpleRelationalMapping
+- 3x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Account' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::relational::tests::simpleRelationalMapping
 - 3x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
 - 3x [1:97] expected ']' to close collection literal
 - 3x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 3x multi-hop navigation holder.address.name through an embedded/slot head is not supported yet
 - 3x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::subType::MyProduct' (of 1 candidates); class-query dispatch needs exactly one
-- 3x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Interaction' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: Join references view 'interactionViewMaxTime' with ~filter semantics as its source side; joins over non-plain views are a roadmap feature. mapping=meta::relational::tests::simpleRelationalMapping
+- 3x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected String, got Integer
 - 2x unbound variable '$var'
 - 2x property 'name' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - 2x unknown function 'nameWithTitle'
 - 2x mapping pipeline for 'meta::relational::tests::model::simple::OrderPnl' has TypedDistinct above join slot(s); H3-pending
 - 2x unbound variable '$input'
 - 2x class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- 2x a bare lambda has no type outside a call position (lambdas type against their call's signature)
 
 ### per-test outcomes (non-passing)
 
@@ -129,29 +129,17 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testMostRecentDayOfWeek [query]: no execute(|...) call
 - ERROR testFilterUsingParseIntegerFunction [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Account' (of 1 candidates); class-query dispatch needs exactly one; 
 - ERROR testFilterUsingParseDecimalFunction [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Account' (of 1 candidates); class-query dispatch needs exactly one; 
-- ERROR testFilterUsingToStringFunction [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
 - ERROR testFilterUsingFirstDayOfThisYearH2 [query]: unknown function 'firstDayOfThisYear'
 - ERROR testFilterUsingFirstDayOfThisQuarter [query]: unknown function 'firstDayOfThisQuarter'
-- ERROR testFilterUsingRoundFunction [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
-- ERROR testFilterUsingRoundFunctionWithScale [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
-- ERROR testFilterUsingCeilingFunction [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
-- ERROR testFilterUsingFloorFunction [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
-- ERROR testFilterUsingPowFunction [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
-- ERROR testFilterUsingExpFunction [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
-- ERROR testFilterUsingLogFunction [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
-- ERROR testFilterUsingLog10Function [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
-- ERROR testFilterUsingsinFunction [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
-- ERROR testFilterUsingCosFunction [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
-- ERROR testFilterUsingCotFunction [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
-- ERROR testFilterUsingTanFunction [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
-- ERROR testFilterUsingArcSinFunction [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
-- ERROR testFilterUsingArcCosFunction [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
-- ERROR testFilterUsingArcTanFunction [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
-- ERROR testFilterUsingArcTan2Function [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
-- ERROR testFilterUsingSqrtFunction [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
-- ERROR testFilterUsingSignFunction [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
-- ERROR testFilterUsingModFunction [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
-- ERROR testFilterUsingRemFunction [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
+- SHAPE testFilterUsingRoundFunctionWithScale [query]: partial: 1/2 asserts recognized (recognized ones hold)
+- SHAPE testFilterUsingExpFunction [query]: partial: 1/2 asserts recognized (recognized ones hold)
+- SHAPE testFilterUsingsinFunction [query]: partial: 1/2 asserts recognized (recognized ones hold)
+- SHAPE testFilterUsingCosFunction [query]: partial: 1/2 asserts recognized (recognized ones hold)
+- SHAPE testFilterUsingCotFunction [query]: partial: 1/2 asserts recognized (recognized ones hold)
+- SHAPE testFilterUsingTanFunction [query]: partial: 1/2 asserts recognized (recognized ones hold)
+- ERROR testFilterUsingArcSinFunction [query]: Invalid Input Error: Unable to compute asin of 1.1
+- ERROR testFilterUsingArcCosFunction [query]: Invalid Input Error: Unable to compute acos of 1.1
+- SHAPE testFilterUsingArcTan2Function [query]: partial: 1/2 asserts recognized (recognized ones hold)
 - SHAPE testFilterTimesWithManyOperands [query]: multiple execute() calls
 - SHAPE testFilterUsingQuarterNumberFunction [query]: multiple execute() calls
 - ERROR testCollectionDistinctFunction [query]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
@@ -294,7 +282,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testTdsProjectWithEnumVarEquality [mapping/enumeration]: no execute(|...) call
 - SHAPE testEnumValueReturnedInIfExp [mapping/enumeration]: no execute(|...) call
 - SHAPE testEnumValueReturnedInIfExpNotDistinctTransformers [mapping/enumeration]: no execute(|...) call
-- FAIL testDistinctMappingSelectAll [mapping/distinct]: name: expected [IF 1, IF 2, IF 2], got [IF 2, IF 1, IF 2, IF 2, IF 2]
+- FAIL testDistinctMappingSelectAll [mapping/distinct]: name: expected [IF 1, IF 2, IF 2], got [IF 2, IF 2, IF 2, IF 1, IF 2]
 - FAIL testDistinctMappingSelectAllWithFilter [mapping/distinct]: name: expected [IF 2], got [IF 2, IF 2, IF 2]; code: expected [1002], got [1002, 1002, 1002]
 - FAIL testDistinctMappingSimpleProjectSelectOneOfTheDistinctProperties [mapping/distinct]: toCSV: expected <name
 IF 1
@@ -304,14 +292,7 @@ IF 2
 IF 1
 IF 2
 >
-- FAIL testDistinctMappingSimpleProjectDistinct [mapping/distinct]: toCSV: expected <name
-IF 1
-IF 2
->, got <name
-IF 2
-IF 1
->
-- FAIL testDistinctMappingWithFilterSelectAll [mapping/distinct]: name: expected [IF 1, IF 2, IF 2], got [IF 2, IF 2, IF 2, IF 1]
+- FAIL testDistinctMappingWithFilterSelectAll [mapping/distinct]: name: expected [IF 1, IF 2, IF 2], got [IF 1, IF 2, IF 2, IF 2]
 - FAIL testDistinctMappingWithFilterSelectOneProperty [mapping/distinct]: toCSV: expected <name
 IF 1
 IF 2
@@ -327,8 +308,8 @@ IfName2
 
 >, got <IfName
 
-IfName2
 IfName1
+IfName2
 >
 - ERROR testProjectDistinctMappingWithDistinctInJoin [mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testProjectDistinctMappingWithDistinctInJoinWithDup [mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
@@ -410,13 +391,13 @@ IfName1
 - SHAPE testSelfJoinPropertyMapping [mapping/selfJoin]: no recognizable assertions
 - ERROR testSelfJoinPropertyMappingOverlap [mapping/selfJoin]: multi-hop navigation parent.parent.name through an embedded/slot head is not supported yet
 - ERROR testSelfJoinPropertyMappingWithDynaFunction [mapping/selfJoin]: multi-hop navigation parent.parent.parent.name through an embedded/slot head is not supported yet
-- ERROR testGet [mapping/boolean.pure]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Interaction' (of 1 candidates); class-query dispatch needs exactly o
-- ERROR testQuery [mapping/boolean.pure]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Interaction' (of 1 candidates); class-query dispatch needs exactly o
-- ERROR testProject [mapping/boolean.pure]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Interaction' (of 1 candidates); class-query dispatch needs exactly o
-- ERROR testGet [mapping/dates.pure]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
+- ERROR testGet [mapping/boolean.pure]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected String, got Integer
+- ERROR testQuery [mapping/boolean.pure]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected String, got Integer
+- ERROR testProject [mapping/boolean.pure]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected String, got Integer
+- SHAPE testGet [mapping/dates.pure]: partial: 1/3 asserts recognized (recognized ones hold)
 - SHAPE testQuery [mapping/dates.pure]: multiple execute() calls
-- ERROR testProject [mapping/dates.pure]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
-- ERROR testGet [mapping/dates.pure]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
+- SHAPE testProject [mapping/dates.pure]: partial: 1/2 asserts recognized (recognized ones hold)
+- SHAPE testGet [mapping/dates.pure]: partial: 1/4 asserts recognized (recognized ones hold)
 - SHAPE testQuery [mapping/dates.pure]: multiple execute() calls
-- ERROR testProject [mapping/dates.pure]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one; 'm
+- SHAPE testProject [mapping/dates.pure]: partial: 1/2 asserts recognized (recognized ones hold)
 - SHAPE retrieveDateWithTimeZone [mapping/dates.pure]: multiple execute() calls

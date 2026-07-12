@@ -1415,15 +1415,38 @@ public final class MappingNormalizer {
                             "Join '" + hop.joinName() + "' not found in db '"
                           + hopDb + "'; PM='" + propName + "', mapping="
                           + md.qualifiedName()));
-            // a JOIN side referencing a VIEW whose physical root is the
-            // SOURCE relation substitutes the view's column expressions
-            // (the view is a projection, not a physical relation here)
-            RelationalOperation joinCond = resolveViewRefsInJoin(
-                    jd.operation(), hopDb, prevTable, model, md, p.backingView);
-            String targetTable = determineTargetTable(joinCond, prevTable,
-                    hop.joinName(), propName == null ? "<nested>" : propName,
-                    i + 1, md.qualifiedName());
-            requireNonViewTarget(targetTable, hopDb, hop.joinName(), model, md);
+            // PASS 1: the class's BACKING view always substitutes to its
+            // physical expressions (its row semantics live in the class
+            // pipeline). Then a SOLE remaining non-source view candidate is
+            // the join's TARGET — expanded as a relation, never substituted.
+            RelationalOperation joinCond = p.backingView == null ? jd.operation()
+                    : resolveViewRefsInJoin(jd.operation(), hopDb, prevTable,
+                            model, md, p.backingView, p.backingView);
+            Set<String> condTables = new LinkedHashSet<>();
+            RelOpTranslator.collectTablesIn(joinCond, condTables);
+            condTables.remove(prevTable);
+            String viewTarget = condTables.size() == 1
+                    && model.findView(hopDb, condTables.iterator().next()).isPresent()
+                    ? condTables.iterator().next() : null;
+            if (viewTarget == null) {
+                // PASS 2: source-side view projections substitute (plain
+                // views only; non-plain non-backing stays a loud wall)
+                joinCond = resolveViewRefsInJoin(joinCond, hopDb, prevTable,
+                        model, md, p.backingView, null);
+            }
+            String targetTable = viewTarget != null ? viewTarget
+                    : determineTargetTable(joinCond, prevTable,
+                            hop.joinName(), propName == null ? "<nested>" : propName,
+                            i + 1, md.qualifiedName());
+            if (viewTarget == null) {
+                requireNonViewTarget(targetTable, hopDb, hop.joinName(), model, md);
+            } else if (emitNavigate) {
+                throw new com.legend.error.NotImplementedException(
+                        "Join '" + hop.joinName() + "' navigates to a CLASS"
+                      + " mapped over view '" + viewTarget + "'; class"
+                      + " navigation onto view relations is a roadmap"
+                      + " feature. mapping=" + md.qualifiedName());
+            }
 
             Variable s = new Variable("s");
             Variable t = new Variable("t");
@@ -1452,11 +1475,13 @@ public final class MappingNormalizer {
                                 condLambda));
                 p.classSlots.add(slotAlias);
             } else {
+                ValueSpecification targetRel = viewTarget != null
+                        ? viewRelationExpr(model.findView(hopDb, viewTarget).orElseThrow(),
+                                viewTarget, hopDb, model, md)
+                        : new AppliedFunction("tableReference",
+                                List.of(new PackageableElementPtr(hopDb), new CString(targetTable)));
                 ColSpec slot = new ColSpec(slotAlias,
-                        new LambdaFunction(List.of(), List.of(new AppliedFunction(
-                                "tableReference",
-                                List.of(new PackageableElementPtr(hopDb), new CString(targetTable))))),
-                        null);
+                        new LambdaFunction(List.of(), List.of(targetRel)), null);
                 p.expr = new AppliedFunction("join",
                         List.of(p.expr, slot, condLambda));
             }
@@ -2085,7 +2110,8 @@ public final class MappingNormalizer {
                           + associationName + "', mapping=" + md.qualifiedName()));
             RelationalOperation cond2 = resolveViewRefsInJoin(
                     jd.operation(), hopDb, sourceTable, model, md,
-                    model.findView(hopDb, sourceTable).isPresent() ? sourceTable : null);
+                    model.findView(hopDb, sourceTable).isPresent() ? sourceTable : null,
+                    null);
             String targetTable = determineTargetTable(cond2, sourceTable,
                     hop.joinName(), associationName, 1, md.qualifiedName());
             requireNonViewTarget(targetTable, hopDb, hop.joinName(), model, md);
@@ -2309,12 +2335,21 @@ public final class MappingNormalizer {
         }
     }
 
-    /** Substitute view-column refs whose view's physical root IS the source relation. */
+    /**
+     * Substitute view-column refs whose view's physical root IS the source
+     * relation. {@code onlyView} non-null = PASS-1 mode: substitute only
+     * that view (the class's backing view — its row semantics already live
+     * in the class pipeline), no guards; refs to other views pass through
+     * so the caller can recognize a view TARGET.
+     */
     private static RelationalOperation resolveViewRefsInJoin(RelationalOperation op,
             String db, String sourceTable, ModelBuilder model, LegacyMappingDefinition md,
-            String backingView) {
+            String backingView, String onlyView) {
         return switch (op) {
             case RelationalOperation.ColumnRef cr -> {
+                if (onlyView != null && !cr.table().equals(onlyView)) {
+                    yield cr;
+                }
                 var view = model.findView(cr.databaseName() != null ? cr.databaseName() : db,
                         cr.table()).orElse(null);
                 if (view == null) {
@@ -2325,7 +2360,8 @@ public final class MappingNormalizer {
                     yield cr;
                 }
                 if ((view.filter() != null || !view.groupByColumns().isEmpty()
-                        || view.distinct()) && !cr.table().equals(backingView)) {
+                        || view.distinct()) && !cr.table().equals(backingView)
+                        && onlyView == null) {
                     // substituting the column expression alone would DROP the
                     // view's row semantics (filter/distinct/groupBy) — the
                     // join would match rows the view excludes. EXEMPT: the
@@ -2348,23 +2384,138 @@ public final class MappingNormalizer {
                 yield cr;
             }
             case RelationalOperation.Comparison c -> new RelationalOperation.Comparison(
-                    resolveViewRefsInJoin(c.left(), db, sourceTable, model, md, backingView), c.op(),
-                    resolveViewRefsInJoin(c.right(), db, sourceTable, model, md, backingView));
+                    resolveViewRefsInJoin(c.left(), db, sourceTable, model, md, backingView, onlyView), c.op(),
+                    resolveViewRefsInJoin(c.right(), db, sourceTable, model, md, backingView, onlyView));
             case RelationalOperation.BooleanOp b -> new RelationalOperation.BooleanOp(
-                    resolveViewRefsInJoin(b.left(), db, sourceTable, model, md, backingView), b.op(),
-                    resolveViewRefsInJoin(b.right(), db, sourceTable, model, md, backingView));
+                    resolveViewRefsInJoin(b.left(), db, sourceTable, model, md, backingView, onlyView), b.op(),
+                    resolveViewRefsInJoin(b.right(), db, sourceTable, model, md, backingView, onlyView));
             case RelationalOperation.Group g -> new RelationalOperation.Group(
-                    resolveViewRefsInJoin(g.inner(), db, sourceTable, model, md, backingView));
+                    resolveViewRefsInJoin(g.inner(), db, sourceTable, model, md, backingView, onlyView));
             case RelationalOperation.IsNull n -> new RelationalOperation.IsNull(
-                    resolveViewRefsInJoin(n.operand(), db, sourceTable, model, md, backingView));
+                    resolveViewRefsInJoin(n.operand(), db, sourceTable, model, md, backingView, onlyView));
             case RelationalOperation.IsNotNull n -> new RelationalOperation.IsNotNull(
-                    resolveViewRefsInJoin(n.operand(), db, sourceTable, model, md, backingView));
+                    resolveViewRefsInJoin(n.operand(), db, sourceTable, model, md, backingView, onlyView));
             case RelationalOperation.FunctionCall f -> new RelationalOperation.FunctionCall(
                     f.name(), f.args().stream()
-                            .map(a -> resolveViewRefsInJoin(a, db, sourceTable, model, md, backingView))
+                            .map(a -> resolveViewRefsInJoin(a, db, sourceTable, model, md, backingView, onlyView))
                             .toList());
             default -> op;
         };
+    }
+
+    /**
+     * A VIEW as a standalone RELATION expression — the join-hop target:
+     * {@code tableReference(physRoot) -> [~filter] -> (groupBy | project)
+     * -> [distinct]}. Output column names are the view's declared column
+     * names, so join conditions and terminal reads spelling
+     * {@code <view>.<col>} resolve against this row.
+     */
+    private static ValueSpecification viewRelationExpr(
+            DatabaseDefinition.ViewDefinition view, String viewName, String db,
+            ModelBuilder model, LegacyMappingDefinition md) {
+        String phys = inferViewMainTable(view, viewName, md);
+        ValueSpecification src = new AppliedFunction("tableReference",
+                List.of(new PackageableElementPtr(db), new CString(phys)));
+        Variable r = new Variable("vr");
+        Map<String, ValueSpecification> scope = new LinkedHashMap<>();
+        scope.put(phys, r);
+        if (view.filter() != null) {
+            if (!(view.filter() instanceof FilterMapping.Direct direct)) {
+                throw new com.legend.error.NotImplementedException(
+                        "view '" + viewName + "' used as a join target has a"
+                      + " join-mediated ~filter; only direct view filters"
+                      + " expand as relations. mapping=" + md.qualifiedName());
+            }
+            String dbFqn = switch (direct.filter()) {
+                case FilterPointer.Cross c -> c.db();
+                case FilterPointer.Local l -> db;
+            };
+            DatabaseDefinition.FilterDefinition fd = model.findFilter(
+                    dbFqn, direct.filter().name()).orElseThrow(() ->
+                    new com.legend.error.ModelException(
+                            com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                            "~filter '" + direct.filter().name() + "' of view '"
+                          + viewName + "' not found in db '" + dbFqn
+                          + "'; mapping=" + md.qualifiedName()));
+            ValueSpecification cond = RelOpTranslator.translate(fd.condition(), scope,
+                    null, r, RelOpTranslator.PipelineView.NONE);
+            src = new AppliedFunction("filter", List.of(src,
+                    new LambdaFunction(List.of(r), List.of(cond))));
+        }
+        for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
+            List<JoinNavSpec> navs = new ArrayList<>();
+            collectJoinNavigations(vc.expression(), navs);
+            if (!navs.isEmpty()) {
+                throw new com.legend.error.NotImplementedException(
+                        "view '" + viewName + "' used as a join target has a"
+                      + " join-navigating column '" + vc.name()
+                      + "'; navigating view columns are a roadmap feature."
+                      + " mapping=" + md.qualifiedName());
+            }
+        }
+        if (!view.groupByColumns().isEmpty()) {
+            List<RelationalOperation> keyOps = view.groupByColumns();
+            boolean[] claimed = new boolean[keyOps.size()];
+            List<ColSpec> keyCols = new ArrayList<>();
+            List<ColSpec> aggCols = new ArrayList<>();
+            for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
+                RelationalOperation expr = vc.expression();
+                if (expr instanceof RelationalOperation.FunctionCall fc
+                        && AGGREGATE_FNS.contains(fc.name()) && fc.args().size() == 1) {
+                    ValueSpecification selector = RelOpTranslator.translate(
+                            fc.args().get(0), scope, null, r, RelOpTranslator.PipelineView.NONE);
+                    Variable vals = new Variable("vals");
+                    aggCols.add(new ColSpec(vc.name(),
+                            new LambdaFunction(List.of(r), List.of(selector)),
+                            new LambdaFunction(List.of(vals),
+                                    List.of(new AppliedFunction(fc.name(), List.of(vals))))));
+                    continue;
+                }
+                int match = -1;
+                for (int i = 0; i < keyOps.size(); i++) {
+                    if (!claimed[i] && groupByOpsMatch(expr, keyOps.get(i))) {
+                        match = i;
+                        break;
+                    }
+                }
+                if (match < 0) {
+                    throw new com.legend.error.NotImplementedException(
+                            "view '" + viewName + "' column '" + vc.name()
+                          + "' is a per-row expression that is neither an"
+                          + " aggregate nor a declared ~groupBy key."
+                          + " mapping=" + md.qualifiedName());
+                }
+                claimed[match] = true;
+                ValueSpecification keyValue = RelOpTranslator.translate(expr, scope,
+                        null, r, RelOpTranslator.PipelineView.NONE);
+                keyCols.add(new ColSpec(vc.name(),
+                        new LambdaFunction(List.of(r), List.of(keyValue)), null));
+            }
+            for (int i = 0; i < keyOps.size(); i++) {
+                if (!claimed[i]) {
+                    // grouped-but-unprojected key: keep the grouping exact
+                    ValueSpecification keyValue = RelOpTranslator.translate(keyOps.get(i),
+                            scope, null, r, RelOpTranslator.PipelineView.NONE);
+                    keyCols.add(new ColSpec("k" + i,
+                            new LambdaFunction(List.of(r), List.of(keyValue)), null));
+                }
+            }
+            src = new AppliedFunction("groupBy", List.of(src,
+                    new ColSpecArray(keyCols), new ColSpecArray(aggCols)));
+        } else {
+            List<ColSpec> cols = new ArrayList<>(view.columnMappings().size());
+            for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
+                ValueSpecification val = RelOpTranslator.translate(vc.expression(), scope,
+                        null, r, RelOpTranslator.PipelineView.NONE);
+                cols.add(new ColSpec(vc.name(),
+                        new LambdaFunction(List.of(r), List.of(val)), null));
+            }
+            src = new AppliedFunction("project", List.of(src, new ColSpecArray(cols)));
+        }
+        if (view.distinct()) {
+            src = new AppliedFunction("distinct", List.of(src));
+        }
+        return src;
     }
 
     /**
