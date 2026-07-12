@@ -137,13 +137,17 @@ final class RelOpTranslator {
                                                     PipelineView pipeline) {
         return switch (op) {
             case RelationalOperation.ColumnRef ref -> {
-                ValueSpecification path = tableScope.get(ref.table());
-                if (path == null && pipeline.ambiguousTables().contains(ref.table())) {
-                    throw ambiguousTableRef(ref.table(), ref.column());
+                // 'default.T' and 'T' are the same table — the default-schema
+                // prefix is spelling, not identity (scope registers canonical)
+                String refTable = ref.table().startsWith("default.")
+                        ? ref.table().substring("default.".length()) : ref.table();
+                ValueSpecification path = tableScope.get(refTable);
+                if (path == null && pipeline.ambiguousTables().contains(refTable)) {
+                    throw ambiguousTableRef(refTable, ref.column());
                 }
                 if (path == null) {
                     throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
-                            "ColumnRef references table '" + ref.table()
+                            "ColumnRef references table '" + refTable
                           + "' not in scope; available=" + tableScope.keySet());
                 }
                 yield new AppliedProperty(path, ref.column());

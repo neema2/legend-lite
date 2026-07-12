@@ -765,15 +765,28 @@ public final class MappingNormalizer {
             collectMainTables(pm, refs);
         }
         Set<String> names = new LinkedHashSet<>();
-        refs.forEach(r -> names.add(r.table().startsWith("default.")
-                ? r.table().substring("default.".length()) : r.table()));
+        refs.forEach(r -> names.add(canonicalTable(r.table())));
         if (names.size() > 1) {
             throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE,
                     "Can't find the main table for class '" + rcm.className()
                   + "': property mappings span tables " + names
                   + ". Please specify a main table using the ~mainTable directive.");
         }
-        return refs.isEmpty() ? null : refs.get(0);
+        if (refs.isEmpty()) {
+            return null;
+        }
+        // return the CANONICAL name: scope([db]default.personTable) columns
+        // record 'default.personTable' while join conditions and the store
+        // lookup say 'personTable' — the default-schema prefix is spelling,
+        // not identity
+        LegacyMappingDefinition.TableReference first = refs.get(0);
+        return new LegacyMappingDefinition.TableReference(first.database(),
+                canonicalTable(first.table()));
+    }
+
+    private static String canonicalTable(String table) {
+        return table.startsWith("default.")
+                ? table.substring("default.".length()) : table;
     }
 
     /** {@link #inferMainTable} as a PROBE: null on ambiguity instead of loud. */
@@ -1410,6 +1423,7 @@ public final class MappingNormalizer {
             String targetTable = determineTargetTable(joinCond, prevTable,
                     hop.joinName(), propName == null ? "<nested>" : propName,
                     i + 1, md.qualifiedName());
+            requireNonViewTarget(targetTable, hopDb, hop.joinName(), model, md);
 
             Variable s = new Variable("s");
             Variable t = new Variable("t");
@@ -2074,6 +2088,7 @@ public final class MappingNormalizer {
                     model.findView(hopDb, sourceTable).isPresent() ? sourceTable : null);
             String targetTable = determineTargetTable(cond2, sourceTable,
                     hop.joinName(), associationName, 1, md.qualifiedName());
+            requireNonViewTarget(targetTable, hopDb, hop.joinName(), model, md);
             // The synthesized legacyAssocPredicate call declares tgtRow's row
             // type as classB's ~mainTable; the join must actually land there,
             // or the lambda's column reads would silently mistype.
@@ -2350,6 +2365,24 @@ public final class MappingNormalizer {
                             .toList());
             default -> op;
         };
+    }
+
+    /**
+     * A join landing ON a view has no physical target relation yet — wall it
+     * AT SYNTH TIME so the failure stays inside the per-class poison catch.
+     * Without this, the synth body carries an unknown-table tableReference
+     * whose type-check failure (phase F, OUTSIDE the catch) sinks the WHOLE
+     * mapping for every class. Views as join targets = roadmap slice.
+     */
+    private static void requireNonViewTarget(String targetTable, String db,
+            String joinName, ModelBuilder model, LegacyMappingDefinition md) {
+        if (model.findView(db, targetTable).isPresent()) {
+            throw new com.legend.error.NotImplementedException(
+                    "Join '" + joinName + "' targets view '" + targetTable
+                  + "'; views as JOIN TARGETS are a roadmap feature (the view"
+                  + " must expand as a relation at the join hop). mapping="
+                  + md.qualifiedName());
+        }
     }
 
     private static String determineTargetTable(RelationalOperation cond, String sourceTable,

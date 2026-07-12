@@ -169,7 +169,14 @@ public final class Corpus {
      * setup, a syntax error on DuckDB. CREATE TABLE generation already
      * quotes; unquoted INSERTs would fail and leave the table empty.
      */
+    private static final Pattern CREATE_HEAD = Pattern.compile(
+            "(?i)^\\s*create\\s+table\\s+[\\w.\"]+\\s*\\(");
+
     static String quoteInsertColumns(String sql) {
+        Matcher cm = CREATE_HEAD.matcher(sql);
+        if (cm.find()) {
+            return quoteCreateColumns(sql, cm.end());
+        }
         Matcher m = INSERT_COLS.matcher(sql);
         if (!m.find()) {
             return sql;
@@ -183,6 +190,62 @@ public final class Corpus {
             cols.append(name.startsWith("\"") ? name : "\"" + name + "\"");
         }
         return m.group(1) + cols + m.group(3) + sql.substring(m.end(3));
+    }
+
+    /**
+     * Quote the column NAME of each top-level column definition in a
+     * CREATE TABLE literal (constraint entries — PRIMARY KEY(...) etc —
+     * pass through). Keyword column names (default, do, else...) are legal
+     * on the engine's H2 setup and a syntax error on DuckDB unquoted.
+     */
+    private static String quoteCreateColumns(String sql, int bodyStart) {
+        int depth = 1;
+        int end = bodyStart;
+        while (end < sql.length() && depth > 0) {
+            char c = sql.charAt(end);
+            if (c == '(') {
+                depth++;
+            } else if (c == ')') {
+                depth--;
+            }
+            end++;
+        }
+        String body = sql.substring(bodyStart, end - 1);
+        StringBuilder out = new StringBuilder();
+        int d = 0;
+        int start = 0;
+        List<String> parts = new ArrayList<>();
+        for (int i = 0; i < body.length(); i++) {
+            char c = body.charAt(i);
+            if (c == '(') {
+                d++;
+            } else if (c == ')') {
+                d--;
+            } else if (c == ',' && d == 0) {
+                parts.add(body.substring(start, i));
+                start = i + 1;
+            }
+        }
+        parts.add(body.substring(start));
+        for (String part : parts) {
+            String col = part.strip();
+            if (out.length() > 0) {
+                out.append(", ");
+            }
+            int sp = 0;
+            while (sp < col.length() && !Character.isWhitespace(col.charAt(sp))
+                    && col.charAt(sp) != '(') {
+                sp++;
+            }
+            String head = col.substring(0, sp);
+            if (col.startsWith("\"")
+                    || head.matches("(?i)primary|constraint|foreign|unique|check")) {
+                out.append(col);
+            } else {
+                out.append('\"').append(head).append('\"').append(col.substring(sp));
+            }
+        }
+        return sql.substring(0, bodyStart) + out + sql.substring(end - 1);
     }
 
     // ===== table DDL from the store text =====
@@ -207,6 +270,11 @@ public final class Corpus {
             }
             parts.add(columnsText.substring(start));
             for (String raw : parts) {
+                // a milestoning(business(...)) block is a table DIRECTIVE,
+                // not a column — not part of the physical DDL
+                if (raw.strip().startsWith("milestoning")) {
+                    continue;
+                }
                 String col = raw.strip().replaceAll("(?i)\\s+PRIMARY\\s+KEY", "")
                         .replaceAll("(?i)\\s+NOT\\s+NULL", "");
                 int sp = col.startsWith("\"") ? col.indexOf('"', 1) + 1 : firstSpace(col);
@@ -222,7 +290,10 @@ public final class Corpus {
             }
             String qualified = schema.isEmpty() || schema.equals("default")
                     ? name : schema + "." + name;
-            return "CREATE TABLE " + qualified + " (" + cols + ")";
+            // OR REPLACE: a family/file setup legitimately REDEFINES a base
+            // table (the engine harness's per-package setUp owns the table);
+            // the last definition before the test wins
+            return "CREATE OR REPLACE TABLE " + qualified + " (" + cols + ")";
         }
 
         private static int firstSpace(String s) {
@@ -350,11 +421,63 @@ public final class Corpus {
                 i++;
             }
             String body = source.substring(bodyStart, i);
+            // a BeforePackage often just CALLS same-file setup helpers
+            // (join::model::store::createTablesAndFillDb) — expand the
+            // transitive closure of same-source calls so their executeInDb
+            // literals count as this package's seeds
             out.add(new BeforePackage(m.group(1),
                     body.contains("createTablesAndFillDb"),
-                    seedSql(body)));
+                    seedSql(expandCalls(body, source))));
         }
         return out;
+    }
+
+    /** {@code body} plus the bodies of same-source functions it calls (transitively). */
+    private static String expandCalls(String body, String source) {
+        Map<String, String> fns = new LinkedHashMap<>();
+        Matcher fm = Pattern.compile(
+                "(?m)^function\\s+(?:<<[^>]*>>\\s*)?(?:[\\w$]+::)*([\\w$]+)\\s*\\(\\s*\\)").matcher(source);
+        while (fm.find()) {
+            int bs = source.indexOf('{', fm.end());
+            if (bs < 0) {
+                continue;
+            }
+            int depth = 0;
+            int i = bs;
+            while (i < source.length()) {
+                char c = source.charAt(i);
+                if (c == '\'') {
+                    i = skipString(source, i);
+                    continue;
+                }
+                if (c == '{') {
+                    depth++;
+                } else if (c == '}') {
+                    depth--;
+                    if (depth == 0) {
+                        break;
+                    }
+                }
+                i++;
+            }
+            fns.putIfAbsent(fm.group(1), source.substring(bs, Math.min(i + 1, source.length())));
+        }
+        StringBuilder expanded = new StringBuilder(body);
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        java.util.ArrayDeque<String> queue = new java.util.ArrayDeque<>();
+        queue.add(body);
+        while (!queue.isEmpty()) {
+            String cur = queue.poll();
+            Matcher call = Pattern.compile("(?:[\\w$]+::)*([\\w$]+)\\s*\\(\\s*\\)").matcher(cur);
+            while (call.find()) {
+                String callee = call.group(1);
+                if (seen.add(callee) && fns.containsKey(callee)) {
+                    expanded.append('\n').append(fns.get(callee));
+                    queue.add(fns.get(callee));
+                }
+            }
+        }
+        return expanded.toString();
     }
 
     // ===== test extraction =====

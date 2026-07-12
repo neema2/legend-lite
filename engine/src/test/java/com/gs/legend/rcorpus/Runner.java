@@ -47,27 +47,20 @@ public final class Runner {
         StringBuilder mandatory = new StringBuilder();
         List<String[]> mappings = new ArrayList<>();
         for (String src : sharedSources) {
-            String elements = Corpus.modelElements(src);
-            List<String[]> els = splitTopLevel(elements);
-            // the file's LEADING imports precede the first element head —
-            // they scope the whole file and must survive assembly
-            int firstHead = els.isEmpty() ? elements.length()
-                    : elements.indexOf(els.get(0)[2]);
-            mandatory.append(elements, 0, Math.max(0, firstHead)).append('\n');
-            for (String[] el : els) {
+            for (String[] el : splitSectioned(Corpus.modelElements(src))) {
                 if (el[0].equals("Mapping")) {
                     mappings.add(el);
                 } else {
-                    mandatory.append(el[2]).append('\n');
+                    mandatory.append(el[2]).append(el[3]).append('\n');
                 }
             }
         }
         StringBuilder assembled = new StringBuilder(mandatory);
         for (String[] m : mappings) {
-            String candidate = assembled + "\n" + m[2];
+            String candidate = assembled + "\n" + m[2] + m[3];
             try {
                 com.legend.Compiler.compile(candidate, "|1", "n/a");
-                assembled.append('\n').append(m[2]);
+                assembled.append('\n').append(m[2]).append(m[3]);
             } catch (Exception e) {
                 walls.add(m[1] + " => " + String.valueOf(e.getMessage()).split("\n")[0]);
             }
@@ -96,6 +89,62 @@ public final class Runner {
     private final Map<String, String> fileModels = new LinkedHashMap<>();
     private final Map<String, List<String>> fileSeeds = new LinkedHashMap<>();
     private String currentFileKey = "";
+    /** Family-level extension: the family's SETUP files (no test functions). */
+    private final Map<String, String> familyModels = new LinkedHashMap<>();
+    private final Map<String, List<String>> familySeeds = new LinkedHashMap<>();
+    private String currentFamilyKey = "";
+
+    /**
+     * Register a family's setup files (sources with NO test functions —
+     * e.g. advancedRelationalSetUp.pure next to the join tests). Their
+     * elements extend the shared model for EVERY test file of the family;
+     * their DDL and executeInDb literals seed too.
+     */
+    public void useFamily(String familyKey, List<String> setupSources) {
+        currentFamilyKey = familyKey;
+        if (familyModels.containsKey(familyKey)) {
+            return;
+        }
+        StringBuilder ext = new StringBuilder();
+        List<String> sql = new ArrayList<>();
+        StringBuilder assembled = new StringBuilder(model);
+        // pass 1: every setup file's NON-mapping elements (a mapping in file
+        // A may reference classes from file B — mappings probe after ALL
+        // classes/stores across the family are present)
+        List<String[]> mappings = new ArrayList<>();
+        for (String src : setupSources) {
+            StringBuilder part = new StringBuilder();
+            for (String[] el : splitSectioned(Corpus.modelElements(src))) {
+                if (el[0].equals("Mapping")) {
+                    mappings.add(el);
+                } else {
+                    part.append(el[2]).append(el[3]).append('\n');
+                }
+            }
+            assembled.append('\n').append(part);
+            ext.append('\n').append(part);
+            for (var d : Corpus.tableDefs(src).values()) {
+                if (!d.schema().isEmpty() && !d.schema().equals("default")) {
+                    sql.add("CREATE SCHEMA IF NOT EXISTS " + d.schema());
+                }
+                sql.add(d.createSql());
+            }
+        }
+        // pass 2: probe-compile every family mapping against the full base
+        for (String[] m : mappings) {
+            String candidate = assembled + "\n" + m[2] + m[3];
+            try {
+                com.legend.Compiler.compile(candidate, "|1", "n/a");
+                assembled.append('\n').append(m[2]).append(m[3]);
+                ext.append('\n').append(m[2]).append(m[3]);
+            } catch (Exception e) {
+                walls.add(familyKey + " " + m[1] + " => "
+                        + String.valueOf(e.getMessage()).split("\n")[0]);
+            }
+        }
+        familyModels.put(familyKey, ext.toString());
+        familySeeds.put(familyKey, sql);
+    }
 
     /**
      * Register a test file's own model elements: mandatory elements append;
@@ -107,31 +156,28 @@ public final class Runner {
         if (fileModels.containsKey(key)) {
             return;
         }
-        String elements = Corpus.modelElements(source);
-        List<String[]> els = splitTopLevel(elements);
         StringBuilder extension = new StringBuilder();
         List<String[]> fileMappings = new ArrayList<>();
-        int firstHead = els.isEmpty() ? elements.length() : elements.indexOf(els.get(0)[2]);
-        extension.append(elements, 0, Math.max(0, firstHead)).append('\n');
-        for (String[] el : els) {
+        for (String[] el : splitSectioned(Corpus.modelElements(source))) {
             if (el[0].equals("Mapping")) {
                 fileMappings.add(el);
             } else {
-                extension.append(el[2]).append('\n');
+                extension.append(el[2]).append(el[3]).append('\n');
             }
         }
-        StringBuilder assembled = new StringBuilder(model).append('\n').append(extension);
+        String base = model + familyModels.getOrDefault(currentFamilyKey, "");
+        StringBuilder assembled = new StringBuilder(base).append('\n').append(extension);
         for (String[] m : fileMappings) {
-            String candidate = assembled + "\n" + m[2];
+            String candidate = assembled + "\n" + m[2] + m[3];
             try {
                 com.legend.Compiler.compile(candidate, "|1", "n/a");
-                assembled.append('\n').append(m[2]);
+                assembled.append('\n').append(m[2]).append(m[3]);
             } catch (Exception e) {
                 walls.add(key + " " + m[1] + " => "
                         + String.valueOf(e.getMessage()).split("\n")[0]);
             }
         }
-        fileModels.put(key, assembled.substring(model.length()));
+        fileModels.put(key, assembled.substring(base.length()));
         List<String> sql = new ArrayList<>();
         for (var d : Corpus.tableDefs(source).values()) {
             if (!d.schema().isEmpty() && !d.schema().equals("default")) {
@@ -151,6 +197,51 @@ public final class Runner {
 
     public List<String> seedFailures() {
         return new ArrayList<>(seedFailures);
+    }
+
+    private static final Pattern IMPORT_LINE = Pattern.compile(
+            "(?m)^import\\s+[\\w:]+(?:::\\*)?\\s*;\\s*$");
+
+    /**
+     * kind, fqn, importBlock, text quadruples of top-level elements. Each
+     * element carries ITS OWN section's imports (the parser's rule: imports
+     * open a section scoping the elements that follow; an import after
+     * elements opens a NEW section). Assembly REORDERS elements (mappings
+     * probe-append last), so every element re-emits its import block —
+     * without this, a relocated mapping resolves in whatever section
+     * precedes its new position and simple names silently misresolve
+     * (join-family Person bound NOTHING because its import block stayed
+     * behind at the original position).
+     */
+    private static List<String[]> splitSectioned(String elements) {
+        List<String[]> raw = splitTopLevel(elements);
+        List<String[]> out = new ArrayList<>(raw.size());
+        // walk import lines and element heads in text order, mirroring the
+        // parser's section logic
+        List<int[]> importSpans = new ArrayList<>();
+        Matcher im = IMPORT_LINE.matcher(elements);
+        while (im.find()) {
+            importSpans.add(new int[]{im.start(), im.end()});
+        }
+        int ii = 0;
+        StringBuilder current = new StringBuilder();
+        boolean sawElement = false;
+        for (String[] el : raw) {
+            int elStart = elements.indexOf(el[2]);
+            while (ii < importSpans.size() && importSpans.get(ii)[0] < elStart) {
+                if (sawElement) {
+                    current.setLength(0);   // import after elements: new section
+                    sawElement = false;
+                }
+                current.append(elements, importSpans.get(ii)[0], importSpans.get(ii)[1])
+                        .append('\n');
+                ii++;
+            }
+            sawElement = true;
+            out.add(new String[]{el[0], el[1], current.toString(),
+                    IMPORT_LINE.matcher(el[2]).replaceAll("")});
+        }
+        return out;
     }
 
     /** kind, fqn, text triples of top-level elements (brace/paren matched). */
@@ -203,8 +294,10 @@ public final class Runner {
         String mappingRef = qualify(args.get(1).strip(), fn);
         try {
             String runtimeFqn = "rcorpus::Rt";
+            String familyExt = familyModels.getOrDefault(currentFamilyKey, "");
             String fileExt = fileModels.getOrDefault(currentFileKey, "");
-            String fullModel = model + fileExt + runtimeBlock(model + fileExt, mappingRef);
+            String modelText = model + familyExt + fileExt;
+            String fullModel = modelText + runtimeBlock(modelText, mappingRef);
             String qualified = qualifyQuery(query, fn);
             try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
                 try (var st = conn.createStatement()) {
@@ -213,6 +306,7 @@ public final class Runner {
                 // base seeds + every BeforePackage setup covering the test's
                 // package (the engine harness's test.BeforePackage contract)
                 List<String> allSeeds = new ArrayList<>(seeds);
+                allSeeds.addAll(familySeeds.getOrDefault(currentFamilyKey, List.of()));
                 allSeeds.addAll(fileSeeds.getOrDefault(currentFileKey, List.of()));
                 for (Corpus.BeforePackage bp : beforePackages) {
                     if (fn.fqn().startsWith(bp.pkg() + "::")) {
@@ -238,8 +332,9 @@ public final class Runner {
                 return checkAsserts(fn, r, failedSeeds);
             }
         } catch (Exception e) {
+            // flatten, don't truncate — poison reasons ride on later lines
             return new Outcome(fn.fqn(), Status.ERROR,
-                    String.valueOf(e.getMessage()).split("\n")[0]);
+                    String.valueOf(e.getMessage()).replace("\n", " | "));
         }
     }
 
@@ -320,7 +415,33 @@ public final class Runner {
                         }
                     }
                 }
+                case "assertSameSQL" -> {
+                    if (args.size() == 2 && args.get(1).strip().equals("$R")) {
+                        sqlAsserts++;   // advisory golden-SQL: recognized, NOT verified
+                        recognized++;
+                    }
+                }
                 case "assertSameElements" -> {
+                    if (args.size() == 2 && args.get(0).strip().startsWith("$R")
+                            && !args.get(1).strip().startsWith("$R")) {
+                        args = List.of(args.get(1), args.get(0));   // actual-first spelling
+                    }
+                    Matcher cellsMap = Pattern.compile(
+                            "^\\$R(?:\\.values->at\\(\\d+\\))?\\.rows->map\\(\\s*\\w+\\s*\\|\\s*\\$\\w+\\.values\\s*\\)$")
+                            .matcher(args.size() == 2 ? args.get(1).strip() : "");
+                    if (cellsMap.matches()) {
+                        List<Object> expected = pureLiteralList(args.get(0).strip());
+                        if (expected != null) {
+                            recognized++;
+                            verified++;
+                            List<Object> actual = new ArrayList<>();
+                            rows.forEach(row -> actual.addAll(row.values()));
+                            if (!multisetEquals(expected, actual)) {
+                                problems.add("cells: expected " + expected + ", got " + actual);
+                            }
+                        }
+                        continue;
+                    }
                     Matcher pm = Pattern.compile("^\\$R(?:\\.values)?(?:->at\\((\\d+)\\))?\\.(\\w+)$")
                             .matcher(args.size() == 2 ? args.get(1).strip() : "");
                     if (pm.matches()) {
@@ -342,6 +463,10 @@ public final class Runner {
                     }
                 }
                 case "assertEquals", "assertEqualsHNCompatible" -> {
+                    if (args.size() == 2 && args.get(0).strip().startsWith("$R")
+                            && !args.get(1).strip().startsWith("$R")) {
+                        args = List.of(args.get(1), args.get(0));   // actual-first spelling
+                    }
                     String second = args.size() == 2 ? args.get(1).strip() : "";
                     if (second.endsWith("->sqlRemoveFormatting()") || second.endsWith("->sql()")) {
                         sqlAsserts++;   // advisory golden-SQL: recognized, NOT verified
@@ -421,6 +546,36 @@ public final class Runner {
                             verified++;
                             if (rows.size() != n) {
                                 problems.add("size: expected " + n + ", got " + rows.size());
+                            }
+                        }
+                        continue;
+                    }
+                    Matcher toCsv = Pattern.compile(
+                            "^\\$R(?:\\.values)?(?:->toOne\\(\\))?->toCSV\\(\\)$")
+                            .matcher(second);
+                    if (toCsv.matches()) {
+                        Object expected = pureLiteral(args.get(0).strip());
+                        if (expected instanceof String es) {
+                            recognized++;
+                            verified++;
+                            String actual = toCsv(rows);
+                            if (!es.equals(actual)) {
+                                problems.add("toCSV: expected <" + es + ">, got <" + actual + ">");
+                            }
+                        }
+                        continue;
+                    }
+                    Matcher propCol = Pattern.compile(
+                            "^\\$R(?:\\.values)?\\.(\\w+)$").matcher(second);
+                    if (propCol.matches()) {
+                        List<Object> expected = pureLiteralList(args.get(0).strip());
+                        if (expected != null) {
+                            recognized++;
+                            verified++;
+                            List<Object> actual = column(rows, propCol.group(1));
+                            if (!orderedEquals(expected, actual)) {
+                                problems.add(propCol.group(1) + ": expected " + expected
+                                        + ", got " + actual);
                             }
                         }
                         continue;
@@ -524,6 +679,26 @@ public final class Runner {
             case com.gs.legend.util.Json.Bool b -> b.value();
             case com.gs.legend.util.Json.Null ignored -> null;
         };
+    }
+
+    /** TDS toCSV rendering: header row + comma rows, each \n-terminated. */
+    private static String toCsv(List<Map<String, Object>> rows) {
+        if (rows.isEmpty()) {
+            return "";
+        }
+        StringBuilder out = new StringBuilder();
+        out.append(String.join(",", rows.get(0).keySet())).append('\n');
+        for (var row : rows) {
+            StringBuilder line = new StringBuilder();
+            for (Object v : row.values()) {
+                if (line.length() > 0) {
+                    line.append(',');
+                }
+                line.append(v == null ? "" : String.valueOf(v));
+            }
+            out.append(line).append('\n');
+        }
+        return out.toString();
     }
 
     private static List<Object> column(List<Map<String, Object>> rows, String prop) {
@@ -758,7 +933,8 @@ public final class Runner {
         if (fn.imports() != null && fn.imports().containsKey(name)) {
             return fn.imports().get(name);
         }
-        String scope = model + fileModels.getOrDefault(currentFileKey, "");
+        String scope = model + familyModels.getOrDefault(currentFamilyKey, "")
+                + fileModels.getOrDefault(currentFileKey, "");
         for (String pkg : packagesInScope(fn)) {
             String candidate = pkg + "::" + name;
             if (scope.contains(candidate)) {
@@ -850,7 +1026,8 @@ public final class Runner {
         Map<String, List<String>> index = new LinkedHashMap<>();
         Matcher m = Pattern.compile(
                 "(?m)^(?:Class|Enum|Database|Mapping|Association)\\s+(?:<<[^>]*>>\\s*)?((?:\\w+::)+)(\\w+)")
-                .matcher(model + fileModels.getOrDefault(currentFileKey, ""));
+                .matcher(model + familyModels.getOrDefault(currentFamilyKey, "")
+                        + fileModels.getOrDefault(currentFileKey, ""));
         while (m.find()) {
             String simple = m.group(2);
             String fqn = m.group(1) + simple;

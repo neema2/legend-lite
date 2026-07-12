@@ -77,10 +77,22 @@ class RelationalCorpusRunner {
             for (Path f : files) {
                 runner.addBeforePackages(Files.readString(f));
             }
+            // SETUP files (no test functions — advancedRelationalSetUp.pure
+            // et al) extend the model for EVERY test file of the family
+            List<String> setupSources = new ArrayList<>();
+            Map<Path, String> testSources = new LinkedHashMap<>();
             for (Path f : files) {
                 String src = Files.readString(f);
-                runner.useFile(f.toString(), src);
-                for (Corpus.TestFn fn : Corpus.testFunctions(src)) {
+                if (Corpus.testFunctions(src).isEmpty()) {
+                    setupSources.add(src);
+                } else {
+                    testSources.put(f, src);
+                }
+            }
+            runner.useFamily(family, setupSources);
+            for (Map.Entry<Path, String> e : testSources.entrySet()) {
+                runner.useFile(e.getKey().toString(), e.getValue());
+                for (Corpus.TestFn fn : Corpus.testFunctions(e.getValue())) {
                     outcomes.add(runner.run(fn));
                 }
             }
