@@ -390,8 +390,11 @@ public final class ClassSources {
             }
         }
         for (MappingInclude inc : mapping.includes()) {
-            if (ctx.findMapping(inc.mappingPath())
-                    .map(m -> bindsIn(m, classFqn, visited)).orElse(false)) {
+            MappingDefinition inner = ctx.findMapping(inc.mappingPath()).orElseThrow(() ->
+                    new MappingResolutionException("mapping '" + mapping.qualifiedName()
+                            + "' includes unknown mapping '" + inc.mappingPath()
+                            + "' (a silently-unresolved include hid class bindings)"));
+            if (bindsIn(inner, classFqn, visited)) {
                 return true;
             }
         }

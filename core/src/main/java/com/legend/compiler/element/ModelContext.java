@@ -68,6 +68,11 @@ public interface ModelContext {
      */
     Optional<com.legend.parser.element.RuntimeDefinition> findRuntime(String fqn);
 
+    /** Normalization-failure reason for {@code mapping::class}, when its class mapping was poisoned. */
+    default Optional<String> mappingPoison(String mappingFqn, String classFqn) {
+        return Optional.empty();
+    }
+
     /**
      * The connection for {@code fqn}, if present &mdash; carries the declared
      * {@code DatabaseType} that selects the SQL dialect a runtime's queries

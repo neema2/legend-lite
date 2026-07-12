@@ -302,6 +302,14 @@ public final class ModelBuilder {
         }
     }
 
+    /**
+     * Class mappings whose NORMALIZATION failed (a roadmap feature inside one
+     * class of an otherwise-loadable mapping): mapping::class → reason. The
+     * model LOADS; querying that class raises the recorded reason — per-class
+     * fault isolation, loud at use.
+     */
+    public final java.util.Map<String, String> mappingPoisons = new java.util.LinkedHashMap<>();
+
     /** Precise primitives: extension FQN → declared base type name (chains allowed). */
     final java.util.Map<String, String> primitiveExtensions = new java.util.LinkedHashMap<>();
 

@@ -38,6 +38,8 @@ public final class Runner {
     private final String model;
     private final List<String> walls = new ArrayList<>();
     private final List<String> seeds;
+    /** {@code <<test.BeforePackage>>} setups collected corpus-wide. */
+    private final List<Corpus.BeforePackage> beforePackages = new ArrayList<>();
     /** Advisory golden-SQL diffs: counted, never failed on. */
     public int sqlAsserts;
     public int sqlMatches;
@@ -47,7 +49,13 @@ public final class Runner {
         List<String[]> mappings = new ArrayList<>();
         for (String src : sharedSources) {
             String elements = Corpus.modelElements(src);
-            for (String[] el : splitTopLevel(elements)) {
+            List<String[]> els = splitTopLevel(elements);
+            // the file's LEADING imports precede the first element head —
+            // they scope the whole file and must survive assembly
+            int firstHead = els.isEmpty() ? elements.length()
+                    : elements.indexOf(els.get(0)[2]);
+            mandatory.append(elements, 0, Math.max(0, firstHead)).append('\n');
+            for (String[] el : els) {
                 if (el[0].equals("Mapping")) {
                     mappings.add(el);
                 } else {
@@ -79,6 +87,60 @@ public final class Runner {
             sql.addAll(Corpus.seedSql(src));
         }
         this.seeds = sql;
+    }
+
+    public void addBeforePackages(String source) {
+        beforePackages.addAll(Corpus.beforePackages(source));
+    }
+
+    /** Per-test-file model extensions (classes/mappings defined NEXT TO the tests). */
+    private final Map<String, String> fileModels = new LinkedHashMap<>();
+    private final Map<String, List<String>> fileSeeds = new LinkedHashMap<>();
+    private String currentFileKey = "";
+
+    /**
+     * Register a test file's own model elements: mandatory elements append;
+     * its mappings probe-compile against base+file (walls recorded). The
+     * file's own table DDL and executeInDb literals seed too.
+     */
+    public void useFile(String key, String source) {
+        currentFileKey = key;
+        if (fileModels.containsKey(key)) {
+            return;
+        }
+        String elements = Corpus.modelElements(source);
+        List<String[]> els = splitTopLevel(elements);
+        StringBuilder extension = new StringBuilder();
+        List<String[]> fileMappings = new ArrayList<>();
+        int firstHead = els.isEmpty() ? elements.length() : elements.indexOf(els.get(0)[2]);
+        extension.append(elements, 0, Math.max(0, firstHead)).append('\n');
+        for (String[] el : els) {
+            if (el[0].equals("Mapping")) {
+                fileMappings.add(el);
+            } else {
+                extension.append(el[2]).append('\n');
+            }
+        }
+        StringBuilder assembled = new StringBuilder(model).append('\n').append(extension);
+        for (String[] m : fileMappings) {
+            String candidate = assembled + "\n" + m[2];
+            try {
+                com.legend.Compiler.compile(candidate, "|1", "n/a");
+                assembled.append('\n').append(m[2]);
+            } catch (Exception e) {
+                walls.add(key + " " + m[1] + " => "
+                        + String.valueOf(e.getMessage()).split("\n")[0]);
+            }
+        }
+        fileModels.put(key, assembled.substring(model.length()));
+        List<String> sql = new ArrayList<>();
+        for (var d : Corpus.tableDefs(source).values()) {
+            if (!d.schema().isEmpty() && !d.schema().equals("default")) {
+                sql.add("CREATE SCHEMA IF NOT EXISTS " + d.schema());
+            }
+            sql.add(d.createSql());
+        }
+        fileSeeds.put(key, sql);
     }
 
     public List<String> walls() {
@@ -135,13 +197,23 @@ public final class Runner {
         String mappingRef = qualify(args.get(1).strip(), fn);
         try {
             String runtimeFqn = "rcorpus::Rt";
-            String fullModel = model + runtimeBlock(mappingRef);
+            String fileExt = fileModels.getOrDefault(currentFileKey, "");
+            String fullModel = model + fileExt + runtimeBlock(model + fileExt, mappingRef);
             String qualified = qualifyQuery(query, fn);
             try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
                 try (var st = conn.createStatement()) {
                     st.execute("SET TimeZone='UTC'");
                 }
-                for (String sql : seeds) {
+                // base seeds + every BeforePackage setup covering the test's
+                // package (the engine harness's test.BeforePackage contract)
+                List<String> allSeeds = new ArrayList<>(seeds);
+                allSeeds.addAll(fileSeeds.getOrDefault(currentFileKey, List.of()));
+                for (Corpus.BeforePackage bp : beforePackages) {
+                    if (fn.fqn().startsWith(bp.pkg())) {
+                        allSeeds.addAll(bp.sql());
+                    }
+                }
+                for (String sql : allSeeds) {
                     try (var st = conn.createStatement()) {
                         st.execute(sql);
                     } catch (Exception ignore) {
@@ -159,9 +231,9 @@ public final class Runner {
     }
 
     /** Synthesized runtime binding EVERY database (stores pick what they need). */
-    private String runtimeBlock(String mappingFqn) {
+    private String runtimeBlock(String modelText, String mappingFqn) {
         StringBuilder conns = new StringBuilder();
-        Matcher m = Pattern.compile("(?m)^Database\\s+([\\w:]+)").matcher(model);
+        Matcher m = Pattern.compile("(?m)^Database\\s+([\\w:]+)").matcher(modelText);
         java.util.Set<String> dbs = new java.util.LinkedHashSet<>();
         while (m.find()) {
             dbs.add(m.group(1));
@@ -437,9 +509,10 @@ public final class Runner {
         if (fn.imports() != null && fn.imports().containsKey(name)) {
             return fn.imports().get(name);
         }
+        String scope = model + fileModels.getOrDefault(currentFileKey, "");
         for (String pkg : fn.wildcardImports()) {
             String candidate = pkg + "::" + name;
-            if (model.contains(candidate)) {
+            if (scope.contains(candidate)) {
                 return candidate;
             }
         }
@@ -502,10 +575,11 @@ public final class Runner {
         return fn.wildcardImports().contains(pkg);
     }
 
-    private Map<String, String> cachedIndex;
+    private final Map<String, Map<String, String>> indexByFile = new LinkedHashMap<>();
 
     /** simple name → FQN for every Class/Enum/Mapping/Database in the model (unambiguous only). */
     private Map<String, String> elementIndex() {
+        Map<String, String> cachedIndex = indexByFile.get(currentFileKey);
         if (cachedIndex != null) {
             return cachedIndex;
         }
@@ -513,7 +587,7 @@ public final class Runner {
         java.util.Set<String> ambiguous = new java.util.HashSet<>();
         Matcher m = Pattern.compile(
                 "(?m)^(?:Class|Enum|Database|Mapping|Association)\\s+(?:<<[^>]*>>\\s*)?((?:\\w+::)+)(\\w+)")
-                .matcher(model);
+                .matcher(model + fileModels.getOrDefault(currentFileKey, ""));
         while (m.find()) {
             String simple = m.group(2);
             String fqn = m.group(1) + simple;
@@ -524,7 +598,7 @@ public final class Runner {
             }
         }
         index.keySet().removeAll(ambiguous);
-        cachedIndex = index;
+        indexByFile.put(currentFileKey, index);
         return index;
     }
 

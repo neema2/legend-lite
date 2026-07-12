@@ -1465,10 +1465,18 @@ public final class StoreResolver {
                 .filter(m -> sources.binds(m, classFqn))
                 .toList();
         if (binders.size() != 1) {
+            // a poisoned class mapping (per-class normalization failure)
+            // explains a zero-binder miss — surface the recorded reason
+            StringBuilder why = new StringBuilder();
+            for (String m : rt.mappings()) {
+                ctx.mappingPoison(m, classFqn).ifPresent(reason ->
+                        why.append("; '").append(m).append("' failed to normalize "
+                                + "this class: ").append(reason));
+            }
             throw new MappingResolutionException("runtime '" + context.runtimeFqn()
                     + "' has " + binders.size() + " mappings binding class '"
                     + classFqn + "' (of " + rt.mappings().size()
-                    + " candidates); class-query dispatch needs exactly one",
+                    + " candidates); class-query dispatch needs exactly one" + why,
                     classFqn);
         }
         return binders.get(0);

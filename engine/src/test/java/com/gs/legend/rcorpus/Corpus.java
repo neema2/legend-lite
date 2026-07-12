@@ -284,6 +284,53 @@ public final class Corpus {
         return out;
     }
 
+    // ===== BeforePackage seeds =====
+
+    public record BeforePackage(String pkg, boolean callsBaseSetup, List<String> sql) {
+    }
+
+    private static final Pattern BEFORE_PKG = Pattern.compile(
+            "function\\s+<<[^>]*test\\.BeforePackage[^>]*>>\\s+((?:\\w+::)*\\w+)::\\w+\\s*\\(");
+
+    /**
+     * {@code <<test.BeforePackage>>} setup functions: the engine harness runs
+     * them before the package's tests. Each carries its own executeInDb
+     * literals and (usually) a call to the shared createTablesAndFillDb.
+     */
+    public static List<BeforePackage> beforePackages(String source) {
+        List<BeforePackage> out = new ArrayList<>();
+        Matcher m = BEFORE_PKG.matcher(source);
+        while (m.find()) {
+            int bodyStart = source.indexOf('{', m.end());
+            if (bodyStart < 0) {
+                continue;
+            }
+            int depth = 0;
+            int i = bodyStart;
+            while (i < source.length()) {
+                char c = source.charAt(i);
+                if (c == '\'') {
+                    i = skipString(source, i);
+                    continue;
+                }
+                if (c == '{') {
+                    depth++;
+                } else if (c == '}') {
+                    depth--;
+                    if (depth == 0) {
+                        break;
+                    }
+                }
+                i++;
+            }
+            String body = source.substring(bodyStart, i);
+            out.add(new BeforePackage(m.group(1),
+                    body.contains("createTablesAndFillDb"),
+                    seedSql(body)));
+        }
+        return out;
+    }
+
     // ===== test extraction =====
 
     public record TestFn(String fqn, String body, Map<String, String> imports,

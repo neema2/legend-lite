@@ -232,7 +232,19 @@ public final class MappingNormalizer {
             if (mappingsPerClass.get(cm.className()) > 1 && !cm.root()) {
                 continue;
             }
-            FunctionDefinition fn = synthesizeClassMapping(md, cm, model);
+            FunctionDefinition fn;
+            try {
+                fn = synthesizeClassMapping(md, cm, model);
+            } catch (com.legend.error.NotImplementedException
+                    | com.legend.error.ModelException e) {
+                // PER-CLASS fault isolation: one class mapping using a
+                // roadmap feature must not sink the whole mapping. The
+                // binding is withheld; fetching THIS class raises the
+                // recorded reason (loud at use, never silent).
+                model.mappingPoisons.put(md.qualifiedName() + "::" + cm.className(),
+                        String.valueOf(e.getMessage()).split("\n")[0]);
+                continue;
+            }
             lifted.add(fn);
             classBindings.add(new MappingDefinition.ClassBinding(
                     cm.className(),
@@ -1274,7 +1286,12 @@ public final class MappingNormalizer {
                             "Join '" + hop.joinName() + "' not found in db '"
                           + hopDb + "'; PM='" + propName + "', mapping="
                           + md.qualifiedName()));
-            String targetTable = determineTargetTable(jd.operation(), prevTable,
+            // a JOIN side referencing a VIEW whose physical root is the
+            // SOURCE relation substitutes the view's column expressions
+            // (the view is a projection, not a physical relation here)
+            RelationalOperation joinCond = resolveViewRefsInJoin(
+                    jd.operation(), hopDb, prevTable, model, md);
+            String targetTable = determineTargetTable(joinCond, prevTable,
                     hop.joinName(), propName == null ? "<nested>" : propName,
                     i + 1, md.qualifiedName());
 
@@ -1284,7 +1301,7 @@ public final class MappingNormalizer {
             condScope.put(prevTable, prevAlias == null
                     ? s : new AppliedProperty(s, prevAlias));
             if (!targetTable.equals(prevTable)) condScope.put(targetTable, t);
-            ValueSpecification cond = RelOpTranslator.translate(jd.operation(), condScope, t,
+            ValueSpecification cond = RelOpTranslator.translate(joinCond, condScope, t,
                     /*rowBind*/ null, RelOpTranslator.PipelineView.NONE);
             LambdaFunction condLambda = new LambdaFunction(List.of(s, t), List.of(cond));
 
@@ -1936,7 +1953,9 @@ public final class MappingNormalizer {
                             "AssociationMapping join '" + hop.joinName()
                           + "' not found in db '" + hopDb + "'; association='"
                           + associationName + "', mapping=" + md.qualifiedName()));
-            String targetTable = determineTargetTable(jd.operation(), sourceTable,
+            RelationalOperation cond2 = resolveViewRefsInJoin(
+                    jd.operation(), hopDb, sourceTable, model, md);
+            String targetTable = determineTargetTable(cond2, sourceTable,
                     hop.joinName(), associationName, 1, md.qualifiedName());
             // The synthesized legacyAssocPredicate call declares tgtRow's row
             // type as classB's ~mainTable; the join must actually land there,
@@ -2153,6 +2172,48 @@ public final class MappingNormalizer {
         }
     }
 
+    /** Substitute view-column refs whose view's physical root IS the source relation. */
+    private static RelationalOperation resolveViewRefsInJoin(RelationalOperation op,
+            String db, String sourceTable, ModelBuilder model, LegacyMappingDefinition md) {
+        return switch (op) {
+            case RelationalOperation.ColumnRef cr -> {
+                var view = model.findView(cr.databaseName() != null ? cr.databaseName() : db,
+                        cr.table()).orElse(null);
+                if (view == null) {
+                    yield cr;
+                }
+                String phys = inferViewMainTable(view, cr.table(), md);
+                if (!phys.equals(sourceTable)) {
+                    yield cr;
+                }
+                for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc
+                        : view.columnMappings()) {
+                    if (vc.name().equals(cr.column())) {
+                        yield vc.expression();
+                    }
+                }
+                yield cr;
+            }
+            case RelationalOperation.Comparison c -> new RelationalOperation.Comparison(
+                    resolveViewRefsInJoin(c.left(), db, sourceTable, model, md), c.op(),
+                    resolveViewRefsInJoin(c.right(), db, sourceTable, model, md));
+            case RelationalOperation.BooleanOp b -> new RelationalOperation.BooleanOp(
+                    resolveViewRefsInJoin(b.left(), db, sourceTable, model, md), b.op(),
+                    resolveViewRefsInJoin(b.right(), db, sourceTable, model, md));
+            case RelationalOperation.Group g -> new RelationalOperation.Group(
+                    resolveViewRefsInJoin(g.inner(), db, sourceTable, model, md));
+            case RelationalOperation.IsNull n -> new RelationalOperation.IsNull(
+                    resolveViewRefsInJoin(n.operand(), db, sourceTable, model, md));
+            case RelationalOperation.IsNotNull n -> new RelationalOperation.IsNotNull(
+                    resolveViewRefsInJoin(n.operand(), db, sourceTable, model, md));
+            case RelationalOperation.FunctionCall f -> new RelationalOperation.FunctionCall(
+                    f.name(), f.args().stream()
+                            .map(a -> resolveViewRefsInJoin(a, db, sourceTable, model, md))
+                            .toList());
+            default -> op;
+        };
+    }
+
     private static String determineTargetTable(RelationalOperation cond, String sourceTable,
                                               String joinName, String ownerLabel,
                                               int hopIndex, String mappingFqn) {
@@ -2353,6 +2414,12 @@ public final class MappingNormalizer {
         if (cd == null || !visited.add(cd.qualifiedName())) return null;
         TypeExpression own = findPropertyType(cd, propName);
         if (own != null) return own;
+        // ASSOCIATION properties are inherited too (PersonWithConstraints
+        // extends Person reaches Person's 'firm' end) — consult them per
+        // class on the chain, not just the declared class.
+        TypeExpression assoc = model.findAssociationProperty(cd.qualifiedName(), propName)
+                .orElse(null);
+        if (assoc != null) return assoc;
         for (TypeExpression sup : cd.superClasses()) {
             if (sup instanceof TypeExpression.NameRef nr) {
                 ClassDefinition superCd = model.findClass(nr.name()).orElse(null);

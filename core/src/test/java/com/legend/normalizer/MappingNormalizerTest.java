@@ -624,11 +624,9 @@ class MappingNormalizerTest {
                         + "    name: T_PERSON.NAME "
                         + "  } "
                         + ")");
-        com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                com.legend.error.ModelException.class,
-                () -> normalizeViaPipeline(parsed));
-        assertTrue(ex.getMessage().contains("other::DB"),
-                () -> "Expected unknown-db error to name the missing db; got: " + ex.getMessage());
+        String exMsg = poisonReasons(parsed);
+        assertTrue(exMsg.contains("other::DB"),
+                () -> "Expected unknown-db error to name the missing db; got: " + exMsg);
     }
 
     @Test
@@ -643,11 +641,9 @@ class MappingNormalizerTest {
                         + "    name: T_PERSON.NAME "
                         + "  } "
                         + ")");
-        com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                com.legend.error.ModelException.class,
-                () -> normalizeViaPipeline(parsed));
-        assertTrue(ex.getMessage().contains("NonexistentFilter"),
-                () -> "Expected missing-filter error to name the filter; got: " + ex.getMessage());
+        String exMsg = poisonReasons(parsed);
+        assertTrue(exMsg.contains("NonexistentFilter"),
+                () -> "Expected missing-filter error to name the filter; got: " + exMsg);
     }
 
     // ====================================================================
@@ -739,13 +735,11 @@ class MappingNormalizerTest {
                         + "    department: $src.department "
                         + "  } "
                         + ")");
-        com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                com.legend.error.ModelException.class,
-                () -> normalizeViaPipeline(parsed));
-        assertTrue(ex.getMessage().contains("model::DeptInfo"),
-                () -> "Expected error to name the missing target type; got: " + ex.getMessage());
-        assertTrue(ex.getMessage().contains("unmapped class"),
-                () -> "Expected error to mention 'unmapped class'; got: " + ex.getMessage());
+        String exMsg = poisonReasons(parsed);
+        assertTrue(exMsg.contains("model::DeptInfo"),
+                () -> "Expected error to name the missing target type; got: " + exMsg);
+        assertTrue(exMsg.contains("unmapped class"),
+                () -> "Expected error to mention 'unmapped class'; got: " + exMsg);
     }
 
     @Test
@@ -1211,11 +1205,9 @@ class MappingNormalizerTest {
                         + "    ) "
                         + "  } "
                         + ")");
-        com.legend.error.NotImplementedException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                com.legend.error.NotImplementedException.class,
-                () -> normalizeViaPipeline(parsed));
-        assertTrue(ex.getMessage().contains("Embedded sub-PM"),
-                () -> "Expected nested-Join-in-Embedded error; got: " + ex.getMessage());
+        String exMsg = poisonReasons(parsed);
+        assertTrue(exMsg.contains("Embedded sub-PM"),
+                () -> "Expected nested-Join-in-Embedded error; got: " + exMsg);
     }
 
     @Test
@@ -1276,11 +1268,9 @@ class MappingNormalizerTest {
                         + "    broker() Inline[no_such_set] "
                         + "  } "
                         + ")");
-        com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                com.legend.error.ModelException.class,
-                () -> normalizeViaPipeline(parsed));
-        assertTrue(ex.getMessage().contains("no_such_set"),
-                () -> "Expected unknown-setId error; got: " + ex.getMessage());
+        String exMsg = poisonReasons(parsed);
+        assertTrue(exMsg.contains("no_such_set"),
+                () -> "Expected unknown-setId error; got: " + exMsg);
     }
 
     // ====================================================================
@@ -1603,13 +1593,13 @@ class MappingNormalizerTest {
                         + "    ) Otherwise ([firm_set1]: [db::DB] @Person_Firm) "
                         + "  } "
                         + ")");
-        com.legend.error.NotImplementedException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                com.legend.error.NotImplementedException.class,
-                () -> normalizeViaPipeline(parsed));
-        assertTrue(ex.getMessage().contains("model::Firm"),
-                () -> "Expected error to name the unmapped target class; got: " + ex.getMessage());
-        assertTrue(ex.getMessage().contains("not mapped"),
-                () -> "Expected 'not mapped' diagnostic; got: " + ex.getMessage());
+        // per-class fault isolation: recorded as a POISON, raised at use
+        ModelBuilder mb = ModelBuilder.from(new com.legend.parser.ParsedModel(
+                parsed.elements(), parsed.imports()));
+        MappingNormalizer.normalize(parsed, mb);
+        String reason = mb.mappingPoisons.get("my::M::model::Person");
+        assertTrue(reason != null && reason.contains("model::Firm"),
+                () -> "Expected a poisoned binding naming the unmapped target class; got: " + reason);
     }
 
     @Test
@@ -1719,11 +1709,9 @@ class MappingNormalizerTest {
                         + "    firmName: [db::DB] @Nonexistent | T_FIRM.LEGAL_NAME "
                         + "  } "
                         + ")");
-        com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                com.legend.error.ModelException.class,
-                () -> normalizeViaPipeline(parsed));
-        assertTrue(ex.getMessage().contains("Nonexistent"),
-                () -> "Expected error to name the missing join; got: " + ex.getMessage());
+        String exMsg = poisonReasons(parsed);
+        assertTrue(exMsg.contains("Nonexistent"),
+                () -> "Expected error to name the missing join; got: " + exMsg);
     }
 
     @Test
@@ -2421,6 +2409,20 @@ class MappingNormalizerTest {
      * This is call-site glue, not a second implementation: there is exactly one
      * {@code normalize} code path, and tests and prod both go through it.
      */
+
+    /**
+     * Per-class fault isolation (relational-corpus work): a class mapping
+     * that fails to normalize POISONS its binding instead of sinking the
+     * mapping; the reason is recorded and raised at use. These pins assert
+     * the recorded reasons.
+     */
+    private static String poisonReasons(ParsedModel parsed) {
+        ModelBuilder mb = ModelBuilder.from(new com.legend.parser.ParsedModel(
+                parsed.elements(), parsed.imports()));
+        MappingNormalizer.normalize(parsed, mb);
+        return String.join(" ;; ", mb.mappingPoisons.values());
+    }
+
     private static NormalizedModel normalizeViaPipeline(ParsedModel parsed) {
         return MappingNormalizer.normalize(parsed, ModelBuilder.from(new com.legend.parser.ParsedModel(parsed.elements(), parsed.imports())));
     }
@@ -2929,13 +2931,11 @@ class MappingNormalizerTest {
                         + "    id: T_TGT.ID "
                         + "  } "
                         + ")");
-        com.legend.error.NotImplementedException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                com.legend.error.NotImplementedException.class,
-                () -> normalizeViaPipeline(parsed));
-        assertTrue(ex.getMessage().contains("T_OTHER"),
-                () -> "Diagnostic must name the offending table; got: " + ex.getMessage());
-        assertTrue(ex.getMessage().contains("multi-table"),
-                () -> "Diagnostic explains the multi-table join rejection; got: " + ex.getMessage());
+        String exMsg = poisonReasons(parsed);
+        assertTrue(exMsg.contains("T_OTHER"),
+                () -> "Diagnostic must name the offending table; got: " + exMsg);
+        assertTrue(exMsg.contains("multi-table"),
+                () -> "Diagnostic explains the multi-table join rejection; got: " + exMsg);
     }
 
     // ====================================================================
@@ -3708,13 +3708,11 @@ class MappingNormalizerTest {
                         + "    total: sum(T.QTY) "
                         + "  } "
                         + ")");
-        com.legend.error.NotImplementedException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                com.legend.error.NotImplementedException.class,
-                () -> normalizeViaPipeline(parsed));
-        assertTrue(ex.getMessage().contains("extra"),
-                () -> "Expected error to name the orphan PM; got: " + ex.getMessage());
-        assertTrue(ex.getMessage().contains("~groupBy"),
-                () -> "Expected error to reference ~groupBy; got: " + ex.getMessage());
+        String exMsg = poisonReasons(parsed);
+        assertTrue(exMsg.contains("extra"),
+                () -> "Expected error to name the orphan PM; got: " + exMsg);
+        assertTrue(exMsg.contains("~groupBy"),
+                () -> "Expected error to reference ~groupBy; got: " + exMsg);
     }
 
     @Test
@@ -4008,13 +4006,11 @@ class MappingNormalizerTest {
                         + "    bogus: T_PERSON.AGE "
                         + "  } "
                         + ")");
-        com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                com.legend.error.ModelException.class,
-                () -> normalizeViaPipeline(parsed));
-        assertTrue(ex.getMessage().contains("bogus"),
-                () -> "Expected error to name the offending PM; got: " + ex.getMessage());
-        assertTrue(ex.getMessage().contains("not declared"),
-                () -> "Expected 'not declared' diagnostic; got: " + ex.getMessage());
+        String exMsg = poisonReasons(parsed);
+        assertTrue(exMsg.contains("bogus"),
+                () -> "Expected error to name the offending PM; got: " + exMsg);
+        assertTrue(exMsg.contains("not declared"),
+                () -> "Expected 'not declared' diagnostic; got: " + exMsg);
     }
 
     // ====================================================================
@@ -4091,13 +4087,11 @@ class MappingNormalizerTest {
                         + "    b: V_MIX.b "
                         + "  } "
                         + ")");
-        com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                com.legend.error.ModelException.class,
-                () -> normalizeViaPipeline(parsed));
-        assertTrue(ex.getMessage().contains("V_MIX")
-                        && ex.getMessage().contains("single root table"),
+        String exMsg = poisonReasons(parsed);
+        assertTrue(exMsg.contains("V_MIX")
+                        && exMsg.contains("single root table"),
                 () -> "Expected a multi-root-table diagnostic naming V_MIX; got: "
-                        + ex.getMessage());
+                        + exMsg);
     }
 
     @Test
@@ -4120,13 +4114,11 @@ class MappingNormalizerTest {
                         + "    fname: V_ALLJOIN.fname "
                         + "  } "
                         + ")");
-        com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                com.legend.error.ModelException.class,
-                () -> normalizeViaPipeline(parsed));
-        assertTrue(ex.getMessage().contains("V_ALLJOIN")
-                        && ex.getMessage().contains("cannot infer underlying main table"),
+        String exMsg = poisonReasons(parsed);
+        assertTrue(exMsg.contains("V_ALLJOIN")
+                        && exMsg.contains("cannot infer underlying main table"),
                 () -> "Expected a no-root-table diagnostic naming V_ALLJOIN; got: "
-                        + ex.getMessage());
+                        + exMsg);
     }
 
     @Test
@@ -4713,10 +4705,8 @@ class MappingNormalizerTest {
                         + "    label: T_FIRM.NAME "
                         + "  } "
                         + ")");
-        com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                com.legend.error.ModelException.class,
-                () -> normalizeViaPipeline(parsed));
-        assertTrue(ex.getMessage().contains("Ambiguous") && ex.getMessage().contains("T_FIRM"),
-                () -> "Expected an ambiguous-table diagnostic naming T_FIRM; got: " + ex.getMessage());
+        String exMsg = poisonReasons(parsed);
+        assertTrue(exMsg.contains("Ambiguous") && exMsg.contains("T_FIRM"),
+                () -> "Expected an ambiguous-table diagnostic naming T_FIRM; got: " + exMsg);
     }
 }

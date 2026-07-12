@@ -47,6 +47,19 @@ class RelationalCorpusRunner {
                 Corpus.read("tests/testModel/simpleTestModel.pure"),
                 Corpus.read("tests/relationalSetUp.pure"));
         Runner runner = new Runner(shared, shared);
+        // BeforePackage setups live NEXT TO the tests (functions/tests,
+        // query, mapping families) — scan every covered file plus the
+        // functions/tests dir (meta::relational::tests::query::setUp et al)
+        try (Stream<Path> s = Files.walk(Corpus.RELATIONAL.resolve("functions/tests"))) {
+            s.filter(f -> f.toString().endsWith(".pure"))
+                    .forEach(f -> {
+                        try {
+                            runner.addBeforePackages(Files.readString(f));
+                        } catch (Exception ignore) {
+                            // unreadable corpus file: the tests in it bucket anyway
+                        }
+                    });
+        }
 
         Map<String, List<Runner.Outcome>> byFamily = new LinkedHashMap<>();
         for (String family : FAMILIES) {
@@ -61,7 +74,11 @@ class RelationalCorpusRunner {
             }
             List<Runner.Outcome> outcomes = new ArrayList<>();
             for (Path f : files) {
+                runner.addBeforePackages(Files.readString(f));
+            }
+            for (Path f : files) {
                 String src = Files.readString(f);
+                runner.useFile(f.toString(), src);
                 for (Corpus.TestFn fn : Corpus.testFunctions(src)) {
                     outcomes.add(runner.run(fn));
                 }

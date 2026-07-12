@@ -92,10 +92,15 @@ class PipelineStageFailureTest {
     void modelErrorsCarryElementPosition() {
         // Line 3 of the model declares the broken mapping — the decoration
         // points AT it (positions wave: fqn-keyed side index + driver).
+        // (an unknown ~filter now POISONS the class binding instead of
+        // throwing at load — per-class fault isolation; an unknown extends
+        // parent is still a load-time MAPPING-level error and pins the
+        // position decoration)
         var ex = failsWith(com.legend.error.ModelException.class,
                 "Class test::P { name: String[1]; }\n"
                         + "Database test::DB ( Table T (X INTEGER) )\n"
-                        + "Mapping test::M ( test::P: Relational { ~filter [test::DB] Nope"
+                        + "Mapping test::M ( test::P[s1]: Relational { ~mainTable [test::DB] T"
+                        + " name: T.X } *test::P[s2] extends [nope]: Relational {"
                         + " ~mainTable [test::DB] T name: T.X } )",
                 "1 + 1");
         assertTrue(ex.getMessage().startsWith("[3:"),

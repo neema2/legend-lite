@@ -151,6 +151,11 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
+    public java.util.Optional<String> mappingPoison(String mappingFqn, String classFqn) {
+        return java.util.Optional.ofNullable(
+                model.mappingPoisons.get(mappingFqn + "::" + classFqn));
+    }
+
     public java.util.Optional<com.legend.parser.element.RuntimeDefinition> findRuntime(String fqn) {
         Objects.requireNonNull(fqn, "fqn");
         return model.findRuntime(fqn);
