@@ -321,35 +321,31 @@ public final class Runner {
     private static final Pattern EXECUTE_CALL = Pattern.compile(
             "\\bexecute\\s*\\(\\s*\\|");
 
+    /** One executed query: the let-var it binds, its rows, its body offset. */
+    record ResultBinding(String var, List<Map<String, Object>> rows, int pos) {
+    }
+
     public Outcome run(Corpus.TestFn fn) {
-        // extract execute(|QUERY, MAPPING, runtime, extensions)
+        // extract EVERY execute(|QUERY, MAPPING, runtime, extensions) —
+        // multi-query tests bind each result to its own let-var, and each
+        // assert evaluates against the var it references
+        List<int[]> spans = new ArrayList<>();
         Matcher m = EXECUTE_CALL.matcher(fn.body());
-        if (!m.find()) {
+        while (m.find()) {
+            int argStart = fn.body().indexOf('(', m.start());
+            int argEnd = matchParen(fn.body(), argStart);
+            if (argEnd > 0) {
+                spans.add(new int[]{m.start(), argStart, argEnd});
+            }
+        }
+        if (spans.isEmpty()) {
             return new Outcome(fn.fqn(), Status.SHAPE, "no execute(|...) call");
         }
-        if (m.find()) {
-            return new Outcome(fn.fqn(), Status.SHAPE, "multiple execute() calls");
-        }
-        m = EXECUTE_CALL.matcher(fn.body());
-        m.find();
-        int argStart = fn.body().indexOf('(', m.start());
-        int argEnd = matchParen(fn.body(), argStart);
-        List<String> args = splitArgs(fn.body().substring(argStart + 1, argEnd));
-        if (args.size() < 2) {
-            return new Outcome(fn.fqn(), Status.SHAPE, "execute() with " + args.size() + " args");
-        }
-        String query = args.get(0).strip();
-        if (query.startsWith("|")) {
-            query = query.substring(1);
-        }
-        String mappingRef = qualify(args.get(1).strip(), fn);
         try {
             String runtimeFqn = "rcorpus::Rt";
             String familyExt = familyModels.getOrDefault(currentFamilyKey, "");
             String fileExt = fileModels.getOrDefault(currentFileKey, "");
             String modelText = model + familyExt + fileExt;
-            String fullModel = modelText + runtimeBlock(modelText, mappingRef);
-            String qualified = qualifyQuery(query, fn);
             try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
                 try (var st = conn.createStatement()) {
                     st.execute("SET TimeZone='UTC'");
@@ -379,8 +375,30 @@ public final class Runner {
                     }
                 }
                 seedFailures.addAll(failedSeeds);
-                ExecutionResult r = new QueryService().execute(fullModel, qualified, runtimeFqn, conn);
-                return checkAsserts(fn, r, failedSeeds);
+                List<ResultBinding> bindings = new ArrayList<>();
+                for (int[] span : spans) {
+                    List<String> args = splitArgs(fn.body().substring(span[1] + 1, span[2]));
+                    if (args.size() < 2) {
+                        return new Outcome(fn.fqn(), Status.SHAPE,
+                                "execute() with " + args.size() + " args");
+                    }
+                    String query = args.get(0).strip();
+                    if (query.startsWith("|")) {
+                        query = query.substring(1);
+                    }
+                    String mappingRef = qualify(args.get(1).strip(), fn);
+                    String fullModel = modelText + runtimeBlock(modelText, mappingRef);
+                    String qualified = qualifyQuery(query, fn);
+                    // the let-var this result binds ($result by convention)
+                    Matcher lm = Pattern.compile("let\\s+(\\w+)\\s*=\\s*$")
+                            .matcher(fn.body().substring(
+                                    Math.max(0, span[0] - 40), span[0]));
+                    String var = lm.find() ? lm.group(1) : "result";
+                    ExecutionResult r = new QueryService().execute(
+                            fullModel, qualified, runtimeFqn, conn);
+                    bindings.add(new ResultBinding(var, graphRows(r), span[2]));
+                }
+                return checkAsserts(fn, bindings, failedSeeds);
             }
         } catch (Exception e) {
             // flatten, don't truncate — poison reasons ride on later lines
@@ -409,8 +427,8 @@ public final class Runner {
 
     // ===== assertion evaluation =====
 
-    private Outcome checkAsserts(Corpus.TestFn fn, ExecutionResult r, List<String> failedSeeds) {
-        List<Map<String, Object>> rows = graphRows(r);
+    private Outcome checkAsserts(Corpus.TestFn fn, List<ResultBinding> bindings,
+            List<String> failedSeeds) {
         List<String> problems = new ArrayList<>();
         // recognized = asserts whose SHAPE matched AND whose expected value
         // PARSED (an unparseable expected value is NOT recognized — counting
@@ -418,21 +436,32 @@ public final class Runner {
         // verified = recognized minus advisory golden-SQL asserts.
         int recognized = 0;
         int verified = 0;
-        // the RESULT variable: `let x = execute(...)...;` binds x; bare
-        // calls use $result by convention. All result-suffix spellings
-        // ($x.values, ->at(0), .rows) collapse onto the one result.
-        String rvar = "result";
-        Matcher lm = Pattern.compile("let\\s+(\\w+)\\s*=\\s*execute\\s*\\(").matcher(fn.body());
-        if (lm.find()) {
-            rvar = lm.group(1);
-        }
-        for (String call : assertCalls(fn.body())) {
+        for (int[] callPos : assertCallSpans(fn.body())) {
+            String call = fn.body().substring(callPos[0], callPos[1]);
             String head = call.substring(0, call.indexOf('(')).strip();
             List<String> args = splitArgs(call.substring(call.indexOf('(') + 1, call.length() - 1));
+            // the RESULT this assert reads: the LATEST prior execute whose
+            // let-var the call references ($result by convention)
+            ResultBinding bound = null;
+            for (int bi = bindings.size() - 1; bi >= 0; bi--) {
+                ResultBinding b = bindings.get(bi);
+                if (b.pos() > callPos[0]) {
+                    continue;
+                }
+                if (Pattern.compile("\\$" + Pattern.quote(b.var()) + "\\b")
+                        .matcher(call).find()) {
+                    bound = b;
+                    break;
+                }
+            }
+            if (bound == null) {
+                continue;   // references no known result — stays unrecognized
+            }
+            List<Map<String, Object>> rows = bound.rows();
             // normalize every result spelling to a canonical head "$R"
             for (int ai = 0; ai < args.size(); ai++) {
                 String norm = args.get(ai).strip()
-                        .replace("$" + rvar, "$R")
+                        .replace("$" + bound.var(), "$R")
                         .replaceAll("^\\$R\\.values->at\\(0\\)", java.util.regex.Matcher.quoteReplacement("$R"))
                         .replaceAll("^\\$R\\.values\\.rows", java.util.regex.Matcher.quoteReplacement("$R.rows"));
                 args.set(ai, norm);
@@ -919,12 +948,21 @@ public final class Runner {
     /** Top-level assert*(...) calls in a test body. */
     static List<String> assertCalls(String body) {
         List<String> out = new ArrayList<>();
+        for (int[] span : assertCallSpans(body)) {
+            out.add(body.substring(span[0], span[1]));
+        }
+        return out;
+    }
+
+    /** [start, end) spans of assert*(...) calls, in body order. */
+    static List<int[]> assertCallSpans(String body) {
+        List<int[]> out = new ArrayList<>();
         Matcher m = Pattern.compile("\\b(assert\\w*)\\s*\\(").matcher(body);
         while (m.find()) {
             int open = body.indexOf('(', m.start());
             int close = matchParen(body, open);
             if (close > 0) {
-                out.add(m.group(1) + body.substring(open, close + 1));
+                out.add(new int[]{m.start(), close + 1});
             }
         }
         return out;
