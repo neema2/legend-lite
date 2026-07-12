@@ -1148,7 +1148,13 @@ final class Scalars {
                                 && k.params().size() == 1
                         ? v -> substituteRef(k.body(), k.params().get(0), v)
                         : java.util.function.UnaryOperator.identity();
-                return keptDedup(args.get(0), (prior, cand) -> substituteRef(
+                // NESTED dedups reuse these accumulator names — an inner
+                // comparator's lambdas would CAPTURE the outer's refs
+                // (audit). The suffix is the count of dedup calls inside
+                // this one's own subtree: deterministic, and strictly
+                // larger for the outer of any nested pair.
+                int depth = countDedups(n.args().get(n.args().size() - 1));
+                return keptDedup(args.get(0), depth, (prior, cand) -> substituteRef(
                         substituteRef(eq.body(), eq.params().get(0), key.apply(prior)),
                         eq.params().get(1), key.apply(cand)));
             });
@@ -1185,19 +1191,58 @@ final class Scalars {
                                 new SqlExpr.IntLit(1), new SqlExpr.IntLit(1));
             });
         }
+        // regexpIndexOf is 0-based Matcher.start(group); no match -> -1.
+        // POSITIONAL, never lexical (the audit unwound a strpos-of-match-text
+        // shape that mislocated anchored/repeated matches): the position is
+        // the length of the LAZY ANCHORED PREFIX group '^(.*?)P' — measured
+        // by the regex engine itself, in SQL. For a group argument the
+        // (static, literal) pattern splits at that group's capturing paren:
+        // '^(.*?  P-before-group )( P-from-group ...' — our prefix group is
+        // always #1 (the first paren), later renumbering is irrelevant.
         for (String f : Pure.nativeKeysAt("regexpIndexOf")) {
             RULES.put(f, (n, args) -> {
-                SqlExpr first = SqlExpr.Call.of(SqlFn.LIST_GET,
+                int group = 0;
+                String flags = "";
+                for (int i = 2; i < n.args().size(); i++) {
+                    if (args.get(i) instanceof SqlExpr.IntLit g) {
+                        group = (int) g.value();
+                    } else {
+                        flags = regexpFlags(n.args().get(i));
+                    }
+                }
+                if (!(args.get(1) instanceof SqlExpr.StringLit pat)) {
+                    if (group > 0) {
+                        throw new IllegalStateException("regexpIndexOf with a group"
+                                + " needs a literal pattern (the pattern splits at"
+                                + " the group's paren statically)");
+                    }
+                }
+                String p = args.get(1) instanceof SqlExpr.StringLit lit ? lit.value() : null;
+                String before = "", from = null;
+                if (group > 0) {
+                    int idx = capturingParen(p, group);
+                    before = p.substring(0, idx);
+                    from = p.substring(idx);
+                }
+                SqlExpr prefixPattern = p != null
+                        ? new SqlExpr.StringLit("(?s)^((?:.*?)" + before + ")"
+                                + (from != null ? from : "(?:" + p + ")"))
+                        : cat(new SqlExpr.StringLit("(?s)^((?:.*?))(?:"),
+                                args.get(1), new SqlExpr.StringLit(")"));
+                SqlExpr prefix = new SqlExpr.Call(SqlFn.REGEXP_EXTRACT, List.of(
+                        args.get(0), inlineFlags(prefixPattern, flags),
+                        new SqlExpr.IntLit(1)));
+                // a match where the GROUP did not participate is -1 in real
+                // pure (Matcher.start(group)); regexp_extract yields '' there
+                SqlExpr matched = SqlExpr.Call.of(SqlFn.LIST_GET,
                         regexpAll(n, args, 2), new SqlExpr.IntLit(1));
-                // real regexpIndexOf is 0-BASED (testRegexpIndexOf pins 3 for
-                // strpos 4); no match -> -1. Group text located lexically.
                 return new SqlExpr.Case(
                         List.of(new SqlExpr.Case.When(
-                                SqlExpr.Call.of(SqlFn.IS_NULL, first),
+                                SqlExpr.Call.of(SqlFn.OR,
+                                        SqlExpr.Call.of(SqlFn.IS_NULL, matched),
+                                        SqlExpr.Call.of(SqlFn.IS_NULL, prefix)),
                                 new SqlExpr.IntLit(-1))),
-                        SqlExpr.Call.of(SqlFn.MINUS,
-                                SqlExpr.Call.of(SqlFn.STRPOS, args.get(0), first),
-                                new SqlExpr.IntLit(1)));
+                        SqlExpr.Call.of(SqlFn.LENGTH, prefix));
             });
         }
         for (String f : Pure.nativeKeysAt("regexpReplace")) {
@@ -1304,11 +1349,29 @@ final class Scalars {
             RULES.put(f, (n, args) -> switch (enumName(n.args().get(1))) {
                 case "ISO8601" -> SqlExpr.Call.of(SqlFn.STRFTIME, args.get(0),
                         new SqlExpr.StringLit("%Y-%m-%d"));
-                // 9-digit nanos: DuckDB %f is micros — pad three zeros.
-                case "ISO8601_NanoSecondPrecision" -> SqlExpr.Call.of(SqlFn.CONCAT,
-                        SqlExpr.Call.of(SqlFn.STRFTIME, args.get(0),
-                                new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S.%f")),
-                        new SqlExpr.StringLit("000"));
+                // 9-digit nanos. A LITERAL prints its own WRITTEN subsecond
+                // digits right-padded to 9 (static text — digits beyond the
+                // TIMESTAMP carrier's 6 exist only in literals). A runtime
+                // value holds at most 6 subsecond digits, so %f + '000' is
+                // EXACT for everything the carrier can represent (audit:
+                // the pad is faithful, not fabricated — but only because
+                // the literal path takes the written digits first).
+                case "ISO8601_NanoSecondPrecision" -> {
+                    if (n.args().get(0) instanceof com.legend.compiler.spec.typed.TypedCDate cd
+                            && cd.value() instanceof
+                                    com.legend.values.PureDateLiteral.DateWithSubsecond sub
+                            && sub.subsecond().length() > 6) {
+                        String nanos = (sub.subsecond() + "000000000").substring(0, 9);
+                        yield SqlExpr.Call.of(SqlFn.CONCAT,
+                                SqlExpr.Call.of(SqlFn.STRFTIME, args.get(0),
+                                        new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S.")),
+                                new SqlExpr.StringLit(nanos));
+                    }
+                    yield SqlExpr.Call.of(SqlFn.CONCAT,
+                            SqlExpr.Call.of(SqlFn.STRFTIME, args.get(0),
+                                    new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S.%f")),
+                            new SqlExpr.StringLit("000"));
+                }
                 default -> throw new IllegalStateException(
                         "unsupported date format " + enumName(n.args().get(1)));
             });
@@ -1726,17 +1789,43 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("date")) {
             RULES.put(f, (n, args) -> {
                 // component RANGES validate with real pure's messages
-                // (date(2016, 13) raises 'Invalid month: 13'); literal
-                // components check here, runtime ones guard in SQL
+                // (date(2016, 13) raises 'Invalid month: 13'): literal
+                // components fold to a constant error; RUNTIME components
+                // wrap in the SQL guard — the same message either way
+                // (the audit found the runtime half missing: DuckDB's own
+                // make_date message leaked instead of pure's).
                 String[] comps = {null, "month", "day", "hour", "minute", "second"};
                 long[][] ranges = {null, {1, 12}, {1, 31}, {0, 23}, {0, 59}, {0, 59}};
+                List<SqlExpr> guarded = new ArrayList<>(args);
                 for (int i = 1; i < Math.min(args.size(), 6); i++) {
-                    if (args.get(i) instanceof SqlExpr.IntLit lit
-                            && (lit.value() < ranges[i][0] || lit.value() > ranges[i][1])) {
-                        return SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(
-                                "Invalid " + comps[i] + ": " + lit.value()));
+                    if (args.get(i) instanceof SqlExpr.IntLit lit) {
+                        if (lit.value() < ranges[i][0] || lit.value() > ranges[i][1]) {
+                            return SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(
+                                    "Invalid " + comps[i] + ": " + lit.value()));
+                        }
+                    } else if (!(args.get(i) instanceof SqlExpr.FloatLit)
+                            && !(args.get(i) instanceof SqlExpr.DecimalLit)) {
+                        // FRACTIONAL seconds are legal up to (not including)
+                        // 60 — the integer ranges guard integers; a
+                        // fractional bound is exclusive at the top
+                        boolean fractionalSeconds = i == 5
+                                && n.args().get(i).info().type() != Type.Primitive.INTEGER;
+                        SqlExpr tooHigh = fractionalSeconds
+                                ? SqlExpr.Call.of(SqlFn.GREATER_EQUAL, args.get(i),
+                                        new SqlExpr.IntLit(60))
+                                : SqlExpr.Call.of(SqlFn.GREATER, args.get(i),
+                                        new SqlExpr.IntLit(ranges[i][1]));
+                        guarded.set(i, guarded(
+                                SqlExpr.Call.of(SqlFn.OR,
+                                        SqlExpr.Call.of(SqlFn.LESS, args.get(i),
+                                                new SqlExpr.IntLit(ranges[i][0])),
+                                        tooHigh),
+                                cat(new SqlExpr.StringLit("Invalid " + comps[i] + ": "),
+                                        str(args.get(i))),
+                                args.get(i)));
                     }
                 }
+                args = guarded;
                 if (args.size() == 3) {
                     return new SqlExpr.Call(SqlFn.MAKE_DATE, args);
                 }
@@ -2131,24 +2220,36 @@ final class Scalars {
      * eq(kept, candidate). Elements wrap into singleton lists so the reduce
      * accumulator can BE the kept list (the seed is [first], trivially kept).
      */
-    private static SqlExpr keptDedup(SqlExpr list,
+    /** Dedup-call count inside a typed subtree — the capture-free name suffix. */
+    private static int countDedups(com.legend.compiler.spec.typed.TypedSpec spec) {
+        int n = spec instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+                && c.callee().qualifiedName()
+                        .equals("meta::pure::functions::collection::removeDuplicates") ? 1 : 0;
+        for (var child : spec.children()) {
+            n += countDedups(child);
+        }
+        return n;
+    }
+
+    private static SqlExpr keptDedup(SqlExpr list, int depth,
             java.util.function.BinaryOperator<SqlExpr> eq) {
+        String ra = "_ra" + depth, rx = "_rx" + depth, rp = "_rp" + depth, rw = "_rw" + depth;
         SqlExpr wrapped = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, list,
-                new SqlExpr.Lambda(List.of("_rw"),
-                        new SqlExpr.ArrayLit(List.of(new SqlExpr.Column(null, "_rw")))));
-        SqlExpr kept = new SqlExpr.Column(null, "_ra");
+                new SqlExpr.Lambda(List.of(rw),
+                        new SqlExpr.ArrayLit(List.of(new SqlExpr.Column(null, rw)))));
+        SqlExpr kept = new SqlExpr.Column(null, ra);
         SqlExpr cand = SqlExpr.Call.of(SqlFn.LIST_GET,
-                new SqlExpr.Column(null, "_rx"), new SqlExpr.IntLit(1));
+                new SqlExpr.Column(null, rx), new SqlExpr.IntLit(1));
         SqlExpr dup = SqlExpr.Call.of(SqlFn.GREATER,
                 SqlExpr.Call.of(SqlFn.LIST_LENGTH,
                         SqlExpr.Call.of(SqlFn.LIST_FILTER, kept,
-                                new SqlExpr.Lambda(List.of("_rp"),
-                                        eq.apply(new SqlExpr.Column(null, "_rp"), cand)))),
+                                new SqlExpr.Lambda(List.of(rp),
+                                        eq.apply(new SqlExpr.Column(null, rp), cand)))),
                 new SqlExpr.IntLit(0));
         SqlExpr step = new SqlExpr.Case(List.of(new SqlExpr.Case.When(dup, kept)),
                 SqlExpr.Call.of(SqlFn.LIST_APPEND, kept, cand));
         SqlExpr reduced = SqlExpr.Call.of(SqlFn.LIST_REDUCE, wrapped,
-                new SqlExpr.Lambda(List.of("_ra", "_rx"), step));
+                new SqlExpr.Lambda(List.of(ra, rx), step));
         // list_reduce rejects the empty list — the empty dedup is itself
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.EQUAL,
@@ -3063,6 +3164,26 @@ final class Scalars {
         }
         return new SqlExpr.Call(SqlFn.REGEXP_EXTRACT_ALL, List.of(
                 args.get(0), inlineFlags(args.get(1), flags), group));
+    }
+
+    /** Char index of the {@code k}-th CAPTURING paren in a literal pattern. */
+    private static int capturingParen(String pattern, int k) {
+        int count = 0;
+        for (int i = 0; i < pattern.length(); i++) {
+            char c = pattern.charAt(i);
+            if (c == '\\') {
+                i++;
+                continue;
+            }
+            if (c == '(' && (i + 1 >= pattern.length() || pattern.charAt(i + 1) != '?')) {
+                count++;
+                if (count == k) {
+                    return i;
+                }
+            }
+        }
+        throw new IllegalStateException("pattern '" + pattern
+                + "' has no capturing group " + k);
     }
 
     private static String enumName(com.legend.compiler.spec.typed.TypedSpec arg) {

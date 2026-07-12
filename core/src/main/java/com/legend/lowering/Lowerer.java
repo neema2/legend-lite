@@ -638,13 +638,15 @@ public final class Lowerer {
         // (deterministic; real pure's hash VALUES are platform-specific,
         // only determinism and type are the contract).
         if ("__HASH_LIST__".equals(fn)) {
+            // shift by 2^63 exactly (PLUS Long.MIN_VALUE — a MAX_VALUE
+            // shift left hash 2^64-1 mapping to 2^63, one past BIGINT)
             return new SqlExpr.Cast(
-                    SqlExpr.Call.of(com.legend.sql.SqlFn.MINUS,
+                    SqlExpr.Call.of(com.legend.sql.SqlFn.PLUS,
                             new SqlExpr.Cast(
                                     SqlExpr.Call.of(com.legend.sql.SqlFn.HASH,
                                             new SqlAgg.Reducer("LIST", List.of(value), false)),
                                     com.legend.sql.SqlType.Scalar.HUGEINT),
-                            new SqlExpr.IntLit(Long.MAX_VALUE)),
+                            new SqlExpr.IntLit(Long.MIN_VALUE)),
                     com.legend.sql.SqlType.Scalar.BIGINT);
         }
         // joinStrings(prefix, sep, suffix): STRING_AGG takes only the
@@ -1827,6 +1829,22 @@ public final class Lowerer {
             // struct with the overridden fields replaced — pure layout
             // rebuild, no new SQL shapes.
             case com.legend.compiler.spec.typed.TypedCopyInstance cp -> {
+                // the List CARRIER is a bare array, not its layout struct —
+                // a values override replaces it wholesale; other platform
+                // carriers reject loudly rather than emit the wrong shape
+                if (com.legend.compiler.element.type.PlatformTypes
+                        .isListCarrier(cp.info().type())
+                        || cp.classFqn().equals(
+                                com.legend.compiler.element.type.PlatformTypes.LIST)) {
+                    TypedSpec ov = cp.overrides().get("values");
+                    yield ov == null ? scalar(cp.source(), columns)
+                            : asList(scalar(ov, columns), isMany(ov));
+                }
+                if (com.legend.compiler.element.type.PlatformTypes
+                        .isMapCarrier(cp.info().type())) {
+                    throw new com.legend.error.NotImplementedException(
+                            "^$var(…) copy of the Map carrier is not lowered");
+                }
                 var layout = classLayout.apply(cp.info().type()).orElseThrow(() ->
                         new IllegalStateException("^$var(…) copy of " + cp.classFqn()
                                 + " has no canonical layout"));
@@ -2627,6 +2645,15 @@ public final class Lowerer {
         }
         if (ae != be) {
             var other = ae ? b : a;
+            // Any/Nil/Variant are UNDECIDED, not disjoint — an Any-typed
+            // operand may hold this very enum at run time ([E.X, 1]->first()
+            // == E.X is true in real pure); a static FALSE would be silently
+            // wrong. Those fall through to the SQL name comparison.
+            if (com.legend.compiler.element.type.PlatformTypes.isAny(other)
+                    || com.legend.compiler.element.type.PlatformTypes.isNil(other)
+                    || com.legend.compiler.element.type.PlatformTypes.isVariant(other)) {
+                return false;
+            }
             return !(other instanceof Type.Primitive prim
                     && prim == Type.Primitive.STRING);
         }

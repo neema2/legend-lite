@@ -71,13 +71,12 @@ public final class Executor {
     }
 
     /**
-     * LATTICE-typed roots recover their values' own kinds. A NUMBER root's
-     * SQL carrier is the coerced DECIMAL — an integral value was an Integer
-     * (greatest([1.23, 2]) is the Long 2, not 2.00); a DATE root's carrier
-     * is TIMESTAMP — a midnight value was a StrictDate. Fractional /
-     * time-carrying values keep their carrier kind. (The carrier cannot
-     * distinguish a genuine Float 2.0 or midnight DateTime — the documented
-     * abstract-lattice limitation; concrete-typed roots never take this path.)
+     * LATTICE-typed roots recover their values' own kinds FROM SELF-
+     * DESCRIBING WIRE ENCODINGS ONLY — the identity channel's print forms
+     * (computed by the database) and the TIMESTAMP-carried midnight
+     * StrictDate. Value-consulting heuristics (integral-double narrowing,
+     * scale-0 decimal narrowing) were audited out: the kind must travel
+     * FROM SQL, never be guessed after it.
      */
     private static Object latticeKind(Object v, Type rootType, SqlQuery plan) {
         // The MIXED-ELEMENT IDENTITY channel: selections over mixed-kind
@@ -93,78 +92,19 @@ public final class Executor {
             }
             return Long.valueOf(s);
         }
-        if (rootType == Type.Primitive.NUMBER && v instanceof java.math.BigDecimal d) {
-            // ELEMENT-SELECTING roots return one of their INPUTS: with float
-            // literals now DOUBLE-carried, a DECIMAL under a selection root
-            // is a GENUINE Decimal element — keep it, scale included
-            // (greatest([1.0d, ...]) is 1.0D, never 1).
-            if (selectionRoot(plan)) {
-                return v;
-            }
-            // COMPUTED integral (HUGEINT sums/products) — those carriers
-            // arrive at SCALE 0. A POSITIVE-scale decimal (1.0D) is a
-            // genuine Decimal VALUE whose scale is part of its identity;
-            // stripping first narrowed it to 1 (PCT max/min singles).
-            if (d.scale() <= 0
-                    && d.compareTo(java.math.BigDecimal.valueOf(Long.MAX_VALUE)) <= 0
-                    && d.compareTo(java.math.BigDecimal.valueOf(Long.MIN_VALUE)) >= 0) {
-                return d.longValueExact();
-            }
-            return v;
-        }
-        // The DOUBLE-carrier recovery applies ONLY to ELEMENT-SELECTING
-        // roots (greatest/least/max/min/mode): those return one of their
-        // inputs, so an integral double was an Integer element. COMPUTING
-        // functions (variance, stdDev, average) genuinely produce Floats —
-        // narrowing 4.0 -> 4 there would misprint a computed value. The
-        // static type cannot distinguish the two (both Number); the root
-        // expression's shape can.
-        if (rootType == Type.Primitive.NUMBER && v instanceof Double dd
-                && selectionRoot(plan)
-                && !dd.isInfinite() && !dd.isNaN()
-                && dd == Math.floor(dd) && Math.abs(dd) <= 9.007199254740991E15) {
-            return (long) (double) dd;
-        }
         if (rootType == Type.Primitive.DATE && v instanceof java.sql.Timestamp t
                 && t.toLocalDateTime().toLocalTime()
                         .equals(java.time.LocalTime.MIDNIGHT)) {
             return t.toLocalDateTime().toLocalDate();
         }
-        return v;
-    }
-
-    /** Whether the plan's root projection SELECTS one of its input elements. */
-    private static boolean selectionRoot(SqlQuery plan) {
-        if (!(plan instanceof com.legend.sql.SqlSelect sel) || sel.projections().isEmpty()) {
-            return false;
+        // the BC carrier (fetch keeps LocalDateTime where Timestamp is
+        // unfaithful) gets the SAME midnight narrowing — carrier choice
+        // must not change the recovered kind
+        if (rootType == Type.Primitive.DATE && v instanceof java.time.LocalDateTime ldt
+                && ldt.toLocalTime().equals(java.time.LocalTime.MIDNIGHT)) {
+            return ldt.toLocalDate();
         }
-        return selectsElement(sel.projections().get(0).expr());
-    }
-
-    private static boolean selectsElement(com.legend.sql.SqlExpr e) {
-        return switch (e) {
-            case com.legend.sql.SqlAgg.Reducer r ->
-                    switch (r.fn()) {
-                        case "MAX", "MIN", "MODE", "ARG_MAX", "ARG_MIN" -> true;
-                        default -> false;
-                    };
-            case com.legend.sql.SqlExpr.Call c ->
-                    switch (c.fn()) {
-                        case GREATEST, LEAST, LIST_GET, LIST_MAX, LIST_MIN, LIST_MODE -> true;
-                        // list_aggregate('max'/'min'/'mode') selects an element
-                        case LIST_AGG -> c.args().get(0)
-                                        instanceof com.legend.sql.SqlExpr.StringLit f
-                                && switch (f.value()) {
-                                    case "max", "min", "mode" -> true;
-                                    default -> false;
-                                };
-                        case COALESCE -> c.args().stream()
-                                .anyMatch(Executor::selectsElement);
-                        default -> false;
-                    };
-            case com.legend.sql.SqlExpr.ScalarSubquery sq -> selectionRoot(sq.subquery());
-            default -> false;
-        };
+        return v;
     }
 
     /**

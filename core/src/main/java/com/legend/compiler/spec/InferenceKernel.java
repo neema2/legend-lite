@@ -164,7 +164,7 @@ public final class InferenceKernel {
                         unify(formalParam, af.params().get(i).type(), b);
                         unifyMult(f.params().get(i).multiplicity(),
                                 af.params().get(i).multiplicity(),
-                                af.params().get(i).type(), b);
+                                af.params().get(i).type(), b, true);
                     }
                 } finally {
                     b.exitContravariant();
@@ -511,6 +511,17 @@ public final class InferenceKernel {
      * typed {@code [*]} but their signatures say {@code [1]}).
      */
     public void unifyMult(Multiplicity formal, Multiplicity actual, Type actualType, Bindings b) {
+        unifyMult(formal, actual, actualType, b, false);
+    }
+
+    /**
+     * {@code contravariantSlot} is true ONLY for a function value's own
+     * PARAMETER slots (a wider actual accepts there — real pure); the frame
+     * flag was too broad: a nested function type's RESULT unified inside an
+     * active frame and wrongly accepted a many-valued result (audit).
+     */
+    public void unifyMult(Multiplicity formal, Multiplicity actual, Type actualType, Bindings b,
+                          boolean contravariantSlot) {
         switch (formal) {
             case Multiplicity.Var v -> {
                 if (!b.hasMult(v.name())) {
@@ -543,7 +554,7 @@ public final class InferenceKernel {
                 // WIDER actual accepts — equal(Any[*],Any[*]) is a legal
                 // {T[1],T[1]->Boolean} comparator in real pure.
                 if (!relationSource && fb.isToOne() && actual.isMany()
-                        && !b.contravariant()
+                        && !contravariantSlot
                         && !com.legend.compiler.element.type.PlatformTypes.isVariant(actualType)) {
                     throw new TypeInferenceException(
                             "expected at most one value, got many (" + actual.text() + ")");

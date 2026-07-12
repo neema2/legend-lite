@@ -377,6 +377,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case STARTS_WITH -> fn("starts_with", a);
             case ENDS_WITH -> fn("ends_with", a);
             case MATCHES -> fn("regexp_matches", a);
+            case REGEXP_EXTRACT -> fn("regexp_extract", a);
             case REGEXP_EXTRACT_ALL -> fn("regexp_extract_all", a);
             case REGEXP_REPLACE -> fn("regexp_replace", a);
             case MAP_FROM_LISTS -> fn("map", a);

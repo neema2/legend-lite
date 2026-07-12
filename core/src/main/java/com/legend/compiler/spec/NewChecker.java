@@ -42,6 +42,20 @@ final class NewChecker {
                     new TypeInferenceException("class '" + classFqn + "' has no property '" + name + "'"));
             TypedSpec value = t.synth(key.value(), env);
             t.kernel().unify(prop.type(), value.info().type(), new Bindings());
+            // the SAME multiplicity subsumption as construction (real pure
+            // validates copy through the instantiation validator too — the
+            // audit found this half missing)
+            if (prop.multiplicity() instanceof Multiplicity.Bounded declared
+                    && value.info().multiplicity() instanceof Multiplicity.Bounded actual) {
+                boolean lowOk = actual.lower() >= declared.lower();
+                boolean highOk = declared.upper() == null
+                        || (actual.upper() != null && actual.upper() <= declared.upper());
+                if (!lowOk || !highOk) {
+                    throw new TypeInferenceException("property '" + name + "' of '"
+                            + classFqn + "' declares multiplicity " + declared
+                            + " but the value has " + actual);
+                }
+            }
             overrides.put(name, value);
         });
         return new com.legend.compiler.spec.typed.TypedCopyInstance(source, classFqn, overrides,

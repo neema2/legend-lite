@@ -605,4 +605,37 @@ HONESTLY RE-PINNED: the fold trio — the harness serializes
 the wire; the feature works, the tests are unrunnable from the
 serialized text. Gates: core 1391, corpus 2721, PCT 1109/1109.
 
+**Audit round 5** (three-dimension deep audit of slices 6-18b:
+tenet / hardcoding / weakened checks; all findings fixed or unwound,
+none rationalized): UNWOUND two value-consulting Executor heuristics —
+integral-double→Long and scale-0-decimal→Long kind guessing (both DEAD
+since the slice-11 identity channel; deleted along with the whole
+selectionRoot plan-sniffing machinery — kinds now travel FROM SQL
+only). regexpIndexOf was LEXICAL (strpos of the match text — anchored
+'ab$' returned the first 'ab'); now POSITIONAL: the regex engine
+itself measures a lazy anchored prefix group, and group positions
+split the literal pattern at the group's paren (statically). formatDate
+nano-precision printed fabricated '000' where a literal's written
+digits had been carrier-truncated — literals print their own written
+subsecond; the runtime pad is exact for anything the carrier can hold.
+date() now guards RUNTIME components in SQL with pure's messages
+(fractional seconds bounded [0,60)); the literal-only comment was
+stale. Group hashCode's shift overflowed BIGINT at hash 2^64-1 (PLUS
+Long.MIN_VALUE now — exact 2^63). enum-vs-Any equality was a silently-
+wrong static FALSE (Any is UNDECIDED, not disjoint) — falls through.
+checkCopy validates multiplicity subsumption like construction; copy
+of the List carrier stays a bare array. keptDedup accumulator names
+freshen by dedup depth (nested comparators captured). Contravariant
+multiplicity is SLOT-scoped (a nested function result inside an active
+frame wrongly widened). Ledger honesty: the four empty-string pins now
+carry stable-fragment messages + per-pin reasons; the OneToOne pin is
+re-labeled serialization-loss. Adjudicated and KEPT with reasons: BC
+LocalDateTime fetch gate (faithful-carrier driver-bug workaround, plus
+the missing midnight arm added), decimal-literal joins/static scales/
+date-literal prints (static program text), the adapter's PURE_MODEL
+helper functions (verbatim mirrors of the real test files' own
+helpers), wrapPctList enumeration (loud fallback), inlineFunctionLiterals
+(misfires fail compilation loudly). AuditRound5Test pins all of it
+(core 1400). Gates: corpus 2721, PCT 1109/1109.
+
 Update this file per slice, same as docs/SCOREBOARD.md.

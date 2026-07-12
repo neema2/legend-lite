@@ -44,7 +44,10 @@ public class Test_LegendLite_GrammarFunctions_PCT extends PCTReportConfiguration
             one("meta::pure::functions::boolean::tests::equality::eq::testEqPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
             one("meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
             one("meta::pure::functions::collection::tests::filter::testFilterInstance_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
-            one("meta::pure::functions::collection::tests::first::testFirstComplex_Function_1__Boolean_1_", ""),
+            // nested property navigation through an injected-model chain — honest
+            // compile gap, also reference-excluded
+            one("meta::pure::functions::collection::tests::first::testFirstComplex_Function_1__Boolean_1_", "\"Cannot find property 'lastName' on meta::pure::functions::collection::tests::model::CO_Firm\""),
+
             one("meta::pure::functions::collection::tests::getAll::testBasic_Function_1__Boolean_1_", "\"class query under TypedNativeCall is not resolvable yet (H2 vocabulary)\""),
             // INSTANCE IDENTITY through the wire: these asserts require the
             // ORIGINAL let-bound instances back (assertIs / address-equal) —
@@ -52,6 +55,8 @@ public class Test_LegendLite_GrammarFunctions_PCT extends PCTReportConfiguration
             // the reference adapter excludes this family too.
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToMany_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Location"),
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address"),
+            // (OneToOne is HARNESS SERIALIZATION LOSS, not an identity assert:
+            // the captured $address never reaches the serialized text)
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\""));
 
     public static Test suite() {
