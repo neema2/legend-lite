@@ -1420,13 +1420,29 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 List<SqlExpr> spread = new ArrayList<>();
                 spread.add(args.get(0));
+                // typed elements ride along so %s can print CLASS-typed
+                // values (Pair -> '<f, s>') by their STATIC type
+                java.util.List<com.legend.compiler.spec.typed.TypedSpec> typedElems =
+                        n.args().get(1) instanceof com.legend.compiler.spec.typed.TypedCollection tc
+                                ? tc.elements() : java.util.List.of(n.args().get(1));
                 if (args.get(1) instanceof SqlExpr.ArrayLit arr) {
                     // A MIXED argument list arrives variant-wrapped (its LUB
                     // is Any) — printf wants the raw values back, each
                     // substitution slot carries its own kind already.
-                    arr.elements().forEach(e -> spread.add(
-                            e instanceof SqlExpr.Call c && c.fn() == SqlFn.TO_VARIANT
-                                    ? c.args().get(0) : e));
+                    for (int i = 0; i < arr.elements().size(); i++) {
+                        SqlExpr e = arr.elements().get(i);
+                        e = e instanceof SqlExpr.Call c && c.fn() == SqlFn.TO_VARIANT
+                                ? c.args().get(0) : e;
+                        Type et = i < typedElems.size()
+                                ? typedElems.get(i).info().type() : null;
+                        // class-typed slots pre-print via the pure toString
+                        // (printf's %s would show the raw struct)
+                        if (et != null
+                                && com.legend.compiler.element.type.PlatformTypes.isPairCarrier(et)) {
+                            e = pureToString(et, e);
+                        }
+                        spread.add(e);
+                    }
                 } else {
                     spread.add(args.get(1));
                 }
@@ -1469,7 +1485,7 @@ final class Scalars {
                 if (t == Type.Primitive.FLOAT) {
                     return floatRepr(args.get(0));
                 }
-                return new SqlExpr.Cast(args.get(0), PureSql.type(Type.Primitive.STRING));
+                return pureToString(t, args.get(0));
             });
         }
         family(SqlFn.IS_DISTINCT, "isDistinct");
@@ -1876,6 +1892,38 @@ final class Scalars {
                         new SqlExpr.IntLit(3)),
                 com.legend.sql.SqlType.Scalar.BIGINT) : one;
         return SqlExpr.Call.of(SqlFn.MAKE_TIMESTAMP, year, month, day, zero, zero, zero);
+    }
+
+    /**
+     * The pure PRINT of a value by its STATIC type, composed IN SQL —
+     * Pair prints {@code '<first, second>'} (real anonymousCollections
+     * toString), recursively; everything else is the VARCHAR cast.
+     */
+    private static SqlExpr pureToString(Type t, SqlExpr x) {
+        if (t == Type.Primitive.FLOAT) {
+            return floatRepr(x);
+        }
+        if (t instanceof Type.ClassType ac
+                && com.legend.compiler.element.type.PlatformTypes.isAny(ac)) {
+            // an ANY slot is variant-carried: root TEXT extraction strips
+            // the JSON quoting ('b', not '"b"')
+            return new SqlExpr.Cast(
+                    SqlExpr.Call.of(SqlFn.VARIANT_GET, x, new SqlExpr.StringLit("$")),
+                    PureSql.type(Type.Primitive.STRING));
+        }
+        if (com.legend.compiler.element.type.PlatformTypes.isPairCarrier(t)) {
+            Type ft = ((Type.GenericType) t).arguments().get(0);
+            Type st = ((Type.GenericType) t).arguments().get(1);
+            return SqlExpr.Call.of(SqlFn.CONCAT,
+                    SqlExpr.Call.of(SqlFn.CONCAT,
+                            SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("<"),
+                                    pureToString(ft, new SqlExpr.StructGet(x, "first"))),
+                            new SqlExpr.StringLit(", ")),
+                    SqlExpr.Call.of(SqlFn.CONCAT,
+                            pureToString(st, new SqlExpr.StructGet(x, "second")),
+                            new SqlExpr.StringLit(">")));
+        }
+        return new SqlExpr.Cast(x, PureSql.type(Type.Primitive.STRING));
     }
 
     /** Cast a map operand to the call's RESOLVED Map(K, V) SQL type. */

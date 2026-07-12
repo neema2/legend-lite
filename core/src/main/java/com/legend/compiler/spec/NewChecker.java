@@ -55,6 +55,20 @@ final class NewChecker {
             }
             properties.put(name, value);
         });
+        // PARAMETERIZED platform classes: ^Pair(first=..., second=...) types
+        // as Pair<t(first), t(second)> — its generic params ARE its property
+        // types; a raw ClassType broke zip-over-pair-literals at the
+        // lowering boundary.
+        if (ni.className().equals(com.legend.compiler.element.type.PlatformTypes.PAIR)) {
+            TypedSpec first = properties.get("first");
+            TypedSpec second = properties.get("second");
+            if (first != null && second != null) {
+                return new TypedNewInstance(ni.className(), properties,
+                        new ExprType(new Type.GenericType(ni.className(),
+                                java.util.List.of(first.info().type(), second.info().type())),
+                                Multiplicity.Bounded.ONE));
+            }
+        }
         return new TypedNewInstance(ni.className(), properties,
                 new ExprType(new Type.ClassType(ni.className()), Multiplicity.Bounded.ONE));
     }

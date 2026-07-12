@@ -918,6 +918,18 @@ public final class InferenceKernel {
         if (a instanceof Type.RelationType ra && b instanceof Type.RelationType rb) {
             return new Type.RelationType(unionRows(ra, rb).columns());
         }
+        // Same-raw parameterized classes (Pair<String,String> vs
+        // Pair<String,Integer>): the LUB is ARG-WISE — real covariance
+        // (Pair<String, Any> holds both).
+        if (a instanceof Type.GenericType gpa && b instanceof Type.GenericType gpb
+                && gpa.rawFqn().equals(gpb.rawFqn())
+                && gpa.arguments().size() == gpb.arguments().size()) {
+            List<Type> lub = new java.util.ArrayList<>(gpa.arguments().size());
+            for (int i = 0; i < gpa.arguments().size(); i++) {
+                lub.add(commonSupertype(gpa.arguments().get(i), gpb.arguments().get(i)));
+            }
+            return new Type.GenericType(gpa.rawFqn(), lub);
+        }
         String fa = nominalFqn(a), fb = nominalFqn(b);
         if (fa == null || fb == null) {
             // NON-NOMINAL mismatch (function vs relation, differing function
@@ -959,6 +971,9 @@ public final class InferenceKernel {
             case Type.PrecisionDecimal pd -> pd.basePrimitive().qualifiedName();
             case Type.ClassType c -> c.fqn();
             case Type.EnumType e -> e.fqn();
+            // a parameterized class is NOMINALLY its raw class (Pair<S,I>
+            // meets String at Any, like raw Pair always did)
+            case Type.GenericType g -> g.rawFqn();
             default -> null;
         };
     }

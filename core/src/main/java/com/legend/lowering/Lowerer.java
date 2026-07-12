@@ -1706,8 +1706,28 @@ public final class Lowerer {
                             .map(e -> (SqlExpr) SqlExpr.Call.of(
                                     com.legend.sql.SqlFn.TO_VARIANT, scalar(e, columns)))
                             .toList());
-            case TypedCollection c -> new SqlExpr.ArrayLit(
-                    c.elements().stream().map(e -> scalar(e, columns)).toList());
+            case TypedCollection c -> {
+                // HETEROGENEOUS Pair elements (Pair<String,String> with
+                // Pair<String,Integer>: LUB Pair<String,Any>): every element
+                // CASTS to the LUB's struct shape or the array cannot type
+                if (c.info().type() instanceof Type.GenericType lubG
+                        && com.legend.compiler.element.type.PlatformTypes
+                                .isPairCarrier(lubG)) {
+                    boolean uniform = c.elements().stream()
+                            .allMatch(e -> e.info().type().equals(c.info().type()));
+                    if (!uniform) {
+                        // rebuild each struct with per-field COERCION to the
+                        // LUB: Any-typed slots take the variant carrier
+                        // (to_json), never a text CAST
+                        yield new SqlExpr.ArrayLit(c.elements().stream()
+                                .map(e -> (SqlExpr) pairToLub(scalar(e, columns),
+                                        e.info().type(), lubG))
+                                .toList());
+                    }
+                }
+                yield new SqlExpr.ArrayLit(
+                        c.elements().stream().map(e -> scalar(e, columns)).toList());
+            }
             // $r.alias.COL — a NAVIGATE slot's struct column flattens to
             // its prefixed physical column (alias_COL).
             case TypedPropertyAccess p when p.source() instanceof TypedPropertyAccess inner
@@ -1781,6 +1801,16 @@ public final class Lowerer {
             // order) — never the instance's own field set; an omitted
             // property is a NULL field.
             case com.legend.compiler.spec.typed.TypedNewInstance n -> {
+                // ^Pair(first=..., second=...): the Pair STRUCT carrier —
+                // its layout IS first/second (the platform declaration)
+                if (n.classFqn().equals(
+                        com.legend.compiler.element.type.PlatformTypes.PAIR)) {
+                    yield new SqlExpr.StructLit(List.of(
+                            new SqlExpr.StructLit.Field("first",
+                                    scalar(n.properties().get("first"), columns)),
+                            new SqlExpr.StructLit.Field("second",
+                                    scalar(n.properties().get("second"), columns))));
+                }
                 var layout = classLayout.apply(n.info().type()).orElseThrow(() ->
                         new IllegalStateException("class value ^" + n.classFqn()
                                 + "(…) has no canonical layout — the class declares no"
@@ -2144,6 +2174,26 @@ public final class Lowerer {
             return vc;
         }
         return null;
+    }
+
+    /** Rebuild a pair struct with fields COERCED to the LUB's slots (Any -> variant). */
+    private static SqlExpr pairToLub(SqlExpr pair, Type own, Type.GenericType lub) {
+        String[] names = {"first", "second"};
+        java.util.List<SqlExpr.StructLit.Field> fields = new java.util.ArrayList<>(2);
+        for (int i = 0; i < 2; i++) {
+            SqlExpr f = new SqlExpr.StructGet(pair, names[i]);
+            Type lubArg = lub.arguments().get(i);
+            Type ownArg = own instanceof Type.GenericType og && og.arguments().size() == 2
+                    ? og.arguments().get(i) : null;
+            if (lubArg instanceof Type.ClassType lc
+                    && com.legend.compiler.element.type.PlatformTypes.isAny(lc)
+                    && (ownArg == null || !(ownArg instanceof Type.ClassType oc
+                            && com.legend.compiler.element.type.PlatformTypes.isAny(oc)))) {
+                f = SqlExpr.Call.of(com.legend.sql.SqlFn.TO_VARIANT, f);
+            }
+            fields.add(new SqlExpr.StructLit.Field(names[i], f));
+        }
+        return new SqlExpr.StructLit(fields);
     }
 
     /** A resolver for positions where no row scope exists (literal evaluation). */

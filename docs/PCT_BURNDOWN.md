@@ -439,4 +439,29 @@ stays (encoding, not evaluation).
 Gates: core 1391, corpus 2721, PCT 1109/1109 — identical results,
 database-executed.
 
+**Slice 12** (the PAIR machinery — zip family + pair prints, 10 more
+exclusions removed, 74 remain): ^Pair(first=..., second=...) instance
+literals type as Pair<t(first), t(second)> (its generic params ARE its
+property types — raw ClassType broke the lowering boundary) and lower
+to the STRUCT carrier directly. The kernel's commonSupertype gains the
+same-raw parameterized-class arm (arg-wise LUB: Pair<String,String> ⊔
+Pair<String,Integer> = Pair<String,Any>) and nominalFqn sees through
+GenericType (String ⊔ Pair<...> = Any, as raw Pair always did).
+HETEROGENEOUS pair collections rebuild each element struct with
+PER-FIELD coercion to the LUB (Any slots take the variant carrier —
+a text CAST tried to parse 'b' as JSON). toString/format print Pairs
+as real pure's '<first, second>' COMPOSED IN SQL (pureToString,
+recursive by static type; Any slots extract root text — '->> $'
+strips JSON quoting). The WIRE rebuilds real Pair instances (the
+DynamicNew pattern: newEphemeralAnonymousCoreInstance +
+setValuesForProperty + classifierGenericType stamping) and hands the
+interpreted cast a typed WRAPPER
+(wrapValueSpecification_ResultGenericTypeIsKnown — the cast validates
+the wrapper's genericType, not the instances'). The engine bridge
+carries GENERIC ARGUMENTS through result types (CoreBridge maps core
+GenericType -> engine GenericType — args were erased to raw Pair;
+LOCAL EDIT to the user's WIP file, not committed here).
+testRemoveDuplicatesByPrimitive passes by ripple. Gates: core 1391,
+corpus 2721, PCT 1109/1109.
+
 Update this file per slice, same as docs/SCOREBOARD.md.

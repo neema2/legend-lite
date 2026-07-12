@@ -219,6 +219,16 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 coreInstances.add(toCoreInstance(value, elementType, ps));
             }
         }
+        // CLASS-typed elements (Pair<T,U>): the interpreted cast validates
+        // the WRAPPER's genericType — hand it the declared one explicitly
+        if (classFqnOf(elementType) != null && !isMapReturn(elementType)) {
+            CoreInstance gt = genericTypeOf(elementType, ps);
+            if (gt != null) {
+                return ValueSpecificationBootstrap.wrapValueSpecification_ResultGenericTypeIsKnown(
+                        org.eclipse.collections.impl.factory.Lists.immutable.withAll(coreInstances),
+                        gt, true, ps);
+            }
+        }
         return ValueSpecificationBootstrap.wrapValueSpecification(
                 org.eclipse.collections.impl.factory.Lists.immutable.withAll(coreInstances), true, ps);
     }
@@ -236,6 +246,106 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
      * Dispatches on Java type; uses Type for BigDecimal disambiguation
      * and class instance creation.
      */
+    /**
+     * A JDBC STRUCT (java.util.Map) whose DECLARED type is a CLASS builds a
+     * REAL pure instance (the DynamicNew construction pattern) — Pair has
+     * equality keys, so reconstructed pairs compare and print like natives.
+     * Recursive: nested pair structs rebuild through the generic arguments.
+     */
+    private CoreInstance structToInstance(java.util.Map<?, ?> struct, Type declared,
+                                          ProcessorSupport ps) {
+        String fqn = classFqnOf(declared);
+        CoreInstance classifier = fqn == null ? null : ps.package_getByUserPath(fqn);
+        if (classifier == null) {
+            throw new RuntimeException("cannot rebuild struct instance for type " + declared);
+        }
+        CoreInstance inst = modelRepository.newEphemeralAnonymousCoreInstance(null, classifier);
+        // the INTERPRETED cast validates generics — stamp the classifier
+        // generic type (the DynamicNew pattern) from the declared engine type
+        CoreInstance cgt = genericTypeOf(declared, ps);
+        if (cgt != null) {
+            Instance.addValueToProperty(inst, M3Properties.classifierGenericType, cgt, ps);
+        }
+        for (var en : struct.entrySet()) {
+            Object v = en.getValue();
+            if (v == null) {
+                continue;
+            }
+            String prop = String.valueOf(en.getKey());
+            CoreInstance ci = toCoreInstance(v, propertyTypeOf(declared, prop), ps);
+            Instance.setValuesForProperty(inst, prop,
+                    org.eclipse.collections.impl.factory.Lists.immutable.with(ci), ps);
+        }
+        return inst;
+    }
+
+    /** A pure GenericType CoreInstance mirroring the declared engine type (recursive). */
+    private CoreInstance genericTypeOf(Type t, ProcessorSupport ps) {
+        String raw = rawPathOf(t);
+        if (raw == null) {
+            return null;
+        }
+        CoreInstance rawType = ps.package_getByUserPath(raw);
+        if (rawType == null) {
+            return null;
+        }
+        CoreInstance gtClass = ps.package_getByUserPath("meta::pure::metamodel::type::generics::GenericType");
+        CoreInstance gt = modelRepository.newEphemeralAnonymousCoreInstance(null, gtClass);
+        Instance.addValueToProperty(gt, "rawType", rawType, ps);
+        int declared = 0;
+        if (t instanceof Type.GenericType g) {
+            for (Type arg : g.typeArgs()) {
+                CoreInstance argGt = genericTypeOf(arg, ps);
+                if (argGt == null) {
+                    return null;
+                }
+                Instance.addValueToProperty(gt, "typeArguments", argGt, ps);
+                declared++;
+            }
+        }
+        // the ENGINE BRIDGE erases generic args (raw Pair) — pad missing
+        // arguments with Any so the harness's cast is a legal downcast
+        int params = rawType.getValueForMetaPropertyToMany("typeParameters").size();
+        for (int i = declared; i < params; i++) {
+            CoreInstance anyGt = modelRepository.newEphemeralAnonymousCoreInstance(null, gtClass);
+            Instance.addValueToProperty(anyGt, "rawType",
+                    ps.package_getByUserPath("meta::pure::metamodel::type::Any"), ps);
+            Instance.addValueToProperty(gt, "typeArguments", anyGt, ps);
+        }
+        return gt;
+    }
+
+    /** The M3 path of a type's raw classifier (primitives at their simple names). */
+    private static String rawPathOf(Type t) {
+        return switch (t) {
+            case Type.GenericType g -> rawPathOf(g.rawType());
+            case Type.ClassType ct -> ct.qualifiedName();
+            case Type.NameRef n -> n.qualifiedName();
+            case Primitive p -> p.pureName();
+            default -> null;
+        };
+    }
+
+    private static String classFqnOf(Type t) {
+        return switch (t) {
+            case Type.GenericType g when g.rawType() instanceof Type.ClassType ct ->
+                    ct.qualifiedName();
+            case Type.ClassType ct -> ct.qualifiedName();
+            case Type.NameRef n -> n.qualifiedName();
+            default -> null;
+        };
+    }
+
+    /** Pair's first/second resolve through the generic ARGUMENTS (nesting recurses). */
+    private static Type propertyTypeOf(Type declared, String prop) {
+        if (declared instanceof Type.GenericType g && g.typeArgs().size() == 2
+                && "meta::pure::functions::collection::Pair".equals(classFqnOf(g))) {
+            return "first".equals(prop) ? g.typeArgs().get(0)
+                    : "second".equals(prop) ? g.typeArgs().get(1) : declared;
+        }
+        return declared;
+    }
+
     /** The engine-typed return is the Map<U,V> carrier (never a class STRUCT). */
     private static boolean isMapReturn(Type t) {
         return t instanceof Type.GenericType g
@@ -248,6 +358,11 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
     }
 
     private CoreInstance toCoreInstance(Object value, Type type, ProcessorSupport ps) {
+        if (value instanceof java.util.Map<?, ?> struct && classFqnOf(type) != null
+                && !isMapReturn(type)) {
+            return structToInstance(struct, type, ps);
+        }
+
         if (value instanceof Boolean b) {
             return modelRepository.newBooleanCoreInstance(b);
         }
