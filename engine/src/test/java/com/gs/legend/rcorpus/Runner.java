@@ -150,7 +150,11 @@ public final class Runner {
                 sql.add(d.createSql());
             }
         }
-        // pass 1b: model-only sources contribute elements, not seeds
+        // pass 1b: model-only sources contribute elements AND their table
+        // DDL (empty CREATE OR REPLACE — a sibling's classes are queryable
+        // only if their tables exist; the current file's own DDL and the
+        // BeforePackage seeds run AFTER and win), but NOT data seeds
+        List<String> preSql = new ArrayList<>();
         for (String src : modelOnlySources) {
             StringBuilder part = new StringBuilder();
             for (String[] el : splitSectioned(Corpus.modelElements(src))) {
@@ -165,7 +169,14 @@ public final class Runner {
             }
             assembled.append('\n').append(part);
             ext.append('\n').append(part);
+            for (var d : Corpus.tableDefs(src).values()) {
+                if (!d.schema().isEmpty() && !d.schema().equals("default")) {
+                    preSql.add("CREATE SCHEMA IF NOT EXISTS " + d.schema());
+                }
+                preSql.add(d.createSql());
+            }
         }
+        sql.addAll(0, preSql);
         // pass 2: probe-compile every family mapping against the full base
         for (String[] m : mappings) {
             String candidate = assembled + "\n" + m[2] + m[3];
@@ -1132,10 +1143,11 @@ public final class Runner {
         for (var e : byFamily.entrySet()) {
             for (Outcome o : e.getValue()) {
                 if (o.status() != Status.PASS) {
+                    String d = o.detail().replace("\n", "\\n");
                     sb.append("- ").append(o.status()).append(' ')
                             .append(o.test().substring(o.test().lastIndexOf("::") + 2))
                             .append(" [").append(e.getKey()).append("]: ")
-                            .append(o.detail(), 0, Math.min(160, o.detail().length()))
+                            .append(d, 0, Math.min(300, d.length()))
                             .append('\n');
                 }
             }

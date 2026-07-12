@@ -1308,7 +1308,33 @@ public final class MappingNormalizer {
                     ownerClassFqn, mainDb, mainTable, rowBind, model, md);
             case PropertyMapping.OtherwiseEmbedded oe -> emitOtherwiseEmbeddedHop(p, oe,
                     ownerClassFqn, mainDb, mainTable, rowBind, model, md);
-            default -> { /* Column / Enum / Expression / Embedded / InlineEmbedded:
+            case PropertyMapping.Embedded emb -> {
+                // sub-PM join chains hoist into the TOP pipeline (the
+                // embedded instance shares the owner's row); the owner for
+                // class-typed detection is the EMBEDDED class
+                ClassDefinition owner = model.findClass(ownerClassFqn).orElse(null);
+                TypeExpression propType = owner == null ? null
+                        : findPropertyTypeDeep(owner, emb.propertyName(), model);
+                if (propType instanceof TypeExpression.NameRef nr) {
+                    for (PropertyMapping sub : emb.propertyMappings()) {
+                        if (sub instanceof PropertyMapping.Join j
+                                && p.aliasToTargetTable.containsKey(j.propertyName())
+                                && classTypedTargetIfMapped(nr.name(),
+                                        j.propertyName(), model) != null) {
+                            throw new com.legend.error.NotImplementedException(
+                                    "Embedded sub-PM '" + j.propertyName()
+                                  + "' collides with an existing pipeline slot"
+                                  + " of the same name; distinct same-named"
+                                  + " class-typed joins across embedded levels"
+                                  + " are a roadmap feature. Mapping="
+                                  + md.qualifiedName());
+                        }
+                        emitHopsForStructuralPm(p, sub, nr.name(), mainDb,
+                                mainTable, rowBind, model, md);
+                    }
+                }
+            }
+            default -> { /* Column / Enum / Expression / InlineEmbedded:
                             nested JoinNav handled in Pass 2 */ }
         }
     }
@@ -1702,18 +1728,17 @@ public final class MappingNormalizer {
         try {
             Map<String, KeyExpression> fields = new LinkedHashMap<>();
             for (PropertyMapping sub : subPms) {
-                // Class-typed Join sub-PMs inside a value-position Embedded
-                // would require hoisting a navigate step keyed to the
-                // embedded slot — not wired for the embedded context. Reject
-                // with a clear diagnostic rather than silently reading an
-                // unemitted slot.
-                if (sub instanceof PropertyMapping.Join) {
+                // Join sub-PMs read the slot Pass 1 hoisted into the TOP
+                // pipeline (the embedded instance shares the owner's row) —
+                // translatePmToField's Join arm resolves it via innerFqn.
+                // An UNMAPPED target class has no instance to bind: wall.
+                if (sub instanceof PropertyMapping.Join j
+                        && classTypedTargetIfMapped(innerFqn, j.propertyName(), model) == null) {
                     throw new com.legend.error.NotImplementedException(
-                            "Embedded sub-PM '" + sub.propertyName() + "' on '"
-                          + propName + "' is a class-typed Join; nested Join PMs "
-                          + "inside a value-position Embedded are not supported "
-                          + "(would need a hoisted navigate keyed to the embedded "
-                          + "slot). Mapping=" + md.qualifiedName());
+                            "Embedded sub-PM '" + j.propertyName() + "' on '"
+                          + propName + "' is a class-typed Join to an UNMAPPED"
+                          + " target class — no instance to bind. Mapping="
+                          + md.qualifiedName());
                 }
                 CtorField cf = translatePmToField(sub, rowBind, tableScope,
                         defaultTable, pipeline, innerFqn, md, model, false);

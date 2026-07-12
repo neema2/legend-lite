@@ -140,23 +140,113 @@ public final class Corpus {
     // ===== seed SQL =====
 
     private static final Pattern EXECUTE_IN_DB = Pattern.compile(
-            "executeInDb\\s*\\(\\s*'");
+            "executeInDb\\s*\\(");
+
+    private static final Pattern LET_STRING = Pattern.compile(
+            "let\\s+(\\w+)\\s*=\\s*(?=')");
 
     /**
-     * Every {@code executeInDb('...')} SQL literal in a corpus source, in
-     * order, unescaped. These are the seed DDL/DML the engine harness runs
-     * against H2 — legend-lite runs them (dialect-translated) on DuckDB.
+     * Every {@code executeInDb(...)} SQL argument in a corpus source, in
+     * order, unescaped. The argument may be a single literal or a
+     * CONCATENATION of literals and {@code let}-bound string variables
+     * ({@code executeInDb($s + '(1, ...)')} — the corpus's row-insert
+     * idiom); anything unresolvable is skipped (silently absent seeds
+     * surface as loud row diffs / seed-failure accounting downstream).
      */
     public static List<String> seedSql(String source) {
+        // let-bound string constants (values may themselves concatenate)
+        Map<String, String> lets = new LinkedHashMap<>();
+        Matcher lm = LET_STRING.matcher(source);
+        while (lm.find()) {
+            int start = lm.end();
+            int end = exprEnd(source, start);
+            String folded = foldConcat(source.substring(start, end), lets);
+            if (folded != null) {
+                lets.put(lm.group(1), folded);
+            }
+        }
         List<String> out = new ArrayList<>();
         Matcher m = EXECUTE_IN_DB.matcher(source);
         while (m.find()) {
-            int strStart = m.end() - 1;
-            int strEnd = skipString(source, strStart);
-            String lit = source.substring(strStart + 1, strEnd - 1);
-            out.add(quoteInsertColumns(lit.replace("\\'", "'").replace("\\\\", "\\")));
+            int argStart = m.end();
+            int end = exprEnd(source, argStart);
+            String folded = foldConcat(source.substring(argStart, end), lets);
+            if (folded != null) {
+                out.add(quoteInsertColumns(folded));
+            }
         }
         return out;
+    }
+
+    /** Index of the top-level {@code ,} or {@code )} or {@code ;} ending an expression. */
+    private static int exprEnd(String source, int start) {
+        int depth = 0;
+        int i = start;
+        while (i < source.length()) {
+            char c = source.charAt(i);
+            if (c == '\'') {
+                i = skipString(source, i);
+                continue;
+            }
+            if (c == '(') {
+                depth++;
+            } else if (c == ')') {
+                if (depth == 0) {
+                    return i;
+                }
+                depth--;
+            } else if ((c == ',' || c == ';') && depth == 0) {
+                return i;
+            }
+            i++;
+        }
+        return i;
+    }
+
+    /**
+     * Fold {@code 'lit' + $var + 'lit'} into one unescaped string; null when
+     * any part is not a string literal or a known let-bound constant.
+     */
+    private static String foldConcat(String expr, Map<String, String> lets) {
+        StringBuilder out = new StringBuilder();
+        int i = 0;
+        boolean expectPart = true;
+        while (i < expr.length()) {
+            char c = expr.charAt(i);
+            if (Character.isWhitespace(c)) {
+                i++;
+                continue;
+            }
+            if (expectPart && c == '\'') {
+                int end = skipString(expr, i);
+                out.append(expr, i + 1, end - 1);
+                i = end;
+                expectPart = false;
+                continue;
+            }
+            if (expectPart && c == '$') {
+                int j = i + 1;
+                while (j < expr.length() && Character.isJavaIdentifierPart(expr.charAt(j))) {
+                    j++;
+                }
+                String val = lets.get(expr.substring(i + 1, j));
+                if (val == null) {
+                    return null;
+                }
+                out.append(val);
+                i = j;
+                expectPart = false;
+                continue;
+            }
+            if (!expectPart && c == '+') {
+                i++;
+                expectPart = true;
+                continue;
+            }
+            return null;   // not a foldable string expression
+        }
+        return expectPart ? null
+                : out.toString().replace("\\'", "'").replace("\\\\", "\\");
     }
 
     private static final Pattern INSERT_COLS = Pattern.compile(
