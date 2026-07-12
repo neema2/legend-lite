@@ -250,14 +250,7 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
               // If expected type is List<T>, wrap in List; otherwise return directly
               let retType = $f->functionReturnType().rawType->toOne();
               if($retType == List,
-                | let elemType = $f->functionReturnType().typeArguments->at(0).rawType->toOne();
-                  let wrapped = if($elemType == Integer, | ^List<Integer>(values = $result->cast(@Integer)),
-                    | if($elemType == Float, | ^List<Float>(values = $result->cast(@Float)),
-                      | if($elemType == Boolean, | ^List<Boolean>(values = $result->cast(@Boolean)),
-                        | if($elemType == String, | ^List<String>(values = $result->cast(@String)),
-                          | if($elemType == Number, | ^List<Number>(values = $result->cast(@Number)),
-                            | ^List<Any>(values = $result))))));
-                  $wrapped->cast(@X)->toMultiplicity(@[o]);,
+                | wrapPctList($f->functionReturnType(), $result)->cast(@X)->toMultiplicity(@[o]);,
                 | // Not a List type — return values directly as collection
                   $result->cast(@X)->toMultiplicity(@[o])
               );,
@@ -277,10 +270,43 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
                       );
                   );
                   $tdsString->stringToTDS()->cast(@X)->toMultiplicity(@[o]);,
-                | // Scalar: Java returns properly typed value, pass through directly
-                  $single->cast(@X)->toMultiplicity(@[o]);
+                | // Scalar: dates travel as PRINT-FORM STRINGS from the wire
+                  // (parseDate restores their PARTIAL precision: '2015-03');
+                  // a List<T>-typed result wraps into a List instance.
+                  let rawT = $f->functionReturnType().rawType;
+                  if(!$rawT->isEmpty() && $rawT->toOne() == List,
+                    | wrapPctList($f->functionReturnType(), $single)->cast(@X)->toMultiplicity(@[o]);,
+                    | if(!$rawT->isEmpty() && $rawT->toOne()->subTypeOf(Date) && $single->instanceOf(String),
+                        | $single->cast(@String)->parseDate()->cast(@X)->toMultiplicity(@[o]);,
+                        | if(!$rawT->isEmpty() && $rawT->toOne()->instanceOf(Enumeration) && $single->instanceOf(String),
+                            | // enum results travel as their NAME
+                              $rawT->toOne()->cast(@Enumeration<Any>)->extractEnumValue($single->cast(@String))->cast(@X)->toMultiplicity(@[o]);,
+                            | if(!$rawT->isEmpty() && $rawT->toOne() == Float && $single->instanceOf(Integer),
+                                | // numeric WIDENING: DuckDB aggregates fold
+                                  // integral results (AVG(1) = 1) — the
+                                  // declared Float wins
+                                  $single->cast(@Integer)->toFloat()->cast(@X)->toMultiplicity(@[o]);,
+                                | if(!$rawT->isEmpty() && $rawT->toOne() == Float && $single->instanceOf(Decimal),
+                                    | $single->cast(@Decimal)->toFloat()->cast(@X)->toMultiplicity(@[o]);,
+                                    | $single->cast(@X)->toMultiplicity(@[o]);
+                                  );
+                              );
+                          );
+                      );
+                  );
               );
           );
     );
 }
 
+
+function <<access.private>> meta::legend::lite::pct::wrapPctList(retType:GenericType[1], vals:Any[*]):List<Any>[1]
+{
+  let elemType = $retType.typeArguments->at(0).rawType->toOne();
+  if($elemType == Integer, | ^List<Integer>(values = $vals->cast(@Integer)),
+    | if($elemType == Float, | ^List<Float>(values = $vals->cast(@Float)),
+      | if($elemType == Boolean, | ^List<Boolean>(values = $vals->cast(@Boolean)),
+        | if($elemType == String, | ^List<String>(values = $vals->cast(@String)),
+          | if($elemType == Number, | ^List<Number>(values = $vals->cast(@Number)),
+            | ^List<Any>(values = $vals))))));
+}

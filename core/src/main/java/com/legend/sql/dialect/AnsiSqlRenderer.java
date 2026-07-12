@@ -249,7 +249,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                             .collect(java.util.stream.Collectors.joining(", ")) + ")";
             case SqlExpr.StringLit s -> stringLit(s.value());
             case SqlExpr.IntLit i -> String.valueOf(i.value());
-            case SqlExpr.FloatLit f -> String.valueOf(f.value());
+            // pure Float IS float8 — a BARE decimal literal types as
+            // DECIMAL(p,s) in DuckDB and infects every aggregate over it
+            case SqlExpr.FloatLit f -> "CAST(" + f.value() + " AS DOUBLE)";
             case SqlExpr.DecimalLit d -> d.value().toPlainString();
             case SqlExpr.BoolLit b -> boolLit(b.value());
             case SqlExpr.NullLit n -> "NULL";
@@ -363,7 +365,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case MATCHES -> fn("regexp_matches", a);
             case REGEXP_EXTRACT_ALL -> fn("regexp_extract_all", a);
             case REGEXP_REPLACE -> fn("regexp_replace", a);
-            case BIT_NOT -> "(-" + a.get(0) + " - 1)";   // two's complement ~x
+            case BIT_NOT -> "(-(" + a.get(0) + ") - 1)";   // two's complement ~x (parens: --1 is a comment)
             case LEFT -> fn("left", a);
             case RIGHT -> fn("right", a);
             // the PAD CHAR is optional in Pure; SQL requires it — ' '.

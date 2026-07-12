@@ -169,6 +169,10 @@ final class TdsChecker {
             if (v.matches("[+-]?\\d*\\.\\d+([eE][+-]?\\d+)?")) {
                 return Type.Primitive.FLOAT;
             }
+            // pure DECIMAL-suffix cells (21d, 41.0d)
+            if (v.matches("[+-]?\\d+(\\.\\d+)?[dD]")) {
+                return new Type.PrecisionDecimal(Type.PrecisionDecimal.MAX_PRECISION, 0);
+            }
             if (v.equals("true") || v.equals("false")) {
                 return Type.Primitive.BOOLEAN;
             }

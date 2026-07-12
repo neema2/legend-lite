@@ -149,8 +149,10 @@ class AuditRound3Test {
     @Test
     @DisplayName("audit: HUGEINT widening targets the integer literal — float operands never cast")
     void hugeWidenSkipsFloats() throws Exception {
-        assertEquals("22500000000000000000.0",
-                scalar("|2.5 * 9000000000000000000").toString());
+        // VALUE-level: the float operand never casts (2.5 * HUGEINT stays
+        // 2.25e19); the print convention is the boundary's concern.
+        assertEquals(2.25e19,
+                ((Number) scalar("|2.5 * 9000000000000000000")).doubleValue(), 1e4);
         assertEquals("18446744073709551614",
                 scalar("|2 * 9223372036854775807").toString());
     }

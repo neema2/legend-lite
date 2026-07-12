@@ -293,7 +293,7 @@ class DuckDbRenderTest {
                                         new SqlExpr.Column(null, "x"),
                                         new SqlExpr.IntLit(1)))))));
         assertEquals("t0.*", renderExpr(new SqlExpr.Star("t0")));
-        assertEquals("2.5", renderExpr(new SqlExpr.FloatLit(2.5)));
+        assertEquals("CAST(2.5 AS DOUBLE)", renderExpr(new SqlExpr.FloatLit(2.5)));
         assertEquals("1.50", renderExpr(new SqlExpr.DecimalLit(new java.math.BigDecimal("1.50"))));
         assertEquals("-t0.A", renderExpr(SqlExpr.Call.of(SqlFn.NEGATE, col("A"))));
         assertEquals("t0.A IN (1, 2)", renderExpr(SqlExpr.Call.of(SqlFn.IN,

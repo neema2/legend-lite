@@ -47,13 +47,13 @@ public final class Executor {
                 case TABULAR -> tabular(rs, plan, rootType, dialect);
                 case SCALAR -> new ExecutionResult.Scalar(
                         rs.next() ? latticeKind(cell(rs, plan, dialect, anyRoot),
-                                rootType.type()) : null,
+                                rootType.type(), plan) : null,
                         rootType.type());
                 case COLLECTION -> {
                     List<Object> values = new ArrayList<>();
                     while (rs.next()) {
                         values.add(latticeKind(cell(rs, plan, dialect, anyRoot),
-                                rootType.type()));
+                                rootType.type(), plan));
                     }
                     yield new ExecutionResult.Collection(values, rootType.type());
                 }
@@ -79,7 +79,7 @@ public final class Executor {
      * distinguish a genuine Float 2.0 or midnight DateTime — the documented
      * abstract-lattice limitation; concrete-typed roots never take this path.)
      */
-    private static Object latticeKind(Object v, Type rootType) {
+    private static Object latticeKind(Object v, Type rootType, SqlQuery plan) {
         if (rootType == Type.Primitive.NUMBER && v instanceof java.math.BigDecimal d) {
             java.math.BigDecimal stripped = d.stripTrailingZeros();
             // INTEGRAL only: a fractional value may genuinely be a Decimal —
@@ -93,12 +93,59 @@ public final class Executor {
             }
             return v;
         }
+        // The DOUBLE-carrier recovery applies ONLY to ELEMENT-SELECTING
+        // roots (greatest/least/max/min/mode): those return one of their
+        // inputs, so an integral double was an Integer element. COMPUTING
+        // functions (variance, stdDev, average) genuinely produce Floats —
+        // narrowing 4.0 -> 4 there would misprint a computed value. The
+        // static type cannot distinguish the two (both Number); the root
+        // expression's shape can.
+        if (rootType == Type.Primitive.NUMBER && v instanceof Double dd
+                && selectionRoot(plan)
+                && !dd.isInfinite() && !dd.isNaN()
+                && dd == Math.floor(dd) && Math.abs(dd) <= 9.007199254740991E15) {
+            return (long) (double) dd;
+        }
         if (rootType == Type.Primitive.DATE && v instanceof java.sql.Timestamp t
                 && t.toLocalDateTime().toLocalTime()
                         .equals(java.time.LocalTime.MIDNIGHT)) {
             return t.toLocalDateTime().toLocalDate();
         }
         return v;
+    }
+
+    /** Whether the plan's root projection SELECTS one of its input elements. */
+    private static boolean selectionRoot(SqlQuery plan) {
+        if (!(plan instanceof com.legend.sql.SqlSelect sel) || sel.projections().isEmpty()) {
+            return false;
+        }
+        return selectsElement(sel.projections().get(0).expr());
+    }
+
+    private static boolean selectsElement(com.legend.sql.SqlExpr e) {
+        return switch (e) {
+            case com.legend.sql.SqlAgg.Reducer r ->
+                    switch (r.fn()) {
+                        case "MAX", "MIN", "MODE", "ARG_MAX", "ARG_MIN" -> true;
+                        default -> false;
+                    };
+            case com.legend.sql.SqlExpr.Call c ->
+                    switch (c.fn()) {
+                        case GREATEST, LEAST, LIST_GET, LIST_MAX, LIST_MIN, LIST_MODE -> true;
+                        // list_aggregate('max'/'min'/'mode') selects an element
+                        case LIST_AGG -> c.args().get(0)
+                                        instanceof com.legend.sql.SqlExpr.StringLit f
+                                && switch (f.value()) {
+                                    case "max", "min", "mode" -> true;
+                                    default -> false;
+                                };
+                        case COALESCE -> c.args().stream()
+                                .anyMatch(Executor::selectsElement);
+                        default -> false;
+                    };
+            case com.legend.sql.SqlExpr.ScalarSubquery sq -> selectionRoot(sq.subquery());
+            default -> false;
+        };
     }
 
     /**

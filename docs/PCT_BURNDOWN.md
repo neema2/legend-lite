@@ -268,4 +268,25 @@ backslash-n and broke every MULTILINE regexp test.
 | **Unclassified** | **94** | **0** | **100%** |
 | **total** | **1109** | **166** | **85%** |
 
+**Slice 7** (numeric value surface + scalar decode): FLOAT LITERALS
+render CAST(x AS DOUBLE) — a bare 1.23 types as DECIMAL(3,2) in DuckDB
+and infected every aggregate over it into 'D'-suffixed Decimals (the
+P-A bucket); pure Float IS float8. The mixed-Number ELEMENT-IDENTITY
+rule (greatest([1.23,2]) is the Integer 2; variance([...])=4.0 stays
+the Float 4.0 — real returns one of its INPUTS for selections and a
+COMPUTED Float otherwise, both statically Number) lands as
+plan-shape-gated narrowing in the executor: only ELEMENT-SELECTING
+roots (GREATEST/LEAST/MAX/MIN/MODE + list forms) narrow integral
+doubles. dayOfWeek() emits the ENUM NAME via strftime %A (real returns
+DayOfWeek; the DuckDB dow numbers were an engine-lite relic — its
+corpus test converted to the enum surface). TDS 'd'-suffix cells (21d)
+are pure DECIMAL literals. bitNot renders (-(x) - 1) (bare -- opened a
+comment). ADAPTER decode: List<T> results wrap into ^List instances in
+BOTH branches; date scalars parse back from print-form strings
+(parseDate restores PARTIAL precision '2015-03'); enum results decode
+by NAME (extractEnumValue); Integer/Decimal widen to a declared Float;
+Doubles print pure-float PLAIN decimal (2.25e19 ->
+'22500000000000000000.0', integral keeps .0). Standard 50 -> 38,
+Essential 86 -> 74, Grammar 30 -> 28; total 969/1109 (87%).
+
 Update this file per slice, same as docs/SCOREBOARD.md.

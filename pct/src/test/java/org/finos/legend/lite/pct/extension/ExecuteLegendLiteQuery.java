@@ -416,6 +416,13 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                     .format(java.time.format.DateTimeFormatter
                             .ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS")) + "+0000";
         }
+        if (value instanceof Double d && !d.isInfinite() && !d.isNaN()) {
+            // pure float PRINT: plain decimal, never scientific; integral
+            // floats keep a trailing .0 (2.25e19 -> '22500000000000000000.0')
+            java.math.BigDecimal bd = java.math.BigDecimal.valueOf(d);
+            String plain = bd.toPlainString();
+            return bd.scale() <= 0 ? plain + ".0" : plain;
+        }
         String str = value.toString();
         // NOTE: an empty string CANNOT survive the TDS wire — the parser's
         // null literals are ["", "null"], quoted or not (probe-verified);

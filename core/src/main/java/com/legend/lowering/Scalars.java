@@ -322,9 +322,13 @@ final class Scalars {
         // January…); the engine surface is NUMERIC (DuckDB dow: Sunday=0;
         // month 1-12) — the corpus reads both as Numbers.
         for (String f : Pure.nativeKeysAt("dayOfWeek")) {
-            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.EXTRACT, List.of(
-                    new SqlExpr.StringLit("dow"),
-                    dateArg(n.args().get(0), args.get(0)))));
+            // real dayOfWeek():DayOfWeek — the value surface is the ENUM
+            // NAME ('Saturday'), the enum-by-name convention every other
+            // enum position uses (was DuckDB dow numbers, an engine-lite
+            // relic the corpus no longer pins).
+            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.STRFTIME,
+                    dateArg(n.args().get(0), args.get(0)),
+                    new SqlExpr.StringLit("%A")));
         }
         for (String f : Pure.nativeKeysAt("month")) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.EXTRACT, List.of(
@@ -1497,8 +1501,11 @@ final class Scalars {
             return new SqlExpr.IntLit(Long.parseLong(cell));
         }
         if (type == Type.Primitive.FLOAT || type == Type.Primitive.NUMBER
-                || type == Type.Primitive.DECIMAL) {
-            return new SqlExpr.DecimalLit(new java.math.BigDecimal(cell));
+                || type == Type.Primitive.DECIMAL || type instanceof Type.PrecisionDecimal) {
+            // pure DECIMAL-suffix cells (21d) carry the marker in the TEXT
+            String digits = cell.matches("[+-]?\\d+(\\.\\d+)?[dD]")
+                    ? cell.substring(0, cell.length() - 1) : cell;
+            return new SqlExpr.DecimalLit(new java.math.BigDecimal(digits));
         }
         if (type == Type.Primitive.BOOLEAN) {
             return new SqlExpr.BoolLit(Boolean.parseBoolean(cell));

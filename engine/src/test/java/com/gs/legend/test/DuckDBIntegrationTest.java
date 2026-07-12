@@ -2020,12 +2020,14 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         System.out.println("DayOfWeek/DayOfYear result: " + result.rows());
         assertEquals(2, result.rows().size());
 
-        // Verify - DuckDB DOW: Sunday=0
+        // Verify — real pure dayOfWeek():DayOfWeek returns the ENUM (by
+        // name on the value surface), never DuckDB's dow numbers.
+        java.util.Set<String> dayNames = java.util.Set.of("Monday", "Tuesday",
+                "Wednesday", "Thursday", "Friday", "Saturday", "Sunday");
         for (var row : result.rows()) {
-            int dow = ((Number) row.get(0)).intValue();
+            String dow = ((String) row.get(0)).trim();
             int doy = ((Number) row.get(1)).intValue();
-            System.out.printf("  dow=%d, doy=%d%n", dow, doy);
-            assertTrue(dow >= 0 && dow <= 6, "Day of week should be 0-6");
+            assertTrue(dayNames.contains(dow), "Day of week should be an enum name, got " + dow);
             assertTrue(doy >= 1 && doy <= 366, "Day of year should be 1-366");
         }
     }
