@@ -665,6 +665,15 @@ final class Typer {
                     List.of(new Type.ClassType(fqn)));
             return new TypedPackageableRef(fqn, ExprType.one(classOf));
         }
+        // A bare ENUMERATION reference (STR_GeographicEntityType->toString())
+        // is a value of Enumeration<E>[1] (real m3's enumeration metaclass).
+        var en = ctx.findEnum(ref.fullPath());
+        if (en.isPresent()) {
+            String fqn = en.get().qualifiedName();
+            Type enumOf = new Type.GenericType(Pure.ENUMERATION.qualifiedName(),
+                    List.of(new Type.EnumType(fqn)));
+            return new TypedPackageableRef(fqn, ExprType.one(enumOf));
+        }
         // An execution-context element (mapping/runtime/connection/database) is a value
         // of type Any[1] — exactly what from/write's signature parameters declare.
         if (ctx.isExecutionContextElement(ref.fullPath())) {

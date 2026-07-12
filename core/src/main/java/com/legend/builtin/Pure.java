@@ -167,7 +167,10 @@ public final class Pure {
     // ---- Top of the hierarchy ----
     public static final ClassDefinition ANY  = nativeClass("native Class meta::pure::metamodel::type::Any {}");
     public static final ClassDefinition NIL  = nativeClass("native Class meta::pure::metamodel::type::Nil  extends meta::pure::metamodel::type::Any {}");
-    public static final ClassDefinition TYPE = nativeClass("native Class meta::pure::metamodel::type::Type extends meta::pure::metamodel::type::Any {}");
+    // real m3: Type extends PackageableElement extends ... ModelElement — the
+    // chain contracts to the link we model (a Class value conforms to
+    // ModelElement; letFn's removeDuplicates over classes needs it)
+    public static final ClassDefinition TYPE = nativeClass("native Class meta::pure::metamodel::type::Type extends meta::pure::metamodel::ModelElement {}");
     /** Real M3's element root (meta::pure::metamodel::ModelElement) — corpus fixtures pass these around. */
     public static final ClassDefinition MODEL_ELEMENT = nativeClass("native Class meta::pure::metamodel::ModelElement extends meta::pure::metamodel::type::Any {}");
 
@@ -205,12 +208,18 @@ public final class Pure {
     // Pure exposes the metaclass as `Class<T>` (parameterized over the
     // class it describes); used by signatures like `getAll(Class<T>):T[*]`.
     public static final ClassDefinition CLASS = nativeClass("native Class meta::pure::metamodel::type::Class<T> extends meta::pure::metamodel::type::Type {}");
+    // The enumeration metaclass (real m3: Class Enumeration<T> extends Type) —
+    // a bare enumeration reference (STR_GeographicEntityType->toString()) is a
+    // value of this type.
+    public static final ClassDefinition ENUMERATION = nativeClass("native Class meta::pure::metamodel::type::Enumeration<T> extends meta::pure::metamodel::type::Type {}");
 
     // ---- Variant (semi-structured value carrier) ----
     public static final ClassDefinition VARIANT = nativeClass("native Class meta::pure::metamodel::variant::Variant extends meta::pure::metamodel::type::Any {}");
 
     // ---- Collection carriers ----
-    public static final ClassDefinition LIST = nativeClass("native Class meta::pure::functions::collection::List<T>    extends meta::pure::metamodel::type::Any {}");
+    // REAL pure declares values (legend-pure platform/pure/anonymousCollections.pure:33-35,
+    // <<equality.Key>>) — property access and ^List(values=...) construction validate against it.
+    public static final ClassDefinition LIST = nativeClass("native Class meta::pure::functions::collection::List<T>    extends meta::pure::metamodel::type::Any { values: T[*]; }");
     // REAL pure declares first/second (legend-pure platform/pure/anonymousCollections.pure:17-25,
     // both <<equality.Key>>) — property access and instance construction validate against THEM.
     public static final ClassDefinition PAIR = nativeClass("native Class meta::pure::functions::collection::Pair<U, V> extends meta::pure::metamodel::type::Any { first: U[1]; second: V[1]; }");

@@ -389,7 +389,7 @@ class NativeFunctionTest {
     void nativeClassCatalogSizeIsPinned() {
         // Update this deliberately when adding or removing native classes.
         // 37: +StrictTime (real legend-pure meta::pure::metamodel::type::StrictTime).
-        assertEquals(40, Pure.allNativeClasses().size(),
+        assertEquals(41, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -405,6 +405,10 @@ class NativeFunctionTest {
                 assertEquals(List.of("first", "second"),
                         c.properties().stream().map(p -> p.name()).toList(),
                         "Pair declares exactly first/second (real pure)");
+            } else if (c.qualifiedName().equals("meta::pure::functions::collection::List")) {
+                assertEquals(List.of("values"),
+                        c.properties().stream().map(p -> p.name()).toList(),
+                        "List declares exactly values (real pure anonymousCollections.pure:33-35)");
             } else {
                 assertTrue(c.properties().isEmpty(),
                         () -> "native class '" + c.qualifiedName()

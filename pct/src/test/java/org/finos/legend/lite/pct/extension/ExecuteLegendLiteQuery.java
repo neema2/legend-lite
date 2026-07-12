@@ -112,6 +112,8 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
     private static final Pattern ENUM_REF_PATTERN = Pattern.compile("(\\w+(?:::\\w+)+)\\.\\w+");
     /** Parameter type annotations — match clauses ({@code a: My::Type[1]|...}), typed lambdas. */
     private static final Pattern PARAM_TYPE_PATTERN = Pattern.compile(":\\s*(\\w+(?:::\\w+)+)\\s*\\[");
+    /** Bare element references as values ({@code STR_Person->toString()}). */
+    private static final Pattern BARE_REF_PATTERN = Pattern.compile("(\\w+(?:::\\w+)+)\\s*->");
 
     private final ModelRepository modelRepository;
 
@@ -802,6 +804,10 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             while (paramType.find()) {
                 typeFqns.add(paramType.group(1));
             }
+            Matcher bareRef = BARE_REF_PATTERN.matcher(pureExpression);
+            while (bareRef.find()) {
+                typeFqns.add(bareRef.group(1));
+            }
             for (String fqn : typeFqns) {
                 if (fqn.startsWith("meta::pure::metamodel")
                         || fqn.startsWith("meta::pure::precisePrimitives")) {
@@ -811,9 +817,12 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 // Never inject a class core knows NATIVELY (Pair, List, ...):
                 // the extraction degrades type parameters to Any and a
                 // redefinition could silently shift platform semantics.
-                if (cls != null
-                        && com.legend.builtin.Pure.findNativeClass(fqn).isEmpty()
-                        && Instance.instanceOf(cls, "meta::pure::metamodel::type::Class", ps)) {
+                if (cls == null || com.legend.builtin.Pure.findNativeClass(fqn).isPresent()) {
+                    continue;
+                }
+                if (Instance.instanceOf(cls, "meta::pure::metamodel::type::Enumeration", ps)) {
+                    discoveredEnums.add(fqn);
+                } else if (Instance.instanceOf(cls, "meta::pure::metamodel::type::Class", ps)) {
                     extractClassRecursive(fqn, classes, visited, discoveredEnums, ps);
                 }
             }

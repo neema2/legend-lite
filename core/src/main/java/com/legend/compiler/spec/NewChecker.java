@@ -69,6 +69,16 @@ final class NewChecker {
                                 Multiplicity.Bounded.ONE));
             }
         }
+        // ^List(values=...) types as List<t(values)> — same principle: the
+        // generic param IS the values collection's element type.
+        if (ni.className().equals(com.legend.compiler.element.type.PlatformTypes.LIST)) {
+            TypedSpec values = properties.get("values");
+            Type elem = values != null ? values.info().type()
+                    : new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY);
+            return new TypedNewInstance(ni.className(), properties,
+                    new ExprType(new Type.GenericType(ni.className(), java.util.List.of(elem)),
+                            Multiplicity.Bounded.ONE));
+        }
         return new TypedNewInstance(ni.className(), properties,
                 new ExprType(new Type.ClassType(ni.className()), Multiplicity.Bounded.ONE));
     }

@@ -1122,6 +1122,13 @@ final class Scalars {
                     throw new IllegalStateException("removeDuplicates with a"
                             + " non-equality comparator has no scalar lowering");
                 }
+                // a TO-ONE value is its own dedup — but the output is
+                // [*]-typed, so it must stay LIST-shaped for consumers
+                // (the root UNNEST, downstream list ops)
+                if (isToOne(n.args().get(0))
+                        && !(args.get(0) instanceof SqlExpr.ArrayLit)) {
+                    return new SqlExpr.ArrayLit(List.of(args.get(0)));
+                }
                 return orderedDedup(args.get(0));
             });
         }
@@ -1565,7 +1572,9 @@ final class Scalars {
                         // class-typed slots pre-print via the pure toString
                         // (printf's %s would show the raw struct)
                         if (et != null
-                                && com.legend.compiler.element.type.PlatformTypes.isPairCarrier(et)) {
+                                && (com.legend.compiler.element.type.PlatformTypes.isPairCarrier(et)
+                                        || com.legend.compiler.element.type.PlatformTypes
+                                                .isListCarrier(et))) {
                             e = pureToString(et, e);
                         }
                         spread.add(e);
@@ -1574,7 +1583,7 @@ final class Scalars {
                     spread.add(args.get(1));
                 }
                 if (spread.get(0) instanceof SqlExpr.StringLit fmt) {
-                    rewriteFormatDirectives(fmt.value(), spread);
+                    rewriteFormatDirectives(fmt.value(), spread, typedElems);
                 }
                 return new SqlExpr.Call(SqlFn.FORMAT, spread);
             });
@@ -1605,6 +1614,13 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("toString")) {
             RULES.put(f, (n, args) -> {
                 Type t = n.args().get(0).info().type();
+                // A DATE LITERAL's print form is fully static — subsecond
+                // DIGIT COUNT is part of the value (%2014-01-01T00:00:00.00
+                // prints '.00', which no timestamp carrier can retain).
+                SqlExpr lit = dateLiteralPrint(n.args().get(0), t);
+                if (lit != null) {
+                    return lit;
+                }
                 if (t == Type.Primitive.DATE_TIME) {
                     return SqlExpr.Call.of(SqlFn.STRFTIME, args.get(0),
                             new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S.%g+0000"));
@@ -2055,6 +2071,15 @@ final class Scalars {
         return SqlExpr.Call.of(SqlFn.MAKE_TIMESTAMP, year, month, day, zero, zero, zero);
     }
 
+    /** {@code ', '}-joined string list ('' for empty) — composed in SQL. */
+    private static SqlExpr joinList(SqlExpr strings) {
+        return SqlExpr.Call.of(SqlFn.COALESCE,
+                new SqlExpr.Call(SqlFn.LIST_AGG, List.of(
+                        new SqlExpr.StringLit("string_agg"), strings,
+                        new SqlExpr.StringLit(", "))),
+                new SqlExpr.StringLit(""));
+    }
+
     /**
      * The pure PRINT of a value by its STATIC type, composed IN SQL —
      * Pair prints {@code '<first, second>'} (real anonymousCollections
@@ -2067,10 +2092,31 @@ final class Scalars {
         if (t instanceof Type.ClassType ac
                 && com.legend.compiler.element.type.PlatformTypes.isAny(ac)) {
             // an ANY slot is variant-carried: root TEXT extraction strips
-            // the JSON quoting ('b', not '"b"')
-            return new SqlExpr.Cast(
-                    SqlExpr.Call.of(SqlFn.VARIANT_GET, x, new SqlExpr.StringLit("$")),
-                    PureSql.type(Type.Primitive.STRING));
+            // the JSON quoting ('b', not '"b"'); a variant-carried LIST
+            // (a nested ^List under Any) prints pure's '[a, b]', its
+            // ELEMENTS as root text — composed in SQL from the JSON array
+            return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                    SqlExpr.Call.of(SqlFn.EQUAL,
+                            SqlExpr.Call.of(SqlFn.JSON_TYPE, x),
+                            new SqlExpr.StringLit("ARRAY")),
+                    cat(new SqlExpr.StringLit("["),
+                            joinList(new SqlExpr.Cast(x, new com.legend.sql.SqlType.Array(
+                                    PureSql.type(Type.Primitive.STRING)))),
+                            new SqlExpr.StringLit("]")))),
+                    new SqlExpr.Cast(
+                            SqlExpr.Call.of(SqlFn.VARIANT_GET, x, new SqlExpr.StringLit("$")),
+                            PureSql.type(Type.Primitive.STRING)));
+        }
+        if (com.legend.compiler.element.type.PlatformTypes.isListCarrier(t)) {
+            // real anonymousCollections List.toString(): '[v1, v2, ...]'
+            Type et = t instanceof Type.GenericType g && !g.arguments().isEmpty()
+                    ? g.arguments().get(0)
+                    : new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY);
+            SqlExpr elem = new SqlExpr.Column(null, "_ts");
+            return cat(new SqlExpr.StringLit("["),
+                    joinList(SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, x,
+                            new SqlExpr.Lambda(List.of("_ts"), pureToString(et, elem)))),
+                    new SqlExpr.StringLit("]"));
         }
         if (com.legend.compiler.element.type.PlatformTypes.isPairCarrier(t)) {
             Type ft = ((Type.GenericType) t).arguments().get(0);
@@ -2585,7 +2631,8 @@ final class Scalars {
      * rewriting each to %s and wrapping the matching spread argument
      * (spread = [fmt, arg1, ...]; directive order maps to argument order).
      */
-    private static void rewriteFormatDirectives(String fmt, List<SqlExpr> spread) {
+    private static void rewriteFormatDirectives(String fmt, List<SqlExpr> spread,
+            List<com.legend.compiler.spec.typed.TypedSpec> typedElems) {
         StringBuilder out = new StringBuilder();
         int argIdx = 1;
         int i = 0;
@@ -2602,13 +2649,13 @@ final class Scalars {
                 i += 2;
                 continue;
             }
+            var typed = argIdx - 1 < typedElems.size() ? typedElems.get(argIdx - 1) : null;
             if (d == 't' && i + 2 < fmt.length() && fmt.charAt(i + 2) == '{') {
                 int close = fmt.indexOf('}', i + 3);
                 if (close < 0) {
                     throw new IllegalStateException("unterminated %t{ in format: " + fmt);
                 }
-                spread.set(argIdx, SqlExpr.Call.of(SqlFn.STRFTIME, spread.get(argIdx),
-                        new SqlExpr.StringLit(javaDateToStrftime(fmt.substring(i + 3, close)))));
+                spread.set(argIdx, dateWithPattern(fmt.substring(i + 3, close), spread.get(argIdx)));
                 out.append("%s");
                 argIdx++;
                 i = close + 1;
@@ -2621,11 +2668,133 @@ final class Scalars {
                 i += 2;
                 continue;
             }
-            out.append('%').append(d);
+            // %r: pure's REPR — a string in quotes with \-escapes, a date
+            // with its % literal prefix.
+            if (d == 'r') {
+                spread.set(argIdx, reprOf(typed, spread.get(argIdx)));
+                out.append("%s");
+                argIdx++;
+                i += 2;
+                continue;
+            }
+            // %0<width>d: pure pads the DIGITS to width and then signs
+            // (-3 at width 5 is '-00003'); printf's width includes the
+            // sign ('-0003').
+            if (d == '0') {
+                int j = i + 2;
+                while (j < fmt.length() && Character.isDigit(fmt.charAt(j))) {
+                    j++;
+                }
+                if (j > i + 2 && j < fmt.length() && fmt.charAt(j) == 'd') {
+                    long width = Long.parseLong(fmt.substring(i + 2, j));
+                    spread.set(argIdx, signedZeroPad(spread.get(argIdx), width));
+                    out.append("%s");
+                    argIdx++;
+                    i = j + 1;
+                    continue;
+                }
+            }
+            // %s / bare %t over a DATE argument: pure's default date print
+            // (the ISO T-form with +0000), not SQL's space-separated cast.
+            if ((d == 's' || d == 't') && typed != null) {
+                SqlExpr dp = datePrintOf(typed, spread.get(argIdx));
+                if (dp != null) {
+                    spread.set(argIdx, dp);
+                    out.append("%s");
+                    argIdx++;
+                    i += 2;
+                    continue;
+                }
+            }
+            out.append('%').append(d == 't' ? 's' : d);
             argIdx++;
             i += 2;
         }
         spread.set(0, new SqlExpr.StringLit(out.toString()));
+    }
+
+    /**
+     * %t{pattern}: an optional leading {@code [Zone]} formats the value in
+     * that zone — the shift and the {@code Z} offset suffix both compute IN
+     * SQL (ICU timezone()); without a zone, values are UTC and {@code Z}
+     * renders the literal +0000 (via the token table).
+     */
+    private static SqlExpr dateWithPattern(String pattern, SqlExpr arg) {
+        if (!pattern.startsWith("[") || pattern.indexOf(']') < 0) {
+            return SqlExpr.Call.of(SqlFn.STRFTIME, arg,
+                    new SqlExpr.StringLit(javaDateToStrftime(pattern)));
+        }
+        int zb = pattern.indexOf(']');
+        String zone = pattern.substring(1, zb);
+        String pat = pattern.substring(zb + 1);
+        boolean offsetSuffix = pat.endsWith("Z");
+        if (offsetSuffix) {
+            pat = pat.substring(0, pat.length() - 1);
+        }
+        if (pat.contains("Z")) {
+            throw new IllegalStateException(
+                    "a zone-shifted date pattern supports Z only as a suffix: " + pattern);
+        }
+        SqlExpr wall = SqlExpr.Call.of(SqlFn.TIMEZONE, new SqlExpr.StringLit(zone),
+                SqlExpr.Call.of(SqlFn.TIMEZONE, new SqlExpr.StringLit("UTC"), arg));
+        SqlExpr shifted = SqlExpr.Call.of(SqlFn.STRFTIME, wall,
+                new SqlExpr.StringLit(javaDateToStrftime(pat)));
+        if (!offsetSuffix) {
+            return shifted;
+        }
+        SqlExpr off = SqlExpr.Call.of(SqlFn.DATE_DIFF,
+                new SqlExpr.StringLit("minute"), arg, wall);
+        SqlExpr absOff = SqlExpr.Call.of(SqlFn.ABS, off);
+        SqlExpr hh = SqlExpr.Call.of(SqlFn.LPAD,
+                str(SqlExpr.Call.of(SqlFn.INT_DIVIDE, absOff, new SqlExpr.IntLit(60))),
+                new SqlExpr.IntLit(2), new SqlExpr.StringLit("0"));
+        SqlExpr mm = SqlExpr.Call.of(SqlFn.LPAD,
+                str(SqlExpr.Call.of(SqlFn.MOD, absOff, new SqlExpr.IntLit(60))),
+                new SqlExpr.IntLit(2), new SqlExpr.StringLit("0"));
+        SqlExpr sign = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.LESS, off, new SqlExpr.IntLit(0)),
+                new SqlExpr.StringLit("-"))), new SqlExpr.StringLit("+"));
+        return cat(shifted, sign, hh, mm);
+    }
+
+    /** {@code -3 @ width 5 → '-00003'}: pad the digits, then sign (pure's format). */
+    private static SqlExpr signedZeroPad(SqlExpr x, long width) {
+        SqlExpr padded = SqlExpr.Call.of(SqlFn.LPAD,
+                str(SqlExpr.Call.of(SqlFn.ABS, x)),
+                new SqlExpr.IntLit(width), new SqlExpr.StringLit("0"));
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.LESS, x, new SqlExpr.IntLit(0)),
+                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("-"), padded))),
+                padded);
+    }
+
+    /** Pure's default date print for a format slot, or null when not a date. */
+    private static SqlExpr datePrintOf(com.legend.compiler.spec.typed.TypedSpec typed, SqlExpr e) {
+        Type t = typed.info().type();
+        SqlExpr lit = dateLiteralPrint(typed, t);
+        if (lit != null) {
+            return lit;
+        }
+        if (t == Type.Primitive.DATE_TIME) {
+            return SqlExpr.Call.of(SqlFn.STRFTIME, e,
+                    new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S.%g+0000"));
+        }
+        return null;
+    }
+
+    /** %r: strings quote with \-escapes; dates carry their % literal prefix. */
+    private static SqlExpr reprOf(com.legend.compiler.spec.typed.TypedSpec typed, SqlExpr e) {
+        if (typed != null) {
+            SqlExpr dp = datePrintOf(typed, e);
+            if (dp != null) {
+                return cat(new SqlExpr.StringLit("%"), dp);
+            }
+        }
+        SqlExpr escaped = SqlExpr.Call.of(SqlFn.REPLACE,
+                SqlExpr.Call.of(SqlFn.REPLACE, e,
+                        new SqlExpr.StringLit("\\"), new SqlExpr.StringLit("\\\\")),
+                new SqlExpr.StringLit("'"), new SqlExpr.StringLit("\\'"));
+        return cat(new SqlExpr.StringLit("'"), escaped, new SqlExpr.StringLit("'"));
     }
 
     /**
@@ -2681,6 +2850,20 @@ final class Scalars {
         return (t instanceof Type.ClassType && !PlatformTypes.isVariant(t)
                         && !PlatformTypes.isAny(t) && !PlatformTypes.isNil(t))
                 || t instanceof Type.GenericType;
+    }
+
+    /**
+     * The STATIC print form of a date literal (real pure's toString):
+     * components padded, subsecond digits exactly as written, DateTime
+     * normalized to +0000 (the parser already shifted zone-carrying
+     * literals to GMT). {@code null} for non-literal args.
+     */
+    private static SqlExpr dateLiteralPrint(com.legend.compiler.spec.typed.TypedSpec spec, Type t) {
+        if (!(spec instanceof com.legend.compiler.spec.typed.TypedCDate cd)) {
+            return null;
+        }
+        String s = cd.value().toEngineString();
+        return new SqlExpr.StringLit(t == Type.Primitive.DATE_TIME ? s + "+0000" : s);
     }
 
     /** Partial-date-literal precision: 1 = year, 2 = year-month; null otherwise. */

@@ -69,18 +69,8 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // object) — legend-lite compiles to SQL and holds no expression tree at
             // run time; metamodel reflection is out of vocabulary.
             one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "\"unknown function 'meta::pure::functions::meta::deactivate'\""),
-            one("meta::pure::functions::string::tests::format::testFormatDate_Function_1__Boolean_1_", "\"unsupported date-format token 'E' in pattern '[EST]yyyy-MM-dd HH:mm:ss.SSSZ'\""),
-            one("meta::pure::functions::string::tests::format::testFormatIntegerWithZeroPadding_Function_1__Boolean_1_", "\"\nexpected: 'the quick brown fox jumps over the lazy -00003'\nactual:   'the quick brown fox jumps over the lazy -0003'\""),
-            one("meta::pure::functions::string::tests::format::testFormatList_Function_1__Boolean_1_", "\"class 'meta::pure::functions::collection::List' has no property 'values'\""),
-            one("meta::pure::functions::string::tests::format::testFormatRepr_Function_1__Boolean_1_", "\"Invalid type specifier \"r\" for formatting a value of type string\""),
-            one("meta::pure::functions::string::tests::format::testSimpleFormatDate_Function_1__Boolean_1_", "\"\nexpected: 'the quick brown fox jumps over the lazy 2014-01-01T00:00:00.000+0000'\nactual:   'the quick brown fox jumps over the lazy 2014-01-01 00:00:00'\""),
             one("meta::pure::functions::string::tests::substring::testStartEnd_Function_1__Boolean_1_", "\"\nexpected: 'he quick brown fox jumps over the lazy do'\nactual:   'he quick brown fox jumps over the lazy dog'\""),
-            one("meta::pure::functions::string::tests::toString::testClassToString_Function_1__Boolean_1_", "\"'meta::pure::functions::string::tests::toString::STR_Person' is not a known class, mapping, runtime, connection, or database\""),
-            one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "expected: '// Warning: Good for gin -- Sad times no tonic'"),
-            one("meta::pure::functions::string::tests::toString::testDateTimeToString_Function_1__Boolean_1_", "\"\nexpected: '2014-01-01T00:00:00.00+0000'\nactual:   '2014-01-01T00:00:00.000+0000'\""),
-            one("meta::pure::functions::string::tests::toString::testDateTimeWithTimezoneToString_Function_1__Boolean_1_", "\"\nexpected: '2014-01-01T00:00:00.0000+0000'\nactual:   '2014-01-01T00:00:00.000+0000'\""),
-            one("meta::pure::functions::string::tests::toString::testEnumerationToString_Function_1__Boolean_1_", "\"'meta::pure::functions::string::tests::toString::STR_GeographicEntityType' is not a known class, mapping, runtime, connection, or database\""),
-            one("meta::pure::functions::string::tests::toString::testListToString_Function_1__Boolean_1_", "\"class 'meta::pure::functions::collection::List' has no property 'values'\""));
+            one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "expected: '// Warning: Good for gin -- Sad times no tonic'"));
 
     public static Test suite() {
         return wrapSuite(

@@ -44,7 +44,7 @@ public enum SqlFn {
     EXTRACT, TODAY, NOW, DATE_TRUNC_DAY, MAKE_DATE, MAKE_TIMESTAMP,
     // Temporal (part-literal-first like EXTRACT): truncation, arithmetic,
     // bucketing, epoch conversion, calendar names
-    DATE_TRUNC, ADD_INTERVAL, DATE_DIFF, TIME_BUCKET,
+    DATE_TRUNC, ADD_INTERVAL, DATE_DIFF, TIME_BUCKET, TIMEZONE,
     EPOCH_SECONDS, EPOCH_MS, FROM_EPOCH_SECONDS, FROM_EPOCH_MS,
     DAYNAME, MONTHNAME,
     // Math extras
@@ -63,5 +63,5 @@ public enum SqlFn {
     // Variant construction
     TO_VARIANT,
     // Variant navigation: logical JSON access; text-extraction idioms are rendering
-    VARIANT_ELEMENTS, VARIANT_GET
+    VARIANT_ELEMENTS, VARIANT_GET, JSON_TYPE
 }

@@ -93,8 +93,14 @@ public final class InferenceKernel {
                 // accepts (paramTypeScore scores subtypes as matches); the two
                 // halves of one kernel must agree, or resolution selects a
                 // winner unification then rejects (audit finding).
-                if (!(actual instanceof Type.ClassType ac
-                        && (ac.fqn().equals(c.fqn()) || ctx.isSubtype(ac.fqn(), c.fqn())))) {
+                boolean nominalOk = actual instanceof Type.ClassType ac
+                        && (ac.fqn().equals(c.fqn()) || ctx.isSubtype(ac.fqn(), c.fqn()));
+                // a PARAMETERIZED actual conforms to a raw class formal by
+                // erasure (Class<TestClass> flows into ModelElement — real
+                // pure; the m3 hierarchy is nominal on the raw type)
+                boolean erasureOk = actual instanceof Type.GenericType ag
+                        && (ag.rawFqn().equals(c.fqn()) || ctx.isSubtype(ag.rawFqn(), c.fqn()));
+                if (!nominalOk && !erasureOk) {
                     throw fail(formal, actual);
                 }
             }

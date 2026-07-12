@@ -81,6 +81,14 @@ public final class Lowerer {
 
     /** SQL type of a value, seeing through class layouts (structs) before {@link PureSql}. */
     private com.legend.sql.SqlType sqlTypeOf(Type t) {
+        // Platform CARRIER types own their SQL shape (List = bare array,
+        // Pair = struct, Map = MAP) — List's declared `values` property is
+        // its pure-side surface, never a struct layout at the SQL boundary.
+        if (com.legend.compiler.element.type.PlatformTypes.isListCarrier(t)
+                || com.legend.compiler.element.type.PlatformTypes.isPairCarrier(t)
+                || com.legend.compiler.element.type.PlatformTypes.isMapCarrier(t)) {
+            return PureSql.type(t);
+        }
         return classLayout.apply(t)
                 .<com.legend.sql.SqlType>map(cols -> new com.legend.sql.SqlType.Struct(
                         cols.stream().map(c -> {
@@ -1785,6 +1793,11 @@ public final class Lowerer {
             }
             // Field access over a TO-MANY class value (filter(...).legalName)
             // MAPS the extraction; a to-one source extracts directly.
+            // List.values over the bare-list carrier is the IDENTITY.
+            case TypedPropertyAccess p when "values".equals(p.property())
+                    && com.legend.compiler.element.type.PlatformTypes
+                            .isListCarrier(p.source().info().type()) ->
+                    scalar(p.source(), columns);
             case TypedPropertyAccess p when classLayout.apply(p.source().info().type()).isPresent()
                     && isMany(p.source()) -> {
                 String elem = "_pa" + aliasCounter++;
@@ -1801,6 +1814,15 @@ public final class Lowerer {
             // order) — never the instance's own field set; an omitted
             // property is a NULL field.
             case com.legend.compiler.spec.typed.TypedNewInstance n -> {
+                // ^List(values=[...]): the List CARRIER is the bare SQL list
+                // (the same carrier list() produces — one carrier per type).
+                if (n.classFqn().equals(
+                        com.legend.compiler.element.type.PlatformTypes.LIST)) {
+                    TypedSpec values = n.properties().get("values");
+                    yield values == null
+                            ? new SqlExpr.ArrayLit(List.of())
+                            : asList(scalar(values, columns), isMany(values));
+                }
                 // ^Pair(first=..., second=...): the Pair STRUCT carrier —
                 // its layout IS first/second (the platform declaration)
                 if (n.classFqn().equals(

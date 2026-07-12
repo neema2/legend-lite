@@ -434,6 +434,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     + ((SqlExpr.StringLit) a.get(0)).value()
                     + "(" + expr(a.get(1), 0) + ")";
             case DATE_DIFF -> fn("date_diff", a);              // (part, d1, d2)
+            case TIMEZONE -> fn("timezone", a);               // (zone, ts) — ICU
+            case JSON_TYPE -> fn("json_type", a);
             // Week buckets align to the Monday ON/BEFORE the epoch
             // (1969-12-29 — real pure's origin, PCT-pinned); every other
             // unit aligns to the 1970 epoch.

@@ -544,4 +544,25 @@ Hours}BigNumber land at years 1.4M-800M, beyond DuckDB's TIMESTAMP
 domain (290309 BC-294246 AD) — a carrier-domain limit, annotated.
 Gates: core 1391, corpus 2721, PCT 1109/1109.
 
+**Slice 17** (format/toString + platform metamodel surface — 11
+removed, 39 remain): a DATE LITERAL's print form is fully static
+(subsecond digit count is part of the value — '.00' prints '.00');
+%t{[EST]...} zone prefixes shift and offset-suffix IN SQL (ICU
+timezone(); DST-correct); %0Nd pads the DIGITS then signs (pure, not
+printf); %r composes the quoted \-escaped repr in SQL; %s/%t over a
+date slot prints pure's ISO T-form. List is now real pure's List
+(anonymousCollections values: T[*] registered; ^List types as
+List<t(values)>, the Pair principle) with the BARE SQL LIST as its
+carrier everywhere (a carrier-vs-layout split: platform carriers own
+their SQL shape before classLayout — List gaining a declared property
+had silently turned list() results into raw driver arrays); List
+toString/format print '[a, b, c]' recursively in SQL, variant-carried
+nested lists included. Bare element references inject + resolve:
+enumerations are values of the (new) Enumeration<T> metaclass; Type
+extends ModelElement (the real m3 chain, contracted), and a
+PARAMETERIZED actual conforms to a raw class formal by erasure —
+letFn's Class-through-ModelElement flows. removeDuplicates of a
+to-one stays LIST-shaped (its output is [*]). Gates: core 1391,
+corpus 2721, PCT 1109/1109.
+
 Update this file per slice, same as docs/SCOREBOARD.md.
