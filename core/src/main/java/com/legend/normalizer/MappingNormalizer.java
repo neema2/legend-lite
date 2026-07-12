@@ -1264,8 +1264,24 @@ public final class MappingNormalizer {
         // here. Lowering it to a `distinct`/`distinctBy` step would diverge
         // from engine semantics; see docs/MAPPING_LEGACY_TO_FUNCTION.md §5.3.6.
 
-        // Apply ~distinct.
+        // Apply ~distinct. Engine semantics: DISTINCT over the MAPPED
+        // columns, not the raw physical row (the table's unmapped PK would
+        // defeat the dedup) — the source narrows to a select of exactly the
+        // columns the PMs consume. Only for plain column/expression PMs on
+        // the main table; slot-carrying distinct mappings stay the
+        // H3-pending wall downstream.
         if (rcm.distinct()) {
+            java.util.Set<String> mappedCols = new LinkedHashSet<>();
+            boolean plainColumns = p.aliasToTargetTable.isEmpty();
+            for (PropertyMapping pm : rcm.propertyMappings()) {
+                plainColumns &= collectMappedColumns(pm, mappedCols);
+            }
+            if (plainColumns && !mappedCols.isEmpty()) {
+                List<ColSpec> cols = mappedCols.stream()
+                        .map(c -> new ColSpec(c, null, null)).toList();
+                p.expr = new AppliedFunction("select",
+                        List.of(p.expr, new ColSpecArray(cols)));
+            }
             p.expr = new AppliedFunction("distinct", List.of(p.expr));
         }
 
@@ -1283,6 +1299,54 @@ public final class MappingNormalizer {
         return new AppliedFunction("map", List.of(p.expr,
                 new LambdaFunction(List.of(rowBind),
                         List.of(buildNewInstanceToOne(rcm.className(), fields, model)))));
+    }
+
+    /**
+     * The physical COLUMNS a plain PM consumes (the ~distinct projection
+     * set). False = the PM is not a plain main-table read (join/embedded) —
+     * the caller skips the narrowing select.
+     */
+    private static boolean collectMappedColumns(PropertyMapping pm, java.util.Set<String> sink) {
+        switch (pm) {
+            case PropertyMapping.Column c -> sink.add(c.column());
+            case PropertyMapping.EnumeratedColumn ec -> sink.add(ec.column());
+            case PropertyMapping.Expression e -> collectExprColumns(e.expression(), sink);
+            case PropertyMapping.EnumeratedExpression ee ->
+                    collectExprColumns(ee.expression(), sink);
+            case PropertyMapping.LocalProperty lp -> {
+                return collectMappedColumns(lp.body(), sink);
+            }
+            default -> {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static void collectExprColumns(com.legend.parser.element.RelationalOperation op,
+            java.util.Set<String> sink) {
+        switch (op) {
+            case com.legend.parser.element.RelationalOperation.ColumnRef cr -> sink.add(cr.column());
+            case com.legend.parser.element.RelationalOperation.FunctionCall fc ->
+                    fc.args().forEach(a -> collectExprColumns(a, sink));
+            case com.legend.parser.element.RelationalOperation.Comparison c -> {
+                collectExprColumns(c.left(), sink);
+                collectExprColumns(c.right(), sink);
+            }
+            case com.legend.parser.element.RelationalOperation.BooleanOp b -> {
+                collectExprColumns(b.left(), sink);
+                collectExprColumns(b.right(), sink);
+            }
+            case com.legend.parser.element.RelationalOperation.IsNull n ->
+                    collectExprColumns(n.operand(), sink);
+            case com.legend.parser.element.RelationalOperation.IsNotNull n ->
+                    collectExprColumns(n.operand(), sink);
+            case com.legend.parser.element.RelationalOperation.Group g ->
+                    collectExprColumns(g.inner(), sink);
+            case com.legend.parser.element.RelationalOperation.ArrayLiteral a ->
+                    a.elements().forEach(e -> collectExprColumns(e, sink));
+            default -> { }
+        }
     }
 
     private static void validatePmNames(ClassMapping.Relational rcm,

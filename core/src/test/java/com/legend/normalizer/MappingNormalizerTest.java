@@ -1357,7 +1357,13 @@ class MappingNormalizerTest {
                 "distinct() sits between source pipeline and the terminal map()");
         assertEquals(1, distinctCall.parameters().size(),
                 "distinct() with no args (zero-arg overload) over the relation");
-        AppliedFunction tableRef = (AppliedFunction) distinctCall.parameters().get(0);
+        // engine semantics: DISTINCT over the MAPPED columns — the source
+        // narrows to a select of exactly the consumed columns first (the
+        // table's unmapped PK would otherwise defeat the dedup)
+        AppliedFunction select = (AppliedFunction) distinctCall.parameters().get(0);
+        assertEquals("select", select.function(),
+                "~distinct dedups the MAPPED columns: select narrows first");
+        AppliedFunction tableRef = (AppliedFunction) select.parameters().get(0);
         assertEquals("tableReference", tableRef.function());
     }
 
@@ -4050,7 +4056,10 @@ class MappingNormalizerTest {
         AppliedFunction distinctCall = (AppliedFunction) mapCall.parameters().get(0);
         assertEquals("distinct", distinctCall.function(),
                 "view-level ~distinct merges into the pipeline as distinct()");
-        AppliedFunction tableRef = (AppliedFunction) distinctCall.parameters().get(0);
+        AppliedFunction select = (AppliedFunction) distinctCall.parameters().get(0);
+        assertEquals("select", select.function(),
+                "~distinct dedups the MAPPED columns: select narrows first");
+        AppliedFunction tableRef = (AppliedFunction) select.parameters().get(0);
         assertEquals("tableReference", tableRef.function());
         assertEquals("T_PERSON",
                 ((com.legend.parser.spec.CString) tableRef.parameters().get(1)).value(),
@@ -4212,7 +4221,10 @@ class MappingNormalizerTest {
         AppliedFunction distinct = (AppliedFunction) mappingFilter.parameters().get(0);
         assertEquals("distinct", distinct.function(),
                 "~distinct must survive the filter layering (the view's contract)");
-        AppliedFunction viewFilter = (AppliedFunction) distinct.parameters().get(0);
+        AppliedFunction select = (AppliedFunction) distinct.parameters().get(0);
+        assertEquals("select", select.function(),
+                "~distinct dedups the MAPPED columns: select narrows first");
+        AppliedFunction viewFilter = (AppliedFunction) select.parameters().get(0);
         assertEquals("filter", viewFilter.function(),
                 "the view ~filter applies before the dedup");
         assertEquals("tableReference",
