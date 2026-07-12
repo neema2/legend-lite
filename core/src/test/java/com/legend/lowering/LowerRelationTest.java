@@ -700,8 +700,9 @@ class LowerRelationTest {
         // via JSON[] cast, per-element CAST inside list_transform, reduced
         // with the swapped (acc, elem) lambda — all in ONE flat SELECT.
         assertEquals(1, count(sql, "SELECT"), sql);
-        assertTrue(sql.contains("list_reduce(list_transform("
-                        + "CAST(t0.NUMS AS JSON[]), i -> CAST(i AS BIGINT)), "),
+        // the NULL-list guard (fold over empty = init) wraps the source
+        assertTrue(sql.contains("list_reduce(coalesce(list_transform("
+                        + "CAST(t0.NUMS AS JSON[]), i -> CAST(i AS BIGINT)), []), "),
                 "composition shape: " + sql);
         assertEquals(List.of("1|6", "2|10"),
                 exec("SELECT ID, total FROM (" + sql + ")\nORDER BY ID"),

@@ -533,6 +533,23 @@ public final class Lowerer {
             throw new IllegalStateException("aggregate reduce must be a native reducer call, got "
                     + reduceBody.getClass().getSimpleName());
         }
+        // A SCALAR wrapping the reducer (y|$y->average()->round()): lower the
+        // inner aggregate, then apply the scalar rule around it — trailing
+        // args must be literal-lowerable (no row scope out here).
+        if (Aggregates.reducerOrNull(call.callee()) == null
+                && !call.args().isEmpty()
+                && call.args().get(0) instanceof TypedNativeCall innerAgg
+                && Aggregates.reducerOrNull(innerAgg.callee()) != null) {
+            SqlExpr inner = aggValue(base, new TypedAggCol(a.name(), a.map(),
+                    new TypedLambda(a.reduce().parameters(),
+                            List.of(innerAgg), a.reduce().info())));
+            List<SqlExpr> wrapped = new ArrayList<>();
+            wrapped.add(inner);
+            for (int i = 1; i < call.args().size(); i++) {
+                wrapped.add(scalar(call.args().get(i), noScope()));
+            }
+            return Scalars.lower(call, wrapped);
+        }
         String fn = Aggregates.reducerFor(call.callee());
         TypedSpec mapBody = last(a.map());
         // Reducer EXTRA arguments (joinStrings('_') carries its separator;

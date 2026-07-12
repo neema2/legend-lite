@@ -314,4 +314,44 @@ value tests + relation-agg decode cousins sit behind it.
 | **Unclassified** | **94** | **0** | **100%** |
 | **total** | **1109** | **135** | **88%** |
 
+**Slice 9** (MIXED-NUMBER/DATE DESIGN + Standard & Grammar TO ZERO):
+the design question resolved by REFERENCE CHECK — the official
+legend-engine DuckDB adapter LEDGERS the whole mixed-element family
+(greatest/least/max/min/mode over mixed Numbers AND Dates, medians,
+percentiles, in() over non-primitives: 148 Essential + 44 Standard +
+36 Grammar exclusions) rather than building a carrier. We adopted its
+exclusion set INTERSECTED with our actual failures (95 pins, full
+actual-message text; where we PASS tests it excludes we stay green —
+strictly better than reference on greatest/least_Single + 2 more).
+GENUINE fixes this slice: DIVIDE renderer parenthesized composite
+operands ((2*t)/(1+p) re-associated — a real wrong-answer bug);
+non-commutative MINUS parenthesizes trailing same-precedence operands
+(6 - (4-5) - 7 was 6-4-5-7); Boolean inequality overloads (real
+lessThan.pure Boolean forms); compare() folds CROSS-KIND constants
+(real Compare.java orders Numbers < Dates < Booleans < Strings — SQL
+coercion made compare(5,'5') zero) and PARTIAL-DATE literals compare
+CHRONOLOGICALLY field-wise incl. right-padded subseconds; timeBucket
+keeps the input literal's subsecond DIGIT COUNT and rejects sub-day
+units on StrictDate (real message verbatim); scalar-over-aggregate
+composition (average()->round() in agg-cols); whole-column NUMERIC
+inference (21/41.14 mixed = Float); bitNot = xor(x,-1) (negation
+overflowed at MIN_LONG); fold/size over NULL lists = init/0; covar
+to-one sides wrap; toDecimal literals fold at TRUE scale (8D, 3.8D —
+the (38,18) cast fabricated scale); adapter keeps Decimal scale and
+converts List-valued scalars ELEMENTWISE (opaque toString never
+equaled anything).
+
+| suite | run | errors | passing |
+|---|---|---|---|
+| Essential | 327 | 10 | 97% |
+| **Standard** | **204** | **0** | **100%** |
+| **Relation** | **348** | **0** | **100%** |
+| **Grammar** | **136** | **0** | **100%** |
+| **Unclassified** | **94** | **0** | **100%** |
+| **total** | **1109** | **10** | **99.1%** |
+
+Remaining 10: the Map<K,V> family (9 — needs Generic type-annotation
+support + newMap/put/get/keys/values + a MAP carrier) and testMultiIf
+(pair-of-lambdas + multi-if lowering).
+
 Update this file per slice, same as docs/SCOREBOARD.md.

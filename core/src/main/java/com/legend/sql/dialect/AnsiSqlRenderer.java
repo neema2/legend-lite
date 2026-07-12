@@ -287,10 +287,19 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     protected String call(SqlExpr.Call c, int parentPrec) {
         Infix infix = INFIX.get(c.fn());
         if (infix != null) {
-            String joined = c.args().stream()
-                    .map(x -> expr(x, infix.prec()))
-                    .collect(Collectors.joining(" " + infix.sql() + " "));
-            return infix.prec() < parentPrec ? "(" + joined + ")" : joined;
+            // NON-COMMUTATIVE ops (-): trailing SAME-precedence operands
+            // must parenthesize — 6 - (4 - 5) is not 6 - 4 - 5 (a real
+            // wrong-answer bug PCT caught on the minus composition tests).
+            boolean nonCommutative = c.fn() == SqlFn.MINUS;
+            StringBuilder joined = new StringBuilder();
+            for (int i = 0; i < c.args().size(); i++) {
+                if (i > 0) {
+                    joined.append(" ").append(infix.sql()).append(" ");
+                }
+                joined.append(expr(c.args().get(i),
+                        i > 0 && nonCommutative ? infix.prec() + 1 : infix.prec()));
+            }
+            return infix.prec() < parentPrec ? "(" + joined + ")" : joined.toString();
         }
         List<SqlExpr> a = c.args();
         return switch (c.fn()) {
@@ -309,7 +318,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     + expr(a.get(1), 4) + ")";
             case STRFTIME -> fn("strftime", a);
             // MUST-honor semantics (PHASE_HIJ_LOWERING.md):
-            case DIVIDE -> "((1.0 * " + expr(a.get(0), 0) + ") / " + expr(a.get(1), 0) + ")";
+            // operands render ABOVE TIMES precedence: a composite child
+            // ((2*t)/(1+p)) must parenthesize or SQL re-associates it
+            case DIVIDE -> "((1.0 * " + expr(a.get(0), 7) + ") / " + expr(a.get(1), 7) + ")";
             case MOD -> "MOD(MOD(" + expr(a.get(0), 0) + ", " + expr(a.get(1), 0) + ") + "
                     + expr(a.get(1), 0) + ", " + expr(a.get(1), 0) + ")";
             case REM -> "MOD(" + expr(a.get(0), 0) + ", " + expr(a.get(1), 0) + ")";
@@ -365,7 +376,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case MATCHES -> fn("regexp_matches", a);
             case REGEXP_EXTRACT_ALL -> fn("regexp_extract_all", a);
             case REGEXP_REPLACE -> fn("regexp_replace", a);
-            case BIT_NOT -> "(-(" + expr(a.get(0), 0) + ") - 1)";   // two's complement ~x (parens: --1 is a comment)
+            case BIT_NOT -> "xor(" + expr(a.get(0), 0) + ", -1)";   // ~x without negation overflow at MIN_LONG
             case LEFT -> fn("left", a);
             case RIGHT -> fn("right", a);
             // the PAD CHAR is optional in Pure; SQL requires it — ' '.

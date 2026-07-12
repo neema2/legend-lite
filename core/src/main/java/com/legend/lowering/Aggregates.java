@@ -69,6 +69,11 @@ final class Aggregates {
      * into the lowering (AUDIT_2026_07 §1c; also retires the redundant
      * second parameter, audit L7).
      */
+    /** Nullable variant of {@link #reducerFor} — for is-this-a-reducer probes. */
+    static String reducerOrNull(com.legend.compiler.element.TypedFunction callee) {
+        return REDUCERS.get(callee.signatureKey());
+    }
+
     static String reducerFor(com.legend.compiler.element.TypedFunction callee) {
         String name = REDUCERS.get(callee.signatureKey());
         if (name == null) {

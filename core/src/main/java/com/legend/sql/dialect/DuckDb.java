@@ -128,7 +128,12 @@ public final class DuckDb extends AnsiSqlRenderer {
                         + " ({e, a | $a <op> ...}) so the reduction can decompose");
             }
             SqlExpr.Lambda swapped = new SqlExpr.Lambda(List.of(acc, elem), f.lambda().body());
-            return fn("list_reduce", List.of(f.source(), swapped, f.init()));
+            // fold over the EMPTY (SQL NULL) collection is the INIT value —
+            // list_reduce(NULL, ...) is NULL
+            return fn("list_reduce", List.of(
+                    SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE, f.source(),
+                            new SqlExpr.ArrayLit(List.of())),
+                    swapped, f.init()));
         }
         // List accumulator: wrap elements as single-item lists ([e] — the
         // semantic ArrayLit), unwrap refs via LIST_GET(e, 1).

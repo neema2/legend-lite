@@ -405,13 +405,42 @@ final class Scalars {
         }
         for (String f : Pure.nativeKeysAt("timeBucket")) {
             RULES.put(f, (n, args) -> {
+                boolean strict = n.args().get(0).info().type()
+                        == com.legend.compiler.element.type.Type.Primitive.STRICT_DATE;
+                // real timeBucket REJECTS sub-day units on StrictDate —
+                // message verbatim (strictDate assertError family)
+                if (strict) {
+                    switch (enumName(n.args().get(2))) {
+                        case "HOURS", "MINUTES", "SECONDS", "MILLISECONDS",
+                                "MICROSECONDS", "NANOSECONDS" ->
+                            throw new com.legend.error.ModelException(
+                                    com.legend.error.LegendCompileException.Phase.LOWER,
+                                    "Unsupported duration unit for StrictDate. Units"
+                                            + " can only be: [YEARS, DAYS, MONTHS, WEEKS]");
+                        default -> { }
+                    }
+                }
                 SqlExpr bucketed = new SqlExpr.Call(SqlFn.TIME_BUCKET, List.of(
                         new SqlExpr.StringLit(intervalFn(n.args().get(2))),
                         args.get(1), dateArg(n.args().get(0), args.get(0))));
-                return n.args().get(0).info().type()
-                        == com.legend.compiler.element.type.Type.Primitive.STRICT_DATE
-                        ? new SqlExpr.Cast(bucketed, com.legend.sql.SqlType.Scalar.DATE)
-                        : bucketed;
+                if (strict) {
+                    return new SqlExpr.Cast(bucketed, com.legend.sql.SqlType.Scalar.DATE);
+                }
+                // The result keeps the INPUT LITERAL's print precision: a
+                // 9-digit-subsecond input buckets to a 9-digit-zero result
+                // (real pure preserves subsecond DIGIT COUNT; bucketed
+                // subseconds are always zero). Emitted as the precision-
+                // faithful STRING — the wire's date convention.
+                if (n.args().get(0) instanceof com.legend.compiler.spec.typed.TypedCDate cd
+                        && cd.value() instanceof
+                                com.legend.values.PureDateLiteral.DateWithSubsecond sub) {
+                    return SqlExpr.Call.of(SqlFn.CONCAT,
+                            SqlExpr.Call.of(SqlFn.STRFTIME, bucketed,
+                                    new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S")),
+                            new SqlExpr.StringLit(
+                                    "." + "0".repeat(sub.subsecond().length())));
+                }
+                return bucketed;
             });
         }
         // dateDiff(d1, d2, unit): Pure semantics per unit (PCT-pinned) —
@@ -502,12 +531,31 @@ final class Scalars {
                     SqlExpr.Call.of(SqlFn.LESS_EQUAL, args.get(0), args.get(2))));
         }
         for (String f : Pure.nativeKeysAt("compare")) {
-            RULES.put(f, (n, args) -> new SqlExpr.Case(List.of(
-                    new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.LESS,
-                            args.get(0), args.get(1)), new SqlExpr.IntLit(-1)),
-                    new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.GREATER,
-                            args.get(0), args.get(1)), new SqlExpr.IntLit(1))),
-                    new SqlExpr.IntLit(0)));
+            RULES.put(f, (n, args) -> {
+                // CROSS-KIND compare is a CONSTANT: real Compare.java orders
+                // Numbers < Dates < Booleans < Strings and never coerces —
+                // SQL's coercion made compare(5, '5') zero.
+                int k0 = compareKind(n.args().get(0).info().type());
+                int k1 = compareKind(n.args().get(1).info().type());
+                if (k0 >= 0 && k1 >= 0 && k0 != k1) {
+                    return new SqlExpr.IntLit(Integer.compare(k0, k1));
+                }
+                // PARTIAL-DATE literals fold CHRONOLOGICALLY — their SQL
+                // carrier is the string, and '2001' > '10999' lexically.
+                if (n.args().get(0) instanceof com.legend.compiler.spec.typed.TypedCDate a
+                        && n.args().get(1) instanceof com.legend.compiler.spec.typed.TypedCDate b) {
+                    return new SqlExpr.IntLit(
+                            Integer.signum(a.value().toEngineString()
+                                    .compareTo(b.value().toEngineString()) == 0 ? 0
+                                    : chronoCompare(a.value(), b.value())));
+                }
+                return new SqlExpr.Case(List.of(
+                        new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.LESS,
+                                args.get(0), args.get(1)), new SqlExpr.IntLit(-1)),
+                        new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.GREATER,
+                                args.get(0), args.get(1)), new SqlExpr.IntLit(1))),
+                        new SqlExpr.IntLit(0));
+            });
         }
         for (String f : Pure.nativeKeysAt("sqlTrue")) {
             RULES.put(f, (n, args) -> new SqlExpr.BoolLit(true));
@@ -544,7 +592,12 @@ final class Scalars {
                 return SqlExpr.Call.of(SqlFn.DECODE_BASE64, in);
             });
         }
-        familyIfPresent(SqlFn.LIST_LENGTH, "size");
+        // size(NULL list) is pure's EMPTY collection: 0, never NULL
+        for (String f : Pure.nativeKeysAt("size")) {
+            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.COALESCE,
+                    SqlExpr.Call.of(SqlFn.LIST_LENGTH, args.get(0)),
+                    new SqlExpr.IntLit(0)));
+        }
         familyIfPresent(SqlFn.MINUS, "sub");
         // joinStrings over a LIST value: (list), (list, sep), or
         // (list, prefix, sep, suffix).
@@ -662,7 +715,20 @@ final class Scalars {
                             List.of(dateArg(n.args().get(1), args.get(1))))));
         }
         for (String f : Pure.nativeKeysAt("toDecimal")) {
-            RULES.put(f, (n, args) -> new SqlExpr.Cast(args.get(0), new com.legend.sql.SqlType.Decimal(38, 18)));
+            // LITERALS fold to a true-scale decimal (toDecimal(3.8) is 3.8D,
+            // toDecimal(8) is 8D) — CAST(x AS DECIMAL(38,18)) fabricates
+            // eighteen zeros of scale the value never had.
+            RULES.put(f, (n, args) -> switch (args.get(0)) {
+                case SqlExpr.IntLit i ->
+                        // a bare integral literal types INTEGER — cast keeps
+                        // it a scale-0 DECIMAL (8D)
+                        new SqlExpr.Cast(i, new com.legend.sql.SqlType.Decimal(38, 0));
+                case SqlExpr.DecimalLit d -> d;
+                case SqlExpr.FloatLit fl ->
+                        new SqlExpr.DecimalLit(java.math.BigDecimal.valueOf(fl.value()));
+                default -> new SqlExpr.Cast(args.get(0),
+                        new com.legend.sql.SqlType.Decimal(38, 18));
+            });
         }
         for (String f : Pure.nativeKeysAt("divideRound")) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.ROUND, List.of(
@@ -1491,6 +1557,70 @@ final class Scalars {
                                 SqlExpr.Call.of(SqlFn.LIST_POSITION, list,
                                         new SqlExpr.Column(null, "_ddx")),
                                 new SqlExpr.Column(null, "_ddi"))))));
+    }
+
+    /** Real Compare.java's KIND ordering: Numbers < Dates < Booleans < Strings; -1 = not a primitive kind. */
+    private static int compareKind(Type t) {
+        if (t == Type.Primitive.INTEGER || t == Type.Primitive.FLOAT
+                || t == Type.Primitive.NUMBER || t == Type.Primitive.DECIMAL
+                || t instanceof Type.PrecisionDecimal) {
+            return 0;
+        }
+        if (t == Type.Primitive.DATE || t == Type.Primitive.STRICT_DATE
+                || t == Type.Primitive.DATE_TIME) {
+            return 1;
+        }
+        if (t == Type.Primitive.BOOLEAN) {
+            return 2;
+        }
+        if (t == Type.Primitive.STRING) {
+            return 3;
+        }
+        return -1;
+    }
+
+    /** Chronological order over date LITERALS (field-wise; partial forms compare by shared fields). */
+    private static int chronoCompare(com.legend.values.PureDateLiteral a,
+                                     com.legend.values.PureDateLiteral b) {
+        int[] fa = dateFields(a);
+        int[] fb = dateFields(b);
+        for (int i = 0; i < fa.length; i++) {
+            int c = Integer.compare(fa[i], fb[i]);
+            if (c != 0) {
+                return c;
+            }
+        }
+        // Second fields tie: SUBSECOND digits compare right-padded
+        // (.14231 = .14231000 < .14231555 — real PureDate semantics).
+        String sa = subsecondOf(a);
+        String sb = subsecondOf(b);
+        int len = Math.max(sa.length(), sb.length());
+        return padRight(sa, len).compareTo(padRight(sb, len));
+    }
+
+    private static String subsecondOf(com.legend.values.PureDateLiteral d) {
+        return d instanceof com.legend.values.PureDateLiteral.DateWithSubsecond s
+                ? s.subsecond() : "";
+    }
+
+    private static String padRight(String s, int len) {
+        StringBuilder b = new StringBuilder(s);
+        while (b.length() < len) {
+            b.append('0');
+        }
+        return b.toString();
+    }
+
+    private static int[] dateFields(com.legend.values.PureDateLiteral d) {
+        return switch (d) {
+            case com.legend.values.PureDateLiteral.Year y -> new int[]{y.year(), 0, 0, 0, 0, 0}; 
+            case com.legend.values.PureDateLiteral.YearMonth ym -> new int[]{ym.year(), ym.month(), 0, 0, 0, 0};
+            case com.legend.values.PureDateLiteral.StrictDate sd -> new int[]{sd.year(), sd.month(), sd.day(), 0, 0, 0};
+            case com.legend.values.PureDateLiteral.DateWithHour h -> new int[]{h.year(), h.month(), h.day(), h.hour(), 0, 0};
+            case com.legend.values.PureDateLiteral.DateWithMinute m -> new int[]{m.year(), m.month(), m.day(), m.hour(), m.minute(), 0};
+            case com.legend.values.PureDateLiteral.DateWithSecond sec -> new int[]{sec.year(), sec.month(), sec.day(), sec.hour(), sec.minute(), sec.second()};
+            case com.legend.values.PureDateLiteral.DateWithSubsecond sub -> new int[]{sub.year(), sub.month(), sub.day(), sub.hour(), sub.minute(), sub.second()};
+        };
     }
 
     /** Literal cell of a TDS row → typed SQL literal, by the column's Pure type. */

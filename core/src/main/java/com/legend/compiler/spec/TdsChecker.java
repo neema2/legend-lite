@@ -164,6 +164,14 @@ final class TdsChecker {
                 continue;
             }
             if (v.matches("[+-]?\\d+")) {
+                // NUMERIC columns widen over the WHOLE column (Deephaven's
+                // int-unless-a-double-appears): 21, 41.14, 71 is Float.
+                for (List<String> later : rows) {
+                    String w = later.get(col);
+                    if (w.matches("[+-]?\\d*\\.\\d+([eE][+-]?\\d+)?")) {
+                        return Type.Primitive.FLOAT;
+                    }
+                }
                 return Type.Primitive.INTEGER;
             }
             if (v.matches("[+-]?\\d*\\.\\d+([eE][+-]?\\d+)?")) {

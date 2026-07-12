@@ -182,6 +182,18 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             return ValueSpecificationBootstrap.wrapValueSpecification(
                     org.eclipse.collections.api.factory.Lists.immutable.empty(), true, ps);
         }
+        if (value instanceof java.util.List<?> list) {
+            // a List<T>-typed scalar (drop(1)->list()): elements convert
+            // individually; the pure side wraps them back into ^List
+            var elems = new ArrayList<CoreInstance>();
+            for (Object v : list) {
+                if (v != null) {
+                    elems.add(toCoreInstance(v, result.returnType(), ps));
+                }
+            }
+            return ValueSpecificationBootstrap.wrapValueSpecification(
+                    org.eclipse.collections.impl.factory.Lists.immutable.withAll(elems), true, ps);
+        }
         CoreInstance ci = toCoreInstance(value, result.returnType(), ps);
         return ValueSpecificationBootstrap.wrapValueSpecification(ci, true, ps);
     }
@@ -230,7 +242,8 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 return modelRepository.newDecimalCoreInstance(bd);
             }
             if (type instanceof Type.PrecisionDecimal) {
-                return modelRepository.newDecimalCoreInstance(bd.stripTrailingZeros());
+                // scale is part of the VALUE surface: abs(-3.0D) prints 3.0D
+                return modelRepository.newDecimalCoreInstance(bd);
             }
             return modelRepository.newFloatCoreInstance(bd);
         }
