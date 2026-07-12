@@ -412,4 +412,31 @@ max/min/mode Number+Date families, mixed sort) — 84 remain (from 96).
 The three engine mixed-date pins converted to the print-form identity
 surface. Gates: core 1391, corpus 2721, PCT 1109/1109 — all green.
 
+**Slice 11b** (TENET RESTORATION — the carrier moves into the
+database): slice 11's first cut computed print forms and comparables
+from literal VALUES in Java — Java-as-evaluator, violating the #1
+tenet (Java orchestrates; THE DATABASE IS THE EXECUTION ENGINE), and
+silently forking semantics between literal and runtime data. REWRITTEN
+type-driven: the compiler picks each element's ENCODING from its
+STATIC TYPE only — Integer -> CAST(e AS VARCHAR), Float -> floatRepr(e)
+(the SQL pure-float printer), Decimal -> CAST(e AS VARCHAR) || 'D',
+StrictDate/DateTime -> strftime, PARTIAL date strings -> themselves —
+and every VALUE computation (printing, casting, padding, comparing,
+selecting) runs in DuckDB. Partial-date comparables compose via
+make_timestamp(split_part(x,'-',i)...) — strptime's %Y rejects the
+5-digit years compare(%2001, %10999) needs; make_timestamp reaches
+year 294246. The slice-9 Java chronoCompare fold is DELETED — date
+compares emit the same SQL comparables. Elements may now be arbitrary
+EXPRESSIONS (the unary-minus literal special case dissolved — a minus
+call is just an Integer-typed expression).
+
+THE BOUNDARY RULE (now explicit): STATIC-TYPE-driven query
+construction is the compiler's job; VALUE evaluation belongs to the
+database. Cross-KIND compare constants stay (type-level facts — no
+value is consulted); literal RENDERING (tdsCell, hugeWiden typing)
+stays (encoding, not evaluation).
+
+Gates: core 1391, corpus 2721, PCT 1109/1109 — identical results,
+database-executed.
+
 Update this file per slice, same as docs/SCOREBOARD.md.

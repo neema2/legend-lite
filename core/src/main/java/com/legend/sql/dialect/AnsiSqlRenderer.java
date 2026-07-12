@@ -319,6 +319,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case IS_DISTINCT -> "(" + expr(a.get(0), 4) + " IS DISTINCT FROM "
                     + expr(a.get(1), 4) + ")";
             case STRFTIME -> fn("strftime", a);
+            case STRPTIME -> fn("strptime", a);
             // MUST-honor semantics (PHASE_HIJ_LOWERING.md):
             // operands render ABOVE TIMES precedence: a composite child
             // ((2*t)/(1+p)) must parenthesize or SQL re-associates it
