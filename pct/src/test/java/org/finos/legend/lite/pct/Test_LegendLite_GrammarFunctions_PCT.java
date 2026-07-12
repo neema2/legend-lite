@@ -34,20 +34,26 @@ public class Test_LegendLite_GrammarFunctions_PCT extends PCTReportConfiguration
     // (contains-matched), so any regression that changes the failure
     // shape — or a fix that makes one pass — fails loudly.
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
-            one("meta::pure::functions::boolean::tests::equality::eq::testEqEnum_Function_1__Boolean_1_", "\"Assert failed\""),
+            // INSTANCE IDENTITY: eq/== on class instances is REFERENCE equality
+            // in real pure; the harness inlines captured instances BY VALUE, so
+            // eq($x,$x) and eq($x,$y) arrive as identical text — identity is
+            // erased before the wire. Struct comparison says true where identity
+            // says false. The reference adapter family limitation.
             one("meta::pure::functions::boolean::tests::equality::eq::testEqNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
-            one("meta::pure::functions::boolean::tests::equality::eq::testEqPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
-            one("meta::pure::functions::boolean::tests::equality::equal::testEqualEnum_Function_1__Boolean_1_", "\"equality between an enum value and a non-matching type is not lowered (enum values render as name strings; cross-type equality would be silently wrong)\""),
             one("meta::pure::functions::boolean::tests::equality::equal::testEqualNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
+            one("meta::pure::functions::boolean::tests::equality::eq::testEqPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
             one("meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
             one("meta::pure::functions::collection::tests::filter::testFilterInstance_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
             one("meta::pure::functions::collection::tests::first::testFirstComplex_Function_1__Boolean_1_", ""),
             one("meta::pure::functions::collection::tests::getAll::testBasic_Function_1__Boolean_1_", "\"class query under TypedNativeCall is not resolvable yet (H2 vocabulary)\""),
-            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToMany_Function_1__Boolean_1_", "\"expected meta::pure::functions::collection::tests::map::model::M_GeographicEntityType, got meta::pure::functions::collection::tests::map::model::M_GeographicEntityType\""),
-            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne_Function_1__Boolean_1_", "\"expected meta::pure::functions::collection::tests::map::model::M_GeographicEntityType, got meta::pure::functions::collection::tests::map::model::M_GeographicEntityType\""),
+            // INSTANCE IDENTITY through the wire: these asserts require the
+            // ORIGINAL let-bound instances back (assertIs / address-equal) —
+            // reference identity cannot cross a value serialization boundary;
+            // the reference adapter excludes this family too.
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToMany_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Location"),
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address"),
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\""),
-            one("meta::pure::functions::lang::tests::letFn::testLetChainedWithAnotherFunction_Function_1__Boolean_1_", "\"'meta::pure::functions::lang::tests::letFn::TestClass' is not a known class, mapping, runtime, connection, or database\""),
-            one("meta::pure::functions::string::tests::plus::testMultiPlusWithPropertyExpressions_Function_1__Boolean_1_", "\"expected meta::pure::functions::string::tests::plus::model::P_GeographicEntityType, got meta::pure::functions::string::tests::plus::model::P_GeographicEntityType\""));
+            one("meta::pure::functions::lang::tests::letFn::testLetChainedWithAnotherFunction_Function_1__Boolean_1_", "\"'meta::pure::functions::lang::tests::letFn::TestClass' is not a known class, mapping, runtime, connection, or database\""));
 
     public static Test suite() {
         return wrapSuite(

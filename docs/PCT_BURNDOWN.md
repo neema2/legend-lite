@@ -503,4 +503,26 @@ corrected): a concrete static type IS the runtime type; the wire
 resolves the name to the canonical Type instance (assertIs checks
 identity). Gates: core 1391, corpus 2721, PCT 1109/1109.
 
+**Slice 15** (enum identity + type-aware equality — net 3 removed +
+4 re-classified, 55 remain): the "expected X, got X" family's root
+cause was OUR adapter injecting the same FQN as both an Enum and a
+shadow Class (an M3 enumeration IS a class with a name property) —
+the type split in two. Fixed: enumeration-aware class extraction (enum
+property types reference the Enum def, never a shadow Class), match-
+clause parameter types (a: My::Type[1]) now scanned for injection, and
+enum-typed results resolve to the CANONICAL enum-value instance on the
+pure side (enum equality is identity there). Equality is TYPE-aware
+(real pure): cross-enum and enum-vs-non-string eq/equal lower to a
+static FALSE — never name-coincidence 'X'=='X' across enums, never a
+DB conversion error. testMatch, testEqEnum, testEqualEnum,
+testMultiPlusWithPropertyExpressions now genuinely pass. HONESTLY
+RE-CLASSIFIED, not fixed: eq/equalNonPrimitive + the mapRelationship
+trio are INSTANCE IDENTITY — real pure eq on instances is reference
+equality, and the PCT harness inlines captured instances BY VALUE
+(eq($x,$x) and eq($x,$y) arrive as byte-identical text), so identity
+is erased before the wire; a static-identity attempt was built,
+falsified by testEqVarIdentity, and REVERTED. deactivate() (expression
+reflection) is out of vocabulary — legend-lite holds no expression
+tree at run time. Gates: core 1391, corpus 2721, PCT 1109/1109.
+
 Update this file per slice, same as docs/SCOREBOARD.md.

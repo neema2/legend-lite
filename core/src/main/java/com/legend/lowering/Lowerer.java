@@ -1899,13 +1899,18 @@ public final class Lowerer {
             // was an audit finding.
             case com.legend.compiler.spec.typed.TypedEnumValue e -> new SqlExpr.StringLit(e.value());
 
-            case TypedNativeCall n when isFamily(n, "equal")
-                    && enumTypeMismatch(n.args()) ->
-                    throw new com.legend.error.NotImplementedException(
-                            "equality between an enum value and a non-matching type"
-                                    + " is not lowered (enum values render as name"
-                                    + " strings; cross-type equality would be"
-                                    + " silently wrong)");
+            // Real pure equality is TYPE-aware: an enum value equals nothing
+            // of a different enum or a non-string kind — a static FALSE
+            // (never name-coincidence 'X'=='X' across enums, never a DB
+            // conversion error for enum-vs-Integer). Enum-vs-STRING stays
+            // the corpus's deliberate name-comparison convention.
+            // (Class-instance eq is REFERENCE identity in real pure — NOT
+            // recoverable here: value serialization erases identity, and
+            // the PCT harness inlines captured instances BY VALUE, so
+            // eq($x,$x) and eq($x,$y) arrive as identical text. Instances
+            // keep struct comparison; the identity tests are ledgered.)
+            case TypedNativeCall n when (isFamily(n, "equal") || isFamily(n, "eq"))
+                    && enumTypeMismatch(n.args()) -> new SqlExpr.BoolLit(false);
 
             // COLLECTION-VALUED relation nodes in scalar position: the list
             // encodings ([1,2,3]->filter/slice/drop/take over a value, not a

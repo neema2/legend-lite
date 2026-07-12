@@ -110,6 +110,8 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
     private static final Pattern INSTANCE_CLASS_PATTERN = Pattern.compile("\\^([\\w:]+)\\(");
     private static final Pattern TYPE_REF_PATTERN = Pattern.compile("@(\\w+(?:::\\w+)+)");
     private static final Pattern ENUM_REF_PATTERN = Pattern.compile("(\\w+(?:::\\w+)+)\\.\\w+");
+    /** Parameter type annotations — match clauses ({@code a: My::Type[1]|...}), typed lambdas. */
+    private static final Pattern PARAM_TYPE_PATTERN = Pattern.compile(":\\s*(\\w+(?:::\\w+)+)\\s*\\[");
 
     private final ModelRepository modelRepository;
 
@@ -144,8 +146,11 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             }
 
             // Inject class definitions from the interpreter's model
-            Map<String, PureClass> extractedClasses = extractClassMetadata(pureExpression, processorSupport);
-            java.util.List<String> enumDefs = extractEnumDefinitions(pureExpression, processorSupport);
+            java.util.Set<String> discoveredEnums = new java.util.LinkedHashSet<>();
+            Map<String, PureClass> extractedClasses =
+                    extractClassMetadata(pureExpression, discoveredEnums, processorSupport);
+            java.util.List<String> enumDefs =
+                    extractEnumDefinitions(pureExpression, discoveredEnums, processorSupport);
             String model = PURE_MODEL;
             if (!extractedClasses.isEmpty() || !enumDefs.isEmpty()) {
                 StringBuilder classDefs = new StringBuilder();
@@ -446,6 +451,20 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                     return typeInstance;
                 }
             }
+            // Enum values cross the wire as their NAME; the declared type
+            // carries the enumeration — resolve to the CANONICAL enum-value
+            // instance (equality on enums is identity in interpreted pure).
+            if (type instanceof Type.EnumType et) {
+                CoreInstance enumeration = ps.package_getByUserPath(et.qualifiedName());
+                if (enumeration != null) {
+                    for (CoreInstance v : Instance.getValueForMetaPropertyToManyResolved(
+                            enumeration, M3Properties.values, ps)) {
+                        if (s.equals(v.getName())) {
+                            return v;
+                        }
+                    }
+                }
+            }
             return modelRepository.newStringCoreInstance(s);
         }
         // Struct → class instance
@@ -706,10 +725,11 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
      * or @My::Enum) — platform enums are registered natively in core and
      * skipped; unknown FQNs resolve against the interpreter's graph.
      */
-    private java.util.List<String> extractEnumDefinitions(String pureExpression, ProcessorSupport ps) {
+    private java.util.List<String> extractEnumDefinitions(String pureExpression,
+            java.util.Set<String> discoveredEnums, ProcessorSupport ps) {
         java.util.List<String> defs = new java.util.ArrayList<>();
         try {
-            java.util.Set<String> enumFqns = new java.util.LinkedHashSet<>();
+            java.util.Set<String> enumFqns = new java.util.LinkedHashSet<>(discoveredEnums);
             Matcher enumRef = ENUM_REF_PATTERN.matcher(pureExpression);
             while (enumRef.find()) {
                 enumFqns.add(enumRef.group(1));
@@ -747,20 +767,29 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         return defs;
     }
 
-    private Map<String, PureClass> extractClassMetadata(String pureExpression, ProcessorSupport ps) {
+    private Map<String, PureClass> extractClassMetadata(String pureExpression,
+            java.util.Set<String> discoveredEnums, ProcessorSupport ps) {
         try {
             Map<String, PureClass> classes = new HashMap<>();
             Set<String> visited = new HashSet<>();
             Matcher matcher = INSTANCE_CLASS_PATTERN.matcher(pureExpression);
             while (matcher.find()) {
-                extractClassRecursive(matcher.group(1), classes, visited, ps);
+                extractClassRecursive(matcher.group(1), classes, visited, discoveredEnums, ps);
             }
-            // MODEL classes referenced as type arguments (to(@X), cast(@X)):
+            // MODEL classes referenced as type arguments (to(@X), cast(@X))
+            // or as parameter type annotations (match clauses a: X[1]|...):
             // multi-segment FQNs outside the metamodel/platform space whose
             // resolved element is a Class.
+            java.util.Set<String> typeFqns = new java.util.LinkedHashSet<>();
             Matcher typeRef = TYPE_REF_PATTERN.matcher(pureExpression);
             while (typeRef.find()) {
-                String fqn = typeRef.group(1);
+                typeFqns.add(typeRef.group(1));
+            }
+            Matcher paramType = PARAM_TYPE_PATTERN.matcher(pureExpression);
+            while (paramType.find()) {
+                typeFqns.add(paramType.group(1));
+            }
+            for (String fqn : typeFqns) {
                 if (fqn.startsWith("meta::pure::metamodel")
                         || fqn.startsWith("meta::pure::precisePrimitives")) {
                     continue;
@@ -772,7 +801,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 if (cls != null
                         && com.legend.builtin.Pure.findNativeClass(fqn).isEmpty()
                         && Instance.instanceOf(cls, "meta::pure::metamodel::type::Class", ps)) {
-                    extractClassRecursive(fqn, classes, visited, ps);
+                    extractClassRecursive(fqn, classes, visited, discoveredEnums, ps);
                 }
             }
             return classes;
@@ -783,12 +812,20 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
     }
 
     private void extractClassRecursive(String className, Map<String, PureClass> classes,
-                                       Set<String> visited, ProcessorSupport ps) {
+                                       Set<String> visited, java.util.Set<String> discoveredEnums,
+                                       ProcessorSupport ps) {
         if (visited.contains(className)) return;
         visited.add(className);
 
         CoreInstance cls = ps.package_getByUserPath(className);
         if (cls == null) return;
+        // An ENUMERATION is a class in M3 (it has a 'name' property) but must
+        // inject as an Enum — injecting both a Class and an Enum under one
+        // FQN split the type in two ("expected X, got X" with identical names).
+        if (Instance.instanceOf(cls, "meta::pure::metamodel::type::Enumeration", ps)) {
+            discoveredEnums.add(className);
+            return;
+        }
 
         List<Property> properties = new ArrayList<>();
         for (CoreInstance prop : ps.class_getSimpleProperties(cls)) {
@@ -830,8 +867,14 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 } else if (qualifiedTypeName == null
                         || qualifiedTypeName.startsWith("meta::pure::metamodel")) {
                     continue;
+                } else if (Instance.instanceOf(rawType,
+                        "meta::pure::metamodel::type::Enumeration", ps)) {
+                    // enum-typed property: reference by name; the DEFINITION
+                    // is injected as an Enum, never as a shadow Class
+                    discoveredEnums.add(qualifiedTypeName);
+                    propType = new com.gs.legend.model.m3.Type.ClassType(qualifiedTypeName);
                 } else {
-                    extractClassRecursive(qualifiedTypeName, classes, visited, ps);
+                    extractClassRecursive(qualifiedTypeName, classes, visited, discoveredEnums, ps);
                     PureClass referenced = classes.get(qualifiedTypeName);
                     if (referenced == null) continue;
                     propType = new com.gs.legend.model.m3.Type.ClassType(referenced.qualifiedName());
