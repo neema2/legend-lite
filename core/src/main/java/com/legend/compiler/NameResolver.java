@@ -154,7 +154,10 @@ public final class NameResolver {
      */
     public static ParsedModel resolve(ParsedModel parsed) {
         Objects.requireNonNull(parsed, "parsed");
-        ParsedModel scoped = new ParsedModel(parsed.elements(), withPrelude(parsed.imports()));
+        java.util.Map<String, ImportScope> perElement = new java.util.HashMap<>();
+        parsed.elementImports().forEach((fqn, sc) -> perElement.put(fqn, withPrelude(sc)));
+        ParsedModel scoped = new ParsedModel(parsed.elements(), withPrelude(parsed.imports()),
+                parsed.source(), parsed.elementOffsets(), perElement);
         return resolve(scoped, knownFqns(parsed.elements()));
     }
 
@@ -165,10 +168,22 @@ public final class NameResolver {
      * prelude-aware {@link #resolve(ParsedModel)} is the usual entry).
      */
     public static ParsedModel resolve(ParsedModel model, Set<String> knownFqns) {
-        Scope scope = Scope.of(model.imports(), knownFqns);
-        List<PackageableElement> resolved = resolveElementList(model.elements(), scope);
-        return resolved == model.elements() ? model
-                : new ParsedModel(resolved, model.imports());
+        Scope globalScope = Scope.of(model.imports(), knownFqns);
+        // SECTION-scoped resolution (real pure): each element resolves in
+        // ITS OWN section's imports when recorded; the union scope is the
+        // fallback (single-source models, synthesized elements).
+        List<PackageableElement> resolved = new ArrayList<>(model.elements().size());
+        boolean changed = false;
+        for (PackageableElement el : model.elements()) {
+            ImportScope own = model.elementImports().get(el.qualifiedName());
+            Scope scope = own == null ? globalScope : Scope.of(own, knownFqns);
+            PackageableElement r = resolveElement(el, scope);
+            resolved.add(r);
+            changed |= r != el;
+        }
+        return !changed ? model
+                : new ParsedModel(resolved, model.imports(),
+                        model.source(), model.elementOffsets(), model.elementImports());
     }
 
     /** User imports merged with the always-in-scope platform prelude. */

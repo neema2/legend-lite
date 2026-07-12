@@ -1998,7 +1998,8 @@ public final class MappingNormalizer {
     private static boolean hasMainTable(LegacyMappingDefinition md, String classFqn) {
         for (ClassMapping cm : md.classMappings()) {
             if (cm instanceof ClassMapping.Relational rcm
-                    && classFqn.equals(rcm.className()) && rcm.mainTable() != null) {
+                    && classFqn.equals(rcm.className())
+                    && (rcm.mainTable() != null || inferMainTable(rcm) != null)) {
                 return true;
             }
         }
@@ -2015,13 +2016,17 @@ public final class MappingNormalizer {
         LegacyMappingDefinition.TableReference first = null;
         for (ClassMapping cm : md.classMappings()) {
             if (cm instanceof ClassMapping.Relational rcm
-                    && classFqn.equals(rcm.className())
-                    && rcm.mainTable() != null) {
+                    && classFqn.equals(rcm.className())) {
+                LegacyMappingDefinition.TableReference mt = rcm.mainTable() != null
+                        ? rcm.mainTable() : inferMainTable(rcm);
+                if (mt == null) {
+                    continue;
+                }
                 if (rcm.root()) {
-                    return rcm.mainTable();
+                    return mt;
                 }
                 if (first == null) {
-                    first = rcm.mainTable();
+                    first = mt;
                 }
             }
         }

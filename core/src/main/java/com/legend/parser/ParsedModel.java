@@ -20,7 +20,8 @@ import java.util.List;
  * @param imports  accumulated import scope
  */
 public record ParsedModel(List<PackageableElement> elements, ImportScope imports,
-                          String source, java.util.Map<String, Integer> elementOffsets) {
+                          String source, java.util.Map<String, Integer> elementOffsets,
+                          java.util.Map<String, ImportScope> elementImports) {
 
     public ParsedModel {
         elements = elements == null ? List.of() : List.copyOf(elements);
@@ -29,6 +30,22 @@ public record ParsedModel(List<PackageableElement> elements, ImportScope imports
         }
         elementOffsets = elementOffsets == null ? java.util.Map.of()
                 : java.util.Map.copyOf(elementOffsets);
+        elementImports = elementImports == null ? java.util.Map.of()
+                : java.util.Map.copyOf(elementImports);
+    }
+
+    /**
+     * Real pure imports are SECTION-scoped, not file-global: each element
+     * resolves against the imports of ITS OWN section ({@code elementImports},
+     * keyed by FQN). {@code imports()} stays the union — the query-side scope
+     * and older callers — but element resolution prefers the per-element view
+     * (concatenated multi-file models would otherwise cross-contaminate:
+     * two files wildcard-importing different packages made every shared
+     * simple name ambiguous).
+     */
+    public ParsedModel(List<PackageableElement> elements, ImportScope imports,
+                       String source, java.util.Map<String, Integer> elementOffsets) {
+        this(elements, imports, source, elementOffsets, java.util.Map.of());
     }
 
     /**

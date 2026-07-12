@@ -45,6 +45,7 @@ class RelationalCorpusRunner {
 
         List<String> shared = List.of(
                 Corpus.read("tests/testModel/simpleTestModel.pure"),
+                Corpus.read("tests/testModel/inheritanceTestModel.pure"),
                 Corpus.read("tests/relationalSetUp.pure"));
         Runner runner = new Runner(shared, shared);
         // BeforePackage setups live NEXT TO the tests (functions/tests,

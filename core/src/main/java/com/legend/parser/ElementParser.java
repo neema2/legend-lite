@@ -211,19 +211,33 @@ public final class ElementParser implements TokenStreamCursor {
         List<PackageableElement> elements = new ArrayList<>();
         ImportScope.Builder imports = new ImportScope.Builder();
         Map<String, Integer> offsets = new HashMap<>();
+        // SECTION-scoped imports (real pure): an import following elements
+        // opens a NEW section scope; each element records the scope active
+        // where it was declared.
+        Map<String, ImportScope> elementImports = new HashMap<>();
+        ImportScope.Builder sectionImports = new ImportScope.Builder();
+        boolean sawElementSinceImport = false;
 
         while (!atEnd()) {
             if (peek() == TokenType.IMPORT) {
-                imports.add(parseImportStatement());
+                if (sawElementSinceImport) {
+                    sectionImports = new ImportScope.Builder();
+                    sawElementSinceImport = false;
+                }
+                String imp = parseImportStatement();
+                imports.add(imp);
+                sectionImports.add(imp);
             } else {
                 int at = tokens.start(pos);
                 PackageableElement e = parseSingleElement();
+                sawElementSinceImport = true;
+                elementImports.putIfAbsent(e.qualifiedName(), sectionImports.build());
                 offsets.putIfAbsent(e.qualifiedName(), at);
                 elements.add(e);
             }
         }
 
-        return new ParsedModel(elements, imports.build(), tokens.source(), offsets);
+        return new ParsedModel(elements, imports.build(), tokens.source(), offsets, elementImports);
     }
 
     /**
@@ -2731,6 +2745,18 @@ public final class ElementParser implements TokenStreamCursor {
             advance();
         } else if (peek() == TokenType.FLOAT || peek() == TokenType.DECIMAL) {
             expr = RelationalOperation.Literal.decimal(Double.parseDouble(text()));
+            advance();
+        } else if (peek() == TokenType.MINUS) {
+            // negative literals in relational operations (join conditions:
+            // personExtensionTable.ID != -99999999)
+            advance();
+            if (peek() == TokenType.INTEGER) {
+                expr = RelationalOperation.Literal.integer(-Long.parseLong(text()));
+            } else if (peek() == TokenType.FLOAT || peek() == TokenType.DECIMAL) {
+                expr = RelationalOperation.Literal.decimal(-Double.parseDouble(text()));
+            } else {
+                throw error("expected a numeric literal after '-'");
+            }
             advance();
         } else if (peek() == TokenType.TARGET) {
             advance();

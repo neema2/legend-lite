@@ -29,9 +29,51 @@ final class ProjectChecker {
     }
 
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
-        AppliedFunction modern = af.parameters().size() == 3 ? legacyToModern(af) : af;
+        AppliedFunction modern = normalizeLegacyForms(af);
         Application a = t.checkGeneric(withMappedColumns(modern), env);
         return new TypedProject(a.args().get(0), Args.funcCols(a.args().get(1)), a.out());
+    }
+
+    /**
+     * The legacy TDS spellings all funnel into the modern colspec form:
+     * <ul>
+     *   <li>{@code project(src, [lambdas], [names])} — the classic triple;</li>
+     *   <li>{@code project(src, [lambdas], 'name')} — scalar name(s) wrap;</li>
+     *   <li>{@code project(src, [paths-or-lambdas])} — names DERIVE from each
+     *       column's leaf property (engine's bare-path column naming);
+     *       a non-property leaf without a name is loud.</li>
+     * </ul>
+     */
+    private static AppliedFunction normalizeLegacyForms(AppliedFunction af) {
+        List<ValueSpecification> ps = af.parameters();
+        if (ps.size() == 3) {
+            ValueSpecification lambdas = ps.get(1) instanceof PureCollection ? ps.get(1)
+                    : new PureCollection(List.of(ps.get(1)));
+            ValueSpecification names = ps.get(2) instanceof PureCollection ? ps.get(2)
+                    : new PureCollection(List.of(ps.get(2)));
+            return legacyToModern(new AppliedFunction(af.function(),
+                    List.of(ps.get(0), lambdas, names)));
+        }
+        if (ps.size() == 2 && ps.get(1) instanceof PureCollection lambdas) {
+            List<ValueSpecification> names = new ArrayList<>(lambdas.values().size());
+            for (ValueSpecification v : lambdas.values()) {
+                names.add(new CString(derivedColumnName(v)));
+            }
+            return legacyToModern(new AppliedFunction(af.function(),
+                    List.of(ps.get(0), lambdas, new PureCollection(names))));
+        }
+        return af;
+    }
+
+    /** The leaf property of a navigation lambda/path names its column (engine parity). */
+    private static String derivedColumnName(ValueSpecification v) {
+        if (v instanceof LambdaFunction lf && lf.body().size() == 1
+                && lf.body().get(0) instanceof AppliedProperty ap) {
+            return ap.property();
+        }
+        throw new TypeInferenceException("a name-less project column must be a"
+                + " property navigation (its leaf names the column); give"
+                + " explicit names for computed columns");
     }
 
     /**

@@ -254,12 +254,31 @@ public final class Runner {
         List<Map<String, Object>> rows = graphRows(r);
         List<String> problems = new ArrayList<>();
         int recognized = 0;
+        // the RESULT variable: `let x = execute(...)...;` binds x; bare
+        // calls use $result by convention. All result-suffix spellings
+        // ($x.values, ->at(0), .rows) collapse onto the one result.
+        String rvar = "result";
+        Matcher lm = Pattern.compile("let\\s+(\\w+)\\s*=\\s*execute\\s*\\(").matcher(fn.body());
+        if (lm.find()) {
+            rvar = lm.group(1);
+        }
         for (String call : assertCalls(fn.body())) {
             String head = call.substring(0, call.indexOf('(')).strip();
             List<String> args = splitArgs(call.substring(call.indexOf('(') + 1, call.length() - 1));
+            // normalize every result spelling to a canonical head "$R"
+            for (int ai = 0; ai < args.size(); ai++) {
+                String norm = args.get(ai).strip()
+                        .replace("$" + rvar, "$R")
+                        .replaceAll("^\\$R\\.values->at\\(0\\)", java.util.regex.Matcher.quoteReplacement("$R"))
+                        .replaceAll("^\\$R\\.values\\.rows", java.util.regex.Matcher.quoteReplacement("$R.rows"));
+                args.set(ai, norm);
+            }
             switch (head) {
                 case "assertSize" -> {
-                    if (args.size() == 2 && args.get(0).strip().equals("$result.values")) {
+                    String target = args.get(0).strip();
+                    if (args.size() == 2
+                            && (target.equals("$R.values") || target.equals("$R.rows")
+                                    || target.equals("$R"))) {
                         recognized++;
                         int expected = Integer.parseInt(args.get(1).strip());
                         if (rows.size() != expected) {
@@ -268,7 +287,7 @@ public final class Runner {
                     }
                 }
                 case "assertEmpty" -> {
-                    if (args.size() == 1 && args.get(0).strip().equals("$result.values")) {
+                    if (args.size() == 1 && args.get(0).strip().equals("$R.values")) {
                         recognized++;
                         if (!rows.isEmpty()) {
                             problems.add("expected empty, got " + rows.size() + " rows");
@@ -276,7 +295,7 @@ public final class Runner {
                     }
                 }
                 case "assertSameElements" -> {
-                    Matcher pm = Pattern.compile("^\\$result\\.values(?:->at\\(\\d+\\))?\\.(\\w+)$")
+                    Matcher pm = Pattern.compile("^\\$R(?:\\.values)?(?:->at\\(\\d+\\))?\\.(\\w+)$")
                             .matcher(args.size() == 2 ? args.get(1).strip() : "");
                     if (pm.matches()) {
                         recognized++;
@@ -287,18 +306,80 @@ public final class Runner {
                         }
                     }
                 }
-                case "assertEquals" -> {
+                case "assertEquals", "assertEqualsHNCompatible" -> {
                     String second = args.size() == 2 ? args.get(1).strip() : "";
-                    if (second.endsWith("->sqlRemoveFormatting()")) {
+                    if (second.endsWith("->sqlRemoveFormatting()") || second.endsWith("->sql()")) {
                         sqlAsserts++;   // advisory golden-SQL diff
                         recognized++;
                         continue;
                     }
+                    // TDS idioms — all against the canonical rows
+                    Matcher colGet = Pattern.compile(
+                            "^\\$R\\.rows\\.get(?:String|Integer|Float|Date|Number)?\\('([^']+)'\\)$")
+                            .matcher(second);
+                    Matcher rowAtCells = Pattern.compile(
+                            "^\\$R\\.rows->at\\((\\d+)\\)\\.values$").matcher(second);
+                    Matcher rowAtGet = Pattern.compile(
+                            "^\\$R\\.rows->at\\((\\d+)\\)\\.get(?:String|Integer|Float|Date|Number)?\\('([^']+)'\\)$")
+                            .matcher(second);
+                    Matcher allCells = Pattern.compile(
+                            "^\\$R(?:\\.values->at\\(\\d+\\))?\\.rows\\.values$").matcher(second);
+                    Matcher sizeOf = Pattern.compile(
+                            "^\\$R(?:\\.rows)?->size\\(\\)$").matcher(second);
+                    if (colGet.matches()) {
+                        recognized++;
+                        List<Object> expected = pureLiteralList(args.get(0).strip());
+                        List<Object> actual = column(rows, colGet.group(1));
+                        if (expected != null && !orderedEquals(expected, actual)) {
+                            problems.add(colGet.group(1) + ": expected " + expected + ", got " + actual);
+                        }
+                        continue;
+                    }
+                    if (rowAtGet.matches()) {
+                        recognized++;
+                        Object expected = pureLiteral(args.get(0).strip());
+                        int idx = Integer.parseInt(rowAtGet.group(1));
+                        Object actual = idx < rows.size() ? rows.get(idx).get(rowAtGet.group(2)) : null;
+                        if (expected != null && !valueEquals(expected, actual)) {
+                            problems.add("row " + idx + "." + rowAtGet.group(2)
+                                    + ": expected " + expected + ", got " + actual);
+                        }
+                        continue;
+                    }
+                    if (rowAtCells.matches()) {
+                        recognized++;
+                        List<Object> expected = pureLiteralList(args.get(0).strip());
+                        int idx = Integer.parseInt(rowAtCells.group(1));
+                        List<Object> actual = idx < rows.size()
+                                ? new ArrayList<>(rows.get(idx).values()) : List.of();
+                        if (expected != null && !orderedEquals(expected, actual)) {
+                            problems.add("row " + idx + ": expected " + expected + ", got " + actual);
+                        }
+                        continue;
+                    }
+                    if (allCells.matches()) {
+                        recognized++;
+                        List<Object> expected = pureLiteralList(args.get(0).strip());
+                        List<Object> actual = new ArrayList<>();
+                        rows.forEach(row -> actual.addAll(row.values()));
+                        if (expected != null && !orderedEquals(expected, actual)) {
+                            problems.add("cells: expected " + expected + ", got " + actual);
+                        }
+                        continue;
+                    }
+                    if (sizeOf.matches()) {
+                        recognized++;
+                        Object expected = pureLiteral(args.get(0).strip());
+                        if (expected instanceof Long n && rows.size() != n) {
+                            problems.add("size: expected " + n + ", got " + rows.size());
+                        }
+                        continue;
+                    }
                     Matcher one = Pattern.compile(
-                            "^\\$result\\.values->(?:toOne|first)\\(\\)(?:\\.(\\w+))?(?:->toOne\\(\\))?$")
+                            "^\\$R(?:\\.values)?->(?:toOne|first)\\(\\)(?:\\.(\\w+))?(?:->toOne\\(\\))?$")
                             .matcher(second);
                     Matcher at = Pattern.compile(
-                            "^\\$result\\.values->at\\((\\d+)\\)\\.(\\w+)$").matcher(second);
+                            "^\\$R(?:\\.values)?->at\\((\\d+)\\)\\.(\\w+)$").matcher(second);
                     if (one.matches()) {
                         recognized++;
                         Object expected = pureLiteral(args.get(0).strip());
@@ -385,6 +466,18 @@ public final class Runner {
             }
         }
         return out;
+    }
+
+    private static boolean orderedEquals(List<Object> a, List<Object> b) {
+        if (a.size() != b.size()) {
+            return false;
+        }
+        for (int i = 0; i < a.size(); i++) {
+            if (!valueEquals(a.get(i), b.get(i))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean multisetEquals(List<Object> a, List<Object> b) {
@@ -510,7 +603,7 @@ public final class Runner {
             return fn.imports().get(name);
         }
         String scope = model + fileModels.getOrDefault(currentFileKey, "");
-        for (String pkg : fn.wildcardImports()) {
+        for (String pkg : packagesInScope(fn)) {
             String candidate = pkg + "::" + name;
             if (scope.contains(candidate)) {
                 return candidate;
@@ -519,13 +612,23 @@ public final class Runner {
         return name;
     }
 
+    /** The file's wildcard imports PLUS the test's own package (implicit in real pure). */
+    private static List<String> packagesInScope(Corpus.TestFn fn) {
+        List<String> pkgs = new ArrayList<>(fn.wildcardImports());
+        int cut = fn.fqn().lastIndexOf("::");
+        if (cut > 0) {
+            pkgs.add(fn.fqn().substring(0, cut));
+        }
+        return pkgs;
+    }
+
     /**
      * Qualify BARE class/enum names in the query text using the file's
      * wildcard imports against the model's element index. Word-boundary
      * replacement, quoted strings preserved.
      */
     private String qualifyQuery(String query, Corpus.TestFn fn) {
-        Map<String, String> index = elementIndex();
+        Map<String, List<String>> index = elementIndex();
         StringBuilder out = new StringBuilder();
         int i = 0;
         while (i < query.length()) {
@@ -548,12 +651,17 @@ public final class Runner {
                 // never qualify if followed by :: (already qualified head)
                 boolean qualifiedHead = j + 1 < query.length()
                         && query.charAt(j) == ':' && query.charAt(j + 1) == ':';
-                String fqn = index.get(word);
-                if (!qualifiedHead && fqn != null && importsCover(fqn, word, fn)) {
-                    out.append(fqn);
-                } else {
-                    out.append(word);
+                // ALL candidates for the simple name; the TEST FILE's own
+                // imports disambiguate (section-scoped, like real pure)
+                String chosen = null;
+                if (!qualifiedHead) {
+                    for (String fqn : index.getOrDefault(word, List.of())) {
+                        if (importsCover(fqn, word, fn)) {
+                            chosen = chosen == null ? fqn : "";   // "" = ambiguous
+                        }
+                    }
                 }
+                out.append(chosen != null && !chosen.isEmpty() ? chosen : word);
                 i = j;
                 continue;
             }
@@ -572,32 +680,29 @@ public final class Runner {
             return false;
         }
         String pkg = fqn.substring(0, Math.max(0, cut));
-        return fn.wildcardImports().contains(pkg);
+        return packagesInScope(fn).contains(pkg);
     }
 
-    private final Map<String, Map<String, String>> indexByFile = new LinkedHashMap<>();
+    private final Map<String, Map<String, List<String>>> indexByFile = new LinkedHashMap<>();
 
-    /** simple name → FQN for every Class/Enum/Mapping/Database in the model (unambiguous only). */
-    private Map<String, String> elementIndex() {
-        Map<String, String> cachedIndex = indexByFile.get(currentFileKey);
+    /** simple name → CANDIDATE FQNs for every Class/Enum/Mapping/Database in the model. */
+    private Map<String, List<String>> elementIndex() {
+        Map<String, List<String>> cachedIndex = indexByFile.get(currentFileKey);
         if (cachedIndex != null) {
             return cachedIndex;
         }
-        Map<String, String> index = new LinkedHashMap<>();
-        java.util.Set<String> ambiguous = new java.util.HashSet<>();
+        Map<String, List<String>> index = new LinkedHashMap<>();
         Matcher m = Pattern.compile(
                 "(?m)^(?:Class|Enum|Database|Mapping|Association)\\s+(?:<<[^>]*>>\\s*)?((?:\\w+::)+)(\\w+)")
                 .matcher(model + fileModels.getOrDefault(currentFileKey, ""));
         while (m.find()) {
             String simple = m.group(2);
             String fqn = m.group(1) + simple;
-            if (index.containsKey(simple) && !index.get(simple).equals(fqn)) {
-                ambiguous.add(simple);
-            } else {
-                index.put(simple, fqn);
+            List<String> l = index.computeIfAbsent(simple, k -> new ArrayList<>());
+            if (!l.contains(fqn)) {
+                l.add(fqn);
             }
         }
-        index.keySet().removeAll(ambiguous);
         indexByFile.put(currentFileKey, index);
         return index;
     }
