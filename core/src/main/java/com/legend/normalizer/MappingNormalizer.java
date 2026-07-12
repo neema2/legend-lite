@@ -230,6 +230,14 @@ public final class MappingNormalizer {
                 new ArrayList<>(md.classMappings().size());
         for (ClassMapping cm : md.classMappings()) {
             if (mappingsPerClass.get(cm.className()) > 1 && !cm.root()) {
+                // multi-set class without a root: real .all() dispatch is the
+                // UNION of sets (a roadmap feature) — recorded as a poison so
+                // the 0-binder error explains itself, never silent
+                model.mappingPoisons.putIfAbsent(
+                        md.qualifiedName() + "::" + cm.className(),
+                        "class is mapped through multiple set IDs; .all() over"
+                                + " multi-set mappings (implicit union) is a"
+                                + " roadmap feature");
                 continue;
             }
             FunctionDefinition fn;

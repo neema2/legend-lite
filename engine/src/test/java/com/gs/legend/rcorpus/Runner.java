@@ -406,9 +406,19 @@ public final class Runner {
         if (recognized == 0) {
             return new Outcome(fn.fqn(), Status.SHAPE, "no recognizable assertions");
         }
-        return problems.isEmpty()
-                ? new Outcome(fn.fqn(), Status.PASS, recognized + " assert(s)")
-                : new Outcome(fn.fqn(), Status.FAIL, String.join("; ", problems));
+        if (!problems.isEmpty()) {
+            return new Outcome(fn.fqn(), Status.FAIL, String.join("; ", problems));
+        }
+        // NEVER a false pass on partial verification: a PASS requires every
+        // assert to be recognized (advisory SQL counted); anything short is
+        // honest SHAPE accounting.
+        int total = assertCalls(fn.body()).size();
+        if (recognized < total) {
+            return new Outcome(fn.fqn(), Status.SHAPE,
+                    "partial: " + recognized + "/" + total + " asserts recognized"
+                            + " (recognized ones hold)");
+        }
+        return new Outcome(fn.fqn(), Status.PASS, recognized + " assert(s)");
     }
 
     /** Class results arrive as the GRAPH envelope (JSON rows); TDS as tabular. */
@@ -755,6 +765,18 @@ public final class Runner {
                 .limit(30)
                 .forEach(e -> sb.append("- ").append(e.getValue()).append("x ")
                         .append(e.getKey()).append('\n'));
+        sb.append("\n### per-test outcomes (non-passing)\n\n");
+        for (var e : byFamily.entrySet()) {
+            for (Outcome o : e.getValue()) {
+                if (o.status() != Status.PASS) {
+                    sb.append("- ").append(o.status()).append(' ')
+                            .append(o.test().substring(o.test().lastIndexOf("::") + 2))
+                            .append(" [").append(e.getKey()).append("]: ")
+                            .append(o.detail(), 0, Math.min(160, o.detail().length()))
+                            .append('\n');
+                }
+            }
+        }
         Files.writeString(out, sb.toString());
     }
 }

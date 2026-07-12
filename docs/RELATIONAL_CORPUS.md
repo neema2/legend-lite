@@ -6,19 +6,19 @@ runner does not yet recognize (accounted, not skipped silently).
 
 | family | tests | pass | fail | error | shape |
 |---|---|---|---|---|---|
-| query | 99 | 12 | 1 | 63 | 23 |
-| mapping/association | 24 | 5 | 0 | 17 | 2 |
+| query | 99 | 11 | 1 | 63 | 24 |
+| mapping/association | 24 | 1 | 0 | 17 | 6 |
 | mapping/join | 29 | 0 | 0 | 29 | 0 |
 | mapping/embedded | 70 | 0 | 0 | 65 | 5 |
 | mapping/enumeration | 27 | 0 | 0 | 17 | 10 |
-| mapping/distinct | 18 | 5 | 3 | 9 | 1 |
+| mapping/distinct | 18 | 0 | 3 | 9 | 6 |
 | mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
 | mapping/filter | 10 | 0 | 3 | 6 | 1 |
 | mapping/inheritance | 51 | 0 | 0 | 46 | 5 |
 | mapping/selfJoin | 3 | 0 | 0 | 3 | 0 |
 | mapping/boolean.pure | 3 | 0 | 0 | 3 | 0 |
 | mapping/dates.pure | 7 | 0 | 0 | 4 | 3 |
-| **total** | 351 | **22** | 7 | 272 | 50 |
+| **total** | 351 | **12** | 7 | 272 | 60 |
 
 ### mapping walls (dropped at assembly)
 
@@ -81,3 +81,345 @@ runner does not yet recognize (accounted, not skipped silently).
 - 2x unknown function 'nameWithTitle'
 - 2x mapping pipeline for 'meta::relational::tests::model::simple::OrderPnl' has TypedDistinct above join slot(s); H3-pending
 - 2x unbound variable '$input'
+
+### per-test outcomes (non-passing)
+
+- SHAPE testGroupBy [query]: no execute(|...) call
+- SHAPE testInFlowGroupBy_noDatePath [query]: no execute(|...) call
+- SHAPE testPlanGroupBy_noDatePath [query]: no execute(|...) call
+- SHAPE testGroupByWithFilterFunction_noDatePath [query]: no execute(|...) call
+- SHAPE testGroupByWithFilterFunction [query]: no execute(|...) call
+- SHAPE testGroupByWithRelativeDateFunctions [query]: no execute(|...) call
+- SHAPE testGroupByWithRelativeDateFunctions_noDatePath [query]: no execute(|...) call
+- SHAPE testGroupByWithRelativeDateFunctionsWithPathFilter [query]: no execute(|...) call
+- ERROR testProjectWithSeparateGroupBy [query]: [2301:0] unsupported top-level keyword: GREATER_THAN ('>')
+- ERROR testDayOfWeek [query]: [2301:0] unsupported top-level keyword: GREATER_THAN ('>')
+- SHAPE testAssociationMixed [query]: multiple execute() calls
+- SHAPE testAssociationMixedDeep [query]: multiple execute() calls
+- ERROR testAssociationToMany [query]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
+- ERROR testAssociationToManyNotExists [query]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
+- ERROR testAssociationToManyWithBoolean [query]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
+- ERROR testTwoAssociationsToManyDeep [query]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
+- ERROR testAssociationToManyWithConstantPredicate [query]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
+- ERROR testTwoAssociationsToManyDeepWithOr [query]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
+- ERROR testAssociationToManyWithTwoSeparateExists [query]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
+- ERROR testTwoAssociationsToOneDeep [query]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
+- ERROR testGroupOpenVariable [query]: unbound variable '$other'
+- ERROR testExistsOpenVariable [query]: unbound variable '$var'
+- ERROR testExistsOpenVariableClass [query]: unbound variable '$var'
+- ERROR testExistsAndBooleanOpenVariables [query]: unbound variable '$var1'
+- ERROR testNoParameters [query]: property 'name' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
+- ERROR testNoParametersThroughAssociation [query]: property 'name' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
+- ERROR testWithParameter [query]: unknown function 'nameWithTitle'
+- ERROR testWithParameterUsedWithinExists [query]: unknown function 'nameWithTitle'
+- SHAPE testWithParameterToClassNestedSelect [query]: multiple execute() calls
+- SHAPE testExistsWithQualifierOnleftSide [query]: multiple execute() calls
+- ERROR testAssociationSpecifiedQualifiedProperty [query]: unknown function 'synonymByType'
+- ERROR testNonTrivialQualifierWithDataTypeReturnTypeAsFunctionInput [query]: unknown function 'employeeByLastNameFirstName'
+- ERROR testViewAll [query]: mapping pipeline for 'meta::relational::tests::model::simple::OrderPnl' has TypedDistinct above join slot(s); H3-pending
+- ERROR testViewWithJoinsAndDistinct [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testDistinctOnlyIncludesTopLevelColumns [query]: in function 'meta::relational::tests::TestViewWithDistinctAndJoins$class$meta::relational::tests::model::simple::Person': unknown table 'FirstNameAddress' in da
+- ERROR testViewSimpleFilter [query]: mapping pipeline for 'meta::relational::tests::model::simple::OrderPnl' has TypedDistinct above join slot(s); H3-pending
+- ERROR testAllWithJoinToView [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Order': unknown table 'orderPnlView' in database 'me
+- ERROR testViewWithGroupBy [query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::AccountPnl' (of 1 candidates); class-query dispatch needs exactly on
+- ERROR testAssnToViewWithGroupBy [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Account': unknown table 'accountOrderPnlView' in dat
+- ERROR testViewSimpleExists [query]: in function 'meta::relational::tests::query::view::relationalMappingWithViewAndInnerJoin$class$meta::relational::tests::model::simple::Order': unknown table 'Pe
+- ERROR testViewPropertyFilterWithPrimaryKey [query]: in function 'meta::relational::tests::query::view::EmployeeMappingWithViewAndInnerJoin$class$meta::relational::tests::model::simple::Employee': unknown table 'O
+- SHAPE testPushDownProject [query]: no execute(|...) call
+- SHAPE testPushDownProjectWithParameter [query]: no execute(|...) call
+- ERROR testFilterEnumOnClassProp [query]: unbound variable '$eType'
+- ERROR testFilterThroughAssociationUsingPlusFunction [query]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
+- SHAPE testFilterUsingStartsWithFunction [query]: multiple execute() calls
+- SHAPE testFilterUsingIsAlphaNumericFunction [query]: multiple execute() calls
+- SHAPE testFilterUsingMatchesFunction [query]: multiple execute() calls
+- FAIL testFilterUsingSubstringFunction [query]: size: expected 2, got 0; lastName: expected [Johnson, Hill], got []
+- ERROR testFilterUsingFunctionWithVariable [query]: unbound variable '$input'
+- ERROR testFilterUsingFunctionWithClassAttribute [query]: unbound variable '$input'
+- SHAPE testFilterUsingContainsFunction [query]: multiple execute() calls
+- SHAPE testFilterUsingEndsWithFunction [query]: multiple execute() calls
+- ERROR testFilterUsingIsEmptyFunction [query]: class-typed property '$f.synonyms' used as a whole value is graph output (Phase H4)
+- SHAPE testFilterUsingIfFunction [query]: partial: 2/3 asserts recognized (recognized ones hold)
+- SHAPE testMostRecentDayOfWeek [query]: no execute(|...) call
+- ERROR testFilterUsingParseIntegerFunction [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Account': unknown table 'accountOrderPnlView' in dat
+- ERROR testFilterUsingParseDecimalFunction [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Account': unknown table 'accountOrderPnlView' in dat
+- ERROR testFilterUsingToStringFunction [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- ERROR testFilterUsingFirstDayOfThisYearH2 [query]: unknown function 'firstDayOfThisYear'
+- ERROR testFilterUsingFirstDayOfThisQuarter [query]: unknown function 'firstDayOfThisQuarter'
+- ERROR testFilterUsingRoundFunction [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- ERROR testFilterUsingRoundFunctionWithScale [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- ERROR testFilterUsingCeilingFunction [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- ERROR testFilterUsingFloorFunction [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- ERROR testFilterUsingPowFunction [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- ERROR testFilterUsingExpFunction [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- ERROR testFilterUsingLogFunction [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- ERROR testFilterUsingLog10Function [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- ERROR testFilterUsingsinFunction [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- ERROR testFilterUsingCosFunction [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- ERROR testFilterUsingCotFunction [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- ERROR testFilterUsingTanFunction [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- ERROR testFilterUsingArcSinFunction [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- ERROR testFilterUsingArcCosFunction [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- ERROR testFilterUsingArcTanFunction [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- ERROR testFilterUsingArcTan2Function [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- ERROR testFilterUsingSqrtFunction [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- ERROR testFilterUsingSignFunction [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- ERROR testFilterUsingModFunction [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- ERROR testFilterUsingRemFunction [query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- SHAPE testFilterTimesWithManyOperands [query]: multiple execute() calls
+- SHAPE testFilterUsingQuarterNumberFunction [query]: multiple execute() calls
+- ERROR testCollectionDistinctFunction [query]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- SHAPE testDivideFunctionPrecision [query]: multiple execute() calls
+- ERROR testJoinStringFunction [query]: no overload of 'meta::pure::functions::string::joinStrings' accepts 1 argument(s)
+- ERROR testDayOfWeekFunction [query]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR testDayOfWeekNumberFunction [query]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR testPersonToOrganisations [mapping/association]: mapping 'meta::relational::tests::mapping::association::embedded::associationMapping' includes unknown mapping 'meta::relational::tests::mapping::embedded::mode
+- ERROR testFirmToOrganisations [mapping/association]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Firm' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testPersonToOrganisationsInlineEmbedded [mapping/association]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testPersonToFirmAddressNestedInlineEmbedded [mapping/association]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testPersonToFirmLocationsInlineEmbedded [mapping/association]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- SHAPE testPersonToFirm [mapping/association]: partial: 1/2 asserts recognized (recognized ones hold)
+- SHAPE testFirmToEmployees [mapping/association]: partial: 1/2 asserts recognized (recognized ones hold)
+- SHAPE testPersonToFirmWithDefaults [mapping/association]: partial: 1/2 asserts recognized (recognized ones hold)
+- SHAPE testFirmToEmployeesWithDefaults [mapping/association]: partial: 1/2 asserts recognized (recognized ones hold)
+- ERROR testFirmToEmployeesIncludes [mapping/association]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::association::associationMappingWith
+- ERROR testPersonToFirmIncludes [mapping/association]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::association::associationMappingWith
+- ERROR testProjectTwoLambdas [mapping/association]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly o
+- ERROR testGroupBy [mapping/association]: no overload of 'agg' matches 3 argument(s) of these shapes
+- ERROR testBuilderRoutingOfAggFunctionParameters [mapping/association]: [1:126] expected ')' to close argument list
+- ERROR testQuery [mapping/association]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly o
+- ERROR testFilterProject [mapping/association]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly o
+- ERROR testFilterProjectBooleanInFilter [mapping/association]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly o
+- SHAPE testGetAllFilterWithAssociation [mapping/association]: multiple execute() calls
+- SHAPE testSubTypeFilter [mapping/association]: multiple execute() calls
+- ERROR testSubTypeProjectWithAssociation [mapping/association]: [1:97] expected ']' to close collection literal
+- ERROR testSubTypeProjectSharedNonDirectlyRouted [mapping/association]: [1:95] expected ']' to close collection literal
+- ERROR testSubTypeProjectSharedNonDirectlyRoutedWithFilter [mapping/association]: [1:138] expected ']' to close collection literal
+- ERROR testSubTypeInColumnProjectionsWithInlineMappings [mapping/association]: [1:93] expected ')' to close argument list
+- ERROR testJoinInPropertyMapping [mapping/join]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testJoinInPropertyMappingQuery [mapping/join]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testJoinInPropertyMappingAndJoinInQuery [mapping/join]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testFilterOnSimpleTypePropertyDeepWithJoinInMapping [mapping/join]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- ERROR testFilterOnSimpleTypePropertyDeepWithJoinInMappingNotUsed [mapping/join]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- ERROR testFilterDeepWithJoinInMappingInMiddle [mapping/join]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- ERROR testJoinInPropertyMappingAndJoinInQueryWithGrouping [mapping/join]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testProjectOfTypeMadeOfMultipleJoinsOnlyIncludesJoinsRequiredForProjectedColumns [mapping/join]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testProjectOfTypeMadeOfMultipleJoinsWithFilterOnlyIncludesJoinsRequiredForProjectedColumns [mapping/join]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testTwoJoinsInPropertyMappingAndJoinInQueryWithGrouping [mapping/join]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testTwoJoinsInPropertyMultipleParenthesisMappingAndJoinInQueryWithGrouping [mapping/join]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testMultipleJoinsInPropertyMapping [mapping/join]: 'TypeBuiltOutOfMultipleJoins' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- ERROR testMultipleJoinsInPropertyMappingWithDatesInClass [mapping/join]: 'TypeBuiltOutOfMultipleJoinsWithDates' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- ERROR testMultipleJoinsInPropertyMappingWithDateInJoin [mapping/join]: 'TypeBuiltOutOfMultipleJoins' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- ERROR testConstraintTargetingMultipleJoinsInPropertyMapping [mapping/join]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Firm' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testConstraintTargetingMultipleJoinsInPropertyMappingNoJoinProperty [mapping/join]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Firm' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testJoinInPropertyMappingDeep [mapping/join]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testJoinInPropertyMappingUsingIncludes [mapping/join]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testJoinInPropertyMappingUsingNestedIncludes [mapping/join]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testChainedOuterJoinsMerge [mapping/join]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Firm' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testChainedInnerJoinsMerge [mapping/join]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Firm' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testChainedInnerJoinsWithFilterMerge [mapping/join]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Firm' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testConvertToStringH2 [mapping/join]: [1:129] navigation path segment 'name!name' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::model::simple::T
+- ERROR testChainedOuterJoinsWithFilterInproject [mapping/join]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Firm' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testChainedOuterJoinsWithQualifierInproject [mapping/join]: unknown function 'employeesByAge'
+- ERROR testChainedInnerJoinsWithQualifierInGroupBy [mapping/join]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
+- ERROR testSameTableNameDifferentSchema1 [mapping/join]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testSameTableNameDifferentSchema2 [mapping/join]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testIsNotEmptyCheckWithoutRowExplosion [mapping/join]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Firm' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testDenormMappingOneToManyProjectUsingPaths [mapping/embedded]: [1:195] navigation path segment 'name!address' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::model::simple
+- ERROR testDenormMappingOneToManyProject [mapping/embedded]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testDenormMappingOneToManyProjectLambdaSyntaxWithMap [mapping/embedded]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::embedded::model::mapping::testMappingEmbedded
+- ERROR testDenormMappingOneToManyProjectWithFilter [mapping/embedded]: [2:179] navigation path segment 'name!address' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::model::simple
+- ERROR testDenormMappingOneToManyProjectWithComplexFilter [mapping/embedded]: [2:179] navigation path segment 'name!address' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::model::simple
+- ERROR testDenormMappingOneToManyProjectWithEnum [mapping/embedded]: [1:195] navigation path segment 'type!address' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::model::simple
+- ERROR testDenormMappingOneToManyProjectWithFilterOnEnumLeft [mapping/embedded]: [2:179] navigation path segment 'type!address' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::model::simple
+- ERROR testDenormMappingOneToManyProjectWithFilterOnEnumRight [mapping/embedded]: [2:179] navigation path segment 'type!address' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::model::simple
+- ERROR testGroupByEmbeddedProperty [mapping/embedded]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testProjectToEmbedded [mapping/embedded]: [1:199] navigation path segment 'name!address' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::model::simple
+- ERROR testDenormMappingOneToManyProjectEmbeddedQualifier [mapping/embedded]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testDenormMappingWithQualifierWithIfAndEquals [mapping/embedded]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testFilterWithEmbeddedQualifier [mapping/embedded]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testExists [mapping/embedded]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testIsEmpty [mapping/embedded]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testMapEmbeddedQualifierWithIfTwoEmbeddedProperties [mapping/embedded]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testGetter [mapping/embedded]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testGetterTwoJoinTraversal [mapping/embedded]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- SHAPE testRoutingQualifiedPropertySameVariableNames [mapping/embedded]: no execute(|...) call
+- ERROR testOptionalPropertyEmbedded [mapping/embedded]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testProjectionOtherwise [mapping/embedded]: class meta::relational::tests::model::simple::Product has no property 'bondDetails'
+- ERROR otherwiseTestFilter [mapping/embedded]: class meta::relational::tests::model::simple::Product has no property 'bondDetails'
+- SHAPE otherwiseTestGetter [mapping/embedded]: multiple execute() calls
+- SHAPE otherwiseTestGetterDeepTraversal [mapping/embedded]: multiple execute() calls
+- ERROR testProjectionOtherwiseDeepTraversal [mapping/embedded]: class meta::relational::tests::model::simple::Product has no property 'bondDetails'
+- ERROR testProjectionOtherwiseNonPrimitive [mapping/embedded]: class meta::relational::tests::model::simple::Product has no property 'bondDetails'
+- ERROR otherwiseTestProjection [mapping/embedded]: class meta::relational::tests::model::simple::Product has no property 'bondDetails'
+- ERROR otherwiseTestDenormWithComplexFilter [mapping/embedded]: class meta::relational::tests::model::simple::Product has no property 'bondDetails'
+- ERROR otherwiseTestGroupBy [mapping/embedded]: class meta::relational::tests::model::simple::Product has no property 'bondDetails'
+- ERROR otherwiseTestGroupByComplexAgg [mapping/embedded]: class meta::relational::tests::model::simple::Product has no property 'bondDetails'
+- ERROR otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [mapping/embedded]: class meta::relational::tests::model::simple::Product has no property 'bondDetails'
+- ERROR otherwiseTestQualifierProperty [mapping/embedded]: class meta::relational::tests::model::simple::Product has no property 'bondDetails'
+- ERROR otherwiseTestQualifierPropertyConstantExpression [mapping/embedded]: class meta::relational::tests::model::simple::Product has no property 'bondDetails'
+- ERROR otherwiseTestQualifierPropertyExpressionWithPropertyInJoinOnly [mapping/embedded]: class meta::relational::tests::model::simple::Product has no property 'bondDetails'
+- ERROR otherwiseTestQualifierPropertyExpressionWithEmbeddedProperty [mapping/embedded]: class meta::relational::tests::model::simple::Product has no property 'bondDetails'
+- ERROR otherwiseTestQualifierPropertyExpressionWithEmbeddedPropertyandJoinProperty [mapping/embedded]: class meta::relational::tests::model::simple::Product has no property 'bondDetails'
+- ERROR otherwiseTestComplexExpression [mapping/embedded]: class meta::relational::tests::model::simple::Product has no property 'bondDetails'
+- ERROR otherwiseTestComplexExpressionWithEnumMapping [mapping/embedded]: class meta::relational::tests::model::simple::Product has no property 'bondDetails'
+- ERROR otherwiseTestEmbeddedToEmbedded [mapping/embedded]: class meta::relational::tests::model::simple::Product has no property 'bondDetails'
+- ERROR otherwiseTestFilterExistsOnEmbeddedProperty [mapping/embedded]: class meta::relational::tests::model::simple::Product has no property 'bondDetails'
+- ERROR otherwiseTestProjectExistsOnEmbeddedProperty [mapping/embedded]: class meta::relational::tests::model::simple::Product has no property 'bondDetails'
+- ERROR otherwiseTestFilterExistsOnOtherwiseProperty [mapping/embedded]: class meta::relational::tests::model::simple::Product has no property 'bondDetails'
+- ERROR otherwiseTestProjectExistsOnOtherwiseProperty [mapping/embedded]: class meta::relational::tests::model::simple::Product has no property 'bondDetails'
+- ERROR testProjection [mapping/embedded]: [2495:4] expected identifier, got PAREN_OPEN
+- ERROR testFilter [mapping/embedded]: [2495:4] expected identifier, got PAREN_OPEN
+- ERROR testDenormWithComplexFilter [mapping/embedded]: [2495:4] expected identifier, got PAREN_OPEN
+- ERROR testGroupBy [mapping/embedded]: [2495:4] expected identifier, got PAREN_OPEN
+- ERROR testGroupByComplexAgg [mapping/embedded]: [2495:4] expected identifier, got PAREN_OPEN
+- ERROR testQualifierProperty [mapping/embedded]: [2495:4] expected identifier, got PAREN_OPEN
+- ERROR testInlineEmbeddedMappingWithAssociationFromRootMapping [mapping/embedded]: [2495:4] expected identifier, got PAREN_OPEN
+- ERROR testProjection [mapping/embedded]: 'BondDetail' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- SHAPE testFilter [mapping/embedded]: multiple execute() calls
+- ERROR testDenormWithComplexFilter [mapping/embedded]: 'BondDetail' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- ERROR testGroupBy [mapping/embedded]: 'BondDetail' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- ERROR testGroupByComplexAgg [mapping/embedded]: 'BondDetail' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- ERROR testQualifierProperty [mapping/embedded]: 'BondDetail' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- ERROR testInlineInEmbedded [mapping/embedded]: 'BondDetail' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- ERROR testInlineInEmbeddedGraphFetch [mapping/embedded]: serialize expects (classCollection, #{Class{…}}#)
+- ERROR testMilestonedEmbeddedGraphFetch [mapping/embedded]: serialize expects (classCollection, #{Class{…}}#)
+- ERROR testMilestonedEmbeddedInlineGraphFetch [mapping/embedded]: serialize expects (classCollection, #{Class{…}}#)
+- ERROR testMilestonedExtendsEmbeddedGraphFetch [mapping/embedded]: serialize expects (classCollection, #{Class{…}}#)
+- ERROR testMilestonedInlineGraphFetchWithEnumProperty [mapping/embedded]: serialize expects (classCollection, #{Class{…}}#)
+- ERROR testProjection [mapping/embedded]: 'BondDetail' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- ERROR testSubType [mapping/embedded]: [1:52] expected ']' to close collection literal
+- ERROR testSubTypeOnPropertyMappedToNonRootInlineSetImpl [mapping/embedded]: [1:52] expected ']' to close collection literal
+- SHAPE testFilter [mapping/embedded]: multiple execute() calls
+- ERROR testDenormWithComplexFilter [mapping/embedded]: 'BondDetail' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- ERROR testGroupBy [mapping/embedded]: 'BondDetail' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- ERROR testGroupByComplexAgg [mapping/embedded]: 'BondDetail' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- ERROR testQualifierProperty [mapping/embedded]: 'BondDetail' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- SHAPE testEnumTheSame [mapping/enumeration]: no execute(|...) call
+- SHAPE testMapping [mapping/enumeration]: multiple execute() calls
+- ERROR testEnumInRelation [mapping/enumeration]: class meta::relational::tests::model::simple::Employee has no property 'name'
+- SHAPE testQueryWithEnum [mapping/enumeration]: multiple execute() calls
+- SHAPE testEnumMappings [mapping/enumeration]: no execute(|...) call
+- SHAPE testEnumMappingsWithInclude [mapping/enumeration]: no execute(|...) call
+- ERROR testProjectionWithEnum [mapping/enumeration]: class meta::relational::tests::model::simple::Employee has no property 'name'
+- ERROR testProjectionWithEnumUsingLambda [mapping/enumeration]: class meta::relational::tests::model::simple::Employee has no property 'name'
+- ERROR testProjectionWithEnumAndFunctionsUsingLambda [mapping/enumeration]: class meta::relational::tests::model::simple::Employee has no property 'name'
+- SHAPE testInQueryWithEnum [mapping/enumeration]: multiple execute() calls
+- ERROR testAggregationFunctionWithEnum [mapping/enumeration]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
+- ERROR testProjectionWithInheritedEnum [mapping/enumeration]: 'EquityTrade' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- ERROR testProjectionWithEnumThroughAssociation [mapping/enumeration]: unknown enumeration 'ProductSynonymType'
+- ERROR testProjectionWithEnumQualifierParameter [mapping/enumeration]: [2:113] navigation path segment 'synonymsByType(ProductSynonymType.CUSIP)' uses an unsupported path feature (only plain property segments desugar): #/Product/sy
+- ERROR testFilterWithEnumQualifierParameter [mapping/enumeration]: unknown enumeration 'ProductSynonymType'
+- ERROR testProjectWithIfWhereOneSideIsEnumLiteral [mapping/enumeration]: class meta::relational::tests::model::simple::Product has no property 'description'
+- ERROR testProjectWithIfWhereOneSideIsEnumLiteral2 [mapping/enumeration]: class meta::relational::tests::model::simple::Product has no property 'description'
+- ERROR testProjectWithIfWhereBothSidesUseTheSameEnumMapping [mapping/enumeration]: class meta::relational::tests::model::simple::Product has no property 'description'
+- SHAPE testProjectWithIfWhereEnumEqualsClassProp [mapping/enumeration]: no recognizable assertions
+- ERROR testTdsProjectWithSingleStringEnumEqualityComparison [mapping/enumeration]: project expects ~[…] column specifications
+- ERROR testTdsProjectWithMultiStringEnumEqualityComparison [mapping/enumeration]: project expects ~[…] column specifications
+- ERROR testTdsProjectWithEnumInequalityComparison [mapping/enumeration]: project expects ~[…] column specifications
+- ERROR testTdsProjectWithEnumToStringEqualityComparison [mapping/enumeration]: project expects ~[…] column specifications
+- ERROR testTdsProjectWithEnumsInInClause [mapping/enumeration]: project expects ~[…] column specifications
+- SHAPE testTdsProjectWithEnumVarEquality [mapping/enumeration]: no execute(|...) call
+- SHAPE testEnumValueReturnedInIfExp [mapping/enumeration]: no execute(|...) call
+- SHAPE testEnumValueReturnedInIfExpNotDistinctTransformers [mapping/enumeration]: no execute(|...) call
+- FAIL testDistinctMappingSelectAll [mapping/distinct]: name: expected [IF 1, IF 2, IF 2], got []
+- FAIL testDistinctMappingSelectAllWithFilter [mapping/distinct]: name: expected [IF 2], got []; code: expected [1002], got []
+- SHAPE testDistinctMappingSimpleProjectSelectAll [mapping/distinct]: partial: 1/2 asserts recognized (recognized ones hold)
+- SHAPE testDistinctMappingSimpleProjectSelectOneOfTheDistinctProperties [mapping/distinct]: partial: 1/2 asserts recognized (recognized ones hold)
+- SHAPE testDistinctMappingSimpleProjectDistinct [mapping/distinct]: partial: 1/2 asserts recognized (recognized ones hold)
+- FAIL testDistinctMappingWithFilterSelectAll [mapping/distinct]: name: expected [IF 1, IF 2, IF 2], got []
+- SHAPE testDistinctMappingWithFilterSelectOneProperty [mapping/distinct]: partial: 1/2 asserts recognized (recognized ones hold)
+- ERROR testDistinctMappingWithJoinSelectAll [mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
+- SHAPE testDistinctMappingWithJoinProject [mapping/distinct]: partial: 1/2 asserts recognized (recognized ones hold)
+- ERROR testProjectDistinctMappingWithDistinctInJoin [mapping/distinct]: [1:285] navigation path segment 'name!incomeFunction' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mappin
+- ERROR testProjectDistinctMappingWithDistinctInJoinWithDup [mapping/distinct]: [1:285] navigation path segment 'name!incomeFunction' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mappin
+- ERROR testDistinctMappingWithDistinctInJoinWithFilter [mapping/distinct]: [1:319] navigation path segment 'name!incomeFunction' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mappin
+- ERROR testDistinctMappingWithDistinctInJoinWithFilterOnJoin [mapping/distinct]: [1:348] navigation path segment 'name!incomeFunction' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mappin
+- SHAPE testDistinctMappingWithFullDenormSelfJoins [mapping/distinct]: multiple execute() calls
+- ERROR testDistinctMappingWithFullDenormSelfJoinsWithFilterOnJoin [mapping/distinct]: store-only navigate (class-extent target) reached the lowerer — resolver bug
+- ERROR testDistinctMappingWithFullDenormSelfJoinsWithTwoFiltersOnJoin [mapping/distinct]: store-only navigate (class-extent target) reached the lowerer — resolver bug
+- ERROR testDistinctMappingWithCaseStatement [mapping/distinct]: [1:335] navigation path segment 'meta::relational::tests::mapping::distinct::model::domain::Classification' uses an unsupported path feature (only plain propert
+- ERROR testDistinctMappingWithSize [mapping/distinct]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- ERROR testGroupByMapping [mapping/groupBy]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::groupBy::model::domain::Position' (of 1 candidates); class-query dispatch 
+- ERROR testGroupByMappingWithFilter [mapping/groupBy]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::groupBy::model::domain::Position' (of 1 candidates); class-query dispatch 
+- ERROR testGroupByMappingWithFilterOnAggregate [mapping/groupBy]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::groupBy::model::domain::Position' (of 1 candidates); class-query dispatch 
+- ERROR testGroupByMappingWithFilterOnAggregateWithJoin [mapping/groupBy]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::groupBy::model::domain::Position' (of 1 candidates); class-query dispatch 
+- ERROR testGroupByMappingWithFilterOnAggregateWithProject [mapping/groupBy]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::groupBy::model::domain::Position' (of 1 candidates); class-query dispatch 
+- ERROR testGroupByMappingProject [mapping/groupBy]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::groupBy::model::domain::Position' (of 1 candidates); class-query dispatch 
+- ERROR testGroupByMappingProjectWithJoin [mapping/groupBy]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::groupBy::model::domain::Position' (of 1 candidates); class-query dispatch 
+- ERROR testGroupByMappingProjectWithJoinAndTableFilter [mapping/groupBy]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::groupBy::model::domain::Position' (of 1 candidates); class-query dispatch 
+- ERROR testGroupByMappingProjectWithGroupByInJoin [mapping/groupBy]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::groupBy::model::domain::Product' (of 1 candidates); class-query dispatch n
+- ERROR testGroupByMappingProjectWithMultipleGroupBys [mapping/groupBy]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::groupBy::model::domain::Position' (of 1 candidates); class-query dispatch 
+- ERROR filterMappingWithJoinInFilterAndPropertyGetAll [mapping/filter]: mapping ~filter for 'meta::relational::tests::model::simple::Person' reads through a join slot; join-mediated mapping filters are H3-pending
+- FAIL testFilterMapping [mapping/filter]: name: expected [ROOT, Firm X, Firm A, Securities, Banking, Federation], got []
+- ERROR testFilterMappingWithJoin [mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending
+- ERROR testFilterMappingWithProjection [mapping/filter]: project expects ~[…] column specifications
+- ERROR testFilterMappingWithProjectionOverlapp [mapping/filter]: [1:230] navigation path segment 'name!p_name' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mapping::filte
+- ERROR testFilterMappingWithProjectionAndJoin [mapping/filter]: project expects ~[…] column specifications
+- FAIL testFilterMappingQuery [mapping/filter]: name: expected [Banking, Federation, Securities], got []
+- SHAPE testGetterWithTargetFilter [mapping/filter]: no recognizable assertions
+- ERROR testFilterMappingWithProjectionAndJoinAndQuery [mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending
+- FAIL testFilterMappingWithJoinNotEmpty [mapping/filter]: name: expected [Banking, Federation, Securities], got []
+- SHAPE testAssociation [mapping/inheritance]: multiple execute() calls
+- ERROR testGroupBy [mapping/inheritance]: no overload of 'agg' matches 3 argument(s) of these shapes
+- ERROR testProject [mapping/inheritance]: mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross' includes unknown mapping 'meta::relational::tests::mapping::inheritance:
+- ERROR testProjectAssociation [mapping/inheritance]: mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross' includes unknown mapping 'meta::relational::tests::mapping::inheritance:
+- ERROR testProjectAssociationTdsV2 [mapping/inheritance]: mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross' includes unknown mapping 'meta::relational::tests::mapping::inheritance:
+- ERROR testProjectTwoLambdas [mapping/inheritance]: mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross' includes unknown mapping 'meta::relational::tests::mapping::inheritance:
+- ERROR testFilterProject [mapping/inheritance]: mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross' includes unknown mapping 'meta::relational::tests::mapping::inheritance:
+- ERROR testProjectTwoLambdasWithAutomap [mapping/inheritance]: mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross' includes unknown mapping 'meta::relational::tests::mapping::inheritance:
+- ERROR testProjectTwoLambdas [mapping/inheritance]: in function 'meta::relational::tests::mapping::inheritance::inheritanceMain$class$meta::relational::tests::model::inheritance::Person': expected meta::relationa
+- ERROR testGroupBy [mapping/inheritance]: no overload of 'agg' matches 3 argument(s) of these shapes
+- ERROR testQuery [mapping/inheritance]: in function 'meta::relational::tests::mapping::inheritance::inheritanceMain$class$meta::relational::tests::model::inheritance::Person': expected meta::relationa
+- ERROR testFilterProject [mapping/inheritance]: in function 'meta::relational::tests::mapping::inheritance::inheritanceMain$class$meta::relational::tests::model::inheritance::Person': expected meta::relationa
+- ERROR testFilterProjectBooleanInFilter [mapping/inheritance]: in function 'meta::relational::tests::mapping::inheritance::inheritanceMain$class$meta::relational::tests::model::inheritance::Person': expected meta::relationa
+- ERROR testGetAll [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exac
+- ERROR testGetAllFilter [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exac
+- SHAPE testGetAllFilterWithAssociation [mapping/inheritance]: multiple execute() calls
+- SHAPE testSubTypeFilter [mapping/inheritance]: multiple execute() calls
+- ERROR testSubTypeProjectWithAssociation [mapping/inheritance]: [1:97] expected ']' to close collection literal
+- ERROR testSubTypeProjectDirect [mapping/inheritance]: [1:95] expected ']' to close collection literal
+- ERROR testSubTypeProjectShared [mapping/inheritance]: [1:103] expected ')' to close argument list
+- ERROR testSubTypeProjectSharedNonDirectlyRouted [mapping/inheritance]: [1:95] expected ']' to close collection literal
+- ERROR testSubTypeGroupBy [mapping/inheritance]: [2:66] expected ')' to close argument list
+- ERROR testSubTypeGroupByThroughMap [mapping/inheritance]: [2:70] expected ')' to close argument list
+- ERROR testFilteringOnColumnsNotInProject [mapping/inheritance]: project expects ~[…] column specifications
+- ERROR testFilteringOnColumnsNotInProjectSingleChildStructure [mapping/inheritance]: project expects ~[…] column specifications
+- ERROR testProjectQualifiedPropertyFromUnmappedSuperClass [mapping/inheritance]: project expects ~[…] column specifications
+- ERROR testEmbeddMappingInSubTypes [mapping/inheritance]: [1:93] expected ']' to close collection literal
+- ERROR testMilestonedSubTyping [mapping/inheritance]: [2314:4] expected identifier, got PAREN_OPEN
+- ERROR testMilestonedSubTypingWithDifferentDates [mapping/inheritance]: [2314:4] expected identifier, got PAREN_OPEN
+- ERROR testProjectAssociation [mapping/inheritance]: in function 'meta::relational::tests::mapping::inheritance::relational::multiJoins::inheritance$class$meta::relational::tests::model::inheritance::Person': expe
+- ERROR testSubTypeProjectDirect [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exac
+- ERROR testForcedSubTypeProjectDirect [mapping/inheritance]: [1:122] expected ']' to close collection literal
+- ERROR testSubTypeProjectSharedNonDirectlyRouted [mapping/inheritance]: [1:95] expected ']' to close collection literal
+- ERROR testProjectTwoLambdas [mapping/inheritance]: in function 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion$class$meta::relational::tests::model::inheritance::Person': expe
+- ERROR testGroupBy [mapping/inheritance]: no overload of 'agg' matches 3 argument(s) of these shapes
+- ERROR testQuery [mapping/inheritance]: in function 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion$class$meta::relational::tests::model::inheritance::Person': expe
+- ERROR testFilterProject [mapping/inheritance]: in function 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion$class$meta::relational::tests::model::inheritance::Person': expe
+- ERROR testFilterProjectBooleanInFilter [mapping/inheritance]: in function 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion$class$meta::relational::tests::model::inheritance::Person': expe
+- ERROR testGetAll [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exac
+- ERROR testGetAllFilter [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exac
+- SHAPE testGetAllFilterWithAssociation [mapping/inheritance]: multiple execute() calls
+- SHAPE testSubTypeFilter [mapping/inheritance]: multiple execute() calls
+- ERROR testSubTypeProjectWithAssociation [mapping/inheritance]: [1:97] expected ']' to close collection literal
+- ERROR testSubTypeProjectDirect [mapping/inheritance]: [1:95] expected ']' to close collection literal
+- ERROR testSubTypeProjectShared [mapping/inheritance]: [1:103] expected ')' to close argument list
+- ERROR testSubTypeProjectSharedNonDirectlyRouted [mapping/inheritance]: [1:95] expected ']' to close collection literal
+- ERROR testProject [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::subType::MyProduct' (of 1 candidates); class-query dispatch needs exactly 
+- ERROR testProjectWithIds [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::subType::MyProduct' (of 1 candidates); class-query dispatch needs exactly 
+- ERROR testObjectQuery [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::subType::MyProduct' (of 1 candidates); class-query dispatch needs exactly 
+- ERROR testProjectSubtype [mapping/inheritance]: [1:87] expected ']' to close collection literal
+- ERROR testSubTypeMappingValidWhenMappedExplicitly [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::subType::CreditRating' (of 1 candidates); class-query dispatch needs exact
+- ERROR testSelfJoinPropertyMapping [mapping/selfJoin]: [1:240] navigation path segment 'name!parentName' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mapping::s
+- ERROR testSelfJoinPropertyMappingOverlap [mapping/selfJoin]: [1:236] navigation path segment 'name!p_name' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mapping::selfJ
+- ERROR testSelfJoinPropertyMappingWithDynaFunction [mapping/selfJoin]: multi-hop navigation parent.parent.parent.name through an embedded/slot head is not supported yet
+- ERROR testGet [mapping/boolean.pure]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Interaction' (of 1 candidates); class-query dispatch needs exactly o
+- ERROR testQuery [mapping/boolean.pure]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Interaction' (of 1 candidates); class-query dispatch needs exactly o
+- ERROR testProject [mapping/boolean.pure]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Interaction' (of 1 candidates); class-query dispatch needs exactly o
+- ERROR testGet [mapping/dates.pure]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- SHAPE testQuery [mapping/dates.pure]: multiple execute() calls
+- ERROR testProject [mapping/dates.pure]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- ERROR testGet [mapping/dates.pure]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- SHAPE testQuery [mapping/dates.pure]: multiple execute() calls
+- ERROR testProject [mapping/dates.pure]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Trade': unknown table 'tradeEventViewMaxTradeEventDa
+- SHAPE retrieveDateWithTimeZone [mapping/dates.pure]: multiple execute() calls
