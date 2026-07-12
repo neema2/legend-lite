@@ -170,9 +170,19 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                         modelRepository, g.json(), processorSupport);
             };
         } catch (Exception e) {
-            throw new PureExecutionException(
-                    functionExpressionCallStack.peek().getSourceInformation(),
-                    remapErrorMessage(e.getMessage()), e);
+            // the error's SOURCE INFO must point at the TEST's own call site
+            // (assertError checks line/column) — walk past adapter frames
+            org.finos.legend.pure.m4.coreinstance.SourceInformation src =
+                    functionExpressionCallStack.peek().getSourceInformation();
+            for (var frame : functionExpressionCallStack) {
+                var fs = frame.getSourceInformation();
+                if (fs != null && fs.getSourceId() != null
+                        && !fs.getSourceId().contains("core_legend_lite_pct")) {
+                    src = fs;
+                    break;
+                }
+            }
+            throw new PureExecutionException(src, remapErrorMessage(e.getMessage()), e);
         }
     }
 
@@ -853,6 +863,16 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 || message.contains("Overflow in left shift")
                 || message.contains("Overflow in right shift")) {
             return "Unsupported number of bits to shift - max bits allowed is 62";
+        }
+        // DuckDB wraps raised errors in a transport prefix ('Invalid Input
+        // Error: <ours>') — strip the CLASS prefix so the message our SQL
+        // guards raised (error('Cannot divide 5 by zero')) surfaces verbatim.
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("^(?:Invalid Input Error|Out of Range Error|Conversion Error): (.*)$",
+                        java.util.regex.Pattern.DOTALL)
+                .matcher(message);
+        if (m.matches()) {
+            return m.group(1);
         }
         return message;
     }

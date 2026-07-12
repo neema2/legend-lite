@@ -1915,14 +1915,30 @@ public final class Lowerer {
                             scalar(f.source(), columns), scalar(f.predicate(), columns));
             // slice(start, stop): 0-based exclusive-stop -> 1-based inclusive
             // array_slice; a NEGATIVE start clamps to the list head (PCT).
-            case TypedSlice s when !(s.source().info().type() instanceof Type.RelationType) ->
-                    SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_SLICE,
-                            scalar(s.source(), columns),
-                            onePlus(clamp0(scalar(s.start(), columns))),
-                            // STOP clamps too: DuckDB reads a negative bound
-                            // FROM THE END (slice(l,0,-1) returned the whole
-                            // list; pure says empty — audit).
-                            clamp0(scalar(s.stop(), columns)));
+            case TypedSlice s when !(s.source().info().type() instanceof Type.RelationType) -> {
+                SqlExpr lo = clamp0(scalar(s.start(), columns));
+                SqlExpr hi = clamp0(scalar(s.stop(), columns));
+                SqlExpr sliced = SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_SLICE,
+                        scalar(s.source(), columns), onePlus(lo),
+                        // STOP clamps too: DuckDB reads a negative bound
+                        // FROM THE END (slice(l,0,-1) returned the whole
+                        // list; pure says empty — audit).
+                        hi);
+                // inverted bounds RAISE real pure's message, in the database
+                yield new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                        SqlExpr.Call.of(com.legend.sql.SqlFn.GREATER, lo, hi),
+                        SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
+                                SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
+                                        SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
+                                                SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
+                                                        new SqlExpr.StringLit("The low bound ("),
+                                                        new SqlExpr.Cast(lo, com.legend.sql.SqlType.Scalar.VARCHAR)),
+                                                new SqlExpr.StringLit(") can't be higher than the high bound (")),
+                                        SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
+                                                new SqlExpr.Cast(hi, com.legend.sql.SqlType.Scalar.VARCHAR),
+                                                new SqlExpr.StringLit(") in a slice operation")))))),
+                        sliced);
+            }
             // drop(n): the suffix from n+1; negative n drops nothing (PCT).
             case TypedDrop d when !(d.source().info().type() instanceof Type.RelationType) -> {
                 SqlExpr src = scalar(d.source(), columns);

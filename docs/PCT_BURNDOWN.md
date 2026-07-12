@@ -464,4 +464,23 @@ LOCAL EDIT to the user's WIP file, not committed here).
 testRemoveDuplicatesByPrimitive passes by ripple. Gates: core 1391,
 corpus 2721, PCT 1109/1109.
 
+**Slice 13** (DATABASE-RAISED error parity — 8 more removed, 66
+remain): DuckDB's error() function raises real pure's messages FROM
+SQL — guards work for literal AND runtime values (tenet-compliant):
+sqrt/asin/acos domain guards ('Unable to compute sqrt of -1.0', float
+print via floatRepr); rem-by-zero ('Cannot divide 5 by zero'); at()
+out-of-bounds ('The system is trying to get an element at offset 2
+where the collection is of size 2'); slice inverted bounds; range step
+zero; bitShift>62 (real message, replacing the compile-time throw);
+date-component extraction over TOO-PARTIAL dates ('Cannot get day of
+month for 2017' — statically decided from precision, message composed
+in SQL); date() component ranges ('Invalid month: 13'). The adapter
+strips DuckDB's TRANSPORT prefix ('Invalid Input Error: ') so raised
+messages surface verbatim, and walks the interpreted call stack past
+adapter frames so errors carry the TEST's own source LINE (assertError
+checks it). COLUMN precision is a documented wire limit (the failing
+call runs in DuckDB; no interpreted frame exists — 6 tests re-pinned
+with message+line matching, column unrecoverable; the reference
+excludes them too). Gates: core 1391, corpus 2721, PCT 1109/1109.
+
 Update this file per slice, same as docs/SCOREBOARD.md.

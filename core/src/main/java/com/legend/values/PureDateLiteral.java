@@ -430,7 +430,7 @@ public sealed interface PureDateLiteral
 
     private static void validateMonth(int month) {
         if (month < 1 || month > 12) {
-            throw new IllegalArgumentException("invalid month: " + month);
+            throw new IllegalArgumentException("Invalid month: " + month);
         }
     }
 

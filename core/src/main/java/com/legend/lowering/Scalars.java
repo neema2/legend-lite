@@ -196,8 +196,9 @@ final class Scalars {
                 RULES.put(f, (n, args) -> {
                     if (args.get(1) instanceof SqlExpr.IntLit sh
                             && (sh.value() < 0 || sh.value() > 62)) {
-                        throw new IllegalStateException(name + " shift amount "
-                                + sh.value() + " is out of range [0, 62]");
+                        // real pure's message, raised in the database
+                        return SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(
+                                "Unsupported number of bits to shift - max bits allowed is 62"));
                     }
                     return SqlExpr.Call.of(fn,
                             new SqlExpr.Cast(args.get(0),
@@ -218,7 +219,14 @@ final class Scalars {
                     : new SqlExpr.Call(SqlFn.DIVIDE, args));
         }
         family(SqlFn.MOD, "mod");
-        family(SqlFn.REM, "rem");
+        // rem(a, 0): real pure raises 'Cannot divide 5 by zero'
+        for (String f : Pure.nativeKeysAt("rem")) {
+            RULES.put(f, (n, args) -> guarded(
+                    SqlExpr.Call.of(SqlFn.EQUAL, args.get(1), new SqlExpr.IntLit(0)),
+                    cat(new SqlExpr.StringLit("Cannot divide "), str(args.get(0)),
+                            new SqlExpr.StringLit(" by zero")),
+                    new SqlExpr.Call(SqlFn.REM, args)));
+        }
         family(SqlFn.ABS, "abs");
         // isEmpty/isNotEmpty are TYPE-aware: a to-MANY argument is a SQL
         // LIST value (toMany(@T) et al.) — emptiness is length, not
@@ -261,13 +269,13 @@ final class Scalars {
         // ---- the registration grind (corpus-driven; MUST-honor templates) ----
         // Math (ROUND is banker's per the semantics contract).
         for (var e : Map.ofEntries(
-                Map.entry("sqrt", SqlFn.SQRT), Map.entry("cbrt", SqlFn.CBRT),
+                Map.entry("cbrt", SqlFn.CBRT),
                 Map.entry("exp", SqlFn.EXP), Map.entry("log", SqlFn.LN),
                 Map.entry("log10", SqlFn.LOG10), Map.entry("pow", SqlFn.POW),
                 Map.entry("pi", SqlFn.PI),
                 Map.entry("sin", SqlFn.SIN), Map.entry("cos", SqlFn.COS),
                 Map.entry("tan", SqlFn.TAN), Map.entry("asin", SqlFn.ASIN),
-                Map.entry("acos", SqlFn.ACOS), Map.entry("atan", SqlFn.ATAN),
+                Map.entry("atan", SqlFn.ATAN),
                 Map.entry("atan2", SqlFn.ATAN2), Map.entry("sinh", SqlFn.SINH),
                 Map.entry("cosh", SqlFn.COSH), Map.entry("tanh", SqlFn.TANH),
                 Map.entry("ceiling", SqlFn.CEILING), Map.entry("floor", SqlFn.FLOOR),
@@ -302,7 +310,7 @@ final class Scalars {
 
                 Map.entry("median", SqlFn.LIST_MEDIAN),
 
-                Map.entry("range", SqlFn.RANGE_FN),
+
                 Map.entry("toVariant", SqlFn.TO_VARIANT)).entrySet()) {
             familyIfPresent(e.getValue(), e.getKey());
         }
@@ -762,8 +770,29 @@ final class Scalars {
         for (var e : Map.of(
                 "year", "year", "monthNumber", "month", "dayOfMonth", "day",
                 "hour", "hour", "minute", "minute", "second", "second").entrySet()) {
+            // a PARTIAL date lacking the component RAISES real pure's
+            // message ('Cannot get day of month for 2017') — statically
+            // decidable from the precision; the message composes in SQL
+            int needed = switch (e.getValue()) {
+                case "month" -> 1;
+                case "day" -> 2;
+                case "hour" -> 3;
+                case "minute" -> 4;
+                case "second" -> 5;
+                default -> 0;
+            };
+            String label = switch (e.getValue()) {
+                case "day" -> "day of month";
+                default -> e.getValue();
+            };
             for (String f : Pure.nativeKeysAt(e.getKey())) {
                 RULES.put(f, (n, args) -> {
+                    int prec = datePrecisionOrUnknown(n.args().get(0));
+                    if (prec >= 0 && prec < needed) {
+                        return SqlExpr.Call.of(SqlFn.ERROR,
+                                cat(new SqlExpr.StringLit("Cannot get " + label + " for "),
+                                        str(args.get(0))));
+                    }
                     List<SqlExpr> withPart = new ArrayList<>();
                     withPart.add(new SqlExpr.StringLit(e.getValue()));
                     withPart.addAll(args);
@@ -996,12 +1025,26 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("at")) {
             // at(x, 0) over a TO-ONE value is the IDENTITY — the list encoding
             // would CHAR-INDEX a lone string ('Doe'[1] = 'D' in DuckDB).
-            RULES.put(f, (n, args) -> isToOne(n.args().get(0))
-                    && !(args.get(0) instanceof SqlExpr.ArrayLit)
-                    && args.get(1) instanceof SqlExpr.IntLit i && i.value() == 0
-                    ? args.get(0)
-                    : new SqlExpr.Call(SqlFn.LIST_GET,
-                            List.of(args.get(0), plusOne(args.get(1)))));
+            RULES.put(f, (n, args) -> {
+                if (isToOne(n.args().get(0))
+                        && !(args.get(0) instanceof SqlExpr.ArrayLit)
+                        && args.get(1) instanceof SqlExpr.IntLit i && i.value() == 0) {
+                    return args.get(0);
+                }
+                // OUT-OF-BOUNDS raises real pure's message, in the database
+                SqlExpr size = SqlExpr.Call.of(SqlFn.LIST_LENGTH, args.get(0));
+                SqlExpr oob = SqlExpr.Call.of(SqlFn.OR,
+                        SqlExpr.Call.of(SqlFn.GREATER_EQUAL, args.get(1), size),
+                        SqlExpr.Call.of(SqlFn.LESS, args.get(1), new SqlExpr.IntLit(0)));
+                return guarded(oob,
+                        cat(new SqlExpr.StringLit(
+                                        "The system is trying to get an element at offset "),
+                                str(args.get(1)),
+                                new SqlExpr.StringLit(" where the collection is of size "),
+                                str(size)),
+                        new SqlExpr.Call(SqlFn.LIST_GET,
+                                List.of(args.get(0), plusOne(args.get(1)))));
+            });
         }
         // list(items): the List<T> CARRIER — at SQL level the list value
         // itself (a to-one item wraps as a singleton).
@@ -1160,6 +1203,39 @@ final class Scalars {
                 SqlExpr.Call.of(SqlFn.LIST_GET,
                         SqlExpr.Call.of(SqlFn.MAP_EXTRACT, args.get(0), args.get(1)),
                         new SqlExpr.IntLit(1)));
+        // range(start, stop, step): a ZERO step raises real pure's message
+        for (String f : Pure.nativeKeysAt("range")) {
+            RULES.put(f, (n, args) -> args.size() < 3
+                    ? new SqlExpr.Call(SqlFn.RANGE_FN, args)
+                    : guarded(SqlExpr.Call.of(SqlFn.EQUAL, args.get(2), new SqlExpr.IntLit(0)),
+                            new SqlExpr.StringLit("range step must not be 0"),
+                            new SqlExpr.Call(SqlFn.RANGE_FN, args)));
+        }
+        // DOMAIN guards RAISED IN SQL with real pure's messages (error()
+        // runs in the database — literal AND runtime values alike).
+        for (String f : Pure.nativeKeysAt("sqrt")) {
+            RULES.put(f, (n, args) -> {
+                SqlExpr x = new SqlExpr.Cast(args.get(0), com.legend.sql.SqlType.Scalar.DOUBLE);
+                return guarded(
+                        SqlExpr.Call.of(SqlFn.LESS, x, new SqlExpr.IntLit(0)),
+                        cat(new SqlExpr.StringLit("Unable to compute sqrt of "), floatRepr(x)),
+                        SqlExpr.Call.of(SqlFn.SQRT, args.get(0)));
+            });
+        }
+        for (String name : List.of("acos", "asin")) {
+            SqlFn fn = name.equals("acos") ? SqlFn.ACOS : SqlFn.ASIN;
+            for (String f : Pure.nativeKeysAt(name)) {
+                RULES.put(f, (n, args) -> {
+                    SqlExpr x = new SqlExpr.Cast(args.get(0), com.legend.sql.SqlType.Scalar.DOUBLE);
+                    return guarded(
+                            SqlExpr.Call.of(SqlFn.GREATER,
+                                    SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.IntLit(1)),
+                            cat(new SqlExpr.StringLit("Unable to compute " + name + " of "),
+                                    floatRepr(x)),
+                            SqlExpr.Call.of(fn, args.get(0)));
+                });
+            }
+        }
         family(SqlFn.BIT_NOT, "bitNot");
         // formatDate(date, Strict/DateTimeFormat): the two real ISO forms.
         for (String f : Pure.nativeKeysAt("formatDate")) {
@@ -1535,6 +1611,18 @@ final class Scalars {
         // full six-part form is a real timestamp; three parts is make_date.
         for (String f : Pure.nativeKeysAt("date")) {
             RULES.put(f, (n, args) -> {
+                // component RANGES validate with real pure's messages
+                // (date(2016, 13) raises 'Invalid month: 13'); literal
+                // components check here, runtime ones guard in SQL
+                String[] comps = {null, "month", "day", "hour", "minute", "second"};
+                long[][] ranges = {null, {1, 12}, {1, 31}, {0, 23}, {0, 59}, {0, 59}};
+                for (int i = 1; i < Math.min(args.size(), 6); i++) {
+                    if (args.get(i) instanceof SqlExpr.IntLit lit
+                            && (lit.value() < ranges[i][0] || lit.value() > ranges[i][1])) {
+                        return SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(
+                                "Invalid " + comps[i] + ": " + lit.value()));
+                    }
+                }
                 if (args.size() == 3) {
                     return new SqlExpr.Call(SqlFn.MAKE_DATE, args);
                 }
@@ -1924,6 +2012,33 @@ final class Scalars {
                             new SqlExpr.StringLit(">")));
         }
         return new SqlExpr.Cast(x, PureSql.type(Type.Primitive.STRING));
+    }
+
+    /** datePrecision, or -1 where the abstract Date makes it undecidable. */
+    private static int datePrecisionOrUnknown(com.legend.compiler.spec.typed.TypedSpec arg) {
+        try {
+            return datePrecision(arg);
+        } catch (IllegalStateException undecidable) {
+            return -1;
+        }
+    }
+
+    /** {@code CASE WHEN cond THEN error(msg) ELSE value END} — a DATABASE-raised guard. */
+    private static SqlExpr guarded(SqlExpr cond, SqlExpr msg, SqlExpr value) {
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(cond,
+                SqlExpr.Call.of(SqlFn.ERROR, msg))), value);
+    }
+
+    private static SqlExpr str(SqlExpr x) {
+        return new SqlExpr.Cast(x, PureSql.type(Type.Primitive.STRING));
+    }
+
+    private static SqlExpr cat(SqlExpr... parts) {
+        SqlExpr out = parts[0];
+        for (int i = 1; i < parts.length; i++) {
+            out = SqlExpr.Call.of(SqlFn.CONCAT, out, parts[i]);
+        }
+        return out;
     }
 
     /** Cast a map operand to the call's RESOLVED Map(K, V) SQL type. */
