@@ -66,7 +66,7 @@ public final class Executor {
     private static Object cell(ResultSet rs, SqlQuery plan,
                                com.legend.sql.dialect.SqlDialect dialect, boolean anyRoot)
             throws SQLException {
-        Object v = unwrap(rs.getObject(1), sqlTypeOf(plan, 0), dialect);
+        Object v = unwrap(fetch(rs, 1, sqlTypeOf(plan, 0)), sqlTypeOf(plan, 0), dialect);
         return anyRoot ? decodeAny(v) : v;
     }
 
@@ -253,6 +253,28 @@ public final class Executor {
      * leaves normalize through the dialect. Attribute-count drift from the
      * declared layout is a contract violation — loud, never zipped short.
      */
+    /**
+     * Typed cell retrieval. TIMESTAMP columns fetch through {@code java.time}:
+     * the driver's {@code java.sql.Timestamp} construction DROPS the BC era
+     * (year -21457 surfaces as +21458 — irrecoverably, the epoch itself is
+     * wrong). Timestamp stays the carrier where it is faithful (AD years);
+     * a BC value keeps its LocalDateTime.
+     */
+    private static Object fetch(ResultSet rs, int i, com.legend.sql.SqlType type)
+            throws SQLException {
+        Object o = rs.getObject(i);
+        if (o instanceof java.sql.Timestamp) {
+            // (a TIMESTAMP-typed output may still surface a VARCHAR cell —
+            // the precision-faithful string convention — so gate on the
+            // actual driver object, not the declared type)
+            java.time.LocalDateTime ldt = rs.getObject(i, java.time.LocalDateTime.class);
+            if (ldt != null && ldt.getYear() < 1) {
+                return ldt;
+            }
+        }
+        return o;
+    }
+
     private static Object unwrap(Object v, com.legend.sql.SqlType type,
                                  com.legend.sql.dialect.SqlDialect dialect) throws SQLException {
         if (v == null) {
@@ -330,7 +352,7 @@ public final class Executor {
         while (rs.next()) {
             List<Object> cells = new ArrayList<>(n);
             for (int i = 1; i <= n; i++) {
-                cells.add(unwrap(rs.getObject(i), sqlTypeOf(plan, i - 1), dialect));
+                cells.add(unwrap(fetch(rs, i, sqlTypeOf(plan, i - 1)), sqlTypeOf(plan, i - 1), dialect));
             }
             rows.add(new Row(cells));
         }

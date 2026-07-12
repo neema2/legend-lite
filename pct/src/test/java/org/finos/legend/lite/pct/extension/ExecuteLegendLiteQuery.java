@@ -465,6 +465,19 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                     }
                 }
             }
+            // Precision-faithful date STRINGS (the wire's date convention:
+            // partial dates, subsecond digit counts beyond the TIMESTAMP
+            // carrier) — parse preserving every written digit.
+            if (type instanceof Primitive p
+                    && (p == Primitive.DATE || p == Primitive.DATE_TIME
+                            || p == Primitive.STRICT_DATE)
+                    && s.matches("-?\\d{4,}(-\\d{2})?(-\\d{2})?([T ].*)?")) {
+                PureDate pd = DateFunctions.parsePureDate(s);
+                String classifier = pd.hasHour() ? "DateTime"
+                        : pd.hasDay() ? "StrictDate" : "Date";
+                return modelRepository.newCoreInstance(pd.toString(),
+                        modelRepository.getTopLevel(classifier), null);
+            }
             return modelRepository.newStringCoreInstance(s);
         }
         // Struct → class instance

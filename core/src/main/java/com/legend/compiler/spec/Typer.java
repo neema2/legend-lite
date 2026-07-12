@@ -270,7 +270,36 @@ final class Typer {
             throw new TypeInferenceException("unknown function '" + af.function() + "'");
         }
         InferenceKernel.Resolution r = kernel.resolveOverload(candidates, argTypes);
-        return new Application(r.chosen(), args, refineDecimalCarrier(r.chosen(), r.output()));
+        return new Application(r.chosen(), args,
+                refineParseDate(r.chosen(), args, refineDecimalCarrier(r.chosen(), r.output())));
+    }
+
+    /**
+     * parseDate over a LITERAL refines its abstract Date output to the
+     * concrete kind the string's shape determines ('...T...' is a DateTime,
+     * a bare date is a StrictDate) — real pure's parseDate returns the
+     * written kind, and the abstract-Date root otherwise cannot tell a
+     * midnight DateTime from a StrictDate at the wire.
+     */
+    private static ExprType refineParseDate(TypedFunction chosen, List<TypedSpec> args, ExprType out) {
+        if (out.type() == com.legend.compiler.element.type.Type.Primitive.DATE
+                && "meta::pure::functions::string::parseDate".equals(chosen.qualifiedName())
+                && args.size() == 1
+                && args.get(0) instanceof com.legend.compiler.spec.typed.TypedCString s) {
+            String v = s.value().trim();
+            if (v.matches("-?\\d{4,}-\\d{2}-\\d{2}[T ]\\d.*")) {
+                return new ExprType(
+                        com.legend.compiler.element.type.Type.Primitive.DATE_TIME,
+                        out.multiplicity());
+            }
+            if (v.matches("-?\\d{4,}-\\d{2}-\\d{2}")) {
+                return new ExprType(
+                        com.legend.compiler.element.type.Type.Primitive.STRICT_DATE,
+                        out.multiplicity());
+            }
+            return out;   // partial or exotic shapes keep the abstract Date
+        }
+        return out;
     }
 
     /** Build the call node for the chosen overload &mdash; the resolved callee rides the node, never a name. */

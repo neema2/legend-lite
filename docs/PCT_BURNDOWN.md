@@ -525,4 +525,23 @@ falsified by testEqVarIdentity, and REVERTED. deactivate() (expression
 reflection) is out of vocabulary — legend-lite holds no expression
 tree at run time. Gates: core 1391, corpus 2721, PCT 1109/1109.
 
+**Slice 16** (date precision + domain honesty — 5 removed, 50
+remain): subsecond PRINT PRECISION is part of a pure Date's value
+(like decimal scale): adjust over a source written with more digits
+than the TIMESTAMP carrier holds (6) emits the precision-faithful
+STRING in SQL (strftime + the source's own static digits — an interval
+can never touch digits beyond microseconds), and the wire now parses
+temporal strings preserving every written digit. BC years: the JDBC
+driver's java.sql.Timestamp DROPS the era (year -21457 surfaced as
++21458, epoch irrecoverably wrong) — cells fetch through java.time and
+Timestamp stays the carrier only where faithful (AD). Partial dates
+that HAVE the asked component (monthNumber of %2015-04) read it via
+split_part from the string carrier, in SQL. parseDate over a literal
+refines its abstract Date output to the kind the string's shape
+determines (DateTime vs StrictDate) — the refineDecimalCarrier
+pattern. HONESTLY LEDGERED, not faked: adjustBy{Days,Weeks,Months,
+Hours}BigNumber land at years 1.4M-800M, beyond DuckDB's TIMESTAMP
+domain (290309 BC-294246 AD) — a carrier-domain limit, annotated.
+Gates: core 1391, corpus 2721, PCT 1109/1109.
+
 Update this file per slice, same as docs/SCOREBOARD.md.

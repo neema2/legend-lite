@@ -397,6 +397,22 @@ final class Scalars {
                             : SqlExpr.Call.of(SqlFn.STRFTIME, added,
                                     new SqlExpr.StringLit(fmt));
                 }
+                // A source written with MORE subsecond digits than the
+                // TIMESTAMP carrier holds (6): the result keeps the WRITTEN
+                // digit count (real pure preserves subsecond print
+                // precision), and digits beyond microseconds are the
+                // source's own — static text an interval can never touch.
+                // Emitted as the precision-faithful STRING (the wire's date
+                // convention, same as timeBucket).
+                if (n.args().get(0) instanceof com.legend.compiler.spec.typed.TypedCDate cd
+                        && cd.value() instanceof
+                                com.legend.values.PureDateLiteral.DateWithSubsecond sub
+                        && sub.subsecond().length() > 6) {
+                    return SqlExpr.Call.of(SqlFn.CONCAT,
+                            SqlExpr.Call.of(SqlFn.STRFTIME, added,
+                                    new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S.%f")),
+                            new SqlExpr.StringLit(sub.subsecond().substring(6)));
+                }
                 // SQL date+interval widens to TIMESTAMP; a StrictDate input
                 // adjusted by a DAY-or-coarser unit stays a StrictDate.
                 boolean strictIn = n.args().get(0).info().type()
@@ -798,6 +814,18 @@ final class Scalars {
                         return SqlExpr.Call.of(SqlFn.ERROR,
                                 cat(new SqlExpr.StringLit("Cannot get " + label + " for "),
                                         str(args.get(0))));
+                    }
+                    // A PARTIAL date that HAS the component carries as its
+                    // print-form string ('2015-04') — the component is a
+                    // split_part read, in SQL (date_part can't bind VARCHAR).
+                    Integer pp = partialPrecision(n.args().get(0));
+                    if (pp != null) {
+                        int field = e.getValue().equals("year") ? 1 : 2;
+                        return new SqlExpr.Cast(
+                                SqlExpr.Call.of(SqlFn.SPLIT_PART, args.get(0),
+                                        new SqlExpr.StringLit("-"),
+                                        new SqlExpr.IntLit(field)),
+                                com.legend.sql.SqlType.Scalar.BIGINT);
                     }
                     List<SqlExpr> withPart = new ArrayList<>();
                     withPart.add(new SqlExpr.StringLit(e.getValue()));
