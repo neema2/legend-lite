@@ -214,6 +214,7 @@ public final class Pure {
     // REAL pure declares first/second (legend-pure platform/pure/anonymousCollections.pure:17-25,
     // both <<equality.Key>>) — property access and instance construction validate against THEM.
     public static final ClassDefinition PAIR = nativeClass("native Class meta::pure::functions::collection::Pair<U, V> extends meta::pure::metamodel::type::Any { first: U[1]; second: V[1]; }");
+    public static final ClassDefinition MAP = nativeClass("native Class meta::pure::functions::collection::Map<U, V> extends meta::pure::metamodel::type::Any {}");
 
     // ---- Math helper carrier (rowwise correlation/covariance inputs) ----
     public static final ClassDefinition ROW_MAPPER = nativeClass("native Class meta::pure::functions::math::mathUtility::RowMapper<T, U> extends meta::pure::metamodel::type::Any {}");
@@ -914,6 +915,13 @@ public final class Pure {
     public static final NativeFunctionDefinition OVER__SORT_INFO_1__RANGE_INTERVAL_1 = signature("native function meta::pure::functions::relation::over<T>(sortInfo:meta::pure::functions::relation::SortInfo<T>[1], rangeInterval:meta::pure::functions::relation::_RangeInterval[1]):meta::pure::functions::relation::_Window<T>[1];");
     public static final NativeFunctionDefinition OVER__COL_SPEC_1__SORT_INFO_1__RANGE_INTERVAL_1 = signature("native function meta::pure::functions::relation::over<T>(cols:meta::pure::metamodel::relation::ColSpec<T>[1], sortInfo:meta::pure::functions::relation::SortInfo<T>[1], rangeInterval:meta::pure::functions::relation::_RangeInterval[1]):meta::pure::functions::relation::_Window<T>[1];");
     public static final NativeFunctionDefinition PAIR__T_1__U_1 = signature("native function meta::pure::functions::collection::pair<T,U>(first:T[1], second:U[1]):meta::pure::functions::collection::Pair<T,U>[1];");
+    public static final NativeFunctionDefinition NEW_MAP__PAIRS = signature("native function meta::pure::functions::collection::newMap<U,V>(pairs:meta::pure::functions::collection::Pair<U,V>[*]):meta::pure::functions::collection::Map<U,V>[1];");
+    public static final NativeFunctionDefinition MAP_GET__MAP_1__U_1 = signature("native function meta::pure::functions::collection::get<U,V>(m:meta::pure::functions::collection::Map<U,V>[1], key:U[1]):V[0..1];");
+    public static final NativeFunctionDefinition MAP_PUT__MAP_1__U_1__V_1 = signature("native function meta::pure::functions::collection::put<U,V>(m:meta::pure::functions::collection::Map<U,V>[1], key:U[1], value:V[1]):meta::pure::functions::collection::Map<U,V>[1];");
+    public static final NativeFunctionDefinition MAP_PUT_ALL__MAP_1__PAIRS = signature("native function meta::pure::functions::collection::putAll<U,V>(m:meta::pure::functions::collection::Map<U,V>[1], pairs:meta::pure::functions::collection::Pair<U,V>[*]):meta::pure::functions::collection::Map<U,V>[1];");
+    public static final NativeFunctionDefinition MAP_PUT_ALL__MAP_1__MAP_1 = signature("native function meta::pure::functions::collection::putAll<U,V>(m:meta::pure::functions::collection::Map<U,V>[1], o:meta::pure::functions::collection::Map<U,V>[1]):meta::pure::functions::collection::Map<U,V>[1];");
+    public static final NativeFunctionDefinition MAP_KEYS__MAP_1 = signature("native function meta::pure::functions::collection::keys<U,V>(m:meta::pure::functions::collection::Map<U,V>[1]):U[*];");
+    public static final NativeFunctionDefinition MAP_VALUES__MAP_1 = signature("native function meta::pure::functions::collection::values<U,V>(m:meta::pure::functions::collection::Map<U,V>[1]):V[*];");
     public static final NativeFunctionDefinition PARSE_BOOLEAN__STRING_1 = signature("native function meta::pure::functions::string::parseBoolean(string:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition PARSE_DATE__STRING_1 = signature("native function meta::pure::functions::string::parseDate(string:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Date[1];");
     public static final NativeFunctionDefinition PARSE_DECIMAL__STRING_1 = signature("native function meta::pure::functions::string::parseDecimal(string:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Decimal[1];");
@@ -952,6 +960,10 @@ public final class Pure {
     public static final NativeFunctionDefinition DISTINCT__T_MANY = signature("native function meta::pure::functions::collection::distinct<T>(s:T[*]):T[*];");
     /** The collection overload's key, exported so LOWERING (parser-free) can rule on it. */
     public static final String DISTINCT_COLLECTION_KEY = DISTINCT__T_MANY.signatureKey();
+    /** pair()'s key, exported for the STRUCT-carrier lowering rule. */
+    public static final String PAIR_KEY = PAIR__T_1__U_1.signatureKey();
+    /** Map get()'s key — the bare name is shared with variant get. */
+    public static final String MAP_GET_KEY = MAP_GET__MAP_1__U_1.signatureKey();
     public static final NativeFunctionDefinition REMOVE_DUPLICATES__T_MANY__FUNCTION_0_1__FUNCTION_0_1 = signature("native function meta::pure::functions::collection::removeDuplicates<T,V>(col:T[*], key:meta::pure::metamodel::function::Function<{T[1]->V[1]}>[0..1], eql:meta::pure::metamodel::function::Function<{V[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[0..1]):T[*];");
     public static final NativeFunctionDefinition REMOVE_DUPLICATES__T_MANY__FUNCTION_1 = signature("native function meta::pure::functions::collection::removeDuplicates<T>(col:T[*], eql:meta::pure::metamodel::function::Function<{T[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):T[*];");
     public static final NativeFunctionDefinition REM__NUMBER_1__NUMBER_1 = signature("native function meta::pure::functions::math::rem(dividend:meta::pure::metamodel::type::Number[1], divisor:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Number[1];");

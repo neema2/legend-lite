@@ -45,6 +45,19 @@ public final class PlatformTypes {
                 && g.arguments().size() == 1;
     }
 
+    /** The {@code Pair<U,V>} value carrier (parameterized form). */
+    public static boolean isPairCarrier(Type t) {
+        return t instanceof Type.GenericType g && g.rawFqn().equals(PAIR)
+                && g.arguments().size() == 2;
+    }
+
+    /** The {@code Map<U,V>} collection carrier (parameterized form). */
+    public static boolean isMapCarrier(Type t) {
+        return t instanceof Type.GenericType g
+                && g.rawFqn().equals("meta::pure::functions::collection::Map")
+                && g.arguments().size() == 2;
+    }
+
     /** The {@code Function<{…}>} value carrier (parameterized form). */
     public static boolean isFunctionCarrier(Type t) {
         return t instanceof Type.GenericType g && g.rawFqn().equals(FUNCTION);

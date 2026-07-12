@@ -354,4 +354,39 @@ Remaining 10: the Map<K,V> family (9 — needs Generic type-annotation
 support + newMap/put/get/keys/values + a MAP carrier) and testMultiIf
 (pair-of-lambdas + multi-if lowering).
 
+**Slice 10** (PCT COMPLETE — Essential to zero, 1109/1109): the
+Map<U,V> platform type lands end-to-end — native class + the real
+seven signatures (newMap/get/put/putAll×2/keys/values, map.pure);
+GENERIC type annotations (@Pair<String,Integer>) resolve through
+namedType; pair() gains its STRUCT(first, second) carrier (PureSql
+Pair/Map carriers); the DuckDB MAP carrier (map_from_entries over
+pair structs, typed CAST(MAP {} AS MAP(K,V)) empties, map_concat with
+both operands cast — DuckDB rejects INTEGER-vs-BIGINT value drift,
+map_extract[1] gets, map_keys/values); the wire flattens Map results
+to [k1,v1,...] (gated on the DECLARED Map carrier — JDBC hands class
+STRUCTS as java.util.Map too) and the pure side rebuilds typed
+newMap()s (the wrapPctList enumeration pattern — interpreted newMap
+derives generics from STATIC pair types). testMultiIf: a BARE
+pair(|c,|v) is the one-element condList (real if.pure). Four
+officially-excluded find/head/first tests pin as ANY-failure (their
+messages are run-context-dependent; a pass still fails loudly).
+
+## FINAL STATE (2026-07-12)
+
+| suite | run | errors |
+|---|---|---|
+| Essential | 327 | **0** |
+| Standard | 204 | **0** |
+| Relation | 348 | **0** |
+| Grammar | 136 | **0** |
+| Unclassified | 94 | **0** |
+| **total** | **1109** | **0** |
+
+358 -> 0 across ten slices. Exclusion ledger = the official
+legend-engine DuckDB adapter's set ∩ our failures (91 pins, full
+actual-message text; 4 any-failure for message-unstable tests; 1
+joinStrings wire limit) — we PASS several tests the reference
+excludes. Gates held throughout: core suite 1391, corpus 2721, zero
+regressions.
+
 Update this file per slice, same as docs/SCOREBOARD.md.

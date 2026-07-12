@@ -18,6 +18,10 @@ public sealed interface SqlType {
     record Array(SqlType element) implements SqlType {
     }
 
+    /** {@code MAP(K, V)} — the Map<U,V> collection carrier. */
+    record Map(SqlType key, SqlType value) implements SqlType {
+    }
+
     /**
      * A named-field composite (DuckDB/BigQuery {@code STRUCT}, Postgres
      * {@code ROW}). Field order is load-bearing — it is the layout the

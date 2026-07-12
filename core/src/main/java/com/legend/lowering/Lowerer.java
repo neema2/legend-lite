@@ -1840,8 +1840,11 @@ public final class Lowerer {
                     SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_TRANSFORM,
                             scalar(m.source(), columns), scalar(m.mapper(), columns));
 
-            // Variant navigation: get(v, key) -> JSON access.
-            case TypedNativeCall n when isFamily(n, "get") ->
+            // Variant navigation: get(v, key) -> JSON access. The MAP
+            // overload of the same bare name lowers through its own rule.
+            case TypedNativeCall n when isFamily(n, "get")
+                    && !com.legend.compiler.element.type.PlatformTypes
+                            .isMapCarrier(n.args().get(0).info().type()) ->
                     SqlExpr.Call.of(com.legend.sql.SqlFn.VARIANT_GET,
                             scalar(n.args().get(0), columns), scalar(n.args().get(1), columns));
 

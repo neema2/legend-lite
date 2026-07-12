@@ -803,6 +803,20 @@ final class Typer {
      * lambda params) resolve through this single point.
      */
     Type namedType(TypeExpression te) {
+        // GENERIC annotations (@Pair<String, Integer>): the base resolves
+        // like a NameRef; arguments resolve recursively.
+        if (te instanceof TypeExpression.Generic g) {
+            Type base = namedType(new TypeExpression.NameRef(g.name()));
+            java.util.List<Type> args = g.arguments().stream()
+                    .map(this::namedType).toList();
+            String fqn = base instanceof Type.ClassType ct ? ct.fqn()
+                    : base instanceof Type.GenericType gt ? gt.rawFqn() : null;
+            if (fqn == null) {
+                throw new TypeInferenceException(
+                        "generic annotation over a non-class type: " + g.name());
+            }
+            return new Type.GenericType(fqn, args);
+        }
         if (!(te instanceof TypeExpression.NameRef nr)) {
             throw new TypeInferenceException(
                     "unsupported type annotation form: " + te.getClass().getSimpleName());

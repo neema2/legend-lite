@@ -38,6 +38,16 @@ final class IfChecker {
                 && args.get(0) instanceof com.legend.parser.spec.PureCollection pairs) {
             return multiIf(t, pairs, args.get(1), env);
         }
+        // A BARE pair is the one-element condList (real if.pure overload
+        // if(cond:Pair<...>[1], last) — pair(|c,|v)->if(|else)).
+        if (args.size() == 2
+                && args.get(0) instanceof AppliedFunction pf
+                && (pf.function().equals("pair")
+                        || pf.function().equals("meta::pure::functions::collection::pair"))
+                && pf.parameters().size() == 2) {
+            return multiIf(t, new com.legend.parser.spec.PureCollection(
+                    List.of(args.get(0))), args.get(1), env);
+        }
         TypedSpec cond = t.synth(args.get(0), env);
         var ifSigs = t.model().findFunction(CoreFn.IF.parseName());
         if (ifSigs.isEmpty()) {

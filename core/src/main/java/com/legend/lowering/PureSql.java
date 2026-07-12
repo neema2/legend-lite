@@ -66,6 +66,16 @@ final class PureSql {
                 if (PlatformTypes.isListCarrier(g)) {
                     yield new SqlType.Array(type(g.arguments().get(0)));
                 }
+                // Pair<U,V> travels as STRUCT(first, second); Map<U,V> as MAP.
+                if (PlatformTypes.isPairCarrier(g)) {
+                    yield new SqlType.Struct(java.util.List.of(
+                            new SqlType.Struct.Field("first", type(g.arguments().get(0))),
+                            new SqlType.Struct.Field("second", type(g.arguments().get(1)))));
+                }
+                if (PlatformTypes.isMapCarrier(g)) {
+                    yield new SqlType.Map(type(g.arguments().get(0)),
+                            type(g.arguments().get(1)));
+                }
                 throw new IllegalStateException(
                         "no SQL type for generic " + g.typeName() + " at the lowering boundary");
             }

@@ -376,6 +376,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case MATCHES -> fn("regexp_matches", a);
             case REGEXP_EXTRACT_ALL -> fn("regexp_extract_all", a);
             case REGEXP_REPLACE -> fn("regexp_replace", a);
+            case MAP_FROM_LISTS -> fn("map", a);
+            case MAP_FROM_ENTRIES -> fn("map_from_entries", a);
+            case MAP_EMPTY -> "MAP {}";
+            case MAP_EXTRACT -> fn("map_extract", a);
+            case MAP_KEYS -> fn("map_keys", a);
+            case MAP_VALUES -> fn("map_values", a);
+            case MAP_CONCAT -> fn("map_concat", a);
             case BIT_NOT -> "xor(" + expr(a.get(0), 0) + ", -1)";   // ~x without negation overflow at MIN_LONG
             case LEFT -> fn("left", a);
             case RIGHT -> fn("right", a);
@@ -656,6 +663,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case com.legend.sql.SqlType.Decimal d ->
                     "DECIMAL(" + d.precision() + ", " + d.scale() + ")";
             case com.legend.sql.SqlType.Array a -> castTypeName(a.element()) + "[]";
+            case com.legend.sql.SqlType.Map m ->
+                    "MAP(" + castTypeName(m.key()) + ", " + castTypeName(m.value()) + ")";
             case com.legend.sql.SqlType.Struct s -> throw new IllegalStateException(
                     "a STRUCT type reached a dialect without struct support");
         };

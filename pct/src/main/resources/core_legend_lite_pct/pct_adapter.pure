@@ -244,15 +244,21 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
     
     // Handle result based on size and type
     if($result->isEmpty(),
-        | []->cast(@X)->toMultiplicity(@[o]),
+        | if($f->functionReturnType().rawType->isEmpty() ||
+             $f->functionReturnType().rawType->toOne() != Map,
+            | []->cast(@X)->toMultiplicity(@[o]),
+            | []->cast(@Pair<Any,Any>)->newMap()->cast(@X)->toMultiplicity(@[o])),
         | if($result->size() > 1,
             | // Multi-value result (collection from Java's CollectionResult dispatch)
               // If expected type is List<T>, wrap in List; otherwise return directly
               let retType = $f->functionReturnType().rawType->toOne();
-              if($retType == List,
-                | wrapPctList($f->functionReturnType(), $result)->cast(@X)->toMultiplicity(@[o]);,
-                | // Not a List type — return values directly as collection
-                  $result->cast(@X)->toMultiplicity(@[o])
+              if($retType == Map,
+                | wrapPctMap($f->functionReturnType(), $result)->cast(@X)->toMultiplicity(@[o]);,
+                | if($retType == List,
+                    | wrapPctList($f->functionReturnType(), $result)->cast(@X)->toMultiplicity(@[o]);,
+                    | // Not a List type — return values directly as collection
+                      $result->cast(@X)->toMultiplicity(@[o]);
+                  );
               );,
             | // Single-value result: could be TDS or typed scalar
               let single = $result->toOne();
@@ -309,4 +315,25 @@ function <<access.private>> meta::legend::lite::pct::wrapPctList(retType:Generic
         | if($elemType == String, | ^List<String>(values = $vals->cast(@String)),
           | if($elemType == Number, | ^List<Number>(values = $vals->cast(@Number)),
             | ^List<Any>(values = $vals))))));
+}
+
+function <<access.private>> meta::legend::lite::pct::wrapPctMap(retType:GenericType[1], flat:Any[*]):Map<Any,Any>[1]
+{
+  // newMap derives Map<U,V> from the pairs' STATIC types — the keys and
+  // values must cast to the DECLARED type arguments (wrapPctList's
+  // enumeration pattern), or the rebuilt map is Map<Any,Any> and the
+  // caller's cast(@Map<String,Integer>) rejects it.
+  let k = $retType.typeArguments->at(0).rawType->toOne();
+  let v = $retType.typeArguments->at(1).rawType->toOne();
+  let idx = range(0, $flat->size(), 2);
+  if($k == String && $v == Integer,
+    | $idx->map(i | pair($flat->at($i)->cast(@String), $flat->at($i + 1)->cast(@Integer)))->newMap(),
+    | if($k == String && $v == String,
+        | $idx->map(i | pair($flat->at($i)->cast(@String), $flat->at($i + 1)->cast(@String)))->newMap(),
+        | if($k == Integer && $v == String,
+            | $idx->map(i | pair($flat->at($i)->cast(@Integer), $flat->at($i + 1)->cast(@String)))->newMap(),
+            | $idx->map(i | pair($flat->at($i), $flat->at($i + 1)))->newMap()
+          )
+      )
+  );
 }

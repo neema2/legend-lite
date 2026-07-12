@@ -1041,6 +1041,46 @@ final class Scalars {
                         : new SqlExpr.Call(padFn, args));
             }
         }
+        // ---- Map<U,V>: the DuckDB MAP carrier ----
+        // pair(a,b) travels as STRUCT(first, second) — map_from_entries
+        // takes exactly that shape.
+        RULES.put(Pure.PAIR_KEY, (n, args) ->
+                new SqlExpr.StructLit(List.of(
+                        new SqlExpr.StructLit.Field("first", args.get(0)),
+                        new SqlExpr.StructLit.Field("second", args.get(1)))));
+        for (String f : Pure.nativeKeysAt("newMap")) {
+            RULES.put(f, (n, args) -> mapFromPairs(n, args.get(0)));
+        }
+        for (String f : Pure.nativeKeysAt("put")) {
+            // both operands cast to the RESOLVED map type — DuckDB's
+            // map_concat rejects INTEGER-vs-BIGINT value mismatches
+            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.MAP_CONCAT,
+                    castToMapType(n, args.get(0)),
+                    castToMapType(n, SqlExpr.Call.of(SqlFn.MAP_FROM_LISTS,
+                            new SqlExpr.ArrayLit(List.of(args.get(1))),
+                            new SqlExpr.ArrayLit(List.of(args.get(2)))))));
+        }
+        for (String f : Pure.nativeKeysAt("putAll")) {
+            RULES.put(f, (n, args) -> {
+                boolean mapArg = com.legend.compiler.element.type.PlatformTypes
+                        .isMapCarrier(n.args().get(1).info().type());
+                SqlExpr other = mapArg ? args.get(1) : mapFromPairs(n, args.get(1));
+                return SqlExpr.Call.of(SqlFn.MAP_CONCAT,
+                        castToMapType(n, args.get(0)), castToMapType(n, other));
+            });
+        }
+        for (String f : Pure.nativeKeysAt("keys")) {
+            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.MAP_KEYS, args.get(0)));
+        }
+        for (String f : Pure.nativeKeysAt("values")) {
+            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.MAP_VALUES, args.get(0)));
+        }
+        // get: the MAP overload only — the bare-name set is shared with
+        // variant get(v, key), whose rule is registered separately above.
+        RULES.put(Pure.MAP_GET_KEY, (n, args) ->
+                SqlExpr.Call.of(SqlFn.LIST_GET,
+                        SqlExpr.Call.of(SqlFn.MAP_EXTRACT, args.get(0), args.get(1)),
+                        new SqlExpr.IntLit(1)));
         family(SqlFn.BIT_NOT, "bitNot");
         // formatDate(date, Strict/DateTimeFormat): the two real ISO forms.
         for (String f : Pure.nativeKeysAt("formatDate")) {
@@ -1621,6 +1661,40 @@ final class Scalars {
             case com.legend.values.PureDateLiteral.DateWithSecond sec -> new int[]{sec.year(), sec.month(), sec.day(), sec.hour(), sec.minute(), sec.second()};
             case com.legend.values.PureDateLiteral.DateWithSubsecond sub -> new int[]{sub.year(), sub.month(), sub.day(), sub.hour(), sub.minute(), sub.second()};
         };
+    }
+
+    /** Cast a map operand to the call's RESOLVED Map(K, V) SQL type. */
+    private static SqlExpr castToMapType(com.legend.compiler.spec.typed.TypedNativeCall n,
+                                         SqlExpr m) {
+        return n.info().type() instanceof Type.GenericType g && g.arguments().size() == 2
+                ? new SqlExpr.Cast(m, new com.legend.sql.SqlType.Map(
+                        PureSql.type(g.arguments().get(0)),
+                        PureSql.type(g.arguments().get(1))))
+                : m;
+    }
+
+    /**
+     * A PAIR COLLECTION as a MAP value: map_from_entries over the lowered
+     * STRUCT(first, second) list; the statically-EMPTY collection is the
+     * typed empty map (CAST(MAP {{}} AS MAP(K, V)) from the resolved output).
+     */
+    private static SqlExpr mapFromPairs(com.legend.compiler.spec.typed.TypedNativeCall n,
+                                        SqlExpr pairs) {
+        // a SINGLE pair ([1] fits Pair[*]) wraps into the entry list
+        if (pairs instanceof SqlExpr.StructLit) {
+            pairs = new SqlExpr.ArrayLit(List.of(pairs));
+        }
+        if (pairs instanceof SqlExpr.NullLit) {
+            Type out = n.info().type();
+            if (out instanceof Type.GenericType g && g.arguments().size() == 2) {
+                return new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.MAP_EMPTY),
+                        new com.legend.sql.SqlType.Map(
+                                PureSql.type(g.arguments().get(0)),
+                                PureSql.type(g.arguments().get(1))));
+            }
+            return SqlExpr.Call.of(SqlFn.MAP_EMPTY);
+        }
+        return SqlExpr.Call.of(SqlFn.MAP_FROM_ENTRIES, pairs);
     }
 
     /** Literal cell of a TDS row → typed SQL literal, by the column's Pure type. */

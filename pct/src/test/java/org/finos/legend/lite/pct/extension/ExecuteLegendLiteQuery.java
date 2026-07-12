@@ -182,6 +182,19 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             return ValueSpecificationBootstrap.wrapValueSpecification(
                     org.eclipse.collections.api.factory.Lists.immutable.empty(), true, ps);
         }
+        if (value instanceof java.util.Map<?, ?> map && isMapReturn(result.returnType())) {
+            // Map<U,V> results flatten to [k1, v1, k2, v2, ...]; the pure
+            // side rebuilds via pair()/newMap() (both native there).
+            // (JDBC also hands STRUCT values as java.util.Map — the DECLARED
+            // type gates, or ^Person(...) results would flatten here.)
+            var flat = new ArrayList<CoreInstance>();
+            for (var en : map.entrySet()) {
+                flat.add(toCoreInstance(en.getKey(), result.returnType(), ps));
+                flat.add(toCoreInstance(en.getValue(), result.returnType(), ps));
+            }
+            return ValueSpecificationBootstrap.wrapValueSpecification(
+                    org.eclipse.collections.impl.factory.Lists.immutable.withAll(flat), true, ps);
+        }
         if (value instanceof java.util.List<?> list) {
             // a List<T>-typed scalar (drop(1)->list()): elements convert
             // individually; the pure side wraps them back into ^List
@@ -223,6 +236,17 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
      * Dispatches on Java type; uses Type for BigDecimal disambiguation
      * and class instance creation.
      */
+    /** The engine-typed return is the Map<U,V> carrier (never a class STRUCT). */
+    private static boolean isMapReturn(Type t) {
+        return t instanceof Type.GenericType g
+                && g.rawType() instanceof Type.ClassType ct
+                && ct.qualifiedName().equals("meta::pure::functions::collection::Map")
+                || t instanceof Type.ClassType c
+                        && c.qualifiedName().equals("meta::pure::functions::collection::Map")
+                || t instanceof Type.NameRef n
+                        && n.qualifiedName().equals("meta::pure::functions::collection::Map");
+    }
+
     private CoreInstance toCoreInstance(Object value, Type type, ProcessorSupport ps) {
         if (value instanceof Boolean b) {
             return modelRepository.newBooleanCoreInstance(b);
