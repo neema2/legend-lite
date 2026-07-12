@@ -253,7 +253,9 @@ final class Substitution {
                 }
                 throw new MappingResolutionException("property '" + prop
                         + "' of class '" + target.classFqn()
-                        + "' is not mapped in mapping '" + target.mappingFqn() + "'",
+                        + "' has no binding in mapping '" + target.mappingFqn()
+                        + "' (unmapped, or routed to a non-root mapping set —"
+                        + " multi-set union dispatch is a roadmap feature)",
                         target.classFqn());
             }
             return renameRowVar(binding);

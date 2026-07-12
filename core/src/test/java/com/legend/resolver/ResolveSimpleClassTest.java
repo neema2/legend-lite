@@ -216,8 +216,10 @@ class ResolveSimpleClassTest {
                 "m::Person.all()->project(~[age: p|$p.age])->from(m::RT)")));
         MappingResolutionException e = assertThrows(MappingResolutionException.class,
                 () -> new StoreResolver(ctx, specs).resolve(body, null));
-        assertEquals("property 'age' of class 'm::Person' is not mapped in"
-                + " mapping 'm::M'", e.getMessage());
+        assertEquals("property 'age' of class 'm::Person' has no binding in"
+                + " mapping 'm::M' (unmapped, or routed to a non-root mapping"
+                + " set — multi-set union dispatch is a roadmap feature)",
+                e.getMessage());
     }
 
     // ---- fixture 8: slot elision (the H2 preview of join cancellation) ----

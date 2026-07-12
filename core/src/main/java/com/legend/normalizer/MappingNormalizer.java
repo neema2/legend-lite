@@ -607,27 +607,41 @@ public final class MappingNormalizer {
                                                             ModelBuilder model) {
         if (cm instanceof ClassMapping.Relational r && !r.propertyTargetSets().isEmpty()) {
             // prop[setId] routing: honoring only ROOT-set targets is exactly
-            // the un-routed navigation we synthesize; a NON-root target set
-            // would need multi-set dispatch (roadmap) — poison, never
-            // silently navigate the root set instead.
+            // the un-routed navigation we synthesize. A NON-root or unknown
+            // target set would need multi-set union dispatch (roadmap) —
+            // the ROUTED PROPERTY drops from this synthesis (never silently
+            // navigate the root set instead) and the reason rides the class
+            // poison ledger; the class itself stays queryable, and DEMANDING
+            // the dropped property fails loudly at the no-binding error.
+            java.util.Set<String> dropped = new java.util.LinkedHashSet<>();
             for (var e : r.propertyTargetSets().entrySet()) {
                 ClassMapping target = md.classMappings().stream()
                         .filter(x -> e.getValue().equals(x.setId()))
                         .findFirst().orElse(null);
-                if (target == null) {
-                    throw new com.legend.error.NotImplementedException(
-                            "property '" + e.getKey() + "' of class '" + r.className()
-                          + "' routes to mapping set '" + e.getValue()
-                          + "', which is not a set of mapping " + md.qualifiedName()
-                          + " (cross-mapping set routing is a roadmap feature)");
+                boolean rootTarget = target instanceof ClassMapping.Relational tr
+                        && tr.root();
+                if (target != null && rootTarget) {
+                    continue;
                 }
-                if (!(target instanceof ClassMapping.Relational tr) || !tr.root()) {
-                    throw new com.legend.error.NotImplementedException(
-                            "property '" + e.getKey() + "' of class '" + r.className()
-                          + "' routes to NON-root mapping set '" + e.getValue()
-                          + "' — multi-set target routing is a roadmap feature"
-                          + " (navigating the root set instead would be wrong rows)");
-                }
+                dropped.add(e.getKey());
+                String reason = "property '" + e.getKey() + "' routes to "
+                        + (target == null
+                                ? "unknown mapping set '" + e.getValue() + "'"
+                                : "NON-root mapping set '" + e.getValue() + "'")
+                        + " — multi-set union dispatch is a roadmap feature;"
+                        + " the property is dropped from this synthesis";
+                model.mappingPoisons.merge(
+                        md.qualifiedName() + "::" + cm.className(), reason,
+                        (a, b) -> a + "; " + b);
+            }
+            if (!dropped.isEmpty()) {
+                List<PropertyMapping> kept = r.propertyMappings().stream()
+                        .filter(pm -> !dropped.contains(pm.propertyName()))
+                        .toList();
+                cm = new ClassMapping.Relational(r.className(), r.setId(),
+                        r.extendsSetId(), r.root(), r.mainTable(), r.filter(),
+                        r.distinct(), r.groupBy(), r.primaryKey(), kept,
+                        r.sourceUrl(), java.util.Map.of());
             }
         }
         ValueSpecification body = switch (cm) {

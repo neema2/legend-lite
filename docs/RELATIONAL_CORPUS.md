@@ -21,16 +21,16 @@ runner does not yet recognize (accounted, not skipped silently).
 | query | 99 | 23 | 1 | 44 | 31 |
 | mapping/association | 24 | 1 | 0 | 17 | 6 |
 | mapping/join | 29 | 14 | 1 | 13 | 1 |
-| mapping/embedded | 70 | 7 | 8 | 46 | 9 |
+| mapping/embedded | 70 | 7 | 9 | 46 | 8 |
 | mapping/enumeration | 27 | 0 | 0 | 14 | 13 |
-| mapping/distinct | 18 | 2 | 6 | 9 | 1 |
+| mapping/distinct | 18 | 1 | 7 | 9 | 1 |
 | mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
 | mapping/filter | 10 | 3 | 0 | 6 | 1 |
 | mapping/inheritance | 51 | 0 | 0 | 46 | 5 |
 | mapping/selfJoin | 3 | 0 | 0 | 2 | 1 |
 | mapping/boolean.pure | 3 | 0 | 0 | 3 | 0 |
 | mapping/dates.pure | 7 | 0 | 0 | 0 | 7 |
-| **total** | 351 | **50** | 16 | 210 | 75 |
+| **total** | 351 | **49** | 18 | 210 | 74 |
 
 ### mapping walls (dropped at assembly)
 
@@ -46,7 +46,6 @@ runner does not yet recognize (accounted, not skipped silently).
 
 - 10x class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - 10x project expects ~[…] column specifications
-- 9x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::inheritance::inheritanceMain' failed to normalize this class: property 'vehicles' of class 'meta::relational::tests::model::inheritance::Person' routes to NON-root mapping set 'map2' — multi-set target routing is a roadmap feature (navigating the root set instead would be wrong rows)
 - 7x 'Product' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 7x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::groupBy::model::domain::Position' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::groupBy::model::mapping::testMapping' failed to normalize this class: PropertyMapping 'Join' for property 'product' is not supported under ~groupBy (only Column, Expression, JoinTerminalColumn, and aggregate Expression PMs are allowed). Mapping=meta::relational::tests::mapping::groupBy::model::mapping::testMapping
 - 6x [1:95] expected ']' to close collection literal
@@ -54,11 +53,13 @@ runner does not yet recognize (accounted, not skipped silently).
 - 5x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 5x serialize expects (classCollection, #{Class{…}}#)
 - 5x mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
-- 4x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::association::inheritence::childMapping' failed to normalize this class: property 'vehicles' of class 'meta::relational::tests::model::inheritance::Person' routes to NON-root mapping set 'map2' — multi-set target routing is a roadmap feature (navigating the root set instead would be wrong rows)
+- 5x class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross'
+- 4x in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
 - 4x no overload of 'agg' matches 3 argument(s) of these shapes
 - 4x class-typed property '$p.bondDetails' used as a whole value is graph output (Phase H4)
 - 4x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::enumeration::model::domain::Employee' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::enumeration::model::mapping::employeeTestMapping' failed to normalize this class: enum-mapped constant/expression source for property 'role' is not resolvable yet
-- 4x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion' failed to normalize this class: property 'vehicles' of class 'meta::relational::tests::model::inheritance::Person' routes to NON-root mapping set 'map2' — multi-set target routing is a roadmap feature (navigating the root set instead would be wrong rows)
+- 4x class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
+- 4x class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion'
 - 3x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Account' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::relational::tests::simpleRelationalMapping
 - 3x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
 - 3x [1:97] expected ']' to close collection literal
@@ -68,7 +69,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - 3x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::subType::MyProduct' (of 1 candidates); class-query dispatch needs exactly one
 - 3x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected String, got Integer
 - 2x unbound variable '$var'
-- 2x property 'name' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - 2x unknown function 'nameWithTitle'
 - 2x mapping pipeline for 'meta::relational::tests::model::simple::OrderPnl' has TypedDistinct above join slot(s); H3-pending
 - 2x unbound variable '$input'
@@ -101,7 +101,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testExistsOpenVariable [query]: unbound variable '$var'
 - ERROR testExistsOpenVariableClass [query]: unbound variable '$var'
 - ERROR testExistsAndBooleanOpenVariables [query]: unbound variable '$var1'
-- ERROR testNoParameters [query]: property 'name' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
+- ERROR testNoParameters [query]: property 'name' of class 'meta::relational::tests::model::simple::Person' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testNoParametersThroughAssociation [query]: property 'name' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testWithParameter [query]: unknown function 'nameWithTitle'
 - ERROR testWithParameterUsedWithinExists [query]: unknown function 'nameWithTitle'
@@ -164,12 +164,12 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testFirmToEmployeesWithDefaults [mapping/association]: partial: 1/2 asserts recognized (recognized ones hold)
 - ERROR testFirmToEmployeesIncludes [mapping/association]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::association::associationMappingWithIncludes'
 - ERROR testPersonToFirmIncludes [mapping/association]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::association::associationMappingWithIncludes'
-- ERROR testProjectTwoLambdas [mapping/association]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::association::inheritence::childMapping' failed to normalize this class: property 'vehicles' of class 
+- ERROR testProjectTwoLambdas [mapping/association]: in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
 - ERROR testGroupBy [mapping/association]: no overload of 'agg' matches 3 argument(s) of these shapes
 - ERROR testBuilderRoutingOfAggFunctionParameters [mapping/association]: [1:126] expected ')' to close argument list
-- ERROR testQuery [mapping/association]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::association::inheritence::childMapping' failed to normalize this class: property 'vehicles' of class 
-- ERROR testFilterProject [mapping/association]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::association::inheritence::childMapping' failed to normalize this class: property 'vehicles' of class 
-- ERROR testFilterProjectBooleanInFilter [mapping/association]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::association::inheritence::childMapping' failed to normalize this class: property 'vehicles' of class 
+- ERROR testQuery [mapping/association]: in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
+- ERROR testFilterProject [mapping/association]: in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
+- ERROR testFilterProjectBooleanInFilter [mapping/association]: in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
 - SHAPE testGetAllFilterWithAssociation [mapping/association]: multiple execute() calls
 - SHAPE testSubTypeFilter [mapping/association]: multiple execute() calls
 - ERROR testSubTypeProjectWithAssociation [mapping/association]: [1:97] expected ']' to close collection literal
@@ -215,9 +215,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE otherwiseTestGetterDeepTraversal [mapping/embedded]: multiple execute() calls
 - ERROR testProjectionOtherwiseDeepTraversal [mapping/embedded]: multi-hop navigation bondDetails.holder.name through an embedded/slot head is not supported yet
 - ERROR testProjectionOtherwiseNonPrimitive [mapping/embedded]: in function 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise3$class$meta::relational::tests::mapping::embedded::advanced::model::Product': relation has no column 'bondClassification'
-- FAIL otherwiseTestGroupBy [mapping/embedded]: toCSV: expected <Bond Type,Profit\n15 years,10.0\n5 years,1.0\n>, got <Bond Type,Profit\n5 years,1.0\n15 years,10.0\n>
-- SHAPE otherwiseTestGroupByComplexAgg [mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
-- FAIL otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [mapping/embedded]: toCSV: expected <Bond Type,sum\nBond 1,1.0\nBond 2,1.0\nSuperBond 3 super,5.0\n>, got <Bond Type,sum\nSuperBond 3 super,5.0\nBond 2,1.0\nBond 1,1.0\n>
+- SHAPE otherwiseTestGroupBy [mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
+- FAIL otherwiseTestGroupByComplexAgg [mapping/embedded]: toCSV: expected <Bond Type,sum\n15 years,2.0\n5 years,5.0\n>, got <Bond Type,sum\n5 years,5.0\n15 years,2.0\n>
+- FAIL otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [mapping/embedded]: toCSV: expected <Bond Type,sum\nBond 1,1.0\nBond 2,1.0\nSuperBond 3 super,5.0\n>, got <Bond Type,sum\nSuperBond 3 super,5.0\nBond 1,1.0\nBond 2,1.0\n>
 - ERROR otherwiseTestQualifierProperty [mapping/embedded]: property 'duration' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise'
 - ERROR otherwiseTestQualifierPropertyConstantExpression [mapping/embedded]: property 'isBond' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise'
 - ERROR otherwiseTestQualifierPropertyExpressionWithPropertyInJoinOnly [mapping/embedded]: unknown function 'durationStartsWith'
@@ -252,7 +252,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSubTypeOnPropertyMappedToNonRootInlineSetImpl [mapping/embedded]: [1:113] expected ']' to close collection literal
 - SHAPE testFilter [mapping/embedded]: multiple execute() calls
 - SHAPE testGroupBy [mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
-- SHAPE testGroupByComplexAgg [mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
+- FAIL testGroupByComplexAgg [mapping/embedded]: toCSV: expected <c1,sum\nholder1,2.0\nholder3,5.0\n>, got <c1,sum\nholder3,5.0\nholder1,2.0\n>
 - ERROR testQualifierProperty [mapping/embedded]: property 'description' of embedded 'issuer' on class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedTargetIds'
 - SHAPE testEnumTheSame [mapping/enumeration]: no execute(|...) call
 - SHAPE testMapping [mapping/enumeration]: multiple execute() calls
@@ -281,13 +281,14 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testTdsProjectWithEnumVarEquality [mapping/enumeration]: no execute(|...) call
 - SHAPE testEnumValueReturnedInIfExp [mapping/enumeration]: no execute(|...) call
 - SHAPE testEnumValueReturnedInIfExpNotDistinctTransformers [mapping/enumeration]: no execute(|...) call
-- FAIL testDistinctMappingSelectAll [mapping/distinct]: name: expected [IF 1, IF 2, IF 2], got [IF 2, IF 1, IF 2, IF 2, IF 2]
+- FAIL testDistinctMappingSelectAll [mapping/distinct]: name: expected [IF 1, IF 2, IF 2], got [IF 1, IF 2, IF 2, IF 2, IF 2]
 - FAIL testDistinctMappingSelectAllWithFilter [mapping/distinct]: name: expected [IF 2], got [IF 2, IF 2, IF 2]; code: expected [1002], got [1002, 1002, 1002]
 - FAIL testDistinctMappingSimpleProjectSelectOneOfTheDistinctProperties [mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
-- FAIL testDistinctMappingWithFilterSelectAll [mapping/distinct]: name: expected [IF 1, IF 2, IF 2], got [IF 1, IF 2, IF 2, IF 2]
+- FAIL testDistinctMappingSimpleProjectDistinct [mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\n>, got <name\nIF 2\nIF 1\n>
+- FAIL testDistinctMappingWithFilterSelectAll [mapping/distinct]: name: expected [IF 1, IF 2, IF 2], got [IF 2, IF 2, IF 1, IF 2]
 - FAIL testDistinctMappingWithFilterSelectOneProperty [mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
 - ERROR testDistinctMappingWithJoinSelectAll [mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
-- FAIL testDistinctMappingWithJoinProject [mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\n\nIfName2\nIfName1\n>
+- FAIL testDistinctMappingWithJoinProject [mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\n\nIfName1\nIfName2\n>
 - ERROR testProjectDistinctMappingWithDistinctInJoin [mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testProjectDistinctMappingWithDistinctInJoinWithDup [mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testDistinctMappingWithDistinctInJoinWithFilter [mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
@@ -317,16 +318,16 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testAssociation [mapping/inheritance]: multiple execute() calls
 - ERROR testGroupBy [mapping/inheritance]: no overload of 'agg' matches 3 argument(s) of these shapes
 - ERROR testProject [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testProjectAssociation [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::inheritance::inheritanceMain' failed to normalize this class: property 'vehicles' of class 'meta::rel
-- ERROR testProjectAssociationTdsV2 [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::inheritance::inheritanceMain' failed to normalize this class: property 'vehicles' of class 'meta::rel
-- ERROR testProjectTwoLambdas [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::inheritance::inheritanceMain' failed to normalize this class: property 'vehicles' of class 'meta::rel
-- ERROR testFilterProject [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::inheritance::inheritanceMain' failed to normalize this class: property 'vehicles' of class 'meta::rel
-- ERROR testProjectTwoLambdasWithAutomap [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::inheritance::inheritanceMain' failed to normalize this class: property 'vehicles' of class 'meta::rel
-- ERROR testProjectTwoLambdas [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::inheritance::inheritanceMain' failed to normalize this class: property 'vehicles' of class 'meta::rel
+- ERROR testProjectAssociation [mapping/inheritance]: class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross'
+- ERROR testProjectAssociationTdsV2 [mapping/inheritance]: class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross'
+- ERROR testProjectTwoLambdas [mapping/inheritance]: class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross'
+- ERROR testFilterProject [mapping/inheritance]: class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross'
+- ERROR testProjectTwoLambdasWithAutomap [mapping/inheritance]: class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross'
+- ERROR testProjectTwoLambdas [mapping/inheritance]: class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
 - ERROR testGroupBy [mapping/inheritance]: no overload of 'agg' matches 3 argument(s) of these shapes
-- ERROR testQuery [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::inheritance::inheritanceMain' failed to normalize this class: property 'vehicles' of class 'meta::rel
-- ERROR testFilterProject [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::inheritance::inheritanceMain' failed to normalize this class: property 'vehicles' of class 'meta::rel
-- ERROR testFilterProjectBooleanInFilter [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::inheritance::inheritanceMain' failed to normalize this class: property 'vehicles' of class 'meta::rel
+- ERROR testQuery [mapping/inheritance]: class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
+- ERROR testFilterProject [mapping/inheritance]: class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
+- ERROR testFilterProjectBooleanInFilter [mapping/inheritance]: class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
 - ERROR testGetAll [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testGetAllFilter [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exactly one
 - SHAPE testGetAllFilterWithAssociation [mapping/inheritance]: multiple execute() calls
@@ -347,11 +348,11 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSubTypeProjectDirect [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testForcedSubTypeProjectDirect [mapping/inheritance]: [1:122] expected ']' to close collection literal
 - ERROR testSubTypeProjectSharedNonDirectlyRouted [mapping/inheritance]: [1:95] expected ']' to close collection literal
-- ERROR testProjectTwoLambdas [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion' failed to normalize this class: property 'vehicles'
+- ERROR testProjectTwoLambdas [mapping/inheritance]: class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion'
 - ERROR testGroupBy [mapping/inheritance]: no overload of 'agg' matches 3 argument(s) of these shapes
-- ERROR testQuery [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion' failed to normalize this class: property 'vehicles'
-- ERROR testFilterProject [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion' failed to normalize this class: property 'vehicles'
-- ERROR testFilterProjectBooleanInFilter [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion' failed to normalize this class: property 'vehicles'
+- ERROR testQuery [mapping/inheritance]: class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion'
+- ERROR testFilterProject [mapping/inheritance]: class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion'
+- ERROR testFilterProjectBooleanInFilter [mapping/inheritance]: class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion'
 - ERROR testGetAll [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testGetAllFilter [mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exactly one
 - SHAPE testGetAllFilterWithAssociation [mapping/inheritance]: multiple execute() calls
