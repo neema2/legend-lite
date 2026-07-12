@@ -281,7 +281,7 @@ final class Scalars {
                 Map.entry("endsWith", SqlFn.ENDS_WITH),
                 Map.entry("matches", SqlFn.MATCHES),
                 Map.entry("left", SqlFn.LEFT), Map.entry("right", SqlFn.RIGHT),
-                Map.entry("lpad", SqlFn.LPAD), Map.entry("rpad", SqlFn.RPAD),
+
                 Map.entry("trim", SqlFn.TRIM), Map.entry("ltrim", SqlFn.LTRIM),
                 Map.entry("rtrim", SqlFn.RTRIM), Map.entry("replace", SqlFn.REPLACE),
                 Map.entry("split", SqlFn.SPLIT),
@@ -903,6 +903,89 @@ final class Scalars {
         // registered by the EXACT collection overload key.
         RULES.put(Pure.DISTINCT_COLLECTION_KEY,
                 (n, args) -> orderedDedup(args.get(0)));
+        // regexp family (real regex/*.pure): DuckDB regexp_* with the
+        // RegexpParameter enums translated to RE2 option chars —
+        // CASE_SENSITIVE 'c', CASE_INSENSITIVE 'i', MULTILINE 'm',
+        // NON_NEWLINE_SENSITIVE 's' (POSIX '.' matches newline).
+        for (String f : Pure.nativeKeysAt("regexpLike")) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.MATCHES, List.of(
+                    args.get(0),
+                    n.args().size() > 2
+                            ? inlineFlags(args.get(1), regexpFlags(n.args().get(2)))
+                            : args.get(1))));
+        }
+        for (String f : Pure.nativeKeysAt("regexpCount")) {
+            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.LIST_LENGTH,
+                    regexpAll(n, args, 2)));
+        }
+        for (String f : Pure.nativeKeysAt("regexpExtract")) {
+            RULES.put(f, (n, args) -> {
+                if (!(args.get(2) instanceof SqlExpr.BoolLit all)) {
+                    throw new IllegalStateException("regexpExtract extractAll must be literal");
+                }
+                SqlExpr allMatches = regexpAll(n, args, 3);
+                // extract-one stays LIST-shaped ([first] / []) — the String[*]
+                // result contract unnests it
+                return all.value() ? allMatches
+                        : SqlExpr.Call.of(SqlFn.LIST_SLICE, allMatches,
+                                new SqlExpr.IntLit(1), new SqlExpr.IntLit(1));
+            });
+        }
+        for (String f : Pure.nativeKeysAt("regexpIndexOf")) {
+            RULES.put(f, (n, args) -> {
+                SqlExpr first = SqlExpr.Call.of(SqlFn.LIST_GET,
+                        regexpAll(n, args, 2), new SqlExpr.IntLit(1));
+                // real regexpIndexOf is 0-BASED (testRegexpIndexOf pins 3 for
+                // strpos 4); no match -> -1. Group text located lexically.
+                return new SqlExpr.Case(
+                        List.of(new SqlExpr.Case.When(
+                                SqlExpr.Call.of(SqlFn.IS_NULL, first),
+                                new SqlExpr.IntLit(-1))),
+                        SqlExpr.Call.of(SqlFn.MINUS,
+                                SqlExpr.Call.of(SqlFn.STRPOS, args.get(0), first),
+                                new SqlExpr.IntLit(1)));
+            });
+        }
+        for (String f : Pure.nativeKeysAt("regexpReplace")) {
+            RULES.put(f, (n, args) -> {
+                if (!(args.get(3) instanceof SqlExpr.BoolLit all)) {
+                    throw new IllegalStateException("regexpReplace replaceAll must be literal");
+                }
+                String flags = n.args().size() > 4 ? regexpFlags(n.args().get(4)) : "";
+                SqlExpr pattern = inlineFlags(args.get(1), flags);
+                // 'g' (global) is a true OPTION, not an inline flag
+                return new SqlExpr.Call(SqlFn.REGEXP_REPLACE, List.of(
+                        args.get(0), pattern, args.get(2),
+                        new SqlExpr.StringLit(all.value() ? "g" : "")));
+            });
+        }
+        // lpad/rpad: an EMPTY pad char returns the subject unchanged (real
+        // testLpadEmptyChar) — DuckDB raises 'Insufficient padding' instead.
+        for (String name : List.of("lpad", "rpad")) {
+            SqlFn padFn = name.equals("lpad") ? SqlFn.LPAD : SqlFn.RPAD;
+            for (String f : Pure.nativeKeysAt(name)) {
+                RULES.put(f, (n, args) ->
+                        args.size() == 3 && args.get(2) instanceof SqlExpr.StringLit lit
+                                && lit.value().isEmpty()
+                        ? args.get(0)
+                        : new SqlExpr.Call(padFn, args));
+            }
+        }
+        family(SqlFn.BIT_NOT, "bitNot");
+        // formatDate(date, Strict/DateTimeFormat): the two real ISO forms.
+        for (String f : Pure.nativeKeysAt("formatDate")) {
+            RULES.put(f, (n, args) -> switch (enumName(n.args().get(1))) {
+                case "ISO8601" -> SqlExpr.Call.of(SqlFn.STRFTIME, args.get(0),
+                        new SqlExpr.StringLit("%Y-%m-%d"));
+                // 9-digit nanos: DuckDB %f is micros — pad three zeros.
+                case "ISO8601_NanoSecondPrecision" -> SqlExpr.Call.of(SqlFn.CONCAT,
+                        SqlExpr.Call.of(SqlFn.STRFTIME, args.get(0),
+                                new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S.%f")),
+                        new SqlExpr.StringLit("000"));
+                default -> throw new IllegalStateException(
+                        "unsupported date format " + enumName(n.args().get(1)));
+            });
+        }
         // fromJson(String): the string IS the variant — a JSON cast.
         for (String f : Pure.nativeKeysAt("fromJson")) {
             RULES.put(f, (n, args) -> new SqlExpr.Cast(args.get(0),
@@ -1855,6 +1938,60 @@ final class Scalars {
     }
 
     /** The enum VALUE of a literal enum argument; loud on anything else. */
+    /**
+     * RegexpParameter enum values (single or list) as RE2 INLINE flag chars —
+     * prepended to the pattern as {@code (?ims)}; DuckDB's option-argument
+     * chars have different semantics, inline flags are the portable spelling.
+     */
+    private static String regexpFlags(com.legend.compiler.spec.typed.TypedSpec arg) {
+        List<com.legend.compiler.spec.typed.TypedSpec> params =
+                arg instanceof com.legend.compiler.spec.typed.TypedCollection c
+                        ? c.elements() : List.of(arg);
+        StringBuilder flags = new StringBuilder();
+        for (var pm : params) {
+            flags.append(switch (enumName(pm)) {
+                case "CASE_SENSITIVE" -> "";   // the default
+                case "CASE_INSENSITIVE" -> "i";
+                case "MULTILINE" -> "m";
+                case "NON_NEWLINE_SENSITIVE" -> "s";
+                default -> throw new IllegalStateException(
+                        "unknown RegexpParameter " + enumName(pm));
+            });
+        }
+        return flags.toString();
+    }
+
+    /** {@code pattern} -> {@code '(?<flags>)' || pattern}; identity when no flags. */
+    private static SqlExpr inlineFlags(SqlExpr pattern, String flags) {
+        if (flags.isEmpty()) {
+            return pattern;
+        }
+        String prefix = "(?" + flags + ")";
+        return pattern instanceof SqlExpr.StringLit lit
+                ? new SqlExpr.StringLit(prefix + lit.value())
+                : SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit(prefix), pattern);
+    }
+
+    /**
+     * {@code regexp_extract_all(subject, pattern, group, flags)} for a regexp
+     * call whose OPTIONAL group/params begin at {@code tailStart} in the
+     * lowered args (group defaults 0; flags default '').
+     */
+    private static SqlExpr regexpAll(com.legend.compiler.spec.typed.TypedNativeCall n,
+                                     List<SqlExpr> args, int tailStart) {
+        SqlExpr group = new SqlExpr.IntLit(0);
+        String flags = "";
+        for (int i = tailStart; i < n.args().size(); i++) {
+            if (args.get(i) instanceof SqlExpr.IntLit g) {
+                group = g;
+            } else {
+                flags = regexpFlags(n.args().get(i));
+            }
+        }
+        return new SqlExpr.Call(SqlFn.REGEXP_EXTRACT_ALL, List.of(
+                args.get(0), inlineFlags(args.get(1), flags), group));
+    }
+
     private static String enumName(com.legend.compiler.spec.typed.TypedSpec arg) {
         if (arg instanceof com.legend.compiler.spec.typed.TypedEnumValue ev) {
             return ev.value();

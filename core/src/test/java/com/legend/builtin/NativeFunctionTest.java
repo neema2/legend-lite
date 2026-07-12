@@ -536,7 +536,7 @@ class NativeFunctionTest {
     @Test
     void nativeEnumCatalogSizeIsPinned() {
         // Update this deliberately when adding or removing native enums.
-        assertEquals(8, Pure.allNativeEnums().size(),
+        assertEquals(11, Pure.allNativeEnums().size(),
                 "Pure.allNativeEnums() size pin: review the catalog if this changes");
     }
 

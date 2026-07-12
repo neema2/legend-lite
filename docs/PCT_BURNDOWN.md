@@ -238,4 +238,34 @@ errors into the pure message. Verified loop: core 1391, corpus 2721
 zero regressions, PCT 917/1109 with Relation 348/348 — all UNCHANGED by
 the fixes.
 
+**Slice 6** (UNCLASSIFIED TO ZERO — 21 -> 0; + Standard 55 -> 50):
+platform enums REGISTERED (RegexpParameter, StrictDateFormat,
+DateTimeFormat — real regexpParameter.pure/formatDate.pure); the full
+regexp family (regexpLike/Count/Extract/IndexOf/Replace, 14 real
+overloads) lowers to DuckDB regexp_* with RegexpParameter translated to
+RE2 INLINE flags prepended to the pattern ((?ims) — DuckDB's
+option-argument chars have different semantics); regexpIndexOf is
+0-BASED (real pins 3 where strpos says 4; no match -> -1);
+regexpExtract single stays LIST-shaped via array_slice(all,1,1) (the
+String[*] contract unnests it); bitNot = two's-complement (-x - 1)
+(DuckDB's ~ is the regex operator); zScore = composed window expr
+(col - AVG over w) / GREATEST(STDDEV_POP over w, 1e-10) (real
+zScore.pure); formatDate(StrictDate/DateTime, ISO enums) via strftime;
+lpad/rpad with a LITERAL empty pad return the subject unchanged (real
+testLpadEmptyChar; DuckDB errors); repeatString takes String[0..1]
+(real). ADAPTER: test-model ENUM injection (Enumeration definitions
+referenced as Enum.VALUE or @-refs; platform enums skipped);
+reEscapeStringLiterals passes ALL pre-escaped sequences (\n, \r, \t,
+\\, \') through verbatim — doubling \n's backslash made literal
+backslash-n and broke every MULTILINE regexp test.
+
+| suite | run | errors | passing |
+|---|---|---|---|
+| Essential | 327 | 86 | 74% |
+| Standard | 204 | 50 | 75% |
+| **Relation** | **348** | **0** | **100%** |
+| Grammar | 136 | 30 | 78% |
+| **Unclassified** | **94** | **0** | **100%** |
+| **total** | **1109** | **166** | **85%** |
+
 Update this file per slice, same as docs/SCOREBOARD.md.

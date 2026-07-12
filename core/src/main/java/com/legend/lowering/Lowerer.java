@@ -1537,6 +1537,27 @@ public final class Lowerer {
                 return windowize(aggValue(base, new TypedAggCol("_reduce", mapFn, aggFn)),
                         over.partitionBy(), over.orderBy(), over.frame());
             }
+            // zScore(p,w,r,~col): COMPOSED window expression — real zScore.pure
+            // is (col - average(...)) / max(stdDevPopulation(...), 1e-10).
+            case TypedNativeCall call
+                    when call.callee().qualifiedName()
+                            .equals("meta::pure::functions::math::zScore")
+                    && call.args().size() == 4
+                    && call.args().get(3)
+                            instanceof com.legend.compiler.spec.typed.TypedColSpec zcs -> {
+                SqlExpr col = resolveOrThrow(base, zcs.name());
+                SqlExpr avg = new SqlExpr.WindowCall(
+                        new SqlAgg.Reducer("AVG", List.of(col), false),
+                        over.partitionBy(), over.orderBy(), over.frame());
+                SqlExpr std = new SqlExpr.WindowCall(
+                        new SqlAgg.Reducer("STDDEV_POP", List.of(col), false),
+                        over.partitionBy(), over.orderBy(), over.frame());
+                return SqlExpr.Call.of(com.legend.sql.SqlFn.DIVIDE,
+                        SqlExpr.Call.of(com.legend.sql.SqlFn.MINUS, col, avg),
+                        SqlExpr.Call.of(com.legend.sql.SqlFn.GREATEST, std,
+                                new SqlExpr.DecimalLit(
+                                        new java.math.BigDecimal("0.0000000001"))));
+            }
             // Real pure's 4-arg colToAgg window aggregates: average(p,w,r,~col).
             case TypedNativeCall call when Windows.aggregate(call.callee()) != null -> {
                 TypedSpec colArg = call.args().get(call.args().size() - 1);

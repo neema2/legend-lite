@@ -109,6 +109,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
 
     private static final Pattern INSTANCE_CLASS_PATTERN = Pattern.compile("\\^([\\w:]+)\\(");
     private static final Pattern TYPE_REF_PATTERN = Pattern.compile("@(\\w+(?:::\\w+)+)");
+    private static final Pattern ENUM_REF_PATTERN = Pattern.compile("(\\w+(?:::\\w+)+)\\.\\w+");
 
     private final ModelRepository modelRepository;
 
@@ -144,13 +145,17 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
 
             // Inject class definitions from the interpreter's model
             Map<String, PureClass> extractedClasses = extractClassMetadata(pureExpression, processorSupport);
+            java.util.List<String> enumDefs = extractEnumDefinitions(pureExpression, processorSupport);
             String model = PURE_MODEL;
-            if (!extractedClasses.isEmpty()) {
+            if (!extractedClasses.isEmpty() || !enumDefs.isEmpty()) {
                 StringBuilder classDefs = new StringBuilder();
+                for (String ed : enumDefs) {
+                    classDefs.append(ed).append("\n");
+                }
                 for (PureClass pc : extractedClasses.values()) {
                     classDefs.append(pc.toString()).append("\n");
                 }
-                System.out.println("[LegendLite PCT] Injected classes:\n" + classDefs);
+                System.out.println("[LegendLite PCT] Injected model:\n" + classDefs);
                 model = classDefs + PURE_MODEL;
             }
 
@@ -518,6 +523,52 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
      * Extracts class definitions from the Pure interpreter for ^className() patterns
      * in the expression. Returns a map of qualified name → PureClass.
      */
+    /**
+     * TEST-MODEL ENUM definitions referenced by the expression (My::Enum.VALUE
+     * or @My::Enum) — platform enums are registered natively in core and
+     * skipped; unknown FQNs resolve against the interpreter's graph.
+     */
+    private java.util.List<String> extractEnumDefinitions(String pureExpression, ProcessorSupport ps) {
+        java.util.List<String> defs = new java.util.ArrayList<>();
+        try {
+            java.util.Set<String> enumFqns = new java.util.LinkedHashSet<>();
+            Matcher enumRef = ENUM_REF_PATTERN.matcher(pureExpression);
+            while (enumRef.find()) {
+                enumFqns.add(enumRef.group(1));
+            }
+            Matcher enumTypeRef = TYPE_REF_PATTERN.matcher(pureExpression);
+            while (enumTypeRef.find()) {
+                enumFqns.add(enumTypeRef.group(1));
+            }
+            for (String fqn : enumFqns) {
+                if (fqn.startsWith("meta::pure::metamodel")) {
+                    continue;
+                }
+                CoreInstance enumCls = ps.package_getByUserPath(fqn);
+                if (enumCls == null
+                        || !Instance.instanceOf(enumCls, "meta::pure::metamodel::type::Enumeration", ps)
+                        || com.legend.builtin.Pure.findNativeEnum(fqn).isPresent()) {
+                    continue;
+                }
+                StringBuilder def = new StringBuilder("Enum ").append(fqn).append(" { ");
+                boolean first = true;
+                for (CoreInstance v : Instance.getValueForMetaPropertyToManyResolved(
+                        enumCls, M3Properties.values, ps)) {
+                    if (!first) {
+                        def.append(", ");
+                    }
+                    def.append(v.getName());
+                    first = false;
+                }
+                def.append(" }");
+                defs.add(def.toString());
+            }
+        } catch (Exception e) {
+            System.out.println("[LegendLite PCT] Enum extraction failed: " + e.getMessage());
+        }
+        return defs;
+    }
+
     private Map<String, PureClass> extractClassMetadata(String pureExpression, ProcessorSupport ps) {
         try {
             Map<String, PureClass> classes = new HashMap<>();
@@ -669,12 +720,15 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                     case '\r' -> sb.append("\\r");
                     case '\t' -> sb.append("\\t");
                     case '\\' -> {
-                        // An ALREADY-escaped quote (\') must pass through
-                        // unchanged: doubling its backslash turned the escape
-                        // into a string TERMINATOR and shredded pivot's
-                        // quoted column names ('\'2011__|__newCol\'').
-                        if (i + 1 < expr.length() && expr.charAt(i + 1) == '\'') {
-                            sb.append("\\'");
+                        // An ALREADY-escaped sequence (\', \n, \r, \t, \\)
+                        // must pass through unchanged — the serializer emits
+                        // control chars pre-escaped; doubling the backslash
+                        // turned \n into a literal backslash-n (and \' into
+                        // a string TERMINATOR, shredding pivot names).
+                        char next = i + 1 < expr.length() ? expr.charAt(i + 1) : 0;
+                        if (next == '\'' || next == 'n' || next == 'r'
+                                || next == 't' || next == '\\') {
+                            sb.append('\\').append(next);
                             i++;
                         } else {
                             sb.append("\\\\");

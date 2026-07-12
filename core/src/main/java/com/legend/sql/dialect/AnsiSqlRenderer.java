@@ -361,6 +361,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case STARTS_WITH -> fn("starts_with", a);
             case ENDS_WITH -> fn("ends_with", a);
             case MATCHES -> fn("regexp_matches", a);
+            case REGEXP_EXTRACT_ALL -> fn("regexp_extract_all", a);
+            case REGEXP_REPLACE -> fn("regexp_replace", a);
+            case BIT_NOT -> "(-" + a.get(0) + " - 1)";   // two's complement ~x
             case LEFT -> fn("left", a);
             case RIGHT -> fn("right", a);
             // the PAD CHAR is optional in Pure; SQL requires it — ' '.
