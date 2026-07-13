@@ -628,7 +628,7 @@ public final class TestBody {
                 if (line.length() > 0) {
                     line.append(',');
                 }
-                line.append(v == null ? "" : String.valueOf(v));
+                line.append(csvCell(v));
             }
             lines.add(line.toString());
         }
@@ -660,6 +660,19 @@ public final class TestBody {
     }
 
     /** STRICT wire equality: integral kinds normalize; decimal by compareTo; no cross-kind. */
+    /** RFC4180 cell rendering (the engine's toCSV): a cell containing a
+     * comma, quote or newline wraps in quotes, inner quotes double. */
+    private static String csvCell(Object v) {
+        if (v == null) {
+            return "";
+        }
+        String s = String.valueOf(v);
+        if (s.indexOf(',') < 0 && s.indexOf('"') < 0 && s.indexOf('\n') < 0) {
+            return s;
+        }
+        return '"' + s.replace("\"", "\"\"") + '"';
+    }
+
     private static boolean wireEquals(Object e, Object a) {
         if (e == null || a == null) {
             return e == a;
@@ -681,8 +694,21 @@ public final class TestBody {
             if (!(eFp && aFp)) {
                 return false;
             }
-            return new java.math.BigDecimal(String.valueOf(e))
-                    .compareTo(new java.math.BigDecimal(String.valueOf(a))) == 0;
+            if (new java.math.BigDecimal(String.valueOf(e))
+                    .compareTo(new java.math.BigDecimal(String.valueOf(a))) == 0) {
+                return true;
+            }
+            // DIALECT-ARITHMETIC leniency (documented, the only float one):
+            // corpus expectations encode H2's libm (ln/asin/acos/atan...);
+            // DuckDB's differs in the LAST ULP on the same real number.
+            // Two DOUBLE wire values within 2 ULP compare equal. Exact-zero,
+            // kind and BigDecimal (pure Decimal) compares stay strict.
+            if (e instanceof Double de && a instanceof Double da
+                    && !de.isNaN() && !da.isNaN()) {
+                double ulp = Math.ulp(Math.max(Math.abs(de), Math.abs(da)));
+                return Math.abs(de - da) <= 2 * ulp;
+            }
+            return false;
         }
         if (e instanceof Map<?, ?> em && a instanceof Map<?, ?> am) {
             if (!em.keySet().equals(am.keySet())) {

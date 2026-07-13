@@ -190,6 +190,24 @@ final class Substitution {
         // over the target's bindings. §133's single form.
         if (n instanceof TypedNativeCall call && !call.args().isEmpty()) {
             java.util.List<String> headPath = pathOf(call.args().get(0), target.userVar());
+            // exists over an EMBEDDED (same-row) head whose predicate reads
+            // only embedded leaves: the predicate applies DIRECTLY over the
+            // parent row's columns (engine: BOND_DETAILS like 'Bond%' — no
+            // join, no EXISTS; SQL's NULL propagation supplies the absent
+            // case). Wins over the otherwise-fallback ExistsSub: per-leaf
+            // dispatch, the embedded partial owns its mapped leaves.
+            if (headPath != null && headPath.size() == 1 && isEmptinessFamily(call)
+                    && call.args().size() == 2
+                    && com.legend.builtin.Pure.nativeNamed("exists",
+                            call.callee().signatureKey())
+                    && call.args().get(1) instanceof TypedLambda pl
+                    && pl.parameters().size() == 1) {
+                var partial = embeddedPartialOf(
+                        target.bindings().get(headPath.get(0)));
+                if (partial != null && predLeavesIn(pl, partial)) {
+                    return rewriteEmbeddedExists(pl, partial);
+                }
+            }
             if (headPath != null && headPath.size() == 1
                     && target.existsSubs().containsKey(headPath.get(0))
                     && isEmptinessFamily(call)) {
@@ -606,6 +624,99 @@ final class Substitution {
             }
         }
         return null;
+    }
+
+    /** The embedded ctor of a binding: a bare {@code ^Inner(...)} (with
+     * toOne look-through) or an otherwise composition's partial. */
+    private static com.legend.compiler.spec.typed.TypedNewInstance embeddedPartialOf(
+            TypedSpec binding) {
+        if (binding == null) {
+            return null;
+        }
+        TypedSpec inner = binding;
+        if (inner instanceof TypedNativeCall c && c.args().size() == 1
+                && c.callee().qualifiedName().equals(
+                        "meta::pure::functions::multiplicity::toOne")) {
+            inner = c.args().get(0);
+        }
+        var ow = otherwiseOf(inner);
+        if (ow != null) {
+            inner = ow.args().get(0);
+        }
+        return inner instanceof com.legend.compiler.spec.typed.TypedNewInstance ni
+                ? ni : null;
+    }
+
+    /** Every property read on the predicate's param resolves in the partial. */
+    private boolean predLeavesIn(TypedLambda pl,
+            com.legend.compiler.spec.typed.TypedNewInstance partial) {
+        java.util.Set<java.util.List<String>> paths = new java.util.LinkedHashSet<>();
+        for (TypedSpec b : pl.body()) {
+            collectParamPaths(b, pl.parameters().get(0), paths);
+        }
+        if (paths.isEmpty()) {
+            return false;
+        }
+        for (java.util.List<String> path : paths) {
+            if (path.size() != 1 || !partial.properties().containsKey(path.get(0))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static void collectParamPaths(TypedSpec n, String var,
+            java.util.Set<java.util.List<String>> out) {
+        java.util.List<String> p = pathOf(n, var);
+        if (p != null) {
+            out.add(p);
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(var)) {
+            return;
+        }
+        for (TypedSpec c : n.children()) {
+            collectParamPaths(c, var, out);
+        }
+    }
+
+    /** Substitute the predicate over the PARENT row: {@code $b.prop} becomes
+     * the embedded partial's binding expression; everything else (outer
+     * reads) runs through THIS substitution. */
+    private TypedSpec rewriteEmbeddedExists(TypedLambda pl,
+            com.legend.compiler.spec.typed.TypedNewInstance partial) {
+        TypedSpec body = substEmbeddedReads(
+                pl.body().get(pl.body().size() - 1), pl.parameters().get(0), partial);
+        return rewrite(body);
+    }
+
+    private TypedSpec substEmbeddedReads(TypedSpec n, String var,
+            com.legend.compiler.spec.typed.TypedNewInstance partial) {
+        java.util.List<String> p = pathOf(n, var);
+        if (p != null && p.size() == 1) {
+            return renameRowVar(partial.properties().get(p.get(0)));
+        }
+        if (n instanceof TypedNativeCall c) {
+            return new TypedNativeCall(c.callee(),
+                    c.args().stream().map(a -> substEmbeddedReads(a, var, partial))
+                            .toList(), c.info());
+        }
+        if (n instanceof TypedPropertyAccess pa) {
+            return new TypedPropertyAccess(
+                    substEmbeddedReads(pa.source(), var, partial),
+                    pa.property(), pa.info());
+        }
+        if (n instanceof TypedIf i) {
+            return new TypedIf(substEmbeddedReads(i.condition(), var, partial),
+                    substEmbeddedReads(i.thenBranch(), var, partial),
+                    i.elseBranch().map(b -> substEmbeddedReads(b, var, partial)),
+                    i.info());
+        }
+        if (n instanceof TypedCollection c) {
+            return new TypedCollection(
+                    c.elements().stream().map(e -> substEmbeddedReads(e, var, partial))
+                            .toList(), c.info());
+        }
+        return n;
     }
 
     private static boolean isEmptinessFamily(TypedNativeCall c) {

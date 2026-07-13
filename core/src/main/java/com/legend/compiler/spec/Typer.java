@@ -860,26 +860,29 @@ final class Typer {
                 // order. (The Result-ENVELOPE .values never reaches the
                 // Typer: the test driver peels it at substitution.)
                 if (source instanceof com.legend.compiler.spec.typed.TypedVariable) {
-                    // In row-var position the cells feed joins/prints
-                    // (makeString) — emit the engine's TDSRow PRINT cells:
-                    // toString per cell, 'TDSNull' for an empty cell. Typed
-                    // cell compares ride the relation-identity path
-                    // (->at(N).values), never this arm.
+                    // Row-var cells are TYPED per-column reads (at(N) and
+                    // typed compares keep their kinds); print consumers
+                    // (makeString/joinStrings) stringify at LOWERING, which
+                    // also bypasses the Any-JSON carrier's quoting.
                     List<TypedSpec> cells = new java.util.ArrayList<>(rt2.columns().size());
+                    Type elem = null;
+                    boolean mixed = false;
                     for (Type.RelationType.Column c : rt2.columns()) {
-                        AppliedProperty read = new AppliedProperty(ap.receiver(), c.name());
-                        ValueSpecification printed = new AppliedFunction("if", List.of(
-                                new AppliedFunction("isEmpty", List.of(read)),
-                                new LambdaFunction(List.of(),
-                                        List.of(new CString("TDSNull"))),
-                                new LambdaFunction(List.of(),
-                                        List.of(new AppliedFunction("toString",
-                                                List.of(new AppliedFunction("toOne",
-                                                        List.of(read))))))));
-                        cells.add(synth(printed, env));
+                        cells.add(new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                                source, c.name(),
+                                new ExprType(c.type(), c.multiplicity())));
+                        if (elem == null) {
+                            elem = c.type();
+                        } else if (!elem.equals(c.type())) {
+                            mixed = true;
+                        }
                     }
+                    Type collElem = mixed || elem == null
+                            ? new Type.ClassType(
+                                    com.legend.compiler.element.type.PlatformTypes.ANY)
+                            : elem;
                     return new com.legend.compiler.spec.typed.TypedCollection(cells,
-                            new ExprType(Type.Primitive.STRING,
+                            new ExprType(collElem,
                                     new com.legend.compiler.element.type.Multiplicity.Bounded(
                                             cells.size(), cells.size())));
                 }

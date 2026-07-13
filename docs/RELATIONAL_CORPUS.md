@@ -124,7 +124,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | executionPlan/tests | 109 | 0 | 0 | 8 | 101 |
 | functions/tests | 241 | 73 | 5 | 121 | 42 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 0 | 1 |
-| functions/tests/projection | 154 | 47 | 9 | 69 | 29 |
+| functions/tests/projection | 154 | 51 | 6 | 68 | 29 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 5 | 0 | 0 | 0 | 5 |
 | graphFetch/tests/union | 1 | 0 | 0 | 0 | 1 |
@@ -144,7 +144,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | sqlQueryToString/DDL | 3 | 0 | 0 | 0 | 3 |
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 265 | 103 | 2 | 102 | 58 |
+| tds/tests | 265 | 104 | 1 | 102 | 58 |
 | testDataGeneration/tests | 40 | 0 | 0 | 0 | 40 |
 | tests | 39 | 0 | 0 | 0 | 39 |
 | tests/advanced | 67 | 7 | 0 | 38 | 22 |
@@ -155,7 +155,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 0 | 0 | 32 | 0 |
 | tests/mapping/distinct | 18 | 8 | 6 | 4 | 0 |
 | tests/mapping/dynaJoin | 5 | 2 | 2 | 1 | 0 |
-| tests/mapping/embedded | 63 | 33 | 6 | 14 | 10 |
+| tests/mapping/embedded | 63 | 37 | 2 | 14 | 10 |
 | tests/mapping/enumeration | 26 | 6 | 5 | 12 | 3 |
 | tests/mapping/filter | 9 | 4 | 0 | 5 | 0 |
 | tests/mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
@@ -169,7 +169,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/relation | 93 | 9 | 1 | 40 | 43 |
 | tests/mapping/relation/aggregation | 9 | 0 | 0 | 0 | 9 |
 | tests/mapping/selfJoin | 3 | 0 | 0 | 3 | 0 |
-| tests/mapping/sqlFunction | 72 | 49 | 8 | 3 | 12 |
+| tests/mapping/sqlFunction | 72 | 57 | 0 | 3 | 12 |
 | tests/mapping/tree | 12 | 0 | 0 | 12 | 0 |
 | tests/mapping/union | 124 | 12 | 1 | 91 | 20 |
 | tests/mapping/union/relation | 15 | 0 | 0 | 13 | 2 |
@@ -178,7 +178,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **432** | 53 | 969 | 838 |
+| **total** | 2292 | **449** | 37 | 968 | 838 |
 
 ### mapping walls (dropped at assembly)
 
@@ -781,10 +781,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMostRecentDayOfWeekWithDate [functions/tests/projection]: unknown function 'mostRecentDayOfWeek'
 - ERROR testPreviousDayOfWeekWithDate [functions/tests/projection]: unknown function 'previousDayOfWeek'
 - ERROR testSimpleExists [functions/tests/projection]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
-- FAIL testExistsAsQualifier [functions/tests/projection]: assertSameElements: expected [false, true, true], got [true, false, true]
-- ERROR testExistsEmbeddedOnSameTable [functions/tests/projection]: class-typed property '$p.dependencies' used as a whole value is graph output (Phase H4)
-- FAIL testExistsAsQualifierWithFilter [functions/tests/projection]: assertSameElements: expected true, got true
-- FAIL testExistsAsQualifierWithFilterAndWrongJoin [functions/tests/projection]: assertSameElements: expected true, got true
 - ERROR testExistsAsNullWithSubType [functions/tests/projection]: property 'functions' of class 'meta::relational::tests::projection::exists::MyClass' has no binding in mapping 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testSavedRootPropogatedCorrectlyThroughFilter [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testChainedFiltersQuery [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
@@ -1337,7 +1333,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - FAIL testFilterOnEnum [tds/tests]: assertEquals: expected CITY, got [New York, CITY]
 - ERROR testFilterMultipleExpressions1 [tds/tests]: unknown function 'isNotNull'
 - ERROR testFilterMultipleExpressions1_chain [tds/tests]: unknown function 'isNotNull'
-- FAIL testFilterOnDynaFunctionColumn [tds/tests]: assertEquals: expected [John, true], got [John, true]
 - ERROR testInOnColumnInSubselect [tds/tests]: no overload of 'olapGroupBy' matches 5 argument(s) of these shapes
 - SHAPE testFilterOnQuotedColumnFromTableToTds [tds/tests]: no execute(|...) call
 - ERROR testFirstNotNullFunction [tds/tests]: unknown function 'meta::pure::tds::extensions::firstNotNull'
@@ -1639,8 +1634,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testCorrelatedSubSqlQueryGeneration [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::milestoning::Product' is not a known class, mapping, runtime, connection, or database
 - ERROR TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNestedGeneration [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::store::TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNested' is not a known class, mapping, runtime, connection, or database
 - FAIL testDistinctMappingWithJoinSelectAll [tests/mapping/distinct]: assertSameElements: expected [IF 1, IF 2, IF 2], got [IF 2, IF 1, IF 2, IF 2, IF 2]
-- FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: assertEquals: expected IfName\nIfName1\nIfName2\n\n, got [IfName2, IfName1, null, IfName2, IfName2]
-- FAIL testProjectDistinctMappingWithDistinctInJoin [tests/mapping/distinct]: assertEquals: expected name,incomeFunction\nIfName1,IF 1\nIfName2,IF 2\n, got [IfName2, IF 2, IfName2, IF 2, IfName1, IF 1, IfName2, IF 2]
+- FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: assertEquals: expected IfName\nIfName1\nIfName2\n\n, got [IfName2, IfName2, IfName1, null, IfName2]
+- FAIL testProjectDistinctMappingWithDistinctInJoin [tests/mapping/distinct]: assertEquals: expected name,incomeFunction\nIfName1,IF 1\nIfName2,IF 2\n, got [IfName2, IF 2, IfName2, IF 2, IfName2, IF 2, IfName1, IF 1]
 - FAIL testProjectDistinctMappingWithDistinctInJoinWithDup [tests/mapping/distinct]: assertEquals: expected name,incomeFunction\nIfName1,IF 1\nIfName2,IF 2\n, got [IfName2, IF 2, IfName1, IF 1, IfName2, IF 2, IfName2, IF 2]
 - FAIL testDistinctMappingWithDistinctInJoinWithFilter [tests/mapping/distinct]: assertEquals: expected name,incomeFunction\nIfName2,IF 2\n, got [IfName2, IF 2, IfName2, IF 2, IfName2, IF 2]
 - FAIL testDistinctMappingWithDistinctInJoinWithFilterOnJoin [tests/mapping/distinct]: assertEquals: expected name,incomeFunction\nIfName2,IF 2\n, got [IfName2, IF 2, IfName2, IF 2, IfName2, IF 2]
@@ -1653,8 +1648,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSelfJoinWithAggregateFunction [tests/mapping/dynaJoin]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected Boolean, got String
 - ERROR testDenormMappingOneToManyProjectLambdaSyntaxWithMap [tests/mapping/embedded]: multi-hop navigation employees.address.name through an embedded/slot head is not supported yet
 - ERROR testProjectToEmbedded [tests/mapping/embedded]: multi-hop navigation employees.address.name through an embedded/slot head is not supported yet
-- FAIL testDenormMappingOneToManyProjectEmbeddedQualifier [tests/mapping/embedded]: assertEquals: expected firstName,nameAndAddress\nPeter,"Firm X,200 west"\nJohn,"Firm X,200 west"\nFabrice,"Firm A,3 somewhere"\n, got [Peter, Firm X,200 west, John, Firm X,200 west, Fabrice, Firm A,3 somewhere]
-- FAIL testFilterWithEmbeddedQualifier [tests/mapping/embedded]: assertEquals: expected firstName,nameAndAddress\nPeter,"Firm X,200 west"\nJohn,"Firm X,200 west"\n, got [Peter, Firm X,200 west, John, Firm X,200 west]
 - ERROR testExists [tests/mapping/embedded]: class-typed property '$p.firm' used as a whole value is graph output (Phase H4)
 - FAIL testIsEmpty [tests/mapping/embedded]: assertEquals: expected name,firm\n\n, got []
 - SHAPE testMapEmbeddedQualifierWithIfTwoEmbeddedProperties [tests/mapping/embedded]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -1663,8 +1656,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE otherwiseTestQualifierPropertyConstantExpression [tests/mapping/embedded]: no verifying assertions
 - ERROR otherwiseTestComplexExpressionWithEnumMapping [tests/mapping/embedded]: property 'type' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise2'
 - ERROR otherwiseTestEmbeddedToEmbedded [tests/mapping/embedded]: multi-hop navigation bondDetails.issuer.name through an embedded/slot head is not supported yet
-- FAIL otherwiseTestFilterExistsOnEmbeddedProperty [tests/mapping/embedded]: assertEquals: expected name\nProduct 1\nProduct 2\n, got []
-- FAIL otherwiseTestProjectExistsOnEmbeddedProperty [tests/mapping/embedded]: assertEquals: expected descriptionExists\ntrue\ntrue\nfalse\n, got [false, false, false]
 - ERROR testProjection [tests/mapping/embedded]: ambiguous reference 'Product' — matches via imports: [meta::relational::tests::mapping::embedded::advanced::model::Product, meta::relational::tests::model::simple::Product]. Use a fully qualified name.
 - ERROR testFilter [tests/mapping/embedded]: ambiguous reference 'Product' — matches via imports: [meta::relational::tests::mapping::embedded::advanced::model::Product, meta::relational::tests::model::simple::Product]. Use a fully qualified name.
 - ERROR testDenormWithComplexFilter [tests/mapping/embedded]: ambiguous reference 'Product' — matches via imports: [meta::relational::tests::mapping::embedded::advanced::model::Product, meta::relational::tests::model::simple::Product]. Use a fully qualified name.
@@ -1932,11 +1923,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSelfJoinPropertyMappingWithDynaFunction [tests/mapping/selfJoin]: multi-hop navigation parent.parent.parent.name through an embedded/slot head is not supported yet
 - SHAPE testTriminNotSybaseASE [tests/mapping/sqlFunction]: no execute(|...) call
 - ERROR testProject [tests/mapping/sqlFunction]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_aggregate(INTEGER, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_aggregate(ANY[]
-- FAIL testProject [tests/mapping/sqlFunction]: assertEquals: expected [1.9647596572486523, -4.286261674628062], got [1.9647596572486525, -4.286261674628062]
-- FAIL testFilter [tests/mapping/sqlFunction]: assertEquals: expected 1.9647596572486523, got 1.9647596572486525
-- FAIL testProject [tests/mapping/sqlFunction]: assertEquals: expected [0.5235987755982989, 1.5707963267948966], got [0.5235987755982988, 1.5707963267948966]
-- FAIL testProject [tests/mapping/sqlFunction]: assertEquals: expected [1.0471975511965979, 0.0], got [1.0471975511965976, 0.0]
-- FAIL testProject [tests/mapping/sqlFunction]: assertEquals: expected [0.8329812666744317, 0.7328151017865066], got [0.8329812666744317, 0.7328151017865067]
 - ERROR testProject [tests/mapping/sqlFunction]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_aggregate(INTEGER, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_aggregate(ANY[]
 - SHAPE testProject [tests/mapping/sqlFunction]: unsupported statement: forAll
 - SHAPE testFilter [tests/mapping/sqlFunction]: assert form 'assertEqWithinTolerance/3' is not supported yet
@@ -1947,9 +1933,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testToSQLStringParseIntegerinDB2 [tests/mapping/sqlFunction]: no execute(|...) call
 - SHAPE testToSQLStringconvertToDateinDb2 [tests/mapping/sqlFunction]: no execute(|...) call
 - SHAPE testToSQLStringconvertToDateTimeinDb2 [tests/mapping/sqlFunction]: no execute(|...) call
-- FAIL testProject [tests/mapping/sqlFunction]: assertEquals: expected [0.09531017980432492, 0.5877866649021191], got [0.09531017980432493, 0.5877866649021191]
-- FAIL testFilter [tests/mapping/sqlFunction]: assertEquals: expected 0.09531017980432492, got 0.09531017980432493
-- FAIL testProject [tests/mapping/sqlFunction]: assertEquals: expected [12, 12], got [11, 11]
 - ERROR testFilter [tests/mapping/sqlFunction]: Parser Error: syntax error at or near "=" |  | LINE 3: WHERE lower(t0.stringToInt) = upper(t0.stringToInt) = TRUE |                                                             ^
 - SHAPE testToSQLConvertDateH2 [tests/mapping/sqlFunction]: no execute(|...) call
 - SHAPE testAdjustDateTranslationInMappingAndQuery [tests/mapping/sqlFunction]: unsupported statement: map

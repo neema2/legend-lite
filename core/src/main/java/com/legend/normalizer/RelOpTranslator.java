@@ -339,6 +339,18 @@ final class RelOpTranslator {
             // group(x) is parenthesization; if's branches must be THUNKS
             // (real pure's if takes zero-param lambdas — the dynafunction
             // spelling passes plain expressions).
+            // The 'indexOf' DYNAFUNCTION has SQL locate() semantics —
+            // 1-BASED position (engine renders locate(sub, str)); pure's
+            // indexOf is 0-based. Conform by EMISSION: +1.
+            case RelationalOperation.FunctionCall call
+                    when call.name().equals("indexOf") && call.args().size() == 2 ->
+                    new AppliedFunction("plus", List.of(
+                            new AppliedFunction("indexOf", List.of(
+                                    translate(call.args().get(0), tableScope,
+                                            targetVarOrNull, rowBindOrNull, pipeline),
+                                    translate(call.args().get(1), tableScope,
+                                            targetVarOrNull, rowBindOrNull, pipeline))),
+                            new com.legend.parser.spec.CInteger(1)));
             case RelationalOperation.FunctionCall call
                     when call.name().equals("isNull") && call.args().size() == 1 ->
                     new AppliedFunction("isEmpty", List.of(translate(call.args().get(0),

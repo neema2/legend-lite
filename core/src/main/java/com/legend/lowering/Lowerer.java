@@ -2141,6 +2141,30 @@ public final class Lowerer {
                 letBindings.put(l.name(), v);
                 yield v;
             }
+            // makeString/joinStrings over a STATIC collection (TDS row
+            // cells, mixed literals): stringify each element HERE — pure
+            // print semantics, 'TDSNull' for an empty cell — so the list
+            // never takes the Any-collection JSON carrier (whose VARCHAR
+            // cast quotes strings).
+            case TypedNativeCall n
+                    when (isFamily(n, "makeString") || isFamily(n, "joinStrings"))
+                    && !n.args().isEmpty()
+                    && n.args().get(0)
+                            instanceof com.legend.compiler.spec.typed.TypedCollection tc -> {
+                List<SqlExpr> elems = new ArrayList<>(tc.elements().size());
+                for (TypedSpec e : tc.elements()) {
+                    elems.add(SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE,
+                            new SqlExpr.Cast(scalar(e, columns),
+                                    com.legend.sql.SqlType.Scalar.VARCHAR),
+                            new SqlExpr.StringLit("TDSNull")));
+                }
+                List<SqlExpr> args = new ArrayList<>();
+                args.add(new SqlExpr.ArrayLit(elems));
+                for (int i = 1; i < n.args().size(); i++) {
+                    args.add(scalar(n.args().get(i), columns));
+                }
+                yield Scalars.lower(n, args);
+            }
             case TypedNativeCall n -> Scalars.lower(n,
                     n.args().stream().map(a -> scalar(a, columns)).toList());
             // write(rel, accessor) returns the COUNT of rows written (the
