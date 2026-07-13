@@ -684,7 +684,7 @@ public final class MappingNormalizer {
             case ClassMapping.Pure pcm       -> synthM2M(md, pcm, model, new HashSet<>());
             case ClassMapping.Relational rcm -> synthRelational(md, rcm, model);
             case ClassMapping.Union u        -> synthUnion(md, u, model);
-            case ClassMapping.RelationFunction rf -> synthRelationFunction(rf, model);
+            case ClassMapping.RelationFunction rf -> synthRelationFunction(md, rf, model);
         };
         return new FunctionDefinition(
                 SynthFqn.mappingClass(md.qualifiedName(), cm.className()),
@@ -709,6 +709,31 @@ public final class MappingNormalizer {
      * by XStore association support when it lands.
      */
     private static ValueSpecification synthRelationFunction(
+            LegacyMappingDefinition md,
+            ClassMapping.RelationFunction rf, ModelBuilder model) {
+        ValueSpecification pipeline = relationFunctionPipeline(rf, model);
+        Variable row = new Variable("rf_row");
+        Map<String, KeyExpression> fields = new LinkedHashMap<>();
+        for (ClassMapping.RelationFunction.Col c : rf.columns()) {
+            if (c.local()) {
+                continue;
+            }
+            ValueSpecification read = new AppliedProperty(row, c.column());
+            if (c.enumMappingId() != null) {
+                // enum-decoded column: the same source-value decode chain
+                // every other enum-mapped read synthesizes
+                read = translateEnumeratedSource(c.property(), c.enumMappingId(),
+                        read, md, rf.className(), model);
+            }
+            fields.put(c.property(), new KeyExpression(read, false, false));
+        }
+        return new AppliedFunction("map", List.of(pipeline,
+                new LambdaFunction(List.of(row),
+                        List.of(buildNewInstanceToOne(rf.className(), fields, model)))));
+    }
+
+    /** Resolve a Relation mapping's {@code ~func} ref and inline its body. */
+    private static ValueSpecification relationFunctionPipeline(
             ClassMapping.RelationFunction rf, ModelBuilder model) {
         String ref = rf.funcRef();
         List<com.legend.parser.element.Function> fns = model.findFunction(ref);
@@ -732,19 +757,197 @@ public final class MappingNormalizer {
                     "Relation mapping ~func '" + fn.qualifiedName()
                     + "' must be a zero-arg single-expression function");
         }
-        ValueSpecification pipeline = fn.body().get(0);
-        Variable row = new Variable("rf_row");
-        Map<String, KeyExpression> fields = new LinkedHashMap<>();
-        for (ClassMapping.RelationFunction.Col c : rf.columns()) {
-            if (c.local()) {
-                continue;
-            }
-            fields.put(c.property(), new KeyExpression(
-                    new AppliedProperty(row, c.column()), false, false));
+        return fn.body().get(0);
+    }
+
+    /**
+     * XStore association over two Relation-function class mappings: the end
+     * expression ({@code $this.id == $that.firmId}) rewrites property reads
+     * to the two relations' COLUMN reads (mapping-local {@code +} columns
+     * included — that is what they exist for) and rides the SAME
+     * {@code legacyAssocPredicate(a, b, srcRel, tgtRel, {s,t|cond})}
+     * emission the table-backed path uses: the relation args type the
+     * lambda's rows through the ordinary kernel, and the resolver reads
+     * the oriented condition off the call.
+     */
+    private static FunctionDefinition synthesizeXStoreMapping(LegacyMappingDefinition md,
+            AssociationMapping.Cross xs, ModelBuilder model,
+            String classA, String classB) {
+        ClassMapping.RelationFunction rfA = relationFunctionMappingOf(md, classA);
+        ClassMapping.RelationFunction rfB = relationFunctionMappingOf(md, classB);
+        AssociationDefinition ad = model.findAssociation(xs.associationName()).orElseThrow();
+        if (xs.propertyMappings2().isEmpty()) {
+            throw new com.legend.error.ModelException(
+                    com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                    "XStore mapping for '" + xs.associationName()
+                    + "' has no property lines; mapping=" + md.qualifiedName());
         }
-        return new AppliedFunction("map", List.of(pipeline,
-                new LambdaFunction(List.of(row),
-                        List.of(buildNewInstanceToOne(rf.className(), fields, model)))));
+        // one line fully determines the predicate; prefer property1's
+        // (its $that IS classA, matching the (srcRow: classA-row) contract)
+        AssociationMapping.Cross.XStoreProperty line = xs.propertyMappings2().get(0);
+        for (AssociationMapping.Cross.XStoreProperty cand : xs.propertyMappings2()) {
+            if (cand.propertyName().equals(ad.property1().propertyName())) {
+                line = cand;
+                break;
+            }
+        }
+        boolean lineIsProp1 = line.propertyName().equals(ad.property1().propertyName());
+        Variable srcRow = new Variable("srcRow");
+        Variable tgtRow = new Variable("tgtRow");
+        // navigating property1 lands on classA: $that = classA(srcRow),
+        // $this = the owner classB(tgtRow); property2 lines mirror
+        Variable thisRow = lineIsProp1 ? tgtRow : srcRow;
+        Variable thatRow = lineIsProp1 ? srcRow : tgtRow;
+        ClassMapping.RelationFunction thisRf = lineIsProp1 ? rfB : rfA;
+        ClassMapping.RelationFunction thatRf = lineIsProp1 ? rfA : rfB;
+        ValueSpecification cond = rewriteXStoreReads(line.expression(),
+                thisRow, thisRf, thatRow, thatRf, xs.associationName(), md);
+        Variable a = new Variable("a");
+        Variable b = new Variable("b");
+        ValueSpecification body = new AppliedFunction("legacyAssocPredicate", List.of(
+                a, b,
+                relationFunctionPipeline(rfA, model),
+                relationFunctionPipeline(rfB, model),
+                new LambdaFunction(List.of(srcRow, tgtRow), List.of(cond))));
+        FunctionDefinition.ParameterDefinition pA = new FunctionDefinition.ParameterDefinition(
+                "a", new TypeExpression.NameRef(classA), Multiplicity.Concrete.PURE_ONE);
+        FunctionDefinition.ParameterDefinition pB = new FunctionDefinition.ParameterDefinition(
+                "b", new TypeExpression.NameRef(classB), Multiplicity.Concrete.PURE_ONE);
+        return new FunctionDefinition(
+                SynthFqn.mappingAssoc(md.qualifiedName(), xs.associationName()),
+                List.of(), List.of(), List.of(pA, pB),
+                new TypeExpression.NameRef("meta::pure::metamodel::type::Boolean"),
+                Multiplicity.Concrete.PURE_ONE,
+                List.of(body),
+                List.of(), List.of())
+                .withSynthesizedFrom(new FunctionDefinition.Synthesized(
+                        SynthHat.ASSOC, md.qualifiedName(), xs.associationName()));
+    }
+
+    /**
+     * ModelJoin association: the typed lambda's params name the two end
+     * classes; the condition rewrites property reads to the Relation
+     * mappings' columns and rides the legacyAssocPredicate emission (same
+     * contract as {@link #synthesizeXStoreMapping}). Param-to-end matching
+     * is by DECLARED TYPE (the corpus writes them fully qualified).
+     */
+    private static FunctionDefinition synthesizeModelJoinMapping(LegacyMappingDefinition md,
+            AssociationMapping.ModelJoin mj, ModelBuilder model,
+            String classA, String classB) {
+        ClassMapping.RelationFunction rfA = relationFunctionMappingOf(md, classA);
+        ClassMapping.RelationFunction rfB = relationFunctionMappingOf(md, classB);
+        if (mj.lambda().parameters().size() != 2) {
+            throw new com.legend.error.NotImplementedException(
+                    "ModelJoin for '" + mj.associationName() + "' needs a"
+                    + " 2-param lambda; got " + mj.lambda().parameters().size());
+        }
+        Variable p0 = mj.lambda().parameters().get(0);
+        Variable p1 = mj.lambda().parameters().get(1);
+        String t0 = p0.type() instanceof TypeExpression.NameRef nr0 ? nr0.name() : null;
+        String t1 = p1.type() instanceof TypeExpression.NameRef nr1 ? nr1.name() : null;
+        String aVar;
+        String bVar;
+        if (classA.equals(t0) || (t0 != null && classA.endsWith("::" + t0) && !classB.equals(t1))) {
+            aVar = p0.name();
+            bVar = p1.name();
+        } else if (classA.equals(t1) || (t1 != null && classA.endsWith("::" + t1))) {
+            aVar = p1.name();
+            bVar = p0.name();
+        } else {
+            throw new com.legend.error.NotImplementedException(
+                    "ModelJoin for '" + mj.associationName() + "': lambda param"
+                    + " types [" + t0 + ", " + t1 + "] do not match the"
+                    + " association ends [" + classA + ", " + classB + "]");
+        }
+        Variable srcRow = new Variable("srcRow");
+        Variable tgtRow = new Variable("tgtRow");
+        Map<String, Variable> rowByVar = Map.of(aVar, srcRow, bVar, tgtRow);
+        Map<String, ClassMapping.RelationFunction> rfByVar = Map.of(aVar, rfA, bVar, rfB);
+        ValueSpecification cond = rewriteRelationReads(
+                mj.lambda().body().get(mj.lambda().body().size() - 1),
+                rowByVar, rfByVar, mj.associationName(), md);
+        Variable a = new Variable("a");
+        Variable b = new Variable("b");
+        ValueSpecification body = new AppliedFunction("legacyAssocPredicate", List.of(
+                a, b,
+                relationFunctionPipeline(rfA, model),
+                relationFunctionPipeline(rfB, model),
+                new LambdaFunction(List.of(srcRow, tgtRow), List.of(cond))));
+        FunctionDefinition.ParameterDefinition pA = new FunctionDefinition.ParameterDefinition(
+                "a", new TypeExpression.NameRef(classA), Multiplicity.Concrete.PURE_ONE);
+        FunctionDefinition.ParameterDefinition pB = new FunctionDefinition.ParameterDefinition(
+                "b", new TypeExpression.NameRef(classB), Multiplicity.Concrete.PURE_ONE);
+        return new FunctionDefinition(
+                SynthFqn.mappingAssoc(md.qualifiedName(), mj.associationName()),
+                List.of(), List.of(), List.of(pA, pB),
+                new TypeExpression.NameRef("meta::pure::metamodel::type::Boolean"),
+                Multiplicity.Concrete.PURE_ONE,
+                List.of(body),
+                List.of(), List.of())
+                .withSynthesizedFrom(new FunctionDefinition.Synthesized(
+                        SynthHat.ASSOC, md.qualifiedName(), mj.associationName()));
+    }
+
+    /** The (sole) Relation-function class mapping for {@code classFqn} in {@code md}. */
+    private static ClassMapping.RelationFunction relationFunctionMappingOf(
+            LegacyMappingDefinition md, String classFqn) {
+        for (ClassMapping cm : md.classMappings()) {
+            if (cm instanceof ClassMapping.RelationFunction rf
+                    && rf.className().equals(classFqn)) {
+                return rf;
+            }
+        }
+        throw new com.legend.error.NotImplementedException(
+                "XStore association end class '" + classFqn + "' has no"
+                + " Relation(~func) class mapping in '" + md.qualifiedName()
+                + "' — XStore over other mapping kinds is not supported yet");
+    }
+
+    /** {@code $this.p}/{@code $that.p} → column reads on the two relation rows. */
+    private static ValueSpecification rewriteXStoreReads(ValueSpecification v,
+            Variable thisRow, ClassMapping.RelationFunction thisRf,
+            Variable thatRow, ClassMapping.RelationFunction thatRf,
+            String assocName, LegacyMappingDefinition md) {
+        return rewriteRelationReads(v,
+                Map.of("this", thisRow, "that", thatRow),
+                Map.of("this", thisRf, "that", thatRf), assocName, md);
+    }
+
+    /** {@code $var.prop} → the var's Relation mapping's COLUMN read. */
+    private static ValueSpecification rewriteRelationReads(ValueSpecification v,
+            Map<String, Variable> rowByVar,
+            Map<String, ClassMapping.RelationFunction> rfByVar,
+            String assocName, LegacyMappingDefinition md) {
+        if (v instanceof AppliedProperty ap
+                && ap.receiver() instanceof Variable var
+                && rowByVar.containsKey(var.name())) {
+            ClassMapping.RelationFunction rf = rfByVar.get(var.name());
+            for (ClassMapping.RelationFunction.Col c : rf.columns()) {
+                if (c.property().equals(ap.property())) {
+                    return new AppliedProperty(rowByVar.get(var.name()), c.column());
+                }
+            }
+            throw new com.legend.error.NotImplementedException(
+                    "association '" + assocName + "': $" + var.name() + "."
+                    + ap.property() + " has no column binding on the Relation"
+                    + " mapping of '" + rf.className() + "' (mapping="
+                    + md.qualifiedName() + ")");
+        }
+        return switch (v) {
+            case AppliedFunction af -> new AppliedFunction(af.function(),
+                    af.parameters().stream().map(x -> rewriteRelationReads(x,
+                            rowByVar, rfByVar, assocName, md)).toList());
+            case AppliedProperty ap2 -> new AppliedProperty(
+                    rewriteRelationReads(ap2.receiver(), rowByVar, rfByVar,
+                            assocName, md), ap2.property());
+            case PureCollection pc -> new PureCollection(
+                    pc.values().stream().map(x -> rewriteRelationReads(x,
+                            rowByVar, rfByVar, assocName, md)).toList());
+            case LambdaFunction lf2 -> new LambdaFunction(lf2.parameters(),
+                    lf2.body().stream().map(x -> rewriteRelationReads(x,
+                            rowByVar, rfByVar, assocName, md)).toList());
+            default -> v;
+        };
     }
 
     // ====================================================================
@@ -2515,6 +2718,22 @@ public final class MappingNormalizer {
     private static FunctionDefinition synthesizeAssociationMapping(LegacyMappingDefinition md,
                                                                   AssociationMapping am,
                                                                   ModelBuilder model) {
+        AssociationDefinition ad0 = model.findAssociation(am.associationName())
+                .orElse(null);
+        if (am instanceof AssociationMapping.ModelJoin mj && ad0 != null) {
+            return synthesizeModelJoinMapping(md, mj, model,
+                    associationEndClass(ad0.property1().targetClass(),
+                            "association '" + am.associationName() + "' end1"),
+                    associationEndClass(ad0.property2().targetClass(),
+                            "association '" + am.associationName() + "' end2"));
+        }
+        if (am instanceof AssociationMapping.Cross xs && ad0 != null) {
+            return synthesizeXStoreMapping(md, xs, model,
+                    associationEndClass(ad0.property1().targetClass(),
+                            "association '" + am.associationName() + "' end1"),
+                    associationEndClass(ad0.property2().targetClass(),
+                            "association '" + am.associationName() + "' end2"));
+        }
         if (!(am instanceof AssociationMapping.Relational rel)) {
             throw new com.legend.error.NotImplementedException(
                     "Association mapping kind " + am.getClass().getSimpleName()

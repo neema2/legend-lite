@@ -1,5 +1,7 @@
 package com.legend.parser.element;
 
+import com.legend.parser.spec.ValueSpecification;
+
 import java.util.List;
 import java.util.Objects;
 
@@ -34,7 +36,8 @@ import java.util.Objects;
  * {@code currentMappingScope = null} while parsing an association body, so
  * the same "Missing table or alias" error fires for bare identifiers.
  */
-public sealed interface AssociationMapping permits AssociationMapping.Relational {
+public sealed interface AssociationMapping permits AssociationMapping.Relational,
+        AssociationMapping.Cross, AssociationMapping.ModelJoin {
 
     /** Fully qualified path of the association being mapped. */
     String associationName();
@@ -55,6 +58,56 @@ public sealed interface AssociationMapping permits AssociationMapping.Relational
             propertyMappings = propertyMappings != null
                     ? List.copyOf(propertyMappings)
                     : List.of();
+        }
+    }
+
+    /**
+     * Cross-store flavor ({@code Person_Firm: XStore { employees[firm,
+     * person]: $this.id == $that.firmId }}): each end binds via a pure
+     * boolean expression over {@code $this} (the end's OWNING class) and
+     * {@code $that} (the end's target). Property reads resolve against the
+     * two Relation-function class mappings' column bindings — including
+     * mapping-local {@code +} columns.
+     */
+    record Cross(
+            String associationName,
+            List<XStoreProperty> propertyMappings2) implements AssociationMapping {
+
+        public Cross {
+            Objects.requireNonNull(associationName, "Association name cannot be null");
+            propertyMappings2 = propertyMappings2 == null
+                    ? List.of() : List.copyOf(propertyMappings2);
+        }
+
+        @Override
+        public List<AssociationPropertyMapping> propertyMappings() {
+            return List.of();   // XStore bodies are expressions, not PM trees
+        }
+
+        /** One {@code prop[srcSet, tgtSet]: expr} line. */
+        public record XStoreProperty(String propertyName, String sourceSetId,
+                String targetSetId, ValueSpecification expression) {
+        }
+    }
+
+    /**
+     * ModelJoin flavor: ONE typed lambda over the two end classes —
+     * {@code { employees: Person[1], firm: Firm[1] | $employees.firmId ==
+     * $firm.id }} — parameters named after the association ends, condition
+     * over the Relation-function mappings' columns.
+     */
+    record ModelJoin(String associationName,
+            com.legend.parser.spec.LambdaFunction lambda)
+            implements AssociationMapping {
+
+        public ModelJoin {
+            Objects.requireNonNull(associationName, "Association name cannot be null");
+            Objects.requireNonNull(lambda, "lambda");
+        }
+
+        @Override
+        public List<AssociationPropertyMapping> propertyMappings() {
+            return List.of();
         }
     }
 }

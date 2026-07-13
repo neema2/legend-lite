@@ -2013,13 +2013,76 @@ public final class ElementParser implements TokenStreamCursor {
             expect(TokenType.BRACE_CLOSE);
             return;
         }
-        if (isIdentifierToken(peek())
-                && ("AggregationAware".equals(text())
-                        // XStore/ModelJoin mappings: parse-and-skip so the
-                        // surrounding mapping's OTHER classes load; a query
-                        // against the skipped class stays loud at resolution.
-                        || "ModelJoin".equals(text())
-                        || "XStore".equals(text()))) {
+        // XStore ASSOCIATION mapping: each end binds via a pure boolean
+        // expression over $this/$that (Relation-function mapping keys).
+        if (isIdentifierToken(peek()) && "XStore".equals(text())) {
+            advance();
+            expect(TokenType.BRACE_OPEN);
+            List<AssociationMapping.Cross.XStoreProperty> xprops = new ArrayList<>();
+            while (peek() != TokenType.BRACE_CLOSE && !atEnd()) {
+                String prop = parseIdentifier();
+                String srcSet = null;
+                String tgtSet = null;
+                if (match(TokenType.BRACKET_OPEN)) {
+                    srcSet = parseIdentifier();
+                    expect(TokenType.COMMA);
+                    tgtSet = parseIdentifier();
+                    expect(TokenType.BRACKET_CLOSE);
+                }
+                expect(TokenType.COLON);
+                int exprStart = pos;
+                int depth = 0;
+                while (!atEnd()) {
+                    TokenType t = peek();
+                    if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN
+                            || t == TokenType.BRACE_OPEN) {
+                        depth++;
+                    } else if (t == TokenType.PAREN_CLOSE
+                            || t == TokenType.BRACKET_CLOSE) {
+                        depth--;
+                    } else if (t == TokenType.BRACE_CLOSE) {
+                        if (depth == 0) {
+                            break;
+                        }
+                        depth--;
+                    } else if (t == TokenType.COMMA && depth == 0) {
+                        break;
+                    }
+                    advance();
+                }
+                List<com.legend.parser.spec.ValueSpecification> exprs =
+                        SpecParser.parseCodeBlock(tokens.slice(exprStart, pos));
+                if (exprs.isEmpty()) {
+                    throw error("XStore property '" + prop + "' has an empty expression");
+                }
+                xprops.add(new AssociationMapping.Cross.XStoreProperty(
+                        prop, srcSet, tgtSet, exprs.get(exprs.size() - 1)));
+                match(TokenType.COMMA);
+            }
+            expect(TokenType.BRACE_CLOSE);
+            accum.associationMappings.add(new AssociationMapping.Cross(
+                    elementPath, xprops));
+            return;
+        }
+        // ModelJoin ASSOCIATION mapping: one typed lambda over the two ends
+        if (isIdentifierToken(peek()) && "ModelJoin".equals(text())) {
+            advance();
+            expect(TokenType.BRACE_OPEN);
+            int lamStart = pos;
+            skipBalancedBlock();    // the {params | cond} lambda block
+            List<com.legend.parser.spec.ValueSpecification> lam =
+                    SpecParser.parseCodeBlock(tokens.slice(lamStart, pos));
+            if (lam.size() != 1
+                    || !(lam.get(0) instanceof com.legend.parser.spec.LambdaFunction lf)) {
+                throw error("ModelJoin body for '" + elementPath
+                        + "' must be a single typed lambda");
+            }
+            expect(TokenType.BRACE_CLOSE);
+            accum.associationMappings.add(
+                    new AssociationMapping.ModelJoin(elementPath, lf));
+            return;
+        }
+        if (isIdentifierToken(peek()) && "AggregationAware".equals(text())) {
             advance();
             skipBalancedBlock();
             return;
@@ -2060,8 +2123,15 @@ public final class ElementParser implements TokenStreamCursor {
                 skipTypeArgsAndMultiplicity();
                 expect(TokenType.COLON);
             }
+            // enum-decoded column: prop: EnumerationMapping <id> : COL
+            String enumId = null;
+            if (isIdentifierToken(peek()) && "EnumerationMapping".equals(text())) {
+                advance();
+                enumId = parseIdentifier();
+                expect(TokenType.COLON);
+            }
             String col = parseIdentifier();
-            cols.add(new ClassMapping.RelationFunction.Col(prop, col, local));
+            cols.add(new ClassMapping.RelationFunction.Col(prop, col, local, enumId));
             if (!match(TokenType.COMMA)) {
                 break;
             }

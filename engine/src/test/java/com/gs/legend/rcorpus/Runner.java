@@ -1678,7 +1678,7 @@ public final class Runner {
             }
             List<String> cols = new ArrayList<>();
             for (String c : lines[0].split(",")) {
-                cols.add(c.strip());
+                cols.add(unquote(c.strip()));
             }
             List<List<Object>> rows2 = new ArrayList<>();
             for (int li = 1; li < lines.length; li++) {
@@ -1718,8 +1718,15 @@ public final class Runner {
     record TdsExpected(List<String> cols, List<List<Object>> rows) {
     }
 
+    /** Strip surrounding single quotes (quoted TDS header/cell spelling). */
+    private static String unquote(String s) {
+        return s.length() >= 2 && s.startsWith("'") && s.endsWith("'")
+                ? s.substring(1, s.length() - 1) : s;
+    }
+
     /** One TDS-literal cell: integer/float/boolean/date by shape, null for empty. */
     private static Object tdsCell(String cell) {
+        cell = unquote(cell);
         if (cell.isEmpty() || cell.equals("null")) {
             return NULL_EXPECTED;
         }

@@ -260,7 +260,13 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
         }
 
         /** One {@code property: COLUMN} binding. */
-        public record Col(String property, String column, boolean local) {
+        public record Col(String property, String column, boolean local,
+                String enumMappingId) {
+
+            /** Plain (non-enum) column binding. */
+            public Col(String property, String column, boolean local) {
+                this(property, column, local, null);
+            }
         }
     }
 }

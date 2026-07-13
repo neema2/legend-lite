@@ -740,6 +740,26 @@ public final class NameResolver {
                 if (name.equals(r.associationName()) && props == r.propertyMappings()) yield r;
                 yield new AssociationMapping.Relational(name, props);
             }
+            case AssociationMapping.ModelJoin mj -> {
+                String name = resolveName(mj.associationName(), scope);
+                ValueSpecification lam = resolveVs(mj.lambda(), scope);
+                yield name.equals(mj.associationName()) && lam == mj.lambda()
+                        ? mj : new AssociationMapping.ModelJoin(name,
+                                (com.legend.parser.spec.LambdaFunction) lam);
+            }
+            case AssociationMapping.Cross x -> {
+                String name = resolveName(x.associationName(), scope);
+                List<AssociationMapping.Cross.XStoreProperty> props =
+                        resolveList(x.propertyMappings2(), (xp, sc) -> {
+                            ValueSpecification e = resolveVs(xp.expression(), sc);
+                            return e == xp.expression() ? xp
+                                    : new AssociationMapping.Cross.XStoreProperty(
+                                            xp.propertyName(), xp.sourceSetId(),
+                                            xp.targetSetId(), e);
+                        }, scope);
+                yield name.equals(x.associationName()) && props == x.propertyMappings2()
+                        ? x : new AssociationMapping.Cross(name, props);
+            }
         };
     }
 
