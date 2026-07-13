@@ -169,6 +169,23 @@ final class RelOpTranslator {
                             new EnumValue("meta::pure::functions::hash::HashType",
                                     DYNA_HASH_TYPES.get(call.name()))));
             case RelationalOperation.FunctionCall call
+                    when call.name().equals("splitPart") && call.args().size() == 3 -> {
+                    // the DYNAFUNCTION accepts a string-typed part index (the
+                    // corpus maps VARCHAR columns); pure splitPart requires
+                    // Integer — conform by EMISSION: cast(@Integer) is a
+                    // no-op on integer columns, CAST AS BIGINT on text
+                    ValueSpecification a0 = translate(call.args().get(0), tableScope,
+                            targetVarOrNull, rowBindOrNull, pipeline);
+                    ValueSpecification a1 = translate(call.args().get(1), tableScope,
+                            targetVarOrNull, rowBindOrNull, pipeline);
+                    ValueSpecification a2 = translate(call.args().get(2), tableScope,
+                            targetVarOrNull, rowBindOrNull, pipeline);
+                    yield new AppliedFunction("splitPart", List.of(a0, a1,
+                            new AppliedFunction("cast", List.of(a2,
+                                    new com.legend.parser.spec.TypeAnnotation.Named(
+                                            new com.legend.parser.TypeExpression.NameRef("Integer"))))));
+            }
+            case RelationalOperation.FunctionCall call
                     when call.name().equals("case") && call.args().size() >= 3
                             && call.args().size() % 2 == 1 -> {
                     // the relational 'case' dynafunction:

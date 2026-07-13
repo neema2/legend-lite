@@ -1349,6 +1349,33 @@ public final class MappingNormalizer {
         }
     }
 
+    /**
+     * Engine semantics for EXPRESSION property mappings: the dynafunction's
+     * result coerces to the property's declared type at the SQL boundary
+     * (abs(...) types Number, the property says Float — the engine compiles
+     * and the database delivers the declared kind). NUMERIC declared types
+     * wrap in cast(@Declared); everything else passes through untouched so
+     * genuine kind errors stay loud.
+     */
+    private static ValueSpecification coerceToDeclaredNumeric(ValueSpecification value,
+            String propName, String ownerClassFqn, ModelBuilder model) {
+        ClassDefinition owner = model.findClass(ownerClassFqn).orElse(null);
+        TypeExpression t = owner == null ? null
+                : findPropertyTypeDeep(owner, propName, model);
+        String name = t instanceof TypeExpression.NameRef nr ? nr.name() : null;
+        if (name == null) {
+            return value;
+        }
+        String simple = name.substring(name.lastIndexOf("::") + 2 > 1
+                ? name.lastIndexOf("::") + 2 : 0);
+        if (!java.util.Set.of("Float", "Integer", "Decimal", "Number").contains(simple)) {
+            return value;
+        }
+        return new AppliedFunction("cast", List.of(value,
+                new com.legend.parser.spec.TypeAnnotation.Named(
+                        new com.legend.parser.TypeExpression.NameRef(simple))));
+    }
+
     private static void validatePmNames(ClassMapping.Relational rcm,
                                        ModelBuilder model, LegacyMappingDefinition md) {
         ClassDefinition cd = model.findClass(rcm.className()).orElse(null);
@@ -1736,7 +1763,10 @@ public final class MappingNormalizer {
                             ownerClassFqn, model),
                     false);
             case PropertyMapping.Expression expr -> new CtorField(expr.propertyName(),
-                    RelOpTranslator.translate(expr.expression(), tableScope, null, rowBind, pipeline.view()),
+                    coerceToDeclaredNumeric(
+                            RelOpTranslator.translate(expr.expression(), tableScope, null,
+                                    rowBind, pipeline.view()),
+                            expr.propertyName(), ownerClassFqn, model),
                     false);
             case PropertyMapping.Join j -> {
                 String targetIfMapped = classTypedTargetIfMapped(ownerClassFqn,
