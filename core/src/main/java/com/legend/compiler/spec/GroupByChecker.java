@@ -8,7 +8,9 @@ import com.legend.compiler.spec.typed.TypedGroupBy;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.element.type.Type;
 import com.legend.parser.spec.AppliedFunction;
+import com.legend.parser.spec.CInteger;
 import com.legend.parser.spec.CString;
+import com.legend.parser.spec.Variable;
 import com.legend.parser.spec.ColSpec;
 import com.legend.parser.spec.ColSpecArray;
 import com.legend.parser.spec.LambdaFunction;
@@ -36,6 +38,9 @@ final class GroupByChecker {
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
         if (af.parameters().size() == 4) {
             return check(t, legacyToModern(t, af, env), env);   // desugar, then the modern path
+        }
+        if (af.parameters().size() == 3 && isTdsLegacyShape(af)) {
+            return check(t, tdsLegacyToModern(af), env);
         }
         Application a = t.checkGeneric(af, env);
         return new TypedGroupBy(a.args().get(0), groupKeys(a.args().get(1)),
@@ -86,6 +91,64 @@ final class GroupByChecker {
         }
         return new AppliedFunction(af.function(),
                 List.of(ps.get(0), new ColSpecArray(keyCols), new ColSpecArray(aggCols)));
+    }
+
+    /**
+     * The TDS-era 3-arg spelling: {@code groupBy(['keys'], agg('name', mapFn,
+     * aggFn)…)} — string keys, aggregates carrying their OWN names. Distinct
+     * from the modern colspec form (which passes ColSpec/ColSpecArray) and
+     * from the 4-arg alias-list form.
+     */
+    private static boolean isTdsLegacyShape(AppliedFunction af) {
+        List<ValueSpecification> ps = af.parameters();
+        boolean keysOk = ps.get(1) instanceof CString
+                || (ps.get(1) instanceof PureCollection c
+                        && c.values().stream().allMatch(v -> v instanceof CString));
+        return keysOk && aggList(ps.get(2)) != null;
+    }
+
+    /** The named-agg calls of the TDS legacy aggs argument, or null if not that shape. */
+    private static List<AppliedFunction> aggList(ValueSpecification v) {
+        List<ValueSpecification> items = v instanceof PureCollection c ? c.values() : List.of(v);
+        List<AppliedFunction> out = new ArrayList<>(items.size());
+        for (ValueSpecification item : items) {
+            if (item instanceof AppliedFunction call && call.function().equals("agg")
+                    && call.parameters().size() == 3
+                    && call.parameters().get(0) instanceof CString
+                    && call.parameters().get(1) instanceof LambdaFunction
+                    && call.parameters().get(2) instanceof LambdaFunction) {
+                out.add(call);
+            } else {
+                return null;
+            }
+        }
+        return out.isEmpty() ? null : out;
+    }
+
+    private static AppliedFunction tdsLegacyToModern(AppliedFunction af) {
+        List<ValueSpecification> ps = af.parameters();
+        List<ValueSpecification> keys = ps.get(1) instanceof PureCollection c
+                ? c.values() : List.of(ps.get(1));
+        List<ColSpec> keyCols = keys.stream()
+                .map(k -> new ColSpec(((CString) k).value())).toList();
+        List<ColSpec> aggCols = new ArrayList<>();
+        for (AppliedFunction aggCall : aggList(ps.get(2))) {
+            String name = ((CString) aggCall.parameters().get(0)).value();
+            LambdaFunction mapFn = (LambdaFunction) aggCall.parameters().get(1);
+            LambdaFunction aggFn = (LambdaFunction) aggCall.parameters().get(2);
+            // the row-count idiom agg('cnt', x|$x, y|$y->count()): an
+            // IDENTITY selector over the row maps to the constant 1 —
+            // count(1) counts rows, exactly the TDS semantics
+            if (mapFn.parameters().size() == 1 && mapFn.body().size() == 1
+                    && mapFn.body().get(0) instanceof Variable v
+                    && v.name().equals(mapFn.parameters().get(0).name())) {
+                mapFn = new LambdaFunction(mapFn.parameters(),
+                        List.of(new CInteger(1)));
+            }
+            aggCols.add(new ColSpec(name, mapFn, aggFn));
+        }
+        return new AppliedFunction(af.function(), List.of(ps.get(0),
+                new ColSpecArray(keyCols), new ColSpecArray(aggCols)));
     }
 
     private static String aliasAt(PureCollection aliases, int i) {

@@ -11,7 +11,12 @@ import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.parser.spec.AppliedFunction;
 import com.legend.parser.spec.ColSpec;
+import com.legend.parser.spec.AppliedProperty;
+import com.legend.parser.spec.CString;
+import com.legend.parser.spec.EnumValue;
 import com.legend.parser.spec.LambdaFunction;
+import com.legend.parser.spec.ValueSpecification;
+import com.legend.parser.spec.Variable;
 
 import java.util.List;
 
@@ -36,6 +41,7 @@ final class JoinChecker {
     }
 
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
+        af = tdsLegacyToModern(af);
         if (af.parameters().size() == 3) {
             return slot(t, af, env);
         }
@@ -49,6 +55,45 @@ final class JoinChecker {
                     "join expects (rel1, rel2, JoinKind, {t,v|cond} [, 'prefix'])");
         }
         return new TypedJoin(a.args().get(0), a.args().get(1), kind, cond, Optional.empty(), a.out());
+    }
+
+    /**
+     * Desugar the legacy TDS join spellings: the {@code JoinType} enum maps
+     * to {@code JoinKind} (INNER/LEFT_OUTER/RIGHT_OUTER/FULL_OUTER →
+     * INNER/LEFT/RIGHT/FULL), and the string-pair condition
+     * {@code join(tds2, kind, 'lhsCol', 'rhsCol')} becomes the modern
+     * condition lambda {@code {a,b|$a.lhsCol == $b.rhsCol}}.
+     */
+    private static AppliedFunction tdsLegacyToModern(AppliedFunction af) {
+        List<ValueSpecification> ps = af.parameters();
+        if (ps.size() < 3 || !(ps.get(2) instanceof EnumValue kind)
+                || !kind.fullPath().endsWith("meta::relational::metamodel::join::JoinType")) {
+            return af;
+        }
+        String mapped = switch (kind.value()) {
+            case "INNER" -> "INNER";
+            case "LEFT_OUTER" -> "LEFT";
+            case "RIGHT_OUTER" -> "RIGHT";
+            case "FULL_OUTER" -> "FULL";
+            default -> throw new TypeInferenceException(
+                    "unknown JoinType value '" + kind.value() + "'");
+        };
+        EnumValue joinKind = new EnumValue(
+                "meta::pure::functions::relation::JoinKind", mapped);
+        if (ps.size() == 5 && ps.get(3) instanceof CString lhs
+                && ps.get(4) instanceof CString rhs) {
+            Variable a = new Variable("a");
+            Variable b = new Variable("b");
+            LambdaFunction cond = new LambdaFunction(List.of(a, b), List.of(
+                    new AppliedFunction("equal", List.of(
+                            new AppliedProperty(a, lhs.value()),
+                            new AppliedProperty(b, rhs.value())))));
+            return new AppliedFunction(af.function(),
+                    List.of(ps.get(0), ps.get(1), joinKind, cond));
+        }
+        List<ValueSpecification> out = new java.util.ArrayList<>(ps);
+        out.set(2, joinKind);
+        return new AppliedFunction(af.function(), out);
     }
 
     /**

@@ -175,9 +175,28 @@ final class Typer {
      * {@link #applyCore}, anything else is a library call on the generic path.
      */
     private TypedSpec applyFunction(AppliedFunction af, Env env) {
+        // Legacy TDS surface desugars (engine's TDS-era spellings):
+        // col(fn, 'name') is the function-column spec — the modern ~name:fn
+        if (af.function().equals("col") && af.parameters().size() == 2
+                && af.parameters().get(0) instanceof LambdaFunction fn
+                && af.parameters().get(1) instanceof CString name) {
+            return synth(new ColSpec(name.value(), fn, null), env);
+        }
+        // $r.getString('COL') / getInteger / ... — TDSRow typed accessors
+        // read the named COLUMN of the relation row (a plain property
+        // access post-desugar; a type mismatch is loud downstream)
+        if (TDS_ROW_GETTERS.contains(af.function()) && af.parameters().size() == 2
+                && af.parameters().get(1) instanceof CString colName) {
+            return synth(new AppliedProperty(af.parameters().get(0), colName.value()), env);
+        }
         Optional<CoreFn> core = CoreFn.of(af.function());
         return core.isPresent() ? applyCore(core.get(), af, env) : applyGeneric(af, env);
     }
+
+    /** The legacy TDSRow typed column accessors (getString('COL') et al). */
+    private static final java.util.Set<String> TDS_ROW_GETTERS = java.util.Set.of(
+            "getString", "getInteger", "getFloat", "getDecimal", "getNumber",
+            "getBoolean", "getDate", "getDateTime", "getStrictDate");
 
     /**
      * The core-construct dispatch &mdash; exhaustive over {@link CoreFn} (a new

@@ -244,8 +244,10 @@ final class LexerTest {
         // LOOP (->subType(@ never advanced pos). Unsupported constructs must
         // lex as INVALID (the cursor's loud trap) and the lexer must always
         // TERMINATE.
+        // ->subType(@T) LEXES now (ARROW + ident + AT type ref) — the
+        // termination property this test pins is unaffected
         assertTrue(Lexer.tokenize("$x->subType(@Foo)").asList().stream()
-                .anyMatch(t -> t.type() == TokenType.INVALID), "->subType(@ is INVALID");
+                .noneMatch(t -> t.type() == TokenType.INVALID), "->subType(@ lexes cleanly");
         // navigation paths LEX now (PATH_LITERAL; the parser desugars the
         // plain-property subset) — the termination property still pins
         assertTrue(Lexer.tokenize("#/Person/name#").asList().stream()

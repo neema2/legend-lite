@@ -89,6 +89,10 @@ final class SortChecker {
 
     /** {@code asc(~col)} / {@code desc(~col)}: checked generically against its registered signature. */
     static TypedSpec sortInfo(Typer t, AppliedFunction af, Env env, boolean ascending) {
+        // legacy TDS string key: asc('COL') -> asc(~COL)
+        if (af.parameters().size() == 1 && af.parameters().get(0) instanceof CString c) {
+            af = new AppliedFunction(af.function(), List.of(new ColSpec(c.value())));
+        }
         Application a = t.checkGeneric(af, env);
         return new TypedSortInfo(Args.colSpecName(a.args().get(0)), ascending, a.out());
     }

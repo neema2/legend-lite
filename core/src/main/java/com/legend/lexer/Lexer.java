@@ -439,15 +439,8 @@ public final class Lexer {
 
     private void scanMinusOrArrow() {
         if (pos + 1 < length && source.charAt(pos + 1) == '>') {
-            if (pos + 10 < length && source.startsWith("->subType(@", pos)) {
-                // ->subType(@...) is UNSUPPORTED: the cursor's INVALID trap
-                // rejects it loudly. (The purge's first cut left this branch
-                // EMPTY — an unadvanced pos = infinite lexer loop.)
-                emit(TokenType.INVALID, pos, pos + 11);
-                pos += 11;
-            } else {
-                emit(TokenType.ARROW, pos, pos + 2); pos += 2;
-            }
+            emit(TokenType.ARROW, pos, pos + 2);
+            pos += 2;
             return;
         }
         emit(TokenType.MINUS, pos, pos + 1); pos++;

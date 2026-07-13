@@ -351,6 +351,11 @@ public final class Pure {
     public static final EnumDefinition SORT_DIRECTION = nativeEnum(
             "Enum meta::relational::metamodel::SortDirection { ASC, DESC }");
 
+    /** The legacy TDS join kind (join(tds, JoinType.INNER, ...)). */
+    public static final EnumDefinition JOIN_TYPE = nativeEnum(
+            "Enum meta::relational::metamodel::join::JoinType"
+            + " { INNER, LEFT_OUTER, RIGHT_OUTER, FULL_OUTER }");
+
     // ================================================================
     // Native function catalog.
     // ================================================================
@@ -548,6 +553,7 @@ public final class Pure {
     public static final NativeFunctionDefinition BIT_SHIFT_RIGHT__INTEGER_1__INTEGER_1 = signature("native function meta::pure::functions::math::bitShiftRight(value:meta::pure::metamodel::type::Integer[1], bits:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition BIT_XOR__INTEGER_1__INTEGER_1 = signature("native function meta::pure::functions::math::bitXor(left:meta::pure::metamodel::type::Integer[1], right:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition CAST__ANY_m__T_1 = signature("native function meta::pure::functions::lang::cast<T|m>(source:meta::pure::metamodel::type::Any[m], type:T[1]):T[m];");
+    public static final NativeFunctionDefinition SUB_TYPE__ANY_m__T_1 = signature("native function meta::pure::functions::lang::subType<T|m>(source:meta::pure::metamodel::type::Any[m], object:T[1]):T[m];");
     public static final NativeFunctionDefinition CBRT__NUMBER_1 = signature("native function meta::pure::functions::math::cbrt(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition CEILING__NUMBER_1 = signature("native function meta::pure::functions::math::ceiling(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition CHAR__INTEGER_1 = signature("native function meta::pure::functions::string::char(code:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1];");
