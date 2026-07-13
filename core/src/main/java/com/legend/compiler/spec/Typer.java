@@ -848,11 +848,31 @@ final class Typer {
             // TDS surface over relation values (engine TabularDataSet):
             // .rows IS the relation viewed as its row collection; bare
             // .columns is the column-name collection (assertSize targets)
-            if (ap.property().equals("rows") || ap.property().equals("values")) {
-                // .rows: the relation IS its row collection; .values: the
-                // engine Result envelope's payload — over a spliced query
-                // handle the relation IS the payload (TestBody's lazy
-                // execute contract)
+            if (ap.property().equals("rows")) {
+                // the relation IS its row collection
+                return source;
+            }
+            if (ap.property().equals("values")) {
+                // On a ROW VARIABLE ($r inside map/filter): TDSRow.values =
+                // the row's CELLS in column order, statically enumerable.
+                // On a RELATION value ($tds.rows.values / ->at(0).values):
+                // identity — the relation's wire flatten IS row-major cell
+                // order. (The Result-ENVELOPE .values never reaches the
+                // Typer: the test driver peels it at substitution.)
+                if (source instanceof com.legend.compiler.spec.typed.TypedVariable) {
+                    List<TypedSpec> cells = new java.util.ArrayList<>(rt2.columns().size());
+                    for (Type.RelationType.Column c : rt2.columns()) {
+                        cells.add(new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                                source, c.name(),
+                                new ExprType(c.type(), c.multiplicity())));
+                    }
+                    return new com.legend.compiler.spec.typed.TypedCollection(cells,
+                            new ExprType(
+                                    new Type.ClassType(
+                                            com.legend.compiler.element.type.PlatformTypes.ANY),
+                                    new com.legend.compiler.element.type.Multiplicity.Bounded(
+                                            cells.size(), cells.size())));
+                }
                 return source;
             }
             if (ap.property().equals("columns")) {

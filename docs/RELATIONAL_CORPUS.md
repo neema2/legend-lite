@@ -122,16 +122,16 @@ runner does not yet recognize (accounted, not skipped silently).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 0 | 0 | 88 | 4 |
 | executionPlan/tests | 109 | 0 | 0 | 8 | 101 |
-| functions/tests | 241 | 48 | 9 | 142 | 42 |
+| functions/tests | 241 | 45 | 12 | 142 | 42 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 0 | 1 |
-| functions/tests/projection | 154 | 18 | 10 | 97 | 29 |
+| functions/tests/projection | 154 | 29 | 28 | 68 | 29 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 5 | 0 | 0 | 0 | 5 |
 | graphFetch/tests/union | 1 | 0 | 0 | 0 | 1 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 47 | 0 | 0 | 0 | 47 |
-| milestoning/tests | 221 | 0 | 0 | 168 | 53 |
+| milestoning/tests | 221 | 0 | 4 | 164 | 53 |
 | modelJoins | 7 | 0 | 0 | 1 | 6 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 0 | 7 |
@@ -144,7 +144,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | sqlQueryToString/DDL | 3 | 0 | 0 | 0 | 3 |
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 265 | 11 | 0 | 199 | 55 |
+| tds/tests | 265 | 25 | 80 | 103 | 57 |
 | testDataGeneration/tests | 40 | 0 | 0 | 0 | 40 |
 | tests | 39 | 0 | 0 | 0 | 39 |
 | tests/advanced | 67 | 7 | 0 | 38 | 22 |
@@ -154,14 +154,14 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/association | 23 | 3 | 0 | 19 | 1 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 0 | 0 | 32 | 0 |
 | tests/mapping/distinct | 18 | 6 | 6 | 6 | 0 |
-| tests/mapping/dynaJoin | 5 | 2 | 0 | 3 | 0 |
+| tests/mapping/dynaJoin | 5 | 2 | 1 | 2 | 0 |
 | tests/mapping/embedded | 63 | 33 | 6 | 14 | 10 |
 | tests/mapping/enumeration | 26 | 6 | 3 | 14 | 3 |
-| tests/mapping/filter | 9 | 3 | 0 | 6 | 0 |
+| tests/mapping/filter | 9 | 4 | 0 | 5 | 0 |
 | tests/mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 |
 | tests/mapping/inheritance | 47 | 3 | 0 | 44 | 0 |
-| tests/mapping/join | 28 | 12 | 2 | 14 | 0 |
+| tests/mapping/join | 28 | 12 | 4 | 12 | 0 |
 | tests/mapping/merge | 1 | 0 | 0 | 0 | 1 |
 | tests/mapping/modelJoin | 47 | 0 | 0 | 0 | 47 |
 | tests/mapping/multigrain | 5 | 0 | 0 | 5 | 0 |
@@ -178,7 +178,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **277** | 53 | 1127 | 835 |
+| **total** | 2292 | **300** | 161 | 994 | 837 |
 
 ### mapping walls (dropped at assembly)
 
@@ -315,16 +315,12 @@ runner does not yet recognize (accounted, not skipped silently).
 
 ### top error buckets
 
-- 50x Cannot invoke "String.equals(Object)" because "column" is null
 - 39x no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
 - 38x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- 34x lowering not yet implemented for TypedMap
-- 31x Cannot invoke "String.length()" because "column" is null
 - 27x unknown class 'TDSNull' in ^TDSNull(…)
 - 25x 'milestoningmap' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 24x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 23x unknown function 'product'
-- 21x scalar lowering not yet implemented for TypedMap
 - 20x expected at most one value, got many ([*])
 - 18x a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - 16x unknown function 'getAllVersions'
@@ -345,6 +341,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - 7x [2547:78] expected GREATER_THAN but found PIPE ('|')
 - 7x no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - 7x ambiguous reference 'Product' — matches via imports: [meta::relational::tests::mapping::embedded::advanced::model::Product, meta::relational::tests::model::simple::Product]. Use a fully qualified name.
+- 7x association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion'
+- 7x association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionToUnionMapping'
+- 6x unknown function 'ytd'
+- 6x filter predicate references column 'firm_employees', unresolvable even after isolation
 
 ### per-test outcomes (non-passing)
 
@@ -645,7 +645,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testOrFilterWithTypeFilter [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - SHAPE testFilterBeforeAndAfterGroupBy [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testFilterBeforeAndAfterProject [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- ERROR testIsolationOfCaseStmtTrueFalseFilters [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding! |  or: Referenced column "x" was not found because the FROM clause is missing
+- ERROR testIsolationOfClassFiltersOperatingOnParametersReferencedInIf [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding! |  or: Referenced column "x" was not found because the FROM clause is missing
 - ERROR testLateIsolationOfTypeFilterDoesntPreventMerging [functions/tests]: multi-hop navigation firm.ceo.address.name through an embedded/slot head is not supported yet
+- ERROR testMultipleFilters [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding! |  or: Referenced column "x" was not found because the FROM clause is missing
 - ERROR testFilterAfterFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testFilterInWithJoin [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testMappingFromQueriesViaMappingWithAssociationsOnly [functions/tests]: unknown function 'meta::external::store::relational::tests::testRuntime'
@@ -661,8 +664,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testInWithFunction [functions/tests]: unknown function 'meta::relational::tests::query::filter::in::getNames'
 - FAIL testContainsOnToManyProperty [functions/tests]: assertSize: expected 1, got 6
 - ERROR testConsistencyWithNulls [functions/tests]: class meta::relational::tests::model::simple::Address has no property 'values'
-- ERROR testContainsEscapePercentage [functions/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testContainsEscapeUnderscore [functions/tests]: Cannot invoke "String.equals(Object)" because "column" is null
+- FAIL testContainsEscapePercentage [functions/tests]: assertEquals: expected Hoboken|TDSNull|A comment with a % in the middle, got "Hoboken"|TDSNull|"A comment with a % in the middle"
+- FAIL testContainsEscapeUnderscore [functions/tests]: assertEquals: expected New York|TDSNull|A comment with a _ in the middle, got "New York"|TDSNull|"A comment with a _ in the middle"
 - SHAPE testInWithinQualifiedPropertyCollectionAsLiteralList [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testDerivedWithIsEmpty [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "t0" does not have a column named "value" |  | Candidate bindings: : "else" |  | LINE 3: WHERE t0.value IS NULL |               ^
 - ERROR testIsolationOfInputToIsEmpty [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
@@ -746,7 +749,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testUniqueValueOnly3 [functions/tests]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR testUniqueValueOnly4 [functions/tests]: unknown function 'uniqueValueOnly'
 - ERROR testAggFunctionUsingMultipleSetImplementation [functions/tests]: expected at most one value, got many ([*])
-- ERROR testGroupByPercentile [functions/tests]: Cannot invoke "String.equals(Object)" because "column" is null
+- FAIL testGroupByPercentile [functions/tests]: assertEquals: expected [Firm X|290.5|320.0|246.25, Firm C|44.6|38.0|44.0, Firm A|30.2|23.0|27.5, TDSNull|5.0|5.0|5.0], got ["Firm X"|290.5|25.0|246.25, "Firm C"|44.6|38.0|44.0, "Firm A"|30.2|23.0|27.5, TDSNull|5.0|5.0|5.0]
 - ERROR testGroupByIsDistinct [functions/tests]: expected at most one value, got many ([*])
 - ERROR testGroupByEmptyColsTerminalOperation [functions/tests]: no overload of 'groupBy' matches the argument types
 - ERROR testGroupByEmptyColsNonTerminalOperation [functions/tests]: no overload of 'groupBy' matches the argument types
@@ -790,15 +793,15 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testIsDistinctSubAggregation [functions/tests/projection]: no overload of 'meta::pure::functions::collection::isDistinct' accepts 1 argument(s)
 - ERROR testAssociationMixed [functions/tests/projection]: a scalar query has no row scope for $_r0.firm_employees
 - ERROR testAssociationMixedAdvanced [functions/tests/projection]: filter predicate references column 'firm_employees', unresolvable even after isolation
-- ERROR testAssociationToManyColumnProtocolOneColumn [functions/tests/projection]: lowering not yet implemented for TypedMap
-- ERROR testAssociationToManyColumnProtocol [functions/tests/projection]: scalar lowering not yet implemented for TypedMap
+- FAIL testAssociationToManyColumnProtocolOneColumn [functions/tests/projection]: assertEquals: expected Anthony,David,Fabrice,John,John,Oliver,Peter, got ["Anthony"],["David"],["Fabrice"],["John"],["John"],["Oliver"],["Peter"]
+- FAIL testAssociationToManyColumnProtocol [functions/tests/projection]: assertEquals: expected Anthony,Anthony,David,Fabrice,Fabrice,Hampton,Hoboken,Hong Kong,Jersey City,Jersey City,John,John,John,John,London,New York,New York,New York,New York,New York,Oliver,Oliver,Paris,Peter,Peter,San Fransisco, got ["Anthony", "Jersey City"],["Anthony", "New York"],["David", "New 
 - ERROR testAssociationToManyColumnProtocolWithDoc [functions/tests/projection]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
 - ERROR testQualifiedPropertyUsingColumnProtocol [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testAssociationToMany [functions/tests/projection]: scalar lowering not yet implemented for TypedMap
-- ERROR testAssociationToManyWithQuery [functions/tests/projection]: scalar lowering not yet implemented for TypedMap
+- FAIL testAssociationToMany [functions/tests/projection]: assertEquals: expected Anthony,Anthony,David,Fabrice,Fabrice,Hampton,Hoboken,Hong Kong,Jersey City,Jersey City,John,John,John,John,London,New York,New York,New York,New York,New York,Oliver,Oliver,Paris,Peter,Peter,San Fransisco, got ["Anthony", "Jersey City"],["Anthony", "New York"],["David", "New 
+- FAIL testAssociationToManyWithQuery [functions/tests/projection]: assertEquals: expected Hoboken,New York,Peter,Peter, got ["Peter", "Hoboken"],["Peter", "New York"]
 - ERROR testAssociationToManyDeepTwo [functions/tests/projection]: multi-hop navigation employees.address.name through an embedded/slot head is not supported yet
-- ERROR testAssociationToOne [functions/tests/projection]: scalar lowering not yet implemented for TypedMap
-- ERROR testAssociationToOneWithQuery [functions/tests/projection]: scalar lowering not yet implemented for TypedMap
+- FAIL testAssociationToOne [functions/tests/projection]: assertEquals: expected Anthony,David,Fabrice,Firm A,Firm B,Firm C,Firm X,Firm X,Firm X,Firm X,John,John,Oliver,Peter, got ["Anthony", "Firm X"],["David", "Firm C"],["Fabrice", "Firm A"],["John", "Firm X"],["John", "Firm X"],["Oliver", "Firm B"],["Peter", "Firm X"]
+- FAIL testAssociationToOneWithQuery [functions/tests/projection]: assertEquals: expected Anthony,Firm X,Firm X,Firm X,Firm X,John,John,Peter, got ["Anthony", "Firm X"],["John", "Firm X"],["John", "Firm X"],["Peter", "Firm X"]
 - SHAPE testConcatenationOfTdsQueries [functions/tests/projection]: execute() whose query argument is not a lambda
 - SHAPE testConcatenationOfTdsQueriesWithFilter [functions/tests/projection]: execute() whose query argument is not a lambda
 - SHAPE testConcatenationOfTdsQueriesWithGroupBy [functions/tests/projection]: execute() whose query argument is not a lambda
@@ -818,10 +821,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMostRecentDayOfWeekWithDate [functions/tests/projection]: unknown function 'mostRecentDayOfWeek'
 - ERROR testPreviousDayOfWeekWithDate [functions/tests/projection]: unknown function 'previousDayOfWeek'
 - ERROR testSimpleExists [functions/tests/projection]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
-- ERROR testExistsAsQualifier [functions/tests/projection]: lowering not yet implemented for TypedMap
 - ERROR testExistsEmbeddedOnSameTable [functions/tests/projection]: class-typed property '$p.dependencies' used as a whole value is graph output (Phase H4)
-- ERROR testExistsAsQualifierWithFilter [functions/tests/projection]: lowering not yet implemented for TypedMap
-- ERROR testExistsAsQualifierWithFilterAndWrongJoin [functions/tests/projection]: lowering not yet implemented for TypedMap
 - ERROR testExistsAsNullWithSubType [functions/tests/projection]: property 'functions' of class 'meta::relational::tests::projection::exists::MyClass' has no binding in mapping 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testSavedRootPropogatedCorrectlyThroughFilter [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testChainedFiltersQuery [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
@@ -834,7 +834,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testParametrizedEnumFilter [functions/tests/projection]: no execute(|...) call
 - SHAPE testFilterAfterJoinInRelation [functions/tests/projection]: no execute(|...) call
 - SHAPE testFilterAfterJoinInRelationWithExtendedPrimitives [functions/tests/projection]: no execute(|...) call
-- ERROR testIsolationOfVariableNamesAccrossDifferentPaths [functions/tests/projection]: Cannot invoke "String.equals(Object)" because "column" is null
+- FAIL testIsolationOfVariableNamesAccrossDifferentPaths [functions/tests/projection]: assertEquals: expected [Firm X, Firm A, Firm B, Firm C], got ["Firm X", "Firm A", "Firm B", "Firm C"]
 - ERROR testIsolatioWhereNoConstaintsAndInnerJoin [functions/tests/projection]: 'meta::relational::tests::mapping::join::model::mapping::chainedJoinsInner' is not a known class, mapping, runtime, connection, or database
 - ERROR testIsolationOfFiltersWithoutAlias [functions/tests/projection]: 'meta::relational::tests::mapping::join::model::mapping::MappingWithLiteral' is not a known class, mapping, runtime, connection, or database
 - ERROR testIsolationOfFiltersWithoutAliasWithChainedJoins [functions/tests/projection]: 'meta::relational::tests::mapping::join::model::mapping::MappingWithLiteral' is not a known class, mapping, runtime, connection, or database
@@ -850,34 +850,26 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testSameBehaviorForNestedAddAndPlus [functions/tests/projection]: sql-only: 2 advisory golden-SQL assert(s), no row verification
 - ERROR testProjectReferenceInRhsFilterWithDistinctVarNamesViaQualifiedProperty [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - ERROR testProjectReferenceInRhsFilterWithConflictingVarNamesViaQualifiedProperty [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
-- ERROR testProjectOnQualifiedPropertyReturningAConstant [functions/tests/projection]: Cannot invoke "String.equals(Object)" because "column" is null
+- FAIL testProjectOnQualifiedPropertyReturningAConstant [functions/tests/projection]: assertEquals: expected [Peter Smith~constant, John Johnson~constant, John Hill~constant, Anthony Allen~constant, Fabrice Roberts~constant, Oliver Hill~constant, David Harris~constant], got ["Peter Smith"~"constant", "John Johnson"~"constant", "John Hill"~"constant", "Anthony Allen"~"constant", "Fabr
 - ERROR testProjectReferenceInRhsFilterWithPotentiallyConflictingVarNamesViaQualifiedProperty [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - ERROR testProjectReferenceInRhsFilterWithDistinctVarNamesViaNonPropertyFunctionExpression [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testVariableReferenceInFilterWithSameNameAsThatInParentProject [functions/tests/projection]: class query under TypedLambda is not resolvable yet (H2 vocabulary)
 - ERROR testVariableReferenceInMapWithSameNameAsThatInParentProject [functions/tests/projection]: class query under TypedLambda is not resolvable yet (H2 vocabulary)
 - ERROR testVariableReferenceInMapWithNestedFilter [functions/tests/projection]: expected at most one value, got many ([*])
 - SHAPE testVariableReferenceWithNestedFilterMultiple [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testIn [functions/tests/projection]: lowering not yet implemented for TypedMap
-- ERROR testContains [functions/tests/projection]: lowering not yet implemented for TypedMap
 - ERROR testDeepIn [functions/tests/projection]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testDeepInWithMultipleProject [functions/tests/projection]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testDeepContains [functions/tests/projection]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testDeepContainsWithMultipleProject [functions/tests/projection]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testInWithOneValue [functions/tests/projection]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary)
-- ERROR testInWithVariables [functions/tests/projection]: lowering not yet implemented for TypedMap
-- ERROR testContainsWithVariables [functions/tests/projection]: lowering not yet implemented for TypedMap
-- ERROR testInWithListVariable [functions/tests/projection]: lowering not yet implemented for TypedMap
-- ERROR testContainsWithListVariable [functions/tests/projection]: lowering not yet implemented for TypedMap
-- ERROR testNotIn [functions/tests/projection]: lowering not yet implemented for TypedMap
-- ERROR testNotContains [functions/tests/projection]: lowering not yet implemented for TypedMap
 - SHAPE H2Test [functions/tests/projection]: no execute(|...) call
 - SHAPE testInWithDynaFunction [functions/tests/projection]: unsupported statement: println
 - ERROR testQualifierWithInThroughJoin [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
-- ERROR testSimpleDerived [functions/tests/projection]: scalar lowering not yet implemented for TypedMap
+- FAIL testSimpleDerived [functions/tests/projection]: assertEquals: expected Anthony,Anthony Allen,David,David Harris,Fabrice,Fabrice Roberts,John,John,John Hill,John Johnson,Oliver,Oliver Hill,Peter,Peter Smith, got ["Anthony", "Anthony Allen"],["David", "David Harris"],["Fabrice", "Fabrice Roberts"],["John", "John Hill"],["John", "John Johnson"],["Ol
 - ERROR testSimpleBoolean [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testSimpleDerivedThroughAssociation [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
-- ERROR testDerivedWithFiltering [functions/tests/projection]: scalar lowering not yet implemented for TypedMap
-- ERROR testDerivedWithFilteringTwoProperties [functions/tests/projection]: scalar lowering not yet implemented for TypedMap
+- FAIL testDerivedWithFiltering [functions/tests/projection]: assertEquals: expected CUSIP1,CUSIP2,CUSIP3,Firm A,Firm C,Firm D,Firm X,TDSNull, got ["Firm A", "CUSIP2"],["Firm C", "CUSIP3"],["Firm D", NULL],["Firm X", "CUSIP1"]
+- FAIL testDerivedWithFilteringTwoProperties [functions/tests/projection]: assertEquals: expected CUSIP1,CUSIP2,CUSIP3,Firm A,Firm C,Firm D,Firm X,ISIN1,ISIN2,ISIN3,TDSNull,TDSNull, got ["Firm A", "CUSIP2", "ISIN2"],["Firm C", "CUSIP3", "ISIN3"],["Firm D", NULL, NULL],["Firm X", "CUSIP1", "ISIN1"]
 - ERROR testQualifierWithFilteringAndParameters [functions/tests/projection]: [2:127] navigation path segment 'synonymByType(ProductSynonymType.CUSIP)' uses an unsupported path feature (only plain property segments desugar): #/Product/synonymByType(ProductSynonymType.CUSIP)/name!cusip#
 - FAIL testTwoQualifiersUsingSameJoinWithNoUserParams [functions/tests/projection]: assertSize: expected 1, got 4
 - ERROR testQualifierInLambdaDeep [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
@@ -889,18 +881,18 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testQualifierFunctionConsistencyWithDataTypeProperty [functions/tests/projection]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR testQualifierFunctionConsistencyWithComplexTypeProperty [functions/tests/projection]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR testFilterInQualifierWithFilterInMappingInProjectGroupBy [functions/tests/projection]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR testQualifierWithVariableArg [functions/tests/projection]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testQualifierWithVariableArgReferencedFirstInFilterEqualCriteria [functions/tests/projection]: Cannot invoke "String.equals(Object)" because "column" is null
+- FAIL testQualifierWithVariableArg [functions/tests/projection]: assertEquals: expected [Firm X~ , Firm A~ , Firm B~ , Firm C~ ], got ["Firm X"~TDSNull, "Firm A"~TDSNull, "Firm B"~TDSNull, "Firm C"~TDSNull]
+- FAIL testQualifierWithVariableArgReferencedFirstInFilterEqualCriteria [functions/tests/projection]: assertEquals: expected [Firm X~ , Firm A~ , Firm B~ , Firm C~ ], got ["Firm X"~TDSNull, "Firm A"~TDSNull, "Firm B"~TDSNull, "Firm C"~TDSNull]
 - ERROR testQualifierWithVariableArgWithComplexTypeProperty [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - ERROR testQualifierWithVariableArgWithComplexTypePropertyAndSubsequentComplexTypePropertyCall [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testFilterOnRootTypeWithOrWithFilterInQualifier [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
-- ERROR testAllOneSimpleProperty [functions/tests/projection]: lowering not yet implemented for TypedMap
+- FAIL testAllOneSimpleProperty [functions/tests/projection]: assertEquals: expected Anthony,David,Fabrice,John,John,Oliver,Peter, got ["Anthony"],["David"],["Fabrice"],["John"],["John"],["Oliver"],["Peter"]
 - ERROR testAllOneSimplePropertyWithColsFromFunction [functions/tests/projection]: project expects ~[…] column specifications
-- ERROR testAllOneSimplePropertyUsingVariable [functions/tests/projection]: lowering not yet implemented for TypedMap
-- ERROR testAllOneSimplePropertyUsingVariables [functions/tests/projection]: lowering not yet implemented for TypedMap
+- FAIL testAllOneSimplePropertyUsingVariable [functions/tests/projection]: assertEquals: expected Anthony,David,Fabrice,John,John,Oliver,Peter, got ["Anthony"],["David"],["Fabrice"],["John"],["John"],["Oliver"],["Peter"]
+- FAIL testAllOneSimplePropertyUsingVariables [functions/tests/projection]: assertEquals: expected Anthony,David,Fabrice,John,John,Oliver,Peter, got ["Anthony"],["David"],["Fabrice"],["John"],["John"],["Oliver"],["Peter"]
 - SHAPE testAllOneSimplePropertyUsingOpenVariables [functions/tests/projection]: no execute(|...) call
-- ERROR testAllTwoSimpleProperties [functions/tests/projection]: scalar lowering not yet implemented for TypedMap
-- ERROR testViewAllOneSimpleProperty [functions/tests/projection]: lowering not yet implemented for TypedMap
+- FAIL testAllTwoSimpleProperties [functions/tests/projection]: assertEquals: expected Allen,Anthony,David,Fabrice,Harris,Hill,Hill,John,John,Johnson,Oliver,Peter,Roberts,Smith, got ["Anthony", "Allen"],["David", "Harris"],["Fabrice", "Roberts"],["John", "Hill"],["John", "Johnson"],["Oliver", "Hill"],["Peter", "Smith"]
+- FAIL testViewAllOneSimpleProperty [functions/tests/projection]: assertSameElements: expected 100.0,200.0,150.0, got [150.0],[100.0],[200.0]
 - ERROR testJoinToView [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testJoinThroughView [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - ERROR testViewWithGroupBy [functions/tests/projection]: class 'meta::relational::tests::model::simple::AccountPnl' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -1113,11 +1105,11 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testLatestMilestoningFiltersPropogatedToDataTypePropertiesFromAllInProject [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testMilestoningFiltersPropogatedFromAllThroughFilterToDataTypePropertiesInProject [milestoning/tests]: 'milestoningmap' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testMilestoningFiltersPropogatedToDataTypePropertiesFromAllInFilter [milestoning/tests]: 'milestoningmap' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testMilestoningFiltersNotPropogatedFromAllToNonTemporalClassMappedToTemporalTable [milestoning/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testMilestoningFiltersUsedOnIntermediateJoinOnlyFromAllToNonTemporalClassMappedToTemporalTable [milestoning/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testMilestoningFiltersUsedOnIntermediateJoinOnlyFromAllToNonTemporalClassMappedToTemporalTableWithFilter [milestoning/tests]: Cannot invoke "String.equals(Object)" because "column" is null
+- FAIL testMilestoningFiltersNotPropogatedFromAllToNonTemporalClassMappedToTemporalTable [milestoning/tests]: assertEquals: expected [2,smith, 3,TDSNull], got [2,"smith", 3,TDSNull]
+- FAIL testMilestoningFiltersUsedOnIntermediateJoinOnlyFromAllToNonTemporalClassMappedToTemporalTable [milestoning/tests]: assertEquals: expected [2,smith, 3,TDSNull], got [2,"smith", 3,TDSNull]
+- FAIL testMilestoningFiltersUsedOnIntermediateJoinOnlyFromAllToNonTemporalClassMappedToTemporalTableWithFilter [milestoning/tests]: assertEquals: expected [2,smith, 3,TDSNull], got [2,"smith", 3,TDSNull]
 - SHAPE testIsolationOfMilestoningFiltersUsedOnIntermediateJoinInOR [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testMilestoningFiltersOnIntermediateInnerJoins [milestoning/tests]: Cannot invoke "String.equals(Object)" because "column" is null
+- FAIL testMilestoningFiltersOnIntermediateInnerJoins [milestoning/tests]: assertEquals: expected [2,TDSNull, 3,TDSNull], got [2,"smith", 3,TDSNull]
 - ERROR testMilestoningContextNotPropogatedThroughNonTemporalPropertiesFromAll [milestoning/tests]: class meta::relational::tests::milestoning::System has no property 'systemDescriptionAllVersions'
 - SHAPE testMilestoningContextWithLatestDateNotPropogatedThroughNonTemporalPropertiesFromAll [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testMilestoningContextNotPropogatedThroughNonTemporalPropertiesFromMilestonedQualifiedProperty [milestoning/tests]: unknown function 'product'
@@ -1352,44 +1344,43 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR groupByAfterASortOnColumnNotInGroupBy [tds/tests]: expected at most one value, got many ([*])
 - ERROR groupByAfterConcatenate [tds/tests]: expected at most one value, got many ([*])
 - SHAPE testTableToTDSWithQuotedColumns [tds/tests]: no execute(|...) call
-- ERROR testTDSGroupByPercentile [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
+- FAIL testTDSGroupByPercentile [tds/tests]: assertEquals: expected [Firm X|292.5|322.0|248.25, Firm C|46.6|40.0|46.0, Firm A|32.2|25.0|29.5, TDSNull|7.0|7.0|7.0], got ["Firm X"|292.5|27.0|248.25, "Firm C"|46.6|40.0|46.0, "Firm A"|32.2|25.0|29.5, TDSNull|7.0|7.0|7.0]
 - ERROR testTDSGroupByIsDistinct [tds/tests]: expected at most one value, got many ([*])
-- ERROR testTDSGroupByEmptyColsTerminalOperation [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testTDSGroupByEmptyColsNonTerminalOperation [tds/tests]: Cannot invoke "String.length()" because "column" is null
+- SHAPE testTDSGroupByEmptyColsTerminalOperation [tds/tests]: unsupported statement: meta::relational::functions::asserts::assertSameSQL
+- SHAPE testTDSGroupByEmptyColsNonTerminalOperation [tds/tests]: unsupported statement: meta::relational::functions::asserts::assertSameSQL
 - SHAPE testGroupByWithWavgAggregation [tds/tests]: no execute(|...) call
 - SHAPE testGroupByWithMultipleWavgAggregation [tds/tests]: no execute(|...) call
 - SHAPE testSimpleSliceZeroSameAsTake [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testSimpleLimit [tds/tests]: assert form 'assertSize/2' is not supported yet
 - SHAPE testSimpleTake [tds/tests]: assert form 'assertSize/2' is not supported yet
-- ERROR testSimpleSortAsc [tds/tests]: lowering not yet implemented for TypedMap
+- FAIL testSimpleSortAsc [tds/tests]: assertEquals: expected Anthony,David,Fabrice,John,John,Oliver,Peter, got ["Anthony"],["David"],["Fabrice"],["John"],["John"],["Oliver"],["Peter"]
 - SHAPE testSimpleSortAscWithPreval [tds/tests]: execute() whose query argument is not a lambda
-- ERROR testSimpleSortAscInputToProject [tds/tests]: lowering not yet implemented for TypedMap
-- ERROR testSimpleSortAscHelper [tds/tests]: lowering not yet implemented for TypedMap
-- ERROR testSimpleSortDesc [tds/tests]: lowering not yet implemented for TypedMap
-- ERROR testSimpleSortDescHelper [tds/tests]: lowering not yet implemented for TypedMap
-- ERROR testDoubleSortAsc1 [tds/tests]: scalar lowering not yet implemented for TypedMap
-- ERROR testDoubleSortAsc1Helper [tds/tests]: scalar lowering not yet implemented for TypedMap
-- ERROR testDoubleSortAsc1Chain [tds/tests]: scalar lowering not yet implemented for TypedMap
-- ERROR testDoubleSortDesc1Helper [tds/tests]: scalar lowering not yet implemented for TypedMap
-- ERROR testDoubleSortDesc1Chain [tds/tests]: scalar lowering not yet implemented for TypedMap
-- ERROR testDoubleSortAsc2 [tds/tests]: scalar lowering not yet implemented for TypedMap
-- ERROR testDoubleSortAsc2Helper [tds/tests]: scalar lowering not yet implemented for TypedMap
-- ERROR testDoubleSortAsc2Chain [tds/tests]: scalar lowering not yet implemented for TypedMap
-- ERROR testDoubleSortDesc2Helper [tds/tests]: scalar lowering not yet implemented for TypedMap
-- ERROR testDoubleSortDesc2Chain [tds/tests]: scalar lowering not yet implemented for TypedMap
-- ERROR testDoubleSortMixed [tds/tests]: scalar lowering not yet implemented for TypedMap
-- ERROR testDoubleSortMixedChain [tds/tests]: scalar lowering not yet implemented for TypedMap
+- FAIL testSimpleSortAscInputToProject [tds/tests]: assertEquals: expected [Allen, Harris, Hill, Hill, Johnson, Roberts, Smith], got [["Allen"], ["Harris"], ["Hill"], ["Hill"], ["Johnson"], ["Roberts"], ["Smith"]]
+- FAIL testSimpleSortAscHelper [tds/tests]: assertEquals: expected Anthony,David,Fabrice,John,John,Oliver,Peter, got ["Anthony"],["David"],["Fabrice"],["John"],["John"],["Oliver"],["Peter"]
+- FAIL testSimpleSortDesc [tds/tests]: assertEquals: expected Peter,Oliver,John,John,Fabrice,David,Anthony, got ["Peter"],["Oliver"],["John"],["John"],["Fabrice"],["David"],["Anthony"]
+- FAIL testSimpleSortDescHelper [tds/tests]: assertEquals: expected Peter,Oliver,John,John,Fabrice,David,Anthony, got ["Peter"],["Oliver"],["John"],["John"],["Fabrice"],["David"],["Anthony"]
+- FAIL testDoubleSortAsc1 [tds/tests]: assertEquals: expected Anthony,New York,David,New York,Fabrice,San Fransisco,John,New York,John,New York,Oliver,Hong Kong,Peter,Hoboken, got ["Anthony", "New York"],["David", "New York"],["Fabrice", "San Fransisco"],["John", "New York"],["John", "New York"],["Oliver", "Hong Kong"],["Peter", "Hoboken
+- FAIL testDoubleSortAsc1Helper [tds/tests]: assertEquals: expected Anthony,New York,David,New York,Fabrice,San Fransisco,John,New York,John,New York,Oliver,Hong Kong,Peter,Hoboken, got ["Anthony", "New York"],["David", "New York"],["Fabrice", "San Fransisco"],["John", "New York"],["John", "New York"],["Oliver", "Hong Kong"],["Peter", "Hoboken
+- FAIL testDoubleSortAsc1Chain [tds/tests]: assertEquals: expected Peter,Hoboken,Oliver,Hong Kong,Anthony,New York,David,New York,John,New York,John,New York,Fabrice,San Fransisco, got ["Peter", "Hoboken"],["Oliver", "Hong Kong"],["Anthony", "New York"],["David", "New York"],["John", "New York"],["John", "New York"],["Fabrice", "San Fransisco
+- FAIL testDoubleSortDesc1Helper [tds/tests]: assertEquals: expected Peter,Hoboken,Oliver,Hong Kong,John,New York,John,New York,Fabrice,San Fransisco,David,New York,Anthony,New York, got ["Peter", "Hoboken"],["Oliver", "Hong Kong"],["John", "New York"],["John", "New York"],["Fabrice", "San Fransisco"],["David", "New York"],["Anthony", "New York
+- FAIL testDoubleSortDesc1Chain [tds/tests]: assertEquals: expected Fabrice,San Fransisco,John,New York,John,New York,David,New York,Anthony,New York,Oliver,Hong Kong,Peter,Hoboken, got ["Fabrice", "San Fransisco"],["John", "New York"],["John", "New York"],["David", "New York"],["Anthony", "New York"],["Oliver", "Hong Kong"],["Peter", "Hoboken
+- FAIL testDoubleSortAsc2 [tds/tests]: assertEquals: expected Peter,Hoboken,Oliver,Hong Kong,Anthony,New York,David,New York,John,New York,John,New York,Fabrice,San Fransisco, got ["Peter", "Hoboken"],["Oliver", "Hong Kong"],["Anthony", "New York"],["David", "New York"],["John", "New York"],["John", "New York"],["Fabrice", "San Fransisco
+- FAIL testDoubleSortAsc2Helper [tds/tests]: assertEquals: expected Peter,Hoboken,Oliver,Hong Kong,Anthony,New York,David,New York,John,New York,John,New York,Fabrice,San Fransisco, got ["Peter", "Hoboken"],["Oliver", "Hong Kong"],["Anthony", "New York"],["David", "New York"],["John", "New York"],["John", "New York"],["Fabrice", "San Fransisco
+- FAIL testDoubleSortAsc2Chain [tds/tests]: assertEquals: expected Anthony,New York,David,New York,Fabrice,San Fransisco,John,New York,John,New York,Oliver,Hong Kong,Peter,Hoboken, got ["Anthony", "New York"],["David", "New York"],["Fabrice", "San Fransisco"],["John", "New York"],["John", "New York"],["Oliver", "Hong Kong"],["Peter", "Hoboken
+- FAIL testDoubleSortDesc2Helper [tds/tests]: assertEquals: expected Fabrice,San Fransisco,John,New York,John,New York,David,New York,Anthony,New York,Oliver,Hong Kong,Peter,Hoboken, got ["Fabrice", "San Fransisco"],["John", "New York"],["John", "New York"],["David", "New York"],["Anthony", "New York"],["Oliver", "Hong Kong"],["Peter", "Hoboken
+- FAIL testDoubleSortDesc2Chain [tds/tests]: assertEquals: expected Peter,Hoboken,Oliver,Hong Kong,John,New York,John,New York,Fabrice,San Fransisco,David,New York,Anthony,New York, got ["Peter", "Hoboken"],["Oliver", "Hong Kong"],["John", "New York"],["John", "New York"],["Fabrice", "San Fransisco"],["David", "New York"],["Anthony", "New York
+- FAIL testDoubleSortMixed [tds/tests]: assertEquals: expected Fabrice,San Fransisco,Anthony,New York,David,New York,John,New York,John,New York,Oliver,Hong Kong,Peter,Hoboken, got ["Fabrice", "San Fransisco"],["Anthony", "New York"],["David", "New York"],["John", "New York"],["John", "New York"],["Oliver", "Hong Kong"],["Peter", "Hoboken
+- FAIL testDoubleSortMixedChain [tds/tests]: assertEquals: expected Anthony,New York,David,New York,Fabrice,San Fransisco,John,New York,John,New York,Oliver,Hong Kong,Peter,Hoboken, got ["Anthony", "New York"],["David", "New York"],["Fabrice", "San Fransisco"],["John", "New York"],["John", "New York"],["Oliver", "Hong Kong"],["Peter", "Hoboken
 - SHAPE testSortQuotes [tds/tests]: no execute(|...) call
 - SHAPE testTableToTDSWithQuotes [tds/tests]: no execute(|...) call
-- ERROR testSimpleConcatenate [tds/tests]: Cannot invoke "String.length()" because "column" is null
+- FAIL testSimpleConcatenate [tds/tests]: assertEquals: expected Allen,Allen,Harris,Harris,Hill,Hill,Hill,Hill,Johnson,Johnson,Roberts,Roberts,Smith,Smith, got "Allen","Allen","Harris","Harris","Hill","Hill","Hill","Hill","Johnson","Johnson","Roberts","Roberts","Smith","Smith"
 - ERROR testMultiConcatenate [tds/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
-- ERROR testConcatenateWithPreOperation1 [tds/tests]: Cannot invoke "String.length()" because "column" is null
-- ERROR testConcatenateWithPreOperation2 [tds/tests]: Cannot invoke "String.length()" because "column" is null
-- ERROR testConcatenateWithPreOperation3 [tds/tests]: Cannot invoke "String.length()" because "column" is null
-- ERROR testConcatenateWithPreOperation4 [tds/tests]: Cannot invoke "String.length()" because "column" is null
-- ERROR testConcatenateWithPostOperation1 [tds/tests]: Cannot invoke "String.length()" because "column" is null
-- ERROR testConcatenateWithPostOperation2 [tds/tests]: Cannot invoke "String.length()" because "column" is null
-- ERROR testConcatenateWithJoin [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
+- FAIL testConcatenateWithPreOperation1 [tds/tests]: assertEquals: expected Allen,Allen,Harris,Harris,Hill,Hill,Hill,Hill,Johnson,Johnson,Roberts,Roberts,Smith,Smith, got "Allen","Allen","Harris","Harris","Hill","Hill","Hill","Hill","Johnson","Johnson","Roberts","Roberts","Smith","Smith"
+- FAIL testConcatenateWithPreOperation2 [tds/tests]: assertEquals: expected Allen,Allen,Harris,Harris,Hill,Hill,Hill,Hill,Johnson,Johnson,Roberts,Roberts,Smith,Smith, got "Allen","Allen","Harris","Harris","Hill","Hill","Hill","Hill","Johnson","Johnson","Roberts","Roberts","Smith","Smith"
+- FAIL testConcatenateWithPreOperation3 [tds/tests]: assertEquals: expected Allen,Harris,Hill,Hill,Johnson,Roberts,Smith, got "Allen","Harris","Hill","Hill","Johnson","Roberts","Smith"
+- FAIL testConcatenateWithPreOperation4 [tds/tests]: assertEquals: expected Allen,Harris,Hill,Hill,Johnson,Roberts,Smith, got "Allen","Harris","Hill","Hill","Johnson","Roberts","Smith"
+- FAIL testConcatenateWithPostOperation1 [tds/tests]: assertEquals: expected Allen,Allen,Harris,Harris,Hill,Hill,Hill,Hill,Johnson,Johnson,Roberts,Roberts,Smith,Smith, got "Allen","Allen","Harris","Harris","Hill","Hill","Hill","Hill","Johnson","Johnson","Roberts","Roberts","Smith","Smith"
+- FAIL testConcatenateWithJoin [tds/tests]: assertEquals: expected Allen|Anthony,Allen|Anthony,Harris|David,Harris|David,Hill|John,Hill|John,Hill|John,Hill|John,Hill|Oliver,Hill|Oliver,Hill|Oliver,Hill|Oliver,Johnson|John,Johnson|John,Roberts|Fabrice,Roberts|Fabrice,Smith|Peter,Smith|Peter, got "Allen"|"Anthony","Allen"|"Anthony","Harris"|"Da
 - ERROR testTDSContainsType1 [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testTDSContainsType1Negation [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testTDSContainsType1NegationWithExtendedPrimitives [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
@@ -1416,51 +1407,49 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testIfWithEmptyExtension [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testExtendWithQuotedColumnWithTableToTDS [tds/tests]: no execute(|...) call
 - SHAPE testExtendsWithInClause [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testSimpleFilter [tds/tests]: lowering not yet implemented for TypedMap
-- ERROR testFilterWithStringConcat [tds/tests]: lowering not yet implemented for TypedMap
+- FAIL testSimpleFilter [tds/tests]: assertEquals: expected [John, John], got [["John"], ["John"]]
+- FAIL testFilterWithStringConcat [tds/tests]: assertEquals: expected [John, John], got [["John"], ["John"]]
 - ERROR testFilterOnEnum [tds/tests]: lowering not yet implemented for TypedNativeCall
-- ERROR testFilterTwoExpressions [tds/tests]: lowering not yet implemented for TypedMap
-- ERROR testFilterTwoExpressions_chain [tds/tests]: lowering not yet implemented for TypedMap
+- FAIL testFilterTwoExpressions [tds/tests]: assertEquals: expected [John, Johnson], got ["John", "Johnson"]
+- FAIL testFilterTwoExpressions_chain [tds/tests]: assertEquals: expected [John, Johnson], got ["John", "Johnson"]
 - ERROR testFilterMultipleExpressions1 [tds/tests]: unknown function 'isNotNull'
 - ERROR testFilterMultipleExpressions1_chain [tds/tests]: unknown function 'isNotNull'
-- ERROR testFilterMultipleExpressions2 [tds/tests]: lowering not yet implemented for TypedMap
-- ERROR testFilterBeforeAndFilterAfter [tds/tests]: lowering not yet implemented for TypedMap
-- ERROR testFilterBeforeWithOrAndFilterAfter [tds/tests]: lowering not yet implemented for TypedMap
-- ERROR testFilterUsingFunction [tds/tests]: lowering not yet implemented for TypedMap
-- ERROR testFilterOnDynaFunctionColumn [tds/tests]: lowering not yet implemented for TypedMap
-- ERROR testFilterOnRootClassAggValueAfterGroupBy [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testFilterOnAssociatedClassAggValueAfterGroupBy [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testFilterFollowedByGroupByWithFilterOnRootClass [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testFilterOnRootClassAggValueAfterGroupByWithHavingMultipleFilters [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testEvalInFilter [tds/tests]: lowering not yet implemented for TypedMap
+- FAIL testFilterMultipleExpressions2 [tds/tests]: assertEquals: expected [John, Johnson], got ["John", "Johnson"]
+- FAIL testFilterBeforeAndFilterAfter [tds/tests]: assertEquals: expected [John, Johnson], got ["John", "Johnson"]
+- FAIL testFilterBeforeWithOrAndFilterAfter [tds/tests]: assertEquals: expected [John, Johnson, John, Hill], got [["John", "Johnson"], ["John", "Hill"]]
+- FAIL testFilterUsingFunction [tds/tests]: assertEquals: expected [Anthony, Allen], got ["Anthony", "Allen"]
+- FAIL testFilterOnDynaFunctionColumn [tds/tests]: assertEquals: expected [John, true], got ["John", true]
+- FAIL testFilterOnRootClassAggValueAfterGroupBy [tds/tests]: assertEquals: expected [12,John, 22,John,Anthony], got [12,"John", 22,"John,Anthony"]
+- FAIL testFilterOnAssociatedClassAggValueAfterGroupBy [tds/tests]: assertEquals: expected 23,Hoboken, got 23,"Hoboken"
+- FAIL testFilterFollowedByGroupByWithFilterOnRootClass [tds/tests]: assertEquals: expected [12,John, 22,John], got [12,"John", 22,"John"]
+- FAIL testFilterOnRootClassAggValueAfterGroupByWithHavingMultipleFilters [tds/tests]: assertEquals: expected 22,John,Anthony, got 22,"John,Anthony"
+- FAIL testEvalInFilter [tds/tests]: assertEquals: expected [John, Johnson, John, Hill, Oliver, Hill], got [["John", "Johnson"], ["John", "Hill"], ["Oliver", "Hill"]]
 - ERROR testInOnColumnInSubselect [tds/tests]: no overload of 'olapGroupBy' matches 5 argument(s) of these shapes
 - SHAPE testFilterOnQuotedColumnFromTableToTds [tds/tests]: no execute(|...) call
 - ERROR testFirstNotNullFunction [tds/tests]: unknown function 'meta::pure::tds::extensions::firstNotNull'
-- ERROR testChainPostFilter [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testInnerJoinSimple [tds/tests]: Cannot invoke "String.length()" because "column" is null
-- ERROR testLeftOuterJoinSimple [tds/tests]: Cannot invoke "String.length()" because "column" is null
+- FAIL testChainPostFilter [tds/tests]: assertEquals: expected John,John, got "John","John"
+- FAIL testInnerJoinSimple [tds/tests]: assertSameElements: expected [1,Smith,1,Firm X,1, 2,Johnson,1,Firm X,1, 3,Hill,1,Firm X,1, 4,Allen,1,Firm X,1, 5,Roberts,2,Firm A,2, 6,Hill,3,Firm B,3, 7,Harris,4,Firm C,4], got [1,"Smith",1,"Firm X",1, 2,"Johnson",1,"Firm X",1, 3,"Hill",1,"Firm X",1, 4,"Allen",1,"Firm X",1, 5,"Roberts",2,"Firm A",2
+- FAIL testLeftOuterJoinSimple [tds/tests]: assertSameElements: expected [1,Smith,1,Firm B,3, 2,Johnson,1,Firm B,3, 3,Hill,1,Firm B,3, 4,Allen,1,Firm B,3, 5,Roberts,2,Firm C,4, 6,Hill,3,TDSNull,TDSNull, 7,Harris,4,TDSNull,TDSNull], got [1,"Smith",1,"Firm B",3, 2,"Johnson",1,"Firm B",3, 3,"Hill",1,"Firm B",3, 4,"Allen",1,"Firm B",3, 5,"Roberts
 - ERROR testRightOuterJoinSimple [tds/tests]: no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - ERROR testFullOuterJoinSimple [tds/tests]: no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
-- ERROR testInnerJoinConditionTrueUsingCol [tds/tests]: Cannot invoke "String.length()" because "column" is null
-- ERROR testInnerJoinConditionTrue [tds/tests]: Cannot invoke "String.length()" because "column" is null
-- ERROR testLeftOuterJoinConditionFalse [tds/tests]: Cannot invoke "String.length()" because "column" is null
-- ERROR testRightOuterJoinConditionFalse [tds/tests]: Cannot invoke "String.length()" because "column" is null
-- ERROR testJoinVariableInLambda [tds/tests]: Cannot invoke "String.length()" because "column" is null
-- ERROR testJoinLambdaAsVariable [tds/tests]: Cannot invoke "String.length()" because "column" is null
-- ERROR testJoinWithLiteralColumn [tds/tests]: Cannot invoke "String.length()" because "column" is null
-- ERROR testJoinTypeAsVariable [tds/tests]: Cannot invoke "String.length()" because "column" is null
-- ERROR testRestrictAfterJoin [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testMultipleJoins [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testFilterAfterJoinInner [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testFilterAfterJoinOuter [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
+- FAIL testInnerJoinConditionTrueUsingCol [tds/tests]: assertSameElements: expected [1,Smith,1,Firm X,1, 1,Smith,1,Firm A,2, 1,Smith,1,Firm B,3, 1,Smith,1,Firm C,4, 2,Johnson,1,Firm X,1, 2,Johnson,1,Firm A,2, 2,Johnson,1,Firm B,3, 2,Johnson,1,Firm C,4, 3,Hill,1,Firm X,1, 3,Hill,1,Firm A,2, 3,Hill,1,Firm B,3, 3,Hill,1,Firm C,4, 4,Allen,1,Firm X,1, 4,Alle
+- FAIL testInnerJoinConditionTrue [tds/tests]: assertSameElements: expected [1,Smith,1,Firm X,1, 1,Smith,1,Firm A,2, 1,Smith,1,Firm B,3, 1,Smith,1,Firm C,4, 2,Johnson,1,Firm X,1, 2,Johnson,1,Firm A,2, 2,Johnson,1,Firm B,3, 2,Johnson,1,Firm C,4, 3,Hill,1,Firm X,1, 3,Hill,1,Firm A,2, 3,Hill,1,Firm B,3, 3,Hill,1,Firm C,4, 4,Allen,1,Firm X,1, 4,Alle
+- FAIL testLeftOuterJoinConditionFalse [tds/tests]: assertSameElements: expected [1,Smith,1,TDSNull,TDSNull, 2,Johnson,1,TDSNull,TDSNull, 3,Hill,1,TDSNull,TDSNull, 4,Allen,1,TDSNull,TDSNull, 5,Roberts,2,TDSNull,TDSNull, 6,Hill,3,TDSNull,TDSNull, 7,Harris,4,TDSNull,TDSNull], got [1,"Smith",1,TDSNull,TDSNull, 2,"Johnson",1,TDSNull,TDSNull, 3,"Hill",1,T
+- FAIL testRightOuterJoinConditionFalse [tds/tests]: assertSameElements: expected [TDSNull,TDSNull,TDSNull,Firm X,1, TDSNull,TDSNull,TDSNull,Firm A,2, TDSNull,TDSNull,TDSNull,Firm B,3, TDSNull,TDSNull,TDSNull,Firm C,4], got [TDSNull,TDSNull,TDSNull,"Firm X",1, TDSNull,TDSNull,TDSNull,"Firm A",2, TDSNull,TDSNull,TDSNull,"Firm B",3, TDSNull,TDSNull,TDSN
+- FAIL testJoinVariableInLambda [tds/tests]: assertSameElements: expected [1,Smith,1,Firm X,1, 2,Johnson,1,Firm X,1, 3,Hill,1,Firm X,1, 4,Allen,1,Firm X,1, 5,Roberts,2,Firm A,2, 6,Hill,3,Firm B,3, 7,Harris,4,Firm C,4], got [1,"Smith",1,"Firm X",1, 2,"Johnson",1,"Firm X",1, 3,"Hill",1,"Firm X",1, 4,"Allen",1,"Firm X",1, 5,"Roberts",2,"Firm A",2
+- FAIL testJoinLambdaAsVariable [tds/tests]: assertSameElements: expected [1,Smith,1,Firm X,1, 2,Johnson,1,Firm X,1, 3,Hill,1,Firm X,1, 4,Allen,1,Firm X,1, 5,Roberts,2,Firm A,2, 6,Hill,3,Firm B,3, 7,Harris,4,Firm C,4], got [1,"Smith",1,"Firm X",1, 2,"Johnson",1,"Firm X",1, 3,"Hill",1,"Firm X",1, 4,"Allen",1,"Firm X",1, 5,"Roberts",2,"Firm A",2
+- FAIL testJoinWithLiteralColumn [tds/tests]: assertSameElements: expected [1,Smith,1,true,Firm X,1, 2,Johnson,1,true,Firm X,1, 3,Hill,1,true,Firm X,1, 4,Allen,1,true,Firm X,1, 5,Roberts,2,true,Firm A,2, 6,Hill,3,true,Firm B,3, 7,Harris,4,true,Firm C,4], got [1,"Smith",1,true,"Firm X",1, 2,"Johnson",1,true,"Firm X",1, 3,"Hill",1,true,"Firm X",1
+- FAIL testJoinTypeAsVariable [tds/tests]: assertSameElements: expected [1,Smith,1,Firm X,1, 2,Johnson,1,Firm X,1, 3,Hill,1,Firm X,1, 4,Allen,1,Firm X,1, 5,Roberts,2,Firm A,2, 6,Hill,3,Firm B,3, 7,Harris,4,Firm C,4], got [1,"Smith",1,"Firm X",1, 2,"Johnson",1,"Firm X",1, 3,"Hill",1,"Firm X",1, 4,"Allen",1,"Firm X",1, 5,"Roberts",2,"Firm A",2
+- FAIL testRestrictAfterJoin [tds/tests]: assertSameElements: expected [Smith,8, Johnson,8, Hill,8, Allen,8, Roberts,9, Hill,10, Harris,11], got ["Smith",8, "Johnson",8, "Hill",8, "Allen",8, "Roberts",9, "Hill",10, "Harris",11]
+- FAIL testMultipleJoins [tds/tests]: assertSameElements: expected [Smith,New York, Johnson,New York, Hill,New York, Allen,New York, Roberts,Cupertino, Hill,Tokyo, Harris,Mountain View], got ["Allen","New York", "Roberts","Cupertino", "Hill","Tokyo", "Harris","Mountain View", "Hill","New York", "Johnson","New York", "Smith","New York"]
+- FAIL testFilterAfterJoinInner [tds/tests]: assertSameElements: expected [Roberts,34,9, Hill,32,10, Harris,35,11], got ["Roberts",34,9, "Hill",32,10, "Harris",35,11]
+- FAIL testFilterAfterJoinOuter [tds/tests]: assertSameElements: expected [Roberts,34,9, Hill,32,10, Harris,35,11], got ["Roberts",34,9, "Hill",32,10, "Harris",35,11]
 - ERROR testExtendAfterJoinInner [tds/tests]: ~name_length: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testExtendAfterJoinOuter [tds/tests]: ~name_length: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testJoinAfterExtendInner [tds/tests]: ~name_length: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testJoinAfterExtendOuter [tds/tests]: ~name_length: mapped/aggregate column specifications need an enclosing call to type against
-- ERROR testSelfJoinInner [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testSelfJoinOuter [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testGroupByAfterJoinInner [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testGroupByAfterJoinOuter [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
+- FAIL testSelfJoinInner [tds/tests]: assertSameElements: expected [Smith,Johnson, Johnson,Allen, Hill,Johnson], got ["Smith","Johnson", "Johnson","Allen", "Hill","Johnson"]
+- FAIL testSelfJoinOuter [tds/tests]: assertSameElements: expected [Smith,Johnson, Johnson,Allen, Hill,Johnson, Allen,TDSNull, Roberts,TDSNull, Hill,TDSNull, Harris,TDSNull], got ["Smith","Johnson", "Johnson","Allen", "Hill","Johnson", "Allen",TDSNull, "Roberts",TDSNull, "Hill",TDSNull, "Harris",TDSNull]
 - ERROR testJoinAfterGroupByAfterJoinInner [tds/tests]: relation has no column 'aID'
 - ERROR testJoinAfterGroupByAfterJoinOuter [tds/tests]: relation has no column 'aID'
 - ERROR testExtendAfterJoinAfterAfterGroupByAfterJoinInner [tds/tests]: relation has no column 'aID'
@@ -1469,14 +1458,12 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFilterAfterExtendJoinAfterAfterGroupByAfterJoinOuter [tds/tests]: relation has no column 'aID'
 - ERROR testGroupByAfterFilterAfterExtendJoinAfterAfterGroupByAfterJoinInner [tds/tests]: relation has no column 'aID'
 - ERROR testGroupByAfterFilterAfterExtendJoinAfterAfterGroupByAfterJoinOuter [tds/tests]: relation has no column 'aID'
-- ERROR testJoinAfterGroupByBothInner [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testJoinAfterGroupByBothOuter [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testInnerJoinWithQualifiedPropertiesOnLeft [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
+- FAIL testInnerJoinWithQualifiedPropertiesOnLeft [tds/tests]: assertSameElements: expected [Firm A,Fabrice Roberts, Firm X,Anthony Allen, Firm X,John Johnson, Firm X,John Hill, Firm X,Peter Smith, Firm C,David Harris, Firm B,Oliver Hill], got ["Firm X","Peter Smith", "Firm X","John Johnson", "Firm X","John Hill", "Firm X","Anthony Allen", "Firm A","Fabrice Rob
 - ERROR testInnerJoinWithQualifiedPropertiesOnRight [tds/tests]: relation has no column 'eID'
-- ERROR testJoinBySingleColumnName [tds/tests]: Cannot invoke "String.length()" because "column" is null
-- ERROR testJoinBySingleColumnNameLeftOuter [tds/tests]: Cannot invoke "String.length()" because "column" is null
+- FAIL testJoinBySingleColumnName [tds/tests]: assertSameElements: expected [1,Smith,1,Firm X,1, 2,Johnson,1,Firm X,1, 3,Hill,1,Firm X,1, 4,Allen,1,Firm X,1, 5,Roberts,2,Firm A,2, 6,Hill,3,Firm B,3, 7,Harris,4,Firm C,4], got [1,"Smith",1,"Firm X",1, 2,"Johnson",1,"Firm X",1, 3,"Hill",1,"Firm X",1, 4,"Allen",1,"Firm X",1, 5,"Roberts",2,"Firm A",2
+- FAIL testJoinBySingleColumnNameLeftOuter [tds/tests]: assertSameElements: expected [1,Smith,1,TDSNull,TDSNull, 2,Johnson,1,TDSNull,TDSNull, 3,Hill,1,TDSNull,TDSNull, 4,Allen,1,TDSNull,TDSNull, 5,Roberts,2,TDSNull,TDSNull, 6,Hill,3,TDSNull,TDSNull, 7,Harris,4,TDSNull,TDSNull], got [1,"Smith",1,TDSNull,TDSNull, 2,"Johnson",1,TDSNull,TDSNull, 3,"Hill",1,T
 - ERROR testJoinBySingleColumnNameRightOuter [tds/tests]: unknown function 'columnValues'
-- ERROR testJoinByMultiColumnName [tds/tests]: Cannot invoke "String.length()" because "column" is null
+- FAIL testJoinByMultiColumnName [tds/tests]: assertSameElements: expected [1,Smith,1,Firm X,1, 2,Johnson,1,Firm X,1, 3,Hill,1,Firm X,1, 4,Allen,1,Firm X,1, 5,Roberts,2,Firm A,2, 6,Hill,3,Firm B,3, 7,Harris,4,Firm C,4], got [1,"Smith",1,"Firm X",1, 2,"Johnson",1,"Firm X",1, 3,"Hill",1,"Firm X",1, 4,"Allen",1,"Firm X",1, 5,"Roberts",2,"Firm A",2
 - ERROR testJoinByCommonColumnName [tds/tests]: the column 'fID' already exists in the relation (personID:Integer[1], personName:String[1], fID:Integer[0..1])
 - ERROR testJoinByCommonColumnName_RightOuter [tds/tests]: the column 'fID' already exists in the relation (personID:Integer[1], personName:String[1], fID:Integer[0..1])
 - ERROR testJoinByColumnName_AfterLimit [tds/tests]: the column 'fID' already exists in the relation (personID:Integer[1], personName:String[1], fID:Integer[0..1])
@@ -1493,55 +1480,46 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testSimpleJoinColumns [tds/tests]: unsupported statement: meta::alloy::test::mayExecuteAlloyTest
 - ERROR testTwoJoinsWithinConcatenate [tds/tests]: no overload of 'meta::pure::tds::project' matches 2 argument(s) of these shapes
 - ERROR testJoinWithExtendWithDigestOnColumnsOnBothQueries [tds/tests]: no overload of 'meta::pure::tds::project' matches 2 argument(s) of these shapes
-- ERROR testProjectStringLiteral [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testProjectFunctionOnStringLiteral [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testProjectStringColumn [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
+- FAIL testProjectStringLiteral [tds/tests]: assertEquals: expected Peter|Hello,John|Hello,John|Hello,Anthony|Hello,Fabrice|Hello,Oliver|Hello,David|Hello, got "Peter"|"Hello","John"|"Hello","John"|"Hello","Anthony"|"Hello","Fabrice"|"Hello","Oliver"|"Hello","David"|"Hello"
+- FAIL testProjectFunctionOnStringLiteral [tds/tests]: assertEquals: expected Peter|5,John|5,John|5,Anthony|5,Fabrice|5,Oliver|5,David|5, got "Peter"|5,"John"|5,"John"|5,"Anthony"|5,"Fabrice"|5,"Oliver"|5,"David"|5
+- FAIL testProjectStringColumn [tds/tests]: assertEquals: expected Peter|Peter,John|John,John|John,Anthony|Anthony,Fabrice|Fabrice,Oliver|Oliver,David|David, got "Peter"|"Peter","John"|"John","John"|"John","Anthony"|"Anthony","Fabrice"|"Fabrice","Oliver"|"Oliver","David"|"David"
 - ERROR testProjectFunctionOnStringColumn [tds/tests]: no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
-- ERROR testProjectMultipleFunctions [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testProjectAndProjectAgain [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testProjectOnDynaFunctionColumn [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testProjectOnMultiple [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
+- FAIL testProjectMultipleFunctions [tds/tests]: assertEquals: expected Peter|Hello|5,John|Hello|4,John|Hello|4,Anthony|Hello|7,Fabrice|Hello|7,Oliver|Hello|6,David|Hello|5, got "Peter"|"Hello"|5,"John"|"Hello"|4,"John"|"Hello"|4,"Anthony"|"Hello"|7,"Fabrice"|"Hello"|7,"Oliver"|"Hello"|6,"David"|"Hello"|5
+- FAIL testProjectAndProjectAgain [tds/tests]: assertEquals: expected Peter|5|10,John|4|8,John|4|8,Anthony|7|14,Fabrice|7|14,Oliver|6|12,David|5|10, got "Peter"|5|10,"John"|4|8,"John"|4|8,"Anthony"|7|14,"Fabrice"|7|14,"Oliver"|6|12,"David"|5|10
+- FAIL testProjectOnDynaFunctionColumn [tds/tests]: assertEquals: expected Peter|SMITH|5,John|JOHNSON|7,John|HILL|4,Anthony|ALLEN|5,Fabrice|ROBERTS|7,Oliver|HILL|4,David|HARRIS|6, got "Peter"|"SMITH"|5,"John"|"JOHNSON"|7,"John"|"HILL"|4,"Anthony"|"ALLEN"|5,"Fabrice"|"ROBERTS"|7,"Oliver"|"HILL"|4,"David"|"HARRIS"|6
+- FAIL testProjectOnMultiple [tds/tests]: assertEquals: expected Peter|Smith|10,John|Johnson|11,John|Hill|8,Anthony|Allen|12,Fabrice|Roberts|14,Oliver|Hill|10,David|Harris|11, got "Peter"|"Smith"|10,"John"|"Johnson"|11,"John"|"Hill"|8,"Anthony"|"Allen"|12,"Fabrice"|"Roberts"|14,"Oliver"|"Hill"|10,"David"|"Harris"|11
 - SHAPE testDateLiteral [tds/tests]: unsupported statement: println
-- ERROR testProjectReduceColumns [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testHourFunction [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
+- FAIL testProjectReduceColumns [tds/tests]: assertEquals: expected Peter,John,John,Anthony,Fabrice,Oliver,David, got "Peter","John","John","Anthony","Fabrice","Oliver","David"
+- FAIL testHourFunction [tds/tests]: assertEquals: expected Peter|8,John|8,John|8,Anthony|8,Fabrice|8,Oliver|8,David|8, got "Peter"|8,"John"|8,"John"|8,"Anthony"|8,"Fabrice"|8,"Oliver"|8,"David"|8
 - ERROR testProjectEnumFromOpenVariable [tds/tests]: unknown function 'extractEnumValue'
 - SHAPE testProjectWithAdjustFunction [tds/tests]: unsupported statement: println
-- ERROR testFilterAfterLimit [tds/tests]: Cannot invoke "String.length()" because "column" is null
 - ERROR testFilterAfterLimit2 [tds/tests]: [18:0] unsupported expression token: BRACE_CLOSE ('}')
-- ERROR testSortAfterLimit [tds/tests]: Cannot invoke "String.length()" because "column" is null
-- ERROR testSliceAfterLimit [tds/tests]: Cannot invoke "String.length()" because "column" is null
-- ERROR testLimitAfterSlice [tds/tests]: Cannot invoke "String.length()" because "column" is null
-- ERROR testDropAfterLimit [tds/tests]: Cannot invoke "String.length()" because "column" is null
-- ERROR testLimitAfterDrop [tds/tests]: Cannot invoke "String.length()" because "column" is null
-- ERROR testTakeAfterLimit [tds/tests]: Cannot invoke "String.length()" because "column" is null
-- ERROR testLimitAfterTake [tds/tests]: Cannot invoke "String.length()" because "column" is null
 - ERROR testOptionalLimit_NoValue [tds/tests]: no overload of 'meta::pure::functions::relation::limit' structurally matches the argument types
 - ERROR testOptionalLimit_WithValue [tds/tests]: dynamic slicing bounds are not lowered yet (literal expected), got TypedNativeCall
 - ERROR testProjectWithColumnSubSet [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testProjectWithColumnSubSetFunctions [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testProjectWithColumnSubSetSQLTest [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
-- ERROR testGetNumber [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
 - SHAPE testProjectWithQuotedColumnFromTableToTDS [tds/tests]: no execute(|...) call
-- ERROR testProjectAllColumns_Single [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testProjectAllColumns_Mulitple [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testLowerProjectColsEliminated [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testLowerProjectColsNotEliminatedWithSort [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testRestrictOnGroupByEleminatesUncessaryAggs [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
-- ERROR testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
+- FAIL testProjectAllColumns_Single [tds/tests]: assertEquals: expected Peter,John,John,Anthony,Fabrice,Oliver,David, got "Peter","John","John","Anthony","Fabrice","Oliver","David"
+- FAIL testProjectAllColumns_Mulitple [tds/tests]: assertEquals: expected Peter|Hello,John|Hello,John|Hello,Anthony|Hello,Fabrice|Hello,Oliver|Hello,David|Hello, got "Peter"|"Hello","John"|"Hello","John"|"Hello","Anthony"|"Hello","Fabrice"|"Hello","Oliver"|"Hello","David"|"Hello"
+- FAIL testLowerProjectColsEliminated [tds/tests]: assertEquals: expected Peter,John,John,Anthony,Fabrice,Oliver,David, got "Peter","John","John","Anthony","Fabrice","Oliver","David"
+- FAIL testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: assertEquals: expected Anthony,David,Fabrice,John,Oliver,Peter, got "David","Peter","John","Fabrice","Anthony","Oliver"
+- FAIL testLowerProjectColsNotEliminatedWithSort [tds/tests]: assertEquals: expected Anthony,David,Fabrice,John,John,Oliver,Peter, got "Anthony","David","Fabrice","John","John","Oliver","Peter"
+- FAIL testRestrictOnGroupByEleminatesUncessaryAggs [tds/tests]: assertEquals: expected Firm A|1,Firm B|1,Firm C|1,Firm X|4, got "Firm A"|1,"Firm B"|1,"Firm C"|1,"Firm X"|4
+- FAIL testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct [tds/tests]: assertEquals: expected Firm A|1,Firm B|1,Firm C|1,Firm X|4, got "Firm X"|4,"Firm B"|1,"Firm C"|1,"Firm A"|1
 - ERROR testRestrictOnGroupByColumn_SubSetOfGroupByColumns [tds/tests]: no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
-- ERROR testRestrictOnGroupByColumn_DropAllAggColumns [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
+- FAIL testRestrictOnGroupByColumn_DropAllAggColumns [tds/tests]: assertEquals: expected Firm A,Firm A,Firm B,Firm B,Firm C,Firm X,Firm X,Firm X,Firm X, got "Firm A","Firm A","Firm B","Firm B","Firm C","Firm X","Firm X","Firm X","Firm X"
 - ERROR testRestrictHandlesQueryPathsCorrectlyOnRename [tds/tests]: ~age_new: mapped/aggregate column specifications need an enclosing call to type against
 - SHAPE testRestrictWithPostProcessor [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testRestrictAfterMultiColumnGroupByFollowedByRename [tds/tests]: unknown function 'renameColumns'
-- ERROR testRestrictAfterConcatenate [tds/tests]: Cannot invoke "String.equals(Object)" because "column" is null
+- FAIL testRestrictAfterConcatenate [tds/tests]: assertEquals: expected Anthony,David,Fabrice,John,John,Oliver,Peter, got "Anthony","David","Fabrice","John","John","Oliver","Peter"
 - ERROR testRestrictDistinct_JoinCutDown_ProjectFunctions [tds/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_sort(VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_sort(ANY[]) -> ANY[] | 	list_sort(AN
 - ERROR testRestrictDistinct_JoinCutDown_ColumnSpecs [tds/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_sort(VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_sort(ANY[]) -> ANY[] | 	list_sort(AN
 - ERROR testRestrictDistinct_NoOptimization_NotAfterProject [tds/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_sort(VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_sort(ANY[]) -> ANY[] | 	list_sort(AN
 - ERROR testRestrictDistinct_NoOptimization_NotRestrictFollowedByDistinct [tds/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_sort(VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_sort(ANY[]) -> ANY[] | 	list_sort(AN
 - ERROR testRestrictDistinct_JoinCutDown_PostTdsOperations [tds/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_sort(BIGINT)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_sort(ANY[]) -> ANY[] | 	list_sort(ANY
-- ERROR testRestrictDistinct_NoJoinCutDown [tds/tests]: Cannot invoke "String.length()" because "column" is null
-- ERROR testRestrictDistinct_ColumnOrdering [tds/tests]: Cannot invoke "String.length()" because "column" is null
+- FAIL testRestrictDistinct_NoJoinCutDown [tds/tests]: assertEquals: expected Firm A|Roberts,Firm B|Hill,Firm C|Harris,Firm X|Allen,Firm X|Hill,Firm X|Johnson,Firm X|Smith, got "Firm A"|"Roberts","Firm B"|"Hill","Firm C"|"Harris","Firm X"|"Allen","Firm X"|"Hill","Firm X"|"Johnson","Firm X"|"Smith"
+- FAIL testRestrictDistinct_ColumnOrdering [tds/tests]: assertEquals: expected Allen|Anthony,Harris|David,Hill|John,Hill|Oliver,Johnson|John,Roberts|Fabrice,Smith|Peter, got "Allen"|"Anthony","Harris"|"David","Hill"|"John","Hill"|"Oliver","Johnson"|"John","Roberts"|"Fabrice","Smith"|"Peter"
 - SHAPE testRestrictDistinct_NoOptimization_WindowColumns [tds/tests]: no execute(|...) call
 - SHAPE testSimpleRelationalUnion [tds/tests]: no execute(|...) call
 - ERROR testSimpleUnion [tds/tests]: unknown function 'union'
@@ -1789,17 +1767,17 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNestedGeneration [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::store::TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNested' is not a known class, mapping, runtime, connection, or database
 - FAIL testDistinctMappingSelectAll [tests/mapping/distinct]: assertSameElements: expected [IF 1, IF 2, IF 2], got [IF 2, IF 1]
 - FAIL testDistinctMappingSimpleProjectSelectOneOfTheDistinctProperties [tests/mapping/distinct]: assertEquals: expected name\nIF 1\nIF 2\nIF 2\n, got [IF 1, IF 2]
-- FAIL testDistinctMappingWithFilterSelectAll [tests/mapping/distinct]: assertSameElements: expected [IF 1, IF 2, IF 2], got [IF 1, IF 2]
+- FAIL testDistinctMappingWithFilterSelectAll [tests/mapping/distinct]: assertSameElements: expected [IF 1, IF 2, IF 2], got [IF 2, IF 1]
 - FAIL testDistinctMappingWithFilterSelectOneProperty [tests/mapping/distinct]: assertEquals: expected name\nIF 1\nIF 2\nIF 2\n, got [IF 1, IF 2]
 - FAIL testDistinctMappingWithJoinSelectAll [tests/mapping/distinct]: assertSameElements: expected [IF 1, IF 2, IF 2], got [IF 2, IF 1]
 - ERROR testProjectDistinctMappingWithDistinctInJoin [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testProjectDistinctMappingWithDistinctInJoinWithDup [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testDistinctMappingWithDistinctInJoinWithFilter [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testDistinctMappingWithDistinctInJoinWithFilterOnJoin [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
-- FAIL testDistinctMappingWithFullDenormSelfJoins [tests/mapping/distinct]: assertSameElements: expected [IF 1, IF 2, IF 2], got [IF 1, IF 2]
+- FAIL testDistinctMappingWithFullDenormSelfJoins [tests/mapping/distinct]: assertSameElements: expected [IF 1, IF 2, IF 2], got [IF 2, IF 1]
 - ERROR testDistinctMappingWithFullDenormSelfJoinsWithFilterOnJoin [tests/mapping/distinct]: store-only navigate (class-extent target) reached the lowerer — resolver bug
 - ERROR testDistinctMappingWithFullDenormSelfJoinsWithTwoFiltersOnJoin [tests/mapping/distinct]: store-only navigate (class-extent target) reached the lowerer — resolver bug
-- ERROR testFilterOnMultiLevelJoinWithNonAggregateFunction [tests/mapping/dynaJoin]: Cannot invoke "String.equals(Object)" because "column" is null
+- FAIL testFilterOnMultiLevelJoinWithNonAggregateFunction [tests/mapping/dynaJoin]: assertEquals: expected [New,Hoboken, Correct,New York, Settle,New York, New,New York, Cancel,San Fransisco], got ["New",TDSNull, "Correct",TDSNull, "Settle",TDSNull, "New",TDSNull, "Cancel",TDSNull]
 - ERROR testFilterOnJoinWithAggregateFunctionWithProject [tests/mapping/dynaJoin]: lowering not yet implemented for TypedNativeCall
 - ERROR testSelfJoinWithAggregateFunction [tests/mapping/dynaJoin]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected Boolean, got String
 - ERROR testDenormMappingOneToManyProjectLambdaSyntaxWithMap [tests/mapping/embedded]: multi-hop navigation employees.address.name through an embedded/slot head is not supported yet
@@ -1854,7 +1832,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testEnumValueReturnedInIfExpNotDistinctTransformers [tests/mapping/enumeration]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR filterMappingWithJoinInFilterAndPropertyGetAll [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::model::simple::Person' reads through a join slot; join-mediated mapping filters are H3-pending
 - ERROR testFilterMappingWithJoin [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending
-- ERROR testFilterMappingWithProjection [tests/mapping/filter]: lowering not yet implemented for TypedMap
 - ERROR testFilterMappingWithProjectionOverlapp [tests/mapping/filter]: multi-hop navigation parent.parent.name through an embedded/slot head is not supported yet
 - ERROR testFilterMappingWithProjectionAndJoin [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending
 - ERROR testFilterMappingWithProjectionAndJoinAndQuery [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending
@@ -1916,8 +1893,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFilterOnSimpleTypePropertyDeepWithJoinInMapping [tests/mapping/join]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testFilterOnSimpleTypePropertyDeepWithJoinInMappingNotUsed [tests/mapping/join]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testFilterDeepWithJoinInMappingInMiddle [tests/mapping/join]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testProjectOfTypeMadeOfMultipleJoinsOnlyIncludesJoinsRequiredForProjectedColumns [tests/mapping/join]: lowering not yet implemented for TypedMap
-- ERROR testProjectOfTypeMadeOfMultipleJoinsWithFilterOnlyIncludesJoinsRequiredForProjectedColumns [tests/mapping/join]: lowering not yet implemented for TypedMap
+- FAIL testProjectOfTypeMadeOfMultipleJoinsOnlyIncludesJoinsRequiredForProjectedColumns [tests/mapping/join]: assertSameElements: expected [Anthony, David, Fabrice, John, John, Oliver, Peter], got [["Peter"], ["John"], ["John"], ["Anthony"], ["Fabrice"], ["Oliver"], ["David"]]
+- FAIL testProjectOfTypeMadeOfMultipleJoinsWithFilterOnlyIncludesJoinsRequiredForProjectedColumns [tests/mapping/join]: assertSameElements: expected [John, John], got [["John"], ["John"]]
 - FAIL testMultipleJoinsInPropertyMappingWithDatesInClass [tests/mapping/join]: assertSameElements: expected [Row1, Row2, Row3, Row1, Row2, Row3], got [Row1, Row2, Row3]
 - ERROR testMultipleJoinsInPropertyMappingWithDateInJoin [tests/mapping/join]: in function 'meta::relational::tests::mapping::join::model::mapping::advancedRelationalMapping2$class$meta::relational::tests::mapping::join::model::domain::TypeBuiltOutOfMultipleJoins': no overload of 'meta::pure::functions::boolean::lessThanEqual' structurally matches the argument types
 - ERROR testConstraintTargetingMultipleJoinsInPropertyMapping [tests/mapping/join]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'Person_PersonExtension' (the demand scan and the rewrite disagreed)
@@ -2260,7 +2237,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testTwoAssociationsToOneDeep [tests/query]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - FAIL testWithParameterToClassNestedSelect [tests/query]: assertSize: expected 0, got 1
 - ERROR testExistsWithQualifierOnleftSide [tests/query]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- FAIL testViewAll [tests/query]: assertSameElements: expected [100.0,Peter Smith, 150.0,John Johnson, 200.0,John Johnson], got [200.0,"John Johnson", 100.0,"Peter Smith", 150.0,"John Johnson"]
+- FAIL testViewAll [tests/query]: assertSameElements: expected [100.0,Peter Smith, 150.0,John Johnson, 200.0,John Johnson], got [100.0,"Peter Smith", 200.0,"John Johnson", 150.0,"John Johnson"]
 - SHAPE testViewWithJoinsAndDistinct [tests/query]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testDistinctOnlyIncludesTopLevelColumns [tests/query]: in function 'meta::relational::tests::TestViewWithDistinctAndJoins$class$meta::relational::tests::model::simple::Person': unknown table 'FirstNameAddress' in database 'meta::relational::tests::db'
 - FAIL testViewSimpleFilter [tests/query]: assertSameElements: expected [150.0,John Johnson, 200.0,John Johnson], got [200.0,"John Johnson", 150.0,"John Johnson"]

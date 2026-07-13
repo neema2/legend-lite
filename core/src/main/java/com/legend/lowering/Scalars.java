@@ -626,11 +626,34 @@ final class Scalars {
                     new SqlExpr.IntLit(0)));
         }
         familyIfPresent(SqlFn.MINUS, "sub");
+        // makeString: the Any[*] joiner. Elements stringify; a NULL element
+        // prints 'TDSNull' (engine TDS-cell convention — ordinary pure
+        // collections hold no empties, so the coalesce is unobservable
+        // outside TDS rows).
+        for (String f : Pure.nativeKeysAt("makeString")) {
+            RULES.put(f, (n, args) -> {
+                SqlExpr sep = args.size() == 2 ? args.get(1)
+                        : args.size() == 4 ? args.get(2) : new SqlExpr.StringLit("");
+                SqlExpr strs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, args.get(0),
+                        new SqlExpr.Lambda(List.of("x"),
+                                SqlExpr.Call.of(SqlFn.COALESCE,
+                                        new SqlExpr.Cast(new SqlExpr.Column(null, "x"),
+                                                com.legend.sql.SqlType.Scalar.VARCHAR),
+                                        new SqlExpr.StringLit("TDSNull"))));
+                SqlExpr joined = SqlExpr.Call.of(SqlFn.COALESCE,
+                        new SqlExpr.Call(SqlFn.LIST_AGG, List.of(
+                                new SqlExpr.StringLit("string_agg"), strs, sep)),
+                        new SqlExpr.StringLit(""));
+                if (args.size() == 4) {
+                    return SqlExpr.Call.of(SqlFn.CONCAT, args.get(1),
+                            SqlExpr.Call.of(SqlFn.CONCAT, joined, args.get(3)));
+                }
+                return joined;
+            });
+        }
         // joinStrings over a LIST value: (list), (list, sep), or
-        // (list, prefix, sep, suffix). makeString is the Any[*] spelling of
-        // the same operation (elements stringify — string_agg casts).
-        for (String f : concat(Pure.nativeKeysAt("joinStrings"),
-                Pure.nativeKeysAt("makeString"))) {
+        // (list, prefix, sep, suffix).
+        for (String f : Pure.nativeKeysAt("joinStrings")) {
             RULES.put(f, (n, args) -> {
                 // A TO-ONE source IS the joined string; an EMPTY list joins
                 // to '' (list_aggregate over NULL/[] is NULL — coalesce).
