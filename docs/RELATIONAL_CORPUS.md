@@ -144,7 +144,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | sqlQueryToString/DDL | 3 | 0 | 0 | 0 | 3 |
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 265 | 25 | 80 | 103 | 57 |
+| tds/tests | 265 | 25 | 81 | 102 | 57 |
 | testDataGeneration/tests | 40 | 0 | 0 | 0 | 40 |
 | tests | 39 | 0 | 0 | 0 | 39 |
 | tests/advanced | 67 | 7 | 0 | 38 | 22 |
@@ -154,9 +154,9 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/association | 23 | 3 | 0 | 19 | 1 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 0 | 0 | 32 | 0 |
 | tests/mapping/distinct | 18 | 6 | 6 | 6 | 0 |
-| tests/mapping/dynaJoin | 5 | 2 | 1 | 2 | 0 |
+| tests/mapping/dynaJoin | 5 | 2 | 2 | 1 | 0 |
 | tests/mapping/embedded | 63 | 33 | 6 | 14 | 10 |
-| tests/mapping/enumeration | 26 | 6 | 3 | 14 | 3 |
+| tests/mapping/enumeration | 26 | 6 | 5 | 12 | 3 |
 | tests/mapping/filter | 9 | 4 | 0 | 5 | 0 |
 | tests/mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 |
@@ -178,7 +178,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **300** | 161 | 994 | 837 |
+| **total** | 2292 | **300** | 165 | 990 | 837 |
 
 ### mapping walls (dropped at assembly)
 
@@ -317,14 +317,13 @@ runner does not yet recognize (accounted, not skipped silently).
 
 - 39x no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
 - 38x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- 27x unknown class 'TDSNull' in ^TDSNull(…)
+- 37x unknown class 'TDSNull' in ^TDSNull(…)
 - 25x 'milestoningmap' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 24x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 23x unknown function 'product'
 - 20x expected at most one value, got many ([*])
 - 18x a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - 16x unknown function 'getAllVersions'
-- 16x lowering not yet implemented for TypedNativeCall
 - 15x unknown function 'getAllVersionsInRange'
 - 14x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 14x unknown function 'classification'
@@ -345,6 +344,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - 7x association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionToUnionMapping'
 - 6x unknown function 'ytd'
 - 6x filter predicate references column 'firm_employees', unresolvable even after isolation
+- 6x class meta::relational::tests::model::simple::Address has no property 'values'
 
 ### per-test outcomes (non-passing)
 
@@ -892,7 +892,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - FAIL testAllOneSimplePropertyUsingVariables [functions/tests/projection]: assertEquals: expected Anthony,David,Fabrice,John,John,Oliver,Peter, got ["Anthony"],["David"],["Fabrice"],["John"],["John"],["Oliver"],["Peter"]
 - SHAPE testAllOneSimplePropertyUsingOpenVariables [functions/tests/projection]: no execute(|...) call
 - FAIL testAllTwoSimpleProperties [functions/tests/projection]: assertEquals: expected Allen,Anthony,David,Fabrice,Harris,Hill,Hill,John,John,Johnson,Oliver,Peter,Roberts,Smith, got ["Anthony", "Allen"],["David", "Harris"],["Fabrice", "Roberts"],["John", "Hill"],["John", "Johnson"],["Oliver", "Hill"],["Peter", "Smith"]
-- FAIL testViewAllOneSimpleProperty [functions/tests/projection]: assertSameElements: expected 100.0,200.0,150.0, got [150.0],[100.0],[200.0]
+- FAIL testViewAllOneSimpleProperty [functions/tests/projection]: assertSameElements: expected 100.0,200.0,150.0, got [100.0],[200.0],[150.0]
 - ERROR testJoinToView [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testJoinThroughView [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - ERROR testViewWithGroupBy [functions/tests/projection]: class 'meta::relational::tests::model::simple::AccountPnl' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -1326,18 +1326,18 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR simpleGroupDistinctCount [tds/tests]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected Boolean, got String
 - ERROR simpleGroupDistinctCountWithExtendedPrimitives [tds/tests]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected Boolean, got String
 - ERROR simpleFilterWithGroupByWithDistinct [tds/tests]: unknown function 'meta::pure::tds::distinct'
-- ERROR simpleGroupBySum [tds/tests]: lowering not yet implemented for TypedNativeCall
-- ERROR simpleGroupConstantAggregates [tds/tests]: lowering not yet implemented for TypedNativeCall
-- ERROR simpleGroupByAggFuncAsLambdaWithTake [tds/tests]: lowering not yet implemented for TypedNativeCall
-- ERROR simpleGroupByAverage [tds/tests]: lowering not yet implemented for TypedNativeCall
-- ERROR simpleGroupByTwo [tds/tests]: lowering not yet implemented for TypedNativeCall
-- ERROR simpleGroupByMax [tds/tests]: lowering not yet implemented for TypedNativeCall
-- ERROR simpleGroupByMin [tds/tests]: lowering not yet implemented for TypedNativeCall
+- ERROR simpleGroupBySum [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
+- ERROR simpleGroupConstantAggregates [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
+- ERROR simpleGroupByAggFuncAsLambdaWithTake [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
+- ERROR simpleGroupByAverage [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
+- ERROR simpleGroupByTwo [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
+- ERROR simpleGroupByMax [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
+- ERROR simpleGroupByMin [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR simpleGroupByAnd [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::and'
 - ERROR simpleGroupByOr [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::or'
-- ERROR GroupByWithMapFnConstant [tds/tests]: lowering not yet implemented for TypedNativeCall
-- ERROR GroupByWithMapFnColumns [tds/tests]: lowering not yet implemented for TypedNativeCall
-- ERROR GroupByWithIfInMap [tds/tests]: lowering not yet implemented for TypedNativeCall
+- ERROR GroupByWithMapFnConstant [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
+- ERROR GroupByWithMapFnColumns [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
+- ERROR GroupByWithIfInMap [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR simpleGroupByWithJoinStrings [tds/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR simpleGroupByWithAssociationWithJoinStrings [tds/tests]: expected at most one value, got many ([*])
 - ERROR groupByAfterASortOnColumnInGroupBy [tds/tests]: expected at most one value, got many ([*])
@@ -1409,7 +1409,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testExtendsWithInClause [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - FAIL testSimpleFilter [tds/tests]: assertEquals: expected [John, John], got [["John"], ["John"]]
 - FAIL testFilterWithStringConcat [tds/tests]: assertEquals: expected [John, John], got [["John"], ["John"]]
-- ERROR testFilterOnEnum [tds/tests]: lowering not yet implemented for TypedNativeCall
+- FAIL testFilterOnEnum [tds/tests]: assertEquals: expected CITY, got [New York, CITY]
 - FAIL testFilterTwoExpressions [tds/tests]: assertEquals: expected [John, Johnson], got ["John", "Johnson"]
 - FAIL testFilterTwoExpressions_chain [tds/tests]: assertEquals: expected [John, Johnson], got ["John", "Johnson"]
 - ERROR testFilterMultipleExpressions1 [tds/tests]: unknown function 'isNotNull'
@@ -1503,7 +1503,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - FAIL testProjectAllColumns_Single [tds/tests]: assertEquals: expected Peter,John,John,Anthony,Fabrice,Oliver,David, got "Peter","John","John","Anthony","Fabrice","Oliver","David"
 - FAIL testProjectAllColumns_Mulitple [tds/tests]: assertEquals: expected Peter|Hello,John|Hello,John|Hello,Anthony|Hello,Fabrice|Hello,Oliver|Hello,David|Hello, got "Peter"|"Hello","John"|"Hello","John"|"Hello","Anthony"|"Hello","Fabrice"|"Hello","Oliver"|"Hello","David"|"Hello"
 - FAIL testLowerProjectColsEliminated [tds/tests]: assertEquals: expected Peter,John,John,Anthony,Fabrice,Oliver,David, got "Peter","John","John","Anthony","Fabrice","Oliver","David"
-- FAIL testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: assertEquals: expected Anthony,David,Fabrice,John,Oliver,Peter, got "David","Peter","John","Fabrice","Anthony","Oliver"
+- FAIL testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: assertEquals: expected Anthony,David,Fabrice,John,Oliver,Peter, got "David","Oliver","Fabrice","Anthony","John","Peter"
 - FAIL testLowerProjectColsNotEliminatedWithSort [tds/tests]: assertEquals: expected Anthony,David,Fabrice,John,John,Oliver,Peter, got "Anthony","David","Fabrice","John","John","Oliver","Peter"
 - FAIL testRestrictOnGroupByEleminatesUncessaryAggs [tds/tests]: assertEquals: expected Firm A|1,Firm B|1,Firm C|1,Firm X|4, got "Firm A"|1,"Firm B"|1,"Firm C"|1,"Firm X"|4
 - FAIL testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct [tds/tests]: assertEquals: expected Firm A|1,Firm B|1,Firm C|1,Firm X|4, got "Firm X"|4,"Firm B"|1,"Firm C"|1,"Firm A"|1
@@ -1769,7 +1769,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - FAIL testDistinctMappingSimpleProjectSelectOneOfTheDistinctProperties [tests/mapping/distinct]: assertEquals: expected name\nIF 1\nIF 2\nIF 2\n, got [IF 1, IF 2]
 - FAIL testDistinctMappingWithFilterSelectAll [tests/mapping/distinct]: assertSameElements: expected [IF 1, IF 2, IF 2], got [IF 2, IF 1]
 - FAIL testDistinctMappingWithFilterSelectOneProperty [tests/mapping/distinct]: assertEquals: expected name\nIF 1\nIF 2\nIF 2\n, got [IF 1, IF 2]
-- FAIL testDistinctMappingWithJoinSelectAll [tests/mapping/distinct]: assertSameElements: expected [IF 1, IF 2, IF 2], got [IF 2, IF 1]
+- FAIL testDistinctMappingWithJoinSelectAll [tests/mapping/distinct]: assertSameElements: expected [IF 1, IF 2, IF 2], got [IF 1, IF 2]
 - ERROR testProjectDistinctMappingWithDistinctInJoin [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testProjectDistinctMappingWithDistinctInJoinWithDup [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testDistinctMappingWithDistinctInJoinWithFilter [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
@@ -1778,7 +1778,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testDistinctMappingWithFullDenormSelfJoinsWithFilterOnJoin [tests/mapping/distinct]: store-only navigate (class-extent target) reached the lowerer — resolver bug
 - ERROR testDistinctMappingWithFullDenormSelfJoinsWithTwoFiltersOnJoin [tests/mapping/distinct]: store-only navigate (class-extent target) reached the lowerer — resolver bug
 - FAIL testFilterOnMultiLevelJoinWithNonAggregateFunction [tests/mapping/dynaJoin]: assertEquals: expected [New,Hoboken, Correct,New York, Settle,New York, New,New York, Cancel,San Fransisco], got ["New",TDSNull, "Correct",TDSNull, "Settle",TDSNull, "New",TDSNull, "Cancel",TDSNull]
-- ERROR testFilterOnJoinWithAggregateFunctionWithProject [tests/mapping/dynaJoin]: lowering not yet implemented for TypedNativeCall
+- FAIL testFilterOnJoinWithAggregateFunctionWithProject [tests/mapping/dynaJoin]: assertEquals: expected [1, 2014-12-03], got [1, 2014-12-03]
 - ERROR testSelfJoinWithAggregateFunction [tests/mapping/dynaJoin]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected Boolean, got String
 - ERROR testDenormMappingOneToManyProjectLambdaSyntaxWithMap [tests/mapping/embedded]: multi-hop navigation employees.address.name through an embedded/slot head is not supported yet
 - ERROR testProjectToEmbedded [tests/mapping/embedded]: multi-hop navigation employees.address.name through an embedded/slot head is not supported yet
@@ -1824,8 +1824,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProjectionWithEnumThroughAssociation [tests/mapping/enumeration]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - ERROR testProjectionWithEnumQualifierParameter [tests/mapping/enumeration]: [4:113] navigation path segment 'synonymsByType(ProductSynonymType.CUSIP)' uses an unsupported path feature (only plain property segments desugar): #/Product/synonymsByType(ProductSynonymType.CUSIP)/value!cusip#
 - ERROR testFilterWithEnumQualifierParameter [tests/mapping/enumeration]: unknown function 'columnValues'
-- ERROR testProjectWithIfWhereOneSideIsEnumLiteral [tests/mapping/enumeration]: lowering not yet implemented for TypedNativeCall
-- ERROR testProjectWithIfWhereBothSidesUseTheSameEnumMapping [tests/mapping/enumeration]: lowering not yet implemented for TypedNativeCall
+- FAIL testProjectWithIfWhereOneSideIsEnumLiteral [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, GS_NUMBER]
+- FAIL testProjectWithIfWhereBothSidesUseTheSameEnumMapping [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, CUSIP]
 - FAIL testTdsProjectWithEnumToStringEqualityComparison [tests/mapping/enumeration]: assertSameElements: expected [no, yes, no], got [no, no, no]
 - ERROR testTdsProjectWithEnumVarEquality [tests/mapping/enumeration]: unbound variable '$enum'
 - ERROR testEnumValueReturnedInIfExp [tests/mapping/enumeration]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
@@ -2237,7 +2237,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testTwoAssociationsToOneDeep [tests/query]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - FAIL testWithParameterToClassNestedSelect [tests/query]: assertSize: expected 0, got 1
 - ERROR testExistsWithQualifierOnleftSide [tests/query]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- FAIL testViewAll [tests/query]: assertSameElements: expected [100.0,Peter Smith, 150.0,John Johnson, 200.0,John Johnson], got [100.0,"Peter Smith", 200.0,"John Johnson", 150.0,"John Johnson"]
+- FAIL testViewAll [tests/query]: assertSameElements: expected [100.0,Peter Smith, 150.0,John Johnson, 200.0,John Johnson], got [150.0,"John Johnson", 100.0,"Peter Smith", 200.0,"John Johnson"]
 - SHAPE testViewWithJoinsAndDistinct [tests/query]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testDistinctOnlyIncludesTopLevelColumns [tests/query]: in function 'meta::relational::tests::TestViewWithDistinctAndJoins$class$meta::relational::tests::model::simple::Person': unknown table 'FirstNameAddress' in database 'meta::relational::tests::db'
 - FAIL testViewSimpleFilter [tests/query]: assertSameElements: expected [150.0,John Johnson, 200.0,John Johnson], got [200.0,"John Johnson", 150.0,"John Johnson"]

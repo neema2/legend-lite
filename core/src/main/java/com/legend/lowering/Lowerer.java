@@ -219,6 +219,36 @@ public final class Lowerer {
     // ==================================================================
 
     private SqlSelect relation(TypedSpec spec) {
+        // POSITIONAL reads over a relation: at(n) IS slice(n, n+1);
+        // first()/head() IS limit 1 — row selection, not value extraction
+        if (spec instanceof com.legend.compiler.spec.typed.TypedNativeCall pc
+                && !pc.args().isEmpty()
+                && pc.args().get(0).info().type() instanceof Type.RelationType) {
+            String fqn = pc.callee().qualifiedName();
+            if (fqn.equals("meta::pure::functions::collection::at")
+                    && pc.args().size() == 2
+                    && pc.args().get(1) instanceof com.legend.compiler.spec.typed.TypedCInteger n) {
+                var one = com.legend.compiler.element.type.ExprType.one(
+                        Type.Primitive.INTEGER);
+                return relation(new com.legend.compiler.spec.typed.TypedSlice(
+                        pc.args().get(0),
+                        new com.legend.compiler.spec.typed.TypedCInteger(
+                                n.value().longValue(), one),
+                        new com.legend.compiler.spec.typed.TypedCInteger(
+                                n.value().longValue() + 1, one),
+                        pc.args().get(0).info()));
+            }
+            if ((fqn.equals("meta::pure::functions::collection::first")
+                    || fqn.equals("meta::pure::functions::collection::head"))
+                    && pc.args().size() == 1) {
+                var one = com.legend.compiler.element.type.ExprType.one(
+                        Type.Primitive.INTEGER);
+                return relation(new com.legend.compiler.spec.typed.TypedLimit(
+                        pc.args().get(0),
+                        new com.legend.compiler.spec.typed.TypedCInteger(1L, one),
+                        pc.args().get(0).info()));
+            }
+        }
         return switch (spec) {
             case com.legend.compiler.spec.typed.TypedSourceUrl su -> SqlSelect.starOf(
                     new SqlSource.SourceUrl(su.url(), nextAlias(), outputsOf(su.info())));
