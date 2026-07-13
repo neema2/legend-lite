@@ -129,9 +129,9 @@ runner does not yet recognize (accounted, not skipped silently).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 0 | 0 | 92 | 0 |
 | executionPlan/tests | 109 | 0 | 0 | 0 | 109 |
-| functions/tests | 261 | 33 | 2 | 164 | 62 |
+| functions/tests | 261 | 44 | 3 | 147 | 67 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 1 | 0 | 0 |
-| functions/tests/projection | 165 | 6 | 7 | 97 | 55 |
+| functions/tests/projection | 165 | 11 | 7 | 97 | 50 |
 | graphFetch/domain | 2 | 0 | 0 | 0 | 2 |
 | graphFetch/tests | 5 | 0 | 0 | 0 | 5 |
 | graphFetch/tests/union | 1 | 0 | 0 | 0 | 1 |
@@ -151,7 +151,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | sqlQueryToString/DDL | 3 | 0 | 0 | 0 | 3 |
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 275 | 16 | 12 | 158 | 89 |
+| tds/tests | 275 | 22 | 12 | 114 | 127 |
 | testDataGeneration/tests | 40 | 0 | 0 | 0 | 40 |
 | tests | 39 | 0 | 0 | 0 | 39 |
 | tests/advanced | 71 | 0 | 0 | 58 | 13 |
@@ -161,15 +161,15 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/association | 24 | 1 | 0 | 19 | 4 |
 | tests/mapping/classMappingByClass | 3 | 0 | 0 | 0 | 3 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 0 | 0 | 30 | 2 |
-| tests/mapping/distinct | 18 | 6 | 3 | 9 | 0 |
+| tests/mapping/distinct | 18 | 4 | 5 | 9 | 0 |
 | tests/mapping/dynaJoin | 6 | 0 | 0 | 2 | 4 |
 | tests/mapping/embedded | 70 | 8 | 8 | 47 | 7 |
-| tests/mapping/enumeration | 27 | 1 | 1 | 9 | 16 |
+| tests/mapping/enumeration | 27 | 1 | 1 | 8 | 17 |
 | tests/mapping/filter | 10 | 3 | 0 | 5 | 2 |
 | tests/mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 |
 | tests/mapping/inheritance | 51 | 0 | 0 | 51 | 0 |
-| tests/mapping/join | 29 | 14 | 1 | 11 | 3 |
+| tests/mapping/join | 29 | 17 | 1 | 11 | 0 |
 | tests/mapping/merge | 1 | 0 | 0 | 1 | 0 |
 | tests/mapping/modelJoin | 47 | 0 | 0 | 47 | 0 |
 | tests/mapping/multigrain | 6 | 0 | 0 | 6 | 0 |
@@ -186,7 +186,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2429 | **116** | 37 | 1352 | 924 |
+| **total** | 2429 | **139** | 40 | 1290 | 960 |
 
 ### mapping walls (dropped at assembly)
 
@@ -406,10 +406,8 @@ runner does not yet recognize (accounted, not skipped silently).
 ### top error buckets
 
 - 64x in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': in call to 'meta::pure::functions::string::splitPart', argument 3: expected Integer, got String
-- 56x class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- 36x legacy groupBy expects (source, [keys], [aggs], ['aliases'])
+- 35x unknown function 'restrict'
 - 35x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
-- 34x unknown function 'restrict'
 - 30x unknown function 'product'
 - 29x class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - 27x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
@@ -417,8 +415,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - 23x [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - 22x class query under TypedMap is not resolvable yet (H2 vocabulary)
 - 22x milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
+- 21x expected at most one value, got many ([*])
 - 20x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- 20x expected at most one value, got many ([*])
 - 18x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 18x unknown function 'getAllVersionsInRange'
 - 16x unknown function 'getAllVersions'
@@ -428,13 +426,15 @@ runner does not yet recognize (accounted, not skipped silently).
 - 15x milestoned class fetch of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X' is not supported yet (H-scope exclusion)
 - 14x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exactly one
 - 13x unknown function 'employeesByCityOrManager'
+- 13x unknown function 'classification'
 - 13x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Person' (of 1 candidates); class-query dispatch needs exactly one
-- 12x unknown function 'classification'
+- 12x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected String, got Integer
 - 11x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::PersonWithAddress' (of 1 candidates); class-query dispatch needs exactly one
 - 10x filter predicate references column 'firm_employees', unresolvable even after isolation
 - 10x property 'name' of class 'meta::relational::tests::model::simple::Person' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - 10x unknown function 'employeeByLastName'
 - 10x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Person' (of 1 candidates); class-query dispatch needs exactly one
+- 10x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Firm' (of 1 candidates); class-query dispatch needs exactly one
 
 ### per-test outcomes (non-passing)
 
@@ -824,33 +824,23 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSubAggregationMaxInQualifier [functions/tests]: unknown function 'maxEmployeesAge'
 - ERROR testSubAggregationSumInQualifier [functions/tests]: unknown function 'sumEmployeesAge'
 - ERROR testSequenceMapWithConfusingSetImplementation [functions/tests]: 'Org' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testSimple [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testStdDevSample [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testStdDevPopulation [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testVarianceSample [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testVariancePopulation [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testSimpleOneAggInAnArray [functions/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testSimpleTwoAggs [functions/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testMax [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testMin [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testUsingAMultiplyInTheAggregation [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testUsingAFunctionInTheMapLambdaAndAMultiplyInTheAggregation [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testUsingAnAssociationInTheMapFunction [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testUsingAnAssociationInTheMapFunctionNestedInAFunctionAndTwoGroupBysUsingOneAssociation [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testUsingFunctionInMapLambdaTakingAParameter [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testUsingFunctionInMapLambdaTakingAPathParameter [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testUsingFunctionInMapLambdaTakingAFirstParameterThatMustBeProcessed2 [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testUsingFunctionInMapLambdaTakingAFirstParameterThatMustBeProcessed [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testSimpleWithFilter [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testUsingFunctionInMapLambdaTakingAPathParameterPartial [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testUsingFunctionInMapLambdaTakingAParameterPartial [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testFilterWithQualifiedProperty [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testGroupByOnRootLevelPrimitiveAttributeWithNoJoinAndFilter [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testSimpleJoinStrings [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testJoinStringsWithAssociation [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testJoinStringsTwiceWithAssociation [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testUsingSameAggFunctionTwice [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testUsingSameAggFunctionTwiceUsingQualifier [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
+- ERROR testUsingAFunctionInTheMapLambdaAndAMultiplyInTheAggregation [functions/tests]: unknown function 'subFunction'
+- ERROR testUsingAnAssociationInTheMapFunction [functions/tests]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
+- ERROR testUsingAnAssociationInTheMapFunctionNestedInAFunctionAndTwoGroupBysUsingOneAssociation [functions/tests]: unknown function 'subFunction2'
+- ERROR testUsingFunctionInMapLambdaTakingAParameter [functions/tests]: no overload of 'subFunction3' matches 2 argument(s) of these shapes
+- ERROR testUsingFunctionInMapLambdaTakingAPathParameter [functions/tests]: no overload of 'subFunction3' matches 2 argument(s) of these shapes
+- ERROR testUsingFunctionInMapLambdaTakingAFirstParameterThatMustBeProcessed2 [functions/tests]: unknown function 'subFunction4'
+- ERROR testUsingFunctionInMapLambdaTakingAFirstParameterThatMustBeProcessed [functions/tests]: unknown function 'subFunction5'
+- ERROR testSimpleWithFilter [functions/tests]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
+- ERROR testUsingFunctionInMapLambdaTakingAPathParameterPartial [functions/tests]: no overload of 'subFunction6' matches 2 argument(s) of these shapes
+- ERROR testUsingFunctionInMapLambdaTakingAParameterPartial [functions/tests]: no overload of 'subFunction6' matches 2 argument(s) of these shapes
+- ERROR testFilterWithQualifiedProperty [functions/tests]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
+- SHAPE testGroupByOnRootLevelPrimitiveAttributeWithNoJoinAndFilter [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold)
+- SHAPE testSimpleJoinStrings [functions/tests]: partial: 1/4 asserts recognized (recognized ones hold)
+- ERROR testJoinStringsWithAssociation [functions/tests]: expected at most one value, got many ([*])
+- SHAPE testJoinStringsTwiceWithAssociation [functions/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testUsingSameAggFunctionTwice [functions/tests]: partial: 1/2 asserts recognized (recognized ones hold)
+- ERROR testUsingSameAggFunctionTwiceUsingQualifier [functions/tests]: property 'sumEmployeesAge' of class 'meta::relational::tests::model::simple::Firm' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testAggToManyWithAverage [functions/tests]: expected at most one value, got many ([*])
 - ERROR testAggToManyWithMaxInteger [functions/tests]: expected at most one value, got many ([*])
 - ERROR testAggToManyWithMinInteger [functions/tests]: expected at most one value, got many ([*])
@@ -858,8 +848,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testAggToManyWithMinDate [functions/tests]: expected at most one value, got many ([*])
 - ERROR testAggToManyWithFilter [functions/tests]: expected at most one value, got many ([*])
 - SHAPE testGroupByWithUnion [functions/tests]: no execute(|...) call
-- ERROR testGroupByAndFilterIsolatedJoinMerge [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testGroupByWithJoinH2 [functions/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
+- ERROR testGroupByAndFilterIsolatedJoinMerge [functions/tests]: multi-hop navigation product.cusipSynonym.name through an embedded/slot head is not supported yet
+- FAIL testGroupByWithJoinH2 [functions/tests]: size: expected 1, got 6; cells: expected [Firm A, Fabrice, 1, Firm B, Oliver, 1, Firm C, David, 1, Firm X, Anthony, 1, Firm X, John, 2, Firm X, Peter, 1], got [Firm A, Fabrice, 1, Firm B, Oliver, 1, Firm C, David, 1, Firm X, Anthony, 1, Firm X, John, 2, Firm X, Peter, 1]
 - SHAPE testGroupByWithJoinDB2 [functions/tests]: no execute(|...) call
 - ERROR testObjectLevelGroupByWTDSLevelGroupByWTDSExtend [functions/tests]: ~Case Column: mapped/aggregate column specifications need an enclosing call to type against
 - SHAPE testReprocessGroupByAlias [functions/tests]: no execute(|...) call
@@ -869,7 +859,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testUniqueValueOnly4 [functions/tests]: unknown function 'uniqueValueOnly'
 - SHAPE testAggFunctionUsingMultipleSetImplementation [functions/tests]: no execute(|...) call
 - SHAPE testOrder [functions/tests]: no execute(|...) call
-- ERROR testGroupByPercentile [functions/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- SHAPE testGroupByPercentile [functions/tests]: partial: 1/2 asserts recognized (recognized ones hold)
 - ERROR testGroupByIsDistinct [functions/tests]: expected at most one value, got many ([*])
 - ERROR testGroupByEmptyColsTerminalOperation [functions/tests]: no overload of 'groupBy' matches the argument types
 - ERROR testGroupByEmptyColsNonTerminalOperation [functions/tests]: no overload of 'groupBy' matches the argument types
@@ -878,7 +868,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testPaginated [functions/tests]: no execute(|...) call
 - SHAPE testPaginatedByVendor [functions/tests]: no execute(|...) call
 - SHAPE testPaginatedWithVariables [functions/tests]: no execute(|...) call
-- ERROR testDistinctSize [functions/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - SHAPE testSliceByVendor [functions/tests]: no execute(|...) call
 - SHAPE testLimitByVendor [functions/tests]: no execute(|...) call
 - SHAPE testTakeByVendor [functions/tests]: no execute(|...) call
@@ -977,12 +966,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testSimpleFunctionWithToOne [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testSimpleFunctionWithToManyMap [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testSimpleFunctionWithTwoToManyMap [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
-- SHAPE testDatePartWithZeroToOne [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
-- SHAPE testWeekOfYearWithZeroToOne [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
-- SHAPE testMonthNumberZeroToOne [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - FAIL testDayOfMonth [functions/tests/projection]: cells: expected [DateExpected[iso=2014-12-05T21:00:00.000000000+0000], 5], got [2014-12-05 21:00:00.0, 5]
-- SHAPE testYearZeroToOne [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
-- SHAPE testDateDiffZeroToOne [functions/tests/projection]: partial: 4/6 asserts recognized (recognized ones hold)
 - ERROR testNestedPlusFunctionAndMappingDynaFunction [functions/tests/projection]: in function 'meta::relational::tests::simpleRelationalMappingWithPlus$class$meta::relational::tests::model::simple::Order': expected Float, got Integer
 - ERROR testNestedPlusFunctionAndNestedMappingDynaFunction [functions/tests/projection]: in function 'meta::relational::tests::simpleRelationalMappingWithNestedPlus$class$meta::relational::tests::model::simple::Order': expected Float, got Integer
 - ERROR testSameBehaviorForNestedAddAndPlus [functions/tests/projection]: in function 'meta::relational::tests::simpleRelationalMappingWithNestedAdd$class$meta::relational::tests::model::simple::Order': expected Float, got Integer
@@ -1181,7 +1165,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testNonMilestoningQueryWithMilestoneFilterProjectUsingSamePropertyWithDifferentDates [milestoning/tests]: unknown function 'product'
 - ERROR testMilestoningQueryWithSimpleProjectWithMilestoneFilter [milestoning/tests]: unknown function 'classification'
 - ERROR testMilestoningQueryWithAggProjectWithMilestoneFilter [milestoning/tests]: unknown function 'classification'
-- ERROR testMilestoningQueryWithGroupByFilterWithMilestoning [milestoning/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
+- ERROR testMilestoningQueryWithGroupByFilterWithMilestoning [milestoning/tests]: unknown function 'classification'
 - ERROR testSimpleQueryWithParallelPathsDifferedByBusinessDate [milestoning/tests]: unknown function 'product'
 - ERROR testBusinessDateInjectionFromVarReference [milestoning/tests]: unknown function 'product'
 - ERROR testBusinessDateInjectionFromVarReferenceWithProject [milestoning/tests]: unknown function 'product'
@@ -1420,7 +1404,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testToSqlStringReplaceTablesPostProcessor [postprocessor/tests]: no execute(|...) call
 - ERROR testReplaceTablePostProcessorWithExists [postprocessor/tests]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - ERROR testReplaceTablePostProcessorWithView [postprocessor/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Order' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testReplaceTablePostProcessorWithSubQueries [postprocessor/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
+- ERROR testReplaceTablePostProcessorWithSubQueries [postprocessor/tests]: multi-hop navigation product.cusipSynonym.name through an embedded/slot head is not supported yet
 - SHAPE testPushFiltersDownToJoinsPostProcessorSimpleObjectFilterEqual [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPushFiltersDownToJoinsPostProcessorSimpleTDSFilterEqual [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPushFiltersDownToJoinsPostProcessorTDSFilterGreaterThan [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -1530,30 +1514,30 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call
 - SHAPE testExecutionPlanGeneration [tds/tests]: no execute(|...) call
-- ERROR testSimpleDistinct [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- ERROR testSimpleDistinct [tds/tests]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected String, got Integer
 - ERROR testSimpleDistinctWithTake [tds/tests]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected String, got Integer
 - ERROR testSimpleDistinctWithFilter [tds/tests]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected String, got Integer
-- ERROR testSimpleDistinctGroupBy [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- ERROR testSimpleDistinctGroupBy [tds/tests]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected String, got Integer
 - SHAPE testValidateTdsGroupByWithIsNotEmpty [tds/tests]: no execute(|...) call
-- ERROR simpleGroupCount [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR simpleGroupCountUsingVariables [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR simpleGroupDistinctCount [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR simpleGroupDistinctCountWithExtendedPrimitives [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- SHAPE simpleGroupCount [tds/tests]: partial: 1/7 asserts recognized (recognized ones hold)
+- SHAPE simpleGroupCountUsingVariables [tds/tests]: partial: 1/6 asserts recognized (recognized ones hold)
+- ERROR simpleGroupDistinctCount [tds/tests]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected String, got Integer
+- ERROR simpleGroupDistinctCountWithExtendedPrimitives [tds/tests]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected String, got Integer
 - ERROR simpleFilterWithGroupByWithDistinct [tds/tests]: unknown function 'meta::pure::tds::distinct'
-- ERROR simpleGroupBySum [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR simpleGroupConstantAggregates [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR simpleGroupByAggFuncAsVariable [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- SHAPE simpleGroupBySum [tds/tests]: partial: 1/6 asserts recognized (recognized ones hold)
+- SHAPE simpleGroupConstantAggregates [tds/tests]: partial: 1/6 asserts recognized (recognized ones hold)
+- SHAPE simpleGroupByAggFuncAsVariable [tds/tests]: partial: 1/6 asserts recognized (recognized ones hold)
 - SHAPE simpleGroupByAggFuncAsLambda [tds/tests]: no execute(|...) call
 - SHAPE simpleGroupByAggFuncAsLambdaWithTake [tds/tests]: no execute(|...) call
-- ERROR simpleGroupByAverage [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR simpleGroupByTwo [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR simpleGroupByMax [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR simpleGroupByMin [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR simpleGroupByAnd [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR simpleGroupByOr [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR GroupByWithMapFnConstant [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR GroupByWithMapFnColumns [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR GroupByWithIfInMap [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- SHAPE simpleGroupByAverage [tds/tests]: partial: 1/6 asserts recognized (recognized ones hold)
+- SHAPE simpleGroupByTwo [tds/tests]: partial: 1/6 asserts recognized (recognized ones hold)
+- SHAPE simpleGroupByMax [tds/tests]: partial: 1/6 asserts recognized (recognized ones hold)
+- SHAPE simpleGroupByMin [tds/tests]: partial: 1/6 asserts recognized (recognized ones hold)
+- ERROR simpleGroupByAnd [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::and'
+- ERROR simpleGroupByOr [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::or'
+- SHAPE GroupByWithMapFnConstant [tds/tests]: partial: 1/6 asserts recognized (recognized ones hold)
+- SHAPE GroupByWithMapFnColumns [tds/tests]: partial: 1/6 asserts recognized (recognized ones hold)
+- SHAPE GroupByWithIfInMap [tds/tests]: no recognizable assertions
 - SHAPE simpleGroupByWithJoinStrings [tds/tests]: partial: 1/5 asserts recognized (recognized ones hold)
 - ERROR simpleGroupByWithAssociationWithJoinStrings [tds/tests]: expected at most one value, got many ([*])
 - ERROR groupByAfterASortOnColumnInGroupBy [tds/tests]: expected at most one value, got many ([*])
@@ -1561,7 +1545,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR simpleGroupByAggFuncNotStopFunc [tds/tests]: unknown function 'uniqueValueOnly'
 - ERROR groupByAfterConcatenate [tds/tests]: expected at most one value, got many ([*])
 - SHAPE testTableToTDSWithQuotedColumns [tds/tests]: no execute(|...) call
-- ERROR testTDSGroupByPercentile [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- SHAPE testTDSGroupByPercentile [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold)
 - ERROR testTDSGroupByIsDistinct [tds/tests]: expected at most one value, got many ([*])
 - SHAPE testTDSGroupByEmptyColsTerminalOperation [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold)
 - SHAPE testTDSGroupByEmptyColsNonTerminalOperation [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold)
@@ -1569,30 +1553,24 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testGroupByWithWavgAggregation [tds/tests]: no execute(|...) call
 - SHAPE testGroupByWithMultipleWavgAggregation [tds/tests]: no execute(|...) call
 - SHAPE testSimpleSliceZeroSameAsTake [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testSimpleNestedDrop [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testSimpleNestedDropAfterConcatenate [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testSimpleNestedTake [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testSimpleNestedTakeAfterConcatenate [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testSimpleNestedSlice [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testSimpleNestedSliceAfterConcatenate [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - SHAPE testSimpleSortAsc [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testSimpleSortAscWithPreval [tds/tests]: no execute(|...) call
 - SHAPE testSimpleSortAscInputToProject [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold)
-- ERROR testSimpleSortAscHelper [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- SHAPE testSimpleSortAscHelper [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testSimpleSortDesc [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
-- ERROR testSimpleSortDescHelper [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- SHAPE testSimpleSortDescHelper [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testDoubleSortAsc1 [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
-- ERROR testDoubleSortAsc1Helper [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testDoubleSortAsc1Chain [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testDoubleSortDesc1Helper [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testDoubleSortDesc1Chain [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- SHAPE testDoubleSortAsc1Helper [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
+- SHAPE testDoubleSortAsc1Chain [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
+- SHAPE testDoubleSortDesc1Helper [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
+- SHAPE testDoubleSortDesc1Chain [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testDoubleSortAsc2 [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
-- ERROR testDoubleSortAsc2Helper [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testDoubleSortAsc2Chain [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testDoubleSortDesc2Helper [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testDoubleSortDesc2Chain [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testDoubleSortMixed [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testDoubleSortMixedChain [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- SHAPE testDoubleSortAsc2Helper [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
+- SHAPE testDoubleSortAsc2Chain [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
+- SHAPE testDoubleSortDesc2Helper [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
+- SHAPE testDoubleSortDesc2Chain [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
+- SHAPE testDoubleSortMixed [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
+- SHAPE testDoubleSortMixedChain [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testSortQuotes [tds/tests]: no execute(|...) call
 - SHAPE testTableToTDSWithQuotes [tds/tests]: no execute(|...) call
 - SHAPE testSimpleConcatenate [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
@@ -1633,10 +1611,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFilterOnEnum [tds/tests]: unknown function 'getEnum'
 - ERROR testFilterMultipleExpressions1 [tds/tests]: unknown function 'isNotNull'
 - ERROR testFilterMultipleExpressions1_chain [tds/tests]: unknown function 'isNotNull'
-- ERROR testFilterOnRootClassAggValueAfterGroupBy [tds/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testFilterOnAssociatedClassAggValueAfterGroupBy [tds/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testFilterFollowedByGroupByWithFilterOnRootClass [tds/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testFilterOnRootClassAggValueAfterGroupByWithHavingMultipleFilters [tds/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
+- SHAPE testFilterOnRootClassAggValueAfterGroupBy [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
+- SHAPE testFilterOnAssociatedClassAggValueAfterGroupBy [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
+- SHAPE testFilterFollowedByGroupByWithFilterOnRootClass [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
+- SHAPE testFilterOnRootClassAggValueAfterGroupByWithHavingMultipleFilters [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testInOnColumnInSubselect [tds/tests]: no overload of 'olapGroupBy' matches 5 argument(s) of these shapes
 - SHAPE testFilterOnQuotedColumnFromTableToTds [tds/tests]: no execute(|...) call
 - ERROR testFirstNotNullFunction [tds/tests]: unknown function 'meta::pure::tds::extensions::firstNotNull'
@@ -1710,22 +1688,22 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testHourFunction [tds/tests]: no recognizable assertions
 - ERROR testProjectEnumFromOpenVariable [tds/tests]: unknown function 'extractEnumValue'
 - SHAPE testProjectWithAdjustFunction [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
-- ERROR testFilterAfterLimit [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testFilterAfterLimit2 [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testSortAfterLimit [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- SHAPE testFilterAfterLimit [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- ERROR testFilterAfterLimit2 [tds/tests]: no overload of 'meta::pure::functions::relation::limit' structurally matches the argument types
+- SHAPE testSortAfterLimit [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
 - SHAPE testLimitAfterLimit [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
-- ERROR testSliceAfterLimit [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testLimitAfterSlice [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testDropAfterLimit [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testLimitAfterDrop [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testTakeAfterLimit [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testLimitAfterTake [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- SHAPE testSliceAfterLimit [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testLimitAfterSlice [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testDropAfterLimit [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testLimitAfterDrop [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testTakeAfterLimit [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testLimitAfterTake [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
 - ERROR testOptionalLimit_NoValue [tds/tests]: no overload of 'meta::pure::functions::relation::limit' structurally matches the argument types
-- ERROR testOptionalLimit_WithValue [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- ERROR testOptionalLimit_WithValue [tds/tests]: dynamic slicing bounds are not lowered yet (literal expected), got TypedNativeCall
 - ERROR testProjectWithColumnSubSet [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testProjectWithColumnSubSetFunctions [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testProjectWithColumnSubSetSQLTest [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
-- ERROR testGetNumber [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- SHAPE testGetNumber [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
 - SHAPE testProjectWithQuotedColumnFromTableToTDS [tds/tests]: no execute(|...) call
 - ERROR testProjectAllColumns_Single [tds/tests]: unknown function 'restrict'
 - ERROR testProjectAllColumns_Mulitple [tds/tests]: unknown function 'restrict'
@@ -1738,7 +1716,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testRestrictOnGroupByColumn_DropAllAggColumns [tds/tests]: unknown function 'restrict'
 - ERROR testRestrictHandlesQueryPathsCorrectlyOnRename [tds/tests]: ~age_new: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testRestrictWithPostProcessor [tds/tests]: unknown function 'restrict'
-- ERROR testRestrictAfterMultiColumnGroupByFollowedByRename [tds/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
+- ERROR testRestrictAfterMultiColumnGroupByFollowedByRename [tds/tests]: unknown function 'restrict'
 - ERROR testRestrictAfterConcatenate [tds/tests]: unknown function 'restrict'
 - ERROR testRestrictDistinct_JoinCutDown_ProjectFunctions [tds/tests]: unknown function 'restrictDistinct'
 - ERROR testRestrictDistinct_JoinCutDown_ColumnSpecs [tds/tests]: unknown function 'restrictDistinct'
@@ -2013,8 +1991,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testCorrelatedSubSqlQueryGeneration [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::milestoning::Product' is not a known class, mapping, runtime, connection, or database
 - ERROR TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNestedGeneration [tests/mapping/classMappingFilterWithInnerJoin]: milestoned class fetch of 'meta::relational::tests::model::simple::TemporalTrade' is not supported yet (H-scope exclusion)
 - FAIL testDistinctMappingSimpleProjectSelectOneOfTheDistinctProperties [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
+- FAIL testDistinctMappingSimpleProjectDistinct [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\n>, got <name\nIF 2\nIF 1\n>
 - FAIL testDistinctMappingWithFilterSelectOneProperty [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
 - ERROR testDistinctMappingWithJoinSelectAll [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
+- FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\n\nIfName1\nIfName2\n>
 - ERROR testProjectDistinctMappingWithDistinctInJoin [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testProjectDistinctMappingWithDistinctInJoinWithDup [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testDistinctMappingWithDistinctInJoinWithFilter [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
@@ -2056,7 +2036,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProjectionOtherwiseNonPrimitive [tests/mapping/embedded]: in function 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise3$class$meta::relational::tests::mapping::embedded::advanced::model::Product': relation has no column 'bondClassification'
 - SHAPE otherwiseTestGroupBy [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
 - FAIL otherwiseTestGroupByComplexAgg [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\n15 years,2.0\n5 years,5.0\n>, got <Bond Type,sum\n5 years,5.0\n15 years,2.0\n>
-- FAIL otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\nBond 1,1.0\nBond 2,1.0\nSuperBond 3 super,5.0\n>, got <Bond Type,sum\nSuperBond 3 super,5.0\nBond 2,1.0\nBond 1,1.0\n>
+- SHAPE otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
 - ERROR otherwiseTestQualifierProperty [tests/mapping/embedded]: property 'duration' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise'
 - ERROR otherwiseTestQualifierPropertyConstantExpression [tests/mapping/embedded]: property 'isBond' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise'
 - ERROR otherwiseTestQualifierPropertyExpressionWithPropertyInJoinOnly [tests/mapping/embedded]: unknown function 'durationStartsWith'
@@ -2089,7 +2069,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMilestonedInlineGraphFetchWithEnumProperty [tests/mapping/embedded]: milestoned class fetch of 'meta::relational::tests::mapping::embedded::advanced::model::PersonWithGenderInfo' is not supported yet (H-scope exclusion)
 - ERROR testSubType [tests/mapping/embedded]: class-typed property '$p.issuer' used as a whole value is graph output (Phase H4)
 - ERROR testSubTypeOnPropertyMappedToNonRootInlineSetImpl [tests/mapping/embedded]: class-typed property '$p.holder' used as a whole value is graph output (Phase H4)
-- SHAPE testGroupBy [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
+- FAIL testGroupBy [tests/mapping/embedded]: toCSV: expected <holder,Profit\nholder1,10.0\nholder3,1.0\n>, got <holder,Profit\nholder3,1.0\nholder1,10.0\n>
 - SHAPE testGroupByComplexAgg [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
 - ERROR testQualifierProperty [tests/mapping/embedded]: property 'description' of embedded 'issuer' on class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedTargetIds'
 - SHAPE testEnumTheSame [tests/mapping/enumeration]: no execute(|...) call
@@ -2101,7 +2081,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testProjectionWithEnumUsingLambda [tests/mapping/enumeration]: no recognizable assertions
 - SHAPE testProjectionWithEnumAndFunctionsUsingLambda [tests/mapping/enumeration]: no recognizable assertions
 - FAIL testInQueryWithEnum [tests/mapping/enumeration]: type: expected [EnumExpected[valueName=CONTRACT]], got [CONTRACT, CONTRACT]
-- ERROR testAggregationFunctionWithEnum [tests/mapping/enumeration]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
+- SHAPE testAggregationFunctionWithEnum [tests/mapping/enumeration]: no recognizable assertions
 - SHAPE testProjectionWithInheritedEnum [tests/mapping/enumeration]: no recognizable assertions
 - ERROR testProjectionWithEnumThroughAssociation [tests/mapping/enumeration]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - ERROR testProjectionWithEnumQualifierParameter [tests/mapping/enumeration]: [2:237] navigation path segment 'synonymsByType(meta::relational::tests::mapping::enumeration::model::domain::ProductSynonymType.CUSIP)' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mapping::enumeration::model::domain::Product/synonymsByType(met
@@ -2194,13 +2174,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMultipleJoinsInPropertyMappingWithDateInJoin [tests/mapping/join]: in function 'meta::relational::tests::mapping::join::model::mapping::advancedRelationalMapping2$class$meta::relational::tests::mapping::join::model::domain::TypeBuiltOutOfMultipleJoins': no overload of 'meta::pure::functions::boolean::lessThanEqual' structurally matches the argument types
 - ERROR testConstraintTargetingMultipleJoinsInPropertyMapping [tests/mapping/join]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - ERROR testConstraintTargetingMultipleJoinsInPropertyMappingNoJoinProperty [tests/mapping/join]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
-- SHAPE testChainedOuterJoinsMerge [tests/mapping/join]: partial: 2/3 asserts recognized (recognized ones hold)
-- SHAPE testChainedInnerJoinsMerge [tests/mapping/join]: partial: 2/3 asserts recognized (recognized ones hold)
-- SHAPE testChainedInnerJoinsWithFilterMerge [tests/mapping/join]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testConvertToStringH2 [tests/mapping/join]: in function 'meta::relational::tests::mapping::join::model::mapping::MappingForAccountAndTrade$class$meta::relational::tests::model::simple::Trade': unknown function 'convertVarchar128'
 - ERROR testChainedOuterJoinsWithFilterInproject [tests/mapping/join]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testChainedOuterJoinsWithQualifierInproject [tests/mapping/join]: unknown function 'employeesByAge'
-- ERROR testChainedInnerJoinsWithQualifierInGroupBy [tests/mapping/join]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
+- ERROR testChainedInnerJoinsWithQualifierInGroupBy [tests/mapping/join]: no overload of 'groupBy' matches the argument types
 - ERROR testIsNotEmptyCheckWithoutRowExplosion [tests/mapping/join]: class-typed property '$x.employees' used as a whole value is graph output (Phase H4)
 - ERROR testDynafunctionMerge [tests/mapping/merge]: in function 'meta::relational::tests::mapping::merge::MergeAliasMapping$class$meta::relational::tests::model::simple::Person': no overload of 'meta::pure::functions::boolean::or' accepts 4 argument(s)
 - ERROR testNestedPropertyChain [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one

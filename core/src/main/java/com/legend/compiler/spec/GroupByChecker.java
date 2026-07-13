@@ -56,11 +56,10 @@ final class GroupByChecker {
      */
     private static AppliedFunction legacyToModern(Typer t, AppliedFunction af, Env env) {
         List<ValueSpecification> ps = af.parameters();
-        if (!(ps.get(1) instanceof PureCollection keyFns) || !(ps.get(2) instanceof PureCollection aggs)
-                || !(ps.get(3) instanceof PureCollection aliases)) {
-            throw new TypeInferenceException(
-                    "legacy groupBy expects (source, [keys], [aggs], ['aliases'])");
-        }
+        // scalar spellings wrap: groupBy([keys], agg(...), ['a','b'])
+        PureCollection keyFns = asCollection(ps.get(1));
+        PureCollection aggs = asCollection(ps.get(2));
+        PureCollection aliases = asCollection(ps.get(3));
         int expected = keyFns.values().size() + aggs.values().size();
         if (aliases.values().size() != expected) {
             throw new TypeInferenceException("legacy groupBy expects " + expected + " alias(es) ("
@@ -149,6 +148,10 @@ final class GroupByChecker {
         }
         return new AppliedFunction(af.function(), List.of(ps.get(0),
                 new ColSpecArray(keyCols), new ColSpecArray(aggCols)));
+    }
+
+    private static PureCollection asCollection(ValueSpecification v) {
+        return v instanceof PureCollection c ? c : new PureCollection(List.of(v));
     }
 
     private static String aliasAt(PureCollection aliases, int i) {

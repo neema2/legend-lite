@@ -285,6 +285,13 @@ public final class StoreResolver {
     }
 
     /** An op whose source chain is still in OBJECT space (class-typed). */
+    /** Collection distinct/removeDuplicates over instances (no comparator). */
+    private static boolean isClassDistinct(com.legend.compiler.spec.typed.TypedNativeCall c) {
+        return c.args().size() == 1
+                && (c.callee().qualifiedName().endsWith("::distinct")
+                        || c.callee().qualifiedName().endsWith("::removeDuplicates"));
+    }
+
     private static boolean isObjectSpace(TypedSpec source) {
         return switch (source) {
             case TypedGetAll ignored -> true;
@@ -294,6 +301,8 @@ public final class StoreResolver {
             case TypedSlice s -> isObjectSpace(s.source());
             case TypedSortBy sb -> isObjectSpace(sb.source());
             case TypedNativeCall c when isFirstLike(c) ->
+                    isObjectSpace(c.args().get(0));
+            case TypedNativeCall c when isClassDistinct(c) ->
                     isObjectSpace(c.args().get(0));
             case TypedNativeCall c when classSortOf(c) != null ->
                     isObjectSpace(c.args().get(0));
@@ -468,6 +477,12 @@ public final class StoreResolver {
             // Normalize collection natives with relation shapes BEFORE
             // collecting: first()/head() IS limit 1; class-space
             // sort(key, comparator) IS sortBy with a direction.
+            if (cur instanceof TypedNativeCall nc && isClassDistinct(nc)) {
+                // instance distinct over a relational extent dedups by
+                // OBJECT IDENTITY = primary key — rows are already unique
+                cur = nc.args().get(0);
+                continue;
+            }
             if (cur instanceof TypedNativeCall nc && isFirstLike(nc)) {
                 cur = new TypedLimit(nc.args().get(0),
                         new TypedCInteger(1L, com.legend.compiler.element.type

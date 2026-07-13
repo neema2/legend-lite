@@ -106,7 +106,9 @@ final class SortChecker {
         return switch (vs) {
             case ColSpec ignored -> true;
             case AppliedFunction f -> isSortDirection(f)
-                    && f.parameters().size() == 1 && f.parameters().get(0) instanceof ColSpec;
+                    && f.parameters().size() == 1
+                    && (f.parameters().get(0) instanceof ColSpec
+                            || f.parameters().get(0) instanceof CString);
             case PureCollection c -> !c.values().isEmpty()
                     && c.values().stream().allMatch(SortChecker::carriesColSpec);
             default -> false;

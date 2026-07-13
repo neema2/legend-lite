@@ -950,6 +950,9 @@ public final class Runner {
     }
 
     private static boolean valueEquals(Object expected, Object actual) {
+        if (expected == NULL_EXPECTED) {
+            return actual == null;
+        }
         if (actual == null) {
             return false;   // null never equals a literal expectation
         }
@@ -1029,6 +1032,10 @@ public final class Runner {
         if (text.equals("true") || text.equals("false")) {
             return Boolean.parseBoolean(text);
         }
+        // ^TDSNull() — the TDS null cell instance literal
+        if (text.equals("^TDSNull()")) {
+            return NULL_EXPECTED;
+        }
         // %date literals — compared through their canonical print form
         if (text.matches("%-?\\d{4}[-\\dT:.+Z]*")) {
             return new DateExpected(text.substring(1));
@@ -1041,6 +1048,14 @@ public final class Runner {
         }
         return null;   // not a literal — unrecognized assert shape
     }
+
+    /** The ^TDSNull() expectation: matches ONLY a null cell. */
+    static final Object NULL_EXPECTED = new Object() {
+        @Override
+        public String toString() {
+            return "^TDSNull()";
+        }
+    };
 
     /** A %date expectation: equality via canonical date-print comparison. */
     record DateExpected(String iso) { }
