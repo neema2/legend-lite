@@ -247,6 +247,7 @@ public final class DuckDb extends AnsiSqlRenderer {
         return switch (fnName) {
             case LIST_FILTER -> fn("list_filter", args);
             case LIST_TRANSFORM -> fn("list_transform", args);
+            case LIST_FLATTEN -> fn("flatten", args);
             case LIST_CONCAT -> fn("list_concat", args);
             case LIST_CONTAINS -> fn("list_contains", args);
             case LIST_GET -> fn("list_extract", args);

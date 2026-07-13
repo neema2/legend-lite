@@ -28,6 +28,8 @@ public enum SqlFn {
     // UNNEST: explode a collection into rows; PLACEMENT (select-list vs
     // LATERAL FROM) is dialect assembly.
     UNNEST,
+    /** Flatten one level of a list-of-lists (pure map's collection-mapper flatten). */
+    LIST_FLATTEN,
     // Math (ROUND is HALF-EVEN — Pure's banker's rounding — per the contract)
     SQRT, CBRT, EXP, LN, LOG10, POW, PI,
     SIN, COS, TAN, ASIN, ACOS, ATAN, ATAN2, SINH, COSH, TANH,

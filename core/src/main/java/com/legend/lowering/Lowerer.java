@@ -167,17 +167,20 @@ public final class Lowerer {
         }
         // relation->map(row|scalar) at the ROOT is the single-column
         // projection (pure: a VALUE collection derived from rows; the
-        // Executor's COLLECTION shape reads N rows × 1 column)
+        // Executor's COLLECTION shape reads N rows × 1 column). A
+        // COLLECTION-VALUED mapper ($r.values — the row's cells) FLATTENS
+        // per pure map semantics: project the cell array, then UNNEST.
         if (spec instanceof com.legend.compiler.spec.typed.TypedMap m
                 && m.source().info().type() instanceof Type.RelationType
                 && m.mapper() instanceof com.legend.compiler.spec.typed.TypedLambda ml
                 && !(ml.info().type() instanceof Type.FunctionType ft
                         && ft.result().type() instanceof Type.RelationType)) {
+            boolean collectionMapper = isCollectionMapper(ml);
             com.legend.compiler.element.type.Multiplicity colMult =
                     ml.info().type() instanceof Type.FunctionType fnT
                             ? fnT.result().multiplicity()
                             : com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE;
-            return relation(new com.legend.compiler.spec.typed.TypedProject(
+            SqlSelect proj = relation(new com.legend.compiler.spec.typed.TypedProject(
                     m.source(),
                     List.of(new com.legend.compiler.spec.typed.TypedFuncCol("value", ml)),
                     new com.legend.compiler.element.type.ExprType(
@@ -185,6 +188,17 @@ public final class Lowerer {
                                     new Type.RelationType.Column("value",
                                             spec.info().type(), colMult))),
                             com.legend.compiler.element.type.Multiplicity.Bounded.ONE)));
+            if (!collectionMapper) {
+                return proj;
+            }
+            String sub = nextAlias();
+            return SqlSelect.starOf(new SqlSource.Subselect(proj, sub))
+                    .withProjections(List.of(new SqlSelect.Projection(
+                                    SqlExpr.Call.of(com.legend.sql.SqlFn.UNNEST,
+                                            new SqlExpr.Column(sub, "value")),
+                                    "value")),
+                            List.of(new OutputCol("value",
+                                    sqlTypeOf(spec.info().type()), true)));
         }
         return scalarRoot(spec);
     }
@@ -208,6 +222,22 @@ public final class Lowerer {
                 null, List.of(), null, null, List.of(), null, null,
                 List.of(new OutputCol("value", sqlTypeOf(spec.info().type()),
                         PureSql.nullable(spec.info().multiplicity()))));
+    }
+
+    /**
+     * A map mapper whose per-row value is a COLLECTION (pure map flattens
+     * those): declared multiplicity above one, or an ARRAY-producing body
+     * (a one-column row's cells is a single-element LIST, not a scalar).
+     */
+    private static boolean isCollectionMapper(
+            com.legend.compiler.spec.typed.TypedLambda ml) {
+        // Collection mapper iff the lowered value is a SQL LIST, which is
+        // exactly a TypedCollection body (list_value carrier). A loose
+        // declared multiplicity over a non-collection body still lowers to
+        // a plain scalar column — wrapping it in UNNEST/flatten is a type
+        // error, not a flatten.
+        return ml.body().get(ml.body().size() - 1)
+                instanceof com.legend.compiler.spec.typed.TypedCollection;
     }
 
     private String nextAlias() {
@@ -2148,7 +2178,13 @@ public final class Lowerer {
                                         null)),
                                 List.of(new com.legend.sql.OutputCol("value",
                                         com.legend.sql.SqlType.Scalar.VARCHAR, true)));
-                yield new SqlExpr.ScalarSubquery(agg);
+                SqlExpr listed = new SqlExpr.ScalarSubquery(agg);
+                // pure map FLATTENS collection-valued mappers ($r.values):
+                // the list-of-cell-arrays flattens one level
+                boolean collMapper = isCollectionMapper(ml2);
+                yield collMapper
+                        ? SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_FLATTEN, listed)
+                        : listed;
             }
             // A single-column RELATION consumed in SCALAR position — the
             // correlated scalar subquery (value-position filtered

@@ -252,6 +252,18 @@ class TestBodyTest {
     }
 
     @Test
+    void rowCellsFlattenAndJoin() throws Exception {
+        assertHeld(run("""
+                let result = execute(|Person.all()->project([p|$p.name], ['name'])
+                        ->sort(asc('name')), test::M, r(), e());
+                assertEquals('Alice,Bob,Cid',
+                        $result.values.rows->map(r|$r.values)->makeString(','));
+                assertEquals(['Alice', 'Bob', 'Cid'],
+                        $result.values.rows->map(r|$r.values));
+                """), 2);
+    }
+
+    @Test
     void unknownAssertFormIsLoudUnsupported() throws Exception {
         TestBody.Outcome o = run("""
                 let result = execute(|Person.all()->project([p|$p.name], ['name']),

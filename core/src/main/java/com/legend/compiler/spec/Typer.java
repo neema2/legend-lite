@@ -860,16 +860,26 @@ final class Typer {
                 // order. (The Result-ENVELOPE .values never reaches the
                 // Typer: the test driver peels it at substitution.)
                 if (source instanceof com.legend.compiler.spec.typed.TypedVariable) {
+                    // In row-var position the cells feed joins/prints
+                    // (makeString) — emit the engine's TDSRow PRINT cells:
+                    // toString per cell, 'TDSNull' for an empty cell. Typed
+                    // cell compares ride the relation-identity path
+                    // (->at(N).values), never this arm.
                     List<TypedSpec> cells = new java.util.ArrayList<>(rt2.columns().size());
                     for (Type.RelationType.Column c : rt2.columns()) {
-                        cells.add(new com.legend.compiler.spec.typed.TypedPropertyAccess(
-                                source, c.name(),
-                                new ExprType(c.type(), c.multiplicity())));
+                        AppliedProperty read = new AppliedProperty(ap.receiver(), c.name());
+                        ValueSpecification printed = new AppliedFunction("if", List.of(
+                                new AppliedFunction("isEmpty", List.of(read)),
+                                new LambdaFunction(List.of(),
+                                        List.of(new CString("TDSNull"))),
+                                new LambdaFunction(List.of(),
+                                        List.of(new AppliedFunction("toString",
+                                                List.of(new AppliedFunction("toOne",
+                                                        List.of(read))))))));
+                        cells.add(synth(printed, env));
                     }
                     return new com.legend.compiler.spec.typed.TypedCollection(cells,
-                            new ExprType(
-                                    new Type.ClassType(
-                                            com.legend.compiler.element.type.PlatformTypes.ANY),
+                            new ExprType(Type.Primitive.STRING,
                                     new com.legend.compiler.element.type.Multiplicity.Bounded(
                                             cells.size(), cells.size())));
                 }

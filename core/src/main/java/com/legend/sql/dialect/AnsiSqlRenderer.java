@@ -472,6 +472,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case TO_VARIANT -> variantConstruct(a);
             // Idiom points — no ANSI spelling; the dialect decides or dies.
             case UNNEST -> unnestProjection(a);
+            case LIST_FLATTEN -> fn("flatten", a);
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_CONTAINS, LIST_GET,
                  LIST_POSITION ->
                     listCall(c.fn(), a);
