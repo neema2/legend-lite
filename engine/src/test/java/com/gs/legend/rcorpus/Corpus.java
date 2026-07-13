@@ -289,6 +289,7 @@ public final class Corpus {
      * on the engine's H2 setup and a syntax error on DuckDB unquoted.
      */
     private static String quoteCreateColumns(String sql, int bodyStart) {
+        sql = sql.replaceAll("(?i)\\bFLOAT\\b", "DOUBLE");
         int depth = 1;
         int end = bodyStart;
         while (end < sql.length() && depth > 0) {
@@ -366,7 +367,10 @@ public final class Corpus {
                     continue;
                 }
                 String col = raw.strip().replaceAll("(?i)\\s+PRIMARY\\s+KEY", "")
-                        .replaceAll("(?i)\\s+NOT\\s+NULL", "");
+                        .replaceAll("(?i)\\s+NOT\\s+NULL", "")
+                        // H2's FLOAT is an 8-byte double; DuckDB's is REAL —
+                        // engine-parity means DOUBLE
+                        .replaceAll("(?i)\\bFLOAT\\b", "DOUBLE");
                 int sp = col.startsWith("\"") ? col.indexOf('"', 1) + 1 : firstSpace(col);
                 String name = col.substring(0, sp).strip();
                 String type = col.substring(sp).strip();

@@ -1166,10 +1166,10 @@ public final class Runner {
             return false;   // null never equals a literal expectation
         }
         if (expected instanceof DateExpected de) {
-            // canonical date compare: normalize both to ISO-ish text
-            String a = String.valueOf(actual).replace(' ', 'T')
-                    .replaceAll("\\.0$", "").replaceAll("T00:00(:00)?$", "");
-            String e = de.iso().replaceAll("T00:00(:00)?$", "");
+            // canonical date compare: ISO-ify, drop the zone and
+            // insignificant fractional zeros, then trailing midnight
+            String a = canonicalDate(String.valueOf(actual));
+            String e = canonicalDate(de.iso());
             return a.equals(e) || String.valueOf(actual).equals(de.iso());
         }
         if (expected instanceof EnumExpected ee) {
@@ -1265,6 +1265,15 @@ public final class Runner {
             return "^TDSNull()";
         }
     };
+
+    private static String canonicalDate(String s) {
+        String v = s.replace(' ', 'T')
+                .replaceAll("\\+0000$", "").replaceAll("Z$", "");
+        if (v.contains(".")) {
+            v = v.replaceAll("0+$", "").replaceAll("\\.$", "");
+        }
+        return v.replaceAll("T00:00(:00)?$", "");
+    }
 
     /** A %date expectation: equality via canonical date-print comparison. */
     record DateExpected(String iso) { }

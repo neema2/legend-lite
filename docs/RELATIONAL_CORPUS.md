@@ -4,8 +4,12 @@ RUN-as-data over the local legend-engine checkout; row equality is the
 contract, golden SQL is advisory. SHAPE = test body/assert form the
 runner does not yet recognize (accounted, not skipped silently).
 
-## Failed seed statements (121)
+## Failed seed statements (125)
 
+- `CREATE OR REPLACE TABLE testTable ("quantity" INT, "Class" VARCHAR(200), "boolean" INT, "abstract" INT, "assert" INT, "break" INT, "byte" INT, "catch" INT, "char" INT, "const" INT, "continue" INT, "default" INT, "do" INT, "double" INT, "else" INT, "enum" INT, "final" INT, "finally" INT, "DOUBLE" INT, "for" INT, "goto" INT, "implements" INT, "instanceof" INT, "interface" VARCHAR(100), "long" VARCHAR(100), "new" VARCHAR(100), "package" VARCHAR(100), "private" VARCHAR(100), "protected" VARCHAR(100), "public" VARCHAR(100), "return" VARCHAR(100), "short" VARCHAR(100), "static" VARCHAR(100), "strictfp" VARCHAR(100), "super" VARCHAR(100), "switch" VARCHAR(100), "synchronized" VARCHAR(100), "this" VARCHAR(100), "throw" VARCHAR(100), "throws" VARCHAR(100), "transient" VARCHAR(100), "try" VARCHAR(100), "void" VARCHAR(100), "volatile" VARCHAR(100), "while" VARCHAR(100)) => Catalog Error: Column with name DOUBLE already exists!`
+- `Create Table testTable("quantity" INT, "Class" VARCHAR(200), "boolean"  INT, "abstract"  INT, "assert"  INT, "break"  INT, "byte"  INT, "catch"  INT, "char"  INT, "const"  INT, "continue"  INT, "default"  INT, "do"  INT, "double"  INT, "else"  INT, "enum"  INT, "final"  INT, "finally"  INT, "DOUBLE"  INT, "goto"  INT, "implements"  INT, "instanceof"  INT, "interface" VARCHAR(100), "long" VARCHAR(100), "new" VARCHAR(100), "package" VARCHAR(100), "private" VARCHAR(100), "protected" VARCHAR(100), "public" VARCHAR(100), "return" VARCHAR(100), "short" VARCHAR(100), "static" VARCHAR(100), "strictfp" VARCHAR(100), "super" VARCHAR(100), "switch" VARCHAR(100), "synchronized" VARCHAR(100), "this" VARCHAR(100), "throw" VARCHAR(100), "throws" VARCHAR(100), "transient" VARCHAR(100), "try" VARCHAR(100), "void" VARCHAR(100), "volatile" VARCHAR(100), "while" VARCHAR(100)); => Catalog Error: Column with name DOUBLE already exists!`
+- `insert into testTable ("quantity", "Class", "boolean", "abstract", "assert", "break", "byte", "catch", "char", "const", "continue", "default", "do", "double", "else", "enum", "final", "finally", "float", "goto", "implements", "instanceof", "interface", "long", "new", "package", "private", "protected", "public", "return", "short", "static", "strictfp", "super", "switch", "synchronized", "this", "throw", "throws", "transient", "try", "void", "volatile", "while") values (1, 'Department A',1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into testTable ("quantity", "Class", "boolean", "abstract", "assert", "break", "byte", "catch", "char", "const", "continue", "default", "do", "double", "else", "enum", "final", "finally", "float", "goto", "implements", "instanceof", "interface", "long", "new", "package", "private", "protected", "public", "return", "short", "static", "strictfp", "super", "switch", "synchronized", "this", "throw", "throws", "transient", "try", "void", "volatile", "while") values (2, 'Department B',20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,'v','u','t','s','r','q','p','o','n','m','l','k','j','i','h','g','f','e','d','c','b','a'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into LegendCalendarSchema.NY_Calendar ("date", "dayOfCalendarYear", "shortNameWeekDay", "adjustedDate", "fiscalWeekOffset", "fiscalDay", "fiscalDayOfMonth", "fiscalDayOfQuarter", "fiscalDayOfWeek", "prior4WeekDate", "prior12WeekDate", "prior52WeekDate", "currentMonthNum", "fiscalMonthEnd", "currentQuarterNum", "currentWeek", "fiscalWeekStart", "currentYear", "previousBusinessDay", "previousFiscalMonth", "previousFiscalQuarter", "previousFiscalYear", "numberOfFiscalDaysInMonth", "numberOfFiscalDaysInYear") values ('2022-01-15', 15,'Sat','2022-01-18', -49, 11,11,11,1,'2021-12-18','2021-10-23','2021-01-16', 1,'2022-01-31',1, 3,'2022-01-18',2022,'2022-01-14',12,4,2021,20,251); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into LegendCalendarSchema.NY_Calendar ("date", "dayOfCalendarYear", "shortNameWeekDay", "adjustedDate", "fiscalWeekOffset", "fiscalDay", "fiscalDayOfMonth", "fiscalDayOfQuarter", "fiscalDayOfWeek", "prior4WeekDate", "prior12WeekDate", "prior52WeekDate", "currentMonthNum", "fiscalMonthEnd", "currentQuarterNum", "currentWeek", "fiscalWeekStart", "currentYear", "previousBusinessDay", "previousFiscalMonth", "previousFiscalQuarter", "previousFiscalYear", "numberOfFiscalDaysInMonth", "numberOfFiscalDaysInYear") values ('2018-12-31',365,'Mon','2018-12-31',-210,252,20,64,5,'2018-12-04','2018-10-09','2017-12-30',12,'2018-12-31',4,52,'2018-12-24',2018,'2018-12-28',11,3,2017,20,252); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into LegendCalendarSchema.NY_Calendar ("date", "dayOfCalendarYear", "shortNameWeekDay", "adjustedDate", "fiscalWeekOffset", "fiscalDay", "fiscalDayOfMonth", "fiscalDayOfQuarter", "fiscalDayOfWeek", "prior4WeekDate", "prior12WeekDate", "prior52WeekDate", "currentMonthNum", "fiscalMonthEnd", "currentQuarterNum", "currentWeek", "fiscalWeekStart", "currentYear", "previousBusinessDay", "previousFiscalMonth", "previousFiscalQuarter", "previousFiscalYear", "numberOfFiscalDaysInMonth", "numberOfFiscalDaysInYear") values ('2019-01-01',  1,'Tue','2019-01-02',-209,  1, 1, 1,1,'2018-12-05','2018-10-10','2018-01-03', 1,'2019-01-31',1, 1,'2019-01-01',2019,'2018-12-31',12,4,2018,21,252); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
@@ -92,7 +96,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - `Create Table PersonTable("id" INT, "firstName" VARCHAR(200), "lastName" VARCHAR(200), "addressId" INT, "firmId" INT, "flag" INT, "AGE" INT); => Catalog Error: Table with name "PersonTable" already exists!`
 - `Create Table FirmTable("id" INT, "legalName" VARCHAR(200), "addressId" INT, "flag" INT); => Catalog Error: Table with name "FirmTable" already exists!`
 - `Create Table accountTable("ID" VARCHAR(200), "name" VARCHAR(200), "createDate" DATE); => Catalog Error: Table with name "accountTable" already exists!`
-- `Create Table tradeTable("id" INT, "accountId" INT, "quantity" FLOAT, "tradeDate" DATE); => Catalog Error: Table with name "tradeTable" already exists!`
+- `Create Table tradeTable("id" INT, "accountId" INT, "quantity" DOUBLE, "tradeDate" DATE); => Catalog Error: Table with name "tradeTable" already exists!`
 - `CREATE OR REPLACE TABLE PERSON_FIRM_ADDRESS_MULTIGRAIN ("OID" INT, "DLEVEL" VARCHAR(2), "//Person" Grain => Parser Error: syntax error at or near "PERSON_FIRSTNAME"`
 - `CREATE OR REPLACE TABLE FIRM_ACCT_IF_MULTIGRAIN ("OID" INT, "DLEVEL" VARCHAR(2), "//Account" grain => Parser Error: syntax error at or near "ACCOUNT_NUM"`
 - `insert into PERSON_FIRM_ADDRESS_MULTIGRAIN ("DLEVEL", "OID", "PERSON_FIRSTNAME", "PERSON_LASTNAME", "PERSON_FIRM_OID", "PERSON_ADDRESS_OID", "PERSON_ADDRESS_LINE_1", "FIRM_LEGALNAME", "FIRM_ADDRESS_OID", "FIRM_ADDRESS_LINE_1", "ADDRESS_LINE_1", "ADDRESS_TYPE") values ('P', 1, 'Peter', 'Smith', 4, 6, '1 the street','Firm X', 9, '200 west', null, null); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
@@ -137,7 +141,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | executionPlan/tests | 109 | 0 | 0 | 0 | 109 |
 | functions/tests | 261 | 59 | 19 | 115 | 68 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 1 | 0 | 0 |
-| functions/tests/projection | 165 | 38 | 14 | 79 | 34 |
+| functions/tests/projection | 165 | 39 | 12 | 79 | 35 |
 | graphFetch/domain | 2 | 0 | 0 | 0 | 2 |
 | graphFetch/tests | 5 | 0 | 0 | 0 | 5 |
 | graphFetch/tests/union | 1 | 0 | 0 | 0 | 1 |
@@ -167,15 +171,15 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/association | 24 | 1 | 0 | 19 | 4 |
 | tests/mapping/classMappingByClass | 3 | 0 | 0 | 0 | 3 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 0 | 0 | 30 | 2 |
-| tests/mapping/distinct | 18 | 4 | 5 | 9 | 0 |
+| tests/mapping/distinct | 18 | 5 | 4 | 9 | 0 |
 | tests/mapping/dynaJoin | 6 | 0 | 0 | 2 | 4 |
-| tests/mapping/embedded | 70 | 14 | 14 | 36 | 6 |
+| tests/mapping/embedded | 70 | 14 | 15 | 36 | 5 |
 | tests/mapping/enumeration | 27 | 1 | 2 | 2 | 22 |
 | tests/mapping/filter | 10 | 4 | 0 | 5 | 1 |
 | tests/mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 |
 | tests/mapping/inheritance | 51 | 0 | 1 | 50 | 0 |
-| tests/mapping/join | 29 | 18 | 1 | 9 | 1 |
+| tests/mapping/join | 29 | 19 | 0 | 9 | 1 |
 | tests/mapping/merge | 1 | 0 | 0 | 1 | 0 |
 | tests/mapping/modelJoin | 47 | 0 | 0 | 47 | 0 |
 | tests/mapping/multigrain | 6 | 0 | 0 | 6 | 0 |
@@ -183,16 +187,16 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/relation | 93 | 0 | 0 | 50 | 43 |
 | tests/mapping/relation/aggregation | 9 | 0 | 0 | 0 | 9 |
 | tests/mapping/selfJoin | 3 | 0 | 0 | 2 | 1 |
-| tests/mapping/sqlFunction | 73 | 38 | 20 | 4 | 11 |
+| tests/mapping/sqlFunction | 73 | 52 | 1 | 4 | 16 |
 | tests/mapping/tree | 13 | 0 | 0 | 13 | 0 |
 | tests/mapping/union | 125 | 9 | 2 | 95 | 19 |
 | tests/mapping/union/relation | 15 | 0 | 0 | 13 | 2 |
 | tests/platformOperations | 4 | 0 | 0 | 0 | 4 |
-| tests/query | 99 | 40 | 2 | 32 | 25 |
+| tests/query | 99 | 39 | 2 | 32 | 26 |
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2429 | **292** | 112 | 1095 | 930 |
+| **total** | 2429 | **308** | 90 | 1095 | 936 |
 
 ### mapping walls (dropped at assembly)
 
@@ -922,7 +926,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testPreviousDayOfWeek [functions/tests/projection]: unknown function 'previousDayOfWeek'
 - ERROR testMostRecentDayOfWeekWithDate [functions/tests/projection]: unknown function 'mostRecentDayOfWeek'
 - ERROR testPreviousDayOfWeekWithDate [functions/tests/projection]: unknown function 'previousDayOfWeek'
-- FAIL testDateWithSeconds [functions/tests/projection]: cells: expected [DateExpected[iso=2014-12-04T21:00:00.000000000+0000], DateExpected[iso=2014-12-05T21:00:00.000000000+0000], DateExpected[iso=2014-12-05T21:00:00.000000000+0000]], got [2014-12-04 21:00:00.0, 2014-12-05 21:00:00.0, 2014-12-05 21:00:00.0]
+- SHAPE testDateWithSeconds [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "root".settlementDateTime as "date" from tradeTable as "root" where ("root".settle
 - ERROR testSimpleExists [functions/tests/projection]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testExistsEmbeddedOnSameTable [functions/tests/projection]: class-typed property '$p.dependencies' used as a whole value is graph output (Phase H4)
 - ERROR testExistsAsNullWithSubType [functions/tests/projection]: property 'functions' of class 'meta::relational::tests::projection::exists::MyClass' has no binding in mapping 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
@@ -948,7 +952,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testSimpleFunctionWithToOne [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Allen New York,Harris New York,Hill Hong Kong,Hill New York,Johnson New York,Roberts San Fransisco,Smith H
 - SHAPE testSimpleFunctionWithToManyMap [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Firm A Roberts,Firm B Hill,Firm C Harris,Firm X Allen,Firm X Hill,Firm X Johnson,Firm X Smith', $result.va
 - SHAPE testSimpleFunctionWithTwoToManyMap [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Firm A Fabrice Roberts,Firm B Oliver Hill,Firm C David Harris,Firm X Anthony Allen,Firm X John Hill,Firm X
-- FAIL testDayOfMonth [functions/tests/projection]: cells: expected [DateExpected[iso=2014-12-05T21:00:00.000000000+0000], 5], got [2014-12-05 21:00:00.0, 5]
 - SHAPE testNestedPlusFunctionAndMappingDynaFunction [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testNestedPlusFunctionAndNestedMappingDynaFunction [functions/tests/projection]: in function 'meta::relational::tests::simpleRelationalMappingWithNestedPlus$class$meta::relational::tests::model::simple::Order': expected Float, got Integer
 - ERROR testSameBehaviorForNestedAddAndPlus [functions/tests/projection]: in function 'meta::relational::tests::simpleRelationalMappingWithNestedAdd$class$meta::relational::tests::model::simple::Order': expected Float, got Integer
@@ -1640,7 +1643,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProjectWithColumnSubSetSQLTest [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
 - SHAPE testProjectWithQuotedColumnFromTableToTDS [tds/tests]: no execute(|...) call
 - SHAPE testLowerProjectColsEliminated [tds/tests]: partial: 3/4 asserts recognized (recognized ones hold); first unrecognized: assertFalse($result->sqlRemoveFormatting()->toLower()->contains('hello'))
-- FAIL testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: rows: expected <Anthony,David,Fabrice,John,Oliver,Peter>, got <David,Fabrice,John,Oliver,Peter,Anthony>
+- FAIL testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: rows: expected <Anthony,David,Fabrice,John,Oliver,Peter>, got <David,Fabrice,Oliver,Peter,Anthony,John>
 - SHAPE testLowerProjectColsNotEliminatedWithSort [tds/tests]: partial: 3/4 asserts recognized (recognized ones hold); first unrecognized: assert($result->sqlRemoveFormatting()->toLower()->contains('hello'))
 - FAIL testRestrictOnGroupByEleminatesUncessaryAggs [tds/tests]: rows: expected <Firm A|1,Firm B|1,Firm C|1,Firm X|4>, got <null|7>
 - FAIL testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct [tds/tests]: rows: expected <Firm A|1,Firm B|1,Firm C|1,Firm X|4>, got <null|7>
@@ -1916,7 +1919,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testCorrelatedSubSqlQueryGeneration [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::milestoning::Product' is not a known class, mapping, runtime, connection, or database
 - ERROR TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNestedGeneration [tests/mapping/classMappingFilterWithInnerJoin]: milestoned class fetch of 'meta::relational::tests::model::simple::TemporalTrade' is not supported yet (H-scope exclusion)
 - FAIL testDistinctMappingSimpleProjectSelectOneOfTheDistinctProperties [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
-- FAIL testDistinctMappingSimpleProjectDistinct [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\n>, got <name\nIF 2\nIF 1\n>
 - FAIL testDistinctMappingWithFilterSelectOneProperty [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
 - ERROR testDistinctMappingWithJoinSelectAll [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\n\nIfName2\nIfName1\n>
@@ -1989,7 +1991,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSubType [tests/mapping/embedded]: class-typed property '$p.issuer' used as a whole value is graph output (Phase H4)
 - ERROR testSubTypeOnPropertyMappedToNonRootInlineSetImpl [tests/mapping/embedded]: class-typed property '$p.holder' used as a whole value is graph output (Phase H4)
 - SHAPE testGroupBy [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "root".HOLDER as "holder", sum(case when "root".BOND_TYPE = \'5 years\' then 5.0 e
-- SHAPE testGroupByComplexAgg [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "root".HOLDER as "c1", sum(case when "root".HOLDER like \'holder3%\' then 5.0 else
+- FAIL testGroupByComplexAgg [tests/mapping/embedded]: toCSV: expected <c1,sum\nholder1,2.0\nholder3,5.0\n>, got <c1,sum\nholder3,5.0\nholder1,2.0\n>
 - FAIL testQualifierProperty [tests/mapping/embedded]: toCSV: expected <name,c2,c3\nBond 1,issuer1,holder1\n>, got <>
 - SHAPE testEnumTheSame [tests/mapping/enumeration]: no execute(|...) call
 - SHAPE testMapping [tests/mapping/enumeration]: partial: 2/12 asserts recognized (recognized ones hold); first unrecognized: null
@@ -2088,7 +2090,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFilterOnSimpleTypePropertyDeepWithJoinInMapping [tests/mapping/join]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testFilterOnSimpleTypePropertyDeepWithJoinInMappingNotUsed [tests/mapping/join]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testFilterDeepWithJoinInMappingInMiddle [tests/mapping/join]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- FAIL testMultipleJoinsInPropertyMappingWithDatesInClass [tests/mapping/join]: inDate: expected [DateExpected[iso=1900-01-01T00:00:00.000000000], DateExpected[iso=1900-01-01T00:00:00.000000000], DateExpected[iso=1900-01-01T00:00:00.000000000], DateExpected[iso=2014-09-24T00:00:00.000000000], DateExpected[iso=2014-09-24T00:00:00.000000000], DateExpected[iso=2014-09-24T00:00:00.
 - ERROR testMultipleJoinsInPropertyMappingWithDateInJoin [tests/mapping/join]: in function 'meta::relational::tests::mapping::join::model::mapping::advancedRelationalMapping2$class$meta::relational::tests::mapping::join::model::domain::TypeBuiltOutOfMultipleJoins': no overload of 'meta::pure::functions::boolean::lessThanEqual' structurally matches the argument types
 - ERROR testConstraintTargetingMultipleJoinsInPropertyMapping [tests/mapping/join]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'Person_PersonExtension' (the demand scan and the rewrite disagreed)
 - SHAPE testConstraintTargetingMultipleJoinsInPropertyMappingNoJoinProperty [tests/mapping/join]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertSize($result.values->size(), 1)
@@ -2261,20 +2262,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testSelfJoinPropertyMapping [tests/mapping/selfJoin]: no recognizable assertions
 - ERROR testSelfJoinPropertyMappingOverlap [tests/mapping/selfJoin]: multi-hop navigation parent.parent.name through an embedded/slot head is not supported yet
 - ERROR testSelfJoinPropertyMappingWithDynaFunction [tests/mapping/selfJoin]: multi-hop navigation parent.parent.parent.name through an embedded/slot head is not supported yet
-- FAIL testToSQLStringWithParseDateInQueryForH2 [tests/mapping/sqlFunction]: cells: expected [DateExpected[iso=2016-06-23T00:00:00.000000000+0000], DateExpected[iso=2016-06-23T00:00:00.000000000+0000]], got [2016-06-23 00:00:00.0, 2016-06-23 00:00:00.0]
-- FAIL testToSQLStringParseDateForH2 [tests/mapping/sqlFunction]: cells: expected [DateExpected[iso=2016-06-23T13:00:00.000000000+0000], DateExpected[iso=2016-02-23T23:00:00.000000000+0000]], got [2016-06-23 13:00:00.0, 2016-02-23 23:00:00.0]
 - SHAPE testTriminNotSybaseASE [tests/mapping/sqlFunction]: no execute(|...) call
 - ERROR testProject [tests/mapping/sqlFunction]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_aggregate(INTEGER, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_aggregate(ANY[]
-- FAIL testProject [tests/mapping/sqlFunction]: cells: expected [0.8912073600614354, 0.9738476308781951], got [0.8912073708760093, 0.9738476417120342]
-- FAIL testFilter [tests/mapping/sqlFunction]: cells: expected [0.9738476308781951], got [0.9738476417120342]
-- FAIL testProject [tests/mapping/sqlFunction]: cells: expected [0.4535961214255773, -0.2272020946930871], got [0.45359610017753804, -0.2272020482564131]
-- FAIL testFilter [tests/mapping/sqlFunction]: cells: expected [-0.2272020946930871], got [-0.2272020482564131]
-- FAIL testProject [tests/mapping/sqlFunction]: cells: expected [1.9647596572486523, -4.286261674628062], got [1.9647597731267747, -4.286262598359062]
-- FAIL testFilter [tests/mapping/sqlFunction]: cells: expected [1.9647596572486523], got [1.9647597731267747]
-- FAIL testProject [tests/mapping/sqlFunction]: cells: expected [0.8329812666744317, 1.0636978224025597], got [0.8329812774626025, 1.0636978111564002]
-- FAIL testFilter [tests/mapping/sqlFunction]: cells: expected [1.0636978224025597], got [1.0636978111564002]
-- FAIL testProject [tests/mapping/sqlFunction]: cells: expected [0.8329812666744317, 0.7328151017865066], got [0.8329812774626025, 0.7328150886142093]
-- FAIL testFilter [tests/mapping/sqlFunction]: cells: expected [0.8329812666744317], got [0.8329812774626025]
+- SHAPE testFilter [tests/mapping/sqlFunction]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n      'select sin("root".float1) as "sin" from dataTable as "root" where sin("root".float1) > 
+- SHAPE testFilter [tests/mapping/sqlFunction]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n      'select atan2("root".float1,"root".int1) as "atan2" from dataTable as "root" where atan2
 - ERROR testProject [tests/mapping/sqlFunction]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_aggregate(INTEGER, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_aggregate(ANY[]
 - SHAPE testProject [tests/mapping/sqlFunction]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: null
 - SHAPE testFilter [tests/mapping/sqlFunction]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqWithinTolerance(123.456, $result.values->cast(@TabularDataSet).rows.values->at(0)->cast(@Float), 0.001)
@@ -2286,16 +2277,12 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testToSQLStringconvertToDateinDb2 [tests/mapping/sqlFunction]: no execute(|...) call
 - ERROR testToSQLStringconvertToDateTimeinH2 [tests/mapping/sqlFunction]: Invalid Input Error: Could not parse string "2016-06-23 13:00:00" according to format specifier "%Y-%m-%d %H:%M:%S.%g" | 2016-06-23 13:00:00 |                     ^ | Error: Literal does not match, expected .
 - SHAPE testToSQLStringconvertToDateTimeinDb2 [tests/mapping/sqlFunction]: no execute(|...) call
-- FAIL testProject [tests/mapping/sqlFunction]: cells: expected [1.3310000000000004, 5.832000000000001], got [1.3310000865459461, 5.831999536514295]
-- FAIL testFilter [tests/mapping/sqlFunction]: cells: expected [1.3310000000000004], got [1.3310000865459461]
-- FAIL testProject [tests/mapping/sqlFunction]: cells: expected [3.0041660239464334, 6.0496474644129465], got [3.0041660955713336, 6.049647175943282]
-- FAIL testFilter [tests/mapping/sqlFunction]: cells: expected [3.0041660239464334], got [3.0041660955713336]
-- FAIL testProject [tests/mapping/sqlFunction]: cells: expected [0.09531017980432493, 0.5877866649021191], got [0.0953102014787409, 0.5877866384111654]
-- FAIL testFilter [tests/mapping/sqlFunction]: cells: expected [0.09531017980432493], got [0.0953102014787409]
+- SHAPE testFilter [tests/mapping/sqlFunction]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n      'select power("root".float1, 3) as "power" from dataTable as "root" where power("root".f
+- SHAPE testFilter [tests/mapping/sqlFunction]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n      'select ln("root".float1) as "log" from dataTable as "root" where ln("root".float1) < 0.
 - FAIL testProject [tests/mapping/sqlFunction]: cells: expected [12, 12], got [11, 11]
 - ERROR testFilter [tests/mapping/sqlFunction]: Parser Error: syntax error at or near "=" |  | LINE 3: ...xp_extract(t0.stringToInt, '^[-+]?[0-9]*\.?[0-9]+$') <> '' = TRUE |                                                                       ^
 - SHAPE testToSQLConvertDateH2 [tests/mapping/sqlFunction]: no execute(|...) call
-- FAIL testAdjustDateTranslationInMappingAndQuery [tests/mapping/sqlFunction]: cells: expected [DateExpected[iso=2003-07-12T00:00:00.000000000+0000], DateExpected[iso=2003-07-13T00:00:00.000000000+0000]], got [2003-07-12 00:00:00.0, 2003-07-13 00:00:00.0]
+- SHAPE testAdjustDateTranslationInMappingAndQuery [tests/mapping/sqlFunction]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: null
 - ERROR testQuerySimple [tests/mapping/tree]: filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
 - ERROR testQueryWithResultWithAnd [tests/mapping/tree]: filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
 - ERROR testQueryNoResultWithAnd [tests/mapping/tree]: filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
@@ -2459,6 +2446,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testTwoAssociationsToManyDeep [tests/query]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
 - ERROR testTwoAssociationsToManyDeepWithOr [tests/query]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
 - ERROR testAssociationToManyWithTwoSeparateExists [tests/query]: filter predicate references column 'employees_address', unresolvable even after isolation
+- SHAPE testSimpleAndAssociationToOne [tests/query]: assertEmpty unverifiable: 4 seed statement(s) failed: CREATE OR REPLACE TABLE testTable ("quantity" INT, "Class" VARCHAR(200), "boolean" INT, "abstract" INT, "assert" INT, "break" INT, "byte" INT, "catch" INT, "char" INT, "const" INT, "continue" INT, "default" INT, "do" INT, "double" INT, "else" INT
 - ERROR testTwoAssociationsToOneDeep [tests/query]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - SHAPE testGroupOpenVariable [tests/query]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertSameSQL('select "root".ID as "pk_0", "root".FIRSTNAME as "firstName", "root".AGE as "age", "root".LASTNAME as "las
 - ERROR testExistsOpenVariableClass [tests/query]: object-space expression node TypedNewInstance is not substitutable yet (H2 vocabulary)
