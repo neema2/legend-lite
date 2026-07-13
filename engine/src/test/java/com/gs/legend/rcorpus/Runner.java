@@ -342,7 +342,59 @@ public final class Runner {
     // ===== per-test execution =====
 
     private static final Pattern EXECUTE_CALL = Pattern.compile(
-            "\\bexecute\\s*\\(\\s*\\|");
+            "\\bexecute\\s*\\(");
+
+    /** Is offset {@code at} inside a single-quoted string literal of {@code s}? */
+    private static boolean insideString(String s, int at) {
+        int i = 0;
+        while (i < s.length() && i <= at) {
+            if (s.charAt(i) == '\'') {
+                int end = Corpus.skipString(s, i);
+                if (at > i && at < end) {
+                    return true;
+                }
+                i = end;
+                continue;
+            }
+            i++;
+        }
+        return false;
+    }
+
+    /** Index of the LAST top-level {@code ->from(} in the expression, or -1. */
+    private static int lastTopLevelFrom(String q) {
+        int depth = 0;
+        int last = -1;
+        int i = 0;
+        while (i < q.length()) {
+            char c = q.charAt(i);
+            if (c == '\'') {
+                i = Corpus.skipString(q, i);
+                continue;
+            }
+            if (c == '(' || c == '[' || c == '{') {
+                depth++;
+            } else if (c == ')' || c == ']' || c == '}') {
+                depth--;
+            } else if (depth == 0 && c == '-' && q.startsWith("->", i)) {
+                int j = i + 2;
+                while (j < q.length() && Character.isWhitespace(q.charAt(j))) {
+                    j++;
+                }
+                if (q.startsWith("from", j)) {
+                    int k = j + 4;
+                    while (k < q.length() && Character.isWhitespace(q.charAt(k))) {
+                        k++;
+                    }
+                    if (k < q.length() && q.charAt(k) == '(') {
+                        last = i;
+                    }
+                }
+            }
+            i++;
+        }
+        return last;
+    }
 
     /** One executed query: the let-var it binds, its rows, its body offset. */
     record ResultBinding(String var, List<Map<String, Object>> rows, int pos,
@@ -356,6 +408,9 @@ public final class Runner {
         List<int[]> spans = new ArrayList<>();
         Matcher m = EXECUTE_CALL.matcher(fn.body());
         while (m.find()) {
+            if (insideString(fn.body(), m.start())) {
+                continue;   // 'execute(' inside a string literal is data
+            }
             int argStart = fn.body().indexOf('(', m.start());
             int argEnd = matchParen(fn.body(), argStart);
             if (argEnd > 0) {
@@ -420,18 +475,51 @@ public final class Runner {
                 }
                 seedFailures.addAll(failedSeeds);
                 List<ResultBinding> bindings = new ArrayList<>();
+                String skippedSpan = null;
                 for (int[] span : spans) {
                     List<String> args = splitArgs(fn.body().substring(span[1] + 1, span[2]));
                     if (args.size() < 2) {
-                        return new Outcome(fn.fqn(), Status.SHAPE,
-                                "execute() with " + args.size() + " args");
+                        skippedSpan = "execute() with " + args.size() + " args";
+                        continue;
                     }
-                    String query = args.get(0).strip();
-                    if (query.startsWith("|")) {
-                        query = query.substring(1);
+                    // query spellings: |q  {|q}  $letBoundLambda — inline
+                    // lets FIRST so the let-bound form resolves, then strip
+                    // the wrappers down to the bare expression
+                    String query = inlineLets(args.get(0).strip(), fn.body()).strip();
+                    if (query.startsWith("(") && query.endsWith(")")
+                            && matchParen(query, 0) == query.length() - 1) {
+                        query = query.substring(1, query.length() - 1).strip();
                     }
-                    query = inlineLets(query, fn.body());
-                    String mappingRef = qualify(args.get(1).strip(), fn);
+                    if (query.startsWith("{") && query.endsWith("}")) {
+                        query = query.substring(1, query.length() - 1).strip();
+                    }
+                    if (!query.startsWith("|")) {
+                        skippedSpan = "execute() query arg is not a lambda: "
+                                + query.substring(0, Math.min(40, query.length()));
+                        continue;
+                    }
+                    query = query.substring(1).strip();
+                    // a TERMINAL ->from(MAPPING[, runtime]) carries the
+                    // mapping IN the query (the ^Mapping(name='') outer arg
+                    // is a dummy); extract it and drop the from — the
+                    // driver-supplied runtime plays that role here
+                    String mappingRef = null;
+                    int fi = lastTopLevelFrom(query);
+                    if (fi >= 0) {
+                        int open = query.indexOf('(', fi);
+                        int close = matchParen(query, open);
+                        if (close == query.length() - 1) {
+                            List<String> fromArgs = splitArgs(
+                                    query.substring(open + 1, close));
+                            if (!fromArgs.isEmpty()) {
+                                mappingRef = qualify(fromArgs.get(0).strip(), fn);
+                                query = query.substring(0, fi);
+                            }
+                        }
+                    }
+                    if (mappingRef == null) {
+                        mappingRef = qualify(args.get(1).strip(), fn);
+                    }
                     String fullModel = modelText + runtimeBlock(modelText, mappingRef);
                     String qualified = qualifyQuery(query, fn);
                     // the let-var this result binds ($result by convention)
@@ -450,6 +538,10 @@ public final class Runner {
                     }
                     bindings.add(new ResultBinding(var, graphRows(r), span[2],
                             qualified, colTypes));
+                }
+                if (bindings.isEmpty()) {
+                    return new Outcome(fn.fqn(), Status.SHAPE,
+                            skippedSpan == null ? "no execute(|...) call" : skippedSpan);
                 }
                 // intermediate aliases: let tds = $result.values->at(0);
                 // asserts against $tds read the SAME result (the ->at(0)
