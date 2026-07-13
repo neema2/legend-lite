@@ -129,9 +129,9 @@ runner does not yet recognize (accounted, not skipped silently).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 0 | 0 | 92 | 0 |
 | executionPlan/tests | 109 | 0 | 0 | 0 | 109 |
-| functions/tests | 261 | 44 | 3 | 147 | 67 |
+| functions/tests | 261 | 44 | 3 | 143 | 71 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 1 | 0 | 0 |
-| functions/tests/projection | 165 | 11 | 7 | 97 | 50 |
+| functions/tests/projection | 165 | 11 | 8 | 94 | 52 |
 | graphFetch/domain | 2 | 0 | 0 | 0 | 2 |
 | graphFetch/tests | 5 | 0 | 0 | 0 | 5 |
 | graphFetch/tests/union | 1 | 0 | 0 | 0 | 1 |
@@ -151,7 +151,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | sqlQueryToString/DDL | 3 | 0 | 0 | 0 | 3 |
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 275 | 22 | 12 | 114 | 127 |
+| tds/tests | 275 | 22 | 19 | 83 | 151 |
 | testDataGeneration/tests | 40 | 0 | 0 | 0 | 40 |
 | tests | 39 | 0 | 0 | 0 | 39 |
 | tests/advanced | 71 | 0 | 0 | 58 | 13 |
@@ -161,14 +161,14 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/association | 24 | 1 | 0 | 19 | 4 |
 | tests/mapping/classMappingByClass | 3 | 0 | 0 | 0 | 3 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 0 | 0 | 30 | 2 |
-| tests/mapping/distinct | 18 | 4 | 5 | 9 | 0 |
+| tests/mapping/distinct | 18 | 5 | 4 | 9 | 0 |
 | tests/mapping/dynaJoin | 6 | 0 | 0 | 2 | 4 |
-| tests/mapping/embedded | 70 | 8 | 8 | 47 | 7 |
-| tests/mapping/enumeration | 27 | 1 | 1 | 8 | 17 |
+| tests/mapping/embedded | 70 | 12 | 13 | 40 | 5 |
+| tests/mapping/enumeration | 27 | 1 | 1 | 3 | 22 |
 | tests/mapping/filter | 10 | 3 | 0 | 5 | 2 |
 | tests/mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 |
-| tests/mapping/inheritance | 51 | 0 | 0 | 51 | 0 |
+| tests/mapping/inheritance | 51 | 0 | 0 | 50 | 1 |
 | tests/mapping/join | 29 | 17 | 1 | 11 | 0 |
 | tests/mapping/merge | 1 | 0 | 0 | 1 | 0 |
 | tests/mapping/modelJoin | 47 | 0 | 0 | 47 | 0 |
@@ -182,11 +182,11 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/union | 125 | 0 | 0 | 107 | 18 |
 | tests/mapping/union/relation | 15 | 0 | 0 | 13 | 2 |
 | tests/platformOperations | 4 | 0 | 0 | 0 | 4 |
-| tests/query | 99 | 26 | 2 | 48 | 23 |
+| tests/query | 99 | 29 | 2 | 45 | 23 |
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2429 | **139** | 40 | 1290 | 960 |
+| **total** | 2429 | **147** | 52 | 1236 | 994 |
 
 ### mapping walls (dropped at assembly)
 
@@ -405,36 +405,36 @@ runner does not yet recognize (accounted, not skipped silently).
 
 ### top error buckets
 
+- 89x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - 64x in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': in call to 'meta::pure::functions::string::splitPart', argument 3: expected Integer, got String
-- 35x unknown function 'restrict'
 - 35x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- 33x class query under TypedMap is not resolvable yet (H2 vocabulary)
+- 32x class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - 30x unknown function 'product'
-- 29x class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
-- 27x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
+- 28x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
+- 23x expected at most one value, got many ([*])
 - 23x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 23x [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- 22x class query under TypedMap is not resolvable yet (H2 vocabulary)
 - 22x milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
-- 21x expected at most one value, got many ([*])
-- 20x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- 18x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
+- 21x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 18x unknown function 'getAllVersionsInRange'
 - 16x unknown function 'getAllVersions'
-- 15x unknown function 'synonymByType'
 - 15x milestoned class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet (H-scope exclusion)
 - 15x unknown function 'biTemporalProduct'
 - 15x milestoned class fetch of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X' is not supported yet (H-scope exclusion)
 - 14x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exactly one
-- 13x unknown function 'employeesByCityOrManager'
 - 13x unknown function 'classification'
 - 13x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Person' (of 1 candidates); class-query dispatch needs exactly one
+- 12x filter predicate references column 'firm_employees', unresolvable even after isolation
 - 12x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected String, got Integer
 - 11x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::PersonWithAddress' (of 1 candidates); class-query dispatch needs exactly one
-- 10x filter predicate references column 'firm_employees', unresolvable even after isolation
-- 10x property 'name' of class 'meta::relational::tests::model::simple::Person' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- 10x unknown function 'employeeByLastName'
 - 10x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Person' (of 1 candidates); class-query dispatch needs exactly one
 - 10x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Firm' (of 1 candidates); class-query dispatch needs exactly one
+- 9x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Firm' (of 1 candidates); class-query dispatch needs exactly one
+- 9x in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
+- 9x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::Person' (of 1 candidates); class-query dispatch needs exactly one
+- 8x unknown function 'ytd'
+- 8x expected meta::relational::tests::functions::distance::GeographicCoordinate, got GeographicCoordinate
 
 ### per-test outcomes (non-passing)
 
@@ -678,18 +678,18 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testDistanceSphericalLawOfCosinesInProject [functions/tests]: expected meta::relational::tests::functions::distance::GeographicCoordinate, got GeographicCoordinate
 - ERROR testAllWithProperty [functions/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - ERROR testAll [functions/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testConcatenateDataType [functions/tests]: unknown function 'synonymByType'
-- ERROR testConcatenateDataTypeMerge [functions/tests]: unknown function 'synonymByType'
-- ERROR testConcatenateDataTypeDiffProperty [functions/tests]: unknown function 'synonymByType'
-- ERROR testConcatenateClass [functions/tests]: unknown function 'synonymByType'
+- ERROR testConcatenateDataType [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testConcatenateDataTypeMerge [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testConcatenateDataTypeDiffProperty [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testConcatenateClass [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testConcatenateClass [functions/tests]: unknown function 'synonymByType'
-- ERROR testConcatenateClassMerge [functions/tests]: unknown function 'synonymByType'
-- ERROR testConcatenateClassAgg [functions/tests]: unknown function 'synonymByType'
-- ERROR testConcatenateClassJoin [functions/tests]: unknown function 'synonymByType'
-- ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: property 'addresses' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
-- ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: property 'accountOrganizationalEntity' of class 'meta::relational::tests::projection::function::concatenate::model::NewTrade' is not mapped in mapping 'meta::relational::tests::projection::function::concatenate::mapping::testMapping'
-- ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: property 'accountOrganizationalEntity' of class 'meta::relational::tests::projection::function::concatenate::model::NewTrade' is not mapped in mapping 'meta::relational::tests::projection::function::concatenate::mapping::testEmbeddedMapping'
+- ERROR testConcatenateClass [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testConcatenateClassMerge [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testConcatenateClassAgg [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testConcatenateClassJoin [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
+- ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
+- ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
 - ERROR testConcatenateFlat [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_concat(INTEGER, INTEGER)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY
 - ERROR testConcatenateFlatWithOtherProperty [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_concat(INTEGER, INTEGER)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY
 - SHAPE testConcatenateWithPostFilteredGroupBy [functions/tests]: no execute(|...) call
@@ -725,10 +725,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testAssociationThreeLevelDeep [functions/tests]: class-typed property '$p.employees' used as a whole value is graph output (Phase H4)
 - ERROR testAssociationHandlingDups [functions/tests]: class-typed property '$p.employees' used as a whole value is graph output (Phase H4)
 - ERROR testAssociationWithProjectionHandlingDups [functions/tests]: filter predicate references column 'firm_employees', unresolvable even after isolation
-- ERROR testExistsInAbstractProperty [functions/tests]: unknown function 'hasEmployeeBelowAge'
-- ERROR testNestedExistsWithExistsInAbstractProperty [functions/tests]: unknown function 'hasEmployeeBelowAge'
+- ERROR testExistsInAbstractProperty [functions/tests]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
+- ERROR testNestedExistsWithExistsInAbstractProperty [functions/tests]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - ERROR testExistsWithOrCondition [functions/tests]: filter predicate references column 'firm_employees', unresolvable even after isolation
-- ERROR testExistsWithAttributesFromLeftInAndCondition [functions/tests]: property 'name' of class 'meta::relational::tests::model::simple::Person' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- ERROR testExistsWithAttributesFromLeftInAndCondition [functions/tests]: filter predicate references column 'firm_employees', unresolvable even after isolation
 - ERROR testExistsWithAttributesFromLeftInOrCondition [functions/tests]: filter predicate references column 'firm_employees', unresolvable even after isolation
 - ERROR testFilterFunctionExpressionWithConditionOnRightTableIsEmptyExpression [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testFilterFunctionExpressionWithAndConditionOnRightTableIsEmptyExpression [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
@@ -782,14 +782,14 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testConsistencyWithNullsInJoin [functions/tests]: no recognizable assertions
 - SHAPE testContainsEscapePercentage [functions/tests]: partial: 1/2 asserts recognized (recognized ones hold)
 - SHAPE testContainsEscapeUnderscore [functions/tests]: partial: 1/2 asserts recognized (recognized ones hold)
-- ERROR testInWithinQualifiedPropertyCollectionAsLiteralList [functions/tests]: property 'isFirmXGroup' of class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
-- ERROR testDerivedWithIsEmpty [functions/tests]: unknown function 'isValued'
+- SHAPE testInWithinQualifiedPropertyCollectionAsLiteralList [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testDerivedWithIsEmpty [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testIsolationOfInputToIsEmpty [functions/tests]: unbound variable '$result'
 - ERROR testIsolationOfInputToIsEmptyWithForcedFiltersOnInput [functions/tests]: unbound variable '$result'
 - ERROR testInputNotIsolatedWhenPropertyPathIsToOne [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testIsolationOfTheSameInputInABooleanExprWhereOneSideIsEmpty [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- ERROR testSimpleTriangularJoinViaIsEmpty [functions/tests]: property 'employeeWithFirmAddressName' of class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
-- ERROR testIsEmptyOnQualifiedPropertyFollowedByClassPropertyInput [functions/tests]: unknown function 'employeeByLastName'
+- ERROR testSimpleTriangularJoinViaIsEmpty [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testIsEmptyOnQualifiedPropertyFollowedByClassPropertyInput [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - SHAPE testIsEmptyOnCollection [functions/tests]: no execute(|...) call
 - ERROR testSimpleAutoMap [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testSimpleExplicitMap [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
@@ -804,8 +804,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testBoolean [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testIntegerMultiply [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testSimpleDerivedProperty [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- ERROR testAdvancedDerivedProperty [functions/tests]: unknown function 'fullName'
-- ERROR testAdvancedDerivedPropertyThroughAssociation [functions/tests]: unknown function 'fullName'
+- ERROR testAdvancedDerivedProperty [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
+- ERROR testAdvancedDerivedPropertyThroughAssociation [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testFilter [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testFilterWithProperty [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testFilterPostMapWithObject [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
@@ -820,9 +820,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSubAggregationAverageWithOperation [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testSubAggregationSumWithOperation [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testSubAggregationUsingIf [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- ERROR testSubAggregationAverageInQualifier [functions/tests]: unknown function 'averageEmployeesAge'
-- ERROR testSubAggregationMaxInQualifier [functions/tests]: unknown function 'maxEmployeesAge'
-- ERROR testSubAggregationSumInQualifier [functions/tests]: unknown function 'sumEmployeesAge'
+- ERROR testSubAggregationAverageInQualifier [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
+- ERROR testSubAggregationMaxInQualifier [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
+- ERROR testSubAggregationSumInQualifier [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testSequenceMapWithConfusingSetImplementation [functions/tests]: 'Org' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testUsingAFunctionInTheMapLambdaAndAMultiplyInTheAggregation [functions/tests]: unknown function 'subFunction'
 - ERROR testUsingAnAssociationInTheMapFunction [functions/tests]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -840,7 +840,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testJoinStringsWithAssociation [functions/tests]: expected at most one value, got many ([*])
 - SHAPE testJoinStringsTwiceWithAssociation [functions/tests]: partial: 1/3 asserts recognized (recognized ones hold)
 - SHAPE testUsingSameAggFunctionTwice [functions/tests]: partial: 1/2 asserts recognized (recognized ones hold)
-- ERROR testUsingSameAggFunctionTwiceUsingQualifier [functions/tests]: property 'sumEmployeesAge' of class 'meta::relational::tests::model::simple::Firm' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- SHAPE testUsingSameAggFunctionTwiceUsingQualifier [functions/tests]: partial: 1/2 asserts recognized (recognized ones hold)
 - ERROR testAggToManyWithAverage [functions/tests]: expected at most one value, got many ([*])
 - ERROR testAggToManyWithMaxInteger [functions/tests]: expected at most one value, got many ([*])
 - ERROR testAggToManyWithMinInteger [functions/tests]: expected at most one value, got many ([*])
@@ -848,7 +848,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testAggToManyWithMinDate [functions/tests]: expected at most one value, got many ([*])
 - ERROR testAggToManyWithFilter [functions/tests]: expected at most one value, got many ([*])
 - SHAPE testGroupByWithUnion [functions/tests]: no execute(|...) call
-- ERROR testGroupByAndFilterIsolatedJoinMerge [functions/tests]: multi-hop navigation product.cusipSynonym.name through an embedded/slot head is not supported yet
+- ERROR testGroupByAndFilterIsolatedJoinMerge [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - FAIL testGroupByWithJoinH2 [functions/tests]: size: expected 1, got 6; cells: expected [Firm A, Fabrice, 1, Firm B, Oliver, 1, Firm C, David, 1, Firm X, Anthony, 1, Firm X, John, 2, Firm X, Peter, 1], got [Firm A, Fabrice, 1, Firm B, Oliver, 1, Firm C, David, 1, Firm X, Anthony, 1, Firm X, John, 2, Firm X, Peter, 1]
 - SHAPE testGroupByWithJoinDB2 [functions/tests]: no execute(|...) call
 - ERROR testObjectLevelGroupByWTDSLevelGroupByWTDSExtend [functions/tests]: ~Case Column: mapped/aggregate column specifications need an enclosing call to type against
@@ -882,15 +882,15 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testSortByLambdaColumnAddition [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testSortByLambdaWithIfElseValue [functions/tests]: partial: 2/4 asserts recognized (recognized ones hold)
 - SHAPE testSortByLambdaWIthIfElseColumn [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold)
-- ERROR testSortByLambdaWithComplexExpr [functions/tests]: property 'name' of class 'meta::relational::tests::model::simple::Person' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- SHAPE testSortByLambdaWithComplexExpr [functions/tests]: partial: 2/4 asserts recognized (recognized ones hold)
 - SHAPE testSortByLambdaDeepOptional [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testSortByLambda_QueryWithParameters_Plan [functions/tests]: no execute(|...) call
 - FAIL testLoadCsv [functions/tests/loadCsvToDbTable]: firstName: expected [Joe], got []; lastName: expected [Bloggs], got []; age: expected [21], got []; at(1).firstName: expected Jill, got null; at(1).lastName: expected Smith, got null; at(1).age: expected 31, got null
 - FAIL testSubAggregation [functions/tests/projection]: size: expected 4, got 7
 - FAIL testSubAggregationWithAnotherSimpleProperty [functions/tests/projection]: size: expected 4, got 7
 - ERROR testTwoSubAggregationSameProperty [functions/tests/projection]: no scalar lowering registered for resolved overload 'meta::pure::functions::collection::count' with 1 parameter(s)
-- ERROR testProjectQualifierContainingAggregation [functions/tests/projection]: property 'sumEmployeesAge' of class 'meta::relational::tests::model::simple::Firm' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- ERROR testProjectQualifierContainingAggregationWithSubAgg [functions/tests/projection]: property 'sumEmployeesAge' of class 'meta::relational::tests::model::simple::Firm' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- FAIL testProjectQualifierContainingAggregation [functions/tests/projection]: size: expected 4, got 7
+- ERROR testProjectQualifierContainingAggregationWithSubAgg [functions/tests/projection]: no scalar lowering registered for resolved overload 'meta::pure::functions::collection::count' with 1 parameter(s)
 - ERROR testDeepSubAggregation [functions/tests/projection]: multi-hop navigation employees.address.name through an embedded/slot head is not supported yet
 - ERROR testSubAggregationWithIf [functions/tests/projection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - FAIL testSubAggregationWithJoinStrings [functions/tests/projection]: size: expected 4, got 7
@@ -903,11 +903,11 @@ runner does not yet recognize (accounted, not skipped silently).
 - FAIL testSubAggregationWithTopLevelIf [functions/tests/projection]: size: expected 4, got 7
 - ERROR testIsDistinctSubAggregation [functions/tests/projection]: no overload of 'meta::pure::functions::collection::isDistinct' accepts 1 argument(s)
 - ERROR testAssociationMixed [functions/tests/projection]: filter predicate references column 'firm_employees', unresolvable even after isolation
-- ERROR testAssociationMixedAdvanced [functions/tests/projection]: property 'name' of class 'meta::relational::tests::model::simple::Person' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- ERROR testAssociationMixedAdvanced [functions/tests/projection]: filter predicate references column 'firm_employees', unresolvable even after isolation
 - SHAPE testAssociationToManyColumnProtocolOneColumn [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testAssociationToManyColumnProtocol [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testAssociationToManyColumnProtocolWithDoc [functions/tests/projection]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testQualifiedPropertyUsingColumnProtocol [functions/tests/projection]: unknown function 'employeesByAge'
+- ERROR testQualifiedPropertyUsingColumnProtocol [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - SHAPE testAssociationToMany [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testAssociationToManyWithQuery [functions/tests/projection]: class-typed property '$p.locations' used as a whole value is graph output (Phase H4)
 - ERROR testAssociationToManyDeepTwo [functions/tests/projection]: multi-hop navigation employees.address.name through an embedded/slot head is not supported yet
@@ -935,31 +935,31 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMostRecentDayOfWeekWithDate [functions/tests/projection]: unknown function 'mostRecentDayOfWeek'
 - ERROR testPreviousDayOfWeekWithDate [functions/tests/projection]: unknown function 'previousDayOfWeek'
 - SHAPE testDateWithSeconds [functions/tests/projection]: partial: 1/3 asserts recognized (recognized ones hold)
-- ERROR testSimpleExists [functions/tests/projection]: property 'name' of class 'meta::relational::tests::model::simple::Person' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- ERROR testExistsAsQualifier [functions/tests/projection]: property 'hasMatchingDependencies' of class 'meta::relational::tests::projection::exists::MyClass' has no binding in mapping 'meta::relational::tests::projection::exists::mapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- ERROR testSimpleExists [functions/tests/projection]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
+- ERROR testExistsAsQualifier [functions/tests/projection]: class-typed property '$p.dependencies' used as a whole value is graph output (Phase H4)
 - ERROR testExistsEmbeddedOnSameTable [functions/tests/projection]: class-typed property '$p.dependencies' used as a whole value is graph output (Phase H4)
-- ERROR testExistsAsQualifierWithFilter [functions/tests/projection]: property 'hasMatchingDependencies' of class 'meta::relational::tests::projection::exists::MyClass' has no binding in mapping 'meta::relational::tests::projection::exists::mappingWithFilter' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- ERROR testExistsAsQualifierWithFilterAndWrongJoin [functions/tests/projection]: property 'hasMatchingDependencies' of class 'meta::relational::tests::projection::exists::MyClass' has no binding in mapping 'meta::relational::tests::projection::exists::mappingWithFilterAndWrongJoin' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- ERROR testExistsAsNullWithSubType [functions/tests/projection]: property 'hasPrivateFunction' of class 'meta::relational::tests::projection::exists::MyClass' has no binding in mapping 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- ERROR testExistsAsQualifierWithFilter [functions/tests/projection]: class-typed property '$p.dependencies' used as a whole value is graph output (Phase H4)
+- ERROR testExistsAsQualifierWithFilterAndWrongJoin [functions/tests/projection]: class-typed property '$p.dependencies' used as a whole value is graph output (Phase H4)
+- ERROR testExistsAsNullWithSubType [functions/tests/projection]: property 'functions' of class 'meta::relational::tests::projection::exists::MyClass' has no binding in mapping 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testFilterOnSimpleTypeProperty [functions/tests/projection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
-- ERROR testSavedRootPropogatedCorrectlyThroughFilter [functions/tests/projection]: unknown function 'employeeByLastName'
+- ERROR testSavedRootPropogatedCorrectlyThroughFilter [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testChainedFiltersQuery [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testChainedFiltersGet [functions/tests/projection]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testChainedFiltersProject [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testIsNullColumn [functions/tests/projection]: unknown function 'isNull'
 - ERROR testIsNotNullColumn [functions/tests/projection]: unknown function 'isNotNull'
-- ERROR testCompressSQLforINFilter [functions/tests/projection]: property 'name' of class 'meta::relational::tests::model::simple::Person' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- ERROR testCompressSQLforINFilter2 [functions/tests/projection]: property 'name' of class 'meta::relational::tests::model::simple::Person' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- ERROR testCompressSQLforINFilter [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testCompressSQLforINFilter2 [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - SHAPE testParametrizedEnumFilter [functions/tests/projection]: no execute(|...) call
 - SHAPE testFilterAfterJoinInRelation [functions/tests/projection]: no execute(|...) call
 - SHAPE testFilterAfterJoinInRelationWithExtendedPrimitives [functions/tests/projection]: no execute(|...) call
 - SHAPE testGreaterThan [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testGreaterThanEqual [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testGreaterThanWithOptionalProperty [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
-- ERROR testIsolationOfVariableNamesAccrossDifferentPaths [functions/tests/projection]: unknown function 'employeeWithFirmAddressName'
+- ERROR testIsolationOfVariableNamesAccrossDifferentPaths [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testIsolatioWhereNoConstaintsAndInnerJoin [functions/tests/projection]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testIsolationOfFiltersWithoutAlias [functions/tests/projection]: unknown function 'employeeByLastName'
-- ERROR testIsolationOfFiltersWithoutAliasWithChainedJoins [functions/tests/projection]: unknown function 'synonymByType'
+- ERROR testIsolationOfFiltersWithoutAlias [functions/tests/projection]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Firm' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testIsolationOfFiltersWithoutAliasWithChainedJoins [functions/tests/projection]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Trade' (of 1 candidates); class-query dispatch needs exactly one
 - SHAPE testFunctionAndPathOneSide [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testFunctionAndPathOtherSide [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testSimpleRealFunction [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
@@ -970,19 +970,19 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testNestedPlusFunctionAndMappingDynaFunction [functions/tests/projection]: in function 'meta::relational::tests::simpleRelationalMappingWithPlus$class$meta::relational::tests::model::simple::Order': expected Float, got Integer
 - ERROR testNestedPlusFunctionAndNestedMappingDynaFunction [functions/tests/projection]: in function 'meta::relational::tests::simpleRelationalMappingWithNestedPlus$class$meta::relational::tests::model::simple::Order': expected Float, got Integer
 - ERROR testSameBehaviorForNestedAddAndPlus [functions/tests/projection]: in function 'meta::relational::tests::simpleRelationalMappingWithNestedAdd$class$meta::relational::tests::model::simple::Order': expected Float, got Integer
-- ERROR testProjectReferenceInRhsFilterWithDistinctVarNamesViaQualifiedProperty [functions/tests/projection]: unknown function 'employeesByCityOrManager'
-- ERROR testProjectReferenceInRhsFilterWithConflictingVarNamesViaQualifiedProperty [functions/tests/projection]: unknown function 'employeesByCityOrManager'
-- ERROR testProjectOnQualifiedPropertyReturningAConstant [functions/tests/projection]: unknown function 'constant'
-- ERROR testProjectReferenceInRhsFilterWithPotentiallyConflictingVarNamesViaQualifiedProperty [functions/tests/projection]: unknown function 'employeesByCityOrManager'
+- ERROR testProjectReferenceInRhsFilterWithDistinctVarNamesViaQualifiedProperty [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
+- ERROR testProjectReferenceInRhsFilterWithConflictingVarNamesViaQualifiedProperty [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
+- SHAPE testProjectOnQualifiedPropertyReturningAConstant [functions/tests/projection]: partial: 1/2 asserts recognized (recognized ones hold)
+- ERROR testProjectReferenceInRhsFilterWithPotentiallyConflictingVarNamesViaQualifiedProperty [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - ERROR testProjectReferenceInRhsFilterWithDistinctVarNamesViaNonPropertyFunctionExpression [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testVariableReferenceInFilterWithSameNameAsThatInParentProject [functions/tests/projection]: property 'name' of class 'meta::relational::tests::model::simple::Person' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- ERROR testVariableReferenceInMapWithSameNameAsThatInParentProject [functions/tests/projection]: property 'name' of class 'meta::relational::tests::model::simple::Person' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- ERROR testVariableReferenceInFilterWithSameNameAsThatInParentProject [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testVariableReferenceInMapWithSameNameAsThatInParentProject [functions/tests/projection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - ERROR testVariableReferenceInMapWithNestedFilter [functions/tests/projection]: expected at most one value, got many ([*])
-- ERROR testProjectReferenceInFilterWithMultiLevelLhs [functions/tests/projection]: unknown function 'employeesByCityOrManager'
-- ERROR testProjectReferenceInRhsFilterWithDistinctVarNamesViaNonPropertyFunctionExpressionUsingAggregation [functions/tests/projection]: no overload of 'meta::pure::functions::string::joinStrings' accepts 1 argument(s)
+- ERROR testProjectReferenceInFilterWithMultiLevelLhs [functions/tests/projection]: expected at most one value, got many ([*])
+- ERROR testProjectReferenceInRhsFilterWithDistinctVarNamesViaNonPropertyFunctionExpressionUsingAggregation [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - ERROR testVariableReferenceInMapWithNestedFunction [functions/tests/projection]: [1:118] expected ')' to close argument list
 - ERROR testVariableReferenceInExists [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testVariableReferenceQualifiedPropertyFollowedByExists [functions/tests/projection]: unknown function 'employeesByCityOrManager'
+- ERROR testVariableReferenceQualifiedPropertyFollowedByExists [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testVariableReferenceWithNestedFilterMultiple [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - SHAPE testIn [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testContains [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
@@ -1001,30 +1001,30 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE H2Test [functions/tests/projection]: no execute(|...) call
 - ERROR testInWithDynaFunction [functions/tests/projection]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected String, got Integer
 - ERROR testQualifierWithInThroughJoin [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
-- ERROR testSimpleDerived [functions/tests/projection]: property 'name' of class 'meta::relational::tests::model::simple::Person' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- SHAPE testSimpleDerived [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testSimpleBoolean [functions/tests/projection]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Account' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: Join 'AccountPnlView_Account' navigates to a CLASS mapped
-- ERROR testSimpleDerivedThroughAssociation [functions/tests/projection]: property 'name' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
-- ERROR testDerivedWithFiltering [functions/tests/projection]: property 'cusip' of class 'meta::relational::tests::model::simple::Product' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- ERROR testDerivedWithFilteringTwoProperties [functions/tests/projection]: property 'cusip' of class 'meta::relational::tests::model::simple::Product' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- ERROR testSimpleDerivedThroughAssociation [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
+- ERROR testDerivedWithFiltering [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testDerivedWithFilteringTwoProperties [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testQualifierWithFilteringAndParameters [functions/tests/projection]: [1:263] navigation path segment 'synonymByType(meta::relational::tests::model::simple::ProductSynonymType.CUSIP)' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::model::simple::Product/synonymByType(meta::relational::tests::model::simple::ProductSy
-- ERROR testQualifierWithClassAsParameter [functions/tests/projection]: unknown function 'parameterizedName'
-- ERROR testTwoQualifiersUsingSameJoinWithNoUserParams [functions/tests/projection]: property 'isinSynonym' of class 'meta::relational::tests::model::simple::Product' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
-- ERROR testQualifierInLambdaDeep [functions/tests/projection]: unknown function 'synonymByType'
-- ERROR testQualifierBeforeProject [functions/tests/projection]: unknown function 'synonymByType'
-- ERROR testQualifierWithIsEmptyOnComplexType [functions/tests/projection]: property 'productDescription' of class 'meta::relational::tests::model::simple::Trade' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- ERROR testQualifierWithIsNotEmptyOnComplexType [functions/tests/projection]: property 'accountDescription' of class 'meta::relational::tests::model::simple::Trade' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- ERROR testNestedIfWithIsEmpty [functions/tests/projection]: property 'productIdentifier' of class 'meta::relational::tests::model::simple::Trade' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- ERROR testNestedIfWithIsEmptyCanReturnNull [functions/tests/projection]: property 'productIdentifierWithNull' of class 'meta::relational::tests::model::simple::Trade' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- ERROR testQualifierWithFilterWithDataTypeResult [functions/tests/projection]: property 'tradeDateEventTypeInlined' of class 'meta::relational::tests::model::simple::Trade' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- ERROR testQualifierFunctionConsistencyWithDataTypeProperty [functions/tests/projection]: property 'tradeDateEventType' of class 'meta::relational::tests::model::simple::Trade' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- ERROR testQualifierFunctionConsistencyWithComplexTypeProperty [functions/tests/projection]: property 'initiator' of class 'meta::relational::tests::model::simple::Trade' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
-- ERROR testFilterInQualifierWithFilterInMappingInAggGroupBy [functions/tests/projection]: property 'cusip' of class 'meta::relational::tests::model::simple::Product' has no binding in mapping 'meta::relational::tests::projection::qualifier::productMappingWithFilter' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- ERROR testFilterInQualifierWithFilterInMappingInProjectGroupBy [functions/tests/projection]: property 'cusip' of class 'meta::relational::tests::model::simple::Product' has no binding in mapping 'meta::relational::tests::projection::qualifier::productMappingWithFilter' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- ERROR testQualifierWithVariableArg [functions/tests/projection]: unknown function 'employeeByLastName'
-- ERROR testQualifierWithVariableArgReferencedFirstInFilterEqualCriteria [functions/tests/projection]: unknown function 'employeeByLastNameWhereVarIsFirstEqualArg'
-- ERROR testQualifierWithVariableArgWithComplexTypeProperty [functions/tests/projection]: unknown function 'employeesByCityOrManager'
-- ERROR testQualifierWithVariableArgWithComplexTypePropertyAndSubsequentComplexTypePropertyCall [functions/tests/projection]: unknown function 'employeesByCityOrManager'
-- ERROR testFilterOnRootTypeWithOrWithFilterInQualifier [functions/tests/projection]: unknown function 'tradeDateEvent'
+- ERROR testQualifierWithClassAsParameter [functions/tests/projection]: object-space expression node TypedNewInstance is not substitutable yet (H2 vocabulary)
+- ERROR testTwoQualifiersUsingSameJoinWithNoUserParams [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierInLambdaDeep [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierBeforeProject [functions/tests/projection]: class query under TypedMap is not resolvable yet (H2 vocabulary)
+- ERROR testQualifierWithIsEmptyOnComplexType [functions/tests/projection]: class-typed property '$_path.product' used as a whole value is graph output (Phase H4)
+- ERROR testQualifierWithIsNotEmptyOnComplexType [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
+- ERROR testNestedIfWithIsEmpty [functions/tests/projection]: class-typed property '$_path.product' used as a whole value is graph output (Phase H4)
+- ERROR testNestedIfWithIsEmptyCanReturnNull [functions/tests/projection]: class-typed property '$_path.product' used as a whole value is graph output (Phase H4)
+- ERROR testQualifierWithFilterWithDataTypeResult [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierFunctionConsistencyWithDataTypeProperty [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierFunctionConsistencyWithComplexTypeProperty [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testFilterInQualifierWithFilterInMappingInAggGroupBy [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testFilterInQualifierWithFilterInMappingInProjectGroupBy [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierWithVariableArg [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierWithVariableArgReferencedFirstInFilterEqualCriteria [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierWithVariableArgWithComplexTypeProperty [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
+- ERROR testQualifierWithVariableArgWithComplexTypePropertyAndSubsequentComplexTypePropertyCall [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testFilterOnRootTypeWithOrWithFilterInQualifier [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - SHAPE testAllOneSimpleProperty [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testAllOneSimplePropertyWithColsFromFunction [functions/tests/projection]: project expects ~[…] column specifications
 - SHAPE testAllOneSimplePropertyUsingVariable [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
@@ -1034,7 +1034,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testAllTwoSimpleProperties [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testViewAllOneSimpleProperty [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testJoinToView [functions/tests/projection]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Account' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: Join 'AccountPnlView_Account' navigates to a CLASS mapped
-- ERROR testJoinThroughView [functions/tests/projection]: unknown function 'name'
+- ERROR testJoinThroughView [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - ERROR testViewWithGroupBy [functions/tests/projection]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::AccountPnl' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: PropertyMapping 'Join' for property 'account' is not s
 - ERROR testAssnToViewWithGroupBy [functions/tests/projection]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Account' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: Join 'AccountPnlView_Account' navigates to a CLASS mapped
 - ERROR testUnionOnViewsMapping [functions/tests/projection]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::OrderPnl' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::projection::view::unionOnViewsMapping' failed to normalize this class: class is mapped through multiple set IDs; 
@@ -1180,7 +1180,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testExecutionPlanForQueryWithVariableRundateWithinLambda [milestoning/tests]: no execute(|...) call
 - SHAPE testNonMilestoningQueryWithMilestoneFilterVariableRundateWithinLambda [milestoning/tests]: no execute(|...) call
 - ERROR testMilestoningCriteriaAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: unknown function 'product'
-- ERROR testMilestoningCriteriaAppliedToSimplePropertyJoinFromTemporalClassThroughQualifiedProperty [milestoning/tests]: unknown function 'productQp'
+- ERROR testMilestoningCriteriaAppliedToSimplePropertyJoinFromTemporalClassThroughQualifiedProperty [milestoning/tests]: in function 'meta::relational::tests::milestoning::Order$prop$productQp': unknown function 'product'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: unknown function 'product'
 - ERROR testMilestoningCriteriaAppliedToJoinsOnBusinessTemporalClassForComplexProperty [milestoning/tests]: unknown function 'stockProduct'
 - ERROR testMilestonedQualifiedPropertyUsedOnSuperTypeInEmbedded [milestoning/tests]: [1:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
@@ -1207,7 +1207,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testPartiallyMilestoningUnionOperationWithTemporalRootWithPropagation [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
 - ERROR testMilestoningContextPropagationForSimplePropertyReferenceWithMultipleJoinsViaProject [milestoning/tests]: unknown function 'product'
 - ERROR testFilterOnMilestonedClassInProjectWithTDSFilter [milestoning/tests]: unknown function 'product'
-- ERROR testIsolationOfMilestoningFiltersReferencedInAllPartsOfIfStmt [milestoning/tests]: unknown function 'productName'
+- ERROR testIsolationOfMilestoningFiltersReferencedInAllPartsOfIfStmt [milestoning/tests]: in function 'meta::relational::tests::milestoning::Order$prop$productName': unknown function 'product'
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
 - ERROR testDeepUnionOperationWithNonTemporalAndNonUnionRoot [milestoning/tests]: unknown function 'product'
 - ERROR testMilestoningFilterPropagationThroughFilter [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
@@ -1218,7 +1218,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testCalculationOnBusinessDateInGetAll [milestoning/tests]: no execute(|...) call
 - ERROR testNestedExists_NestedExistsWithEmbeddedMapping [milestoning/tests]: [1:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testNestedExists_NestedExistsWithEmbeddedMappingInProject [milestoning/tests]: [1:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testDerivedPropertyOnNonTemporalClassWithMilestonedChain [milestoning/tests]: property 'childLeafValueDerived' of class 'meta::relational::tests::milestoning::RootEntity' has no binding in mapping 'meta::relational::tests::milestoning::derivedPropertyAssociationMilestoningMap' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- ERROR testDerivedPropertyOnNonTemporalClassWithMilestonedChain [milestoning/tests]: in function 'meta::relational::tests::milestoning::RootEntity$prop$childLeafValueDerived': unknown function 'rootChild'
 - SHAPE testGraphFetchMultiPrimitiveOnInlineChild [milestoning/tests]: no execute(|...) call
 - ERROR testQueryOnTemporalRoot [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
 - ERROR testQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'product'
@@ -1404,7 +1404,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testToSqlStringReplaceTablesPostProcessor [postprocessor/tests]: no execute(|...) call
 - ERROR testReplaceTablePostProcessorWithExists [postprocessor/tests]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - ERROR testReplaceTablePostProcessorWithView [postprocessor/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Order' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testReplaceTablePostProcessorWithSubQueries [postprocessor/tests]: multi-hop navigation product.cusipSynonym.name through an embedded/slot head is not supported yet
+- ERROR testReplaceTablePostProcessorWithSubQueries [postprocessor/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - SHAPE testPushFiltersDownToJoinsPostProcessorSimpleObjectFilterEqual [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPushFiltersDownToJoinsPostProcessorSimpleTDSFilterEqual [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPushFiltersDownToJoinsPostProcessorTDSFilterGreaterThan [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -1415,14 +1415,14 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testPushFiltersDownToJoinsPostProcessorTDSFilterOrOp [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPushFiltersDownToJoinsPostProcessorTDSFilterCombinedOp [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPushFiltersDownToJoinsPostProcessorTDSFilterCombinedWithOrOp [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testPushFiltersDownToJoinsPostProcessorMultipleChildren [postprocessor/tests]: property 'initiator' of class 'meta::relational::tests::model::simple::Trade' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
+- ERROR testPushFiltersDownToJoinsPostProcessorMultipleChildren [postprocessor/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - SHAPE testPushFiltersDownIntoSubQuery [postprocessor/tests]: no execute(|...) call
 - SHAPE testPushFiltersDownIntoSubQueryWithTDSJoin [postprocessor/tests]: no execute(|...) call
 - SHAPE testPushFiltersDownIntoSubQueryWithTDSJoinPartial [postprocessor/tests]: no execute(|...) call
 - SHAPE testPushFiltersDownIntoSubQueryWithGroupByGroupingColumnsFilter [postprocessor/tests]: no execute(|...) call
 - SHAPE testPushFiltersDownIntoSubQueryWithGroupByGroupingAndAggregateColumnsFilter [postprocessor/tests]: no execute(|...) call
 - SHAPE testPushFiltersDownToJoinsPostProcessorToSQL [postprocessor/tests]: no execute(|...) call
-- ERROR testSqlRealiasJoin [postprocessor/tests]: property 'initiator' of class 'meta::relational::tests::model::simple::Trade' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
+- ERROR testSqlRealiasJoin [postprocessor/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testSqlRealiasViews [postprocessor/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::AccountPnl' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: PropertyMapping 'Join' for property 'account' is not s
 - SHAPE testSqlRealiasFreeMarker [postprocessor/tests]: no execute(|...) call
 - ERROR testSQLRealiasCaseSensitiveTableNames [postprocessor/tests]: property 'age' of class 'meta::relational::tests::model::simple::Person' is mapped through the target's own join slots; nested navigation joins are not supported in this position yet
@@ -1456,7 +1456,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testRoutingTwoFindAllExpressionsWithClassPropertyUsedInQualifier [router/tests]: no execute(|...) call
 - SHAPE testRoutingWithClassAsVariableForGetAll [router/tests]: no execute(|...) call
 - SHAPE testRoutingOfSimpleQualifiedProperty [router/tests]: no execute(|...) call
-- ERROR testRoutingWithSubtypePropagation [router/tests]: class-typed property '$x.employees' used as a whole value is graph output (Phase H4)
+- ERROR testRoutingWithSubtypePropagation [router/tests]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - SHAPE testPlatformExpressionDependencyOnAFromExpression [router/tests]: no execute(|...) call
 - SHAPE testPlatformExpressionDependencyOnAFromExpression2 [router/tests]: no execute(|...) call
 - SHAPE testCompositionInProject [router/tests]: no execute(|...) call
@@ -1581,7 +1581,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testConcatenateWithPreOperation4 [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
 - SHAPE testConcatenateWithPostOperation1 [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
 - SHAPE testConcatenateWithPostOperation2 [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
-- ERROR testConcatenateWithJoin [tds/tests]: unknown function 'restrict'
+- SHAPE testConcatenateWithJoin [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
 - ERROR testTDSContainsType1 [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testTDSContainsType1Negation [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testTDSContainsType1NegationWithExtendedPrimitives [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
@@ -1608,7 +1608,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testIfWithEmptyExtension [tds/tests]: ~extended: mapped/aggregate column specifications need an enclosing call to type against
 - SHAPE testExtendWithQuotedColumnWithTableToTDS [tds/tests]: no execute(|...) call
 - ERROR testExtendsWithInClause [tds/tests]: ~stringExtends1: mapped/aggregate column specifications need an enclosing call to type against
-- ERROR testFilterOnEnum [tds/tests]: unknown function 'getEnum'
+- SHAPE testFilterOnEnum [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
 - ERROR testFilterMultipleExpressions1 [tds/tests]: unknown function 'isNotNull'
 - ERROR testFilterMultipleExpressions1_chain [tds/tests]: unknown function 'isNotNull'
 - SHAPE testFilterOnRootClassAggValueAfterGroupBy [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
@@ -1631,29 +1631,29 @@ runner does not yet recognize (accounted, not skipped silently).
 - FAIL testJoinLambdaAsVariable [tds/tests]: size: expected 7, got 0
 - FAIL testJoinWithLiteralColumn [tds/tests]: size: expected 7, got 0
 - FAIL testJoinTypeAsVariable [tds/tests]: size: expected 7, got 0
-- ERROR testRestrictAfterJoin [tds/tests]: unknown function 'restrict'
-- ERROR testMultipleJoins [tds/tests]: unknown function 'restrict'
-- ERROR testFilterAfterJoinInner [tds/tests]: unknown function 'restrict'
-- ERROR testFilterAfterJoinOuter [tds/tests]: unknown function 'restrict'
-- ERROR testExtendAfterJoinInner [tds/tests]: unknown function 'restrict'
-- ERROR testExtendAfterJoinOuter [tds/tests]: unknown function 'restrict'
+- FAIL testRestrictAfterJoin [tds/tests]: size: expected 7, got 0
+- FAIL testMultipleJoins [tds/tests]: size: expected 7, got 0
+- FAIL testFilterAfterJoinInner [tds/tests]: size: expected 3, got 0
+- SHAPE testFilterAfterJoinOuter [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold)
+- ERROR testExtendAfterJoinInner [tds/tests]: ~name_length: mapped/aggregate column specifications need an enclosing call to type against
+- ERROR testExtendAfterJoinOuter [tds/tests]: ~name_length: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testJoinAfterExtendInner [tds/tests]: ~name_length: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testJoinAfterExtendOuter [tds/tests]: ~name_length: mapped/aggregate column specifications need an enclosing call to type against
-- ERROR testSelfJoinInner [tds/tests]: unknown function 'restrict'
-- ERROR testSelfJoinOuter [tds/tests]: unknown function 'restrict'
-- ERROR testGroupByAfterJoinInner [tds/tests]: unknown function 'restrict'
-- ERROR testGroupByAfterJoinOuter [tds/tests]: unknown function 'restrict'
-- ERROR testJoinAfterGroupByAfterJoinInner [tds/tests]: unknown function 'restrict'
-- ERROR testJoinAfterGroupByAfterJoinOuter [tds/tests]: unknown function 'restrict'
-- ERROR testExtendAfterJoinAfterAfterGroupByAfterJoinInner [tds/tests]: unknown function 'restrict'
-- ERROR testExtendAfterJoinAfterAfterGroupByAfterJoinOuter [tds/tests]: unknown function 'restrict'
-- ERROR testFilterAfterExtendJoinAfterAfterGroupByAfterJoinInner [tds/tests]: unknown function 'restrict'
-- ERROR testFilterAfterExtendJoinAfterAfterGroupByAfterJoinOuter [tds/tests]: unknown function 'restrict'
-- ERROR testGroupByAfterFilterAfterExtendJoinAfterAfterGroupByAfterJoinInner [tds/tests]: unknown function 'restrict'
-- ERROR testGroupByAfterFilterAfterExtendJoinAfterAfterGroupByAfterJoinOuter [tds/tests]: unknown function 'restrict'
-- ERROR testJoinAfterGroupByBothInner [tds/tests]: unknown function 'restrict'
-- ERROR testJoinAfterGroupByBothOuter [tds/tests]: unknown function 'restrict'
-- ERROR testInnerJoinWithQualifiedPropertiesOnLeft [tds/tests]: unknown function 'restrict'
+- SHAPE testSelfJoinInner [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold)
+- SHAPE testSelfJoinOuter [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold)
+- FAIL testGroupByAfterJoinInner [tds/tests]: size: expected 4, got 0
+- FAIL testGroupByAfterJoinOuter [tds/tests]: size: expected 4, got 1
+- ERROR testJoinAfterGroupByAfterJoinInner [tds/tests]: relation has no column 'aID'
+- ERROR testJoinAfterGroupByAfterJoinOuter [tds/tests]: relation has no column 'aID'
+- ERROR testExtendAfterJoinAfterAfterGroupByAfterJoinInner [tds/tests]: relation has no column 'aID'
+- ERROR testExtendAfterJoinAfterAfterGroupByAfterJoinOuter [tds/tests]: relation has no column 'aID'
+- ERROR testFilterAfterExtendJoinAfterAfterGroupByAfterJoinInner [tds/tests]: relation has no column 'aID'
+- ERROR testFilterAfterExtendJoinAfterAfterGroupByAfterJoinOuter [tds/tests]: relation has no column 'aID'
+- ERROR testGroupByAfterFilterAfterExtendJoinAfterAfterGroupByAfterJoinInner [tds/tests]: relation has no column 'aID'
+- ERROR testGroupByAfterFilterAfterExtendJoinAfterAfterGroupByAfterJoinOuter [tds/tests]: relation has no column 'aID'
+- FAIL testJoinAfterGroupByBothInner [tds/tests]: size: expected 4, got 0
+- SHAPE testJoinAfterGroupByBothOuter [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold)
+- FAIL testInnerJoinWithQualifiedPropertiesOnLeft [tds/tests]: size: expected 7, got 0
 - ERROR testInnerJoinWithQualifiedPropertiesOnRight [tds/tests]: relation has no column 'eID'
 - FAIL testJoinBySingleColumnName [tds/tests]: size: expected 7, got 0; columns: expected [personID, personName, eID, firmName, fID], got []
 - SHAPE testJoinBySingleColumnNameLeftOuter [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
@@ -1705,26 +1705,26 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProjectWithColumnSubSetSQLTest [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
 - SHAPE testGetNumber [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
 - SHAPE testProjectWithQuotedColumnFromTableToTDS [tds/tests]: no execute(|...) call
-- ERROR testProjectAllColumns_Single [tds/tests]: unknown function 'restrict'
-- ERROR testProjectAllColumns_Mulitple [tds/tests]: unknown function 'restrict'
-- ERROR testLowerProjectColsEliminated [tds/tests]: unknown function 'restrict'
-- ERROR testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: unknown function 'restrict'
-- ERROR testLowerProjectColsNotEliminatedWithSort [tds/tests]: unknown function 'restrict'
-- ERROR testRestrictOnGroupByEleminatesUncessaryAggs [tds/tests]: unknown function 'restrict'
-- ERROR testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct [tds/tests]: unknown function 'restrict'
-- ERROR testRestrictOnGroupByColumn_SubSetOfGroupByColumns [tds/tests]: unknown function 'restrict'
-- ERROR testRestrictOnGroupByColumn_DropAllAggColumns [tds/tests]: unknown function 'restrict'
+- SHAPE testProjectAllColumns_Single [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testProjectAllColumns_Mulitple [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testLowerProjectColsEliminated [tds/tests]: partial: 1/4 asserts recognized (recognized ones hold)
+- SHAPE testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: partial: 1/4 asserts recognized (recognized ones hold)
+- SHAPE testLowerProjectColsNotEliminatedWithSort [tds/tests]: partial: 1/4 asserts recognized (recognized ones hold)
+- SHAPE testRestrictOnGroupByEleminatesUncessaryAggs [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct [tds/tests]: partial: 1/5 asserts recognized (recognized ones hold)
+- SHAPE testRestrictOnGroupByColumn_SubSetOfGroupByColumns [tds/tests]: partial: 1/6 asserts recognized (recognized ones hold)
+- SHAPE testRestrictOnGroupByColumn_DropAllAggColumns [tds/tests]: partial: 1/6 asserts recognized (recognized ones hold)
 - ERROR testRestrictHandlesQueryPathsCorrectlyOnRename [tds/tests]: ~age_new: mapped/aggregate column specifications need an enclosing call to type against
-- ERROR testRestrictWithPostProcessor [tds/tests]: unknown function 'restrict'
-- ERROR testRestrictAfterMultiColumnGroupByFollowedByRename [tds/tests]: unknown function 'restrict'
-- ERROR testRestrictAfterConcatenate [tds/tests]: unknown function 'restrict'
-- ERROR testRestrictDistinct_JoinCutDown_ProjectFunctions [tds/tests]: unknown function 'restrictDistinct'
-- ERROR testRestrictDistinct_JoinCutDown_ColumnSpecs [tds/tests]: unknown function 'restrictDistinct'
-- ERROR testRestrictDistinct_NoOptimization_NotAfterProject [tds/tests]: unknown function 'restrictDistinct'
-- ERROR testRestrictDistinct_NoOptimization_NotRestrictFollowedByDistinct [tds/tests]: unknown function 'restrict'
-- ERROR testRestrictDistinct_JoinCutDown_PostTdsOperations [tds/tests]: unknown function 'restrictDistinct'
-- ERROR testRestrictDistinct_NoJoinCutDown [tds/tests]: unknown function 'restrictDistinct'
-- ERROR testRestrictDistinct_ColumnOrdering [tds/tests]: unknown function 'restrictDistinct'
+- SHAPE testRestrictWithPostProcessor [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- ERROR testRestrictAfterMultiColumnGroupByFollowedByRename [tds/tests]: unknown function 'renameColumns'
+- SHAPE testRestrictAfterConcatenate [tds/tests]: no recognizable assertions
+- SHAPE testRestrictDistinct_JoinCutDown_ProjectFunctions [tds/tests]: partial: 2/6 asserts recognized (recognized ones hold)
+- SHAPE testRestrictDistinct_JoinCutDown_ColumnSpecs [tds/tests]: partial: 2/6 asserts recognized (recognized ones hold)
+- SHAPE testRestrictDistinct_NoOptimization_NotAfterProject [tds/tests]: partial: 2/6 asserts recognized (recognized ones hold)
+- SHAPE testRestrictDistinct_NoOptimization_NotRestrictFollowedByDistinct [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testRestrictDistinct_JoinCutDown_PostTdsOperations [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testRestrictDistinct_NoJoinCutDown [tds/tests]: partial: 2/6 asserts recognized (recognized ones hold)
+- SHAPE testRestrictDistinct_ColumnOrdering [tds/tests]: partial: 2/6 asserts recognized (recognized ones hold)
 - SHAPE testRestrictDistinct_NoOptimization_WindowColumns [tds/tests]: no execute(|...) call
 - SHAPE testSimpleRelationalUnion [tds/tests]: no execute(|...) call
 - ERROR testSimpleUnion [tds/tests]: unknown function 'union'
@@ -1845,23 +1845,23 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testRelationalDefaultSchemaMapper [tests]: no execute(|...) call
 - SHAPE testRelationalMapperWithJoin [tests]: no execute(|...) call
 - SHAPE testRelationalMapperTwoDBs [tests]: no execute(|...) call
-- ERROR test1 [tests/advanced]: unknown function 'usdRate'
-- ERROR test2 [tests/advanced]: unknown function 'usdRate'
-- ERROR failMoveFilterInOnClauseJoin [tests/advanced]: unknown function 'synonymByType'
-- ERROR failMoveFilterInOnClauseModel [tests/advanced]: unknown function 'synonymByType'
+- ERROR test1 [tests/advanced]: in function 'meta::relational::tests::advanced::contractmoneyscenario::ContractMoney$class$meta::relational::tests::model::simple::Contract': the column 'currency' already exists in the relation (id:Integer[1], price:Float[0..1], currency:String[0..1], usdRates:meta::relational::tests::model::simple
+- ERROR test2 [tests/advanced]: in function 'meta::relational::tests::advanced::contractmoneyscenario::ContractMoney$class$meta::relational::tests::model::simple::Contract': the column 'currency' already exists in the relation (id:Integer[1], price:Float[0..1], currency:String[0..1], usdRates:meta::relational::tests::model::simple
+- ERROR failMoveFilterInOnClauseJoin [tests/advanced]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Product' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR failMoveFilterInOnClauseModel [tests/advanced]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::advanced::failures::moveFilterInOnClause::FProduct' (of 1 candidates); class-query dispatch needs exactly one
 - SHAPE failMoveFilterOnTop [tests/advanced]: no execute(|...) call
 - SHAPE BuildCorrelatedSubQuery [tests/advanced]: no execute(|...) call
 - ERROR projectFunctionExpressionWithConditionOnRightTable [tests/advanced]: unknown function 'conditionRightTable'
-- ERROR projectAbstractPropertyWithConditionOnRightTable [tests/advanced]: unknown function 'employeeByLastName'
-- ERROR projectAbstractPropertyWithConditionOnRightTableNested [tests/advanced]: unknown function 'employeeWithAddressName'
+- ERROR projectAbstractPropertyWithConditionOnRightTable [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR projectAbstractPropertyWithConditionOnRightTableNested [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR projectFunctionExpressionWithConditionOnRightTableNested [tests/advanced]: unknown function 'conditionRightTableNested'
-- ERROR projectAbstractPropertyWithConditionOnLeftAndRightTable [tests/advanced]: unknown function 'employeeWithFirmAddressName'
+- ERROR projectAbstractPropertyWithConditionOnLeftAndRightTable [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR projectFunctionExpressionWithConditionOnLeftAndRightTableNestedDynaFunction [tests/advanced]: unknown function 'conditionLeftAndRightTablesNestedDynaFunction'
 - ERROR projectFunctionExpressionWithConditionOnLeftAndRightTableNested [tests/advanced]: unknown function 'conditionLeftAndRightTablesNested'
 - ERROR projectFunctionExpressionWithConditionOnLeftAndRightTable [tests/advanced]: unknown function 'conditionLeftAndRightTables'
 - ERROR filterFunctionExpressionWithConditionRightTable [tests/advanced]: unknown function 'conditionRightTable'
-- ERROR filterAsbtractPropertyWithConditionRightTable [tests/advanced]: unknown function 'employeeByLastName'
-- ERROR filterAbstractPropertyWithConditionOnLeftAndRightTable [tests/advanced]: unknown function 'employeeWithFirmAddressName'
+- ERROR filterAsbtractPropertyWithConditionRightTable [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR filterAbstractPropertyWithConditionOnLeftAndRightTable [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR filterFunctionExpressionWithConditionOnLeftAndRightTableNested [tests/advanced]: unknown function 'conditionLeftAndRightTablesNested'
 - ERROR filterFunctionExpressionWithConditionOnLeftAndRightTableNestedDynaFunction [tests/advanced]: unknown function 'conditionLeftAndRightTablesNestedDynaFunction'
 - ERROR filterFunctionExpressionWithConditionOnLeftAndRightTable [tests/advanced]: unknown function 'conditionLeftAndRightTables'
@@ -1871,10 +1871,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR filterFunctionExpressionWithAndConditionOnRootAndRightTable [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR filterFunctionExpressionWithConditionOnRightTableOrExpression [tests/advanced]: unknown function 'conditionRightTable'
 - ERROR filterFunctionExpressionWithOrConditionOnRightTable [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR filterAbstractPropertyWithConditionOnRightTableExistsExpression [tests/advanced]: unknown function 'employeeByLastName'
+- ERROR filterAbstractPropertyWithConditionOnRightTableExistsExpression [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR filterFunctionExpressionWithConditionOnRightTableIsEmptyExpression [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR nestedFilterFunctionExpressionWithOrCondition [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR nestedFilterInQualifierWithOrCondition [tests/advanced]: unknown function 'employeeByLastName'
+- ERROR nestedFilterInQualifierWithOrCondition [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR projectionInvolvingOneNestedAtributeOnTriangularJoinAndOtherJoin [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - SHAPE testFilterMappingWithProjectionOverlappForcedCorrelated [tests/advanced]: no execute(|...) call
 - SHAPE testFilterMappingWithProjectionOverlappForcedOnClause [tests/advanced]: no execute(|...) call
@@ -1885,32 +1885,32 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testNonMilestoningQueryWithMilestoneFilterProjectForcedOnClause [tests/advanced]: no execute(|...) call
 - SHAPE testDerivedWithFilteringTwoPropertiesForcedCorrelated [tests/advanced]: no execute(|...) call
 - SHAPE testDerivedWithFilteringTwoPropertiesForcedOnClause [tests/advanced]: no execute(|...) call
-- ERROR testQualifierQueryWithOr [tests/advanced]: unknown function 'employeesByCityOrManagerAndLastName'
-- ERROR testQualifierQuery [tests/advanced]: unknown function 'employeesByCityOrManagerAndLastName'
-- ERROR testQualifierWithOperation [tests/advanced]: unknown function 'employeesByCityOrManagerAndLastName'
-- ERROR testTwoQualifiersWithOperation [tests/advanced]: unknown function 'employeesByCityOrManagerAndLastName'
-- ERROR testWithForkedQualifier [tests/advanced]: unknown function 'employeesByCityOrManager'
-- ERROR testQualifierQueryWithOr2 [tests/advanced]: unknown function 'employeesByCityOrManagerAndLastName'
-- ERROR testQualifierQueryWithOr [tests/advanced]: unknown function 'employeesByCityOrManagerAndLastName'
-- ERROR testQualifierQuery [tests/advanced]: unknown function 'employeesByCityOrManagerAndLastName'
-- ERROR testQualifierWithOperation [tests/advanced]: unknown function 'employeesByCityOrManagerAndLastName'
-- ERROR testTwoQualifiersWithOperation [tests/advanced]: unknown function 'employeesByCityOrManagerAndLastName'
-- ERROR testQualifierWithForkAndOrWithInline [tests/advanced]: unknown function 'employeesByCityOrManager'
-- ERROR testQualifierWithForkAndOrWithInlineWithOffset [tests/advanced]: unknown function 'employeesByCityOrManager'
-- ERROR testQualifierWithForkAndOrWithInlineWithOffsetExplosion [tests/advanced]: unknown function 'employeesByCityOrManager'
+- ERROR testQualifierQueryWithOr [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierQuery [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierWithOperation [tests/advanced]: class query under TypedMap is not resolvable yet (H2 vocabulary)
+- ERROR testTwoQualifiersWithOperation [tests/advanced]: class query under TypedMap is not resolvable yet (H2 vocabulary)
+- ERROR testWithForkedQualifier [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierQueryWithOr2 [tests/advanced]: class query under TypedMap is not resolvable yet (H2 vocabulary)
+- ERROR testQualifierQueryWithOr [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierQuery [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierWithOperation [tests/advanced]: class query under TypedMap is not resolvable yet (H2 vocabulary)
+- ERROR testTwoQualifiersWithOperation [tests/advanced]: class query under TypedMap is not resolvable yet (H2 vocabulary)
+- ERROR testQualifierWithForkAndOrWithInline [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierWithForkAndOrWithInlineWithOffset [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierWithForkAndOrWithInlineWithOffsetExplosion [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testQualifierWithLineAndOrWithInLine [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testQualifierWithIsolation [tests/advanced]: unknown function 'employeeByLastName'
-- ERROR testQualifierWithIsolationXX [tests/advanced]: unknown function 'employeeByLastName'
-- ERROR testQualifierWithIsolationForced [tests/advanced]: unknown function 'employeesByAge'
-- ERROR testQualifierWithIsolationForced2 [tests/advanced]: unknown function 'employeesByAge'
-- ERROR testQualifierChain [tests/advanced]: unknown function 'employeesByAge'
-- ERROR testQualifierWithIsolationAndExists [tests/advanced]: unknown function 'employeesByAge'
-- ERROR testIfIncludingQualifiers [tests/advanced]: unknown function 'employeesByAge'
-- ERROR testQualifierWithIsolationAndExistsDeep [tests/advanced]: unknown function 'employeesByAge'
-- ERROR testQualifierContainingAJoinWithIsolationAndExistsDeep [tests/advanced]: unknown function 'employeesByCityOrManager'
-- ERROR testQualifierWithIsolationAndExistsDeepWithParallelProject [tests/advanced]: unknown function 'employeesByCityOrManager'
+- ERROR testQualifierWithIsolation [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierWithIsolationXX [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierWithIsolationForced [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierWithIsolationForced2 [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierChain [tests/advanced]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierWithIsolationAndExists [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testIfIncludingQualifiers [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierWithIsolationAndExistsDeep [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierContainingAJoinWithIsolationAndExistsDeep [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierWithIsolationAndExistsDeepWithParallelProject [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testMultipleIsolationWithSameProp [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testMultipleIsolationWithDifferentProp [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testMultipleIsolationWithDifferentProp [tests/advanced]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - ERROR testLiteralConditionsForcedIsolation [tests/advanced]: filter predicate references column 'employees_locations', unresolvable even after isolation
 - ERROR testForcedIsolationFilterOnTop [tests/advanced]: multi-hop navigation employees.locations.place through an embedded/slot head is not supported yet
 - SHAPE relationalResultSourcingOfList [tests/advanced]: no execute(|...) call
@@ -1921,9 +1921,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSimpleTypeMappingNulls [tests/datatype]: in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6)
 - ERROR testSimpleTypeMappingBooleanFalse [tests/datatype]: in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6)
 - ERROR testSimpleTypeMappingProjectNulls [tests/datatype]: in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6)
-- ERROR testProject [tests/injection]: property 'productAtTimeOfTrade' of class 'meta::relational::tests::injection::model::Trade' is not mapped in mapping 'meta::relational::tests::injection::mapping::myMapping'
+- ERROR testProject [tests/injection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testProjectThroughAssociation [tests/injection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
-- ERROR testProjectThroughAssociationAutoMap [tests/injection]: multi-hop navigation trades.productAtTimeOfTrade.name through an embedded/slot head is not supported yet
+- ERROR testProjectThroughAssociationAutoMap [tests/injection]: in call to 'meta::relational::tests::injection::model::Trade$prop$productAtTimeOfTrade', argument 1: expected at most one value, got many ([*])
 - ERROR testGet [tests/mapping]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected String, got Integer
 - ERROR testQuery [tests/mapping]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected String, got Integer
 - ERROR testProject [tests/mapping]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected String, got Integer
@@ -1945,7 +1945,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testPersonToFirmIncludes [tests/mapping/association]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::association::associationMappingWithIncludes'
 - ERROR testProjectTwoLambdas [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
 - ERROR testGroupBy [tests/mapping/association]: expected at most one value, got many ([*])
-- ERROR testBuilderRoutingOfAggFunctionParameters [tests/mapping/association]: unknown function 'ownedVehiclesWithEmptyDescription'
+- ERROR testBuilderRoutingOfAggFunctionParameters [tests/mapping/association]: expected at most one value, got many ([*])
 - ERROR testQuery [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
 - ERROR testFilterProject [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
 - ERROR testFilterProjectBooleanInFilter [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
@@ -1991,10 +1991,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testCorrelatedSubSqlQueryGeneration [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::milestoning::Product' is not a known class, mapping, runtime, connection, or database
 - ERROR TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNestedGeneration [tests/mapping/classMappingFilterWithInnerJoin]: milestoned class fetch of 'meta::relational::tests::model::simple::TemporalTrade' is not supported yet (H-scope exclusion)
 - FAIL testDistinctMappingSimpleProjectSelectOneOfTheDistinctProperties [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
-- FAIL testDistinctMappingSimpleProjectDistinct [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\n>, got <name\nIF 2\nIF 1\n>
 - FAIL testDistinctMappingWithFilterSelectOneProperty [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
 - ERROR testDistinctMappingWithJoinSelectAll [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
-- FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\n\nIfName1\nIfName2\n>
+- FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\n\nIfName2\nIfName1\n>
 - ERROR testProjectDistinctMappingWithDistinctInJoin [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testProjectDistinctMappingWithDistinctInJoinWithDup [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testDistinctMappingWithDistinctInJoinWithFilter [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
@@ -2020,12 +2019,12 @@ runner does not yet recognize (accounted, not skipped silently).
 - FAIL testDenormMappingOneToManyProjectWithFilterOnEnumRight [tests/mapping/embedded]: toCSV: expected <firstName,address\nPeter,CITY\nJohn,CITY\n>, got <>
 - FAIL testGroupByEmbeddedProperty [tests/mapping/embedded]: toCSV: expected <Firm Name,Count\nFirm A,0.0\nFirm X,1.0\n>, got <>
 - ERROR testProjectToEmbedded [tests/mapping/embedded]: multi-hop navigation employees.address.name through an embedded/slot head is not supported yet
-- ERROR testDenormMappingOneToManyProjectEmbeddedQualifier [tests/mapping/embedded]: property 'nameAndAddress' of embedded 'firm' on class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::embedded::model::mapping::testMappingEmbedded'
-- ERROR testDenormMappingWithQualifierWithIfAndEquals [tests/mapping/embedded]: property 'isFirmX' of embedded 'firm' on class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::embedded::model::mapping::testMappingEmbedded'
-- ERROR testFilterWithEmbeddedQualifier [tests/mapping/embedded]: property 'nameAndAddress' of embedded 'firm' on class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::embedded::model::mapping::testMappingEmbedded'
+- ERROR testDenormMappingOneToManyProjectEmbeddedQualifier [tests/mapping/embedded]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
+- FAIL testDenormMappingWithQualifierWithIfAndEquals [tests/mapping/embedded]: toCSV: expected <name,FirmX\nPeter,Yes\nJohn,Yes\nFabrice,No\n>, got <>
+- ERROR testFilterWithEmbeddedQualifier [tests/mapping/embedded]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testExists [tests/mapping/embedded]: class-typed property '$p.firm' used as a whole value is graph output (Phase H4)
 - FAIL testIsEmpty [tests/mapping/embedded]: toCSV: expected <name,firm\n\n>, got <>
-- ERROR testMapEmbeddedQualifierWithIfTwoEmbeddedProperties [tests/mapping/embedded]: property 'nameAndAddress' of embedded 'firm' on class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::embedded::model::mapping::testMappingEmbedded'
+- ERROR testMapEmbeddedQualifierWithIfTwoEmbeddedProperties [tests/mapping/embedded]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - SHAPE testGetter [tests/mapping/embedded]: no recognizable assertions
 - FAIL testGetterTwoJoinTraversal [tests/mapping/embedded]: size: expected 1, got 0; size: expected 1, got 0
 - SHAPE testRoutingQualifiedPropertySameVariableNames [tests/mapping/embedded]: no execute(|...) call
@@ -2034,14 +2033,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE otherwiseTestGetterDeepTraversal [tests/mapping/embedded]: no recognizable assertions
 - ERROR testProjectionOtherwiseDeepTraversal [tests/mapping/embedded]: multi-hop navigation bondDetails.holder.name through an embedded/slot head is not supported yet
 - ERROR testProjectionOtherwiseNonPrimitive [tests/mapping/embedded]: in function 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise3$class$meta::relational::tests::mapping::embedded::advanced::model::Product': relation has no column 'bondClassification'
-- SHAPE otherwiseTestGroupBy [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
+- FAIL otherwiseTestGroupBy [tests/mapping/embedded]: toCSV: expected <Bond Type,Profit\n15 years,10.0\n5 years,1.0\n>, got <Bond Type,Profit\n5 years,1.0\n15 years,10.0\n>
 - FAIL otherwiseTestGroupByComplexAgg [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\n15 years,2.0\n5 years,5.0\n>, got <Bond Type,sum\n5 years,5.0\n15 years,2.0\n>
-- SHAPE otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
-- ERROR otherwiseTestQualifierProperty [tests/mapping/embedded]: property 'duration' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise'
-- ERROR otherwiseTestQualifierPropertyConstantExpression [tests/mapping/embedded]: property 'isBond' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise'
-- ERROR otherwiseTestQualifierPropertyExpressionWithPropertyInJoinOnly [tests/mapping/embedded]: unknown function 'durationStartsWith'
-- ERROR otherwiseTestQualifierPropertyExpressionWithEmbeddedProperty [tests/mapping/embedded]: unknown function 'prefixedDescription'
-- ERROR otherwiseTestQualifierPropertyExpressionWithEmbeddedPropertyandJoinProperty [tests/mapping/embedded]: property 'fullName' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise'
+- FAIL otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\nBond 1,1.0\nBond 2,1.0\nSuperBond 3 super,5.0\n>, got <Bond Type,sum\nBond 1,1.0\nSuperBond 3 super,5.0\nBond 2,1.0\n>
+- FAIL otherwiseTestQualifierPropertyConstantExpression [tests/mapping/embedded]: toCSV: expected <name,duration\nProduct 1,5\nProduct 2,5\n>, got <name,market\nProduct 1,LSE\nProduct 2,LSE\nProduct 3,MILAN\n>
 - ERROR otherwiseTestComplexExpressionWithEnumMapping [tests/mapping/embedded]: property 'type' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise2'
 - ERROR otherwiseTestEmbeddedToEmbedded [tests/mapping/embedded]: multi-hop navigation bondDetails.issuer.name through an embedded/slot head is not supported yet
 - ERROR otherwiseTestFilterExistsOnEmbeddedProperty [tests/mapping/embedded]: class-typed property '$p.bondDetails' used as a whole value is graph output (Phase H4)
@@ -2060,7 +2055,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testDenormWithComplexFilter [tests/mapping/embedded]: multi-hop navigation issuer.address.name through an embedded/slot head is not supported yet
 - ERROR testGroupBy [tests/mapping/embedded]: multi-hop navigation holder.address.name through an embedded/slot head is not supported yet
 - ERROR testGroupByComplexAgg [tests/mapping/embedded]: multi-hop navigation holder.address.name through an embedded/slot head is not supported yet
-- ERROR testQualifierProperty [tests/mapping/embedded]: multi-hop navigation issuer.address.description through an embedded/slot head is not supported yet
+- ERROR testQualifierProperty [tests/mapping/embedded]: multi-hop navigation issuer.address.name through an embedded/slot head is not supported yet
 - ERROR testInlineInEmbedded [tests/mapping/embedded]: multi-hop navigation holder.address.name through an embedded/slot head is not supported yet
 - ERROR testInlineInEmbeddedGraphFetch [tests/mapping/embedded]: multi-hop navigation holder.address.name through an embedded/slot head is not supported yet
 - ERROR testMilestonedEmbeddedGraphFetch [tests/mapping/embedded]: milestoned class fetch of 'meta::relational::tests::mapping::embedded::advanced::model::Person' is not supported yet (H-scope exclusion)
@@ -2069,9 +2064,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMilestonedInlineGraphFetchWithEnumProperty [tests/mapping/embedded]: milestoned class fetch of 'meta::relational::tests::mapping::embedded::advanced::model::PersonWithGenderInfo' is not supported yet (H-scope exclusion)
 - ERROR testSubType [tests/mapping/embedded]: class-typed property '$p.issuer' used as a whole value is graph output (Phase H4)
 - ERROR testSubTypeOnPropertyMappedToNonRootInlineSetImpl [tests/mapping/embedded]: class-typed property '$p.holder' used as a whole value is graph output (Phase H4)
-- FAIL testGroupBy [tests/mapping/embedded]: toCSV: expected <holder,Profit\nholder1,10.0\nholder3,1.0\n>, got <holder,Profit\nholder3,1.0\nholder1,10.0\n>
-- SHAPE testGroupByComplexAgg [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
-- ERROR testQualifierProperty [tests/mapping/embedded]: property 'description' of embedded 'issuer' on class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedTargetIds'
+- SHAPE testGroupBy [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
+- FAIL testGroupByComplexAgg [tests/mapping/embedded]: toCSV: expected <c1,sum\nholder1,2.0\nholder3,5.0\n>, got <c1,sum\nholder3,5.0\nholder1,2.0\n>
+- FAIL testQualifierProperty [tests/mapping/embedded]: toCSV: expected <name,c2,c3\nBond 1,issuer1,holder1\n>, got <>
 - SHAPE testEnumTheSame [tests/mapping/enumeration]: no execute(|...) call
 - SHAPE testMapping [tests/mapping/enumeration]: partial: 2/12 asserts recognized (recognized ones hold)
 - SHAPE testEnumInRelation [tests/mapping/enumeration]: no recognizable assertions
@@ -2085,16 +2080,16 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testProjectionWithInheritedEnum [tests/mapping/enumeration]: no recognizable assertions
 - ERROR testProjectionWithEnumThroughAssociation [tests/mapping/enumeration]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - ERROR testProjectionWithEnumQualifierParameter [tests/mapping/enumeration]: [2:237] navigation path segment 'synonymsByType(meta::relational::tests::mapping::enumeration::model::domain::ProductSynonymType.CUSIP)' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mapping::enumeration::model::domain::Product/synonymsByType(met
-- ERROR testFilterWithEnumQualifierParameter [tests/mapping/enumeration]: unknown function 'synonymsByType'
+- ERROR testFilterWithEnumQualifierParameter [tests/mapping/enumeration]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - SHAPE testProjectWithIfWhereOneSideIsEnumLiteral [tests/mapping/enumeration]: no recognizable assertions
 - SHAPE testProjectWithIfWhereOneSideIsEnumLiteral2 [tests/mapping/enumeration]: no recognizable assertions
 - SHAPE testProjectWithIfWhereBothSidesUseTheSameEnumMapping [tests/mapping/enumeration]: no recognizable assertions
 - SHAPE testProjectWithIfWhereEnumEqualsClassProp [tests/mapping/enumeration]: partial: 1/3 asserts recognized (recognized ones hold)
-- ERROR testTdsProjectWithSingleStringEnumEqualityComparison [tests/mapping/enumeration]: unknown function 'getEnum'
-- ERROR testTdsProjectWithMultiStringEnumEqualityComparison [tests/mapping/enumeration]: unknown function 'getEnum'
-- ERROR testTdsProjectWithEnumInequalityComparison [tests/mapping/enumeration]: unknown function 'getEnum'
-- ERROR testTdsProjectWithEnumToStringEqualityComparison [tests/mapping/enumeration]: unknown function 'getEnum'
-- ERROR testTdsProjectWithEnumsInInClause [tests/mapping/enumeration]: unknown function 'getEnum'
+- SHAPE testTdsProjectWithSingleStringEnumEqualityComparison [tests/mapping/enumeration]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testTdsProjectWithMultiStringEnumEqualityComparison [tests/mapping/enumeration]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testTdsProjectWithEnumInequalityComparison [tests/mapping/enumeration]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testTdsProjectWithEnumToStringEqualityComparison [tests/mapping/enumeration]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testTdsProjectWithEnumsInInClause [tests/mapping/enumeration]: partial: 1/3 asserts recognized (recognized ones hold)
 - SHAPE testTdsProjectWithEnumVarEquality [tests/mapping/enumeration]: no execute(|...) call
 - SHAPE testEnumValueReturnedInIfExp [tests/mapping/enumeration]: no execute(|...) call
 - SHAPE testEnumValueReturnedInIfExpNotDistinctTransformers [tests/mapping/enumeration]: no execute(|...) call
@@ -2141,7 +2136,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSubTypeGroupByThroughMap [tests/mapping/inheritance]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testFilteringOnColumnsNotInProject [tests/mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testFilteringOnColumnsNotInProjectSingleChildStructure [tests/mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Gasoline' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testProjectQualifiedPropertyFromUnmappedSuperClass [tests/mapping/inheritance]: property 'derivedOwnerDescription' of class 'meta::relational::tests::model::inheritance::Bicycle' has no binding in mapping 'meta::relational::tests::mapping::inheritance::inheritanceMain' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- SHAPE testProjectQualifiedPropertyFromUnmappedSuperClass [tests/mapping/inheritance]: partial: 1/2 asserts recognized (recognized ones hold)
 - ERROR testEmbeddMappingInSubTypes [tests/mapping/inheritance]: property 'vehicles' of class 'meta::relational::tests::model::inheritance::Person' has no binding in mapping 'meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testMilestonedSubTyping [tests/mapping/inheritance]: milestoned class fetch of 'meta::relational::tests::model::inheritance::milestoned::VehicleOwner' is not supported yet (H-scope exclusion)
 - ERROR testMilestonedSubTypingWithDifferentDates [tests/mapping/inheritance]: unknown function 'vehicle'
@@ -2176,7 +2171,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testConstraintTargetingMultipleJoinsInPropertyMappingNoJoinProperty [tests/mapping/join]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - ERROR testConvertToStringH2 [tests/mapping/join]: in function 'meta::relational::tests::mapping::join::model::mapping::MappingForAccountAndTrade$class$meta::relational::tests::model::simple::Trade': unknown function 'convertVarchar128'
 - ERROR testChainedOuterJoinsWithFilterInproject [tests/mapping/join]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testChainedOuterJoinsWithQualifierInproject [tests/mapping/join]: unknown function 'employeesByAge'
+- ERROR testChainedOuterJoinsWithQualifierInproject [tests/mapping/join]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testChainedInnerJoinsWithQualifierInGroupBy [tests/mapping/join]: no overload of 'groupBy' matches the argument types
 - ERROR testIsNotEmptyCheckWithoutRowExplosion [tests/mapping/join]: class-typed property '$x.employees' used as a whole value is graph output (Phase H4)
 - ERROR testDynafunctionMerge [tests/mapping/merge]: in function 'meta::relational::tests::mapping::merge::MergeAliasMapping$class$meta::relational::tests::model::simple::Person': no overload of 'meta::pure::functions::boolean::or' accepts 4 argument(s)
@@ -2201,7 +2196,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testNestedModelJoinCompoundInnerCondition [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testSubFilter [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testSubAggregation [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testQualifiedPropertyInQuery [tests/mapping/modelJoin]: unknown function 'employeesInCity'
+- ERROR testQualifiedPropertyInQuery [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testSubAggregationRelational [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testMilestonedContract [tests/mapping/modelJoin]: unknown function 'contracts'
 - ERROR testMilestoningTargetOnly [tests/mapping/modelJoin]: unknown function 'orders'
@@ -2417,19 +2412,19 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testToSQLConvertDateH2 [tests/mapping/sqlFunction]: no execute(|...) call
 - ERROR testBase64H2 [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': in call to 'meta::pure::functions::string::splitPart', argument 3: expected Integer, got String
 - ERROR testAdjustDateTranslationInMappingAndQuery [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': in call to 'meta::pure::functions::string::splitPart', argument 3: expected Integer, got String
-- ERROR testQuerySimple [tests/mapping/tree]: unknown function 'orgByName'
-- ERROR testQueryWithResultWithAnd [tests/mapping/tree]: unknown function 'orgByName'
-- ERROR testQueryNoResultWithAnd [tests/mapping/tree]: unknown function 'orgByName'
-- ERROR testQueryWithOr [tests/mapping/tree]: unknown function 'orgByName'
-- ERROR testFilterOnNestedQualifier [tests/mapping/tree]: multi-hop navigation trader.team.name through an embedded/slot head is not supported yet
+- ERROR testQuerySimple [tests/mapping/tree]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQueryWithResultWithAnd [tests/mapping/tree]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQueryNoResultWithAnd [tests/mapping/tree]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQueryWithOr [tests/mapping/tree]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testFilterOnNestedQualifier [tests/mapping/tree]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testProjectMerge [tests/mapping/tree]: [1:182] navigation path segment 'orgByName('BUSINESS UNIT')' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mapping::tree::model::domain::Person/orgByName('BUSINESS UNIT')/name!buName#
 - ERROR testProjection [tests/mapping/tree]: [5:143] navigation path segment 'orgByName('TEAM')' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mapping::tree::model::domain::Person/orgByName('TEAM')/name!team#
-- ERROR testProjectionDeeper [tests/mapping/tree]: unknown function 'orgByName'
+- ERROR testProjectionDeeper [tests/mapping/tree]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testProjectionDeeperInlined [tests/mapping/tree]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testProjectWithFilter [tests/mapping/tree]: [2:217] navigation path segment 'orgByName('BUSINESS UNIT')' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mapping::tree::model::domain::Person/orgByName('BUSINESS UNIT')/name!buName#
 - ERROR testJoinIsolationDeeper_LeftOuterLeftOuterThenInner [tests/mapping/tree]: in function 'meta::relational::tests::mapping::tree::model::mapping::orgTestMapping$class$meta::relational::tests::mapping::tree::model::domain::Account': expected String, got Integer
-- ERROR testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner [tests/mapping/tree]: unknown function 'orgByName'
-- ERROR testReplaceTablesPostProcessorJoinIsolation [tests/mapping/tree]: unknown function 'orgByName'
+- ERROR testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner [tests/mapping/tree]: in function 'meta::relational::tests::mapping::tree::model::mapping::orgTestMapping$class$meta::relational::tests::mapping::tree::model::domain::Account': expected String, got Integer
+- ERROR testReplaceTablesPostProcessorJoinIsolation [tests/mapping/tree]: in function 'meta::relational::tests::mapping::tree::model::mapping::orgTestMapping$class$meta::relational::tests::mapping::tree::model::domain::Account': expected String, got Integer
 - ERROR testSimpleGetAll [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::specialUnion::specialUnionMapping' failed to normalize this class: class is mapped through multiple
 - ERROR testFilteredGetAll [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::specialUnion::specialUnionMapping' failed to normalize this class: class is mapped through multiple
 - ERROR testProject [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::specialUnion::specialUnionMapping' failed to normalize this class: class is mapped through multiple
@@ -2476,8 +2471,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testChainedUnionsWithMapAggregation [tests/mapping/union]: no execute(|...) call
 - ERROR testUnionViewJoins [tests/mapping/union]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::UnionViewJoinsMapping'
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: property 'allEmployeesLastName' of class 'meta::relational::tests::model::simple::FirmExtension' has no binding in mapping 'meta::relational::tests::mapping::union::unionOfViews' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- ERROR testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: property 'allEmployeesLastName' of class 'meta::relational::tests::model::simple::FirmExtension' has no binding in mapping 'meta::relational::tests::mapping::union::unionOfViews2' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- ERROR testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: property 'employeesExt' of class 'meta::relational::tests::model::simple::FirmExtension' is not mapped in mapping 'meta::relational::tests::mapping::union::unionOfViews'
+- ERROR testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: property 'employeesExt' of class 'meta::relational::tests::model::simple::FirmExtension' is not mapped in mapping 'meta::relational::tests::mapping::union::unionOfViews2'
 - ERROR testChainedUnions [tests/mapping/union]: unknown function 'temporalEntityWithAddress'
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::unionMapping' failed to normalize this class: class is mapped through multiple set IDs; .all() over
 - ERROR testUnionWithSinglePropertyMapping [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
@@ -2598,14 +2593,11 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testExistsOpenVariable [tests/query]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - ERROR testExistsOpenVariableClass [tests/query]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - ERROR testExistsAndBooleanOpenVariables [tests/query]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
-- ERROR testNoParameters [tests/query]: property 'name' of class 'meta::relational::tests::model::simple::Person' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- ERROR testNoParametersThroughAssociation [tests/query]: property 'name' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
-- ERROR testWithParameter [tests/query]: unknown function 'nameWithTitle'
-- ERROR testWithParameterUsedWithinExists [tests/query]: unknown function 'nameWithTitle'
-- ERROR testWithParameterToClassNestedSelect [tests/query]: unknown function 'synonymByType'
-- ERROR testExistsWithQualifierOnleftSide [tests/query]: unknown function 'eventsByDate'
-- ERROR testAssociationSpecifiedQualifiedProperty [tests/query]: unknown function 'synonymByType'
-- ERROR testNonTrivialQualifierWithDataTypeReturnTypeAsFunctionInput [tests/query]: unknown function 'employeeByLastNameFirstName'
+- ERROR testWithParameterUsedWithinExists [tests/query]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
+- ERROR testWithParameterToClassNestedSelect [tests/query]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testExistsWithQualifierOnleftSide [tests/query]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testAssociationSpecifiedQualifiedProperty [tests/query]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testNonTrivialQualifierWithDataTypeReturnTypeAsFunctionInput [tests/query]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testViewAll [tests/query]: mapping pipeline for 'meta::relational::tests::model::simple::OrderPnl' has TypedDistinct above join slot(s); H3-pending
 - ERROR testViewWithJoinsAndDistinct [tests/query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::TestMappingWithViewJoins' failed to normalize this class: Join 'personViewWithFirmTable' not found in db 'meta::rel
 - ERROR testDistinctOnlyIncludesTopLevelColumns [tests/query]: in function 'meta::relational::tests::TestViewWithDistinctAndJoins$class$meta::relational::tests::model::simple::Person': unknown table 'FirstNameAddress' in database 'meta::relational::tests::db'
@@ -2640,7 +2632,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFilterUsingArcSinFunction [tests/query]: Invalid Input Error: Unable to compute asin of 1.1
 - ERROR testFilterUsingArcCosFunction [tests/query]: Invalid Input Error: Unable to compute acos of 1.1
 - SHAPE testFilterUsingArcTan2Function [tests/query]: partial: 1/2 asserts recognized (recognized ones hold)
-- ERROR testFilterTimesWithManyOperands [tests/query]: unknown function 'sumEmployeesAge'
+- ERROR testFilterTimesWithManyOperands [tests/query]: multi-hop navigation firm.employees.age through an embedded/slot head is not supported yet
 - SHAPE testFilterUsingQuarterNumberFunction [tests/query]: partial: 1/3 asserts recognized (recognized ones hold)
 - ERROR testCollectionDistinctFunction [tests/query]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - ERROR testDivideFunctionPrecision [tests/query]: class query under TypedMap is not resolvable yet (H2 vocabulary)

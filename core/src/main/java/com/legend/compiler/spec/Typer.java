@@ -189,14 +189,53 @@ final class Typer {
                 && af.parameters().get(1) instanceof CString colName) {
             return synth(new AppliedProperty(af.parameters().get(0), colName.value()), env);
         }
+        // restrict(['c1','c2']) — the legacy TDS column-subset select
+        if ((af.function().equals("restrict") || af.function().equals("restrictDistinct"))
+                && af.parameters().size() == 2) {
+            List<ValueSpecification> cols = af.parameters().get(1) instanceof PureCollection c
+                    ? c.values() : List.of(af.parameters().get(1));
+            if (!cols.isEmpty() && cols.stream().allMatch(v -> v instanceof CString)) {
+                List<ColSpec> specs = cols.stream()
+                        .map(v -> new ColSpec(stripQuotes(((CString) v).value()), null, null))
+                        .toList();
+                AppliedFunction select = new AppliedFunction("select",
+                        List.of(af.parameters().get(0),
+                                new com.legend.parser.spec.ColSpecArray(specs)));
+                return synth(af.function().equals("restrictDistinct")
+                        ? new AppliedFunction("distinct", List.of(select)) : select, env);
+            }
+        }
         Optional<CoreFn> core = CoreFn.of(af.function());
-        return core.isPresent() ? applyCore(core.get(), af, env) : applyGeneric(af, env);
+        if (core.isPresent()) {
+            return applyCore(core.get(), af, env);
+        }
+        // PARAMETERIZED qualified property: $p.synonymByType(X) routes to the
+        // externalized body function <owner>$prop$<name>(this, args...) and
+        // β-inlines with every other user call — never shadows a real function
+        if (!af.parameters().isEmpty() && functionCandidates(af.function()).isEmpty()) {
+            TypedSpec recv = synth(af.parameters().get(0), env);
+            String classFqn = recv.info().type() instanceof Type.ClassType ct ? ct.fqn()
+                    : recv.info().type() instanceof Type.GenericType g ? g.rawFqn() : null;
+            if (classFqn != null
+                    && ctx.findProperty(classFqn, af.function()).orElse(null)
+                            instanceof Property.Derived d
+                    && d.parameters().size() == af.parameters().size() - 1) {
+                return applyGeneric(new AppliedFunction(d.bodyFunctionFqn(),
+                        af.parameters()), env);
+            }
+        }
+        return applyGeneric(af, env);
+    }
+
+    private static String stripQuotes(String name) {
+        return name.length() >= 2 && name.startsWith("\"") && name.endsWith("\"")
+                ? name.substring(1, name.length() - 1) : name;
     }
 
     /** The legacy TDSRow typed column accessors (getString('COL') et al). */
     private static final java.util.Set<String> TDS_ROW_GETTERS = java.util.Set.of(
             "getString", "getInteger", "getFloat", "getDecimal", "getNumber",
-            "getBoolean", "getDate", "getDateTime", "getStrictDate");
+            "getBoolean", "getDate", "getDateTime", "getStrictDate", "getEnum");
 
     /**
      * The core-construct dispatch &mdash; exhaustive over {@link CoreFn} (a new
@@ -765,6 +804,15 @@ final class Typer {
      */
     private TypedSpec accessProperty(AppliedProperty ap, Env env) {
         TypedSpec source = synth(ap.receiver(), env);
+        // a zero-arg DERIVED read IS a call of its externalized body —
+        // route and β-inline so downstream sees plain navigation
+        if (source.info().type() instanceof Type.ClassType ct
+                && ctx.findProperty(ct.fqn(), ap.property()).orElse(null)
+                        instanceof Property.Derived d
+                && d.parameters().isEmpty()) {
+            return applyGeneric(new AppliedFunction(d.bodyFunctionFqn(),
+                    List.of(ap.receiver())), env);
+        }
         // The member is either a class property ($obj.prop) or a relation column ($row.col).
         ExprType member = switch (source.info().type()) {
             case Type.ClassType ct -> {
