@@ -200,9 +200,9 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/association | 24 | 1 | 0 | 19 | 4 |
 | tests/mapping/classMappingByClass | 3 | 0 | 0 | 0 | 3 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 0 | 0 | 30 | 2 |
-| tests/mapping/distinct | 18 | 4 | 5 | 9 | 0 |
+| tests/mapping/distinct | 18 | 5 | 4 | 9 | 0 |
 | tests/mapping/dynaJoin | 6 | 0 | 0 | 2 | 4 |
-| tests/mapping/embedded | 70 | 14 | 13 | 36 | 7 |
+| tests/mapping/embedded | 70 | 14 | 14 | 36 | 6 |
 | tests/mapping/enumeration | 27 | 1 | 2 | 2 | 22 |
 | tests/mapping/filter | 10 | 4 | 0 | 5 | 1 |
 | tests/mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
@@ -225,7 +225,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2429 | **307** | 93 | 1088 | 941 |
+| **total** | 2429 | **308** | 93 | 1088 | 940 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1672,7 +1672,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProjectWithColumnSubSetSQLTest [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
 - SHAPE testProjectWithQuotedColumnFromTableToTDS [tds/tests]: no execute(|...) call
 - SHAPE testLowerProjectColsEliminated [tds/tests]: partial: 3/4 asserts recognized (recognized ones hold); first unrecognized: assertFalse($result->sqlRemoveFormatting()->toLower()->contains('hello'))
-- FAIL testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: rows: expected <Anthony,David,Fabrice,John,Oliver,Peter>, got <Fabrice,Peter,Oliver,John,Anthony,David>
+- FAIL testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: rows: expected <Anthony,David,Fabrice,John,Oliver,Peter>, got <David,Fabrice,Oliver,Peter,John,Anthony>
 - SHAPE testLowerProjectColsNotEliminatedWithSort [tds/tests]: partial: 3/4 asserts recognized (recognized ones hold); first unrecognized: assert($result->sqlRemoveFormatting()->toLower()->contains('hello'))
 - FAIL testRestrictOnGroupByEleminatesUncessaryAggs [tds/tests]: rows: expected <Firm A|1,Firm B|1,Firm C|1,Firm X|4>, got <null|7>
 - FAIL testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct [tds/tests]: rows: expected <Firm A|1,Firm B|1,Firm C|1,Firm X|4>, got <null|7>
@@ -1948,10 +1948,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testCorrelatedSubSqlQueryGeneration [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::milestoning::Product' is not a known class, mapping, runtime, connection, or database
 - ERROR TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNestedGeneration [tests/mapping/classMappingFilterWithInnerJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::TemporalTrade' (of 1 candidates); class-query dispatch needs exactly one
 - FAIL testDistinctMappingSimpleProjectSelectOneOfTheDistinctProperties [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
-- FAIL testDistinctMappingSimpleProjectDistinct [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\n>, got <name\nIF 2\nIF 1\n>
 - FAIL testDistinctMappingWithFilterSelectOneProperty [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
 - ERROR testDistinctMappingWithJoinSelectAll [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
-- FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\n\nIfName2\nIfName1\n>
+- FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\n\nIfName1\nIfName2\n>
 - ERROR testProjectDistinctMappingWithDistinctInJoin [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testProjectDistinctMappingWithDistinctInJoinWithDup [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testDistinctMappingWithDistinctInJoinWithFilter [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
@@ -1991,9 +1990,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE otherwiseTestGetterDeepTraversal [tests/mapping/embedded]: no recognizable assertions
 - ERROR testProjectionOtherwiseDeepTraversal [tests/mapping/embedded]: multi-hop navigation bondDetails.holder.name through an embedded/slot head is not supported yet
 - ERROR testProjectionOtherwiseNonPrimitive [tests/mapping/embedded]: in function 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise3$class$meta::relational::tests::mapping::embedded::advanced::model::Product': relation has no column 'bondClassification'
-- SHAPE otherwiseTestGroupBy [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "bond_detail_0".TYPE as "Bond Type", sum(case when "root".MARKET_NAME = \'LSE\' th
+- FAIL otherwiseTestGroupBy [tests/mapping/embedded]: toCSV: expected <Bond Type,Profit\n15 years,10.0\n5 years,1.0\n>, got <Bond Type,Profit\n5 years,1.0\n15 years,10.0\n>
 - FAIL otherwiseTestGroupByComplexAgg [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\n15 years,2.0\n5 years,5.0\n>, got <Bond Type,sum\n5 years,5.0\n15 years,2.0\n>
-- FAIL otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\nBond 1,1.0\nBond 2,1.0\nSuperBond 3 super,5.0\n>, got <Bond Type,sum\nSuperBond 3 super,5.0\nBond 2,1.0\nBond 1,1.0\n>
+- FAIL otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\nBond 1,1.0\nBond 2,1.0\nSuperBond 3 super,5.0\n>, got <Bond Type,sum\nBond 1,1.0\nSuperBond 3 super,5.0\nBond 2,1.0\n>
 - FAIL otherwiseTestQualifierPropertyConstantExpression [tests/mapping/embedded]: toCSV: expected <name,duration\nProduct 1,5\nProduct 2,5\n>, got <name,market\nProduct 1,LSE\nProduct 2,LSE\nProduct 3,MILAN\n>
 - ERROR otherwiseTestComplexExpressionWithEnumMapping [tests/mapping/embedded]: property 'type' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise2'
 - ERROR otherwiseTestEmbeddedToEmbedded [tests/mapping/embedded]: multi-hop navigation bondDetails.issuer.name through an embedded/slot head is not supported yet
