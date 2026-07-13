@@ -102,6 +102,33 @@ public final class TestBody {
      */
     public static Outcome run(ModelContext ctx, String body, ImportScope imports,
             String runtimeFqn, Connection conn) throws java.sql.SQLException {
+        return run(ctx, body, imports, runtimeFqn, conn, false);
+    }
+
+    /**
+     * {@code emptinessUnverifiable}: the caller knows the database may be
+     * missing rows for environmental reasons (failed seed replay) — an
+     * emptiness-shaped assertion (assertEmpty, assertSize 0, an empty
+     * expected grid) proves nothing then and the body reports Unsupported
+     * instead of a hollow pass.
+     */
+    public static Outcome run(ModelContext ctx, String body, ImportScope imports,
+            String runtimeFqn, Connection conn, boolean emptinessUnverifiable)
+            throws java.sql.SQLException {
+        return run(ctx, body, imports, runtimeFqn, conn, emptinessUnverifiable,
+                java.util.Set.of());
+    }
+
+    /**
+     * {@code harnessSetupCalls}: names (simple + qualified) of engine-harness
+     * SETUP functions whose effects the caller already replayed (seed
+     * machinery) — a bare statement calling one is the harness contract,
+     * not test semantics, and skips.
+     */
+    public static Outcome run(ModelContext ctx, String body, ImportScope imports,
+            String runtimeFqn, Connection conn, boolean emptinessUnverifiable,
+            java.util.Set<String> harnessSetupCalls)
+            throws java.sql.SQLException {
         List<ValueSpecification> stmts = SpecParser.parseCodeBlock(body);
         Map<String, ValueSpecification> lets = new LinkedHashMap<>();
         Map<String, ExecHandle> handles = new LinkedHashMap<>();
@@ -112,7 +139,31 @@ public final class TestBody {
             if (stmt instanceof AppliedFunction af && af.function().equals("letFunction")
                     && af.parameters().size() == 2
                     && af.parameters().get(0) instanceof CString name) {
-                ValueSpecification rhs = substitute(af.parameters().get(1), lets, handles, runtimeFqn);
+                ValueSpecification raw = af.parameters().get(1);
+                // let r = execute(...).values / .values->at(0) / ->toOne():
+                // the wrappers are the Result envelope — peel to the handle
+                while (true) {
+                    if (raw instanceof AppliedProperty pw
+                            && pw.property().equals("values")) {
+                        raw = pw.receiver();
+                        continue;
+                    }
+                    if (raw instanceof AppliedFunction fw
+                            && (fw.function().equals("at") || fw.function().equals("toOne"))
+                            && !fw.parameters().isEmpty()
+                            && (fw.parameters().get(0) instanceof AppliedProperty
+                                    || fw.parameters().get(0) instanceof AppliedFunction ifn
+                                            && isExecuteCall(ifn))) {
+                        raw = fw.parameters().get(0);
+                        continue;
+                    }
+                    break;
+                }
+                ValueSpecification rhs = raw instanceof AppliedFunction rex
+                        && isExecuteCall(rex)
+                        ? new AppliedFunction(rex.function(), substituteAll(
+                                rex.parameters(), lets, handles, runtimeFqn))
+                        : substitute(af.parameters().get(1), lets, handles, runtimeFqn);
                 if (rhs instanceof AppliedFunction ex && isExecuteCall(ex)) {
                     ExecHandle h = toHandle(ex);
                     if (h == null) {
@@ -127,7 +178,7 @@ public final class TestBody {
             }
             if (stmt instanceof AppliedFunction af && af.function().startsWith("assert")) {
                 String failure = checkAssert(af, lets, handles, ctx, imports,
-                        runtimeFqn, conn);
+                        runtimeFqn, conn, emptinessUnverifiable);
                 if (failure == UNSUPPORTED_MARKER) {
                     return new Outcome.Unsupported("assert form '" + af.function()
                             + "/" + af.parameters().size() + "' is not supported yet");
@@ -149,6 +200,11 @@ public final class TestBody {
             if (stmt instanceof AppliedFunction af && isExecuteCall(af)) {
                 return new Outcome.Unsupported("execute() not bound to a let");
             }
+            if (stmt instanceof AppliedFunction af
+                    && (harnessSetupCalls.contains(af.function())
+                            || harnessSetupCalls.contains(simpleName(af.function())))) {
+                continue;   // seed-replayed harness setup — already applied
+            }
             return new Outcome.Unsupported("unsupported statement: "
                     + (stmt instanceof AppliedFunction af2 ? af2.function()
                             : stmt.getClass().getSimpleName()));
@@ -164,8 +220,8 @@ public final class TestBody {
     /** null = held; ADVISORY_MARKER = golden-SQL; UNSUPPORTED_MARKER; else the failure text. */
     private static String checkAssert(AppliedFunction af,
             Map<String, ValueSpecification> lets, Map<String, ExecHandle> handles,
-            ModelContext ctx, ImportScope imports, String runtimeFqn, Connection conn)
-            throws java.sql.SQLException {
+            ModelContext ctx, ImportScope imports, String runtimeFqn, Connection conn,
+            boolean emptinessUnverifiable) throws java.sql.SQLException {
         List<ValueSpecification> args = af.parameters();
         switch (af.function()) {
             case "assert", "assertFalse" -> {
@@ -214,15 +270,21 @@ public final class TestBody {
                 if (args.size() != 2) {
                     return UNSUPPORTED_MARKER;
                 }
-                Eval a = eval(args.get(0), lets, handles, ctx, imports, runtimeFqn, conn);
                 Object n = evalScalar(args.get(1), lets, handles, ctx, imports,
                         runtimeFqn, conn);
+                if (emptinessUnverifiable && n instanceof Number zn && zn.longValue() == 0) {
+                    return UNSUPPORTED_MARKER;
+                }
+                Eval a = eval(args.get(0), lets, handles, ctx, imports, runtimeFqn, conn);
                 long actual = a.size();
                 return (n instanceof Number num && num.longValue() == actual) ? null
                         : "assertSize: expected " + n + ", got " + actual;
             }
             case "assertEmpty" -> {
                 if (args.size() != 1) {
+                    return UNSUPPORTED_MARKER;
+                }
+                if (emptinessUnverifiable) {
                     return UNSUPPORTED_MARKER;
                 }
                 Eval a = eval(args.get(0), lets, handles, ctx, imports, runtimeFqn, conn);
@@ -237,6 +299,11 @@ public final class TestBody {
         }
     }
 
+    private static String simpleName(String fn) {
+        int cut = fn.lastIndexOf("::");
+        return cut < 0 ? fn : fn.substring(cut + 2);
+    }
+
     /** A golden-SQL spelling: any chain ending in sqlRemoveFormatting()/sql(). */
     private static boolean isSqlText(ValueSpecification v) {
         return v instanceof AppliedFunction af
@@ -246,7 +313,8 @@ public final class TestBody {
     // ===== evaluation: compile one side through the pipeline =====
 
     /** One evaluated side: the execution result + how it compares. */
-    private record Eval(com.legend.exec.ExecutionResult result, boolean sortedChain) {
+    private record Eval(com.legend.exec.ExecutionResult result, boolean sortedChain,
+            boolean csvTail) {
 
         long size() {
             return switch (result) {
@@ -304,9 +372,25 @@ public final class TestBody {
             ModelContext ctx, ImportScope imports, String runtimeFqn, Connection conn)
             throws java.sql.SQLException {
         ValueSpecification spliced = substitute(expr, lets, handles, runtimeFqn);
+        // SERIALIZATION TAILS (toCSV/toString over a TDS) strip: the grid
+        // compares STRUCTURALLY (or renders for a string-literal peer) —
+        // rendering is a wire concern, not a query. A tail whose receiver
+        // turns out non-relational falls back to the original expression.
+        boolean csv = false;
+        if (spliced instanceof AppliedFunction tail
+                && (simpleName(tail.function()).equals("toCSV")
+                        || simpleName(tail.function()).equals("toString"))
+                && tail.parameters().size() == 1) {
+            com.legend.exec.ExecutionResult stripped = evalSpliced(
+                    tail.parameters().get(0), ctx, imports, runtimeFqn, conn);
+            if (stripped instanceof com.legend.exec.ExecutionResult.Tabular) {
+                return new Eval(stripped, endsInSort(tail.parameters().get(0)),
+                        simpleName(tail.function()).equals("toCSV"));
+            }
+        }
         com.legend.exec.ExecutionResult r = evalSpliced(spliced, ctx, imports,
                 runtimeFqn, conn);
-        return new Eval(r, endsInSort(spliced));
+        return new Eval(r, endsInSort(spliced), csv);
     }
 
     private static Object evalScalar(ValueSpecification expr,
@@ -341,6 +425,26 @@ public final class TestBody {
     // ===== comparison (both sides share ONE wire convention — strict) =====
 
     private static boolean compare(Eval expected, Eval actual, boolean ordered) {
+        // TDS grids compare STRUCTURALLY: column names ordered, rows under
+        // the order policy — both sides evaluated by the same pipeline
+        if (expected.result() instanceof com.legend.exec.ExecutionResult.Tabular te
+                && actual.result() instanceof com.legend.exec.ExecutionResult.Tabular ta) {
+            return gridEquals(te, ta, ordered && actual.sortedChain());
+        }
+        // toCSV() against a STRING literal: render the grid (wire concern);
+        // header pinned, data lines under the order policy
+        if (actual.csvTail()
+                && actual.result() instanceof com.legend.exec.ExecutionResult.Tabular tt
+                && expected.values().size() == 1
+                && expected.values().get(0) instanceof String es) {
+            return csvEquals(es, tt, actual.sortedChain());
+        }
+        if (expected.csvTail()
+                && expected.result() instanceof com.legend.exec.ExecutionResult.Tabular tt2
+                && actual.values().size() == 1
+                && actual.values().get(0) instanceof String as) {
+            return csvEquals(as, tt2, true);
+        }
         List<Object> e = expected.values();
         List<Object> a = actual.values();
         if (e.size() != a.size()) {
@@ -386,6 +490,109 @@ public final class TestBody {
         return true;
     }
 
+    /** Column-name + row-grid equality (rows ordered iff the chain sorts). */
+    private static boolean gridEquals(com.legend.exec.ExecutionResult.Tabular expected,
+            com.legend.exec.ExecutionResult.Tabular actual, boolean ordered) {
+        if (expected.columns().size() != actual.columns().size()) {
+            return false;
+        }
+        for (int i = 0; i < expected.columns().size(); i++) {
+            if (!expected.columns().get(i).name().equals(actual.columns().get(i).name())) {
+                return false;
+            }
+        }
+        List<List<Object>> e = new ArrayList<>();
+        expected.rows().forEach(r -> e.add(r.values()));
+        List<List<Object>> a = new ArrayList<>();
+        actual.rows().forEach(r -> a.add(r.values()));
+        if (e.size() != a.size()) {
+            return false;
+        }
+        if (ordered) {
+            for (int i = 0; i < e.size(); i++) {
+                if (!rowEquals(e.get(i), a.get(i))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        List<List<Object>> pool = new ArrayList<>(a);
+        for (List<Object> row : e) {
+            int hit = -1;
+            for (int i = 0; i < pool.size(); i++) {
+                if (rowEquals(row, pool.get(i))) {
+                    hit = i;
+                    break;
+                }
+            }
+            if (hit < 0) {
+                return false;
+            }
+            pool.remove(hit);
+        }
+        return true;
+    }
+
+    private static boolean rowEquals(List<Object> e, List<Object> a) {
+        if (e.size() != a.size()) {
+            return false;
+        }
+        for (int i = 0; i < e.size(); i++) {
+            if (!wireEquals(e.get(i), a.get(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** toCSV wire rendering vs an expected CSV string (header pinned). */
+    private static boolean csvEquals(String expected,
+            com.legend.exec.ExecutionResult.Tabular actual, boolean sorted) {
+        StringBuilder header = new StringBuilder();
+        for (var c : actual.columns()) {
+            if (header.length() > 0) {
+                header.append(',');
+            }
+            header.append(c.name());
+        }
+        List<String> lines = new ArrayList<>();
+        for (var r : actual.rows()) {
+            StringBuilder line = new StringBuilder();
+            for (Object v : r.values()) {
+                if (line.length() > 0) {
+                    line.append(',');
+                }
+                line.append(v == null ? "" : String.valueOf(v));
+            }
+            lines.add(line.toString());
+        }
+        String rendered = header + "\n"
+                + lines.stream().map(l -> l + "\n").reduce("", String::concat);
+        if (expected.equals(rendered)) {
+            return true;
+        }
+        if (sorted) {
+            return false;
+        }
+        // order policy: header line pinned, data lines as a multiset
+        String[] el = expected.split("\n", -1);
+        if (el.length == 0 || !el[0].equals(header.toString())) {
+            return false;
+        }
+        List<String> pool = new ArrayList<>(lines);
+        int dataLines = 0;
+        for (int i = 1; i < el.length; i++) {
+            if (el[i].isEmpty() && i == el.length - 1) {
+                continue;   // trailing newline
+            }
+            dataLines++;
+            if (!pool.remove(el[i])) {
+                return false;
+            }
+        }
+        return pool.isEmpty() && dataLines == lines.size();
+    }
+
     /** STRICT wire equality: integral kinds normalize; decimal by compareTo; no cross-kind. */
     private static boolean wireEquals(Object e, Object a) {
         if (e == null || a == null) {
@@ -410,6 +617,17 @@ public final class TestBody {
             }
             return new java.math.BigDecimal(String.valueOf(e))
                     .compareTo(new java.math.BigDecimal(String.valueOf(a))) == 0;
+        }
+        if (e instanceof Map<?, ?> em && a instanceof Map<?, ?> am) {
+            if (!em.keySet().equals(am.keySet())) {
+                return false;
+            }
+            for (Object k : em.keySet()) {
+                if (!wireEquals(em.get(k), am.get(k))) {
+                    return false;
+                }
+            }
+            return true;
         }
         return e.equals(a);
     }
@@ -462,6 +680,12 @@ public final class TestBody {
             case Variable var when lets.containsKey(var.name()) -> lets.get(var.name());
             case Variable var when handles.containsKey(var.name()) ->
                     splice(handles.get(var.name()), runtimeFqn);
+            // an INLINE execute (chained without a let: execute(...).values
+            // or nested in an assert arg) splices in place
+            case AppliedFunction af when isExecuteCall(af) && toHandle(af) != null ->
+                    splice(toHandle(new AppliedFunction(af.function(),
+                            substituteAll(af.parameters(), lets, handles, runtimeFqn))),
+                            runtimeFqn);
             case AppliedFunction af -> new AppliedFunction(af.function(),
                     substituteAll(af.parameters(), lets, handles, runtimeFqn));
             case AppliedProperty ap3 -> new AppliedProperty(
@@ -534,13 +758,130 @@ public final class TestBody {
         };
     }
 
-    /** Minimal JSON reader for graph envelopes (mirrors the exec wire). */
+    /** Minimal JSON reader for the GRAPH result envelope (core's own wire). */
     static final class ExecJson {
+        private final String s;
+        private int i;
+
+        private ExecJson(String s) {
+            this.s = s;
+        }
+
         static Object parse(String json) {
-            // graph results compare rarely in M1; a real reader arrives with
-            // M3 (class-query results). Loud, never wrong:
-            throw new com.legend.error.NotImplementedException(
-                    "graph-result comparison in TestBody is not supported yet (M3)");
+            ExecJson p = new ExecJson(json);
+            p.ws();
+            Object v = p.value();
+            p.ws();
+            if (p.i < p.s.length()) {
+                throw new IllegalStateException("trailing JSON at " + p.i);
+            }
+            return v;
+        }
+
+        private Object value() {
+            char c = s.charAt(i);
+            return switch (c) {
+                case '{' -> obj();
+                case '[' -> arr();
+                case '"' -> str();
+                case 't' -> { i += 4; yield Boolean.TRUE; }
+                case 'f' -> { i += 5; yield Boolean.FALSE; }
+                case 'n' -> { i += 4; yield null; }
+                default -> num();
+            };
+        }
+
+        private Map<String, Object> obj() {
+            Map<String, Object> out = new LinkedHashMap<>();
+            i++;
+            ws();
+            if (s.charAt(i) == '}') {
+                i++;
+                return out;
+            }
+            while (true) {
+                ws();
+                String k = str();
+                ws();
+                i++;    // ':'
+                ws();
+                out.put(k, value());
+                ws();
+                if (s.charAt(i) == ',') {
+                    i++;
+                    continue;
+                }
+                i++;    // '}'
+                return out;
+            }
+        }
+
+        private List<Object> arr() {
+            List<Object> out = new ArrayList<>();
+            i++;
+            ws();
+            if (s.charAt(i) == ']') {
+                i++;
+                return out;
+            }
+            while (true) {
+                ws();
+                out.add(value());
+                ws();
+                if (s.charAt(i) == ',') {
+                    i++;
+                    continue;
+                }
+                i++;    // ']'
+                return out;
+            }
+        }
+
+        private String str() {
+            StringBuilder b = new StringBuilder();
+            i++;
+            while (s.charAt(i) != '"') {
+                char c = s.charAt(i);
+                if (c == '\\') {
+                    i++;
+                    char e = s.charAt(i);
+                    b.append(switch (e) {
+                        case 'n' -> '\n';
+                        case 't' -> '\t';
+                        case 'r' -> '\r';
+                        case 'b' -> '\b';
+                        case 'f' -> '\f';
+                        case 'u' -> {
+                            char u = (char) Integer.parseInt(
+                                    s.substring(i + 1, i + 5), 16);
+                            i += 4;
+                            yield u;
+                        }
+                        default -> e;
+                    });
+                } else {
+                    b.append(c);
+                }
+                i++;
+            }
+            i++;
+            return b.toString();
+        }
+
+        private Object num() {
+            int start = i;
+            while (i < s.length() && "+-0123456789.eE".indexOf(s.charAt(i)) >= 0) {
+                i++;
+            }
+            String t = s.substring(start, i);
+            return t.contains(".") || t.contains("e") || t.contains("E")
+                    ? (Object) Double.parseDouble(t) : (Object) Long.parseLong(t);
+        }
+
+        private void ws() {
+            while (i < s.length() && Character.isWhitespace(s.charAt(i))) {
+                i++;
+            }
         }
     }
 }

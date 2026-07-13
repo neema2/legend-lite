@@ -133,7 +133,15 @@ final class Typer {
             case AppliedProperty ap -> accessProperty(ap, env);
             case PureCollection coll -> collection(coll, env);
             case PackageableElementPtr ref -> classReference(ref);
-            case NewInstance ni -> NewChecker.check(this, ni, env);
+            case NewInstance ni -> {
+                // ^TDSNull() — the TDS null-cell literal (engine
+                // meta::pure::tds::TDSNull): IS the SQL NULL. Exact names.
+                if (ni.className().equals("TDSNull")
+                        || ni.className().equals("meta::pure::tds::TDSNull")) {
+                    yield synth(new AppliedFunction("sqlNull", List.of()), env);
+                }
+                yield NewChecker.check(this, ni, env);
+            }
             case ColSpec cs -> typedColSpec(cs);
             case ColSpecArray arr -> typedColSpecArray(arr);
             case EnumValue ev -> enumValue(ev);
@@ -802,8 +810,55 @@ final class Typer {
      * association-injected properties), and <em>compose</em> the receiver's
      * multiplicity with the property's along the path.
      */
+    /** The relation's column NAMES or pure TYPE NAMES as a static string collection. */
+    private static TypedSpec columnsMeta(Type.RelationType rt, boolean typeNames) {
+        ExprType one = ExprType.one(Type.Primitive.STRING);
+        List<TypedSpec> items = new java.util.ArrayList<>(rt.columns().size());
+        for (Type.RelationType.Column c : rt.columns()) {
+            String v = typeNames ? simpleTypeName(c.type()) : c.name();
+            items.add(new com.legend.compiler.spec.typed.TypedCString(v, one));
+        }
+        return new com.legend.compiler.spec.typed.TypedCollection(items,
+                new ExprType(Type.Primitive.STRING,
+                        new com.legend.compiler.element.type.Multiplicity.Bounded(
+                                items.size(), items.size())));
+    }
+
+    /** Pure's simple type name for a column type (String, Integer, Date...). */
+    private static String simpleTypeName(Type t) {
+        String qn = t.typeName();
+        int cut = qn.lastIndexOf("::");
+        return cut < 0 ? qn : qn.substring(cut + 2);
+    }
+
     private TypedSpec accessProperty(AppliedProperty ap, Env env) {
+        // TDS COLUMN METADATA — engine TabularDataSet.columns.name/.type.
+        // Column names and pure type names are STATIC FACTS of the typed
+        // relation (no execution): they fold to string collections here.
+        if (ap.receiver() instanceof AppliedProperty inner
+                && inner.property().equals("columns")
+                && (ap.property().equals("name") || ap.property().equals("type"))) {
+            TypedSpec rel = synth(inner.receiver(), env);
+            if (rel.info().type() instanceof Type.RelationType rt) {
+                return columnsMeta(rt, ap.property().equals("type"));
+            }
+        }
         TypedSpec source = synth(ap.receiver(), env);
+        if (source.info().type() instanceof Type.RelationType rt2) {
+            // TDS surface over relation values (engine TabularDataSet):
+            // .rows IS the relation viewed as its row collection; bare
+            // .columns is the column-name collection (assertSize targets)
+            if (ap.property().equals("rows") || ap.property().equals("values")) {
+                // .rows: the relation IS its row collection; .values: the
+                // engine Result envelope's payload — over a spliced query
+                // handle the relation IS the payload (TestBody's lazy
+                // execute contract)
+                return source;
+            }
+            if (ap.property().equals("columns")) {
+                return columnsMeta(rt2, false);
+            }
+        }
         // a zero-arg DERIVED read IS a call of its externalized body —
         // route and β-inline so downstream sees plain navigation
         if (source.info().type() instanceof Type.ClassType ct

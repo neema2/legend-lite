@@ -359,221 +359,146 @@ public final class Runner {
         return false;
     }
 
-    /** Index of the LAST top-level {@code ->from(} in the expression, or -1. */
-    private static int lastTopLevelFrom(String q) {
-        int depth = 0;
-        int last = -1;
-        int i = 0;
-        while (i < q.length()) {
-            char c = q.charAt(i);
-            if (c == '\'') {
-                i = Corpus.skipString(q, i);
-                continue;
-            }
-            if (c == '(' || c == '[' || c == '{') {
-                depth++;
-            } else if (c == ')' || c == ']' || c == '}') {
-                depth--;
-            } else if (depth == 0 && c == '-' && q.startsWith("->", i)) {
-                int j = i + 2;
-                while (j < q.length() && Character.isWhitespace(q.charAt(j))) {
-                    j++;
-                }
-                if (q.startsWith("from", j)) {
-                    int k = j + 4;
-                    while (k < q.length() && Character.isWhitespace(q.charAt(k))) {
-                        k++;
-                    }
-                    if (k < q.length() && q.charAt(k) == '(') {
-                        last = i;
-                    }
-                }
-            }
-            i++;
-        }
-        return last;
-    }
 
-    /** One executed query: the let-var it binds, its rows, its body offset. */
-    record ResultBinding(String var, List<Map<String, Object>> rows, int pos,
-            String query, List<String> colTypes, List<String> colNames) {
-    }
 
     public Outcome run(Corpus.TestFn fn) {
-        // extract EVERY execute(|QUERY, MAPPING, runtime, extensions) —
-        // multi-query tests bind each result to its own let-var, and each
-        // assert evaluates against the var it references
-        List<int[]> spans = new ArrayList<>();
-        Matcher m = EXECUTE_CALL.matcher(fn.body());
-        while (m.find()) {
-            if (insideString(fn.body(), m.start())) {
-                continue;   // 'execute(' inside a string literal is data
-            }
-            int argStart = fn.body().indexOf('(', m.start());
-            int argEnd = matchParen(fn.body(), argStart);
-            if (argEnd > 0) {
-                spans.add(new int[]{m.start(), argStart, argEnd});
-            }
-        }
-        if (spans.isEmpty()) {
+        // NATIVE test-body execution: core (com.legend.TestBody) compiles
+        // and drives the WHOLE body — lets, execute() handles, assert
+        // natives — through the ordinary pipeline. The harness's remaining
+        // jobs are model assembly, the synthesized Runtime element, seed
+        // replay and scoring. The mapping refs are extracted only to build
+        // the Runtime; TestBody splices ->from(mapping, rcorpus::Rt) per
+        // execute() itself.
+        List<String> mappingRefs = executeMappingRefs(fn);
+        if (mappingRefs.isEmpty()) {
             return new Outcome(fn.fqn(), Status.SHAPE, "no execute(|...) call");
         }
         try {
-            String runtimeFqn = "rcorpus::Rt";
             String familyExt = familyModels.getOrDefault(currentFamilyKey, "");
             String fileExt = fileModels.getOrDefault(currentFileKey, "");
             String modelText = model + familyExt + fileExt;
+            String fullModel = modelText + runtimeBlock(modelText, mappingRefs);
+            com.legend.compiler.element.ModelContext ctx = contextFor(fullModel);
             try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
                 try (var st = conn.createStatement()) {
                     st.execute("SET TimeZone='UTC'");
                 }
-                // ALL DDL first (shared, family, file — a sibling's CREATE
-                // OR REPLACE must never wipe already-inserted base rows,
-                // audit A2), then data: base literals + every BeforePackage
-                // setup covering the test's package (the engine harness's
-                // test.BeforePackage contract). Run-once is enforced at
-                // FUNCTION granularity via the shared `expanded` set — never
-                // by statement-text dedup, which destroyed deliberately
-                // repeated inserts (audit A1).
-                List<String> allSeeds = new ArrayList<>(ddlSeeds);
-                allSeeds.addAll(familySeeds.getOrDefault(currentFamilyKey, List.of()));
-                allSeeds.addAll(fileSeeds.getOrDefault(currentFileKey, List.of()));
-                allSeeds.addAll(dataSeeds);
-                java.util.Set<String> expanded = new java.util.HashSet<>(sharedSeededFns);
-                for (Corpus.BeforePackage bp : beforePackages) {
-                    if (fn.fqn().startsWith(bp.pkg() + "::")) {
-                        // expand against the WHOLE-RUN function corpus —
-                        // setup helpers live in sibling files. A bp whose
-                        // defining file already seeded raw contributes only
-                        // its CALL closure, not its own literals again.
-                        boolean includeBody = expanded.add(bp.fqn());
-                        allSeeds.addAll(Corpus.expandSeeds(bp.body(), bp.pkg(),
-                                setupFnBodies, expanded, includeBody));
-                    }
-                }
-                List<String> failedSeeds = new ArrayList<>();
-                for (String sql : allSeeds) {
-                    // ONE STATEMENT PER EXECUTE: a multi-statement batch
-                    // that fails mid-way reports DuckDB's useless "pending
-                    // query result" error (the real cause is swallowed) and
-                    // silently drops every statement after the failing one
-                    for (String stmt : splitStatements(sql)) {
-                        try (var st = conn.createStatement()) {
-                            st.execute(stmt);
-                        } catch (Exception e) {
-                            // a failed seed leaves a table EMPTY, not wrong —
-                            // an empty-expectation assert over it would
-                            // false-pass. Track and report; checkAsserts
-                            // refuses to verify emptiness under failed seeds.
-                            String head = stmt.strip().split("\n")[0];
-                            failedSeeds.add(head + " => "
-                                    + String.valueOf(e.getMessage()).split("\n")[0]);
-                        }
-                    }
-                }
+                List<String> failedSeeds = replaySeeds(fn, conn);
                 seedFailures.addAll(failedSeeds);
-                List<ResultBinding> bindings = new ArrayList<>();
-                String skippedSpan = null;
-                for (int[] span : spans) {
-                    List<String> args = splitArgs(fn.body().substring(span[1] + 1, span[2]));
-                    if (args.size() < 2) {
-                        skippedSpan = "execute() with " + args.size() + " args";
-                        continue;
-                    }
-                    // query spellings: |q  {|q}  $letBoundLambda — inline
-                    // lets FIRST so the let-bound form resolves, then strip
-                    // the wrappers down to the bare expression
-                    String query = inlineLets(args.get(0).strip(), fn.body()).strip();
-                    if (query.startsWith("(") && query.endsWith(")")
-                            && matchParen(query, 0) == query.length() - 1) {
-                        query = query.substring(1, query.length() - 1).strip();
-                    }
-                    if (query.startsWith("{") && query.endsWith("}")) {
-                        query = query.substring(1, query.length() - 1).strip();
-                    }
-                    if (!query.startsWith("|")) {
-                        skippedSpan = "execute() query arg is not a lambda: "
-                                + query.substring(0, Math.min(40, query.length()));
-                        continue;
-                    }
-                    query = query.substring(1).strip();
-                    // a TERMINAL ->from(MAPPING[, runtime]) carries the
-                    // mapping IN the query. The from() STAYS — core's
-                    // TypedFrom execution honors it; only the runtime
-                    // ARGUMENT is normalized to the synthesized runtime ref
-                    // (the corpus spells it as a pure function call,
-                    // testRuntime(), which needs a body evaluator — the
-                    // native-test-execution end-state)
-                    String mappingRef = null;
-                    int fi = lastTopLevelFrom(query);
-                    if (fi >= 0) {
-                        int open = query.indexOf('(', fi);
-                        int close = matchParen(query, open);
-                        if (close == query.length() - 1) {
-                            List<String> fromArgs = splitArgs(
-                                    query.substring(open + 1, close));
-                            if (!fromArgs.isEmpty()) {
-                                mappingRef = qualify(fromArgs.get(0).strip(), fn);
-                                query = query.substring(0, open + 1)
-                                        + mappingRef + ", rcorpus::Rt)";
-                            }
+                com.legend.TestBody.Outcome o = com.legend.TestBody.run(
+                        ctx, fn.body(), importScopeOf(fn), "rcorpus::Rt", conn,
+                        !failedSeeds.isEmpty(), harnessSetupNames());
+                return switch (o) {
+                    case com.legend.TestBody.Outcome.Unsupported u ->
+                            new Outcome(fn.fqn(), Status.SHAPE, u.reason());
+                    case com.legend.TestBody.Outcome.Ran r -> {
+                        if (!r.failures().isEmpty()) {
+                            yield new Outcome(fn.fqn(), Status.FAIL,
+                                    r.failures().get(0));
                         }
-                    }
-                    if (mappingRef == null) {
-                        mappingRef = qualify(args.get(1).strip(), fn);
-                    }
-                    String fullModel = modelText + runtimeBlock(modelText, mappingRef);
-                    // the query compiles under the TEST FILE's import
-                    // sections (real pure's rule) — core resolves names;
-                    // the harness no longer rewrites query text
-                    String qualified = "|" + query;
-                    com.legend.parser.ImportScope imports = importScopeOf(fn);
-                    // the let-var this result binds ($result by convention)
-                    Matcher lm = Pattern.compile("let\\s+(\\w+)\\s*=\\s*$")
-                            .matcher(fn.body().substring(
-                                    Math.max(0, span[0] - 40), span[0]));
-                    String var = lm.find() ? lm.group(1) : "result";
-                    com.legend.exec.ExecutionResult r = com.legend.Compiler.execute(
-                            fullModel, qualified, imports, runtimeFqn, conn);
-                    List<String> colTypes = new ArrayList<>();
-                    List<String> colNames = new ArrayList<>();
-                    if (r instanceof com.legend.exec.ExecutionResult.Tabular t) {
-                        for (com.legend.exec.Column c : t.columns()) {
-                            colTypes.add(c.pureType() == null ? "null"
-                                    : c.pureType().typeName());
-                            colNames.add(c.name());
+                        if (r.verified() == 0 && r.advisory() > 0) {
+                            yield new Outcome(fn.fqn(), Status.SHAPE,
+                                    "sql-only: " + r.advisory()
+                                            + " advisory golden-SQL assert(s),"
+                                            + " no row verification");
                         }
-                    }
-                    bindings.add(new ResultBinding(var, coreRows(r), span[2],
-                            qualified, colTypes, colNames));
-                }
-                if (bindings.isEmpty()) {
-                    return new Outcome(fn.fqn(), Status.SHAPE,
-                            skippedSpan == null ? "no execute(|...) call" : skippedSpan);
-                }
-                // intermediate aliases: let tds = $result.values->at(0);
-                // asserts against $tds read the SAME result (the ->at(0)
-                // head-normalization already equates the spellings)
-                Matcher am = Pattern.compile(
-                        "let\\s+(\\w+)\\s*=\\s*\\$(\\w+)((?:\\.values)?(?:->at\\(0\\))?)\\s*;")
-                        .matcher(fn.body());
-                while (am.find()) {
-                    String alias = am.group(1);
-                    String src = am.group(2);
-                    for (ResultBinding b : List.copyOf(bindings)) {
-                        if (b.var().equals(src) && b.pos() <= am.start()) {
-                            bindings.add(new ResultBinding(alias, b.rows(),
-                                    am.start(), b.query(), b.colTypes(), b.colNames()));
+                        if (r.verified() == 0) {
+                            yield new Outcome(fn.fqn(), Status.SHAPE,
+                                    "no verifying assertions");
                         }
+                        yield new Outcome(fn.fqn(), Status.PASS,
+                                r.verified() + " assert(s)");
                     }
-                }
-                return checkAsserts(fn, bindings, failedSeeds, skippedSpan);
+                };
             }
         } catch (Exception e) {
             // flatten, don't truncate — poison reasons ride on later lines
             return new Outcome(fn.fqn(), Status.ERROR,
                     String.valueOf(e.getMessage()).replace("\n", " | "));
         }
+    }
+
+    /** Compiled-model cache: one context per assembled model text. */
+    private final Map<String, com.legend.compiler.element.ModelContext> ctxCache =
+            new LinkedHashMap<>();
+
+    private com.legend.compiler.element.ModelContext contextFor(String fullModel) {
+        return ctxCache.computeIfAbsent(fullModel, com.legend.Compiler::compileModel);
+    }
+
+    /** Setup-function names (FQN + simple) whose effects the seed replay applied. */
+    private java.util.Set<String> harnessSetupNames() {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        for (String fqn : setupFnBodies.keySet()) {
+            out.add(fqn);
+            out.add(fqn.substring(fqn.lastIndexOf(':') + 1));
+        }
+        return out;
+    }
+
+    /** The MAPPING argument of every execute() call in the body, qualified. */
+    private List<String> executeMappingRefs(Corpus.TestFn fn) {
+        List<String> out = new ArrayList<>();
+        Matcher m = EXECUTE_CALL.matcher(fn.body());
+        while (m.find()) {
+            if (insideString(fn.body(), m.start())) {
+                continue;
+            }
+            int argStart = fn.body().indexOf('(', m.start());
+            int argEnd = matchParen(fn.body(), argStart);
+            if (argEnd < 0) {
+                continue;
+            }
+            List<String> args = splitArgs(fn.body().substring(argStart + 1, argEnd));
+            if (args.size() < 2) {
+                continue;
+            }
+            String ref = qualify(args.get(1).strip(), fn);
+            if (ref.matches("[\\w:]+") && !out.contains(ref)) {
+                out.add(ref);
+            }
+        }
+        // brace-lambda spellings put the mapping IN the query
+        // (execute({|Q->from(M, $rt)}, ^Mapping(name=''), ...)) — collect
+        // in-query from() mappings too
+        Matcher fm = Pattern.compile("->\\s*from\\(\\s*([\\w:]+)")
+                .matcher(fn.body());
+        while (fm.find()) {
+            String ref = qualify(fm.group(1), fn);
+            if (ref.matches("[\\w:]+") && !out.contains(ref)) {
+                out.add(ref);
+            }
+        }
+        return out;
+    }
+
+    /** Seed replay: ALL DDL first, then data (audit A2), one statement per execute. */
+    private List<String> replaySeeds(Corpus.TestFn fn, Connection conn) {
+        List<String> allSeeds = new ArrayList<>(ddlSeeds);
+        allSeeds.addAll(familySeeds.getOrDefault(currentFamilyKey, List.of()));
+        allSeeds.addAll(fileSeeds.getOrDefault(currentFileKey, List.of()));
+        allSeeds.addAll(dataSeeds);
+        java.util.Set<String> expanded = new java.util.HashSet<>(sharedSeededFns);
+        for (Corpus.BeforePackage bp : beforePackages) {
+            if (fn.fqn().startsWith(bp.pkg() + "::")) {
+                boolean includeBody = expanded.add(bp.fqn());
+                allSeeds.addAll(Corpus.expandSeeds(bp.body(), bp.pkg(),
+                        setupFnBodies, expanded, includeBody));
+            }
+        }
+        List<String> failedSeeds = new ArrayList<>();
+        for (String sql : allSeeds) {
+            for (String stmt : splitStatements(sql)) {
+                try (var st = conn.createStatement()) {
+                    st.execute(stmt);
+                } catch (Exception e) {
+                    String head = stmt.strip().split("\n")[0];
+                    failedSeeds.add(head + " => "
+                            + String.valueOf(e.getMessage()).split("\n")[0]);
+                }
+            }
+        }
+        return failedSeeds;
     }
 
     /** Split a SQL blob into single statements on top-level {@code ;} (string-aware). */
@@ -603,91 +528,12 @@ public final class Runner {
         return out;
     }
 
-    private static final Pattern LET_BINDING = Pattern.compile("let\\s+(\\w+)\\s*=\\s*");
 
-    /**
-     * Inline the test body's simple {@code let} bindings into the query
-     * text: {@code let type = 'CUSIP'; execute(|...$type...)} — the query
-     * lambda references body-level constants the extraction would otherwise
-     * drop (unbound {@code $type}). Execute-bound lets never inline; atomic
-     * literals inline bare, other expressions parenthesize.
-     */
-    static String inlineLets(String query, String body) {
-        Map<String, String> vals = new LinkedHashMap<>();
-        Matcher m = LET_BINDING.matcher(body);
-        while (m.find()) {
-            int start = m.end();
-            int i = start;
-            int depth = 0;
-            while (i < body.length()) {
-                char c = body.charAt(i);
-                if (c == '\'') {
-                    i = Corpus.skipString(body, i);
-                    continue;
-                }
-                if (c == '(' || c == '[' || c == '{') {
-                    depth++;
-                } else if (c == ')' || c == ']' || c == '}') {
-                    depth--;
-                } else if (c == ';' && depth == 0) {
-                    break;
-                }
-                i++;
-            }
-            String rhs = body.substring(start, Math.min(i, body.length())).strip();
-            if (rhs.contains("execute")) {
-                continue;
-            }
-            // inline earlier lets into later RHS text
-            for (Map.Entry<String, String> e : vals.entrySet()) {
-                rhs = replaceVarOutsideStrings(rhs, e.getKey(), e.getValue());
-            }
-            // a NEGATIVE literal is not atomic: bare it flips arrow
-            // precedence ($v->abs() with v=-5 becoming -5->abs(), audit B4)
-            boolean atomic = rhs.matches("'[^']*'") || rhs.matches("\\d+(\\.\\d+)?")
-                    || rhs.matches("[\\w:.\\[\\]%]+") || rhs.matches("\\[[^;]*\\]");
-            vals.put(m.group(1), atomic ? rhs : "(" + rhs + ")");
-        }
-        String out = query;
-        for (Map.Entry<String, String> e : vals.entrySet()) {
-            out = replaceVarOutsideStrings(out, e.getKey(), e.getValue());
-        }
-        return out;
-    }
 
-    /**
-     * {@code $var} → replacement, skipping single-quoted string literals —
-     * pure does not interpolate, so a '$type' INSIDE a literal is data
-     * (audit B4).
-     */
-    private static String replaceVarOutsideStrings(String text, String var,
-            String replacement) {
-        StringBuilder out = new StringBuilder();
-        int i = 0;
-        while (i < text.length()) {
-            char c = text.charAt(i);
-            if (c == '\'') {
-                int end = Corpus.skipString(text, i);
-                out.append(text, i, end);
-                i = end;
-                continue;
-            }
-            if (c == '$' && text.startsWith(var, i + 1)
-                    && (i + 1 + var.length() >= text.length()
-                            || !Character.isJavaIdentifierPart(
-                                    text.charAt(i + 1 + var.length())))) {
-                out.append(replacement);
-                i += 1 + var.length();
-                continue;
-            }
-            out.append(c);
-            i++;
-        }
-        return out.toString();
-    }
 
     /** Synthesized runtime binding EVERY database (stores pick what they need). */
-    private String runtimeBlock(String modelText, String mappingFqn) {
+    private String runtimeBlock(String modelText, List<String> mappingFqns) {
+        String mappingFqn = String.join(", ", mappingFqns);
         StringBuilder conns = new StringBuilder();
         Matcher m = Pattern.compile("(?m)^Database\\s+([\\w:]+)").matcher(modelText);
         java.util.Set<String> dbs = new java.util.LinkedHashSet<>();
@@ -706,714 +552,6 @@ public final class Runner {
 
     // ===== assertion evaluation =====
 
-    private Outcome checkAsserts(Corpus.TestFn fn, List<ResultBinding> bindings,
-            List<String> failedSeeds, String skippedSpan) {
-        List<String> problems = new ArrayList<>();
-        // recognized = asserts whose SHAPE matched AND whose expected value
-        // PARSED (an unparseable expected value is NOT recognized — counting
-        // it would score an assert that never ran its comparison).
-        // verified = recognized minus advisory golden-SQL asserts.
-        int recognized = 0;
-        int verified = 0;
-        Map<ResultBinding, AtClaims> atClaims = new LinkedHashMap<>();
-        String firstUnrecognized = null;
-        int recognizedBefore;
-        for (int[] callPos : assertCallSpans(fn.body())) {
-            recognizedBefore = recognized;
-            String call = fn.body().substring(callPos[0], callPos[1]);
-            String head = call.substring(0, call.indexOf('(')).strip();
-            List<String> args = splitArgs(call.substring(call.indexOf('(') + 1, call.length() - 1));
-            // the RESULT this assert reads: the LATEST prior execute whose
-            // let-var the call references ($result by convention)
-            ResultBinding bound = null;
-            for (int bi = bindings.size() - 1; bi >= 0; bi--) {
-                ResultBinding b = bindings.get(bi);
-                if (b.pos() > callPos[0]) {
-                    continue;
-                }
-                if (Pattern.compile("\\$" + Pattern.quote(b.var()) + "\\b")
-                        .matcher(call).find()) {
-                    bound = b;
-                    break;
-                }
-            }
-            if (bound == null) {
-                continue;   // references no known result — stays unrecognized
-            }
-            List<Map<String, Object>> rows = bound.rows();
-            // normalize every result spelling to a canonical head "$R"
-            for (int ai = 0; ai < args.size(); ai++) {
-                String norm = args.get(ai).strip()
-                        .replace("$" + bound.var(), "$R")
-                        .replaceAll("^\\$R\\.values->at\\(0\\)", java.util.regex.Matcher.quoteReplacement("$R"))
-                        .replaceAll("^\\$R\\.values\\.rows", java.util.regex.Matcher.quoteReplacement("$R.rows"));
-                args.set(ai, norm);
-            }
-            switch (head) {
-                case "assertSize" -> {
-                    String target = args.get(0).strip();
-                    if (args.size() == 2 && args.get(1).strip().matches("\\d+")
-                            && target.matches("\\$R(\\.values)?\\.columns")) {
-                        recognized++;
-                        verified++;
-                        int expected = Integer.parseInt(args.get(1).strip());
-                        int actual = rows.isEmpty() ? -1 : rows.get(0).size();
-                        if (actual != expected) {
-                            problems.add("columns: expected " + expected + ", got "
-                                    + (actual < 0 ? "(no rows)" : actual));
-                        }
-                        continue;
-                    }
-                    if (args.size() == 2 && args.get(1).strip().matches("\\d+")
-                            && (target.equals("$R.values") || target.equals("$R.rows")
-                                    || target.equals("$R"))) {
-                        int expected = Integer.parseInt(args.get(1).strip());
-                        if (expected == 0 && !failedSeeds.isEmpty()) {
-                            // expected-zero over a table a failed seed left
-                            // empty proves nothing (same rule as assertEmpty)
-                            return new Outcome(fn.fqn(), Status.SHAPE,
-                                    "assertSize 0 unverifiable: " + failedSeeds.size()
-                                            + " seed statement(s) failed: " + failedSeeds.get(0));
-                        }
-                        recognized++;
-                        verified++;
-                        if (rows.size() != expected) {
-                            problems.add("size: expected " + expected + ", got " + rows.size());
-                        }
-                    }
-                }
-                case "assertEmpty" -> {
-                    if (args.size() == 1 && args.get(0).strip().equals("$R.values")) {
-                        if (!failedSeeds.isEmpty()) {
-                            // an empty table proves nothing when a seed failed
-                            return new Outcome(fn.fqn(), Status.SHAPE,
-                                    "assertEmpty unverifiable: " + failedSeeds.size()
-                                            + " seed statement(s) failed: " + failedSeeds.get(0));
-                        }
-                        recognized++;
-                        verified++;
-                        if (!rows.isEmpty()) {
-                            problems.add("expected empty, got " + rows.size() + " rows");
-                        }
-                    }
-                }
-                case "assertSameSQL" -> {
-                    if (args.size() == 2 && args.get(1).strip().equals("$R")) {
-                        sqlAsserts++;   // advisory golden-SQL: recognized, NOT verified
-                        recognized++;
-                    }
-                }
-                case "assertSameElements" -> {
-                    if (args.size() == 2 && args.get(0).strip().startsWith("$R")
-                            && !args.get(1).strip().startsWith("$R")) {
-                        args = List.of(args.get(1), args.get(0));   // actual-first spelling
-                    }
-                    Matcher getMap = Pattern.compile(
-                            "^\\$R(?:\\.values(?:->at\\(\\d+\\))?)?(?:\\.rows)?->map\\(\\s*\\w+\\s*\\|\\s*\\$\\w+\\.get\\w*\\('([^']+)'\\)\\s*\\)$")
-                            .matcher(args.size() == 2 ? args.get(1).strip() : "");
-                    if (getMap.matches()) {
-                        List<Object> expected = pureLiteralList(args.get(0).strip());
-                        if (expected != null) {
-                            recognized++;
-                            verified++;
-                            List<Object> actual = column(rows, getMap.group(1));
-                            if (!multisetEquals(expected, actual)) {
-                                problems.add(getMap.group(1) + ": expected " + expected
-                                        + ", got " + actual);
-                            }
-                        }
-                        continue;
-                    }
-                    Matcher cellAt = Pattern.compile(
-                            "^\\$R(?:\\.values->at\\(\\d+\\))?\\.rows->map\\(\\s*\\w+\\s*\\|\\s*\\$\\w+\\.values->at\\((\\d+)\\)\\s*\\)$")
-                            .matcher(args.size() == 2 ? args.get(1).strip() : "");
-                    if (cellAt.matches()) {
-                        List<Object> expected = pureLiteralList(args.get(0).strip());
-                        if (expected != null) {
-                            recognized++;
-                            verified++;
-                            int ci = Integer.parseInt(cellAt.group(1));
-                            List<Object> actual = new ArrayList<>();
-                            for (var row : rows) {
-                                List<Object> vals = new ArrayList<>(row.values());
-                                actual.add(ci < vals.size() ? vals.get(ci) : null);
-                            }
-                            if (!multisetEquals(expected, actual)) {
-                                problems.add("col[" + ci + "]: expected " + expected
-                                        + ", got " + actual);
-                            }
-                        }
-                        continue;
-                    }
-                    Matcher allCellsSame = Pattern.compile(
-                            "^\\$R(?:\\.values(?:->at\\(\\d+\\))?)?\\.rows\\.values$")
-                            .matcher(args.size() == 2 ? args.get(1).strip() : "");
-                    if (allCellsSame.matches()) {
-                        List<Object> expected = pureLiteralList(args.get(0).strip());
-                        if (expected != null) {
-                            recognized++;
-                            verified++;
-                            List<Object> actual = new ArrayList<>();
-                            rows.forEach(row -> actual.addAll(row.values()));
-                            if (!multisetEquals(expected, actual)) {
-                                problems.add("cells: expected " + expected + ", got " + actual);
-                            }
-                        }
-                        continue;
-                    }
-                    Matcher cellsMap = Pattern.compile(
-                            "^\\$R(?:\\.values->at\\(\\d+\\))?\\.rows->map\\(\\s*\\w+\\s*\\|\\s*\\$\\w+\\.values\\s*\\)$")
-                            .matcher(args.size() == 2 ? args.get(1).strip() : "");
-                    if (cellsMap.matches()) {
-                        List<Object> expected = pureLiteralList(args.get(0).strip());
-                        if (expected != null) {
-                            recognized++;
-                            verified++;
-                            List<Object> actual = new ArrayList<>();
-                            rows.forEach(row -> actual.addAll(row.values()));
-                            if (!multisetEquals(expected, actual)) {
-                                problems.add("cells: expected " + expected + ", got " + actual);
-                            }
-                        }
-                        continue;
-                    }
-                    if (args.size() == 2 && args.get(1).strip().matches("\\$R(\\.values)?")
-                            && !rows.isEmpty() && rows.get(0).size() == 1) {
-                        List<Object> expected = pureLiteralList(args.get(0).strip());
-                        if (expected != null) {
-                            recognized++;
-                            verified++;
-                            String col = rows.get(0).keySet().iterator().next();
-                            List<Object> actual = column(rows, col);
-                            if (!multisetEquals(expected, actual)) {
-                                problems.add("values: expected " + expected
-                                        + ", got " + actual);
-                            }
-                        }
-                        continue;
-                    }
-                    Matcher pm = Pattern.compile(
-                            "^\\$R(?:\\.values)?(?:->at\\((\\d+)\\))?"
-                                    + "(?:\\.(\\w+)|->map\\(\\s*\\w+\\s*\\|\\s*\\$\\w+\\.(\\w+)\\s*\\))$")
-                            .matcher(args.size() == 2 ? args.get(1).strip() : "");
-                    if (pm.matches()) {
-                        List<Object> expected = pureLiteralList(args.get(0).strip());
-                        if (expected != null) {
-                            recognized++;
-                            verified++;
-                            String prop = pm.group(2) != null ? pm.group(2) : pm.group(3);
-                            List<Object> actual = pm.group(1) == null
-                                    ? column(rows, prop)
-                                    : Integer.parseInt(pm.group(1)) < rows.size()
-                                            ? column(rows.subList(Integer.parseInt(pm.group(1)),
-                                                    Integer.parseInt(pm.group(1)) + 1), prop)
-                                            : List.of();
-                            if (!multisetEquals(expected, actual)) {
-                                problems.add(prop + ": expected " + expected + ", got " + actual);
-                            }
-                        }
-                    }
-                }
-                case "assertEquals", "assertEqualsH2Compatible" -> {
-                    if (args.size() == 2 && args.get(0).strip().startsWith("$R")
-                            && !args.get(1).strip().startsWith("$R")) {
-                        args = List.of(args.get(1), args.get(0));   // actual-first spelling
-                    }
-                    // multi-line arrow chains: collapse whitespace and
-                    // tighten '->' so the shape matchers see one line —
-                    // OUTSIDE string literals only (a makeString separator's
-                    // spaces are data, audit B2)
-                    String second = args.size() == 2
-                            ? collapseOutsideStrings(args.get(1).strip())
-                            : "";
-                    // 3-arg H2-compat: (legacySql, h2Sql, $r->sqlRemoveFormatting())
-                    if (args.size() == 3
-                            && args.get(2).strip().replaceAll("\\s+", "")
-                                    .endsWith("->sqlRemoveFormatting()")) {
-                        sqlAsserts++;
-                        recognized++;
-                        continue;
-                    }
-                    if (second.endsWith("->sqlRemoveFormatting()") || second.endsWith("->sql()")) {
-                        sqlAsserts++;   // advisory golden-SQL: recognized, NOT verified
-                        recognized++;
-                        continue;
-                    }
-                    // TDS idioms — all against the canonical rows
-                    Matcher colGet = Pattern.compile(
-                            "^\\$R\\.rows\\.get(?:String|Integer|Float|Date|Number)?\\('([^']+)'\\)$")
-                            .matcher(second);
-                    Matcher rowAtCells = Pattern.compile(
-                            "^\\$R\\.rows->at\\((\\d+)\\)\\.values$").matcher(second);
-                    Matcher rowAtGet = Pattern.compile(
-                            "^\\$R\\.rows->at\\((\\d+)\\)\\.get(?:String|Integer|Float|Date|Number)?\\('([^']+)'\\)$")
-                            .matcher(second);
-                    Matcher allCells = Pattern.compile(
-                            "^\\$R(?:\\.values->at\\(\\d+\\))?\\.rows(?:\\.values"
-                                    + "|->map\\(\\s*\\w+\\s*\\|\\s*\\$\\w+\\.values\\s*\\))$")
-                            .matcher(second);
-                    Matcher sizeOf = Pattern.compile(
-                            "^\\$R(?:\\.values|\\.rows)?(?:\\.rows)?->size\\(\\)$").matcher(second);
-                    if (colGet.matches()) {
-                        List<Object> expected = pureLiteralList(args.get(0).strip());
-                        if (expected != null) {
-                            recognized++;
-                            verified++;
-                            List<Object> actual = column(rows, colGet.group(1));
-                            if (!orderedEquals(expected, actual)) {
-                                problems.add(colGet.group(1) + ": expected " + expected + ", got " + actual);
-                            }
-                        }
-                        continue;
-                    }
-                    if (rowAtGet.matches()) {
-                        Object expected = pureLiteral(args.get(0).strip());
-                        if (expected != null) {
-                            recognized++;
-                            verified++;
-                            int idx = Integer.parseInt(rowAtGet.group(1));
-                            if (!sortedQuery(bound.query())) {
-                                // no order contract: defer to the POOLED
-                                // per-index assignment (audit 8 F1 — plain
-                                // membership lost row identity)
-                                if (idx >= rows.size()) {
-                                    problems.add("row " + idx + " out of range ("
-                                            + rows.size() + " rows)");
-                                } else {
-                                    atClaims.computeIfAbsent(bound, k -> new AtClaims())
-                                            .claimCol(idx, rowAtGet.group(2), expected);
-                                }
-                                continue;
-                            }
-                            Object actual = idx < rows.size() ? rows.get(idx).get(rowAtGet.group(2)) : null;
-                            if (!valueEquals(expected, actual)) {
-                                problems.add("row " + idx + "." + rowAtGet.group(2)
-                                        + ": expected " + expected + ", got " + actual);
-                            }
-                        }
-                        continue;
-                    }
-                    if (rowAtCells.matches()) {
-                        List<Object> expected = pureLiteralList(args.get(0).strip());
-                        if (expected != null) {
-                            recognized++;
-                            verified++;
-                            int idx = Integer.parseInt(rowAtCells.group(1));
-                            if (!sortedQuery(bound.query())) {
-                                if (idx >= rows.size()) {
-                                    problems.add("row " + idx + " out of range ("
-                                            + rows.size() + " rows)");
-                                } else {
-                                    atClaims.computeIfAbsent(bound, k -> new AtClaims())
-                                            .claimRow(idx, expected);
-                                }
-                                continue;
-                            }
-                            List<Object> actual = idx < rows.size()
-                                    ? new ArrayList<>(rows.get(idx).values()) : List.of();
-                            if (!orderedEquals(expected, actual)) {
-                                problems.add("row " + idx + ": expected " + expected + ", got " + actual);
-                            }
-                        }
-                        continue;
-                    }
-                    if (allCells.matches()) {
-                        List<Object> expected = pureLiteralList(args.get(0).strip());
-                        if (expected != null) {
-                            recognized++;
-                            verified++;
-                            List<Object> actual = new ArrayList<>();
-                            rows.forEach(row -> actual.addAll(row.values()));
-                            if (!orderedEquals(expected, actual)) {
-                                problems.add("cells: expected " + expected + ", got " + actual);
-                            }
-                        }
-                        continue;
-                    }
-                    if (sizeOf.matches()) {
-                        Object expected = pureLiteral(args.get(0).strip());
-                        if (expected instanceof Long n) {
-                            recognized++;
-                            verified++;
-                            if (rows.size() != n) {
-                                problems.add("size: expected " + n + ", got " + rows.size());
-                            }
-                        }
-                        continue;
-                    }
-                    Matcher toCsv = Pattern.compile(
-                            "^\\$R(?:\\.values)?(?:->toOne\\(\\))?->toCSV\\(\\)$")
-                            .matcher(second);
-                    if (toCsv.matches()) {
-                        Object expected = pureLiteral(args.get(0).strip());
-                        if (expected instanceof String es) {
-                            recognized++;
-                            verified++;
-                            String actual = toCsv(rows);
-                            if (!csvEquals(es, actual, bound.query())) {
-                                problems.add("toCSV: expected <" + es + ">, got <" + actual + ">");
-                            }
-                        }
-                        continue;
-                    }
-                    Matcher bare = Pattern.compile(
-                            "^\\$R(?:\\.values)?(?:->toOne\\(\\))?$").matcher(second);
-                    // #TDS ... # literal expectation (optionally
-                    // ->toString() on both sides, optionally an explicit
-                    // ->sort(~col->ascending()) on the actual side):
-                    // header + full row grid
-                    String exp0 = args.get(0).strip();
-                    if (exp0.endsWith("->toString()")) {
-                        exp0 = exp0.substring(0, exp0.length() - "->toString()".length()).strip();
-                    }
-                    Matcher tdsAct = Pattern.compile(
-                            "^\\$R(?:\\.values)?(?:->toOne\\(\\))?"
-                                    + "(?:->sort\\((~\\w+->(?:ascending|descending)\\(\\)"
-                                    + "|\\[[^\\]]*\\])\\))?"
-                                    + "(?:->toString\\(\\))?$")
-                            .matcher(second);
-                    if (tdsAct.matches()
-                            && pureLiteral(exp0) instanceof TdsExpected te) {
-                        if (te.rows().isEmpty() && !failedSeeds.isEmpty()) {
-                            // an empty grid proves nothing when a seed
-                            // failed (same rule as assertEmpty; audit 8 F2)
-                            return new Outcome(fn.fqn(), Status.SHAPE,
-                                    "empty-TDS expectation unverifiable: "
-                                            + failedSeeds.size()
-                                            + " seed statement(s) failed: "
-                                            + failedSeeds.get(0));
-                        }
-                        recognized++;
-                        verified++;
-                        // header verifies from the result SCHEMA — an empty
-                        // result must still have the right columns
-                        List<String> actualCols = rows.isEmpty()
-                                ? bound.colNames() : new ArrayList<>(rows.get(0).keySet());
-                        List<Map<String, Object>> cmpRows = rows;
-                        List<String[]> sortKeys = new ArrayList<>();
-                        if (tdsAct.group(1) != null) {
-                            Matcher km = Pattern.compile("~(\\w+)->(ascending|descending)")
-                                    .matcher(tdsAct.group(1));
-                            while (km.find()) {
-                                sortKeys.add(new String[]{km.group(1), km.group(2)});
-                            }
-                        }
-                        if (!sortKeys.isEmpty() && !rows.isEmpty()) {
-                            cmpRows = new ArrayList<>(rows);
-                            cmpRows.sort((r1, r2) -> {
-                                for (String[] k : sortKeys) {
-                                    int c = compareCells(r1.get(k[0]), r2.get(k[0]));
-                                    if (c != 0) {
-                                        return "descending".equals(k[1]) ? -c : c;
-                                    }
-                                }
-                                return 0;
-                            });
-                        }
-                        if (!te.cols().equals(actualCols)) {
-                            problems.add("TDS columns: expected " + te.cols()
-                                    + ", got " + actualCols);
-                        } else if (!tdsRowsEqual(te.rows(), cmpRows,
-                                !sortKeys.isEmpty() ? "->sort(" : bound.query())) {
-                            problems.add("TDS rows: expected " + te.rows() + ", got "
-                                    + cmpRows.stream().map(r2 -> new ArrayList<>(r2.values())).toList());
-                        }
-                        continue;
-                    }
-                    if (bare.matches() && rows.size() == 1 && rows.get(0).size() == 1
-                            && rows.get(0).containsKey("__scalar__")) {
-                        Object expected = pureLiteral(args.get(0).strip());
-                        if (expected != null) {
-                            recognized++;
-                            verified++;
-                            Object actual = rows.get(0).get("__scalar__");
-                            if (!valueEquals(expected, actual)) {
-                                problems.add("expected " + expected + ", got " + actual);
-                            }
-                        }
-                        continue;
-                    }
-                    // a VALUE-COLLECTION result (map over instances lowers to
-                    // a single-column relation): bare $R.values against a list
-                    if (bare.matches() && !rows.isEmpty() && rows.get(0).size() == 1) {
-                        List<Object> expected = pureLiteralList(args.get(0).strip());
-                        if (expected != null) {
-                            recognized++;
-                            verified++;
-                            String col = rows.get(0).keySet().iterator().next();
-                            List<Object> actual = column(rows, col);
-                            if (!orderedEquals(expected, actual)) {
-                                problems.add("values: expected " + expected
-                                        + ", got " + actual);
-                            }
-                        }
-                        continue;
-                    }
-                    Matcher mapJoin = Pattern.compile(
-                            "^\\$R(?:\\.values)?\\.rows->map\\(\\s*\\w+\\s*\\|\\s*\\$\\w+"
-                                    + "\\.get\\w*\\('([^']+)'\\)\\s*\\)(->sort\\(\\))?"
-                                    + "->makeString\\('([^']*)'\\)$")
-                            .matcher(second);
-                    if (mapJoin.matches()) {
-                        Object expected = pureLiteral(args.get(0).strip());
-                        if (expected instanceof String es) {
-                            recognized++;
-                            verified++;
-                            List<Object> vals = column(rows, mapJoin.group(1));
-                            List<String> strs = new ArrayList<>(vals.stream()
-                                    .map(String::valueOf).toList());
-                            if (mapJoin.group(2) != null) {
-                                java.util.Collections.sort(strs);
-                            }
-                            String actual = String.join(mapJoin.group(3), strs);
-                            if (!joinedEquals(es, strs, mapJoin.group(3),
-                                    mapJoin.group(2) != null, bound.query())) {
-                                problems.add(mapJoin.group(1) + ": expected <" + es
-                                        + ">, got <" + actual + ">");
-                            }
-                        }
-                        continue;
-                    }
-                    Matcher propJoin = Pattern.compile(
-                            "^\\$R(?:\\.values)?->map\\(\\s*\\w+\\s*\\|\\s*\\$\\w+\\.(\\w+)\\s*\\)"
-                                    + "(->sort\\(\\))?->makeString\\((?:'([^']*)')?\\)$")
-                            .matcher(second);
-                    if (propJoin.matches()) {
-                        Object expRaw = pureLiteral(args.get(0).strip());
-                        List<Object> expList = expRaw == null
-                                ? pureLiteralList(args.get(0).strip()) : null;
-                        Object expected = expRaw != null ? expRaw
-                                : expList != null && expList.size() == 1 ? expList.get(0) : null;
-                        if (expected instanceof String es) {
-                            recognized++;
-                            verified++;
-                            List<String> strs = new ArrayList<>(
-                                    column(rows, propJoin.group(1)).stream()
-                                            .map(String::valueOf).toList());
-                            if (propJoin.group(2) != null) {
-                                java.util.Collections.sort(strs);
-                            }
-                            String actual = String.join(
-                                    propJoin.group(3) == null ? "" : propJoin.group(3), strs);
-                            if (!joinedEquals(es, strs,
-                                    propJoin.group(3) == null ? "" : propJoin.group(3),
-                                    propJoin.group(2) != null, bound.query())) {
-                                problems.add(propJoin.group(1) + ": expected <" + es
-                                        + ">, got <" + actual + ">");
-                            }
-                        }
-                        continue;
-                    }
-                    Matcher matrixJoin = Pattern.compile(
-                            "^\\$R(?:\\.values(?:->at\\(\\d+\\))?)?\\.rows->map\\(\\s*\\w+\\s*\\|\\s*\\$\\w+\\.values->makeString\\('([^']*)'\\)\\s*\\)"
-                                    + "(->sort\\(\\))?->makeString\\('([^']*)'\\)$")
-                            .matcher(second);
-                    if (matrixJoin.matches()) {
-                        Object expected = pureLiteral(args.get(0).strip());
-                        if (expected instanceof String es) {
-                            recognized++;
-                            verified++;
-                            List<String> rowStrs = new ArrayList<>();
-                            for (var row : rows) {
-                                rowStrs.add(row.values().stream()
-                                        .map(String::valueOf)
-                                        .collect(java.util.stream.Collectors
-                                                .joining(matrixJoin.group(1))));
-                            }
-                            if (matrixJoin.group(2) != null) {
-                                java.util.Collections.sort(rowStrs);
-                            }
-                            String actual = String.join(matrixJoin.group(3), rowStrs);
-                            if (!joinedEquals(es, rowStrs, matrixJoin.group(3),
-                                    matrixJoin.group(2) != null, bound.query())) {
-                                problems.add("rows: expected <" + es + ">, got <"
-                                        + actual + ">");
-                            }
-                        }
-                        continue;
-                    }
-                    Matcher cellsSortJoin = Pattern.compile(
-                            "^\\$R(?:\\.values(?:->at\\(\\d+\\))?)?\\.rows\\.values"
-                                    + "(->sort\\(\\))?->makeString\\('([^']*)'\\)$")
-                            .matcher(second);
-                    if (cellsSortJoin.matches()) {
-                        Object expected = pureLiteral(args.get(0).strip());
-                        if (expected instanceof String es) {
-                            recognized++;
-                            verified++;
-                            List<String> strs = new ArrayList<>();
-                            rows.forEach(row -> row.values().forEach(v ->
-                                    strs.add(String.valueOf(v))));
-                            if (cellsSortJoin.group(1) != null) {
-                                java.util.Collections.sort(strs);
-                            }
-                            String actual = String.join(cellsSortJoin.group(2), strs);
-                            if (!joinedEquals(es, strs, cellsSortJoin.group(2),
-                                    cellsSortJoin.group(1) != null, bound.query())) {
-                                problems.add("cells: expected <" + es + ">, got <"
-                                        + actual + ">");
-                            }
-                        }
-                        continue;
-                    }
-                    Matcher cellsJoin = Pattern.compile(
-                            "^\\$R(?:\\.values(?:->at\\(\\d+\\))?)?\\.rows->map\\(\\s*\\w+\\s*\\|\\s*\\$\\w+\\.values\\s*\\)"
-                                    + "(->sort\\(\\))?->makeString\\('([^']*)'\\)$")
-                            .matcher(second);
-                    if (cellsJoin.matches()) {
-                        Object expected = pureLiteral(args.get(0).strip());
-                        if (expected instanceof String es) {
-                            recognized++;
-                            verified++;
-                            List<String> strs = new ArrayList<>();
-                            rows.forEach(row -> row.values().forEach(v ->
-                                    strs.add(String.valueOf(v))));
-                            if (cellsJoin.group(1) != null) {
-                                java.util.Collections.sort(strs);
-                            }
-                            String actual = String.join(cellsJoin.group(2), strs);
-                            if (!joinedEquals(es, strs, cellsJoin.group(2),
-                                    cellsJoin.group(1) != null, bound.query())) {
-                                problems.add("cells: expected <" + es + ">, got <"
-                                        + actual + ">");
-                            }
-                        }
-                        continue;
-                    }
-                    Matcher colTypes = Pattern.compile(
-                            "^\\$R(?:\\.values)?\\.columns\\.type$").matcher(second);
-                    if (colTypes.matches()) {
-                        // expected is a list of BARE pure type names
-                        // ([String, Integer]) — parsed here, never via
-                        // pureLiteral (bare identifiers are not literals)
-                        String exp = args.get(0).strip();
-                        if (exp.matches("\\[\\s*\\w+(\\s*,\\s*\\w+)*\\s*\\]")) {
-                            List<Object> expected = new ArrayList<>();
-                            for (String part : exp.substring(1, exp.length() - 1).split(",")) {
-                                expected.add(part.strip());
-                            }
-                            recognized++;
-                            verified++;
-                            List<Object> actual = new ArrayList<>(bound.colTypes());
-                            if (!expected.equals(actual)) {
-                                problems.add("column types: expected " + expected
-                                        + ", got " + actual);
-                            }
-                        }
-                        continue;
-                    }
-                    Matcher colNames = Pattern.compile(
-                            "^\\$R(?:\\.values)?\\.columns\\.name$").matcher(second);
-                    if (colNames.matches()) {
-                        List<Object> expected = pureLiteralList(args.get(0).strip());
-                        if (expected != null) {
-                            recognized++;
-                            verified++;
-                            List<Object> actual = rows.isEmpty() ? List.of()
-                                    : new ArrayList<>(rows.get(0).keySet());
-                            if (!orderedEquals(expected, actual)) {
-                                problems.add("columns: expected " + expected + ", got " + actual);
-                            }
-                        }
-                        continue;
-                    }
-                    Matcher propCol = Pattern.compile(
-                            "^\\$R(?:\\.values)?\\.(\\w+)$").matcher(second);
-                    if (propCol.matches()) {
-                        List<Object> expected = pureLiteralList(args.get(0).strip());
-                        if (expected != null) {
-                            recognized++;
-                            verified++;
-                            List<Object> actual = column(rows, propCol.group(1));
-                            if (!orderedEquals(expected, actual)) {
-                                problems.add(propCol.group(1) + ": expected " + expected
-                                        + ", got " + actual);
-                            }
-                        }
-                        continue;
-                    }
-                    Matcher one = Pattern.compile(
-                            "^\\$R(?:\\.values)?->(?:toOne|first)\\(\\)(?:\\.(\\w+))?(?:->toOne\\(\\))?$")
-                            .matcher(second);
-                    Matcher at = Pattern.compile(
-                            "^\\$R(?:\\.values)?->at\\((\\d+)\\)\\.(\\w+)$").matcher(second);
-                    if (one.matches()) {
-                        Object expected = pureLiteral(args.get(0).strip());
-                        if (expected != null) {
-                            recognized++;
-                            verified++;
-                            Object actual = rows.isEmpty() ? null
-                                    : one.group(1) == null ? rows.get(0)
-                                            : rows.get(0).get(one.group(1));
-                            if (!valueEquals(expected, actual)) {
-                                problems.add("expected " + expected + ", got " + actual);
-                            }
-                        }
-                    } else if (at.matches()) {
-                        Object expected = pureLiteral(args.get(0).strip());
-                        if (expected != null) {
-                            recognized++;
-                            verified++;
-                            int idx = Integer.parseInt(at.group(1));
-                            if (!sortedQuery(bound.query())) {
-                                if (idx >= rows.size()) {
-                                    problems.add("at(" + idx + ") out of range ("
-                                            + rows.size() + " rows)");
-                                } else {
-                                    atClaims.computeIfAbsent(bound, k -> new AtClaims())
-                                            .claimCol(idx, at.group(2), expected);
-                                }
-                                continue;
-                            }
-                            Object actual = idx < rows.size() ? rows.get(idx).get(at.group(2)) : null;
-                            if (!valueEquals(expected, actual)) {
-                                problems.add("at(" + idx + ")." + at.group(2)
-                                        + ": expected " + expected + ", got " + actual);
-                            }
-                        }
-                    }
-                }
-                default -> { }
-            }
-            if (recognized == recognizedBefore && firstUnrecognized == null) {
-                firstUnrecognized = call.length() > 120 ? call.substring(0, 120) : call;
-            }
-        }
-        for (Map.Entry<ResultBinding, AtClaims> ce : atClaims.entrySet()) {
-            if (!ce.getValue().assignable(ce.getKey().rows())) {
-                problems.add("at(N) asserts: no consistent one-row-per-index"
-                        + " assignment: " + ce.getValue());
-            }
-        }
-        if (recognized == 0) {
-            return new Outcome(fn.fqn(), Status.SHAPE, "no recognizable assertions");
-        }
-        if (!problems.isEmpty()) {
-            return new Outcome(fn.fqn(), Status.FAIL, String.join("; ", problems));
-        }
-        // NEVER a false pass: PASS requires every assert recognized AND at
-        // least one non-advisory comparison to have actually run — a test
-        // whose asserts are all golden-SQL proves only "executed", which is
-        // SHAPE, not PASS.
-        int total = assertCalls(fn.body()).size();
-        if (recognized < total) {
-            return new Outcome(fn.fqn(), Status.SHAPE,
-                    "partial: " + recognized + "/" + total + " asserts recognized"
-                            + " (recognized ones hold); first unrecognized: "
-                            + firstUnrecognized);
-        }
-        if (verified == 0) {
-            return new Outcome(fn.fqn(), Status.SHAPE,
-                    "sql-only: " + recognized + " advisory golden-SQL assert(s), no row verification");
-        }
-        if (skippedSpan != null) {
-            // an execute() the corpus ran was NOT executed here — a PASS
-            // could be reading a stale same-named result (audit 8 F3)
-            return new Outcome(fn.fqn(), Status.SHAPE,
-                    "asserts hold but an execute() span was skipped: " + skippedSpan);
-        }
-        return new Outcome(fn.fqn(), Status.PASS, verified + " assert(s)");
-    }
 
     /** The test file's import sections + the test's own package (implicit). */
     private static com.legend.parser.ImportScope importScopeOf(Corpus.TestFn fn) {
@@ -1425,656 +563,36 @@ public final class Runner {
         return new com.legend.parser.ImportScope(wildcards, fn.imports());
     }
 
-    /** Core results → row maps (scalar carrier, graph JSON, tabular). */
-    @SuppressWarnings("unchecked")
-    private static List<Map<String, Object>> coreRows(com.legend.exec.ExecutionResult r) {
-        return switch (r) {
-            case com.legend.exec.ExecutionResult.Scalar sc ->
-                    List.of(java.util.Collections.singletonMap("__scalar__", sc.value()));
-            case com.legend.exec.ExecutionResult.Collection c -> {
-                List<Map<String, Object>> out = new ArrayList<>();
-                for (Object v : c.values()) {
-                    out.add(java.util.Collections.singletonMap("value", v));
-                }
-                yield out;
-            }
-            case com.legend.exec.ExecutionResult.Graph g -> {
-                Object parsed = toJava(com.gs.legend.util.Json.parse(g.json()));
-                List<Object> arr = parsed instanceof List<?> l
-                        ? (List<Object>) l : List.of(parsed);
-                List<Map<String, Object>> out = new ArrayList<>();
-                for (Object o : arr) {
-                    if (o instanceof Map<?, ?> mm) {
-                        out.add((Map<String, Object>) mm);
-                    }
-                }
-                yield out;
-            }
-            case com.legend.exec.ExecutionResult.Tabular t -> {
-                List<Map<String, Object>> out = new ArrayList<>();
-                for (com.legend.exec.Row row : t.rows()) {
-                    Map<String, Object> mm = new LinkedHashMap<>();
-                    for (int i = 0; i < t.columns().size(); i++) {
-                        mm.put(t.columns().get(i).name(), row.values().get(i));
-                    }
-                    out.add(mm);
-                }
-                yield out;
-            }
-        };
-    }
 
-    /** Class results arrive as the GRAPH envelope (JSON rows); TDS as tabular. */
-    @SuppressWarnings("unchecked")
 
-    private static Object toJava(com.gs.legend.util.Json.Node n) {
-        return switch (n) {
-            case com.gs.legend.util.Json.Obj o -> {
-                Map<String, Object> m = new LinkedHashMap<>();
-                o.fields().forEach((k, v) -> m.put(k, toJava(v)));
-                yield m;
-            }
-            case com.gs.legend.util.Json.Arr a ->
-                    a.items().stream().map(Runner::toJava).toList();
-            case com.gs.legend.util.Json.Str str -> str.value();
-            case com.gs.legend.util.Json.Num num ->
-                    num.isInteger() ? (Object) num.longValue() : (Object) num.doubleValue();
-            case com.gs.legend.util.Json.Bool b -> b.value();
-            case com.gs.legend.util.Json.Null ignored -> null;
-        };
-    }
 
-    /**
-     * CSV equality honoring the QUERY's order contract: a query with no
-     * sort has NO defined row order (the engine expectation encodes H2's
-     * incidental order; DuckDB's differs run to run with seed layout), so
-     * data rows compare as a MULTISET under an identical header. A sorted
-     * query compares exactly.
-     */
-    /**
-     * The query's OUTER chain carries an explicit sort — its row order is a
-     * contract. TOP-LEVEL only: a sortBy inside a nested lambda (an
-     * aggregation input) orders nothing about the outer rows (audit 8 U2).
-     */
-    private static boolean sortedQuery(String query) {
-        if (query == null) {
-            return false;
-        }
-        int depth = 0;
-        int i = 0;
-        while (i < query.length()) {
-            char c = query.charAt(i);
-            if (c == '\'') {
-                i = Corpus.skipString(query, i);
-                continue;
-            }
-            if (c == '(' || c == '[' || c == '{') {
-                depth++;
-            } else if (c == ')' || c == ']' || c == '}') {
-                depth--;
-            } else if (depth == 0 && c == '-' && query.startsWith("->", i)) {
-                int j = i + 2;
-                while (j < query.length() && Character.isWhitespace(query.charAt(j))) {
-                    j++;
-                }
-                if (query.startsWith("sort", j)) {
-                    return true;
-                }
-            }
-            i++;
-        }
-        return false;
-    }
 
-    /**
-     * Deferred {@code at(N)} expectations for one result under an unsorted
-     * query: every claimed index must match a DISTINCT actual row
-     * simultaneously (injective assignment) — plain per-assert membership
-     * lost row identity and absorbed duplicates (audit 8 F1).
-     */
-    private static final class AtClaims {
-        private final Map<Integer, List<Object>> rowByIdx = new LinkedHashMap<>();
-        private final Map<Integer, Map<String, List<Object>>> colsByIdx = new LinkedHashMap<>();
 
-        void claimRow(int idx, List<Object> expected) {
-            rowByIdx.put(idx, expected);
-        }
 
-        void claimCol(int idx, String col, Object expected) {
-            colsByIdx.computeIfAbsent(idx, k -> new LinkedHashMap<>())
-                    .computeIfAbsent(col, k -> new ArrayList<>()).add(expected);
-        }
 
-        boolean assignable(List<Map<String, Object>> rows) {
-            List<Integer> idxs = new ArrayList<>(new java.util.TreeSet<>(
-                    java.util.stream.Stream.concat(rowByIdx.keySet().stream(),
-                            colsByIdx.keySet().stream()).toList()));
-            return place(0, idxs, rows, new boolean[rows.size()]);
-        }
 
-        private boolean place(int k, List<Integer> idxs,
-                List<Map<String, Object>> rows, boolean[] used) {
-            if (k == idxs.size()) {
-                return true;
-            }
-            int idx = idxs.get(k);
-            for (int r = 0; r < rows.size(); r++) {
-                if (used[r] || !rowMatches(idx, rows.get(r))) {
-                    continue;
-                }
-                used[r] = true;
-                if (place(k + 1, idxs, rows, used)) {
-                    return true;
-                }
-                used[r] = false;
-            }
-            return false;
-        }
 
-        private boolean rowMatches(int idx, Map<String, Object> row) {
-            List<Object> full = rowByIdx.get(idx);
-            if (full != null && !orderedEquals(full, new ArrayList<>(row.values()))) {
-                return false;
-            }
-            Map<String, List<Object>> cols = colsByIdx.get(idx);
-            if (cols != null) {
-                for (Map.Entry<String, List<Object>> e : cols.entrySet()) {
-                    for (Object expected : e.getValue()) {
-                        if (!valueEquals(expected, row.get(e.getKey()))) {
-                            return false;
-                        }
-                    }
-                }
-            }
-            return true;
-        }
 
-        @Override
-        public String toString() {
-            return (rowByIdx.isEmpty() ? "" : "rows " + rowByIdx + " ")
-                    + (colsByIdx.isEmpty() ? "" : "cols " + colsByIdx);
-        }
-    }
 
-    /**
-     * makeString-join equality under the same order contract as
-     * {@link #csvEquals}: an explicit {@code ->sort()} on the assert side
-     * or a sorted query compares exactly; otherwise the joined parts
-     * compare as a MULTISET (separator-split — engine expectations encode
-     * H2's incidental row order).
-     */
-    private static boolean joinedEquals(String expected, List<String> parts, String sep,
-            boolean explicitSort, String query) {
-        if (expected.equals(String.join(sep, parts))) {
-            return true;
-        }
-        if (explicitSort || sortedQuery(query) || sep.isEmpty()) {
-            return false;
-        }
-        // multiset over the ACTUAL parts (pre-join) — separator-splitting
-        // the joined string could merge/split across cell boundaries when
-        // data contains the separator (audit 8 U1); when it does, only the
-        // exact compare above may pass
-        if (parts.stream().anyMatch(x -> x.contains(sep))) {
-            return false;
-        }
-        String[] e = expected.split(Pattern.quote(sep), -1);
-        if (e.length != parts.size()) {
-            return false;
-        }
-        List<String> pool = new ArrayList<>(parts);
-        for (String x : e) {
-            if (!pool.remove(x)) {
-                return false;
-            }
-        }
-        return true;
-    }
 
-    private static boolean csvEquals(String expected, String actual, String query) {
-        if (expected.equals(actual)) {
-            return true;
-        }
-        if (sortedQuery(query)) {
-            return false;   // ordered contract: exact only
-        }
-        String[] e = expected.split("\n", -1);
-        String[] a = actual.split("\n", -1);
-        if (e.length != a.length || e.length == 0 || !e[0].equals(a[0])) {
-            return false;
-        }
-        List<String> pool = new ArrayList<>(List.of(a).subList(1, a.length));
-        for (int i = 1; i < e.length; i++) {
-            if (!pool.remove(e[i])) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /** TDS toCSV rendering: header row + comma rows, each \n-terminated. */
-    private static String toCsv(List<Map<String, Object>> rows) {
-        if (rows.isEmpty()) {
-            return "";
-        }
-        StringBuilder out = new StringBuilder();
-        out.append(String.join(",", rows.get(0).keySet())).append('\n');
-        for (var row : rows) {
-            StringBuilder line = new StringBuilder();
-            for (Object v : row.values()) {
-                if (line.length() > 0) {
-                    line.append(',');
-                }
-                line.append(v == null ? "" : String.valueOf(v));
-            }
-            out.append(line).append('\n');
-        }
-        return out.toString();
-    }
-
-    /**
-     * Collapse whitespace runs to one space and tighten spacing around
-     * {@code ->} — OUTSIDE single-quoted string literals only. The old
-     * whole-text collapse corrupted separators like {@code makeString(' ')}
-     * and any literal containing {@code ->} (audit B2).
-     */
-    static String collapseOutsideStrings(String s) {
-        StringBuilder out = new StringBuilder();
-        int i = 0;
-        while (i < s.length()) {
-            char c = s.charAt(i);
-            if (c == '\'') {
-                int end = Corpus.skipString(s, i);
-                out.append(s, i, end);
-                i = end;
-                continue;
-            }
-            if (Character.isWhitespace(c)) {
-                int j = i;
-                while (j < s.length() && Character.isWhitespace(s.charAt(j))) {
-                    j++;
-                }
-                boolean beforeArrow = j + 1 < s.length()
-                        && s.charAt(j) == '-' && s.charAt(j + 1) == '>';
-                boolean afterArrow = out.length() >= 2
-                        && out.charAt(out.length() - 1) == '>'
-                        && out.charAt(out.length() - 2) == '-';
-                if (!beforeArrow && !afterArrow && j < s.length()) {
-                    out.append(' ');
-                }
-                i = j;
-                continue;
-            }
-            out.append(c);
-            i++;
-        }
-        return out.toString();
-    }
-
-    private static List<Object> column(List<Map<String, Object>> rows, String prop) {
-        List<Object> out = new ArrayList<>();
-        for (var row : rows) {
-            Object v = row.get(prop);
-            if (v instanceof List<?> l) {
-                out.addAll(l);
-            } else if (v != null) {
-                out.add(v);
-            }
-        }
-        return out;
-    }
-
-    /** Some row's cell list equals {@code expected} (position-free row assert). */
-    private static boolean anyRowMatches(List<Map<String, Object>> rows,
-            List<Object> expected) {
-        for (var row : rows) {
-            if (orderedEquals(expected, new ArrayList<>(row.values()))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean orderedEquals(List<Object> a, List<Object> b) {
-        if (a.size() != b.size()) {
-            return false;
-        }
-        for (int i = 0; i < a.size(); i++) {
-            if (!valueEquals(a.get(i), b.get(i))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private static boolean multisetEquals(List<Object> expected, List<Object> actual) {
-        if (expected.size() != actual.size()) {
-            return false;
-        }
-        List<Object> pool = new ArrayList<>(actual);
-        for (Object e : expected) {
-            int hit = -1;
-            for (int i = 0; i < pool.size(); i++) {
-                if (valueEquals(e, pool.get(i))) {
-                    hit = i;
-                    break;
-                }
-            }
-            if (hit < 0) {
-                return false;
-            }
-            pool.remove(hit);
-        }
-        return true;
-    }
-
-    private static boolean valueEquals(Object expected, Object actual) {
-        if (expected == NULL_EXPECTED) {
-            return actual == null;
-        }
-        if (actual == null) {
-            return false;   // null never equals a literal expectation
-        }
-        if (expected instanceof DateExpected de) {
-            // canonical date compare: ISO-ify, drop the zone and
-            // insignificant fractional zeros, then trailing midnight
-            String a = canonicalDate(String.valueOf(actual));
-            String e = canonicalDate(de.iso());
-            return a.equals(e) || String.valueOf(actual).equals(de.iso());
-        }
-        if (expected instanceof EnumExpected ee) {
-            return ee.valueName().equals(String.valueOf(actual));
-        }
-        if (expected instanceof Long el) {
-            if (actual instanceof Long al) {
-                return el.longValue() == al.longValue();
-            }
-            if (actual instanceof Integer ai) {
-                return el.longValue() == ai.longValue();
-            }
-            if (actual instanceof java.math.BigInteger bi) {
-                return bi.equals(java.math.BigInteger.valueOf(el));
-            }
-            if (actual instanceof java.math.BigDecimal bd) {
-                return bd.compareTo(java.math.BigDecimal.valueOf(el)) == 0;
-            }
-            if (actual instanceof Double ad) {
-                return Math.abs(el.doubleValue() - ad) < 1e-9;
-            }
-            return false;
-        }
-        if (expected instanceof Double ed) {
-            return actual instanceof Number an
-                    && Math.abs(ed - an.doubleValue()) < 1e-9;
-        }
-        if (expected instanceof Boolean eb) {
-            return actual instanceof Boolean ab ? eb.equals(ab) : false;
-        }
-        // string expectation vs stringified actual — but NEVER across the
-        // number/boolean kinds ('25' must not equal integer 25: that
-        // collapse masked wrong column typing, audit B5). Date/time actuals
-        // legitimately compare through their wire print form.
-        return expected instanceof String es
-                && !(actual instanceof Number) && !(actual instanceof Boolean)
-                && es.equals(String.valueOf(actual));
-    }
 
     // ===== pure literal parsing (expected values) =====
 
-    static Object pureLiteral(String text) {
-        text = text.strip();
-        // single string literal OR literal-CONCAT chain 'a' + 'b' (toCSV
-        // expectations are spelled as concatenated string literals)
-        if (text.startsWith("'")) {
-            StringBuilder out = new StringBuilder();
-            int i = 0;
-            while (i < text.length()) {
-                if (text.charAt(i) != '\'') {
-                    return null;
-                }
-                int end = Corpus.skipString(text, i);
-                out.append(text, i + 1, end - 1);
-                i = end;
-                while (i < text.length() && Character.isWhitespace(text.charAt(i))) {
-                    i++;
-                }
-                if (i >= text.length()) {
-                    return out.toString().replace("\\'", "'").replace("\\n", "\n");
-                }
-                if (text.charAt(i) != '+') {
-                    return null;
-                }
-                i++;
-                while (i < text.length() && Character.isWhitespace(text.charAt(i))) {
-                    i++;
-                }
-            }
-            return out.toString().replace("\\'", "'").replace("\\n", "\n");
-        }
-        if (text.matches("-?\\d+")) {
-            return Long.parseLong(text);
-        }
-        if (text.matches("-?\\d+\\.\\d+")) {
-            return Double.parseDouble(text);
-        }
-        if (text.equals("true") || text.equals("false")) {
-            return Boolean.parseBoolean(text);
-        }
-        // ^TDSNull() — the TDS null cell instance literal
-        if (text.equals("^TDSNull()")) {
-            return NULL_EXPECTED;
-        }
-        // #TDS <header>\n<rows>...# grid literal
-        if (text.startsWith("#TDS") && text.endsWith("#")) {
-            String[] lines = text.substring(4, text.length() - 1).strip().split("\n");
-            if (lines.length == 0) {
-                return null;
-            }
-            List<String> cols = new ArrayList<>();
-            for (String c : lines[0].split(",")) {
-                cols.add(unquote(c.strip()));
-            }
-            List<List<Object>> rows2 = new ArrayList<>();
-            for (int li = 1; li < lines.length; li++) {
-                if (lines[li].strip().isEmpty()) {
-                    continue;
-                }
-                List<Object> row = new ArrayList<>();
-                for (String cell : lines[li].split(",", -1)) {
-                    row.add(tdsCell(cell.strip()));
-                }
-                rows2.add(row);
-            }
-            return new TdsExpected(cols, rows2);
-        }
-        // %date literals — compared through their canonical print form
-        if (text.matches("%-?\\d{4}[-\\dT:.+Z]*")) {
-            return new DateExpected(text.substring(1));
-        }
-        // Enum.VALUE references — compared by VALUE NAME (the wire carries
-        // enum names)
-        Matcher em = Pattern.compile("^((?:\\w+::)*\\w+)\\.(\\w+)$").matcher(text);
-        if (em.matches() && !text.contains("(")) {
-            return new EnumExpected(em.group(2));
-        }
-        return null;   // not a literal — unrecognized assert shape
-    }
 
-    /** The ^TDSNull() expectation: matches ONLY a null cell. */
-    static final Object NULL_EXPECTED = new Object() {
-        @Override
-        public String toString() {
-            return "^TDSNull()";
-        }
-    };
 
-    /** A {@code #TDS ... #} literal expectation: header + parsed row grid. */
-    record TdsExpected(List<String> cols, List<List<Object>> rows) {
-    }
 
-    /** Strip surrounding single quotes (quoted TDS header/cell spelling). */
-    private static String unquote(String s) {
-        return s.length() >= 2 && s.startsWith("'") && s.endsWith("'")
-                ? s.substring(1, s.length() - 1) : s;
-    }
 
-    /** One TDS-literal cell: integer/float/boolean/date by shape, null for empty. */
-    private static Object tdsCell(String cell) {
-        // null spellings test BEFORE unquoting: a QUOTED 'null' is the
-        // string; bare null/TDSNull/empty are the null cell (audit 8 U3)
-        if (cell.isEmpty() || cell.equals("null") || cell.equals("TDSNull")) {
-            return NULL_EXPECTED;
-        }
-        cell = unquote(cell);
-        if (cell.isEmpty()) {
-            return NULL_EXPECTED;
-        }
-        if (cell.matches("-?\\d+")) {
-            return Long.parseLong(cell);
-        }
-        if (cell.matches("-?\\d+\\.\\d+")) {
-            return Double.parseDouble(cell);
-        }
-        if (cell.equals("true") || cell.equals("false")) {
-            return Boolean.parseBoolean(cell);
-        }
-        if (cell.matches("\\d{4}-\\d{2}-\\d{2}([T ].*)?")) {
-            return new DateExpected(cell.replace(' ', 'T'));
-        }
-        return cell;
-    }
 
-    /** Type-aware cell comparison for assert-side sorts (nulls last). */
-    private static int compareCells(Object a, Object b) {
-        if (a == null || b == null) {
-            return a == null ? (b == null ? 0 : 1) : -1;
-        }
-        if (a instanceof Number na && b instanceof Number nb) {
-            return Double.compare(na.doubleValue(), nb.doubleValue());
-        }
-        return String.valueOf(a).compareTo(String.valueOf(b));
-    }
 
-    /** Row-grid equality under the query's order contract. */
-    private static boolean tdsRowsEqual(List<List<Object>> expected,
-            List<Map<String, Object>> actual, String query) {
-        if (expected.size() != actual.size()) {
-            return false;
-        }
-        if (sortedQuery(query)) {
-            for (int i = 0; i < expected.size(); i++) {
-                if (!tdsRowEquals(expected.get(i),
-                        new ArrayList<>(actual.get(i).values()))) {
-                    return false;
-                }
-            }
-            return true;
-        }
-        List<List<Object>> pool = new ArrayList<>();
-        actual.forEach(r -> pool.add(new ArrayList<>(r.values())));
-        for (List<Object> e : expected) {
-            int hit = -1;
-            for (int i = 0; i < pool.size(); i++) {
-                if (tdsRowEquals(e, pool.get(i))) {
-                    hit = i;
-                    break;
-                }
-            }
-            if (hit < 0) {
-                return false;
-            }
-            pool.remove(hit);
-        }
-        return true;
-    }
 
-    /**
-     * TDS cell rows compare NUMERIC-KIND-STRICTLY: pure's toString prints
-     * 52 vs 52.0 differently, so a wrongly Float-typed Integer column must
-     * FAIL here even though the epsilon compare would pass it (audit 8 U3).
-     */
-    private static boolean tdsRowEquals(List<Object> expected, List<Object> actual) {
-        if (expected.size() != actual.size()) {
-            return false;
-        }
-        for (int i = 0; i < expected.size(); i++) {
-            Object e = expected.get(i);
-            Object a = actual.get(i);
-            boolean eInt = e instanceof Long;
-            boolean aInt = a instanceof Long || a instanceof Integer
-                    || a instanceof java.math.BigInteger;
-            boolean eFp = e instanceof Double;
-            boolean aFp = a instanceof Double || a instanceof Float
-                    || a instanceof java.math.BigDecimal;
-            if ((eInt && aFp) || (eFp && aInt)) {
-                return false;
-            }
-            if (!valueEquals(e, a)) {
-                return false;
-            }
-        }
-        return true;
-    }
 
-    private static String canonicalDate(String s) {
-        // zone suffix and insignificant fractional zeros are PRINT
-        // variance; a trailing T00:00 is NOT — stripping it equated a DATE
-        // with a midnight DATETIME, masking wrong column typing (audit A4)
-        String v = s.replace(' ', 'T')
-                .replaceAll("\\+0000$", "").replaceAll("Z$", "");
-        if (v.contains(".")) {
-            v = v.replaceAll("0+$", "").replaceAll("\\.$", "");
-        }
-        return v;
-    }
 
-    /** A %date expectation: equality via canonical date-print comparison. */
-    record DateExpected(String iso) { }
 
-    /** An Enum.VALUE expectation: equality via the value NAME (wire convention). */
-    record EnumExpected(String valueName) { }
 
-    static List<Object> pureLiteralList(String text) {
-        text = text.strip();
-        if (!text.startsWith("[") || !text.endsWith("]")) {
-            Object single = pureLiteral(text);
-            return single == null ? null : List.of(single);
-        }
-        List<Object> out = new ArrayList<>();
-        for (String part : splitArgs(text.substring(1, text.length() - 1))) {
-            Object v = pureLiteral(part.strip());
-            if (v == null) {
-                return null;
-            }
-            out.add(v);
-        }
-        return out;
-    }
 
     // ===== text machinery =====
 
-    /** Top-level assert*(...) calls in a test body. */
-    static List<String> assertCalls(String body) {
-        List<String> out = new ArrayList<>();
-        for (int[] span : assertCallSpans(body)) {
-            out.add(body.substring(span[0], span[1]));
-        }
-        return out;
-    }
 
-    /** [start, end) spans of assert*(...) calls, in body order. */
-    static List<int[]> assertCallSpans(String body) {
-        List<int[]> out = new ArrayList<>();
-        Matcher m = Pattern.compile("\\b(assert\\w*)\\s*\\(").matcher(body);
-        while (m.find()) {
-            int open = body.indexOf('(', m.start());
-            int close = matchParen(body, open);
-            if (close > 0) {
-                out.add(new int[]{m.start(), close + 1});
-            }
-        }
-        return out;
-    }
 
     static int matchParen(String s, int open) {
         int depth = 0;

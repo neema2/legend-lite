@@ -183,6 +183,75 @@ class TestBodyTest {
     }
 
     @Test
+    void tdsSurfaceRowsAndColumns() throws Exception {
+        assertHeld(run("""
+                let result = execute(|Person.all()->project([p|$p.name, p|$p.age],
+                        ['name', 'age']), test::M, r(), e());
+                let tds = $result.values->at(0);
+                assertSize($tds.rows, 3);
+                assertEquals(['name', 'age'], $result.values->at(0).columns.name);
+                assertEquals(['String', 'Integer'], $result.values->at(0).columns.type);
+                assertSize($result.values->at(0).columns, 2);
+                """), 4);
+    }
+
+    @Test
+    void letAliasOfExecuteResultSplices() throws Exception {
+        assertHeld(run("""
+                let result = execute(|Person.all()->project([p|$p.age], ['age']),
+                        test::M, r(), e());
+                let tds = $result.values->at(0);
+                assertSameElements([25, 30, 41], $tds->map(x|$x.age));
+                assertSize($tds.rows, 3);
+                """), 2);
+    }
+
+    @Test
+    void toCsvAgainstStringLiteral() throws Exception {
+        assertHeld(run("""
+                let result = execute(|Person.all()->project([p|$p.name], ['who'])
+                        ->sort(asc('who')), test::M, r(), e());
+                assertEquals('who\\nAlice\\nBob\\nCid\\n',
+                        $result.values->at(0)->toCSV());
+                """), 1);
+    }
+
+    @Test
+    void tdsLiteralGridCompare() throws Exception {
+        assertHeld(run("""
+                let result = execute(|Person.all()->project([p|$p.name, p|$p.age],
+                        ['name', 'age']), test::M, r(), e());
+                assertEquals(#TDS
+                              name, age
+                              Cid, 41
+                              Bob, 30
+                              Alice, 25
+                            #->toString(),
+                        $result.values->at(0)->sort(desc('name'))->toString());
+                """), 1);
+    }
+
+    @Test
+    void makeStringOverMappedColumn() throws Exception {
+        assertHeld(run("""
+                let result = execute(|Person.all()->project([p|$p.name], ['name'])
+                        ->sort(asc('name')), test::M, r(), e());
+                assertEquals('Alice,Bob,Cid',
+                        $result.values->at(0)->map(r|$r.name)->makeString(','));
+                """), 1);
+    }
+
+    @Test
+    void classQueryGraphSizeAndProperties() throws Exception {
+        assertHeld(run("""
+                let result = execute(|Person.all()->filter(p|$p.age > 28),
+                        test::M, r(), e());
+                assertSize($result.values, 2);
+                assertSameElements(['Bob', 'Cid'], $result.values.name);
+                """), 2);
+    }
+
+    @Test
     void unknownAssertFormIsLoudUnsupported() throws Exception {
         TestBody.Outcome o = run("""
                 let result = execute(|Person.all()->project([p|$p.name], ['name']),

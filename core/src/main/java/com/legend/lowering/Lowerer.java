@@ -2086,6 +2086,40 @@ public final class Lowerer {
                 int idx = fqn.lastIndexOf("::");
                 yield new SqlExpr.StringLit(idx < 0 ? fqn : fqn.substring(idx + 2));
             }
+            // from() in scalar position: execution-context metadata only —
+            // the value is its source's
+            case com.legend.compiler.spec.typed.TypedFrom fr2 ->
+                    scalar(fr2.source(), columns);
+            // relation->map(row|scalar) consumed as a VALUE COLLECTION
+            // (makeString/joinStrings tails): aggregate the projected
+            // column to a LIST value via a scalar subquery
+            case com.legend.compiler.spec.typed.TypedMap m2
+                    when m2.source().info().type() instanceof Type.RelationType
+                    && m2.mapper() instanceof com.legend.compiler.spec.typed.TypedLambda ml2
+                    && !(ml2.info().type() instanceof Type.FunctionType ft2
+                            && ft2.result().type() instanceof Type.RelationType) -> {
+                com.legend.compiler.element.type.Multiplicity colMult2 =
+                        ml2.info().type() instanceof Type.FunctionType fnT2
+                                ? fnT2.result().multiplicity()
+                                : com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE;
+                SqlSelect proj = relation(new com.legend.compiler.spec.typed.TypedProject(
+                        m2.source(),
+                        List.of(new com.legend.compiler.spec.typed.TypedFuncCol("value", ml2)),
+                        new com.legend.compiler.element.type.ExprType(
+                                new Type.RelationType(List.of(
+                                        new Type.RelationType.Column("value",
+                                                m2.info().type(), colMult2))),
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE)));
+                String sub = nextAlias();
+                SqlSelect agg = SqlSelect.starOf(new SqlSource.Subselect(proj, sub))
+                        .withProjections(List.of(new SqlSelect.Projection(
+                                        new SqlAgg.Reducer("LIST", List.of(
+                                                new SqlExpr.Column(sub, "value")), false),
+                                        null)),
+                                List.of(new com.legend.sql.OutputCol("value",
+                                        com.legend.sql.SqlType.Scalar.VARCHAR, true)));
+                yield new SqlExpr.ScalarSubquery(agg);
+            }
             // A single-column RELATION consumed in SCALAR position — the
             // correlated scalar subquery (value-position filtered
             // navigation). DuckDB raises on more than one row (pure toOne

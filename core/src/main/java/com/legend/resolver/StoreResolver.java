@@ -668,6 +668,8 @@ public final class StoreResolver {
     private static boolean isObjectSpace(TypedSpec source) {
         return switch (source) {
             case TypedGetAll ignored -> true;
+            case com.legend.compiler.spec.typed.TypedFrom fr ->
+                    isObjectSpace(fr.source());
             case TypedFilter f -> isObjectSpace(f.source());
             case TypedLimit l -> isObjectSpace(l.source());
             case TypedDrop d -> isObjectSpace(d.source());
@@ -832,6 +834,7 @@ public final class StoreResolver {
         // IMPLICIT serialize over the class's scalar bindings (plan §E10).
         List<TypedGraphTree> tree = null;   // non-null => graph terminal
         boolean implicitSerialize = false;
+        Context chainContext = context;     // an in-chain from() re-scopes
         TypedSpec cur;
         if (top instanceof TypedSerialize sz) {
             tree = sz.tree();
@@ -869,6 +872,17 @@ public final class StoreResolver {
                 cur = asSort;
                 continue;
             }
+            // an in-chain from() re-scopes the execution context for the
+            // rest of the walk and contributes NO op
+            if (cur instanceof TypedFrom fr) {
+                if (fr.mapping().isPresent()) {
+                    context = Context.ofMapping(fr.mapping().get().fullPath());
+                } else if (fr.runtime().isPresent()) {
+                    context = Context.ofRuntime(fr.runtime().get().fullPath());
+                }
+                cur = fr.source();
+                continue;
+            }
             ops.add(cur);
             cur = switch (cur) {
                 case TypedFilter f -> f.source();
@@ -894,11 +908,12 @@ public final class StoreResolver {
                     + " (use allVersions() for the unfiltered extent)",
                     g.classFqn());
         }
-        ClassSource cs = sources.get(dispatch(context, g.classFqn()), g.classFqn(),
-                target -> dispatch(context, target),
-                (context.explicitMapping() == null ? "" : context.explicitMapping())
+        final Context fctx = chainContext;
+        ClassSource cs = sources.get(dispatch(fctx, g.classFqn()), g.classFqn(),
+                target -> dispatch(fctx, target),
+                (fctx.explicitMapping() == null ? "" : fctx.explicitMapping())
                         + '\u0000'
-                        + (context.runtimeFqn() == null ? "" : context.runtimeFqn()));
+                        + (fctx.runtimeFqn() == null ? "" : context.runtimeFqn()));
 
         // 2. Demand scan over ALL the chain's user lambdas (one funnel with
         //    the substitution — they cannot drift), close over slot

@@ -627,8 +627,10 @@ final class Scalars {
         }
         familyIfPresent(SqlFn.MINUS, "sub");
         // joinStrings over a LIST value: (list), (list, sep), or
-        // (list, prefix, sep, suffix).
-        for (String f : Pure.nativeKeysAt("joinStrings")) {
+        // (list, prefix, sep, suffix). makeString is the Any[*] spelling of
+        // the same operation (elements stringify — string_agg casts).
+        for (String f : concat(Pure.nativeKeysAt("joinStrings"),
+                Pure.nativeKeysAt("makeString"))) {
             RULES.put(f, (n, args) -> {
                 // A TO-ONE source IS the joined string; an EMPTY list joins
                 // to '' (list_aggregate over NULL/[] is NULL — coalesce).
@@ -2030,6 +2032,13 @@ final class Scalars {
             i++;
         }
         return out.toString();
+    }
+
+    private static Iterable<String> concat(Iterable<String> a, Iterable<String> b) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        a.forEach(out::add);
+        b.forEach(out::add);
+        return out;
     }
 
     private static SqlExpr strptimeOf(List<SqlExpr> args, boolean toDate) {
