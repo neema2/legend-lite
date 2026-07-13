@@ -153,7 +153,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping | 10 | 2 | 0 | 4 | 4 |
 | tests/mapping/association | 23 | 1 | 0 | 18 | 4 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 0 | 0 | 32 | 0 |
-| tests/mapping/distinct | 18 | 7 | 2 | 9 | 0 |
+| tests/mapping/distinct | 18 | 8 | 2 | 8 | 0 |
 | tests/mapping/dynaJoin | 5 | 0 | 0 | 1 | 4 |
 | tests/mapping/embedded | 63 | 34 | 6 | 21 | 2 |
 | tests/mapping/enumeration | 26 | 9 | 2 | 2 | 13 |
@@ -178,7 +178,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **392** | 59 | 1097 | 744 |
+| **total** | 2292 | **393** | 59 | 1096 | 744 |
 
 ### mapping walls (dropped at assembly)
 
@@ -319,7 +319,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - 28x unknown function 'product'
 - 23x expected at most one value, got many ([*])
 - 23x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
-- 22x [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- 22x [1:13] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - 22x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - 21x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 17x unknown function 'getAllVersionsInRange'
@@ -655,7 +655,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFilterInWithJoin [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testMappingFromQueriesViaMappingWithAssociationsOnly [functions/tests]: [3504:34] expected type name, got NEW_SYMBOL
 - ERROR testClassMappingsAreCorrectlyIsolated [functions/tests]: [3504:34] expected type name, got NEW_SYMBOL
-- ERROR testEnumProjection [functions/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Firm' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::fromMapping::MappingWithClasses' failed to normalize this class: Join 'Address_Firm' not found in db 'meta::relationa
+- ERROR testEnumProjection [functions/tests]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::fromMapping::MappingWithClasses'
 - ERROR testFromWithMapping [functions/tests]: [3504:87] expected BRACKET_CLOSE but found PAREN_OPEN ('(')
 - ERROR testFromWithMappingAndIntermediateFuncCall [functions/tests]: [3504:87] expected BRACKET_CLOSE but found PAREN_OPEN ('(')
 - SHAPE testSimpleGetter [functions/tests]: no recognizable assertions
@@ -846,7 +846,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSimpleDerivedThroughAssociation [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - FAIL testDerivedWithFiltering [functions/tests/projection]: cells: expected <CUSIP1,CUSIP2,CUSIP3,Firm A,Firm C,Firm D,Firm X,TDSNull>, got <CUSIP1,CUSIP2,CUSIP3,Firm A,Firm C,Firm D,Firm X,null>
 - FAIL testDerivedWithFilteringTwoProperties [functions/tests/projection]: cells: expected <CUSIP1,CUSIP2,CUSIP3,Firm A,Firm C,Firm D,Firm X,ISIN1,ISIN2,ISIN3,TDSNull,TDSNull>, got <CUSIP1,CUSIP2,CUSIP3,Firm A,Firm C,Firm D,Firm X,ISIN1,ISIN2,ISIN3,null,null>
-- ERROR testQualifierWithFilteringAndParameters [functions/tests/projection]: [1:263] navigation path segment 'synonymByType(meta::relational::tests::model::simple::ProductSynonymType.CUSIP)' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::model::simple::Product/synonymByType(meta::relational::tests::model::simple::ProductSy
+- ERROR testQualifierWithFilteringAndParameters [functions/tests/projection]: [1:103] navigation path segment 'synonymByType(ProductSynonymType.CUSIP)' uses an unsupported path feature (only plain property segments desugar): #/Product/synonymByType(ProductSynonymType.CUSIP)/name!cusip#
 - FAIL testTwoQualifiersUsingSameJoinWithNoUserParams [functions/tests/projection]: size: expected 1, got 4
 - ERROR testQualifierInLambdaDeep [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testQualifierBeforeProject [functions/tests/projection]: class query under TypedMap is not resolvable yet (H2 vocabulary)
@@ -941,14 +941,14 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testTdsJoinConcatenateAndJoin [lineage/scanRelations]: no execute(|...) call
 - ERROR testBiTemporalAllTypeQuery [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
 - ERROR testBiTemporalPropertyUsageInProject [milestoning/tests]: unknown function 'biTemporalProduct'
-- ERROR testBiTemporalPropertyUsageInProjectPath [milestoning/tests]: [1:150] navigation path segment 'biTemporalProduct(%2017-6-10, %2017-6-9)' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::milestoning::Order/biTemporalProduct(%2017-6-10, %2017-6-9)/id#
+- ERROR testBiTemporalPropertyUsageInProjectPath [milestoning/tests]: [1:74] navigation path segment 'biTemporalProduct(%2017-6-10, %2017-6-9)' uses an unsupported path feature (only plain property segments desugar): #/Order/biTemporalProduct(%2017-6-10, %2017-6-9)/id#
 - ERROR testMultipleBiTemporalPropertyUsageInProject [milestoning/tests]: unknown function 'biTemporalProduct'
 - ERROR testMultipleBiTemporalPropertyUsageInProjectWithMilestoningInfinityNotSpecifiedInDB [milestoning/tests]: unknown function 'biTemporalProduct'
 - ERROR testMultipleBiTemporalPropertyUsageInProjectWithMilestoningInfinitySpecifiedInDB [milestoning/tests]: unknown function 'biTemporalProduct'
-- ERROR testMultipleBiTemporalPropertyUsageInProjectPathWithMilestoningInfinitySpecifiedInDBPlusLatestPropagation [milestoning/tests]: [1:190] navigation path segment 'biTemporalProduct(%latest, %latest)' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::milestoning::Order/biTemporalProduct(%latest, %latest)/biTemporalClassification(%latest, %latest)/type#
+- ERROR testMultipleBiTemporalPropertyUsageInProjectPathWithMilestoningInfinitySpecifiedInDBPlusLatestPropagation [milestoning/tests]: [1:114] navigation path segment 'biTemporalProduct(%latest, %latest)' uses an unsupported path feature (only plain property segments desugar): #/Order/biTemporalProduct(%latest, %latest)/biTemporalClassification(%latest, %latest)/type#
 - ERROR testMultipleBiTemporalPropertyUsageInProjectWithMilestoningInfinitySpecifiedInDBPlusLatestPropagation [milestoning/tests]: unknown function 'biTemporalProduct'
-- ERROR testPopulationOfMilestonedThisBiTemporalDatesInProject [milestoning/tests]: [1:61] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testPopulationOfMilestonedThisBiTemporalDatesInProjectAgainstNonMilestonedStore [milestoning/tests]: [1:61] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testPopulationOfMilestonedThisBiTemporalDatesInProject [milestoning/tests]: [1:23] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testPopulationOfMilestonedThisBiTemporalDatesInProjectAgainstNonMilestonedStore [milestoning/tests]: [1:23] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testBiTemporalQueryMappedToSingleTemporalStore [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
 - ERROR testBiTemporalToBiTemporalDatePropagation [milestoning/tests]: unknown function 'biTemporalProduct'
 - ERROR testBiTemporalToBiTemporalDatePropagationForAll [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
@@ -965,26 +965,26 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testConstraintUsageOfThisMilestoningContext2 [milestoning/tests]: no execute(|...) call
 - SHAPE testConstraintUsageOfThisMilestoningContext2WithNonTemporalStore [milestoning/tests]: no execute(|...) call
 - SHAPE testConstraintUsageOfThisMilestoningContext3 [milestoning/tests]: no execute(|...) call
-- ERROR testPopulationOfMilestonedThisBusinessDatesInProject [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testMilestonedThisBusinessDateInPosition1InQualfiedPropertySequence [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testPopulationOfMilestonedThisBusinessDatesInProject [milestoning/tests]: [1:13] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestonedThisBusinessDateInPosition1InQualfiedPropertySequence [milestoning/tests]: [1:13] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - SHAPE testMilestonedThisBusinessDateInPosition1InQualfiedPropertySequence2 [milestoning/tests]: execute() query arg is not a lambda: {|Product.all((%2015-10-16))->project([p
 - SHAPE testMilestonedThisBusinessDateWithNestedDerivedProperty [milestoning/tests]: execute() query arg is not a lambda: {|Product.all((%2015-10-16))->project([x
-- ERROR testMilestonedThisBusinessDateWithNonThisAccessParameter [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestonedThisBusinessDateWithNonThisAccessParameter [milestoning/tests]: [1:13] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - SHAPE testProcessedMilestonedExchangeNameConstraint [milestoning/tests]: no execute(|...) call
-- ERROR testMilestonedThisBusinessDateInPosition2InQualfiedPropertySequence [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testMilestonedThisBusinessDateUsedAsParameterToFunctionParametersOfMilestonedQualifiedProperty [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestonedThisBusinessDateInPosition2InQualfiedPropertySequence [milestoning/tests]: [1:13] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestonedThisBusinessDateUsedAsParameterToFunctionParametersOfMilestonedQualifiedProperty [milestoning/tests]: [1:13] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - SHAPE testMilestonedThisBusinessDateUsedAsParameterToFunctionInMilestoningQualifiedPropertyMappedToView [milestoning/tests]: no execute(|...) call
-- ERROR testMilestonedQualifiedPropertyWithDateProvidedByFunction [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestonedQualifiedPropertyWithDateProvidedByFunction [milestoning/tests]: [1:13] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - SHAPE testViewChainsWithBusinessDate [milestoning/tests]: no execute(|...) call
-- ERROR testThisBusinessDateUsageInQualifiedProperty [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testThisBusinessDateUsageInQualifiedProperty [milestoning/tests]: [1:13] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testPopulationOfLatestMilestonedDateInQuery [milestoning/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::Product' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testPopulationOfMilestonedBusinessDateWithTimeComponentInQuery [milestoning/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::Product' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testMilestoningFiltersPreservedInTdsJoinWithConcatenate [milestoning/tests]: unknown function 'product'
 - ERROR testQueryOfMilestonedTypeWithFilterInMapping [milestoning/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::StockProduct' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testQueryOfMilestonedTypeUsingLatestWithFilterInMapping [milestoning/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::StockProduct' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testMilestoningQueryWithMilestoneFilterANdDifferentDatesOnTypeAndProperty [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testMilestoningQueryWithMilestoneFilterAndDifferentDatesOnTypeWithLatestDateOnProperty [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testMilestoningQueryWithMilestoneFilterOnAssociationProperty [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningQueryWithMilestoneFilterANdDifferentDatesOnTypeAndProperty [milestoning/tests]: [1:13] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningQueryWithMilestoneFilterAndDifferentDatesOnTypeWithLatestDateOnProperty [milestoning/tests]: [1:13] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningQueryWithMilestoneFilterOnAssociationProperty [milestoning/tests]: [1:13] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testNonMilestoningQueryWithMilestoneFilterSimple [milestoning/tests]: unknown function 'product'
 - ERROR testNonMilestoningQueryWithLatestMilestoneFilterSimple [milestoning/tests]: unknown function 'product'
 - ERROR testNonMilestoningQueryWithMilestoneFilterOnAssociation [milestoning/tests]: unknown function 'ascProduct'
@@ -1002,27 +1002,27 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testBusinessDatePropagationInColFunction [milestoning/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
 - SHAPE testBusinessDatePropagationInColFunction_asQueryParam [milestoning/tests]: no execute(|...) call
 - ERROR testBusinessDatePropagationInColFunctionWithDoc [milestoning/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testPlanQueryWithVariableRundateWithinLambda [milestoning/tests]: [2:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testPlanQueryWithVariableRundateWithinLambda [milestoning/tests]: [2:18] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - SHAPE testExecutionPlanForQueryWithVariableRundateWithinLambda [milestoning/tests]: no execute(|...) call
 - ERROR testNonMilestoningQueryWithMilestoneFilterVariableRundateWithinLambda [milestoning/tests]: unknown function 'product'
 - ERROR testMilestoningCriteriaAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: unknown function 'product'
 - ERROR testMilestoningCriteriaAppliedToSimplePropertyJoinFromTemporalClassThroughQualifiedProperty [milestoning/tests]: in function 'meta::relational::tests::milestoning::Order$prop$productQp': unknown function 'product'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: unknown function 'product'
 - ERROR testMilestoningCriteriaAppliedToJoinsOnBusinessTemporalClassForComplexProperty [milestoning/tests]: unknown function 'stockProduct'
-- ERROR testMilestonedQualifiedPropertyUsedOnSuperTypeInEmbedded [milestoning/tests]: [1:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testMilestoneFiltersAreNotAppliedToEmbeddedPropertiesInQualifiersTriggeringIsolationSelfJoin [milestoning/tests]: [1:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testIsolationOfIntermediateJoinsInMultiLevelPropertyJoin [milestoning/tests]: [1:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testIsolationWhereLeftSideOfFilterIsEmbedded [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestonedQualifiedPropertyUsedOnSuperTypeInEmbedded [milestoning/tests]: [1:18] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoneFiltersAreNotAppliedToEmbeddedPropertiesInQualifiersTriggeringIsolationSelfJoin [milestoning/tests]: [1:18] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testIsolationOfIntermediateJoinsInMultiLevelPropertyJoin [milestoning/tests]: [1:18] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testIsolationWhereLeftSideOfFilterIsEmbedded [milestoning/tests]: [1:13] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: no execute(|...) call
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: no execute(|...) call
-- ERROR testMilestoningCriteriaAppliedToViewRoot [milestoning/tests]: [1:52] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: [1:49] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testMilestoningContextPropagatedFromParentViewToViewsReferencedInItsColumns [milestoning/tests]: [1:52] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: [1:52] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testMilestoningCriteriaAppliedToJoinFromViewRoot [milestoning/tests]: [1:52] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningCriteriaAppliedToViewRoot [milestoning/tests]: [1:14] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: [1:11] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningContextPropagatedFromParentViewToViewsReferencedInItsColumns [milestoning/tests]: [1:14] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: [1:14] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningCriteriaAppliedToJoinFromViewRoot [milestoning/tests]: [1:14] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testIsolationOfCaseStmtTrueFalseFilters [milestoning/tests]: unknown function 'classification'
-- ERROR testPlanFilterWithMilestoning [milestoning/tests]: [2:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testProjectWithMilestoning [milestoning/tests]: [2:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testPlanFilterWithMilestoning [milestoning/tests]: [2:18] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testProjectWithMilestoning [milestoning/tests]: [2:18] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testMilestonedChainedJoinsWithAlias [milestoning/tests]: [1:60] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: unknown function 'product'
 - SHAPE testConcatenationOfTemporalTdsQueries [milestoning/tests]: execute() query arg is not a lambda: meta::relational::milestoning::concatena
@@ -1040,10 +1040,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMilestoningFilterPropagationWithNowInFilter [milestoning/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::Product' (of 1 candidates); class-query dispatch needs exactly one
 - SHAPE testFilterOnView [milestoning/tests]: no recognizable assertions
 - ERROR testCalculationOnBusinessDateInGetAll [milestoning/tests]: unknown function 'myGetAllProduct'
-- ERROR testNestedExists_NestedExistsWithEmbeddedMapping [milestoning/tests]: [1:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testNestedExists_NestedExistsWithEmbeddedMappingInProject [milestoning/tests]: [1:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testNestedExists_NestedExistsWithEmbeddedMapping [milestoning/tests]: [1:18] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testNestedExists_NestedExistsWithEmbeddedMappingInProject [milestoning/tests]: [1:18] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testDerivedPropertyOnNonTemporalClassWithMilestonedChain [milestoning/tests]: in function 'meta::relational::tests::milestoning::RootEntity$prop$childLeafValueDerived': unknown function 'rootChild'
-- ERROR testGraphFetchMultiPrimitiveOnInlineChild [milestoning/tests]: [1:61] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testGraphFetchMultiPrimitiveOnInlineChild [milestoning/tests]: [1:10] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'product'
 - ERROR testQueryWithPropagationOnTemporalRoot [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap'
 - ERROR testQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'product'
@@ -1055,11 +1055,11 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testBuisnessSnapshotRangeQueryOnProperty [milestoning/tests]: unknown function 'getAllVersions'
 - ERROR testBuisnessSnapshotRangeQueryOnRootAndProperty [milestoning/tests]: unknown function 'getAllVersionsInRange'
 - FAIL testDateTimeMilestoningParam [milestoning/tests]: id: expected [2], got []
-- ERROR testDateTimeVariableMilestoningParam [milestoning/tests]: [1:96] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testDateTimeVariableMilestoningParam [milestoning/tests]: [1:58] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testDateTimeMilestoningParamPropagation [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap'
-- ERROR testDateTimeVariableMilestoningParamPropagation [milestoning/tests]: [1:96] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testDateTimeVariableMilestoningParamPropagation [milestoning/tests]: [1:58] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testDateTimeMilestoningParamUnion [milestoning/tests]: milestoning column 'snapshotDate' is not on the pipeline row of 'meta::relational::tests::milestoning::Product'
-- ERROR testDateTimeVariableMilestoningParamUnion [milestoning/tests]: [1:96] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testDateTimeVariableMilestoningParamUnion [milestoning/tests]: [1:58] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::Product': the main table declares no matching milestoning block for the business dimension
 - ERROR testLatestIgnoredForNonMilestonedMappedBiTemporalClassesAllQuery [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
 - ERROR testLatestIgnoredForNonMilestonedMappedClasses [milestoning/tests]: unknown function 'product'
@@ -1071,17 +1071,17 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMilestoningColumnProjectionWithNonMilestonedTable [milestoning/tests]: unknown function 'getAllVersions'
 - ERROR testMilestoningFiltersAppliedToIntermediateMilestonedJoinTablesWhereTargetTypeIsTemporalAndTargetMainTableIsNotMilestoned [milestoning/tests]: unknown function 'systemADescription'
 - ERROR testExtraColumnsAreNotAppliedToIntermediateMilestonedJoinTables [milestoning/tests]: unknown function 'product'
-- ERROR testMilestoningFiltersAppliedToIntermediateMilestonedJoinTablesWhereSourceIsEmbeddedTargetTypeIsNonTemporalAndTargetMainTableIsNotMilestoned [milestoning/tests]: [1:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testMilestoningFiltersPropogatedToDataTypePropertiesFromAllInProject [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningFiltersAppliedToIntermediateMilestonedJoinTablesWhereSourceIsEmbeddedTargetTypeIsNonTemporalAndTargetMainTableIsNotMilestoned [milestoning/tests]: [1:18] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningFiltersPropogatedToDataTypePropertiesFromAllInProject [milestoning/tests]: [1:13] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testLatestMilestoningFiltersPropogatedToDataTypePropertiesFromAllInProject [milestoning/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::Product' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testMilestoningFiltersPropogatedFromAllThroughFilterToDataTypePropertiesInProject [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testMilestoningFiltersPropogatedToDataTypePropertiesFromAllInFilter [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testMilestoningFiltersNotPropogatedFromAllToNonTemporalClassMappedToTemporalTable [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testMilestoningFiltersUsedOnIntermediateJoinOnlyFromAllToNonTemporalClassMappedToTemporalTable [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testMilestoningFiltersUsedOnIntermediateJoinOnlyFromAllToNonTemporalClassMappedToTemporalTableWithFilter [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testIsolationOfMilestoningFiltersUsedOnIntermediateJoinInOR [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testMilestoningFiltersOnIntermediateInnerJoins [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testMilestoningContextNotPropogatedThroughNonTemporalPropertiesFromAll [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningFiltersPropogatedFromAllThroughFilterToDataTypePropertiesInProject [milestoning/tests]: [1:13] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningFiltersPropogatedToDataTypePropertiesFromAllInFilter [milestoning/tests]: [1:13] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningFiltersNotPropogatedFromAllToNonTemporalClassMappedToTemporalTable [milestoning/tests]: [1:13] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningFiltersUsedOnIntermediateJoinOnlyFromAllToNonTemporalClassMappedToTemporalTable [milestoning/tests]: [1:13] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningFiltersUsedOnIntermediateJoinOnlyFromAllToNonTemporalClassMappedToTemporalTableWithFilter [milestoning/tests]: [1:13] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testIsolationOfMilestoningFiltersUsedOnIntermediateJoinInOR [milestoning/tests]: [1:13] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningFiltersOnIntermediateInnerJoins [milestoning/tests]: [1:13] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningContextNotPropogatedThroughNonTemporalPropertiesFromAll [milestoning/tests]: [1:13] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testMilestoningContextWithLatestDateNotPropogatedThroughNonTemporalPropertiesFromAll [milestoning/tests]: class meta::relational::tests::milestoning::System has no property 'systemDescriptionAllVersions'
 - ERROR testMilestoningContextNotPropogatedThroughNonTemporalPropertiesFromMilestonedQualifiedProperty [milestoning/tests]: unknown function 'product'
 - ERROR testMilestoneDatePropogationThruFilterIsIndenpendentOfDateManipulationWithinTheFilter [milestoning/tests]: unknown function 'classification'
@@ -1099,11 +1099,11 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMilestoningContextIsPropogatedThroughSubType [milestoning/tests]: unknown function 'product'
 - ERROR testMilestoningContextPropagatedThroughFilterToNoArgMilestonedQualifiedPropertyInProjectPath [milestoning/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::Product' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testMilestoningContextPropagatedThroughToLeftSideOfQualifiedPropertyFilter [milestoning/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::ProductClassification' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testMilestoningContextPropagatedFromMilestoningQualifiedPropertyWithArgToNoArgMilestonedQualifiedPropertyInProjectPath [milestoning/tests]: [1:242] navigation path segment 'classification(%2016-10-16)' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::milestoning::Product/classification(%2016-10-16)/exchange/name#
-- ERROR testMilestoningContextPropagatedUsingVariableInProjectPath [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testCurrentMappingPropagationThroughMilestonedQualifiedPropertyWithEmbeddedLeftSideToSubsequentPropertyInProjectPath [milestoning/tests]: [1:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testMilestoningContextPropagatedUsingVariableInProject [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testMilestoningContextPropagatedUsingConstantInProjectMoveLetInBlock [milestoning/tests]: [2:75] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningContextPropagatedFromMilestoningQualifiedPropertyWithArgToNoArgMilestonedQualifiedPropertyInProjectPath [milestoning/tests]: [1:128] navigation path segment 'classification(%2016-10-16)' uses an unsupported path feature (only plain property segments desugar): #/Product/classification(%2016-10-16)/exchange/name#
+- ERROR testMilestoningContextPropagatedUsingVariableInProjectPath [milestoning/tests]: [1:13] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testCurrentMappingPropagationThroughMilestonedQualifiedPropertyWithEmbeddedLeftSideToSubsequentPropertyInProjectPath [milestoning/tests]: [1:18] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningContextPropagatedUsingVariableInProject [milestoning/tests]: [1:13] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningContextPropagatedUsingConstantInProjectMoveLetInBlock [milestoning/tests]: [2:37] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testDistinctUsageAtRootOfMilestonedQuery [milestoning/tests]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::milestoning::Product'
 - ERROR testInFromInclusive [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
 - ERROR testInThruInclusive [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
@@ -1115,9 +1115,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testOutFromInclusiveUnionOutFromInclusive [milestoning/tests]: unknown function 'biTemporalProduct'
 - ERROR testAssoWithOtherwise [milestoning/tests]: unknown function 'classification'
 - ERROR testAssoWithOtherwiseDeep [milestoning/tests]: unknown function 'classification'
-- ERROR testProcessingTemporalAllQuery [milestoning/tests]: [1:50] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testProcessingTemporalPropertyQuery [milestoning/tests]: [1:50] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testProcessingTemporalPropertyPropagationInQuery [milestoning/tests]: [1:50] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testProcessingTemporalAllQuery [milestoning/tests]: [1:12] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testProcessingTemporalPropertyQuery [milestoning/tests]: [1:12] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testProcessingTemporalPropertyPropagationInQuery [milestoning/tests]: [1:12] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'processingTemporalProduct'
 - ERROR testQueryWithPropagationOnTemporalRoot [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMap'
 - ERROR testQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'processingTemporalProduct'
@@ -1129,11 +1129,11 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProcessingSnapshotRangeQueryOnProperty [milestoning/tests]: unknown function 'getAllVersions'
 - ERROR testProcessingSnapshotRangeQueryOnRootAndProperty [milestoning/tests]: unknown function 'getAllVersionsInRange'
 - FAIL testDateTimeMilestoningParam [milestoning/tests]: id: expected [2], got []
-- ERROR testDateTimeVariableMilestoningParam [milestoning/tests]: [1:114] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testDateTimeVariableMilestoningParam [milestoning/tests]: [1:76] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testDateTimeMilestoningParamPropagation [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMap'
-- ERROR testDateTimeVariableMilestoningParamPropagation [milestoning/tests]: [1:114] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testDateTimeVariableMilestoningParamPropagation [milestoning/tests]: [1:76] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testDateTimeMilestoningParamUnion [milestoning/tests]: milestoning column 'snapshotDate' is not on the pipeline row of 'meta::relational::tests::milestoning::ProcessingTemporalProduct'
-- ERROR testDateTimeVariableMilestoningParamUnion [milestoning/tests]: [1:114] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testDateTimeVariableMilestoningParamUnion [milestoning/tests]: [1:76] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testBusinessDateForAllVersions [milestoning/tests]: unknown function 'getAllVersions'
 - ERROR testProcessingDateForAllVersions [milestoning/tests]: unknown function 'getAllVersions'
 - ERROR testBusinessSnapshotDateForAllVersions [milestoning/tests]: unknown function 'getAllVersions'
@@ -1429,9 +1429,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProjectWithColumnSubSetSQLTest [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testProjectWithQuotedColumnFromTableToTDS [tds/tests]: [3245:34] expected type name, got DOLLAR
 - SHAPE testLowerProjectColsEliminated [tds/tests]: partial: 3/4 asserts recognized (recognized ones hold); first unrecognized: assertFalse($result->sqlRemoveFormatting()->toLower()->contains('hello'))
-- FAIL testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: rows: expected <Anthony,David,Fabrice,John,Oliver,Peter>, got <David,John,Oliver,Fabrice,Peter,Anthony>
+- FAIL testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: rows: expected <Anthony,David,Fabrice,John,Oliver,Peter>, got <David,Oliver,John,Peter,Anthony,Fabrice>
 - SHAPE testLowerProjectColsNotEliminatedWithSort [tds/tests]: partial: 3/4 asserts recognized (recognized ones hold); first unrecognized: assert($result->sqlRemoveFormatting()->toLower()->contains('hello'))
-- FAIL testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct [tds/tests]: rows: expected <Firm A|1,Firm B|1,Firm C|1,Firm X|4>, got <Firm B|1,Firm C|1,Firm A|1,Firm X|4>
+- FAIL testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct [tds/tests]: rows: expected <Firm A|1,Firm B|1,Firm C|1,Firm X|4>, got <Firm A|1,Firm X|4,Firm B|1,Firm C|1>
 - SHAPE testRestrictOnGroupByColumn_SubSetOfGroupByColumns [tds/tests]: partial: 4/6 asserts recognized (recognized ones hold); first unrecognized: assertFalse($result->sqlRemoveFormatting()->toLower()->contains('max'))
 - SHAPE testRestrictOnGroupByColumn_DropAllAggColumns [tds/tests]: partial: 3/6 asserts recognized (recognized ones hold); first unrecognized: assertFalse($result->sqlRemoveFormatting()->toLower()->contains('max'))
 - ERROR testRestrictHandlesQueryPathsCorrectlyOnRename [tds/tests]: ~age_new: mapped/aggregate column specifications need an enclosing call to type against
@@ -1694,7 +1694,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testDistinctMappingWithFullDenormSelfJoins [tests/mapping/distinct]: store-only navigate (class-extent target) reached the lowerer — resolver bug
 - ERROR testDistinctMappingWithFullDenormSelfJoinsWithFilterOnJoin [tests/mapping/distinct]: store-only navigate (class-extent target) reached the lowerer — resolver bug
 - ERROR testDistinctMappingWithFullDenormSelfJoinsWithTwoFiltersOnJoin [tests/mapping/distinct]: store-only navigate (class-extent target) reached the lowerer — resolver bug
-- ERROR testDistinctMappingWithCaseStatement [tests/mapping/distinct]: [1:335] navigation path segment 'meta::relational::tests::mapping::distinct::model::domain::Classification' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mapping::distinct::model::domain::IncomeFunction/meta::relational::tests::mapping::distinct:
 - SHAPE testFilterOnMultiLevelJoinWithNonAggregateFunction [tests/mapping/dynaJoin]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: null
 - SHAPE testJoinWithAggregateFunction [tests/mapping/dynaJoin]: partial: 3/4 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['1','6'],$result.values->map(r |$r.id->toString()))
 - SHAPE testFilterOnJoinWithAggregateFunction [tests/mapping/dynaJoin]: partial: 3/4 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['1'],$result.values->map(r |$r.id->toString() ))
@@ -1714,13 +1713,13 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR otherwiseTestEmbeddedToEmbedded [tests/mapping/embedded]: multi-hop navigation bondDetails.issuer.name through an embedded/slot head is not supported yet
 - FAIL otherwiseTestFilterExistsOnEmbeddedProperty [tests/mapping/embedded]: toCSV: expected <name\nProduct 1\nProduct 2\n>, got <>
 - FAIL otherwiseTestProjectExistsOnEmbeddedProperty [tests/mapping/embedded]: toCSV: expected <descriptionExists\ntrue\ntrue\nfalse\n>, got <descriptionExists\nfalse\nfalse\nfalse\n>
-- ERROR testProjection [tests/mapping/embedded]: 'Product' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testFilter [tests/mapping/embedded]: 'Product' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testDenormWithComplexFilter [tests/mapping/embedded]: 'Product' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testGroupBy [tests/mapping/embedded]: 'Product' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testGroupByComplexAgg [tests/mapping/embedded]: 'Product' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testQualifierProperty [tests/mapping/embedded]: 'Product' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testInlineEmbeddedMappingWithAssociationFromRootMapping [tests/mapping/embedded]: 'Product' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- ERROR testProjection [tests/mapping/embedded]: ambiguous reference 'Product' — matches via imports: [meta::relational::tests::mapping::embedded::advanced::model::Product, meta::relational::tests::model::simple::Product]. Use a fully qualified name.
+- ERROR testFilter [tests/mapping/embedded]: ambiguous reference 'Product' — matches via imports: [meta::relational::tests::mapping::embedded::advanced::model::Product, meta::relational::tests::model::simple::Product]. Use a fully qualified name.
+- ERROR testDenormWithComplexFilter [tests/mapping/embedded]: ambiguous reference 'Product' — matches via imports: [meta::relational::tests::mapping::embedded::advanced::model::Product, meta::relational::tests::model::simple::Product]. Use a fully qualified name.
+- ERROR testGroupBy [tests/mapping/embedded]: ambiguous reference 'Product' — matches via imports: [meta::relational::tests::mapping::embedded::advanced::model::Product, meta::relational::tests::model::simple::Product]. Use a fully qualified name.
+- ERROR testGroupByComplexAgg [tests/mapping/embedded]: ambiguous reference 'Product' — matches via imports: [meta::relational::tests::mapping::embedded::advanced::model::Product, meta::relational::tests::model::simple::Product]. Use a fully qualified name.
+- ERROR testQualifierProperty [tests/mapping/embedded]: ambiguous reference 'Product' — matches via imports: [meta::relational::tests::mapping::embedded::advanced::model::Product, meta::relational::tests::model::simple::Product]. Use a fully qualified name.
+- ERROR testInlineEmbeddedMappingWithAssociationFromRootMapping [tests/mapping/embedded]: ambiguous reference 'Product' — matches via imports: [meta::relational::tests::mapping::embedded::advanced::model::Product, meta::relational::tests::model::simple::Product]. Use a fully qualified name.
 - SHAPE testInlineInEmbedded [tests/mapping/embedded]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testInlineInEmbeddedGraphFetch [tests/mapping/embedded]: graph child 'issuer' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - ERROR testMilestonedEmbeddedGraphFetch [tests/mapping/embedded]: graph child 'address' of class 'meta::relational::tests::mapping::embedded::advanced::model::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
@@ -1741,7 +1740,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testAggregationFunctionWithEnum [tests/mapping/enumeration]: no recognizable assertions
 - SHAPE testProjectionWithInheritedEnum [tests/mapping/enumeration]: partial: 1/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Firm D,MSFT,MSFT,AAPL', $tds->columnValues('product')->makeString(','))
 - ERROR testProjectionWithEnumThroughAssociation [tests/mapping/enumeration]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
-- ERROR testProjectionWithEnumQualifierParameter [tests/mapping/enumeration]: [2:237] navigation path segment 'synonymsByType(meta::relational::tests::mapping::enumeration::model::domain::ProductSynonymType.CUSIP)' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mapping::enumeration::model::domain::Product/synonymsByType(met
+- ERROR testProjectionWithEnumQualifierParameter [tests/mapping/enumeration]: [2:113] navigation path segment 'synonymsByType(ProductSynonymType.CUSIP)' uses an unsupported path feature (only plain property segments desugar): #/Product/synonymsByType(ProductSynonymType.CUSIP)/value!cusip#
 - SHAPE testFilterWithEnumQualifierParameter [tests/mapping/enumeration]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEquals('My Product', $tds->columnValues('description')->makeString(','))
 - FAIL testTdsProjectWithEnumToStringEqualityComparison [tests/mapping/enumeration]: cells: expected [no, yes, no], got [no, no, no]
 - SHAPE testEnumValueReturnedInIfExp [tests/mapping/enumeration]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements($result.values.rows.getEnum('Type If'), $result.values.rows.getEnum('Type'))
@@ -1992,11 +1991,11 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testQueryNoResultWithAnd [tests/mapping/tree]: filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
 - ERROR testQueryWithOr [tests/mapping/tree]: filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
 - ERROR testFilterOnNestedQualifier [tests/mapping/tree]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testProjectMerge [tests/mapping/tree]: [1:182] navigation path segment 'orgByName('BUSINESS UNIT')' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mapping::tree::model::domain::Person/orgByName('BUSINESS UNIT')/name!buName#
-- ERROR testProjection [tests/mapping/tree]: [5:143] navigation path segment 'orgByName('TEAM')' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mapping::tree::model::domain::Person/orgByName('TEAM')/name!team#
+- ERROR testProjectMerge [tests/mapping/tree]: [1:72] navigation path segment 'orgByName('BUSINESS UNIT')' uses an unsupported path feature (only plain property segments desugar): #/Person/orgByName('BUSINESS UNIT')/name!buName#
+- ERROR testProjection [tests/mapping/tree]: [5:88] navigation path segment 'orgByName('TEAM')' uses an unsupported path feature (only plain property segments desugar): #/Person/orgByName('TEAM')/name!team#
 - ERROR testProjectionDeeper [tests/mapping/tree]: scalar lowering not yet implemented for TypedPropertyAccess
 - ERROR testProjectionDeeperInlined [tests/mapping/tree]: scalar lowering not yet implemented for TypedPropertyAccess
-- ERROR testProjectWithFilter [tests/mapping/tree]: [2:217] navigation path segment 'orgByName('BUSINESS UNIT')' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mapping::tree::model::domain::Person/orgByName('BUSINESS UNIT')/name!buName#
+- ERROR testProjectWithFilter [tests/mapping/tree]: [2:107] navigation path segment 'orgByName('BUSINESS UNIT')' uses an unsupported path feature (only plain property segments desugar): #/Person/orgByName('BUSINESS UNIT')/name!buName#
 - ERROR testJoinIsolationDeeper_LeftOuterLeftOuterThenInner [tests/mapping/tree]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner [tests/mapping/tree]: multi-hop navigation trades.trader.firstName through an embedded/slot head is not supported yet
 - ERROR testFilteredGetAll [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::specialUnion::specialUnionMapping'

@@ -3,8 +3,6 @@
 
 package com.gs.legend.rcorpus;
 
-import com.gs.legend.exec.ExecutionResult;
-import com.gs.legend.server.QueryService;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -500,9 +498,12 @@ public final class Runner {
                     }
                     query = query.substring(1).strip();
                     // a TERMINAL ->from(MAPPING[, runtime]) carries the
-                    // mapping IN the query (the ^Mapping(name='') outer arg
-                    // is a dummy); extract it and drop the from — the
-                    // driver-supplied runtime plays that role here
+                    // mapping IN the query. The from() STAYS — core's
+                    // TypedFrom execution honors it; only the runtime
+                    // ARGUMENT is normalized to the synthesized runtime ref
+                    // (the corpus spells it as a pure function call,
+                    // testRuntime(), which needs a body evaluator — the
+                    // native-test-execution end-state)
                     String mappingRef = null;
                     int fi = lastTopLevelFrom(query);
                     if (fi >= 0) {
@@ -513,7 +514,8 @@ public final class Runner {
                                     query.substring(open + 1, close));
                             if (!fromArgs.isEmpty()) {
                                 mappingRef = qualify(fromArgs.get(0).strip(), fn);
-                                query = query.substring(0, fi);
+                                query = query.substring(0, open + 1)
+                                        + mappingRef + ", rcorpus::Rt)";
                             }
                         }
                     }
@@ -521,26 +523,28 @@ public final class Runner {
                         mappingRef = qualify(args.get(1).strip(), fn);
                     }
                     String fullModel = modelText + runtimeBlock(modelText, mappingRef);
-                    String qualified = qualifyQuery(query, fn);
+                    // the query compiles under the TEST FILE's import
+                    // sections (real pure's rule) — core resolves names;
+                    // the harness no longer rewrites query text
+                    String qualified = "|" + query;
+                    com.legend.parser.ImportScope imports = importScopeOf(fn);
                     // the let-var this result binds ($result by convention)
                     Matcher lm = Pattern.compile("let\\s+(\\w+)\\s*=\\s*$")
                             .matcher(fn.body().substring(
                                     Math.max(0, span[0] - 40), span[0]));
                     String var = lm.find() ? lm.group(1) : "result";
-                    ExecutionResult r = new QueryService().execute(
-                            fullModel, qualified, runtimeFqn, conn);
-                    List<String> colTypes;
-                    List<String> colNames;
-                    try {
-                        colTypes = r.columns().stream()
-                                .map(c -> String.valueOf(c.javaType())).toList();
-                        colNames = r.columns().stream()
-                                .map(c -> String.valueOf(c.name())).toList();
-                    } catch (Exception e) {
-                        colTypes = List.of();   // graph results carry no schema
-                        colNames = List.of();
+                    com.legend.exec.ExecutionResult r = com.legend.Compiler.execute(
+                            fullModel, qualified, imports, runtimeFqn, conn);
+                    List<String> colTypes = new ArrayList<>();
+                    List<String> colNames = new ArrayList<>();
+                    if (r instanceof com.legend.exec.ExecutionResult.Tabular t) {
+                        for (com.legend.exec.Column c : t.columns()) {
+                            colTypes.add(c.pureType() == null ? "null"
+                                    : c.pureType().typeName());
+                            colNames.add(c.name());
+                        }
                     }
-                    bindings.add(new ResultBinding(var, graphRows(r), span[2],
+                    bindings.add(new ResultBinding(var, coreRows(r), span[2],
                             qualified, colTypes, colNames));
                 }
                 if (bindings.isEmpty()) {
@@ -1411,39 +1415,57 @@ public final class Runner {
         return new Outcome(fn.fqn(), Status.PASS, verified + " assert(s)");
     }
 
+    /** The test file's import sections + the test's own package (implicit). */
+    private static com.legend.parser.ImportScope importScopeOf(Corpus.TestFn fn) {
+        List<String> wildcards = new ArrayList<>(fn.wildcardImports());
+        int cut = fn.fqn().lastIndexOf("::");
+        if (cut > 0) {
+            wildcards.add(fn.fqn().substring(0, cut));
+        }
+        return new com.legend.parser.ImportScope(wildcards, fn.imports());
+    }
+
+    /** Core results → row maps (scalar carrier, graph JSON, tabular). */
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> coreRows(com.legend.exec.ExecutionResult r) {
+        return switch (r) {
+            case com.legend.exec.ExecutionResult.Scalar sc ->
+                    List.of(java.util.Collections.singletonMap("__scalar__", sc.value()));
+            case com.legend.exec.ExecutionResult.Collection c -> {
+                List<Map<String, Object>> out = new ArrayList<>();
+                for (Object v : c.values()) {
+                    out.add(java.util.Collections.singletonMap("value", v));
+                }
+                yield out;
+            }
+            case com.legend.exec.ExecutionResult.Graph g -> {
+                Object parsed = toJava(com.gs.legend.util.Json.parse(g.json()));
+                List<Object> arr = parsed instanceof List<?> l
+                        ? (List<Object>) l : List.of(parsed);
+                List<Map<String, Object>> out = new ArrayList<>();
+                for (Object o : arr) {
+                    if (o instanceof Map<?, ?> mm) {
+                        out.add((Map<String, Object>) mm);
+                    }
+                }
+                yield out;
+            }
+            case com.legend.exec.ExecutionResult.Tabular t -> {
+                List<Map<String, Object>> out = new ArrayList<>();
+                for (com.legend.exec.Row row : t.rows()) {
+                    Map<String, Object> mm = new LinkedHashMap<>();
+                    for (int i = 0; i < t.columns().size(); i++) {
+                        mm.put(t.columns().get(i).name(), row.values().get(i));
+                    }
+                    out.add(mm);
+                }
+                yield out;
+            }
+        };
+    }
+
     /** Class results arrive as the GRAPH envelope (JSON rows); TDS as tabular. */
     @SuppressWarnings("unchecked")
-    private static List<Map<String, Object>> graphRows(ExecutionResult r) {
-        if (r instanceof ExecutionResult.ScalarResult sc) {
-            // NULL stays null — coercing to "" let an empty-string
-            // expectation pass against a wrongly-NULL scalar (audit A3);
-            // ^TDSNull() matches null via NULL_EXPECTED, everything else
-            // honestly fails
-            return List.of(java.util.Collections.singletonMap("__scalar__", sc.value()));
-        }
-        if (r instanceof ExecutionResult.GraphResult g) {
-            Object parsed = toJava(com.gs.legend.util.Json.parse(g.json()));
-            List<Object> arr = parsed instanceof List<?> l ? (List<Object>) l : List.of(parsed);
-            List<Map<String, Object>> out = new ArrayList<>();
-            for (Object o : arr) {
-                if (o instanceof Map<?, ?> mm) {
-                    out.add((Map<String, Object>) mm);
-                }
-            }
-            return out;
-        }
-        List<Map<String, Object>> out = new ArrayList<>();
-        List<String> names = new ArrayList<>();
-        r.columns().forEach(c -> names.add(c.name()));
-        for (var row : r.rows()) {
-            Map<String, Object> mm = new LinkedHashMap<>();
-            for (int i = 0; i < names.size(); i++) {
-                mm.put(names.get(i), row.values().get(i));
-            }
-            out.add(mm);
-        }
-        return out;
-    }
 
     private static Object toJava(com.gs.legend.util.Json.Node n) {
         return switch (n) {
@@ -2147,91 +2169,9 @@ public final class Runner {
         return pkgs;
     }
 
-    /**
-     * Qualify BARE class/enum names in the query text using the file's
-     * wildcard imports against the model's element index. Word-boundary
-     * replacement, quoted strings preserved.
-     */
-    private String qualifyQuery(String query, Corpus.TestFn fn) {
-        Map<String, List<String>> index = elementIndex();
-        StringBuilder out = new StringBuilder();
-        int i = 0;
-        while (i < query.length()) {
-            char c = query.charAt(i);
-            if (c == '\'') {
-                int end = Corpus.skipString(query, i);
-                out.append(query, i, end);
-                i = end;
-                continue;
-            }
-            if (Character.isJavaIdentifierStart(c)
-                    && (i == 0 || (!Character.isJavaIdentifierPart(query.charAt(i - 1))
-                            && query.charAt(i - 1) != ':' && query.charAt(i - 1) != '$'
-                            && query.charAt(i - 1) != '.'))) {
-                int j = i;
-                while (j < query.length() && Character.isJavaIdentifierPart(query.charAt(j))) {
-                    j++;
-                }
-                String word = query.substring(i, j);
-                // never qualify if followed by :: (already qualified head)
-                boolean qualifiedHead = j + 1 < query.length()
-                        && query.charAt(j) == ':' && query.charAt(j + 1) == ':';
-                // ALL candidates for the simple name; the TEST FILE's own
-                // imports disambiguate (section-scoped, like real pure)
-                String chosen = null;
-                if (!qualifiedHead) {
-                    for (String fqn : index.getOrDefault(word, List.of())) {
-                        if (importsCover(fqn, word, fn)) {
-                            chosen = chosen == null ? fqn : "";   // "" = ambiguous
-                        }
-                    }
-                }
-                out.append(chosen != null && !chosen.isEmpty() ? chosen : word);
-                i = j;
-                continue;
-            }
-            out.append(c);
-            i++;
-        }
-        return "|" + out;
-    }
 
-    private boolean importsCover(String fqn, String word, Corpus.TestFn fn) {
-        if (fqn.equals(fn.imports().get(word))) {
-            return true;
-        }
-        int cut = fqn.length() - word.length() - 2;
-        if (cut < 0) {
-            return false;
-        }
-        String pkg = fqn.substring(0, Math.max(0, cut));
-        return packagesInScope(fn).contains(pkg);
-    }
 
-    private final Map<String, Map<String, List<String>>> indexByFile = new LinkedHashMap<>();
 
-    /** simple name → CANDIDATE FQNs for every Class/Enum/Mapping/Database in the model. */
-    private Map<String, List<String>> elementIndex() {
-        Map<String, List<String>> cachedIndex = indexByFile.get(currentFileKey);
-        if (cachedIndex != null) {
-            return cachedIndex;
-        }
-        Map<String, List<String>> index = new LinkedHashMap<>();
-        Matcher m = Pattern.compile(
-                "(?m)^(?:Class|Enum|Database|Mapping|Association)\\s+(?:<<[^>]*>>\\s*)?((?:\\w+::)+)(\\w+)")
-                .matcher(model + familyModels.getOrDefault(currentFamilyKey, "")
-                        + fileModels.getOrDefault(currentFileKey, ""));
-        while (m.find()) {
-            String simple = m.group(2);
-            String fqn = m.group(1) + simple;
-            List<String> l = index.computeIfAbsent(simple, k -> new ArrayList<>());
-            if (!l.contains(fqn)) {
-                l.add(fqn);
-            }
-        }
-        indexByFile.put(currentFileKey, index);
-        return index;
-    }
 
     // ===== scoreboard =====
 

@@ -271,6 +271,21 @@ public final class NameResolver {
         return resolveVs(query, QUERY_SCOPE);
     }
 
+    /**
+     * Resolve a query under a SECTION import scope — the real-pure shape
+     * for a query written inside an import-bearing section (a test file,
+     * a notebook cell): the section's imports plus the prelude, with the
+     * MODEL's element universe as the wildcard-candidate set. An
+     * unresolved bare name passes through and fails loudly in Phase G.
+     */
+    public static ValueSpecification resolveQuery(ValueSpecification query,
+            ImportScope imports, Set<String> modelFqns) {
+        Set<String> known = new HashSet<>(Pure.nativeClassFqns());
+        known.addAll(Pure.nativeEnumFqns());
+        known.addAll(modelFqns);
+        return resolveVs(query, Scope.of(withPrelude(imports), Set.copyOf(known)));
+    }
+
     /** The sectionless-query scope: prelude imports only; the native FQN universe. */
     private static final Scope QUERY_SCOPE = querycope();
 

@@ -200,10 +200,26 @@ public final class Compiler {
      */
     public static com.legend.exec.ExecutionResult execute(String model, String query,
             String runtimeFqn, java.sql.Connection connection) throws java.sql.SQLException {
+        return execute(model, query, null, runtimeFqn, connection);
+    }
+
+    /**
+     * {@link #execute(String, String, String, java.sql.Connection)} with a
+     * SECTION import scope: the query resolves under {@code imports} (plus
+     * the prelude) against the model's element universe — real pure's rule
+     * for a query written in an import-bearing section. A {@code null}
+     * scope is the sectionless-query behavior.
+     */
+    public static com.legend.exec.ExecutionResult execute(String model, String query,
+            com.legend.parser.ImportScope imports, String runtimeFqn,
+            java.sql.Connection connection) throws java.sql.SQLException {
         ModelContext ctx = compileModel(model);
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.List<TypedSpec> body = specs.typeQueryBody(
-                NameResolver.resolveQuery(SpecParser.parse(query)));
+                imports == null
+                        ? NameResolver.resolveQuery(SpecParser.parse(query))
+                        : NameResolver.resolveQuery(SpecParser.parse(query),
+                                imports, ctx.elementFqns()));
         body = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(body);   // Phase G½
         body = new com.legend.resolver.StoreResolver(ctx, specs)
                 .resolve(body, runtimeFqn);                       // Phase H

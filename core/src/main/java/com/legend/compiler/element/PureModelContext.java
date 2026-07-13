@@ -102,6 +102,20 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
+    public java.util.Set<String> elementFqns() {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        model.classes().forEach(e -> out.add(e.qualifiedName()));
+        model.enums().forEach(e -> out.add(e.qualifiedName()));
+        model.associations().forEach(e -> out.add(e.qualifiedName()));
+        model.mappings().forEach(e -> out.add(e.qualifiedName()));
+        model.legacyMappings().forEach(e -> out.add(e.qualifiedName()));
+        model.databases().forEach(e -> out.add(e.qualifiedName()));
+        model.runtimes().forEach(e -> out.add(e.qualifiedName()));
+        model.functions().forEach(e -> out.add(e.qualifiedName()));
+        return out;
+    }
+
+    @Override
     public Optional<TypedEnum> findEnum(String fqn) {
         TypedEnum cached = enumCache.get(fqn);
         if (cached != null) {

@@ -30,6 +30,15 @@ public interface ModelContext {
     Optional<TypedClass> findClass(String fqn);
 
     /**
+     * Every model element FQN (classes, enums, associations, mappings,
+     * databases, runtimes, functions) — the wildcard-import candidate
+     * universe for SECTION-scoped query resolution.
+     */
+    default java.util.Set<String> elementFqns() {
+        return java.util.Set.of();
+    }
+
+    /**
      * The raw parsed class declaration (stereotypes, tagged values) —
      * {@link TypedClass} deliberately drops annotations, but the store
      * resolver needs the temporal stereotype to pick a milestoning
