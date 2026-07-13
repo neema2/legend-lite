@@ -567,7 +567,9 @@ public final class Runner {
                             "^\\$R\\.rows->at\\((\\d+)\\)\\.get(?:String|Integer|Float|Date|Number)?\\('([^']+)'\\)$")
                             .matcher(second);
                     Matcher allCells = Pattern.compile(
-                            "^\\$R(?:\\.values->at\\(\\d+\\))?\\.rows\\.values$").matcher(second);
+                            "^\\$R(?:\\.values->at\\(\\d+\\))?\\.rows(?:\\.values"
+                                    + "|->map\\(\\s*\\w+\\s*\\|\\s*\\$\\w+\\.values\\s*\\))$")
+                            .matcher(second);
                     Matcher sizeOf = Pattern.compile(
                             "^\\$R(?:\\.rows)?->size\\(\\)$").matcher(second);
                     if (colGet.matches()) {
@@ -645,6 +647,21 @@ public final class Runner {
                             String actual = toCsv(rows);
                             if (!es.equals(actual)) {
                                 problems.add("toCSV: expected <" + es + ">, got <" + actual + ">");
+                            }
+                        }
+                        continue;
+                    }
+                    Matcher colNames = Pattern.compile(
+                            "^\\$R(?:\\.values)?\\.columns\\.name$").matcher(second);
+                    if (colNames.matches()) {
+                        List<Object> expected = pureLiteralList(args.get(0).strip());
+                        if (expected != null) {
+                            recognized++;
+                            verified++;
+                            List<Object> actual = rows.isEmpty() ? List.of()
+                                    : new ArrayList<>(rows.get(0).keySet());
+                            if (!orderedEquals(expected, actual)) {
+                                problems.add("columns: expected " + expected + ", got " + actual);
                             }
                         }
                         continue;

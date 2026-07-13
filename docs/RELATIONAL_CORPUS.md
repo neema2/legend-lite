@@ -112,7 +112,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | executionPlan/tests | 109 | 0 | 0 | 0 | 109 |
 | functions/tests | 261 | 9 | 19 | 169 | 64 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 1 | 0 | 0 |
-| functions/tests/projection | 165 | 4 | 7 | 111 | 43 |
+| functions/tests/projection | 165 | 4 | 7 | 104 | 50 |
 | graphFetch/domain | 2 | 0 | 0 | 0 | 2 |
 | graphFetch/tests | 5 | 0 | 0 | 0 | 5 |
 | graphFetch/tests/union | 1 | 0 | 0 | 0 | 1 |
@@ -132,7 +132,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | sqlQueryToString/DDL | 3 | 0 | 0 | 0 | 3 |
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 275 | 5 | 4 | 199 | 67 |
+| tds/tests | 275 | 16 | 8 | 162 | 89 |
 | testDataGeneration/tests | 40 | 0 | 0 | 0 | 40 |
 | tests | 39 | 0 | 0 | 0 | 39 |
 | tests/advanced | 71 | 0 | 0 | 58 | 13 |
@@ -142,11 +142,11 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/association | 24 | 1 | 0 | 19 | 4 |
 | tests/mapping/classMappingByClass | 3 | 0 | 0 | 0 | 3 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 0 | 0 | 30 | 2 |
-| tests/mapping/distinct | 18 | 5 | 3 | 10 | 0 |
+| tests/mapping/distinct | 18 | 4 | 4 | 10 | 0 |
 | tests/mapping/dynaJoin | 6 | 0 | 0 | 2 | 4 |
-| tests/mapping/embedded | 70 | 8 | 9 | 47 | 6 |
+| tests/mapping/embedded | 70 | 8 | 7 | 47 | 8 |
 | tests/mapping/enumeration | 27 | 0 | 1 | 10 | 16 |
-| tests/mapping/filter | 10 | 3 | 0 | 6 | 1 |
+| tests/mapping/filter | 10 | 3 | 0 | 5 | 2 |
 | tests/mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 |
 | tests/mapping/inheritance | 51 | 0 | 0 | 51 | 0 |
@@ -167,7 +167,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2429 | **69** | 56 | 1418 | 886 |
+| **total** | 2429 | **79** | 59 | 1373 | 918 |
 
 ### mapping walls (dropped at assembly)
 
@@ -386,10 +386,8 @@ runner does not yet recognize (accounted, not skipped silently).
 
 ### top error buckets
 
-- 73x a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
 - 64x in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': in call to 'meta::pure::functions::string::splitPart', argument 3: expected Integer, got String
-- 45x class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- 45x project expects ~[…] column specifications
+- 55x class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - 41x unbound variable '$businessDate'
 - 36x legacy groupBy expects (source, [keys], [aggs], ['aliases'])
 - 35x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
@@ -398,24 +396,26 @@ runner does not yet recognize (accounted, not skipped silently).
 - 23x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 23x milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
 - 22x class query under TypedMap is not resolvable yet (H2 vocabulary)
+- 21x unknown function 'product'
 - 21x unbound variable '$type'
+- 20x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - 20x expected at most one value, got many ([*])
-- 20x unknown function 'product'
-- 19x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- 18x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
+- 20x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 18x unknown function 'getAllVersionsInRange'
 - 16x unknown function 'getAllVersions'
 - 15x unknown function 'synonymByType'
 - 15x milestoned class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet (H-scope exclusion)
 - 15x unknown function 'biTemporalProduct'
 - 15x milestoned class fetch of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X' is not supported yet (H-scope exclusion)
+- 14x unknown function 'restrict'
+- 14x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exactly one
 - 13x unknown function 'employeesByCityOrManager'
-- 13x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exactly one
 - 13x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Person' (of 1 candidates); class-query dispatch needs exactly one
 - 12x unknown function 'classification'
 - 11x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::PersonWithAddress' (of 1 candidates); class-query dispatch needs exactly one
+- 10x filter predicate references column 'firm_employees', unresolvable even after isolation
+- 10x property 'name' of class 'meta::relational::tests::model::simple::Person' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - 10x unknown function 'employeeByLastName'
-- 10x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Person' (of 1 candidates); class-query dispatch needs exactly one
 
 ### per-test outcomes (non-passing)
 
@@ -913,17 +913,17 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSubAggregationWithJoinStringsOrderBy [functions/tests/projection]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
 - SHAPE testSubAggregationWithDeepAndOverlap [functions/tests/projection]: no execute(|...) call
 - SHAPE testSubAggregationWithDeepAndOverlap_WithColVar [functions/tests/projection]: no execute(|...) call
-- ERROR testSubAggregationWithDeep [functions/tests/projection]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
+- ERROR testSubAggregationWithDeep [functions/tests/projection]: multi-hop navigation employees.locations.place through an embedded/slot head is not supported yet
 - FAIL testSubAggregationWithMax [functions/tests/projection]: size: expected 4, got 7
 - FAIL testDateAggregationWithMax [functions/tests/projection]: size: expected 3, got 7
 - FAIL testSubAggregationWithTopLevelIf [functions/tests/projection]: size: expected 4, got 7
 - ERROR testIsDistinctSubAggregation [functions/tests/projection]: no overload of 'meta::pure::functions::collection::isDistinct' accepts 1 argument(s)
-- ERROR testAssociationMixed [functions/tests/projection]: project expects ~[…] column specifications
+- ERROR testAssociationMixed [functions/tests/projection]: filter predicate references column 'firm_employees', unresolvable even after isolation
 - ERROR testAssociationMixedAdvanced [functions/tests/projection]: property 'name' of class 'meta::relational::tests::model::simple::Person' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- ERROR testAssociationToManyColumnProtocolOneColumn [functions/tests/projection]: project expects ~[…] column specifications
-- ERROR testAssociationToManyColumnProtocol [functions/tests/projection]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
+- SHAPE testAssociationToManyColumnProtocolOneColumn [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
+- SHAPE testAssociationToManyColumnProtocol [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testAssociationToManyColumnProtocolWithDoc [functions/tests/projection]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testQualifiedPropertyUsingColumnProtocol [functions/tests/projection]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
+- ERROR testQualifiedPropertyUsingColumnProtocol [functions/tests/projection]: unbound variable '$firmAge'
 - SHAPE testAssociationToMany [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testAssociationToManyWithQuery [functions/tests/projection]: class-typed property '$p.locations' used as a whole value is graph output (Phase H4)
 - ERROR testAssociationToManyDeepTwo [functions/tests/projection]: multi-hop navigation employees.address.name through an embedded/slot head is not supported yet
@@ -964,8 +964,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testChainedFiltersProject [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testIsNullColumn [functions/tests/projection]: unknown function 'isNull'
 - ERROR testIsNotNullColumn [functions/tests/projection]: unknown function 'isNotNull'
-- ERROR testCompressSQLforINFilter [functions/tests/projection]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testCompressSQLforINFilter2 [functions/tests/projection]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
+- ERROR testCompressSQLforINFilter [functions/tests/projection]: property 'name' of class 'meta::relational::tests::model::simple::Person' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- ERROR testCompressSQLforINFilter2 [functions/tests/projection]: property 'name' of class 'meta::relational::tests::model::simple::Person' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - SHAPE testParametrizedEnumFilter [functions/tests/projection]: no execute(|...) call
 - SHAPE testFilterAfterJoinInRelation [functions/tests/projection]: no execute(|...) call
 - SHAPE testFilterAfterJoinInRelationWithExtendedPrimitives [functions/tests/projection]: no execute(|...) call
@@ -1007,20 +1007,20 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testVariableReferenceInExists [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testVariableReferenceQualifiedPropertyFollowedByExists [functions/tests/projection]: unknown function 'employeesByCityOrManager'
 - ERROR testVariableReferenceWithNestedFilterMultiple [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testIn [functions/tests/projection]: project expects ~[…] column specifications
-- ERROR testContains [functions/tests/projection]: project expects ~[…] column specifications
-- ERROR testDeepIn [functions/tests/projection]: project expects ~[…] column specifications
+- SHAPE testIn [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
+- SHAPE testContains [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
+- ERROR testDeepIn [functions/tests/projection]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testDeepInWithMultipleProject [functions/tests/projection]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- ERROR testDeepContains [functions/tests/projection]: project expects ~[…] column specifications
+- ERROR testDeepContains [functions/tests/projection]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testDeepContainsWithMultipleProject [functions/tests/projection]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- ERROR testInWithOneValue [functions/tests/projection]: project expects ~[…] column specifications
-- ERROR testContainsWithOneValue [functions/tests/projection]: project expects ~[…] column specifications
-- ERROR testInWithVariables [functions/tests/projection]: project expects ~[…] column specifications
-- ERROR testContainsWithVariables [functions/tests/projection]: project expects ~[…] column specifications
-- ERROR testInWithListVariable [functions/tests/projection]: project expects ~[…] column specifications
-- ERROR testContainsWithListVariable [functions/tests/projection]: project expects ~[…] column specifications
-- ERROR testNotIn [functions/tests/projection]: project expects ~[…] column specifications
-- ERROR testNotContains [functions/tests/projection]: project expects ~[…] column specifications
+- ERROR testInWithOneValue [functions/tests/projection]: unbound variable '$names'
+- ERROR testContainsWithOneValue [functions/tests/projection]: unbound variable '$names'
+- ERROR testInWithVariables [functions/tests/projection]: unbound variable '$john'
+- ERROR testContainsWithVariables [functions/tests/projection]: unbound variable '$john'
+- ERROR testInWithListVariable [functions/tests/projection]: unbound variable '$names'
+- ERROR testContainsWithListVariable [functions/tests/projection]: unbound variable '$names'
+- SHAPE testNotIn [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
+- SHAPE testNotContains [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE H2Test [functions/tests/projection]: no execute(|...) call
 - ERROR testInWithDynaFunction [functions/tests/projection]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected String, got Integer
 - ERROR testQualifierWithInThroughJoin [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -1047,7 +1047,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testQualifierWithVariableArgReferencedFirstInFilterEqualCriteria [functions/tests/projection]: unknown function 'employeeByLastNameWhereVarIsFirstEqualArg'
 - ERROR testQualifierWithVariableArgWithComplexTypeProperty [functions/tests/projection]: unknown function 'employeesByCityOrManager'
 - ERROR testQualifierWithVariableArgWithComplexTypePropertyAndSubsequentComplexTypePropertyCall [functions/tests/projection]: unknown function 'employeesByCityOrManager'
-- ERROR testFilterOnRootTypeWithOrWithFilterInQualifier [functions/tests/projection]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
+- ERROR testFilterOnRootTypeWithOrWithFilterInQualifier [functions/tests/projection]: unknown function 'tradeDateEvent'
 - SHAPE testAllOneSimpleProperty [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testAllOneSimplePropertyWithColsFromFunction [functions/tests/projection]: project expects ~[…] column specifications
 - ERROR testAllOneSimplePropertyUsingVariable [functions/tests/projection]: project expects ~[…] column specifications
@@ -1055,7 +1055,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testAllOneSimplePropertyUsingVariables2 [functions/tests/projection]: no execute(|...) call
 - SHAPE testAllOneSimplePropertyUsingOpenVariables [functions/tests/projection]: no execute(|...) call
 - SHAPE testAllTwoSimpleProperties [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
-- ERROR testViewAllOneSimpleProperty [functions/tests/projection]: project expects ~[…] column specifications
+- SHAPE testViewAllOneSimpleProperty [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testJoinToView [functions/tests/projection]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Account' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: Join 'AccountPnlView_Account' navigates to a CLASS mapped
 - ERROR testJoinThroughView [functions/tests/projection]: unknown function 'name'
 - ERROR testViewWithGroupBy [functions/tests/projection]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::AccountPnl' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: PropertyMapping 'Join' for property 'account' is not s
@@ -1232,7 +1232,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFilterOnMilestonedClassInProjectWithTDSFilter [milestoning/tests]: unbound variable '$businessDate'
 - ERROR testIsolationOfMilestoningFiltersReferencedInAllPartsOfIfStmt [milestoning/tests]: unknown function 'productName'
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
-- ERROR testDeepUnionOperationWithNonTemporalAndNonUnionRoot [milestoning/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
+- ERROR testDeepUnionOperationWithNonTemporalAndNonUnionRoot [milestoning/tests]: unknown function 'product'
 - ERROR testMilestoningFilterPropagationThroughFilter [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
 - ERROR testMilestoningFilterPropagationThroughNestedFilter [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
 - ERROR testMilestoningFilterPropagationWithNowInFilter [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
@@ -1479,7 +1479,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testRoutingTwoFindAllExpressionsWithClassPropertyUsedInQualifier [router/tests]: no execute(|...) call
 - SHAPE testRoutingWithClassAsVariableForGetAll [router/tests]: no execute(|...) call
 - SHAPE testRoutingOfSimpleQualifiedProperty [router/tests]: no execute(|...) call
-- ERROR testRoutingWithSubtypePropagation [router/tests]: project expects ~[…] column specifications
+- ERROR testRoutingWithSubtypePropagation [router/tests]: class-typed property '$x.employees' used as a whole value is graph output (Phase H4)
 - SHAPE testPlatformExpressionDependencyOnAFromExpression [router/tests]: no execute(|...) call
 - SHAPE testPlatformExpressionDependencyOnAFromExpression2 [router/tests]: no execute(|...) call
 - SHAPE testCompositionInProject [router/tests]: no execute(|...) call
@@ -1570,8 +1570,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testTableToTDSWithQuotedColumns [tds/tests]: no execute(|...) call
 - ERROR testTDSGroupByPercentile [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - ERROR testTDSGroupByIsDistinct [tds/tests]: expected at most one value, got many ([*])
-- ERROR testTDSGroupByEmptyColsTerminalOperation [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testTDSGroupByEmptyColsNonTerminalOperation [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
+- SHAPE testTDSGroupByEmptyColsTerminalOperation [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold)
+- SHAPE testTDSGroupByEmptyColsNonTerminalOperation [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold)
 - SHAPE testTDSGroupByWithEnumArgumentFunctionCall [tds/tests]: no execute(|...) call
 - SHAPE testGroupByWithWavgAggregation [tds/tests]: no execute(|...) call
 - SHAPE testGroupByWithMultipleWavgAggregation [tds/tests]: no execute(|...) call
@@ -1584,7 +1584,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSimpleNestedSliceAfterConcatenate [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - SHAPE testSimpleSortAsc [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testSimpleSortAscWithPreval [tds/tests]: no execute(|...) call
-- ERROR testSimpleSortAscInputToProject [tds/tests]: project expects ~[…] column specifications
+- SHAPE testSimpleSortAscInputToProject [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold)
 - ERROR testSimpleSortAscHelper [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - SHAPE testSimpleSortDesc [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testSimpleSortDescHelper [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
@@ -1602,15 +1602,15 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testDoubleSortMixedChain [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - SHAPE testSortQuotes [tds/tests]: no execute(|...) call
 - SHAPE testTableToTDSWithQuotes [tds/tests]: no execute(|...) call
-- ERROR testSimpleConcatenate [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testMultiConcatenate [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testConcatenateWithPreOperation1 [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testConcatenateWithPreOperation2 [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testConcatenateWithPreOperation3 [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testConcatenateWithPreOperation4 [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testConcatenateWithPostOperation1 [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testConcatenateWithPostOperation2 [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testConcatenateWithJoin [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
+- SHAPE testSimpleConcatenate [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- ERROR testMultiConcatenate [tds/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- SHAPE testConcatenateWithPreOperation1 [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testConcatenateWithPreOperation2 [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testConcatenateWithPreOperation3 [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testConcatenateWithPreOperation4 [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testConcatenateWithPostOperation1 [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testConcatenateWithPostOperation2 [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- ERROR testConcatenateWithJoin [tds/tests]: unknown function 'restrict'
 - ERROR testTDSContainsType1 [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testTDSContainsType1Negation [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testTDSContainsType1NegationWithExtendedPrimitives [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
@@ -1636,25 +1636,14 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testStringConcatSQLGeneration [tds/tests]: no execute(|...) call
 - ERROR testIfWithEmptyExtension [tds/tests]: ~extended: mapped/aggregate column specifications need an enclosing call to type against
 - SHAPE testExtendWithQuotedColumnWithTableToTDS [tds/tests]: no execute(|...) call
-- ERROR testExtendsWithInClause [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- SHAPE testSimpleFilter [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
-- SHAPE testFilterWithStringConcat [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
+- ERROR testExtendsWithInClause [tds/tests]: ~stringExtends1: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testFilterOnEnum [tds/tests]: unknown function 'getEnum'
-- ERROR testFilterOnDecimal [tds/tests]: project expects ~[…] column specifications
-- SHAPE testFilterTwoExpressions [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
-- SHAPE testFilterTwoExpressions_chain [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testFilterMultipleExpressions1 [tds/tests]: unknown function 'isNotNull'
 - ERROR testFilterMultipleExpressions1_chain [tds/tests]: unknown function 'isNotNull'
-- SHAPE testFilterMultipleExpressions2 [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
-- SHAPE testFilterBeforeAndFilterAfter [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
-- SHAPE testFilterBeforeWithOrAndFilterAfter [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
-- SHAPE testFilterUsingFunction [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
-- SHAPE testFilterOnDynaFunctionColumn [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testFilterOnRootClassAggValueAfterGroupBy [tds/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
 - ERROR testFilterOnAssociatedClassAggValueAfterGroupBy [tds/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
 - ERROR testFilterFollowedByGroupByWithFilterOnRootClass [tds/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
 - ERROR testFilterOnRootClassAggValueAfterGroupByWithHavingMultipleFilters [tds/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- SHAPE testEvalInFilter [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testInOnColumnInSubselect [tds/tests]: no overload of 'olapGroupBy' matches 5 argument(s) of these shapes
 - SHAPE testFilterOnQuotedColumnFromTableToTds [tds/tests]: no execute(|...) call
 - ERROR testFirstNotNullFunction [tds/tests]: unknown function 'meta::pure::tds::extensions::firstNotNull'
@@ -1663,13 +1652,13 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testLeftOuterJoinSimple [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold)
 - FAIL testRightOuterJoinSimple [tds/tests]: size: expected 7, got 0
 - SHAPE testFullOuterJoinSimple [tds/tests]: no execute(|...) call
-- ERROR testInnerJoinConditionTrueUsingCol [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
+- FAIL testInnerJoinConditionTrueUsingCol [tds/tests]: size: expected 28, got 0
 - FAIL testInnerJoinConditionTrue [tds/tests]: size: expected 28, got 0
 - SHAPE testLeftOuterJoinConditionFalse [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold)
 - FAIL testRightOuterJoinConditionFalse [tds/tests]: size: expected 4, got 0
 - ERROR testJoinVariableInLambda [tds/tests]: unbound variable '$val'
 - ERROR testJoinLambdaAsVariable [tds/tests]: unbound variable '$jc'
-- ERROR testJoinWithLiteralColumn [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
+- ERROR testJoinWithLiteralColumn [tds/tests]: unbound variable '$jc'
 - ERROR testJoinTypeAsVariable [tds/tests]: unbound variable '$type'
 - ERROR testRestrictAfterJoin [tds/tests]: unbound variable '$type'
 - ERROR testMultipleJoins [tds/tests]: unbound variable '$type'
@@ -1695,76 +1684,76 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testJoinAfterGroupByBothOuter [tds/tests]: unbound variable '$type'
 - ERROR testInnerJoinWithQualifiedPropertiesOnLeft [tds/tests]: unknown function 'restrict'
 - ERROR testInnerJoinWithQualifiedPropertiesOnRight [tds/tests]: relation has no column 'eID'
-- ERROR testJoinBySingleColumnName [tds/tests]: join expects (rel1, rel2, JoinKind, {t,v|cond}, 'prefix')
-- ERROR testJoinBySingleColumnNameLeftOuter [tds/tests]: join expects (rel1, rel2, JoinKind, {t,v|cond}, 'prefix')
-- ERROR testJoinBySingleColumnNameRightOuter [tds/tests]: join expects (rel1, rel2, JoinKind, {t,v|cond}, 'prefix')
-- ERROR testJoinByMultiColumnName [tds/tests]: join expects (rel1, rel2, JoinKind, {t,v|cond}, 'prefix')
-- ERROR testJoinByCommonColumnName [tds/tests]: join expects (rel1, rel2, JoinKind, {t,v|cond}, 'prefix')
-- ERROR testJoinByCommonColumnName_RightOuter [tds/tests]: join expects (rel1, rel2, JoinKind, {t,v|cond}, 'prefix')
-- ERROR testJoinByColumnName_AfterLimit [tds/tests]: join expects (rel1, rel2, JoinKind, {t,v|cond}, 'prefix')
+- FAIL testJoinBySingleColumnName [tds/tests]: size: expected 7, got 0; columns: expected [personID, personName, eID, firmName, fID], got []
+- SHAPE testJoinBySingleColumnNameLeftOuter [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
+- FAIL testJoinBySingleColumnNameRightOuter [tds/tests]: size: expected 4, got 0; columns: expected [personID, personName, eID, firmName, fID], got []
+- FAIL testJoinByMultiColumnName [tds/tests]: size: expected 7, got 0; columns: expected [personID, personName, eID, firmName, fID], got []
+- ERROR testJoinByCommonColumnName [tds/tests]: the column 'fID' already exists in the relation (personID:Integer[1], personName:String[1], fID:Integer[0..1])
+- ERROR testJoinByCommonColumnName_RightOuter [tds/tests]: the column 'fID' already exists in the relation (personID:Integer[1], personName:String[1], fID:Integer[0..1])
+- ERROR testJoinByColumnName_AfterLimit [tds/tests]: the column 'fID' already exists in the relation (personID:Integer[1], personName:String[1], fID:Integer[0..1])
 - SHAPE testLeftOuterJoinWithFilterOnClassAndFunction [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testJoinOnColumnsAfterConcatenate [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testJoinFuncByColAfterQueryWithConcatenate [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testJoinFuncByColToQueryWithConcatenate [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testJoinFuncByColAfterQueryWithConcatenateToQueryWithConcatenate [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testJoinByColToQueryWithConcatenate [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
+- SHAPE testJoinOnColumnsAfterConcatenate [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testJoinFuncByColAfterQueryWithConcatenate [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testJoinFuncByColToQueryWithConcatenate [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testJoinFuncByColAfterQueryWithConcatenateToQueryWithConcatenate [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testJoinByColToQueryWithConcatenate [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testTableToTDSWithQuotesGroupBy [tds/tests]: no execute(|...) call
-- ERROR testJoinByColAfterQueryWithConcatenate [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testJoinByColAfterQueryWithConcatenateToQueryWithConcatenate [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
+- SHAPE testJoinByColAfterQueryWithConcatenate [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testJoinByColAfterQueryWithConcatenateToQueryWithConcatenate [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testSimpleJoin [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold)
-- ERROR testSimpleJoinColumns [tds/tests]: join expects (rel1, rel2, JoinKind, {t,v|cond}, 'prefix')
+- SHAPE testSimpleJoinColumns [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold)
 - SHAPE testTwoJoinsWithinConcatenate [tds/tests]: no execute(|...) call
 - SHAPE testJoinWithExtendWithDigestOnColumnsOnBothQueries [tds/tests]: no execute(|...) call
-- ERROR testProjectStringLiteral [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testProjectFunctionOnStringLiteral [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testProjectStringColumn [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testProjectFunctionOnStringColumn [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testProjectMultipleFunctions [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testProjectAndProjectAgain [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testProjectOnDynaFunctionColumn [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testProjectOnMultiple [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testDateLiteral [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testProjectReduceColumns [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testHourFunction [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testProjectEnumFromOpenVariable [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testProjectWithAdjustFunction [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testFilterAfterLimit [tds/tests]: project expects ~[…] column specifications
-- ERROR testFilterAfterLimit2 [tds/tests]: project expects ~[…] column specifications
-- ERROR testSortAfterLimit [tds/tests]: project expects ~[…] column specifications
-- ERROR testLimitAfterLimit [tds/tests]: project expects ~[…] column specifications
-- ERROR testSliceAfterLimit [tds/tests]: project expects ~[…] column specifications
-- ERROR testLimitAfterSlice [tds/tests]: project expects ~[…] column specifications
-- ERROR testDropAfterLimit [tds/tests]: project expects ~[…] column specifications
-- ERROR testLimitAfterDrop [tds/tests]: project expects ~[…] column specifications
-- ERROR testTakeAfterLimit [tds/tests]: project expects ~[…] column specifications
-- ERROR testLimitAfterTake [tds/tests]: project expects ~[…] column specifications
-- ERROR testOptionalLimit_NoValue [tds/tests]: project expects ~[…] column specifications
-- ERROR testOptionalLimit_WithValue [tds/tests]: project expects ~[…] column specifications
+- SHAPE testProjectStringLiteral [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testProjectFunctionOnStringLiteral [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testProjectStringColumn [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testProjectFunctionOnStringColumn [tds/tests]: partial: 1/4 asserts recognized (recognized ones hold)
+- SHAPE testProjectMultipleFunctions [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testProjectAndProjectAgain [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testProjectOnDynaFunctionColumn [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
+- SHAPE testProjectOnMultiple [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- SHAPE testDateLiteral [tds/tests]: no recognizable assertions
+- SHAPE testProjectReduceColumns [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
+- SHAPE testHourFunction [tds/tests]: no recognizable assertions
+- ERROR testProjectEnumFromOpenVariable [tds/tests]: unbound variable '$units'
+- SHAPE testProjectWithAdjustFunction [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
+- ERROR testFilterAfterLimit [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- ERROR testFilterAfterLimit2 [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- ERROR testSortAfterLimit [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- SHAPE testLimitAfterLimit [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
+- ERROR testSliceAfterLimit [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- ERROR testLimitAfterSlice [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- ERROR testDropAfterLimit [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- ERROR testLimitAfterDrop [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- ERROR testTakeAfterLimit [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- ERROR testLimitAfterTake [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- ERROR testOptionalLimit_NoValue [tds/tests]: no overload of 'meta::pure::functions::relation::limit' structurally matches the argument types
+- ERROR testOptionalLimit_WithValue [tds/tests]: unbound variable '$l'
 - ERROR testProjectWithColumnSubSet [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testProjectWithColumnSubSetFunctions [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testProjectWithColumnSubSetSQLTest [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
-- ERROR testGetNumber [tds/tests]: project expects ~[…] column specifications
+- ERROR testGetNumber [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - SHAPE testProjectWithQuotedColumnFromTableToTDS [tds/tests]: no execute(|...) call
 - ERROR testProjectAllColumns_Single [tds/tests]: unknown function 'restrict'
-- ERROR testProjectAllColumns_Mulitple [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testLowerProjectColsEliminated [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testLowerProjectColsNotEliminatedWithSort [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
+- ERROR testProjectAllColumns_Mulitple [tds/tests]: unknown function 'restrict'
+- ERROR testLowerProjectColsEliminated [tds/tests]: unknown function 'restrict'
+- ERROR testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: unknown function 'restrict'
+- ERROR testLowerProjectColsNotEliminatedWithSort [tds/tests]: unknown function 'restrict'
 - ERROR testRestrictOnGroupByEleminatesUncessaryAggs [tds/tests]: unknown function 'restrict'
 - ERROR testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct [tds/tests]: unknown function 'restrict'
 - ERROR testRestrictOnGroupByColumn_SubSetOfGroupByColumns [tds/tests]: unknown function 'restrict'
 - ERROR testRestrictOnGroupByColumn_DropAllAggColumns [tds/tests]: unknown function 'restrict'
-- ERROR testRestrictHandlesQueryPathsCorrectlyOnRename [tds/tests]: project expects ~[…] column specifications
-- ERROR testRestrictWithPostProcessor [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
+- ERROR testRestrictHandlesQueryPathsCorrectlyOnRename [tds/tests]: ~age_new: mapped/aggregate column specifications need an enclosing call to type against
+- ERROR testRestrictWithPostProcessor [tds/tests]: unknown function 'restrict'
 - ERROR testRestrictAfterMultiColumnGroupByFollowedByRename [tds/tests]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
-- ERROR testRestrictAfterConcatenate [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
+- ERROR testRestrictAfterConcatenate [tds/tests]: unknown function 'restrict'
 - ERROR testRestrictDistinct_JoinCutDown_ProjectFunctions [tds/tests]: unknown function 'restrictDistinct'
-- ERROR testRestrictDistinct_JoinCutDown_ColumnSpecs [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testRestrictDistinct_NoOptimization_NotAfterProject [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
+- ERROR testRestrictDistinct_JoinCutDown_ColumnSpecs [tds/tests]: unknown function 'restrictDistinct'
+- ERROR testRestrictDistinct_NoOptimization_NotAfterProject [tds/tests]: unknown function 'restrictDistinct'
 - ERROR testRestrictDistinct_NoOptimization_NotRestrictFollowedByDistinct [tds/tests]: unknown function 'restrict'
 - ERROR testRestrictDistinct_JoinCutDown_PostTdsOperations [tds/tests]: unknown function 'restrictDistinct'
-- ERROR testRestrictDistinct_NoJoinCutDown [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testRestrictDistinct_ColumnOrdering [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
+- ERROR testRestrictDistinct_NoJoinCutDown [tds/tests]: unknown function 'restrictDistinct'
+- ERROR testRestrictDistinct_ColumnOrdering [tds/tests]: unknown function 'restrictDistinct'
 - SHAPE testRestrictDistinct_NoOptimization_WindowColumns [tds/tests]: no execute(|...) call
 - SHAPE testSimpleRelationalUnion [tds/tests]: no execute(|...) call
 - ERROR testSimpleUnion [tds/tests]: unknown function 'union'
@@ -1776,18 +1765,18 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testUnionWithJoin [tds/tests]: no execute(|...) call
 - SHAPE testDistinctBeforeWindowFunction [tds/tests]: no execute(|...) call
 - SHAPE testDistinctAfterWindowFunction [tds/tests]: no execute(|...) call
-- ERROR testProjectStringColumn [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testView [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
+- ERROR testProjectStringColumn [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
+- ERROR testView [tds/tests]: unknown function 'viewReference'
 - ERROR testProjectAllColumns_Single [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
 - ERROR testProjectAllColumnsWithSpaces_Single [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=tableWithQuotedColumns]]
-- ERROR testInnerJoinTabletoTable [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testInnerJoinTabletoObject [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testSimpleFilter [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testExtendStringLiteral [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testSimpleConcatenate [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testSimpleSortAsc [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR simpleGroupCount [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testSimpleDistinctWithTake [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
+- ERROR testInnerJoinTabletoTable [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
+- ERROR testInnerJoinTabletoObject [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::dbInc], CString[value=default], CString[value=personTable]]
+- ERROR testSimpleFilter [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
+- ERROR testExtendStringLiteral [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
+- ERROR testSimpleConcatenate [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::dbInc], CString[value=default], CString[value=personTable]]
+- ERROR testSimpleSortAsc [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
+- ERROR simpleGroupCount [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
+- ERROR testSimpleDistinctWithTake [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
 - SHAPE iqrClassifyTest [tds/tests]: no execute(|...) call
 - SHAPE zScoreTest [tds/tests]: no execute(|...) call
 - SHAPE columnValueDifferenceTest [tds/tests]: no execute(|...) call
@@ -1800,10 +1789,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testFirstNotNull [tds/tests]: no execute(|...) call
 - SHAPE testExtendDigest_InMemory [tds/tests]: no execute(|...) call
 - SHAPE testExtendDigest_Relational [tds/tests]: no execute(|...) call
-- ERROR testRenameColumns [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testChainedRenameColumns [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testRenameColumnsAfterGroupBy [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testRenameColumnsAfterConcatenate [tds/tests]: project expects ~[…] column specifications
+- ERROR testRenameColumns [tds/tests]: unknown function 'renameColumns'
+- ERROR testChainedRenameColumns [tds/tests]: unknown function 'renameColumns'
+- ERROR testRenameColumnsAfterGroupBy [tds/tests]: no overload of 'meta::pure::tds::agg' matches 3 argument(s) of these shapes
+- ERROR testRenameColumnsAfterConcatenate [tds/tests]: unknown function 'renameColumns'
 - SHAPE testRenameColumnsWithQuotes [tds/tests]: no execute(|...) call
 - SHAPE resolveSchemaTest [tds/tests]: no execute(|...) call
 - SHAPE testConstant [testDataGeneration/tests]: no execute(|...) call
@@ -1957,7 +1946,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE relationalResultSourcingOfDateList [tests/advanced]: no execute(|...) call
 - SHAPE relationalResultSourcingOfListExecutionPlan [tests/advanced]: no execute(|...) call
 - ERROR testSimpleTypeMapping [tests/datatype]: in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6)
-- ERROR testSimpleTypeMappingProject [tests/datatype]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
+- ERROR testSimpleTypeMappingProject [tests/datatype]: in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6)
 - ERROR testSimpleTypeMappingNulls [tests/datatype]: in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6)
 - ERROR testSimpleTypeMappingBooleanFalse [tests/datatype]: in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6)
 - ERROR testSimpleTypeMappingProjectNulls [tests/datatype]: in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6)
@@ -1994,7 +1983,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSubTypeProjectWithAssociation [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
 - ERROR testSubTypeProjectSharedNonDirectlyRouted [tests/mapping/association]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testSubTypeProjectSharedNonDirectlyRoutedWithFilter [tests/mapping/association]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testSubTypeInColumnProjectionsWithInlineMappings [tests/mapping/association]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
+- ERROR testSubTypeInColumnProjectionsWithInlineMappings [tests/mapping/association]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Vehicle' (of 1 candidates); class-query dispatch needs exactly one
 - SHAPE testRootMappingForDifferentIncludeOrder [tests/mapping/classMappingByClass]: no execute(|...) call
 - SHAPE testCountClassMappingsForRedundantInclude [tests/mapping/classMappingByClass]: no execute(|...) call
 - SHAPE testRootClassMappingForRedundantInclude [tests/mapping/classMappingByClass]: no execute(|...) call
@@ -2031,9 +2020,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testCorrelatedSubSqlQueryGeneration [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::milestoning::Product' is not a known class, mapping, runtime, connection, or database
 - ERROR TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNestedGeneration [tests/mapping/classMappingFilterWithInnerJoin]: milestoned class fetch of 'meta::relational::tests::model::simple::TemporalTrade' is not supported yet (H-scope exclusion)
 - FAIL testDistinctMappingSimpleProjectSelectOneOfTheDistinctProperties [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
+- FAIL testDistinctMappingSimpleProjectDistinct [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\n>, got <name\nIF 2\nIF 1\n>
 - FAIL testDistinctMappingWithFilterSelectOneProperty [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
 - ERROR testDistinctMappingWithJoinSelectAll [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
-- FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\n\nIfName2\nIfName1\n>
+- FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\nIfName1\n\nIfName2\n>
 - ERROR testProjectDistinctMappingWithDistinctInJoin [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testProjectDistinctMappingWithDistinctInJoinWithDup [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testDistinctMappingWithDistinctInJoinWithFilter [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
@@ -2073,9 +2063,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE otherwiseTestGetterDeepTraversal [tests/mapping/embedded]: no recognizable assertions
 - ERROR testProjectionOtherwiseDeepTraversal [tests/mapping/embedded]: multi-hop navigation bondDetails.holder.name through an embedded/slot head is not supported yet
 - ERROR testProjectionOtherwiseNonPrimitive [tests/mapping/embedded]: in function 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise3$class$meta::relational::tests::mapping::embedded::advanced::model::Product': relation has no column 'bondClassification'
-- FAIL otherwiseTestGroupBy [tests/mapping/embedded]: toCSV: expected <Bond Type,Profit\n15 years,10.0\n5 years,1.0\n>, got <Bond Type,Profit\n5 years,1.0\n15 years,10.0\n>
-- FAIL otherwiseTestGroupByComplexAgg [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\n15 years,2.0\n5 years,5.0\n>, got <Bond Type,sum\n5 years,5.0\n15 years,2.0\n>
-- FAIL otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\nBond 1,1.0\nBond 2,1.0\nSuperBond 3 super,5.0\n>, got <Bond Type,sum\nSuperBond 3 super,5.0\nBond 1,1.0\nBond 2,1.0\n>
+- SHAPE otherwiseTestGroupBy [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
+- SHAPE otherwiseTestGroupByComplexAgg [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
+- FAIL otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\nBond 1,1.0\nBond 2,1.0\nSuperBond 3 super,5.0\n>, got <Bond Type,sum\nSuperBond 3 super,5.0\nBond 2,1.0\nBond 1,1.0\n>
 - ERROR otherwiseTestQualifierProperty [tests/mapping/embedded]: property 'duration' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise'
 - ERROR otherwiseTestQualifierPropertyConstantExpression [tests/mapping/embedded]: property 'isBond' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise'
 - ERROR otherwiseTestQualifierPropertyExpressionWithPropertyInJoinOnly [tests/mapping/embedded]: unknown function 'durationStartsWith'
@@ -2130,19 +2120,19 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProjectWithIfWhereOneSideIsEnumLiteral2 [tests/mapping/enumeration]: unbound variable '$value'
 - SHAPE testProjectWithIfWhereBothSidesUseTheSameEnumMapping [tests/mapping/enumeration]: no recognizable assertions
 - SHAPE testProjectWithIfWhereEnumEqualsClassProp [tests/mapping/enumeration]: partial: 1/3 asserts recognized (recognized ones hold)
-- ERROR testTdsProjectWithSingleStringEnumEqualityComparison [tests/mapping/enumeration]: project expects ~[…] column specifications
-- ERROR testTdsProjectWithMultiStringEnumEqualityComparison [tests/mapping/enumeration]: project expects ~[…] column specifications
-- ERROR testTdsProjectWithEnumInequalityComparison [tests/mapping/enumeration]: project expects ~[…] column specifications
-- ERROR testTdsProjectWithEnumToStringEqualityComparison [tests/mapping/enumeration]: project expects ~[…] column specifications
-- ERROR testTdsProjectWithEnumsInInClause [tests/mapping/enumeration]: project expects ~[…] column specifications
+- ERROR testTdsProjectWithSingleStringEnumEqualityComparison [tests/mapping/enumeration]: unknown function 'getEnum'
+- ERROR testTdsProjectWithMultiStringEnumEqualityComparison [tests/mapping/enumeration]: unknown function 'getEnum'
+- ERROR testTdsProjectWithEnumInequalityComparison [tests/mapping/enumeration]: unknown function 'getEnum'
+- ERROR testTdsProjectWithEnumToStringEqualityComparison [tests/mapping/enumeration]: unknown function 'getEnum'
+- ERROR testTdsProjectWithEnumsInInClause [tests/mapping/enumeration]: unknown function 'getEnum'
 - SHAPE testTdsProjectWithEnumVarEquality [tests/mapping/enumeration]: no execute(|...) call
 - SHAPE testEnumValueReturnedInIfExp [tests/mapping/enumeration]: no execute(|...) call
 - SHAPE testEnumValueReturnedInIfExpNotDistinctTransformers [tests/mapping/enumeration]: no execute(|...) call
 - ERROR filterMappingWithJoinInFilterAndPropertyGetAll [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::model::simple::Person' reads through a join slot; join-mediated mapping filters are H3-pending
 - ERROR testFilterMappingWithJoin [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending
-- ERROR testFilterMappingWithProjection [tests/mapping/filter]: project expects ~[…] column specifications
+- SHAPE testFilterMappingWithProjection [tests/mapping/filter]: partial: 1/2 asserts recognized (recognized ones hold)
 - ERROR testFilterMappingWithProjectionOverlapp [tests/mapping/filter]: multi-hop navigation parent.parent.name through an embedded/slot head is not supported yet
-- ERROR testFilterMappingWithProjectionAndJoin [tests/mapping/filter]: project expects ~[…] column specifications
+- ERROR testFilterMappingWithProjectionAndJoin [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending
 - SHAPE testGetterWithTargetFilter [tests/mapping/filter]: no recognizable assertions
 - ERROR testFilterMappingWithProjectionAndJoinAndQuery [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending
 - ERROR testGroupByMapping [tests/mapping/groupBy]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::groupBy::model::domain::Position' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::groupBy::model::mapping::testMapping' failed to normalize this class: PropertyMapping 
@@ -2179,9 +2169,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSubTypeProjectSharedNonDirectlyRouted [tests/mapping/inheritance]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testSubTypeGroupBy [tests/mapping/inheritance]: expected at most one value, got many ([*])
 - ERROR testSubTypeGroupByThroughMap [tests/mapping/inheritance]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testFilteringOnColumnsNotInProject [tests/mapping/inheritance]: project expects ~[…] column specifications
-- ERROR testFilteringOnColumnsNotInProjectSingleChildStructure [tests/mapping/inheritance]: project expects ~[…] column specifications
-- ERROR testProjectQualifiedPropertyFromUnmappedSuperClass [tests/mapping/inheritance]: project expects ~[…] column specifications
+- ERROR testFilteringOnColumnsNotInProject [tests/mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testFilteringOnColumnsNotInProjectSingleChildStructure [tests/mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Gasoline' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testProjectQualifiedPropertyFromUnmappedSuperClass [tests/mapping/inheritance]: property 'derivedOwnerDescription' of class 'meta::relational::tests::model::inheritance::Bicycle' has no binding in mapping 'meta::relational::tests::mapping::inheritance::inheritanceMain' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testEmbeddMappingInSubTypes [tests/mapping/inheritance]: property 'vehicles' of class 'meta::relational::tests::model::inheritance::Person' has no binding in mapping 'meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testMilestonedSubTyping [tests/mapping/inheritance]: milestoned class fetch of 'meta::relational::tests::model::inheritance::milestoned::VehicleOwner' is not supported yet (H-scope exclusion)
 - ERROR testMilestonedSubTypingWithDifferentDates [tests/mapping/inheritance]: unknown function 'vehicle'
@@ -2467,8 +2457,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFilterOnNestedQualifier [tests/mapping/tree]: multi-hop navigation trader.team.name through an embedded/slot head is not supported yet
 - ERROR testProjectMerge [tests/mapping/tree]: [1:182] navigation path segment 'orgByName('BUSINESS UNIT')' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mapping::tree::model::domain::Person/orgByName('BUSINESS UNIT')/name!buName#
 - ERROR testProjection [tests/mapping/tree]: [5:143] navigation path segment 'orgByName('TEAM')' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mapping::tree::model::domain::Person/orgByName('TEAM')/name!team#
-- ERROR testProjectionDeeper [tests/mapping/tree]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testProjectionDeeperInlined [tests/mapping/tree]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
+- ERROR testProjectionDeeper [tests/mapping/tree]: unknown function 'orgByName'
+- ERROR testProjectionDeeperInlined [tests/mapping/tree]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testProjectWithFilter [tests/mapping/tree]: [2:217] navigation path segment 'orgByName('BUSINESS UNIT')' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mapping::tree::model::domain::Person/orgByName('BUSINESS UNIT')/name!buName#
 - ERROR testJoinIsolationDeeper_LeftOuterLeftOuterThenInner [tests/mapping/tree]: in function 'meta::relational::tests::mapping::tree::model::mapping::orgTestMapping$class$meta::relational::tests::mapping::tree::model::domain::Account': expected String, got Integer
 - ERROR testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner [tests/mapping/tree]: unknown function 'orgByName'
@@ -2519,8 +2509,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testChainedUnionsWithMapAggregation [tests/mapping/union]: no execute(|...) call
 - ERROR testUnionViewJoins [tests/mapping/union]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::UnionViewJoinsMapping'
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
+- ERROR testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: property 'allEmployeesLastName' of class 'meta::relational::tests::model::simple::FirmExtension' has no binding in mapping 'meta::relational::tests::mapping::union::unionOfViews' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- ERROR testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: property 'allEmployeesLastName' of class 'meta::relational::tests::model::simple::FirmExtension' has no binding in mapping 'meta::relational::tests::mapping::union::unionOfViews2' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testChainedUnions [tests/mapping/union]: unknown function 'temporalEntityWithAddress'
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::unionMapping' failed to normalize this class: class is mapped through multiple set IDs; .all() over
 - ERROR testUnionWithSinglePropertyMapping [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one

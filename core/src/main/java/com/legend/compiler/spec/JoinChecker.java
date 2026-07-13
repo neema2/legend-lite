@@ -80,20 +80,39 @@ final class JoinChecker {
         };
         EnumValue joinKind = new EnumValue(
                 "meta::pure::functions::relation::JoinKind", mapped);
-        if (ps.size() == 5 && ps.get(3) instanceof CString lhs
-                && ps.get(4) instanceof CString rhs) {
+        List<String> lhsCols = columnNames(ps.size() >= 4 ? ps.get(3) : null);
+        List<String> rhsCols = ps.size() == 5 ? columnNames(ps.get(4)) : lhsCols;
+        if (lhsCols != null && rhsCols != null && lhsCols.size() == rhsCols.size()
+                && (ps.size() == 4 || ps.size() == 5)) {
             Variable a = new Variable("a");
             Variable b = new Variable("b");
-            LambdaFunction cond = new LambdaFunction(List.of(a, b), List.of(
-                    new AppliedFunction("equal", List.of(
-                            new AppliedProperty(a, lhs.value()),
-                            new AppliedProperty(b, rhs.value())))));
+            ValueSpecification cond = null;
+            for (int i = 0; i < lhsCols.size(); i++) {
+                ValueSpecification eq = new AppliedFunction("equal", List.of(
+                        new AppliedProperty(a, lhsCols.get(i)),
+                        new AppliedProperty(b, rhsCols.get(i))));
+                cond = cond == null ? eq : new AppliedFunction("and", List.of(cond, eq));
+            }
+            LambdaFunction condLam = new LambdaFunction(List.of(a, b), List.of(cond));
             return new AppliedFunction(af.function(),
-                    List.of(ps.get(0), ps.get(1), joinKind, cond));
+                    List.of(ps.get(0), ps.get(1), joinKind, condLam));
         }
         List<ValueSpecification> out = new java.util.ArrayList<>(ps);
         out.set(2, joinKind);
         return new AppliedFunction(af.function(), out);
+    }
+
+    /** String or [strings] column-name argument of the legacy TDS join, else null. */
+    private static List<String> columnNames(ValueSpecification v) {
+        if (v instanceof CString c) {
+            return List.of(c.value());
+        }
+        if (v instanceof com.legend.parser.spec.PureCollection pc
+                && !pc.values().isEmpty()
+                && pc.values().stream().allMatch(x -> x instanceof CString)) {
+            return pc.values().stream().map(x -> ((CString) x).value()).toList();
+        }
+        return null;
     }
 
     /**

@@ -54,6 +54,12 @@ final class ProjectChecker {
             return legacyToModern(new AppliedFunction(af.function(),
                     List.of(ps.get(0), lambdas, names)));
         }
+        if (ps.size() == 2 && (ps.get(1) instanceof LambdaFunction
+                || isLegacyColumnCall(ps.get(1)))) {
+            // scalar legacy column: project(col(fn,'name')) — wrap and recurse
+            return normalizeLegacyForms(new AppliedFunction(af.function(),
+                    List.of(ps.get(0), new PureCollection(List.of(ps.get(1))))));
+        }
         if (ps.size() == 2 && ps.get(1) instanceof PureCollection lambdas) {
             List<ValueSpecification> exprs = new ArrayList<>(lambdas.values().size());
             List<ValueSpecification> names = new ArrayList<>(lambdas.values().size());
@@ -69,6 +75,16 @@ final class ProjectChecker {
                     names.add(alias);
                     continue;
                 }
+                // legacy TDS col(fn, 'name') inside the project collection
+                if (v instanceof AppliedFunction colCall
+                        && colCall.function().equals("col")
+                        && colCall.parameters().size() == 2
+                        && colCall.parameters().get(0) instanceof LambdaFunction fn
+                        && colCall.parameters().get(1) instanceof CString cname) {
+                    exprs.add(fn);
+                    names.add(cname);
+                    continue;
+                }
                 exprs.add(v);
                 names.add(new CString(derivedColumnName(v)));
             }
@@ -76,6 +92,12 @@ final class ProjectChecker {
                     List.of(ps.get(0), new PureCollection(exprs), new PureCollection(names))));
         }
         return af;
+    }
+
+    private static boolean isLegacyColumnCall(ValueSpecification v) {
+        return v instanceof AppliedFunction c
+                && (c.function().equals("col") || c.function().equals("pathWithAlias"))
+                && c.parameters().size() == 2;
     }
 
     /** The leaf property of a navigation lambda/path names its column (engine parity). */
