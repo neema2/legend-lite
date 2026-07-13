@@ -398,7 +398,7 @@ public final class Runner {
 
     /** One executed query: the let-var it binds, its rows, its body offset. */
     record ResultBinding(String var, List<Map<String, Object>> rows, int pos,
-            String query, List<String> colTypes) {
+            String query, List<String> colTypes, List<String> colNames) {
     }
 
     public Outcome run(Corpus.TestFn fn) {
@@ -530,14 +530,18 @@ public final class Runner {
                     ExecutionResult r = new QueryService().execute(
                             fullModel, qualified, runtimeFqn, conn);
                     List<String> colTypes;
+                    List<String> colNames;
                     try {
                         colTypes = r.columns().stream()
                                 .map(c -> String.valueOf(c.javaType())).toList();
+                        colNames = r.columns().stream()
+                                .map(c -> String.valueOf(c.name())).toList();
                     } catch (Exception e) {
                         colTypes = List.of();   // graph results carry no schema
+                        colNames = List.of();
                     }
                     bindings.add(new ResultBinding(var, graphRows(r), span[2],
-                            qualified, colTypes));
+                            qualified, colTypes, colNames));
                 }
                 if (bindings.isEmpty()) {
                     return new Outcome(fn.fqn(), Status.SHAPE,
@@ -555,11 +559,11 @@ public final class Runner {
                     for (ResultBinding b : List.copyOf(bindings)) {
                         if (b.var().equals(src) && b.pos() <= am.start()) {
                             bindings.add(new ResultBinding(alias, b.rows(),
-                                    am.start(), b.query(), b.colTypes()));
+                                    am.start(), b.query(), b.colTypes(), b.colNames()));
                         }
                     }
                 }
-                return checkAsserts(fn, bindings, failedSeeds);
+                return checkAsserts(fn, bindings, failedSeeds, skippedSpan);
             }
         } catch (Exception e) {
             // flatten, don't truncate — poison reasons ride on later lines
@@ -699,7 +703,7 @@ public final class Runner {
     // ===== assertion evaluation =====
 
     private Outcome checkAsserts(Corpus.TestFn fn, List<ResultBinding> bindings,
-            List<String> failedSeeds) {
+            List<String> failedSeeds, String skippedSpan) {
         List<String> problems = new ArrayList<>();
         // recognized = asserts whose SHAPE matched AND whose expected value
         // PARSED (an unparseable expected value is NOT recognized — counting
@@ -707,6 +711,7 @@ public final class Runner {
         // verified = recognized minus advisory golden-SQL asserts.
         int recognized = 0;
         int verified = 0;
+        Map<ResultBinding, AtClaims> atClaims = new LinkedHashMap<>();
         String firstUnrecognized = null;
         int recognizedBefore;
         for (int[] callPos : assertCallSpans(fn.body())) {
@@ -963,11 +968,21 @@ public final class Runner {
                             recognized++;
                             verified++;
                             int idx = Integer.parseInt(rowAtGet.group(1));
+                            if (!sortedQuery(bound.query())) {
+                                // no order contract: defer to the POOLED
+                                // per-index assignment (audit 8 F1 — plain
+                                // membership lost row identity)
+                                if (idx >= rows.size()) {
+                                    problems.add("row " + idx + " out of range ("
+                                            + rows.size() + " rows)");
+                                } else {
+                                    atClaims.computeIfAbsent(bound, k -> new AtClaims())
+                                            .claimCol(idx, rowAtGet.group(2), expected);
+                                }
+                                continue;
+                            }
                             Object actual = idx < rows.size() ? rows.get(idx).get(rowAtGet.group(2)) : null;
-                            if (!valueEquals(expected, actual)
-                                    && !(!sortedQuery(bound.query())
-                                            && column(rows, rowAtGet.group(2)).stream()
-                                                    .anyMatch(v -> valueEquals(expected, v)))) {
+                            if (!valueEquals(expected, actual)) {
                                 problems.add("row " + idx + "." + rowAtGet.group(2)
                                         + ": expected " + expected + ", got " + actual);
                             }
@@ -980,14 +995,19 @@ public final class Runner {
                             recognized++;
                             verified++;
                             int idx = Integer.parseInt(rowAtCells.group(1));
+                            if (!sortedQuery(bound.query())) {
+                                if (idx >= rows.size()) {
+                                    problems.add("row " + idx + " out of range ("
+                                            + rows.size() + " rows)");
+                                } else {
+                                    atClaims.computeIfAbsent(bound, k -> new AtClaims())
+                                            .claimRow(idx, expected);
+                                }
+                                continue;
+                            }
                             List<Object> actual = idx < rows.size()
                                     ? new ArrayList<>(rows.get(idx).values()) : List.of();
-                            // rows->at(N) under an UNSORTED query has no
-                            // positional contract (engine order is H2's
-                            // incident): membership suffices
-                            if (!orderedEquals(expected, actual)
-                                    && !(!sortedQuery(bound.query())
-                                            && anyRowMatches(rows, expected))) {
+                            if (!orderedEquals(expected, actual)) {
                                 problems.add("row " + idx + ": expected " + expected + ", got " + actual);
                             }
                         }
@@ -1044,30 +1064,53 @@ public final class Runner {
                     }
                     Matcher tdsAct = Pattern.compile(
                             "^\\$R(?:\\.values)?(?:->toOne\\(\\))?"
-                                    + "(?:->sort\\(~(\\w+)->(ascending|descending)\\(\\)\\))?"
+                                    + "(?:->sort\\((~\\w+->(?:ascending|descending)\\(\\)"
+                                    + "|\\[[^\\]]*\\])\\))?"
                                     + "(?:->toString\\(\\))?$")
                             .matcher(second);
                     if (tdsAct.matches()
                             && pureLiteral(exp0) instanceof TdsExpected te) {
+                        if (te.rows().isEmpty() && !failedSeeds.isEmpty()) {
+                            // an empty grid proves nothing when a seed
+                            // failed (same rule as assertEmpty; audit 8 F2)
+                            return new Outcome(fn.fqn(), Status.SHAPE,
+                                    "empty-TDS expectation unverifiable: "
+                                            + failedSeeds.size()
+                                            + " seed statement(s) failed: "
+                                            + failedSeeds.get(0));
+                        }
                         recognized++;
                         verified++;
+                        // header verifies from the result SCHEMA — an empty
+                        // result must still have the right columns
                         List<String> actualCols = rows.isEmpty()
-                                ? List.of() : new ArrayList<>(rows.get(0).keySet());
+                                ? bound.colNames() : new ArrayList<>(rows.get(0).keySet());
                         List<Map<String, Object>> cmpRows = rows;
-                        if (tdsAct.group(1) != null && !rows.isEmpty()) {
+                        List<String[]> sortKeys = new ArrayList<>();
+                        if (tdsAct.group(1) != null) {
+                            Matcher km = Pattern.compile("~(\\w+)->(ascending|descending)")
+                                    .matcher(tdsAct.group(1));
+                            while (km.find()) {
+                                sortKeys.add(new String[]{km.group(1), km.group(2)});
+                            }
+                        }
+                        if (!sortKeys.isEmpty() && !rows.isEmpty()) {
                             cmpRows = new ArrayList<>(rows);
-                            String key = tdsAct.group(1);
-                            boolean desc = "descending".equals(tdsAct.group(2));
                             cmpRows.sort((r1, r2) -> {
-                                int c = compareCells(r1.get(key), r2.get(key));
-                                return desc ? -c : c;
+                                for (String[] k : sortKeys) {
+                                    int c = compareCells(r1.get(k[0]), r2.get(k[0]));
+                                    if (c != 0) {
+                                        return "descending".equals(k[1]) ? -c : c;
+                                    }
+                                }
+                                return 0;
                             });
                         }
-                        if (!rows.isEmpty() && !te.cols().equals(actualCols)) {
+                        if (!te.cols().equals(actualCols)) {
                             problems.add("TDS columns: expected " + te.cols()
                                     + ", got " + actualCols);
                         } else if (!tdsRowsEqual(te.rows(), cmpRows,
-                                tdsAct.group(1) != null ? "->sort(" : bound.query())) {
+                                !sortKeys.isEmpty() ? "->sort(" : bound.query())) {
                             problems.add("TDS rows: expected " + te.rows() + ", got "
                                     + cmpRows.stream().map(r2 -> new ArrayList<>(r2.values())).toList());
                         }
@@ -1119,7 +1162,7 @@ public final class Runner {
                                 java.util.Collections.sort(strs);
                             }
                             String actual = String.join(mapJoin.group(3), strs);
-                            if (!joinedEquals(es, actual, mapJoin.group(3),
+                            if (!joinedEquals(es, strs, mapJoin.group(3),
                                     mapJoin.group(2) != null, bound.query())) {
                                 problems.add(mapJoin.group(1) + ": expected <" + es
                                         + ">, got <" + actual + ">");
@@ -1148,7 +1191,7 @@ public final class Runner {
                             }
                             String actual = String.join(
                                     propJoin.group(3) == null ? "" : propJoin.group(3), strs);
-                            if (!joinedEquals(es, actual,
+                            if (!joinedEquals(es, strs,
                                     propJoin.group(3) == null ? "" : propJoin.group(3),
                                     propJoin.group(2) != null, bound.query())) {
                                 problems.add(propJoin.group(1) + ": expected <" + es
@@ -1177,7 +1220,7 @@ public final class Runner {
                                 java.util.Collections.sort(rowStrs);
                             }
                             String actual = String.join(matrixJoin.group(3), rowStrs);
-                            if (!joinedEquals(es, actual, matrixJoin.group(3),
+                            if (!joinedEquals(es, rowStrs, matrixJoin.group(3),
                                     matrixJoin.group(2) != null, bound.query())) {
                                 problems.add("rows: expected <" + es + ">, got <"
                                         + actual + ">");
@@ -1201,7 +1244,7 @@ public final class Runner {
                                 java.util.Collections.sort(strs);
                             }
                             String actual = String.join(cellsSortJoin.group(2), strs);
-                            if (!joinedEquals(es, actual, cellsSortJoin.group(2),
+                            if (!joinedEquals(es, strs, cellsSortJoin.group(2),
                                     cellsSortJoin.group(1) != null, bound.query())) {
                                 problems.add("cells: expected <" + es + ">, got <"
                                         + actual + ">");
@@ -1225,7 +1268,7 @@ public final class Runner {
                                 java.util.Collections.sort(strs);
                             }
                             String actual = String.join(cellsJoin.group(2), strs);
-                            if (!joinedEquals(es, actual, cellsJoin.group(2),
+                            if (!joinedEquals(es, strs, cellsJoin.group(2),
                                     cellsJoin.group(1) != null, bound.query())) {
                                 problems.add("cells: expected <" + es + ">, got <"
                                         + actual + ">");
@@ -1308,11 +1351,18 @@ public final class Runner {
                             recognized++;
                             verified++;
                             int idx = Integer.parseInt(at.group(1));
+                            if (!sortedQuery(bound.query())) {
+                                if (idx >= rows.size()) {
+                                    problems.add("at(" + idx + ") out of range ("
+                                            + rows.size() + " rows)");
+                                } else {
+                                    atClaims.computeIfAbsent(bound, k -> new AtClaims())
+                                            .claimCol(idx, at.group(2), expected);
+                                }
+                                continue;
+                            }
                             Object actual = idx < rows.size() ? rows.get(idx).get(at.group(2)) : null;
-                            if (!valueEquals(expected, actual)
-                                    && !(!sortedQuery(bound.query())
-                                            && column(rows, at.group(2)).stream()
-                                                    .anyMatch(v -> valueEquals(expected, v)))) {
+                            if (!valueEquals(expected, actual)) {
                                 problems.add("at(" + idx + ")." + at.group(2)
                                         + ": expected " + expected + ", got " + actual);
                             }
@@ -1323,6 +1373,12 @@ public final class Runner {
             }
             if (recognized == recognizedBefore && firstUnrecognized == null) {
                 firstUnrecognized = call.length() > 120 ? call.substring(0, 120) : call;
+            }
+        }
+        for (Map.Entry<ResultBinding, AtClaims> ce : atClaims.entrySet()) {
+            if (!ce.getValue().assignable(ce.getKey().rows())) {
+                problems.add("at(N) asserts: no consistent one-row-per-index"
+                        + " assignment: " + ce.getValue());
             }
         }
         if (recognized == 0) {
@@ -1345,6 +1401,12 @@ public final class Runner {
         if (verified == 0) {
             return new Outcome(fn.fqn(), Status.SHAPE,
                     "sql-only: " + recognized + " advisory golden-SQL assert(s), no row verification");
+        }
+        if (skippedSpan != null) {
+            // an execute() the corpus ran was NOT executed here — a PASS
+            // could be reading a stale same-named result (audit 8 F3)
+            return new Outcome(fn.fqn(), Status.SHAPE,
+                    "asserts hold but an execute() span was skipped: " + skippedSpan);
         }
         return new Outcome(fn.fqn(), Status.PASS, verified + " assert(s)");
     }
@@ -1407,10 +1469,109 @@ public final class Runner {
      * data rows compare as a MULTISET under an identical header. A sorted
      * query compares exactly.
      */
-    /** The query text carries an explicit sort — its row order is a contract. */
+    /**
+     * The query's OUTER chain carries an explicit sort — its row order is a
+     * contract. TOP-LEVEL only: a sortBy inside a nested lambda (an
+     * aggregation input) orders nothing about the outer rows (audit 8 U2).
+     */
     private static boolean sortedQuery(String query) {
-        return query != null
-                && Pattern.compile("->\\s*(sort|sortBy)\\s*\\(").matcher(query).find();
+        if (query == null) {
+            return false;
+        }
+        int depth = 0;
+        int i = 0;
+        while (i < query.length()) {
+            char c = query.charAt(i);
+            if (c == '\'') {
+                i = Corpus.skipString(query, i);
+                continue;
+            }
+            if (c == '(' || c == '[' || c == '{') {
+                depth++;
+            } else if (c == ')' || c == ']' || c == '}') {
+                depth--;
+            } else if (depth == 0 && c == '-' && query.startsWith("->", i)) {
+                int j = i + 2;
+                while (j < query.length() && Character.isWhitespace(query.charAt(j))) {
+                    j++;
+                }
+                if (query.startsWith("sort", j)) {
+                    return true;
+                }
+            }
+            i++;
+        }
+        return false;
+    }
+
+    /**
+     * Deferred {@code at(N)} expectations for one result under an unsorted
+     * query: every claimed index must match a DISTINCT actual row
+     * simultaneously (injective assignment) — plain per-assert membership
+     * lost row identity and absorbed duplicates (audit 8 F1).
+     */
+    private static final class AtClaims {
+        private final Map<Integer, List<Object>> rowByIdx = new LinkedHashMap<>();
+        private final Map<Integer, Map<String, List<Object>>> colsByIdx = new LinkedHashMap<>();
+
+        void claimRow(int idx, List<Object> expected) {
+            rowByIdx.put(idx, expected);
+        }
+
+        void claimCol(int idx, String col, Object expected) {
+            colsByIdx.computeIfAbsent(idx, k -> new LinkedHashMap<>())
+                    .computeIfAbsent(col, k -> new ArrayList<>()).add(expected);
+        }
+
+        boolean assignable(List<Map<String, Object>> rows) {
+            List<Integer> idxs = new ArrayList<>(new java.util.TreeSet<>(
+                    java.util.stream.Stream.concat(rowByIdx.keySet().stream(),
+                            colsByIdx.keySet().stream()).toList()));
+            return place(0, idxs, rows, new boolean[rows.size()]);
+        }
+
+        private boolean place(int k, List<Integer> idxs,
+                List<Map<String, Object>> rows, boolean[] used) {
+            if (k == idxs.size()) {
+                return true;
+            }
+            int idx = idxs.get(k);
+            for (int r = 0; r < rows.size(); r++) {
+                if (used[r] || !rowMatches(idx, rows.get(r))) {
+                    continue;
+                }
+                used[r] = true;
+                if (place(k + 1, idxs, rows, used)) {
+                    return true;
+                }
+                used[r] = false;
+            }
+            return false;
+        }
+
+        private boolean rowMatches(int idx, Map<String, Object> row) {
+            List<Object> full = rowByIdx.get(idx);
+            if (full != null && !orderedEquals(full, new ArrayList<>(row.values()))) {
+                return false;
+            }
+            Map<String, List<Object>> cols = colsByIdx.get(idx);
+            if (cols != null) {
+                for (Map.Entry<String, List<Object>> e : cols.entrySet()) {
+                    for (Object expected : e.getValue()) {
+                        if (!valueEquals(expected, row.get(e.getKey()))) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public String toString() {
+            return (rowByIdx.isEmpty() ? "" : "rows " + rowByIdx + " ")
+                    + (colsByIdx.isEmpty() ? "" : "cols " + colsByIdx);
+        }
     }
 
     /**
@@ -1420,21 +1581,32 @@ public final class Runner {
      * compare as a MULTISET (separator-split — engine expectations encode
      * H2's incidental row order).
      */
-    private static boolean joinedEquals(String expected, String actual, String sep,
+    private static boolean joinedEquals(String expected, List<String> parts, String sep,
             boolean explicitSort, String query) {
-        if (expected.equals(actual)) {
+        if (expected.equals(String.join(sep, parts))) {
             return true;
         }
         if (explicitSort || sortedQuery(query) || sep.isEmpty()) {
             return false;
         }
-        List<String> e = new ArrayList<>(List.of(expected.split(Pattern.quote(sep), -1)));
-        for (String part : actual.split(Pattern.quote(sep), -1)) {
-            if (!e.remove(part)) {
+        // multiset over the ACTUAL parts (pre-join) — separator-splitting
+        // the joined string could merge/split across cell boundaries when
+        // data contains the separator (audit 8 U1); when it does, only the
+        // exact compare above may pass
+        if (parts.stream().anyMatch(x -> x.contains(sep))) {
+            return false;
+        }
+        String[] e = expected.split(Pattern.quote(sep), -1);
+        if (e.length != parts.size()) {
+            return false;
+        }
+        List<String> pool = new ArrayList<>(parts);
+        for (String x : e) {
+            if (!pool.remove(x)) {
                 return false;
             }
         }
-        return e.isEmpty();
+        return true;
     }
 
     private static boolean csvEquals(String expected, String actual, String query) {
@@ -1726,8 +1898,13 @@ public final class Runner {
 
     /** One TDS-literal cell: integer/float/boolean/date by shape, null for empty. */
     private static Object tdsCell(String cell) {
+        // null spellings test BEFORE unquoting: a QUOTED 'null' is the
+        // string; bare null/TDSNull/empty are the null cell (audit 8 U3)
+        if (cell.isEmpty() || cell.equals("null") || cell.equals("TDSNull")) {
+            return NULL_EXPECTED;
+        }
         cell = unquote(cell);
-        if (cell.isEmpty() || cell.equals("null")) {
+        if (cell.isEmpty()) {
             return NULL_EXPECTED;
         }
         if (cell.matches("-?\\d+")) {
@@ -1764,7 +1941,7 @@ public final class Runner {
         }
         if (sortedQuery(query)) {
             for (int i = 0; i < expected.size(); i++) {
-                if (!orderedEquals(expected.get(i),
+                if (!tdsRowEquals(expected.get(i),
                         new ArrayList<>(actual.get(i).values()))) {
                     return false;
                 }
@@ -1776,7 +1953,7 @@ public final class Runner {
         for (List<Object> e : expected) {
             int hit = -1;
             for (int i = 0; i < pool.size(); i++) {
-                if (orderedEquals(e, pool.get(i))) {
+                if (tdsRowEquals(e, pool.get(i))) {
                     hit = i;
                     break;
                 }
@@ -1785,6 +1962,34 @@ public final class Runner {
                 return false;
             }
             pool.remove(hit);
+        }
+        return true;
+    }
+
+    /**
+     * TDS cell rows compare NUMERIC-KIND-STRICTLY: pure's toString prints
+     * 52 vs 52.0 differently, so a wrongly Float-typed Integer column must
+     * FAIL here even though the epsilon compare would pass it (audit 8 U3).
+     */
+    private static boolean tdsRowEquals(List<Object> expected, List<Object> actual) {
+        if (expected.size() != actual.size()) {
+            return false;
+        }
+        for (int i = 0; i < expected.size(); i++) {
+            Object e = expected.get(i);
+            Object a = actual.get(i);
+            boolean eInt = e instanceof Long;
+            boolean aInt = a instanceof Long || a instanceof Integer
+                    || a instanceof java.math.BigInteger;
+            boolean eFp = e instanceof Double;
+            boolean aFp = a instanceof Double || a instanceof Float
+                    || a instanceof java.math.BigDecimal;
+            if ((eInt && aFp) || (eFp && aInt)) {
+                return false;
+            }
+            if (!valueEquals(e, a)) {
+                return false;
+            }
         }
         return true;
     }

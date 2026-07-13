@@ -252,10 +252,9 @@ public final class ElementParser implements TokenStreamCursor {
     private boolean skipTopLevelNonElement() {
         if (isIdentifierToken(peek()) && "Diagram".equals(text())) {
             advance();
-            while (!atEnd() && peek() != TokenType.PAREN_OPEN
-                    && peek() != TokenType.BRACE_OPEN) {
-                advance();  // the diagram's qualified name
-            }
+            parseQualifiedName();       // the diagram's name — anything else
+                                        // after it is a parse error, never an
+                                        // unbounded token skip (audit 8 S9)
             if (peek() == TokenType.PAREN_OPEN) {
                 skipBalancedBlock();    // (width=..., height=...)
             }
@@ -266,12 +265,11 @@ public final class ElementParser implements TokenStreamCursor {
         }
         if (peek() == TokenType.NEW_SYMBOL) {
             advance();
-            while (!atEnd() && peek() != TokenType.PAREN_OPEN) {
-                advance();  // the instance's type reference
+            parseQualifiedName();       // the instance's type reference
+            if (peek() != TokenType.PAREN_OPEN) {
+                throw error("top-level ^Instance must be followed by (...)");
             }
-            if (peek() == TokenType.PAREN_OPEN) {
-                skipBalancedBlock();
-            }
+            skipBalancedBlock();
             return true;
         }
         return false;
@@ -2013,10 +2011,12 @@ public final class ElementParser implements TokenStreamCursor {
                 expect(TokenType.PAREN_CLOSE);
             }
             expect(TokenType.BRACE_CLOSE);
-            if (members.size() >= 2) {
-                accum.classMappings.add(new ClassMapping.Union(
-                        elementPath, setId, extendsSetId, root, members));
+            if (members.isEmpty()) {
+                throw error("Operation union for '" + elementPath
+                        + "' names no member sets");
             }
+            accum.classMappings.add(new ClassMapping.Union(
+                    elementPath, setId, extendsSetId, root, members));
             return;
         }
         // Relation (~func-sourced) class mapping: the class's extent is the
@@ -2068,11 +2068,12 @@ public final class ElementParser implements TokenStreamCursor {
                 }
                 List<com.legend.parser.spec.ValueSpecification> exprs =
                         SpecParser.parseCodeBlock(tokens.slice(exprStart, pos));
-                if (exprs.isEmpty()) {
-                    throw error("XStore property '" + prop + "' has an empty expression");
+                if (exprs.size() != 1) {
+                    throw error("XStore property '" + prop + "' must be a single"
+                            + " expression; got " + exprs.size() + " statements");
                 }
                 xprops.add(new AssociationMapping.Cross.XStoreProperty(
-                        prop, srcSet, tgtSet, exprs.get(exprs.size() - 1)));
+                        prop, srcSet, tgtSet, exprs.get(0)));
                 match(TokenType.COMMA);
             }
             expect(TokenType.BRACE_CLOSE);

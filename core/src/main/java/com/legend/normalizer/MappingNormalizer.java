@@ -774,35 +774,71 @@ public final class MappingNormalizer {
     private static FunctionDefinition synthesizeXStoreMapping(LegacyMappingDefinition md,
             AssociationMapping.Cross xs, ModelBuilder model,
             String classA, String classB) {
-        ClassMapping.RelationFunction rfA = relationFunctionMappingOf(md, classA);
-        ClassMapping.RelationFunction rfB = relationFunctionMappingOf(md, classB);
         AssociationDefinition ad = model.findAssociation(xs.associationName()).orElseThrow();
+        // the line's [srcSet, tgtSet] ids select the sets: srcSet = the
+        // OWNING end's, tgtSet = the line's target end's (engine
+        // PropertyMappingBuilder uses them the same way)
+        String setA = null;
+        String setB = null;
+        if (!xs.propertyMappings2().isEmpty()) {
+            var l0 = xs.propertyMappings2().get(0);
+            boolean p1 = l0.propertyName().equals(ad.property1().propertyName());
+            setA = p1 ? l0.targetSetId() : l0.sourceSetId();
+            setB = p1 ? l0.sourceSetId() : l0.targetSetId();
+        }
+        ClassMapping.RelationFunction rfA = relationFunctionMappingOf(md, classA, setA);
+        ClassMapping.RelationFunction rfB = relationFunctionMappingOf(md, classB, setB);
         if (xs.propertyMappings2().isEmpty()) {
             throw new com.legend.error.ModelException(
                     com.legend.error.LegendCompileException.Phase.NORMALIZE,
                     "XStore mapping for '" + xs.associationName()
                     + "' has no property lines; mapping=" + md.qualifiedName());
         }
-        // one line fully determines the predicate; prefer property1's
-        // (its $that IS classA, matching the (srcRow: classA-row) contract)
-        AssociationMapping.Cross.XStoreProperty line = xs.propertyMappings2().get(0);
-        for (AssociationMapping.Cross.XStoreProperty cand : xs.propertyMappings2()) {
-            if (cand.propertyName().equals(ad.property1().propertyName())) {
-                line = cand;
-                break;
-            }
-        }
-        boolean lineIsProp1 = line.propertyName().equals(ad.property1().propertyName());
         Variable srcRow = new Variable("srcRow");
         Variable tgtRow = new Variable("tgtRow");
-        // navigating property1 lands on classA: $that = classA(srcRow),
-        // $this = the owner classB(tgtRow); property2 lines mirror
-        Variable thisRow = lineIsProp1 ? tgtRow : srcRow;
-        Variable thatRow = lineIsProp1 ? srcRow : tgtRow;
-        ClassMapping.RelationFunction thisRf = lineIsProp1 ? rfB : rfA;
-        ClassMapping.RelationFunction thatRf = lineIsProp1 ? rfA : rfB;
-        ValueSpecification cond = rewriteXStoreReads(line.expression(),
-                thisRow, thisRf, thatRow, thatRf, xs.associationName(), md);
+        boolean selfAssoc = classA.equals(classB);
+        // ORIENTATION (the resolver's associationJoin contract): for
+        // DISTINCT end classes the cond binds (srcRow=classA-row,
+        // tgtRow=classB-row), so a property1 line's $that (the property1
+        // destination = classA) maps to srcRow. A SELF-association cannot
+        // orient by class — the pinned convention is "property1's
+        // destination on tgtRow" (the table-backed emission binds {target}
+        // there), which is the INVERSE mapping (audit 8 S1).
+        List<ValueSpecification> conds = new ArrayList<>();
+        for (AssociationMapping.Cross.XStoreProperty cand : xs.propertyMappings2()) {
+            boolean isProp1 = cand.propertyName().equals(ad.property1().propertyName());
+            if (!isProp1 && !cand.propertyName().equals(ad.property2().propertyName())) {
+                throw new com.legend.error.ModelException(
+                        com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                        "XStore line '" + cand.propertyName() + "' matches"
+                        + " neither end of association '" + xs.associationName()
+                        + "'; mapping=" + md.qualifiedName());
+            }
+            Variable thatRow;
+            if (selfAssoc) {
+                thatRow = isProp1 ? tgtRow : srcRow;
+            } else {
+                thatRow = isProp1 ? srcRow : tgtRow;
+            }
+            Variable thisRow = thatRow == srcRow ? tgtRow : srcRow;
+            ClassMapping.RelationFunction thatRf = isProp1 ? rfA : rfB;
+            ClassMapping.RelationFunction thisRf = isProp1 ? rfB : rfA;
+            conds.add(rewriteXStoreReads(cand.expression(),
+                    thisRow, thisRf, thatRow, thatRf, xs.associationName(), md));
+        }
+        // the engine compiles each direction's expression independently;
+        // our single-predicate emission requires them to AGREE — loud when
+        // a model gives the two directions different conditions (audit S6)
+        ValueSpecification cond = conds.get(0);
+        for (ValueSpecification c : conds) {
+            if (!c.equals(cond)) {
+                throw new com.legend.error.NotImplementedException(
+                        "XStore association '" + xs.associationName()
+                        + "' has direction-specific conditions; a single"
+                        + " shared predicate is required for now (mapping="
+                        + md.qualifiedName() + ")");
+            }
+        }
         Variable a = new Variable("a");
         Variable b = new Variable("b");
         ValueSpecification body = new AppliedFunction("legacyAssocPredicate", List.of(
@@ -835,8 +871,9 @@ public final class MappingNormalizer {
     private static FunctionDefinition synthesizeModelJoinMapping(LegacyMappingDefinition md,
             AssociationMapping.ModelJoin mj, ModelBuilder model,
             String classA, String classB) {
-        ClassMapping.RelationFunction rfA = relationFunctionMappingOf(md, classA);
-        ClassMapping.RelationFunction rfB = relationFunctionMappingOf(md, classB);
+        AssociationDefinition ad2 = model.findAssociation(mj.associationName()).orElseThrow();
+        ClassMapping.RelationFunction rfA = relationFunctionMappingOf(md, classA, null);
+        ClassMapping.RelationFunction rfB = relationFunctionMappingOf(md, classB, null);
         if (mj.lambda().parameters().size() != 2) {
             throw new com.legend.error.NotImplementedException(
                     "ModelJoin for '" + mj.associationName() + "' needs a"
@@ -848,17 +885,30 @@ public final class MappingNormalizer {
         String t1 = p1.type() instanceof TypeExpression.NameRef nr1 ? nr1.name() : null;
         String aVar;
         String bVar;
-        if (classA.equals(t0) || (t0 != null && classA.endsWith("::" + t0) && !classB.equals(t1))) {
+        // pairing: by EXACT type FQN when the ends differ; a SELF-association
+        // is type-ambiguous, so the engine mandates NAME pairing (params
+        // named after the association properties — HelperMappingBuilder
+        // resolveLambdaParamNames) and errors otherwise. No suffix matching.
+        if (!classA.equals(classB) && classA.equals(t0) && classB.equals(t1)) {
             aVar = p0.name();
             bVar = p1.name();
-        } else if (classA.equals(t1) || (t1 != null && classA.endsWith("::" + t1))) {
+        } else if (!classA.equals(classB) && classA.equals(t1) && classB.equals(t0)) {
+            aVar = p1.name();
+            bVar = p0.name();
+        } else if (p0.name().equals(ad2.property1().propertyName())
+                && p1.name().equals(ad2.property2().propertyName())) {
+            aVar = p0.name();
+            bVar = p1.name();
+        } else if (p1.name().equals(ad2.property1().propertyName())
+                && p0.name().equals(ad2.property2().propertyName())) {
             aVar = p1.name();
             bVar = p0.name();
         } else {
             throw new com.legend.error.NotImplementedException(
-                    "ModelJoin for '" + mj.associationName() + "': lambda param"
-                    + " types [" + t0 + ", " + t1 + "] do not match the"
-                    + " association ends [" + classA + ", " + classB + "]");
+                    "ModelJoin for '" + mj.associationName() + "': lambda params ["
+                    + p0.name() + ": " + t0 + ", " + p1.name() + ": " + t1
+                    + "] pair with the association ends neither by exact type"
+                    + " nor by the engine's property-name rule");
         }
         Variable srcRow = new Variable("srcRow");
         Variable tgtRow = new Variable("tgtRow");
@@ -889,19 +939,29 @@ public final class MappingNormalizer {
                         SynthHat.ASSOC, md.qualifiedName(), mj.associationName()));
     }
 
-    /** The (sole) Relation-function class mapping for {@code classFqn} in {@code md}. */
+    /**
+     * The Relation-function class mapping for {@code classFqn} in {@code md}
+     * — by SET ID when the association line names one; otherwise the class's
+     * sole set (two sets without an id is ambiguous — loud, never first-wins).
+     */
     private static ClassMapping.RelationFunction relationFunctionMappingOf(
-            LegacyMappingDefinition md, String classFqn) {
+            LegacyMappingDefinition md, String classFqn, String setId) {
+        List<ClassMapping.RelationFunction> hits = new ArrayList<>();
         for (ClassMapping cm : md.classMappings()) {
             if (cm instanceof ClassMapping.RelationFunction rf
-                    && rf.className().equals(classFqn)) {
-                return rf;
+                    && rf.className().equals(classFqn)
+                    && (setId == null || setId.equals(rf.setId()))) {
+                hits.add(rf);
             }
         }
-        throw new com.legend.error.NotImplementedException(
-                "XStore association end class '" + classFqn + "' has no"
-                + " Relation(~func) class mapping in '" + md.qualifiedName()
-                + "' — XStore over other mapping kinds is not supported yet");
+        if (hits.size() != 1) {
+            throw new com.legend.error.NotImplementedException(
+                    "XStore/ModelJoin association end class '" + classFqn
+                    + "' resolves to " + hits.size() + " Relation(~func) set(s)"
+                    + (setId != null ? " for set id '" + setId + "'" : "")
+                    + " in '" + md.qualifiedName() + "'");
+        }
+        return hits.get(0);
     }
 
     /** {@code $this.p}/{@code $that.p} → column reads on the two relation rows. */
@@ -1033,11 +1093,10 @@ public final class MappingNormalizer {
     private static ValueSpecification synthUnion(LegacyMappingDefinition md,
                                                 ClassMapping.Union u,
                                                 ModelBuilder model) {
-        if (u.memberSetIds().size() < 2) {
+        if (u.memberSetIds().isEmpty()) {
             throw new com.legend.error.NotImplementedException(
-                    "Operation union of " + u.memberSetIds().size()
-                  + " member set(s); class=" + u.className()
-                  + ", mapping=" + md.qualifiedName());
+                    "Operation union with no member sets; class="
+                  + u.className() + ", mapping=" + md.qualifiedName());
         }
         // member sets resolve by setId ACROSS INCLUDES; a member may map a
         // SUBCLASS of the operation class (special_union over an
@@ -1060,6 +1119,16 @@ public final class MappingNormalizer {
                               : "not a Relational set") + "; mapping="
                       + md.qualifiedName());
             }
+            // a member must map the operation class or a SUBCLASS — a
+            // stray setId landing on an unrelated class with coincidental
+            // property names would union unrelated rows (audit 8 S8)
+            if (!isSubclassOf(mr.className(), u.className(), model)) {
+                throw new com.legend.error.ModelException(
+                        com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                        "Operation union member set '" + setId + "' maps '"
+                      + mr.className() + "', which is not '" + u.className()
+                      + "' or a subclass; mapping=" + md.qualifiedName());
+            }
             memberSets.add(mr);
         }
         return synthMemberUnion(md, u.className(), memberSets, model);
@@ -1075,13 +1144,49 @@ public final class MappingNormalizer {
      */
     private static ValueSpecification synthInheritance(LegacyMappingDefinition md,
             ClassMapping.Inheritance ih, ModelBuilder model) {
+        // ENGINE ALGORITHM (router_operations.pure getMappedLeafTypes): for
+        // each LEAF type among the base's STRICT specializations, the
+        // nearest mapped ancestor's ROOT class mapping (resolved across
+        // includes), deduped. The base's own sets never join; non-root
+        // sets never join; only the leaf-most mapped set per leaf
+        // contributes (audit 8 S3 — the every-subclass-set collection
+        // returned extra and duplicated rows).
+        java.util.LinkedHashSet<ClassMapping> chosen = new java.util.LinkedHashSet<>();
+        collectInheritanceMembers(md, ih.className(), model, chosen);
         List<ClassMapping.Relational> members = new ArrayList<>();
-        collectConcreteSubclassSets(md, ih.className(), ih, model, members,
-                new java.util.HashSet<>());
+        for (ClassMapping cm : chosen) {
+            switch (cm) {
+                case ClassMapping.Relational mr -> members.add(mr);
+                case ClassMapping.Union u2 -> {
+                    Map<String, ClassMapping> bySetId = new LinkedHashMap<>();
+                    collectIncludedSetIds(md, model, bySetId, new java.util.HashSet<>());
+                    for (ClassMapping own : md.classMappings()) {
+                        if (own.setId() != null) {
+                            bySetId.put(own.setId(), own);
+                        }
+                    }
+                    for (String setId : u2.memberSetIds()) {
+                        if (bySetId.get(setId) instanceof ClassMapping.Relational mr2) {
+                            members.add(mr2);
+                        } else {
+                            throw new com.legend.error.NotImplementedException(
+                                    "inheritance member union set '" + setId
+                                    + "' is not a Relational set; mapping="
+                                    + md.qualifiedName());
+                        }
+                    }
+                }
+                default -> throw new com.legend.error.NotImplementedException(
+                        "inheritance Operation member for '" + cm.className()
+                        + "' is a " + cm.getClass().getSimpleName()
+                        + " mapping — not supported yet; mapping="
+                        + md.qualifiedName());
+            }
+        }
         if (members.isEmpty()) {
             throw new com.legend.error.NotImplementedException(
                     "inheritance Operation for '" + ih.className()
-                    + "' finds no Relational subclass sets; mapping="
+                    + "' finds no mapped subclass sets; mapping="
                     + md.qualifiedName());
         }
         if (members.size() == 1) {
@@ -1090,33 +1195,80 @@ public final class MappingNormalizer {
         return synthMemberUnion(md, ih.className(), members, model);
     }
 
-    /** Every Relational set of {@code base} or a subclass, operations expanded. */
-    private static void collectConcreteSubclassSets(LegacyMappingDefinition md,
-            String base, ClassMapping self, ModelBuilder model,
-            List<ClassMapping.Relational> out, java.util.Set<ClassMapping> seen) {
-        for (ClassMapping cm : md.classMappings()) {
-            if (cm == self || !seen.add(cm)) {
-                continue;
+    /** The engine's leaf-most-root member selection for an inheritance op. */
+    private static void collectInheritanceMembers(LegacyMappingDefinition md,
+            String base, ModelBuilder model, java.util.Set<ClassMapping> chosen) {
+        // ROOT class mapping per class, includes first (own definitions win)
+        Map<String, ClassMapping> rootByClass = new LinkedHashMap<>();
+        collectRootClassMappings(md, model, rootByClass, new java.util.HashSet<>());
+        // strict specializations of base, and their leaves
+        List<String> subs = new ArrayList<>();
+        model.classes().forEach(cd -> {
+            String fqn = cd.qualifiedName();
+            if (!fqn.equals(base) && isSubclassOf(fqn, base, model)) {
+                subs.add(fqn);
             }
-            if (!isSubclassOf(cm.className(), base, model)) {
-                continue;
-            }
-            switch (cm) {
-                case ClassMapping.Relational mr -> out.add(mr);
-                case ClassMapping.Union u2 -> {
-                    for (String setId : u2.memberSetIds()) {
-                        md.classMappings().stream()
-                                .filter(x -> setId.equals(x.setId())
-                                        && x instanceof ClassMapping.Relational)
-                                .map(x -> (ClassMapping.Relational) x)
-                                .filter(seen::add)
-                                .forEach(out::add);
+        });
+        List<String> leaves = subs.stream()
+                .filter(c -> subs.stream().noneMatch(o -> !o.equals(c)
+                        && isSubclassOf(o, c, model)))
+                .toList();
+        for (String leaf : leaves) {
+            // nearest mapped ancestor at or above the leaf, STRICTLY below base
+            java.util.ArrayDeque<String> level = new java.util.ArrayDeque<>();
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            level.add(leaf);
+            outer:
+            while (!level.isEmpty()) {
+                int n = level.size();
+                for (int i = 0; i < n; i++) {
+                    String c = level.poll();
+                    if (!seen.add(c) || c.equals(base)) {
+                        continue;
+                    }
+                    ClassMapping cm = rootByClass.get(c);
+                    if (cm != null) {
+                        if (cm instanceof ClassMapping.Inheritance) {
+                            collectInheritanceMembers(md, c, model, chosen);
+                        } else {
+                            chosen.add(cm);
+                        }
+                        break outer;
+                    }
+                    ClassDefinition cd = model.findClass(c).orElse(null);
+                    if (cd != null) {
+                        for (TypeExpression sup : cd.superClasses()) {
+                            if (sup instanceof TypeExpression.NameRef nr) {
+                                level.add(nr.name());
+                            }
+                        }
                     }
                 }
-                case ClassMapping.Inheritance ih2 ->
-                        collectConcreteSubclassSets(md, ih2.className(), ih2,
-                                model, out, seen);
-                default -> { }
+            }
+        }
+    }
+
+    /** ROOT set per class across this mapping + its includes (own wins). */
+    private static void collectRootClassMappings(LegacyMappingDefinition md,
+            ModelBuilder model, Map<String, ClassMapping> out, java.util.Set<String> seen) {
+        for (com.legend.parser.element.MappingInclude inc : md.includes()) {
+            if (seen.add(inc.mappingPath())) {
+                LegacyMappingDefinition included =
+                        model.findLegacyMapping(inc.mappingPath()).orElse(null);
+                if (included != null) {
+                    collectRootClassMappings(included, model, out, seen);
+                }
+            }
+        }
+        Map<String, Integer> setsPerClass = new LinkedHashMap<>();
+        for (ClassMapping cm : md.classMappings()) {
+            setsPerClass.merge(cm.className(), 1, Integer::sum);
+        }
+        for (ClassMapping cm : md.classMappings()) {
+            // engine rootClassMappingByClass: the * set, or the class's
+            // SOLE set (corpus mappings often omit * on singletons)
+            if (cm.root() || setsPerClass.get(cm.className()) == 1) {
+                out.put(cm.className(), cm);
             }
         }
     }
@@ -1973,13 +2125,20 @@ public final class MappingNormalizer {
         if (colKind == null || colKind.equals(declared)) {
             return read;
         }
-        boolean subsumed = switch (declared) {
-            case "Number" -> java.util.Set.of("Integer", "Float", "Decimal").contains(colKind);
-            case "Date" -> java.util.Set.of("DateTime", "StrictDate").contains(colKind);
+        // Only conversions the engine's runtime transformer actually
+        // performs (Boolean, Date-family) or that are lossless (*->String,
+        // DATE widening to DateTime) may cast. NARROWING casts (Integer
+        // over DECIMAL, StrictDate over TIMESTAMP) match no engine
+        // behavior — they'd silently truncate values the engine preserves
+        // (audit 8 S4); those fall through uncast and the type checker
+        // stays the loud arbiter.
+        boolean emit = switch (declared) {
+            case "String" -> true;
+            case "Boolean" -> true;
+            case "DateTime" -> "StrictDate".equals(colKind);
             default -> false;
         };
-        if (subsumed || !java.util.Set.of("String", "Integer", "Float", "Decimal",
-                "Number", "Boolean", "DateTime", "StrictDate", "Date").contains(declared)) {
+        if (!emit) {
             return read;
         }
         return new AppliedFunction("cast", List.of(read,

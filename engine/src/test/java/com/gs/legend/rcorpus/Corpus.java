@@ -813,7 +813,7 @@ public final class Corpus {
     }
 
     private static final Pattern TEST_FN = Pattern.compile(
-            "function\\s+<<[^>]*test\\.Test[^>]*>>\\s+((?:\\w+::)*\\w+)\\s*\\(\\s*\\)\\s*:\\s*Boolean\\s*\\[1\\]\\s*");
+            "(?m)^\\s*function\\s+(<<[^>]*test\\.Test[^>]*>>)\\s+((?:\\w+::)*\\w+)\\s*\\(\\s*\\)\\s*:\\s*Boolean\\s*\\[1\\]\\s*");
 
     private static final Pattern IMPORT_LINE = Pattern.compile(
             "^import\\s+((?:\\w+::)+)(\\*|\\w+)\\s*;", Pattern.MULTILINE);
@@ -835,14 +835,49 @@ public final class Corpus {
         List<TestFn> out = new ArrayList<>();
         Matcher m = TEST_FN.matcher(source);
         while (m.find()) {
+            // the engine harness never runs ToFix/Ignore tests — counting
+            // them would add PASSes the engine itself doesn't certify
+            String stereotypes = m.group(1);
+            if (stereotypes.contains("test.ToFix") || stereotypes.contains("test.Ignore")
+                    || stereotypes.contains("test.ExcludeAlloy")) {
+                continue;
+            }
             int bodyStart = source.indexOf('{', m.end());
             if (bodyStart < 0) {
                 continue;
             }
             int end = skipFunction(source, m.start());
-            String body = source.substring(bodyStart + 1, end - 1);
-            out.add(new TestFn(m.group(1), body, typeImports, wildcards));
+            // //-comments are STRIPPED from the body (string-aware): a lone
+            // apostrophe or '#' in a comment flips string/island parity for
+            // every extractor downstream (audit 8 D1 — a live regression
+            // swallowed a real execute() span)
+            String body = stripLineComments(source.substring(bodyStart + 1, end - 1));
+            out.add(new TestFn(m.group(2), body, typeImports, wildcards));
         }
         return out;
+    }
+
+    /** Remove {@code // ...} line comments, respecting string literals. */
+    static String stripLineComments(String s) {
+        StringBuilder out = new StringBuilder(s.length());
+        int i = 0;
+        while (i < s.length()) {
+            char c = s.charAt(i);
+            if (c == '\'') {
+                int end = skipString(s, i);
+                out.append(s, i, end);
+                i = end;
+                continue;
+            }
+            if (c == '/' && i + 1 < s.length() && s.charAt(i + 1) == '/') {
+                while (i < s.length() && s.charAt(i) != '\n') {
+                    i++;
+                }
+                continue;
+            }
+            out.append(c);
+            i++;
+        }
+        return out.toString();
     }
 }
