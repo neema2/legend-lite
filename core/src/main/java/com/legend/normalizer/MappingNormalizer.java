@@ -1368,7 +1368,8 @@ public final class MappingNormalizer {
         }
         String simple = name.substring(name.lastIndexOf("::") + 2 > 1
                 ? name.lastIndexOf("::") + 2 : 0);
-        if (!java.util.Set.of("Float", "Integer", "Decimal", "Number").contains(simple)) {
+        if (!java.util.Set.of("Float", "Integer", "Decimal", "Number",
+                "DateTime", "StrictDate", "Date").contains(simple)) {
             return value;
         }
         return new AppliedFunction("cast", List.of(value,

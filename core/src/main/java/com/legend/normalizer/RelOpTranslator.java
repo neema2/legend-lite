@@ -114,6 +114,16 @@ final class RelOpTranslator {
         return new AppliedProperty(base, column);
     }
 
+    private static List<ValueSpecification> translateArgs(
+            RelationalOperation.FunctionCall call,
+            Map<String, ValueSpecification> tableScope,
+            ValueSpecification targetVarOrNull, Variable rowBindOrNull,
+            PipelineView pipeline) {
+        return call.args().stream()
+                .map(a -> translate(a, tableScope, targetVarOrNull, rowBindOrNull, pipeline))
+                .toList();
+    }
+
     /** {@code cast(v, @String)} — the SQL VARCHAR coercion emission. */
     private static ValueSpecification strCast(ValueSpecification v) {
         return new AppliedFunction("cast", List.of(v,
@@ -168,6 +178,76 @@ final class RelOpTranslator {
                                     rowBindOrNull, pipeline),
                             new EnumValue("meta::pure::functions::hash::HashType",
                                     DYNA_HASH_TYPES.get(call.name()))));
+            case RelationalOperation.FunctionCall call
+                    when call.name().equals("dayOfWeek") && call.args().size() == 1 ->
+                    // the DYNA returns the day NAME (a string); pure's
+                    // dayOfWeek returns the enum — toString is the name
+                    new AppliedFunction("toString", List.of(new AppliedFunction(
+                            "dayOfWeek", translateArgs(call, tableScope,
+                                    targetVarOrNull, rowBindOrNull, pipeline))));
+            case RelationalOperation.FunctionCall call
+                    when call.name().equals("isNumeric") && call.args().size() == 1 ->
+                    new AppliedFunction("isNumeric", translateArgs(call, tableScope,
+                            targetVarOrNull, rowBindOrNull, pipeline));
+            case RelationalOperation.FunctionCall call
+                    when call.name().equals("dayOfWeekNumber") && call.args().size() == 2 -> {
+                    // 2-arg form fixes the WEEK START; DuckDB isodow is
+                    // Monday-based already — any other start day is loud
+                    if (!(call.args().get(1) instanceof RelationalOperation.Literal lit)
+                            || !(lit.value() instanceof String ws)
+                            || !ws.equalsIgnoreCase("Monday")) {
+                        throw new com.legend.error.NotImplementedException(
+                                "dayOfWeekNumber with a non-Monday week start is not"
+                              + " supported yet");
+                    }
+                    yield new AppliedFunction("dayOfWeekNumber", List.of(
+                            translate(call.args().get(0), tableScope, targetVarOrNull,
+                                    rowBindOrNull, pipeline)));
+            }
+            case RelationalOperation.FunctionCall call
+                    when call.name().equals("adjust") && call.args().size() == 3
+                    && call.args().get(2) instanceof RelationalOperation.Literal ul
+                    && ul.value() instanceof String unit -> {
+                    // the dyna spells the DurationUnit as a string literal
+                    yield new AppliedFunction("adjust", List.of(
+                            translate(call.args().get(0), tableScope, targetVarOrNull,
+                                    rowBindOrNull, pipeline),
+                            translate(call.args().get(1), tableScope, targetVarOrNull,
+                                    rowBindOrNull, pipeline),
+                            new EnumValue("meta::pure::functions::date::DurationUnit",
+                                    unit.toUpperCase())));
+            }
+            case RelationalOperation.FunctionCall call
+                    when call.name().equals("convertTimeZone") && call.args().size() == 3 ->
+                    new AppliedFunction("convertTimeZoneFormat", translateArgs(call,
+                            tableScope, targetVarOrNull, rowBindOrNull, pipeline));
+            // FORMAT dynafunctions: parseDate/convertDate/convertDateTime/
+            // toTimestamp with a format string route to the lite natives
+            // (strptime with translated tokens at lowering); convertDate
+            // without a format is the ISO spelling; convertVarchar128 is
+            // the VARCHAR coercion.
+            case RelationalOperation.FunctionCall call
+                    when call.name().equals("parseDate") && call.args().size() == 2 ->
+                    new AppliedFunction("parseDateFormat", translateArgs(call, tableScope,
+                            targetVarOrNull, rowBindOrNull, pipeline));
+            case RelationalOperation.FunctionCall call
+                    when call.name().equals("convertDate") && call.args().size() <= 2 -> {
+                    List<ValueSpecification> as = translateArgs(call, tableScope,
+                            targetVarOrNull, rowBindOrNull, pipeline);
+                    yield new AppliedFunction("convertDateFormat",
+                            as.size() == 2 ? as
+                                    : List.of(as.get(0), new CString("yyyy-MM-dd")));
+            }
+            case RelationalOperation.FunctionCall call
+                    when (call.name().equals("convertDateTime")
+                            || call.name().equals("toTimestamp"))
+                    && call.args().size() == 2 ->
+                    new AppliedFunction("convertDateTimeFormat", translateArgs(call,
+                            tableScope, targetVarOrNull, rowBindOrNull, pipeline));
+            case RelationalOperation.FunctionCall call
+                    when call.name().equals("convertVarchar128") && call.args().size() == 1 ->
+                    strCast(translate(call.args().get(0), tableScope, targetVarOrNull,
+                            rowBindOrNull, pipeline));
             case RelationalOperation.FunctionCall call
                     when call.name().equals("splitPart") && call.args().size() == 3 -> {
                     // the DYNAFUNCTION accepts a string-typed part index (the

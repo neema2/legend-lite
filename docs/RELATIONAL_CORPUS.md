@@ -161,9 +161,9 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/association | 24 | 1 | 0 | 19 | 4 |
 | tests/mapping/classMappingByClass | 3 | 0 | 0 | 0 | 3 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 0 | 0 | 30 | 2 |
-| tests/mapping/distinct | 18 | 5 | 4 | 9 | 0 |
+| tests/mapping/distinct | 18 | 4 | 5 | 9 | 0 |
 | tests/mapping/dynaJoin | 6 | 0 | 0 | 2 | 4 |
-| tests/mapping/embedded | 70 | 14 | 13 | 36 | 7 |
+| tests/mapping/embedded | 70 | 14 | 14 | 36 | 6 |
 | tests/mapping/enumeration | 27 | 1 | 1 | 2 | 23 |
 | tests/mapping/filter | 10 | 3 | 0 | 5 | 2 |
 | tests/mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
@@ -177,7 +177,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/relation | 93 | 0 | 0 | 50 | 43 |
 | tests/mapping/relation/aggregation | 9 | 0 | 0 | 0 | 9 |
 | tests/mapping/selfJoin | 3 | 0 | 0 | 2 | 1 |
-| tests/mapping/sqlFunction | 73 | 0 | 0 | 64 | 9 |
+| tests/mapping/sqlFunction | 73 | 38 | 20 | 4 | 11 |
 | tests/mapping/tree | 13 | 0 | 0 | 13 | 0 |
 | tests/mapping/union | 125 | 0 | 0 | 107 | 18 |
 | tests/mapping/union/relation | 15 | 0 | 0 | 13 | 2 |
@@ -186,7 +186,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2429 | **168** | 61 | 1182 | 1018 |
+| **total** | 2429 | **205** | 83 | 1122 | 1019 |
 
 ### mapping walls (dropped at assembly)
 
@@ -405,7 +405,6 @@ runner does not yet recognize (accounted, not skipped silently).
 
 ### top error buckets
 
-- 64x in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
 - 37x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - 35x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
 - 33x class query under TypedMap is not resolvable yet (H2 vocabulary)
@@ -435,6 +434,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - 9x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::Person' (of 1 candidates); class-query dispatch needs exactly one
 - 8x unknown function 'ytd'
 - 8x expected meta::relational::tests::functions::distance::GeographicCoordinate, got GeographicCoordinate
+- 8x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Account' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::relational::tests::simpleRelationalMapping
 
 ### per-test outcomes (non-passing)
 
@@ -1983,6 +1983,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testCorrelatedSubSqlQueryGeneration [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::milestoning::Product' is not a known class, mapping, runtime, connection, or database
 - ERROR TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNestedGeneration [tests/mapping/classMappingFilterWithInnerJoin]: milestoned class fetch of 'meta::relational::tests::model::simple::TemporalTrade' is not supported yet (H-scope exclusion)
 - FAIL testDistinctMappingSimpleProjectSelectOneOfTheDistinctProperties [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
+- FAIL testDistinctMappingSimpleProjectDistinct [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\n>, got <name\nIF 2\nIF 1\n>
 - FAIL testDistinctMappingWithFilterSelectOneProperty [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
 - ERROR testDistinctMappingWithJoinSelectAll [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\n\nIfName2\nIfName1\n>
@@ -2054,7 +2055,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMilestonedInlineGraphFetchWithEnumProperty [tests/mapping/embedded]: milestoned class fetch of 'meta::relational::tests::mapping::embedded::advanced::model::PersonWithGenderInfo' is not supported yet (H-scope exclusion)
 - ERROR testSubType [tests/mapping/embedded]: class-typed property '$p.issuer' used as a whole value is graph output (Phase H4)
 - ERROR testSubTypeOnPropertyMappedToNonRootInlineSetImpl [tests/mapping/embedded]: class-typed property '$p.holder' used as a whole value is graph output (Phase H4)
-- SHAPE testGroupBy [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
+- FAIL testGroupBy [tests/mapping/embedded]: toCSV: expected <holder,Profit\nholder1,10.0\nholder3,1.0\n>, got <holder,Profit\nholder3,1.0\nholder1,10.0\n>
 - SHAPE testGroupByComplexAgg [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
 - FAIL testQualifierProperty [tests/mapping/embedded]: toCSV: expected <name,c2,c3\nBond 1,issuer1,holder1\n>, got <>
 - SHAPE testEnumTheSame [tests/mapping/enumeration]: no execute(|...) call
@@ -2159,7 +2160,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMultipleJoinsInPropertyMappingWithDateInJoin [tests/mapping/join]: in function 'meta::relational::tests::mapping::join::model::mapping::advancedRelationalMapping2$class$meta::relational::tests::mapping::join::model::domain::TypeBuiltOutOfMultipleJoins': no overload of 'meta::pure::functions::boolean::lessThanEqual' structurally matches the argument types
 - ERROR testConstraintTargetingMultipleJoinsInPropertyMapping [tests/mapping/join]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'Person_PersonExtension' (the demand scan and the rewrite disagreed)
 - SHAPE testConstraintTargetingMultipleJoinsInPropertyMappingNoJoinProperty [tests/mapping/join]: partial: 2/3 asserts recognized (recognized ones hold)
-- ERROR testConvertToStringH2 [tests/mapping/join]: in function 'meta::relational::tests::mapping::join::model::mapping::MappingForAccountAndTrade$class$meta::relational::tests::model::simple::Trade': unknown function 'convertVarchar128'
+- ERROR testConvertToStringH2 [tests/mapping/join]: in function 'meta::relational::tests::mapping::join::model::mapping::MappingForAccountAndTrade$class$meta::relational::tests::model::simple::Trade': expected Float, got Integer
 - ERROR testChainedOuterJoinsWithFilterInproject [tests/mapping/join]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'Person_MiddleTable__MiddleTable_PersonExtension' (the demand scan and the rewrite disagreed)
 - ERROR testChainedOuterJoinsWithQualifierInproject [tests/mapping/join]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'Person_MiddleTable__MiddleTable_PersonExtension' (the demand scan and the rewrite disagreed)
 - ERROR testChainedInnerJoinsWithQualifierInGroupBy [tests/mapping/join]: no overload of 'groupBy' matches the argument types
@@ -2328,79 +2329,41 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testSelfJoinPropertyMapping [tests/mapping/selfJoin]: no recognizable assertions
 - ERROR testSelfJoinPropertyMappingOverlap [tests/mapping/selfJoin]: multi-hop navigation parent.parent.name through an embedded/slot head is not supported yet
 - ERROR testSelfJoinPropertyMappingWithDynaFunction [tests/mapping/selfJoin]: multi-hop navigation parent.parent.parent.name through an embedded/slot head is not supported yet
-- ERROR testToSQLStringWithParseDateInQueryForH2 [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testToSQLStringParseDateForH2 [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
+- FAIL testToSQLStringWithParseDateInQueryForH2 [tests/mapping/sqlFunction]: cells: expected [DateExpected[iso=2016-06-23T00:00:00.000000000+0000], DateExpected[iso=2016-06-23T00:00:00.000000000+0000]], got [2016-06-23 00:00:00.0, 2016-06-23 00:00:00.0]
+- FAIL testToSQLStringParseDateForH2 [tests/mapping/sqlFunction]: cells: expected [DateExpected[iso=2016-06-23T13:00:00.000000000+0000], DateExpected[iso=2016-02-23T23:00:00.000000000+0000]], got [2016-06-23 13:00:00.0, 2016-02-23 23:00:00.0]
 - SHAPE testTriminNotSybaseASE [tests/mapping/sqlFunction]: no execute(|...) call
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
+- ERROR testProject [tests/mapping/sqlFunction]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_aggregate(INTEGER, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_aggregate(ANY[]
+- FAIL testProject [tests/mapping/sqlFunction]: cells: expected [0.8912073600614354, 0.9738476308781951], got [0.8912073708760093, 0.9738476417120342]
+- FAIL testFilter [tests/mapping/sqlFunction]: cells: expected [0.9738476308781951], got [0.9738476417120342]
+- FAIL testProject [tests/mapping/sqlFunction]: cells: expected [0.4535961214255773, -0.2272020946930871], got [0.45359610017753804, -0.2272020482564131]
+- FAIL testFilter [tests/mapping/sqlFunction]: cells: expected [-0.2272020946930871], got [-0.2272020482564131]
+- FAIL testProject [tests/mapping/sqlFunction]: cells: expected [1.9647596572486523, -4.286261674628062], got [1.9647597731267747, -4.286262598359062]
+- FAIL testFilter [tests/mapping/sqlFunction]: cells: expected [1.9647596572486523], got [1.9647597731267747]
+- FAIL testProject [tests/mapping/sqlFunction]: cells: expected [0.8329812666744317, 1.0636978224025597], got [0.8329812774626025, 1.0636978111564002]
+- FAIL testFilter [tests/mapping/sqlFunction]: cells: expected [1.0636978224025597], got [1.0636978111564002]
+- FAIL testProject [tests/mapping/sqlFunction]: cells: expected [0.8329812666744317, 0.7328151017865066], got [0.8329812774626025, 0.7328150886142093]
+- FAIL testFilter [tests/mapping/sqlFunction]: cells: expected [0.8329812666744317], got [0.8329812774626025]
+- ERROR testProject [tests/mapping/sqlFunction]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_aggregate(INTEGER, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_aggregate(ANY[]
+- SHAPE testProject [tests/mapping/sqlFunction]: partial: 1/2 asserts recognized (recognized ones hold)
+- SHAPE testFilter [tests/mapping/sqlFunction]: partial: 1/2 asserts recognized (recognized ones hold)
 - SHAPE testToSQLStringToStringInDB2 [tests/mapping/sqlFunction]: no execute(|...) call
 - SHAPE testToSQLStringConcatInDB2 [tests/mapping/sqlFunction]: no execute(|...) call
 - SHAPE testToSQLStringParseIntegerinH2 [tests/mapping/sqlFunction]: no execute(|...) call
 - SHAPE testToSQLStringParseIntegerinComposite [tests/mapping/sqlFunction]: no execute(|...) call
 - SHAPE testToSQLStringParseIntegerinDB2 [tests/mapping/sqlFunction]: no execute(|...) call
-- ERROR testToSQLStringconvertToDateinH2 [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testToSQLStringconvertToDateinH2UserDefinedFormat [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
 - SHAPE testToSQLStringconvertToDateinDb2 [tests/mapping/sqlFunction]: no execute(|...) call
-- ERROR testToSQLStringconvertToDateTimeinH2 [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
+- ERROR testToSQLStringconvertToDateTimeinH2 [tests/mapping/sqlFunction]: Invalid Input Error: Could not parse string "2016-06-23 13:00:00" according to format specifier "%Y-%m-%d %H:%M:%S.%g" | 2016-06-23 13:00:00 |                     ^ | Error: Literal does not match, expected .
 - SHAPE testToSQLStringconvertToDateTimeinDb2 [tests/mapping/sqlFunction]: no execute(|...) call
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testProject [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testFilter [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
+- FAIL testProject [tests/mapping/sqlFunction]: cells: expected [1.3310000000000004, 5.832000000000001], got [1.3310000865459461, 5.831999536514295]
+- FAIL testFilter [tests/mapping/sqlFunction]: cells: expected [1.3310000000000004], got [1.3310000865459461]
+- FAIL testProject [tests/mapping/sqlFunction]: cells: expected [3.0041660239464334, 6.0496474644129465], got [3.0041660955713336, 6.049647175943282]
+- FAIL testFilter [tests/mapping/sqlFunction]: cells: expected [3.0041660239464334], got [3.0041660955713336]
+- FAIL testProject [tests/mapping/sqlFunction]: cells: expected [0.09531017980432493, 0.5877866649021191], got [0.0953102014787409, 0.5877866384111654]
+- FAIL testFilter [tests/mapping/sqlFunction]: cells: expected [0.09531017980432493], got [0.0953102014787409]
+- FAIL testProject [tests/mapping/sqlFunction]: cells: expected [12, 12], got [11, 11]
+- ERROR testFilter [tests/mapping/sqlFunction]: Parser Error: syntax error at or near "=" |  | LINE 3: ...xp_extract(t0.stringToInt, '^[-+]?[0-9]*\.?[0-9]+$') <> '' = TRUE |                                                                       ^
 - SHAPE testToSQLConvertDateH2 [tests/mapping/sqlFunction]: no execute(|...) call
-- ERROR testBase64H2 [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
-- ERROR testAdjustDateTranslationInMappingAndQuery [tests/mapping/sqlFunction]: in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': no overload of 'meta::pure::functions::string::parseDate' accepts 2 argument(s)
+- FAIL testAdjustDateTranslationInMappingAndQuery [tests/mapping/sqlFunction]: cells: expected [DateExpected[iso=2003-07-12T00:00:00.000000000+0000], DateExpected[iso=2003-07-13T00:00:00.000000000+0000]], got [2003-07-12 00:00:00.0, 2003-07-13 00:00:00.0]
 - ERROR testQuerySimple [tests/mapping/tree]: filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
 - ERROR testQueryWithResultWithAnd [tests/mapping/tree]: filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
 - ERROR testQueryNoResultWithAnd [tests/mapping/tree]: filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation

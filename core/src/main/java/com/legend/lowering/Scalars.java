@@ -1786,6 +1786,38 @@ final class Scalars {
         // PARTIAL date — the ISO-prefix string carrier at that precision
         // (real pure prints date(1973,11,13,23) as 1973-11-13T23). Only the
         // full six-part form is a real timestamp; three parts is make_date.
+        // FORMAT dynafunctions: strptime with engine tokens translated to
+        // C-style (the format must be a LITERAL — mapping expressions always
+        // spell it inline; anything else is loud)
+        for (String f : Pure.nativeKeysAt("parseDateFormat")) {
+            RULES.put(f, (n, args) -> strptimeOf(args, false));
+        }
+        for (String f : Pure.nativeKeysAt("convertDateTimeFormat")) {
+            RULES.put(f, (n, args) -> strptimeOf(args, false));
+        }
+        for (String f : Pure.nativeKeysAt("convertDateFormat")) {
+            RULES.put(f, (n, args) -> strptimeOf(args, true));
+        }
+        // isNumeric(str): the text parses as a number (dyna semantics)
+        for (String f : Pure.nativeKeysAt("isNumeric")) {
+            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.NOT_EQUAL,
+                    SqlExpr.Call.of(SqlFn.REGEXP_EXTRACT, args.get(0),
+                            new SqlExpr.StringLit("^[-+]?[0-9]*\\.?[0-9]+$")),
+                    new SqlExpr.StringLit("")));
+        }
+        // convertTimeZone(dt, tz, fmt): print in the target zone
+        for (String f : Pure.nativeKeysAt("convertTimeZoneFormat")) {
+            RULES.put(f, (n, args) -> {
+                if (!(args.get(2) instanceof SqlExpr.StringLit fmt)) {
+                    throw new com.legend.error.NotImplementedException(
+                            "convertTimeZone needs a LITERAL format string");
+                }
+                SqlExpr shifted = new SqlExpr.Call(SqlFn.TIMEZONE,
+                        List.of(args.get(1), args.get(0)));
+                return new SqlExpr.Call(SqlFn.STRFTIME, List.of(shifted,
+                        new SqlExpr.StringLit(translateFormat(fmt.value()))));
+            });
+        }
         // sqlNull() — the relational store's NULL literal dynafunction
         for (String f : Pure.nativeKeysAt("sqlNull")) {
             RULES.put(f, (n, args) -> new SqlExpr.NullLit());
@@ -1950,6 +1982,45 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt(pureName)) {
             RULES.put(f, (n, args) -> new SqlExpr.Cast(args.get(0), PureSql.type(target)));
         }
+    }
+
+    /** The engine's format tokens, longest-first, to DuckDB strptime tokens. */
+    private static final String[][] FORMAT_TOKENS = {
+            {"HH24", "%H"}, {"MMM", "%b"}, {"MON", "%b"}, {"mmm", "%g"},
+            {"yyyy", "%Y"}, {"YYYY", "%Y"}, {"MM", "%m"}, {"dd", "%d"},
+            {"DD", "%d"}, {"MI", "%M"}, {"mm", "%M"}, {"hh", "%H"},
+            {"HH", "%H"}, {"ss", "%S"}, {"SS", "%S"}, {"FF", "%g"},
+    };
+
+    private static String translateFormat(String src) {
+        StringBuilder out = new StringBuilder();
+        int i = 0;
+        outer:
+        while (i < src.length()) {
+            for (String[] tok : FORMAT_TOKENS) {
+                if (src.startsWith(tok[0], i)) {
+                    out.append(tok[1]);
+                    i += tok[0].length();
+                    continue outer;
+                }
+            }
+            out.append(src.charAt(i));
+            i++;
+        }
+        return out.toString();
+    }
+
+    private static SqlExpr strptimeOf(List<SqlExpr> args, boolean toDate) {
+        if (!(args.get(1) instanceof SqlExpr.StringLit fmt)) {
+            throw new com.legend.error.NotImplementedException(
+                    "format dynafunctions need a LITERAL format string");
+        }
+        SqlExpr parsed = new SqlExpr.Call(SqlFn.STRPTIME,
+                List.of(args.get(0), new SqlExpr.StringLit(translateFormat(fmt.value()))));
+        return toDate
+                ? new SqlExpr.Cast(parsed, PureSql.type(
+                        com.legend.compiler.element.type.Type.Primitive.STRICT_DATE))
+                : parsed;
     }
 
     /** {@code i + 1} — constant-folded for literals (the common case). */
