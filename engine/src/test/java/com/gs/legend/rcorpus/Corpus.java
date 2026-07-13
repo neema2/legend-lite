@@ -62,6 +62,7 @@ public final class Corpus {
         StringBuilder out = new StringBuilder();
         int i = 0;
         int n = source.length();
+        boolean inDiagram = false;
         while (i < n) {
             int lineEnd = source.indexOf('\n', i);
             if (lineEnd < 0) {
@@ -70,11 +71,19 @@ public final class Corpus {
             String line = source.substring(i, lineEnd);
             String trimmed = line.strip();
             if (trimmed.startsWith("###")) {
+                // ###Diagram sections are visual metadata, not model — and
+                // their bodies (#FFFFCC color literals) don't even lex
+                inDiagram = trimmed.equals("###Diagram");
+                i = lineEnd + 1;
+                continue;
+            }
+            if (inDiagram) {
                 i = lineEnd + 1;
                 continue;
             }
             if (trimmed.startsWith("function ") || trimmed.startsWith("function<")
                     || trimmed.matches("function\\s+<<.*")
+                    || trimmed.equals("function")
                     || trimmed.startsWith("native function ")) {
                 i = skipFunction(source, i);
                 continue;
@@ -89,18 +98,75 @@ public final class Corpus {
     private static int skipFunction(String source, int start) {
         int n = source.length();
         int i = start;
-        // find the opening brace of the BODY (skip constraint blocks? corpus
-        // test helpers have none between signature and body in practice —
-        // the first top-level '{' after the signature opens the body)
-        while (i < n && source.charAt(i) != '{') {
-            if (source.charAt(i) == '\'') {
+        // 1. tagged-value/stereotype blocks between 'function' and the
+        //    signature ({doc.doc = '...'} — headers span lines in the
+        //    corpus): whole {...} blocks skip; the naive first-'{' read
+        //    took the doc block as the body and leaked the rest as
+        //    top-level junk ('meta::...' wall family)
+        while (i < n) {
+            char c = source.charAt(i);
+            if (c == '\'') {
                 i = skipString(source, i);
-            } else {
-                i++;
+                continue;
             }
+            if (c == '(') {
+                break;
+            }
+            if (c == '{') {
+                i = skipBraces(source, i);
+                continue;
+            }
+            i++;
         }
+        // 2. the parameter list (paren-balanced; braces inside generic
+        //    types don't count)
         int depth = 0;
         while (i < n) {
+            char c = source.charAt(i);
+            if (c == '\'') {
+                i = skipString(source, i);
+                continue;
+            }
+            if (c == '(') {
+                depth++;
+            } else if (c == ')') {
+                depth--;
+                if (depth == 0) {
+                    i++;
+                    break;
+                }
+            }
+            i++;
+        }
+        // 3. the body: the first '{' after the signature that is not a
+        //    generic type's (Function<{...}> return types open with '<{')
+        while (i < n) {
+            char c = source.charAt(i);
+            if (c == '\'') {
+                i = skipString(source, i);
+                continue;
+            }
+            if (c == '{') {
+                int p = i - 1;
+                while (p >= 0 && Character.isWhitespace(source.charAt(p))) {
+                    p--;
+                }
+                if (p >= 0 && source.charAt(p) == '<') {
+                    i = skipBraces(source, i);
+                    continue;
+                }
+                return skipBraces(source, i);
+            }
+            i++;
+        }
+        return n;
+    }
+
+    /** Index just past the balanced {@code {...}} block opening at {@code open}. */
+    private static int skipBraces(String source, int open) {
+        int depth = 0;
+        int i = open;
+        while (i < source.length()) {
             char c = source.charAt(i);
             if (c == '\'') {
                 i = skipString(source, i);
@@ -116,7 +182,7 @@ public final class Corpus {
             }
             i++;
         }
-        return n;
+        return source.length();
     }
 
     /** Index just past a single-quoted pure string starting at {@code i} (handles {@code \'}). */

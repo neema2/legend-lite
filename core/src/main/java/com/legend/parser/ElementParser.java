@@ -227,6 +227,8 @@ public final class ElementParser implements TokenStreamCursor {
                 String imp = parseImportStatement();
                 imports.add(imp);
                 sectionImports.add(imp);
+            } else if (skipTopLevelNonElement()) {
+                sawElementSinceImport = true;
             } else {
                 int at = tokens.start(pos);
                 PackageableElement e = parseSingleElement();
@@ -238,6 +240,41 @@ public final class ElementParser implements TokenStreamCursor {
         }
 
         return new ParsedModel(elements, imports.build(), tokens.source(), offsets, elementImports);
+    }
+
+    /**
+     * Non-model top-level artifacts real pure files carry — {@code Diagram
+     * fqn(w,h) { ... }} blocks and top-level {@code ^Instance(...)}
+     * declarations. They define no queryable element; consumed and DROPPED
+     * so the elements around them load (previously each sank its whole
+     * file's parse). Returns false (nothing consumed) for anything else.
+     */
+    private boolean skipTopLevelNonElement() {
+        if (isIdentifierToken(peek()) && "Diagram".equals(text())) {
+            advance();
+            while (!atEnd() && peek() != TokenType.PAREN_OPEN
+                    && peek() != TokenType.BRACE_OPEN) {
+                advance();  // the diagram's qualified name
+            }
+            if (peek() == TokenType.PAREN_OPEN) {
+                skipBalancedBlock();    // (width=..., height=...)
+            }
+            if (peek() == TokenType.BRACE_OPEN) {
+                skipBalancedBlock();    // { TypeView ... }
+            }
+            return true;
+        }
+        if (peek() == TokenType.NEW_SYMBOL) {
+            advance();
+            while (!atEnd() && peek() != TokenType.PAREN_OPEN) {
+                advance();  // the instance's type reference
+            }
+            if (peek() == TokenType.PAREN_OPEN) {
+                skipBalancedBlock();
+            }
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -1966,12 +2003,20 @@ public final class ElementParser implements TokenStreamCursor {
             }
             return;
         }
-        if (isIdentifierToken(peek()) && "AggregationAware".equals(text())) {
+        if (isIdentifierToken(peek())
+                && ("AggregationAware".equals(text())
+                        // Relation (~func-sourced) and XStore mappings:
+                        // parse-and-skip so the surrounding mapping's OTHER
+                        // classes load; a query against the skipped class
+                        // stays loud at resolution ("0 mappings binding").
+                        // Relation-mapping support is its own milestone.
+                        || "Relation".equals(text())
+                        || "ModelJoin".equals(text())
+                        || "XStore".equals(text()))) {
             advance();
             skipBalancedBlock();
             return;
         }
-        // Reject anything else (Relation, etc.)
         throw error("unsupported class mapping type: '" + safeText() + "'");
     }
 
@@ -2008,6 +2053,7 @@ public final class ElementParser implements TokenStreamCursor {
      * after parsing by {@link #parseCleanSheetBody}).
      */
     private boolean isCleanSheetBody() {
+        if (peek() == TokenType.BRACE_CLOSE) return false;                 // {} — empty LEGACY body (extends inherits everything)
         if (isLegacyMappingCommand(peek())) return false;                  // ~mainTable / ~filter / ~src / ...
         if (isIdentifierToken(peek()) && peek(1) == TokenType.COLON) return false;  // prop: legacy PM
         if (isIdentifierToken(peek()) && "scope".equals(text())
@@ -2304,12 +2350,17 @@ public final class ElementParser implements TokenStreamCursor {
         }
         String propName = parseIdentifier();
         // prop[targetSetId] : ... routes the property to a SPECIFIC mapping
-        // set of the target class. RECORDED (currentTargetSets): the
-        // normalizer poisons the class when the id names a non-root set —
-        // silently navigating the root set instead would be wrong rows.
+        // set of the target class; prop[sourceSetId, targetSetId] (union
+        // member bodies) also names the OWNING set. RECORDED
+        // (currentTargetSets): the normalizer poisons the class when the
+        // target id names a non-root set — silently navigating the root
+        // set instead would be wrong rows.
         if (peek() == TokenType.BRACKET_OPEN) {
             advance();
             String targetSetId = parseIdentifier();
+            if (match(TokenType.COMMA)) {
+                targetSetId = parseIdentifier();    // [source, TARGET]
+            }
             expect(TokenType.BRACKET_CLOSE);
             if (currentTargetSets != null) {
                 currentTargetSets.put(propName, targetSetId);

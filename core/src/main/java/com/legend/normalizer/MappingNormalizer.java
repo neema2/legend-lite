@@ -210,7 +210,7 @@ public final class MappingNormalizer {
         // property mappings into each child mapping (child overrides on
         // property-name conflict; multi-level resolves recursively). See
         // docs/MAPPING_LEGACY_TO_FUNCTION.md §5.2.3.
-        md = resolveExtends(md);
+        md = resolveExtends(md, model);
 
         // Pre-pass: inject MULTI-HOP association ends as class-typed Join PMs
         // into their owning class mappings (Option A; see
@@ -432,10 +432,15 @@ public final class MappingNormalizer {
      * The parent's {@code ~mainTable} is <em>not</em> auto-copied; the child
      * must declare its own (the function form requires explicitness).
      */
-    private static LegacyMappingDefinition resolveExtends(LegacyMappingDefinition md) {
+    private static LegacyMappingDefinition resolveExtends(LegacyMappingDefinition md,
+                                                          ModelBuilder model) {
         boolean any = md.classMappings().stream().anyMatch(cm -> cm.extendsSetId() != null);
         if (!any) return md;
+        // set-ids resolve within this mapping AND its includes (transitive,
+        // own definitions win) — extends [set] across an include is the
+        // union::extend corpus family's normal shape
         Map<String, ClassMapping> bySetId = new HashMap<>();
+        collectIncludedSetIds(md, model, bySetId, new java.util.HashSet<>());
         for (ClassMapping cm : md.classMappings()) {
             if (cm.setId() != null) bySetId.put(cm.setId(), cm);
         }
@@ -457,6 +462,28 @@ public final class MappingNormalizer {
             }
         }
         return md.withClassMappings(rewritten);
+    }
+
+    /** Set-ids of {@code md}'s includes, transitively (nearer include wins). */
+    private static void collectIncludedSetIds(LegacyMappingDefinition md,
+            ModelBuilder model, Map<String, ClassMapping> bySetId,
+            java.util.Set<String> seen) {
+        for (com.legend.parser.element.MappingInclude inc : md.includes()) {
+            if (!seen.add(inc.mappingPath())) {
+                continue;
+            }
+            LegacyMappingDefinition included =
+                    model.findLegacyMapping(inc.mappingPath()).orElse(null);
+            if (included == null) {
+                continue;   // unresolvable include is its own loud problem elsewhere
+            }
+            collectIncludedSetIds(included, model, bySetId, seen);
+            for (ClassMapping cm : included.classMappings()) {
+                if (cm.setId() != null) {
+                    bySetId.put(cm.setId(), cm);
+                }
+            }
+        }
     }
 
     /**

@@ -345,7 +345,8 @@ public final class Runner {
             "\\bexecute\\s*\\(\\s*\\|");
 
     /** One executed query: the let-var it binds, its rows, its body offset. */
-    record ResultBinding(String var, List<Map<String, Object>> rows, int pos) {
+    record ResultBinding(String var, List<Map<String, Object>> rows, int pos,
+            String query) {
     }
 
     public Outcome run(Corpus.TestFn fn) {
@@ -434,7 +435,7 @@ public final class Runner {
                     String var = lm.find() ? lm.group(1) : "result";
                     ExecutionResult r = new QueryService().execute(
                             fullModel, qualified, runtimeFqn, conn);
-                    bindings.add(new ResultBinding(var, graphRows(r), span[2]));
+                    bindings.add(new ResultBinding(var, graphRows(r), span[2], qualified));
                 }
                 return checkAsserts(fn, bindings, failedSeeds);
             }
@@ -868,7 +869,7 @@ public final class Runner {
                             recognized++;
                             verified++;
                             String actual = toCsv(rows);
-                            if (!es.equals(actual)) {
+                            if (!csvEquals(es, actual, bound.query())) {
                                 problems.add("toCSV: expected <" + es + ">, got <" + actual + ">");
                             }
                         }
@@ -1170,6 +1171,34 @@ public final class Runner {
             case com.gs.legend.util.Json.Bool b -> b.value();
             case com.gs.legend.util.Json.Null ignored -> null;
         };
+    }
+
+    /**
+     * CSV equality honoring the QUERY's order contract: a query with no
+     * sort has NO defined row order (the engine expectation encodes H2's
+     * incidental order; DuckDB's differs run to run with seed layout), so
+     * data rows compare as a MULTISET under an identical header. A sorted
+     * query compares exactly.
+     */
+    private static boolean csvEquals(String expected, String actual, String query) {
+        if (expected.equals(actual)) {
+            return true;
+        }
+        if (query != null && Pattern.compile("->\\s*(sort|sortBy)\\s*\\(").matcher(query).find()) {
+            return false;   // ordered contract: exact only
+        }
+        String[] e = expected.split("\n", -1);
+        String[] a = actual.split("\n", -1);
+        if (e.length != a.length || e.length == 0 || !e[0].equals(a[0])) {
+            return false;
+        }
+        List<String> pool = new ArrayList<>(List.of(a).subList(1, a.length));
+        for (int i = 1; i < e.length; i++) {
+            if (!pool.remove(e[i])) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** TDS toCSV rendering: header row + comma rows, each \n-terminated. */

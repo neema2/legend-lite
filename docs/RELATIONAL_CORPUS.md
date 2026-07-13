@@ -159,9 +159,9 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/association | 24 | 1 | 0 | 19 | 4 |
 | tests/mapping/classMappingByClass | 3 | 0 | 0 | 0 | 3 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 0 | 0 | 30 | 2 |
-| tests/mapping/distinct | 18 | 6 | 3 | 9 | 0 |
+| tests/mapping/distinct | 18 | 7 | 2 | 9 | 0 |
 | tests/mapping/dynaJoin | 6 | 0 | 0 | 2 | 4 |
-| tests/mapping/embedded | 70 | 23 | 19 | 23 | 5 |
+| tests/mapping/embedded | 70 | 25 | 17 | 23 | 5 |
 | tests/mapping/enumeration | 27 | 1 | 2 | 2 | 22 |
 | tests/mapping/filter | 10 | 4 | 0 | 5 | 1 |
 | tests/mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
@@ -177,70 +177,47 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/selfJoin | 3 | 0 | 0 | 2 | 1 |
 | tests/mapping/sqlFunction | 73 | 56 | 1 | 4 | 12 |
 | tests/mapping/tree | 13 | 0 | 0 | 13 | 0 |
-| tests/mapping/union | 125 | 7 | 2 | 97 | 19 |
+| tests/mapping/union | 125 | 10 | 3 | 93 | 19 |
 | tests/mapping/union/relation | 15 | 0 | 0 | 13 | 2 |
 | tests/platformOperations | 4 | 0 | 0 | 0 | 4 |
 | tests/query | 99 | 46 | 2 | 32 | 19 |
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2429 | **338** | 71 | 1088 | 932 |
+| **total** | 2429 | **344** | 69 | 1084 | 932 |
 
 ### mapping walls (dropped at assembly)
 
 - meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - autogeneration/tests meta::relational::transform::autogen::tests::testDBMapping => [2557:1] AssociationMapping references unknown association 'meta::relational::transform::autogen::tests::CompanyEmployee'; mapping=meta::relational::transform::autogen::tests::testDBMapping
-- executionPlan/tests meta::pure::executionPlan::tests::alternateSimpleMapping => [3120:1] unsupported top-level keyword: VALID_STRING ('meta')
-- executionPlan/tests meta::pure::executionPlan::tests::alternateSimpleMapping2 => [3120:1] unsupported top-level keyword: VALID_STRING ('meta')
-- executionPlan/tests meta::pure::executionPlan::m2m2r::tests::ModelToModelMapping => [3120:1] unsupported top-level keyword: VALID_STRING ('meta')
-- executionPlan/tests meta::pure::executionPlan::m2m2r::tests::RelationalMapping => [3120:1] unsupported top-level keyword: VALID_STRING ('meta')
-- functions/tests meta::relational::tests::functions::objectReferenceIn::simpleModelMapping => [3539:1] Circular M2M ~src chain detected in mapping 'meta::relational::tests::functions::objectReferenceIn::simpleModelMapping': Address -> Address
+- executionPlan/tests meta::pure::executionPlan::tests::alternateSimpleMapping => [3247:0] unsupported top-level keyword: PAREN_CLOSE (')')
+- executionPlan/tests meta::pure::executionPlan::tests::alternateSimpleMapping2 => [3247:0] unsupported top-level keyword: PAREN_CLOSE (')')
+- executionPlan/tests meta::pure::executionPlan::m2m2r::tests::ModelToModelMapping => [3247:0] unsupported top-level keyword: PAREN_CLOSE (')')
+- executionPlan/tests meta::pure::executionPlan::m2m2r::tests::RelationalMapping => [3247:0] unsupported top-level keyword: PAREN_CLOSE (')')
+- functions/tests meta::relational::tests::functions::objectReferenceIn::simpleModelMapping => [3555:1] Circular M2M ~src chain detected in mapping 'meta::relational::tests::functions::objectReferenceIn::simpleModelMapping': Address -> Address
 - functions/tests/projection meta::relational::tests::projection::view::unionOnViewsMapping => [2992:110] expected BRACE_CLOSE but found SEMI_COLON (';')
 - functions/tests/projection meta::relational::tests::projection::view::unionOnViewOnViewMapping => [2991:110] expected BRACE_CLOSE but found SEMI_COLON (';')
 - graphFetch/domain meta::relational::graphFetch::domain::tests::TestMapping => Unknown type: 'Domain' is not a known primitive, class, or enum
-- graphFetch/tests meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping1 => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping2 => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping3 => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping4 => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5 => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::pure::graphFetch::tests::XStoreUnion::inMemoryAndRelational::crossMappingUnion => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::pure::graphFetch::tests::XStoreUnion::inMemoryAndRelational::crossMappingUnion2 => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::relational::graphFetch::tests::chain::M2M_Mapping => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::relational::tests::milestoning::embedded::otherwiseMapping3 => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::relational::graphFetch::tests::resultSourcing::mappingWithoutFilters => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::relational::graphFetch::tests::resultSourcing::mappingWithFilters => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::relational::graphFetch::tests::resultSourcing::identityMappingForDate => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::relational::graphFetch::tests::isolation::IsolationTestMapping1 => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping1 => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping2 => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping3 => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping4 => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping5 => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::relational::graphFetch::tests::subType::unionMapping => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::relational::graphFetch::tests::subType::InheritanceMapping => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::relational::graphFetch::tests::subType::RootSubTypeWithRootPropertyUnionMapping => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::relational::graphFetch::tests::subType::RootSubTypeWithSubtypeLevelPropertyUnionMapping => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::relational::graphFetch::tests::subType::RootSubTypeWithSubtypeLevelAndRootLevelPropertyUnionMapping => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::milestoning::LegalEntityMapping => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::milestoning::TradeLinkageMapping => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::milestoning::TradeLinkageMappingForModelChain => [2954:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests/union meta::relational::graphFetch::tests::union::rootLevel::SameStoreMapping2 => [3396:1] unsupported top-level keyword: VALID_STRING ('meta')
-- graphFetch/tests/union meta::relational::graphFetch::tests::union::rootLevel::CrossStoreMapping2 => [3463:20] unsupported class mapping type: 'XStore'
+- graphFetch/tests meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping3 => [3768:6] expected identifier, got PLUS
+- graphFetch/tests meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping4 => [3770:12] expected COLON but found BRACKET_OPEN ('[')
+- graphFetch/tests meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5 => [3767:13] expected COLON but found STAR ('*')
+- graphFetch/tests meta::pure::graphFetch::tests::XStoreUnion::inMemoryAndRelational::crossMappingUnion => [3786:13] expected COLON but found BRACKET_OPEN ('[')
+- graphFetch/tests meta::pure::graphFetch::tests::XStoreUnion::inMemoryAndRelational::crossMappingUnion2 => [3786:13] expected COLON but found BRACKET_OPEN ('[')
+- graphFetch/tests meta::relational::tests::milestoning::embedded::otherwiseMapping3 => Unknown type: 'meta::relational::tests::milestoning::ProductSynonym' is not a known primitive, class, or enum
+- graphFetch/tests meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping1 => [3857:6] expected identifier, got PLUS
+- graphFetch/tests meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping2 => [3857:6] expected identifier, got PLUS
+- graphFetch/tests meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping4 => [3901:11] expected COLON but found BRACKET_OPEN ('[')
+- graphFetch/tests meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping5 => [3901:11] expected COLON but found BRACKET_OPEN ('[')
+- graphFetch/tests meta::pure::graphFetch::tests::XStore::milestoning::TradeLinkageMapping => [4392:1] Circular M2M ~src chain detected in mapping 'meta::pure::graphFetch::tests::XStore::milestoning::TradeLinkageMapping': meta::pure::graphFetch::tests::XStore::milestoning::Trade -> meta::pure::graphFetch::tests::XStore::milestoning::Trade
 - lineage/scanRelations meta::pure::lineage::scanRelations::test::TopMapping => [2555:1] Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::lineage::scanRelations::test::DetailMapping => [2555:1] Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::lineage::scanRelations::test::MappingWithJoinToSchemaInAnotherView => [2555:1] Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::tests::milestoning::milestoningmap => [4491:71] EnumerationMapping cannot be applied to a join property mapping
 - milestoning/tests meta::relational::tests::milestoning::inheritance::union::inheritanceUnionMapping => [5667:109] expected BRACE_CLOSE but found SEMI_COLON (';')
 - modelJoins meta::external::store::relational::modelJoins::test::LocalTradesMapping => [3005:4] Association mappings do not accept [setId] or extends [parentId] on the header
-- modelJoins meta::external::store::relational::modelJoins::test::XStoreTradesMapping => [3003:74] unsupported class mapping type: 'XStore'
-- modelJoins meta::external::store::relational::modelJoins::test::XStoreTradesMapping_withConstantDouble => [3011:74] unsupported class mapping type: 'XStore'
-- modelJoins meta::external::store::relational::modelJoins::test::XStoreTradesMapping_withConstantString => [3011:74] unsupported class mapping type: 'XStore'
-- modelJoins meta::external::store::relational::modelJoins::test::XStoreTradesMapping_withConstantDate => [3011:74] unsupported class mapping type: 'XStore'
-- modelJoins meta::external::store::relational::modelJoins::test::XStoreTradesMapping_withInequalities => [3011:74] unsupported class mapping type: 'XStore'
 - router/tests meta::relational::tests::database::mainMapping => Unknown type: 'testJoinTDS_Person' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::toPostgresModel::tests::TestMapping => [2567:0] unsupported top-level keyword: GREATER_THAN ('>')
+- sqlDialectTranslation meta::relational::functions::toPostgresModel::tests::TestMapping => [2540:1] Unknown type: 'Extension' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::tests::model::VeiwOnViewMapping => Join 'student_to_school' targets view 'ViewOnViewSchool'; views as JOIN TARGETS are a roadmap feature (the view must expand as a relation at the join hop). mapping=meta::relational::testDataGeneration::tests::model::VeiwOnViewMapping
 - testDataGeneration/tests meta::relational::testDataGeneration::tests::model::VeiwOnViewonViewMapping => Join 'student_to_school2' targets view 'ViewOnViewOnViewSchool'; views as JOIN TARGETS are a roadmap feature (the view must expand as a relation at the join hop). mapping=meta::relational::testDataGeneration::tests::model::VeiwOnViewonViewMapping
 - tests meta::pure::mapping::modelToModel::test::shared::relationalMapping => Unknown type: '_S_Person' is not a known primitive, class, or enum
@@ -251,7 +228,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::classOwnedMappingWithInnerJoinInFilter => [2719:31] expected identifier, got PAREN_OPEN
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::mappingWithMultipleClassMappings => [2718:31] expected identifier, got PAREN_OPEN
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testMappingEmbeddedWithInnerJoinFilter => [2725:40] expected identifier, got PAREN_OPEN
-- tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::chainedJoinsWithUnionsAndIsolation => [2731:24] expected BRACKET_CLOSE but found COMMA (',')
+- tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::chainedJoinsWithUnionsAndIsolation => [2742:43] expected identifier, got PAREN_OPEN
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::inheritanceMappingWithInnerJoin => [2725:65] expected identifier, got PAREN_OPEN
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::milestoningmapWithInnerJoin => [2728:31] expected identifier, got PAREN_OPEN
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::mappingWithInnerJoinInFilterEdgeCases => [2719:31] expected identifier, got PAREN_OPEN
@@ -262,157 +239,38 @@ runner does not yet recognize (accounted, not skipped silently).
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping => [2715:50] expected identifier, got PAREN_OPEN
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::TestClassMappingsWithInnerFilterJoinedByChainOfJoins => [2723:72] expected identifier, got PAREN_OPEN
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::store::TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNested => [2729:155] expected identifier, got PAREN_OPEN
-- tests/mapping/extends meta::relational::tests::mapping::extend::embeddedPropertyMapping::testMapping => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::inlineEmbeddedPropertyMapping::testMapping => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::mainTable::AMapping => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::mainTable::B1Mapping => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::mainTable::B2Mapping => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::mainTable::C1Mapping => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::mainTable::C2Mapping => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::primaryKey::AMappingWithGroupBy => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::primaryKey::AMappingWithDistinct => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::primaryKey::AMappingWithUserDefinedPrimaryKey => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::primaryKey::AMappingWithNothing => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::primaryKey::BMappingWithGroupByAMappingWithGroupBy => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::primaryKey::BMappingWithDistinctAMappingWithGroupBy => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::primaryKey::BMappingWithUserDefinedPrimaryKeyAMappingWithGroupBy => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::primaryKey::BMappingWithNothingAMappingWithGroupBy => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::primaryKey::BMappingWithGroupByAMappingWithDistinct => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::primaryKey::BMappingWithDistinctAMappingWithDistinct => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::primaryKey::BMappingWithUserDefinedPrimaryKeyAMappingWithDistinct => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::primaryKey::BMappingWithNothingAMappingWithDistinct => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::primaryKey::BMappingWithGroupByAMappingWithUserDefinedPrimaryKey => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::primaryKey::BMappingWithDistinctAMappingWithUserDefinedPrimaryKey => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::primaryKey::BMappingWithUserDefinedPrimaryKeyAMappingWithUserDefinedPrimaryKey => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::primaryKey::BMappingWithNothingAMappingWithUserDefinedPrimaryKey => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::primaryKey::BMappingWithGroupByAMappingWithNothing => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::primaryKey::BMappingWithDistinctAMappingWithNothing => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::primaryKey::BMappingWithUserDefinedPrimaryKeyAMappingWithNothing => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::primaryKey::BMappingWithNothingAMappingWithNothing => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::propertyMapping::testMapping => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::all::testMapping => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::distinct::testMapping => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::filter::testMapping => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::groupBy::testMapping => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::storeSubstitution::AMapping => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::storeSubstitution::BMapping => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
-- tests/mapping/extends meta::relational::tests::mapping::extend::storeSubstitution::CMapping => [2761:0] unsupported top-level keyword: VALID_STRING ('Diagram')
+- tests/mapping/extends meta::relational::tests::mapping::extend::embeddedPropertyMapping::testMapping => [2790:9] expected integer or string inside '[...]' index, got VALID_STRING ('m3')
 - tests/mapping/extends/union meta::relational::tests::mapping::extend::union::embeddedPropertyMapping::testMapping => [2559:9] expected integer or string inside '[...]' index, got VALID_STRING ('set1m3')
 - tests/mapping/extends/union meta::relational::tests::mapping::extend::union::inlineEmbeddedPropertyMapping::testMapping => Unknown type: 'M' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::relational::tests::mapping::extend::union::propertyMapping::testMapping => [2529:1] AssociationMapping references unknown association 'AE'; mapping=meta::relational::tests::mapping::extend::union::propertyMapping::testMapping
 - tests/mapping/extends/union meta::relational::tests::mapping::extend::union::propertyMapping::UnionMappingWithExtendOverrides => Unknown type: 'B' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::relational::tests::model::inheritance::milestoned::MilestonedInheritanceMapping => [3341:4] Association mappings cannot be marked root (the leading '*' is only valid for class mappings)
-- tests/mapping/inheritance meta::relational::tests::mapping::subType::SubTypeMappingValidWhenMappedExplicitly => [3508:3] clean-sheet mapping binding for 'MyProduct' has an empty body
+- tests/mapping/inheritance meta::relational::tests::mapping::subType::SubTypeMappingValidWhenMappedExplicitly => [3494:1] Class mapping for 'meta::relational::tests::mapping::subType::MyProduct' extends [meta_relational_tests_model_simple_Product] but no class mapping with set id 'meta_relational_tests_model_simple_Product' exists in mapping=meta::relational::tests::mapping::subType::SubTypeMappingValidWhenMappedExplicitly
 - tests/mapping/inheritance meta::relational::tests::mapping::subType::MyMapping => [3511:14] expected integer or string inside '[...]' index, got VALID_STRING ('meta_relational_tests_model_simple_Trade')
 - tests/mapping/inheritance meta::relational::tests::mapping::subType::MyMappingWithIds => [3499:13] expected integer or string inside '[...]' index, got VALID_STRING ('meta_relational_tests_mapping_subType_MyProduct')
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::advanced::NestedPropertyChainMapping => [3193:72] unsupported class mapping type: 'Relation'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::advanced::DoubleNestedModelJoinMapping => [3193:72] unsupported class mapping type: 'Relation'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::advanced::ChainedTwoHopsMapping => [3193:68] unsupported class mapping type: 'Relation'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::advanced::RelationalNestedPropertyChainMapping => [3221:18] unsupported class mapping type: 'ModelJoin'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::advanced::RelationalDoubleNestedMapping => [3227:18] unsupported class mapping type: 'ModelJoin'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::advanced::RelationalFilterOnNestedMapping => [3209:21] unsupported class mapping type: 'ModelJoin'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::advanced::FilterOnTargetMapping => [3212:15] unsupported class mapping type: 'ModelJoin'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::advanced::FilterOnTargetNestedConditionMapping => [3221:18] unsupported class mapping type: 'ModelJoin'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::advanced::DistinctOnTargetMapping => [3212:15] unsupported class mapping type: 'ModelJoin'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::advanced::FilterWithInnerJoinOnTargetMapping => [3195:69] expected identifier, got PAREN_OPEN
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::advanced::ComplexRelationFunctionMapping => [3193:72] unsupported class mapping type: 'Relation'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::advanced::MixedMappingNestedPropertyAccess => [3211:68] unsupported class mapping type: 'Relation'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::advanced::AdvancedInConditionMapping => [3193:72] unsupported class mapping type: 'Relation'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::advanced::QualifiedPropertyMapping => [3193:72] unsupported class mapping type: 'Relation'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::advanced::NestedModelJoinWithPropertyAccess => [3193:72] unsupported class mapping type: 'Relation'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::advanced::RelationalSimpleEqualityMapping => [3212:15] unsupported class mapping type: 'ModelJoin'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::advanced::ColumnCollisionMapping => [3228:18] unsupported class mapping type: 'ModelJoin'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::milestoning::MilestonedContractMapping => [3193:85] unsupported class mapping type: 'Relation'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::milestoning::MilestonedOrderWarehouseMapping => [3193:83] unsupported class mapping type: 'Relation'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::milestoning::MilestoningSameSchemeBothMapping => [3193:83] unsupported class mapping type: 'Relation'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::milestoning::MilestoningDiffSchemeMapping => [3193:83] unsupported class mapping type: 'Relation'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::milestoning::MilestonedIntermediatesMapping => [3193:83] unsupported class mapping type: 'Relation'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::milestoning::RelationalMilestonedOrderWarehouseMapping => [3228:17] unsupported class mapping type: 'ModelJoin'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::milestoning::RelationalMilestoningSameSchemeBothMapping => [3229:17] unsupported class mapping type: 'ModelJoin'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::milestoning::RelationalMilestoningDiffSchemeMapping => [3220:17] unsupported class mapping type: 'ModelJoin'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::simple::SimpleEqualityMapping => [3193:72] unsupported class mapping type: 'Relation'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::simple::MultipleAndMapping => [3193:72] unsupported class mapping type: 'Relation'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::simple::OrConditionsMapping => [3193:72] unsupported class mapping type: 'Relation'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::simple::FunctionInConditionMapping => [3193:72] unsupported class mapping type: 'Relation'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::simple::ConcatConditionMapping => [3193:72] unsupported class mapping type: 'Relation'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::simple::ArithmeticConditionMapping => [3193:72] unsupported class mapping type: 'Relation'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::simple::DerivedPropertyConditionMapping => [3193:72] unsupported class mapping type: 'Relation'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::simple::InConditionMapping => [3193:72] unsupported class mapping type: 'Relation'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::simple::RelationalSimpleEqualityMapping => [3218:69] unsupported class mapping type: 'ModelJoin'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::union::RelationalUnionSourceMapping => [3222:15] unsupported class mapping type: 'ModelJoin'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::union::RelationalUnionBothSidesMapping => [3233:15] unsupported class mapping type: 'ModelJoin'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::union::UnionWithExistsMapping => [3222:15] unsupported class mapping type: 'ModelJoin'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::union::UnionBothSidesMapping => [3193:73] unsupported class mapping type: 'Relation'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::union::UnionPropertyInConditionMapping => [3276:18] unsupported class mapping type: 'ModelJoin'
-- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::union::UnionWithSubtypeQueryMapping => [3235:15] unsupported class mapping type: 'ModelJoin'
+- tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::advanced::FilterWithInnerJoinOnTargetMapping => [3602:69] expected identifier, got PAREN_OPEN
 - tests/mapping/multigrain meta::relational::tests::mapping::multigrain::model::mapping::testMapping => [2888:43] EnumerationMapping cannot be applied to a join property mapping
-- tests/mapping/relation meta::relational::tests::mapping::relation::SimpleMapping => [2882:19] unsupported class mapping type: 'Relation'
-- tests/mapping/relation meta::relational::tests::mapping::relation::MixedMapping => [2882:19] unsupported class mapping type: 'Relation'
-- tests/mapping/relation meta::relational::tests::mapping::relation::WindowColumnMapping => [2882:27] unsupported class mapping type: 'Relation'
-- tests/mapping/relation meta::relational::tests::mapping::relation::GroupByMapping => [2882:17] unsupported class mapping type: 'Relation'
-- tests/mapping/relation meta::relational::tests::mapping::relation::SnapshotMilestonedMapping => [2882:39] unsupported class mapping type: 'Relation'
-- tests/mapping/relation meta::relational::tests::mapping::relation::MixedTemporalMilestonedMapping => [2893:35] unsupported class mapping type: 'Relation'
-- tests/mapping/relation meta::relational::tests::mapping::relation::TemporalMilestonedMapping => [2882:39] unsupported class mapping type: 'Relation'
-- tests/mapping/relation meta::relational::tests::mapping::relation::MultipleMilestonedTablesMapping => [2882:29] unsupported class mapping type: 'Relation'
-- tests/mapping/relation meta::relational::tests::mapping::relation::EnumerationRelationMapping => [2882:28] unsupported class mapping type: 'Relation'
-- tests/mapping/relation meta::relational::tests::mapping::relation::MultipleEnumerationRelationMapping => [2882:29] unsupported class mapping type: 'Relation'
-- tests/mapping/relation meta::relational::tests::mapping::relation::EmbeddedRelationMapping => [2882:22] unsupported class mapping type: 'Relation'
-- tests/mapping/relation meta::relational::tests::mapping::relation::InlineEmbeddedRelationMapping => [2882:38] unsupported class mapping type: 'Relation'
-- tests/mapping/relation meta::relational::tests::mapping::relation::EmbeddedWithAssociationRelationMapping => [2882:41] unsupported class mapping type: 'Relation'
-- tests/mapping/relation meta::relational::tests::mapping::relation::InlineEmbeddedWithAssociationRelationMapping => [2882:41] unsupported class mapping type: 'Relation'
-- tests/mapping/relation meta::relational::tests::mapping::relation::MixedCaseAssociationChainMapping => [2903:15] unsupported class mapping type: 'Relation'
-- tests/mapping/union meta::relational::tests::mapping::union::chainedJoinsWithUnionsAndIsolation => [4532:24] expected BRACKET_CLOSE but found COMMA (',')
-- tests/mapping/union meta::relational::tests::mapping::union::unionMappingOverlappingPKAndFKColumns => [4533:24] expected BRACKET_CLOSE but found COMMA (',')
-- tests/mapping/union meta::relational::tests::mapping::union::unionMappingWithSameJoinInPropertyInBothUnions => [4671:24] expected BRACKET_CLOSE but found COMMA (',')
-- tests/mapping/union meta::relational::tests::mapping::union::unionWithSinglePropertyMapping => [5326:3] clean-sheet mapping binding for 'Person' has an empty body
-- tests/mapping/union meta::relational::tests::mapping::union::extend::chainedJoinsWithUnionsAndIsolation => [5870:3] clean-sheet mapping binding for 'Firm' has an empty body
-- tests/mapping/union meta::relational::tests::mapping::union::extend::unionMappingOverlappingPKAndFKColumns => [5870:3] clean-sheet mapping binding for 'Firm' has an empty body
-- tests/mapping/union meta::relational::tests::mapping::union::extend::unionMappingWithSelfJoin => [5865:3] clean-sheet mapping binding for 'Person' has an empty body
-- tests/mapping/union meta::relational::tests::mapping::union::extend::unionMapping => [5865:3] clean-sheet mapping binding for 'Person' has an empty body
-- tests/mapping/union meta::relational::tests::mapping::union::extend::unionMappingWithAssociationMapping => [5865:3] clean-sheet mapping binding for 'Person' has an empty body
-- tests/mapping/union meta::relational::tests::mapping::union::extend::unionMappingWithJoinInProperty => [5865:3] clean-sheet mapping binding for 'Person' has an empty body
-- tests/mapping/union meta::relational::tests::mapping::union::extend::unionMappingWithJoinSequenceInProperty => [5865:3] clean-sheet mapping binding for 'Person' has an empty body
-- tests/mapping/union meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedPropertyOneThroughJoin => [5865:3] clean-sheet mapping binding for 'Person' has an empty body
-- tests/mapping/union meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedProperty => [5865:3] clean-sheet mapping binding for 'Person' has an empty body
-- tests/mapping/union meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedProperty2 => [5870:3] clean-sheet mapping binding for 'Person' has an empty body
-- tests/mapping/union meta::relational::tests::mapping::union::extend::unionToUnionMapping => [5875:3] clean-sheet mapping binding for 'Person' has an empty body
-- tests/mapping/union meta::relational::tests::mapping::union::extend::unionMappingWithFunction => [5865:3] clean-sheet mapping binding for 'Person' has an empty body
-- tests/mapping/union meta::relational::tests::mapping::union::extend::unionMappingWithFilter => [5865:3] clean-sheet mapping binding for 'Person' has an empty body
-- tests/mapping/union meta::relational::tests::mapping::union::extend::unionMappingWithConstant => [5865:3] clean-sheet mapping binding for 'Person' has an empty body
-- tests/mapping/union meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedPropertyWithConstant => [5865:3] clean-sheet mapping binding for 'Person' has an empty body
-- tests/mapping/union meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedPropertyWithColumnsWithSameNames => [5865:3] clean-sheet mapping binding for 'Application' has an empty body
-- tests/mapping/union meta::relational::tests::mapping::union::extend::mappingWithColumnsWithSameNames => [5860:3] clean-sheet mapping binding for 'Application' has an empty body
-- tests/mapping/union/relation meta::relational::tests::mapping::union::relation::advanced::mapping::unionOfTwoRelationMappingsWithFirm => [2550:20] unsupported class mapping type: 'Relation'
-- tests/mapping/union/relation meta::relational::tests::mapping::union::relation::advanced::mapping::unionOfTwoRelationMappingsWithSubAggregation => [2550:23] unsupported class mapping type: 'Relation'
-- tests/mapping/union/relation meta::relational::tests::mapping::union::relation::advanced::mapping::unionOfTwoRelationMappingsWithMultiColumnSubAggregation => [2550:25] unsupported class mapping type: 'Relation'
-- tests/mapping/union/relation meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappings => [2565:20] unsupported class mapping type: 'Relation'
-- tests/mapping/union/relation meta::relational::tests::mapping::union::relation::mapping::unionOfRelationAndRelationalMappings => [2565:20] unsupported class mapping type: 'Relation'
-- tests/mapping/union/relation meta::relational::tests::mapping::union::relation::mapping::unionOfRelationAndRelationalMappingsWithFirm => [2565:20] unsupported class mapping type: 'Relation'
-- tests/mapping/union/relation meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithFilterInFunc => [2565:20] unsupported class mapping type: 'Relation'
-- tests/mapping/union/relation meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithFunctionInProject => [2565:20] unsupported class mapping type: 'Relation'
-- tests/mapping/union/relation meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithConstantInProject => [2565:20] unsupported class mapping type: 'Relation'
-- tests/mapping/union/relation meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithEmbeddedFirm => [2565:20] unsupported class mapping type: 'Relation'
-- tests/mapping/union/relation meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithEnumFilter => [2571:21] unsupported class mapping type: 'Relation'
+- tests/mapping/union meta::relational::tests::mapping::union::extend::unionMapping => [6128:1] Class mapping for 'meta::relational::tests::mapping::union::extend::Firm' extends [meta_relational_tests_model_simple_Firm] but no class mapping with set id 'meta_relational_tests_model_simple_Firm' exists in mapping=meta::relational::tests::mapping::union::extend::unionMapping
+- tests/mapping/union meta::relational::tests::mapping::union::extend::unionMappingWithJoinInProperty => [6167:1] Class mapping for 'meta::relational::tests::mapping::union::extend::Firm' extends [meta_relational_tests_model_simple_Firm] but no class mapping with set id 'meta_relational_tests_model_simple_Firm' exists in mapping=meta::relational::tests::mapping::union::extend::unionMappingWithJoinInProperty
+- tests/mapping/union meta::relational::tests::mapping::union::extend::unionMappingWithJoinSequenceInProperty => [6167:1] Class mapping for 'meta::relational::tests::mapping::union::extend::Firm' extends [meta_relational_tests_model_simple_Firm] but no class mapping with set id 'meta_relational_tests_model_simple_Firm' exists in mapping=meta::relational::tests::mapping::union::extend::unionMappingWithJoinSequenceInProperty
+- tests/mapping/union meta::relational::tests::mapping::union::extend::mappingWithColumnsWithSameNames => [6419:1] Class mapping for 'meta::relational::tests::mapping::union::extend::Application' extends [meta_relational_tests_model_simple_Application] but no class mapping with set id 'meta_relational_tests_model_simple_Application' exists in mapping=meta::relational::tests::mapping::union::extend::mappingWithColumnsWithSameNames
 - tests/mft/modelChain meta::relational::tests::mapping::modelChain::model::mapping::mft::modelChainTestMapping => Unknown type: 'S_Firm' is not a known primitive, class, or enum
-- tests/mft/xStore meta::relational::tests::mapping::crossStore::model::mapping::mft::crossStoreTestMapping => [2612:16] unsupported class mapping type: 'XStore'
-- tests/mft/xStore meta::relational::tests::mapping::crossStore::model::mapping::mft::crossStoreUnionTestMapping => [2639:16] unsupported class mapping type: 'XStore'
 - validation/showcase meta::relational::validation::showcase::standalone::validationShowcaseMapping => Unknown type: 'TradeTradingGroup' is not a known primitive, class, or enum
 - validation/showcase meta::relational::validation::showcase::standalone::validationShowcaseMappingWithInnerJoinsInFilter => [2737:19] expected identifier, got PAREN_OPEN
 - validation/tests meta::relational::validation::complex::validationComplexMappingWithInnerJoins => [2753:19] expected identifier, got PAREN_OPEN
 - validation/tests meta::relational::validation::complex::validationComplexMapping2 => [2798:19] expected identifier, got PAREN_OPEN
-- validation/tests meta::relational::validation::tests::milestoning::MilestoneMappingWithDynaFunction => [2796:3] clean-sheet mapping binding for 'meta::relational::validation::tests::milestoning::Product' has an empty body
-- validation/tests meta::relational::validation::tests::milestoning::MilestoneMapping => [2796:3] clean-sheet mapping binding for 'meta::relational::validation::tests::milestoning::Product' has an empty body
+- validation/tests meta::relational::validation::tests::milestoning::MilestoneMappingWithDynaFunction => [2788:1] Class mapping for 'meta::relational::validation::tests::milestoning::Product' extends [p] but no class mapping with set id 'p' exists in mapping=meta::relational::validation::tests::milestoning::MilestoneMappingWithDynaFunction
+- validation/tests meta::relational::validation::tests::milestoning::MilestoneMapping => [2788:1] Class mapping for 'meta::relational::validation::tests::milestoning::Product' extends [p] but no class mapping with set id 'p' exists in mapping=meta::relational::validation::tests::milestoning::MilestoneMapping
 - validation/tests meta::relational::validation::tests::milestoning::MilestoneUnionMapping => [2798:21] expected integer or string inside '[...]' index, got VALID_STRING ('c1')
 
 ### top error buckets
 
 - 56x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- 35x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
 - 30x unknown function 'product'
-- 28x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - 23x expected at most one value, got many ([*])
 - 23x [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - 22x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- 21x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
 - 18x unknown function 'getAllVersionsInRange'
 - 16x unknown function 'getAllVersions'
 - 15x bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
@@ -420,22 +278,23 @@ runner does not yet recognize (accounted, not skipped silently).
 - 15x navigation to temporal class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' via 'y' is not supported yet (temporal context propagation)
 - 14x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 14x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exactly one
+- 14x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - 13x unknown function 'classification'
-- 13x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Person' (of 1 candidates); class-query dispatch needs exactly one
 - 12x filter predicate references column 'firm_employees', unresolvable even after isolation
 - 12x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected String, got Integer
 - 12x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::Product' (of 1 candidates); class-query dispatch needs exactly one
 - 11x object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - 11x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::PersonWithAddress' (of 1 candidates); class-query dispatch needs exactly one
 - 10x Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "t0" does not have a column named "quantity" |  | Candidate bindings: : "accountID" |  | LINE 1: SELECT t0.ID AS TradeID, t0.quantity AS Quantity, t2.maxTradeEventDate AS LastEventD... |                                  ^
-- 10x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Person' (of 1 candidates); class-query dispatch needs exactly one
-- 10x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - 9x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - 9x in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - 9x navigation through class-typed slot property 'address' is not supported yet
-- 9x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::Person' (of 1 candidates); class-query dispatch needs exactly one
 - 8x unknown function 'ytd'
 - 8x expected meta::relational::tests::functions::distance::GeographicCoordinate, got GeographicCoordinate
+- 8x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Account' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::relational::tests::simpleRelationalMapping
+- 8x class query under TypedMap is not resolvable yet (H2 vocabulary)
+- 8x relation has no column 'aID'
+- 8x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
 
 ### per-test outcomes (non-passing)
 
@@ -1628,9 +1487,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProjectWithColumnSubSetSQLTest [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
 - SHAPE testProjectWithQuotedColumnFromTableToTDS [tds/tests]: no execute(|...) call
 - SHAPE testLowerProjectColsEliminated [tds/tests]: partial: 3/4 asserts recognized (recognized ones hold); first unrecognized: assertFalse($result->sqlRemoveFormatting()->toLower()->contains('hello'))
-- FAIL testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: rows: expected <Anthony,David,Fabrice,John,Oliver,Peter>, got <John,David,Fabrice,Peter,Anthony,Oliver>
+- FAIL testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: rows: expected <Anthony,David,Fabrice,John,Oliver,Peter>, got <David,John,Peter,Oliver,Anthony,Fabrice>
 - SHAPE testLowerProjectColsNotEliminatedWithSort [tds/tests]: partial: 3/4 asserts recognized (recognized ones hold); first unrecognized: assert($result->sqlRemoveFormatting()->toLower()->contains('hello'))
-- FAIL testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct [tds/tests]: rows: expected <Firm A|1,Firm B|1,Firm C|1,Firm X|4>, got <Firm B|1,Firm C|1,Firm X|4,Firm A|1>
+- FAIL testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct [tds/tests]: rows: expected <Firm A|1,Firm B|1,Firm C|1,Firm X|4>, got <Firm X|4,Firm B|1,Firm C|1,Firm A|1>
 - SHAPE testRestrictOnGroupByColumn_SubSetOfGroupByColumns [tds/tests]: partial: 3/6 asserts recognized (recognized ones hold); first unrecognized: assertEquals([String, Integer], $result.values.columns.type)
 - SHAPE testRestrictOnGroupByColumn_DropAllAggColumns [tds/tests]: partial: 3/6 asserts recognized (recognized ones hold); first unrecognized: assertFalse($result->sqlRemoveFormatting()->toLower()->contains('max'))
 - ERROR testRestrictHandlesQueryPathsCorrectlyOnRename [tds/tests]: ~age_new: mapped/aggregate column specifications need an enclosing call to type against
@@ -1898,7 +1757,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - FAIL testDistinctMappingSimpleProjectSelectOneOfTheDistinctProperties [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
 - FAIL testDistinctMappingWithFilterSelectOneProperty [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
 - ERROR testDistinctMappingWithJoinSelectAll [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
-- FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\nIfName1\n\nIfName2\n>
 - ERROR testProjectDistinctMappingWithDistinctInJoin [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testProjectDistinctMappingWithDistinctInJoinWithDup [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testDistinctMappingWithDistinctInJoinWithFilter [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
@@ -1937,8 +1795,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE otherwiseTestGetterDeepTraversal [tests/mapping/embedded]: no recognizable assertions
 - ERROR testProjectionOtherwiseDeepTraversal [tests/mapping/embedded]: multi-hop navigation bondDetails.holder.name through an embedded/slot head is not supported yet
 - ERROR testProjectionOtherwiseNonPrimitive [tests/mapping/embedded]: in function 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise3$class$meta::relational::tests::mapping::embedded::advanced::model::Product': relation has no column 'bondClassification'
-- FAIL otherwiseTestGroupBy [tests/mapping/embedded]: toCSV: expected <Bond Type,Profit\n15 years,10.0\n5 years,1.0\n>, got <Bond Type,Profit\n5 years,1.0\n15 years,10.0\n>
-- FAIL otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\nBond 1,1.0\nBond 2,1.0\nSuperBond 3 super,5.0\n>, got <Bond Type,sum\nSuperBond 3 super,5.0\nBond 1,1.0\nBond 2,1.0\n>
 - FAIL otherwiseTestQualifierPropertyConstantExpression [tests/mapping/embedded]: toCSV: expected <name,duration\nProduct 1,5\nProduct 2,5\n>, got <name,market\nProduct 1,LSE\nProduct 2,LSE\nProduct 3,MILAN\n>
 - ERROR otherwiseTestComplexExpressionWithEnumMapping [tests/mapping/embedded]: property 'type' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise2'
 - ERROR otherwiseTestEmbeddedToEmbedded [tests/mapping/embedded]: multi-hop navigation bondDetails.issuer.name through an embedded/slot head is not supported yet
@@ -2070,31 +1926,31 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testChainedTwoHops [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testDirectPropertyAccess [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Person' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testNestedInFilter [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testRelationalNestedPropertyChain [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testRelationalDoubleNestedBothSides [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testRelationalNestedInFilter [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testFilterOnTarget [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testFilterOnTargetNestedCondition [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testDistinctOnTarget [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testFilterOnTargetReverse [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testRelationalNestedPropertyChain [tests/mapping/modelJoin]: in function 'meta::relational::tests::mapping::modelJoin::advanced::RelationalNestedPropertyChainMapping$class$meta::relational::tests::mapping::modelJoin::domain::Firm': class 'meta::relational::tests::mapping::modelJoin::domain::Firm' has no property 'id'
+- ERROR testRelationalDoubleNestedBothSides [tests/mapping/modelJoin]: in function 'meta::relational::tests::mapping::modelJoin::advanced::RelationalDoubleNestedMapping$class$meta::relational::tests::mapping::modelJoin::domain::Firm': class 'meta::relational::tests::mapping::modelJoin::domain::Firm' has no property 'id'
+- ERROR testRelationalNestedInFilter [tests/mapping/modelJoin]: in function 'meta::relational::tests::mapping::modelJoin::advanced::RelationalFilterOnNestedMapping$class$meta::relational::tests::mapping::modelJoin::domain::Firm': class 'meta::relational::tests::mapping::modelJoin::domain::Firm' has no property 'id'
+- ERROR testFilterOnTarget [tests/mapping/modelJoin]: in function 'meta::relational::tests::mapping::modelJoin::advanced::FilterOnTargetMapping$class$meta::relational::tests::mapping::modelJoin::domain::Firm': class 'meta::relational::tests::mapping::modelJoin::domain::Firm' has no property 'id'
+- ERROR testFilterOnTargetNestedCondition [tests/mapping/modelJoin]: in function 'meta::relational::tests::mapping::modelJoin::advanced::FilterOnTargetNestedConditionMapping$class$meta::relational::tests::mapping::modelJoin::domain::Firm': class 'meta::relational::tests::mapping::modelJoin::domain::Firm' has no property 'id'
+- ERROR testDistinctOnTarget [tests/mapping/modelJoin]: in function 'meta::relational::tests::mapping::modelJoin::advanced::DistinctOnTargetMapping$class$meta::relational::tests::mapping::modelJoin::domain::Firm': class 'meta::relational::tests::mapping::modelJoin::domain::Firm' has no property 'id'
+- ERROR testFilterOnTargetReverse [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::modelJoin::advanced::FilterOnTargetMapping' failed to normalize this class: ColumnRef referen
 - ERROR testFilterWithInnerJoinOnTarget [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testComplexRelationFunction [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testMixedMappingFirmToEmployee [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testMixedMappingEmployeeToFirm [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testMixedMappingEmployeeToFirm [tests/mapping/modelJoin]: in function 'meta::relational::tests::mapping::modelJoin::advanced::MixedMappingNestedPropertyAccess$class$meta::relational::tests::mapping::modelJoin::domain::Person': class 'meta::relational::tests::mapping::modelJoin::domain::Person' has no property 'id'
 - ERROR testInCondition [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testColumnCollisionInSubselect [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testColumnCollisionInSubselect [tests/mapping/modelJoin]: in function 'meta::relational::tests::mapping::modelJoin::advanced::ColumnCollisionMapping$class$meta::relational::tests::mapping::modelJoin::domain::Person': class 'meta::relational::tests::mapping::modelJoin::domain::Person' has no property 'id'
 - ERROR testNestedModelJoinCompoundInnerCondition [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testSubFilter [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testSubAggregation [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testQualifiedPropertyInQuery [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testSubAggregationRelational [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testSubAggregationRelational [tests/mapping/modelJoin]: in function 'meta::relational::tests::mapping::modelJoin::advanced::RelationalSimpleEqualityMapping$class$meta::relational::tests::mapping::modelJoin::domain::Firm': class 'meta::relational::tests::mapping::modelJoin::domain::Firm' has no property 'id'
 - ERROR testMilestonedContract [tests/mapping/modelJoin]: unknown function 'contracts'
 - ERROR testMilestoningTargetOnly [tests/mapping/modelJoin]: unknown function 'orders'
 - ERROR testMilestoningSourceOnly [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testMilestoningSameScheme [tests/mapping/modelJoin]: unknown function 'shipments'
 - ERROR testMilestoningDiffScheme [tests/mapping/modelJoin]: unknown function 'auditEntries'
 - ERROR testRelationalMilestoningTargetOnly [tests/mapping/modelJoin]: unknown function 'orders'
-- ERROR testRelationalMilestoningSourceOnly [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testRelationalMilestoningSourceOnly [tests/mapping/modelJoin]: in function 'meta::relational::tests::mapping::modelJoin::milestoning::RelationalMilestonedOrderWarehouseMapping$class$meta::relational::tests::mapping::modelJoin::milestoning::domain::Order': class 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order' has no property 'id'
 - ERROR testRelationalMilestoningSameScheme [tests/mapping/modelJoin]: unknown function 'shipments'
 - ERROR testRelationalMilestoningDiffScheme [tests/mapping/modelJoin]: unknown function 'auditEntries'
 - ERROR testSimpleEquality [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
@@ -2105,13 +1961,13 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testArithmeticCondition [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Person' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testDerivedPropertyInCondition [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Person' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testInCondition [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testRelationalSimpleEquality [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testRelationalUnionSource [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testRelationalUnionBothSides [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testUnionWithExistsFilter [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testRelationalUnionSubAggregation [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testUnionWithExistsFilter [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testUnionWithSubtypeQuery [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testRelationalSimpleEquality [tests/mapping/modelJoin]: in function 'meta::relational::tests::mapping::modelJoin::simple::RelationalSimpleEqualityMapping$class$meta::relational::tests::mapping::modelJoin::domain::Firm': class 'meta::relational::tests::mapping::modelJoin::domain::Firm' has no property 'id'
+- ERROR testRelationalUnionSource [tests/mapping/modelJoin]: in function 'meta::relational::tests::mapping::modelJoin::union::RelationalUnionSourceMapping$class$meta::relational::tests::mapping::modelJoin::domain::Firm': class 'meta::relational::tests::mapping::modelJoin::domain::Firm' has no property 'id'
+- ERROR testRelationalUnionBothSides [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::union::RelationalUnionBothSidesMapping'
+- ERROR testUnionWithExistsFilter [tests/mapping/modelJoin]: in function 'meta::relational::tests::mapping::modelJoin::union::UnionWithExistsMapping$class$meta::relational::tests::mapping::modelJoin::domain::Firm': class 'meta::relational::tests::mapping::modelJoin::domain::Firm' has no property 'id'
+- ERROR testRelationalUnionSubAggregation [tests/mapping/modelJoin]: in function 'meta::relational::tests::mapping::modelJoin::union::UnionWithExistsMapping$class$meta::relational::tests::mapping::modelJoin::domain::Firm': class 'meta::relational::tests::mapping::modelJoin::domain::Firm' has no property 'id'
+- ERROR testUnionWithExistsFilter [tests/mapping/modelJoin]: in function 'meta::relational::tests::mapping::modelJoin::union::UnionWithExistsMapping$class$meta::relational::tests::mapping::modelJoin::domain::Firm': class 'meta::relational::tests::mapping::modelJoin::domain::Firm' has no property 'id'
+- ERROR testUnionWithSubtypeQuery [tests/mapping/modelJoin]: class 'meta::relational::tests::mapping::modelJoin::domain::Person' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::union::UnionWithSubtypeQueryMapping'
 - ERROR testProjectPerson [tests/mapping/multigrain]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testProjectFirm [tests/mapping/multigrain]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testProjectPersonWithJoinToAddress [tests/mapping/multigrain]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
@@ -2174,8 +2030,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSimpleMappingQueryWithObjectGroupByAndTdsProject [tests/mapping/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::Person' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testMixedMapping [tests/mapping/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::Person' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testMixedMappingWithAssociation [tests/mapping/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::Person' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testMixedCaseMappingThroughAssociationChain [tests/mapping/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::Person' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testMixedMappingQueryWithPreFilter [tests/mapping/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::Firm' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testMixedCaseMappingThroughAssociationChain [tests/mapping/relation]: in function 'meta::relational::tests::mapping::relation::MixedCaseAssociationChainMapping$class$meta::relational::tests::mapping::relation::Person': class 'meta::relational::tests::mapping::relation::Person' has no property 'firmId'
+- ERROR testMixedMappingQueryWithPreFilter [tests/mapping/relation]: in function 'meta::relational::tests::mapping::relation::MixedMapping$class$meta::relational::tests::mapping::relation::Firm': class 'meta::relational::tests::mapping::relation::Firm' has no property 'id'
 - ERROR testMixedMappingWithFilterInProject [tests/mapping/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::Person' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testMixedMappingWithObjectGroupByAndTdsProject [tests/mapping/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::Person' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testMappingWithWindowColumn [tests/mapping/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::ExtendedPerson' (of 1 candidates); class-query dispatch needs exactly one
@@ -2263,7 +2119,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFilteredGetAll [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::specialUnion::specialUnionMapping' failed to normalize this class: class is mapped through multiple
 - ERROR testProject [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::specialUnion::specialUnionMapping' failed to normalize this class: class is mapped through multiple
 - ERROR testFilteredProject [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::specialUnion::specialUnionMapping' failed to normalize this class: class is mapped through multiple
-- ERROR testFilteredProjectWithFrom [tests/mapping/union]: [6495:34] expected type name, got NEW_SYMBOL
+- ERROR testFilteredProjectWithFrom [tests/mapping/union]: [7063:34] expected type name, got NEW_SYMBOL
 - ERROR testMultiFilterProject [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::specialUnion::specialUnionMapping' failed to normalize this class: class is mapped through multiple
 - ERROR testProjectWithPostTdsOperations [tests/mapping/union]: ~Len: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testFilteredProjectWithPostTdsOperations [tests/mapping/union]: ~Len: mapped/aggregate column specifications need an enclosing call to type against
@@ -2297,12 +2153,12 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testChainedUnionsWithMultipleAggregationWithAdditionalColumn [tests/mapping/union]: no execute(|...) call
 - SHAPE testChainedUnionsWithMapAggregation [tests/mapping/union]: no execute(|...) call
 - ERROR testUnionViewJoins [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::UnionViewJoinsMapping'
-- ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithSameJoinInPropertyInBothUnions'
 - ERROR testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: property 'employeesExt' of class 'meta::relational::tests::model::simple::FirmExtension' is not mapped in mapping 'meta::relational::tests::mapping::union::unionOfViews'
 - ERROR testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: property 'employeesExt' of class 'meta::relational::tests::model::simple::FirmExtension' is not mapped in mapping 'meta::relational::tests::mapping::union::unionOfViews2'
 - ERROR testChainedUnions [tests/mapping/union]: unknown function 'temporalEntityWithAddress'
 - SHAPE testPksWithImportDataFlow [tests/mapping/union]: no recognizable assertions
-- ERROR testUnionWithSinglePropertyMapping [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testUnionWithSinglePropertyMapping [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionWithSinglePropertyMapping'
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: no execute(|...) call
 - ERROR testSQLQueryMergingForFilters [tests/mapping/union]: property 'b' of class 'meta::relational::tests::mapping::union::sqlQueryMerging::model::A' is not mapped in mapping 'meta::relational::tests::mapping::union::sqlQueryMerging::mapping::unionMapping'
 - ERROR testSQLQueryMergingForFiltersDeep [tests/mapping/union]: property 'b' of class 'meta::relational::tests::mapping::union::sqlQueryMerging::model::A' is not mapped in mapping 'meta::relational::tests::mapping::union::sqlQueryMerging::mapping::unionMapping'
@@ -2327,30 +2183,27 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_MappingToRelationalOperation [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::partial::PersonBase' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::partial::partialUnionMappingOfSubTypePrimitiveProperties' failed to normalize this cl
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_EmbeddedMapping [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::partial::PersonBase' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::partial::partialUnionMappingOfSubTypePrimitiveProperties' failed to normalize this cl
 - ERROR testSimpleProject [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Person' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testSimpleProjectWithFunctionInMappingProject [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Person' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testSimpleProjectWithConstantInMappingProject [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Person' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testSimpleProjectWithFunctionInMappingQuery [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Person' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testSimpleQueryFrom [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Person' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testSimpleQueryTo [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testProjectThroughAsso [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testSimpleQueryFromAssociationMapping [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Person' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testSimpleQueryToAssociationMapping [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testProjectThroughAssoWithAssociationMapping [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Firm' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testSimpleQueryFromAssociationMapping [tests/mapping/union]: property 'firm' of class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithAssociationMapping'
+- ERROR testSimpleQueryToAssociationMapping [tests/mapping/union]: property 'employees' of class 'meta::relational::tests::mapping::union::extend::Firm' has no binding in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithAssociationMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- ERROR testProjectThroughAssoWithAssociationMapping [tests/mapping/union]: property 'employees' of class 'meta::relational::tests::mapping::union::extend::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithAssociationMapping'
 - ERROR testSimpleProjectWithJoinInMapping [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Person' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testSimpleProjectWithJoinInMappingWithFunction [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Person' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testSimpleQueryFromWithJoinInMapping [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Person' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testSimpleQueryToWithJoinInMapping [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testProjectThroughAssoWithJoinInMapping [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testProjectThroughAssoWithMultiJoinInMapping [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testSimpleQueryFromWithEmbeddedInMapping [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Person' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testSimpleQueryFromWithFilterInMapping [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Person' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testSimpleProjectionFromWithEmbeddedInMapping [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Person' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testSimpleProjectionFromWithEmbeddedInMappingWithConstant [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Person' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testSimpleQueryUnionToUnion [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testProjectThroughAssoWithUnionToUnionMapping [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testProjectEmbeddedMappingUnionWithSameColumnsNames [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Application' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testProjectEmbeddedMappingUnionWithSameColumnsNamesDeep [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Application' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testSimpleQueryFromWithEmbeddedInMapping [tests/mapping/union]: property 'firm' of class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedProperty'
+- FAIL testSimpleQueryFromWithFilterInMapping [tests/mapping/union]: cells: expected [Scott, Anand, Taylor, Wright], got [Scott, Anand, Roberts, Taylor, Wright]
+- ERROR testSimpleProjectionFromWithEmbeddedInMapping [tests/mapping/union]: property 'firm' of class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedPropertyOneThroughJoin'
+- ERROR testSimpleProjectionFromWithEmbeddedInMappingWithConstant [tests/mapping/union]: property 'firm' of class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedPropertyWithConstant'
+- ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Firm' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedProperty2' failed to normalize this class: Embedded sub-PM '
+- ERROR testSimpleQueryUnionToUnion [tests/mapping/union]: property 'employees' of class 'meta::relational::tests::mapping::union::extend::Firm' has no binding in mapping 'meta::relational::tests::mapping::union::extend::unionToUnionMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- ERROR testProjectThroughAssoWithUnionToUnionMapping [tests/mapping/union]: property 'employees' of class 'meta::relational::tests::mapping::union::extend::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionToUnionMapping'
+- ERROR testProjectEmbeddedMappingUnionWithSameColumnsNames [tests/mapping/union]: property 'applicant' of class 'meta::relational::tests::mapping::union::extend::Application' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedPropertyWithColumnsWithSameNames'
+- ERROR testProjectEmbeddedMappingUnionWithSameColumnsNamesDeep [tests/mapping/union]: property 'applicant' of class 'meta::relational::tests::mapping::union::extend::Application' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedPropertyWithColumnsWithSameNames'
 - ERROR testProjectMappingWithSameColumnsNames [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Application' (of 1 candidates); class-query dispatch needs exactly one
 - SHAPE testIdentificationOfFKColumnsForUnionSelfJoin [tests/mapping/union]: no execute(|...) call
 - SHAPE testThreewayUnionJoinWithOverlappingFKPKAliasNames [tests/mapping/union]: no execute(|...) call
@@ -2377,19 +2230,19 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testUnionWithChainedJoinsAcross4SetsV5 [tests/mapping/union]: navigation to temporal class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' via 'y' is not supported yet (temporal context propagation)
 - ERROR testViewToViewToUnion [tests/mapping/union]: navigation to temporal class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Z' via 'z' is not supported yet (temporal context propagation)
 - ERROR testUnionedViewsToViewToUnion [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::unionOfViewsToViewToUnion' failed to normal
-- ERROR testUnionTwoRelationMappings_SimpleProject [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testUnionOfTwoRelationMappings_FilterAcrossSets [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testUnionTwoRelationMappings_FilterWithStartsWith [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testUnionTwoRelationMappings_FilterInRelationFunc [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testUnionOfRelationAndRelational_SimpleProject [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testUnionOfRelationAndRelational_FilterAcrossSets [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testUnionOfRelationAndRelational_FilterWithStartsWith [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testUnionTwoRelationMappings_FunctionInMappingProject [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testUnionTwoRelationMappings_FunctionInMappingQuery [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testUnionTwoRelationMappings_ConstantInMappingProject [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testUnionTwoRelationMappings_EmbeddedFirmProject [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testUnionTwoRelationMappings_EmbeddedFirmFilter [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testUnionTwoRelationMappings_EnumFilter [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Address' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testUnionTwoRelationMappings_SimpleProject [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappings' failed to normalize this class: Operation union memb
+- ERROR testUnionOfTwoRelationMappings_FilterAcrossSets [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappings' failed to normalize this class: Operation union memb
+- ERROR testUnionTwoRelationMappings_FilterWithStartsWith [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappings' failed to normalize this class: Operation union memb
+- ERROR testUnionTwoRelationMappings_FilterInRelationFunc [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithFilterInFunc' failed to normalize this class: Oper
+- ERROR testUnionOfRelationAndRelational_SimpleProject [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::relation::mapping::unionOfRelationAndRelationalMappings' failed to normalize this class: Operation 
+- ERROR testUnionOfRelationAndRelational_FilterAcrossSets [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::relation::mapping::unionOfRelationAndRelationalMappings' failed to normalize this class: Operation 
+- ERROR testUnionOfRelationAndRelational_FilterWithStartsWith [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::relation::mapping::unionOfRelationAndRelationalMappings' failed to normalize this class: Operation 
+- ERROR testUnionTwoRelationMappings_FunctionInMappingProject [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithFunctionInProject' failed to normalize this class:
+- ERROR testUnionTwoRelationMappings_FunctionInMappingQuery [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithFunctionInProject' failed to normalize this class:
+- ERROR testUnionTwoRelationMappings_ConstantInMappingProject [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithConstantInProject' failed to normalize this class:
+- ERROR testUnionTwoRelationMappings_EmbeddedFirmProject [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithEmbeddedFirm' failed to normalize this class: Oper
+- ERROR testUnionTwoRelationMappings_EmbeddedFirmFilter [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithEmbeddedFirm' failed to normalize this class: Oper
+- ERROR testUnionTwoRelationMappings_EnumFilter [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Address' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithEnumFilter' failed to normalize this class: Opera
 - SHAPE testUnionTwoRelationMappings_EmbeddedFirmProject_Tds [tests/mapping/union/relation]: no execute(|...) call
 - SHAPE testUnionTwoRelationMappings_EmbeddedFirmFilter_Tds [tests/mapping/union/relation]: no execute(|...) call
 - SHAPE testIsNotEmptyForRelational_returnsTrue [tests/platformOperations]: no execute(|...) call
