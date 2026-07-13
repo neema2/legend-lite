@@ -215,6 +215,32 @@ final class Substitution {
             if (target.assocs().containsKey(chainKey)) {
                 return assocLeaf(chainKey, path.get(path.size() - 1));
             }
+            // MULTI-HOP through NESTED EMBEDDED ctors ($p.firm.address.name
+            // over a denormalized mapping): walk the ^Inner(...) chain to
+            // the leaf expression — parent-alias reads all the way down
+            TypedSpec cur = target.bindings().get(path.get(0));
+            int hop = 1;
+            while (cur != null && hop < path.size()) {
+                TypedSpec inner = cur;
+                if (inner instanceof TypedNativeCall c1 && c1.args().size() == 1
+                        && c1.callee().qualifiedName().endsWith("::toOne")) {
+                    inner = c1.args().get(0);
+                }
+                var ow = otherwiseOf(inner);
+                if (ow != null) {
+                    inner = ow.args().get(0);
+                }
+                if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstance ni
+                        && ni.properties().containsKey(path.get(hop))) {
+                    cur = ni.properties().get(path.get(hop));
+                    hop++;
+                } else {
+                    cur = null;
+                }
+            }
+            if (cur != null) {
+                return renameRowVar(cur);
+            }
             throw new NotImplementedException("multi-hop navigation "
                     + String.join(".", path) + " through an embedded/slot head"
                     + " is not supported yet");
