@@ -13,6 +13,7 @@ import com.legend.parser.element.ClassDefinition;
 import com.legend.parser.element.ClassMapping;
 import com.legend.parser.element.ComparisonOp;
 import com.legend.parser.element.DatabaseDefinition;
+import com.legend.parser.element.RelationalDataType;
 import com.legend.parser.element.EnumerationMapping;
 import com.legend.parser.element.FilterMapping;
 import com.legend.parser.element.FilterPointer;
@@ -1564,31 +1565,150 @@ public final class MappingNormalizer {
      */
     private static ValueSpecification coerceToDeclaredNumeric(ValueSpecification value,
             String propName, String ownerClassFqn, ModelBuilder model) {
-        ClassDefinition owner = model.findClass(ownerClassFqn).orElse(null);
-        TypeExpression t = owner == null ? null
-                : findPropertyTypeDeep(owner, propName, model);
-        String name = t instanceof TypeExpression.NameRef nr ? nr.name() : null;
-        if (name == null) {
-            return value;
-        }
-        // PLATFORM primitives only, identified exactly: the bare spelling
-        // (not shadowed by a user class — 'm::Number' must never coerce) or
-        // the full platform FQN. Suffix-matching is the banned idiom.
-        String simple;
-        if (!name.contains("::") && model.findClass(name).isEmpty()) {
-            simple = name;
-        } else if (name.startsWith("meta::pure::metamodel::type::")) {
-            simple = name.substring("meta::pure::metamodel::type::".length());
-        } else {
-            return value;
-        }
-        if (!java.util.Set.of("Float", "Integer", "Decimal", "Number",
-                "DateTime", "StrictDate", "Date").contains(simple)) {
+        String simple = declaredPlatformKind(propName, ownerClassFqn, model);
+        if (simple == null || !java.util.Set.of("Float", "Integer", "Decimal",
+                "Number", "DateTime", "StrictDate", "Date").contains(simple)) {
             return value;
         }
         return new AppliedFunction("cast", List.of(value,
                 new com.legend.parser.spec.TypeAnnotation.Named(
                         new com.legend.parser.TypeExpression.NameRef(simple))));
+    }
+
+    /**
+     * The declared property type's PLATFORM primitive simple name, or null
+     * for class/enum-typed and shadowed names. Identified exactly: the bare
+     * spelling (not shadowed by a user class — {@code m::Number} must never
+     * coerce) or the full platform FQN. Suffix-matching is the banned idiom.
+     */
+    private static String declaredPlatformKind(String propName, String ownerClassFqn,
+            ModelBuilder model) {
+        ClassDefinition owner = model.findClass(ownerClassFqn).orElse(null);
+        TypeExpression t = owner == null ? null
+                : findPropertyTypeDeep(owner, propName, model);
+        String name = t instanceof TypeExpression.NameRef nr ? nr.name() : null;
+        if (name == null) {
+            return null;
+        }
+        if (!name.contains("::") && model.findClass(name).isEmpty()) {
+            return name;
+        }
+        if (name.startsWith("meta::pure::metamodel::type::")) {
+            return name.substring("meta::pure::metamodel::type::".length());
+        }
+        return null;
+    }
+
+    /**
+     * A plain column PM whose PHYSICAL kind disagrees with the declared
+     * property type casts at the boundary ({@code id: String[1]} over an
+     * INTEGER column — engine relational execution coerces to the property
+     * type on the wire). Matching kinds and subsuming declarations
+     * ({@code Number} over any numeric, {@code Date} over any temporal)
+     * emit NO cast; unknown columns and non-primitive declarations pass
+     * through (the type checker stays the loud arbiter).
+     */
+    private static ValueSpecification coerceColumnToDeclared(ValueSpecification read,
+            PropertyMapping.Column col,
+            String ownerClassFqn, ModelBuilder model) {
+        String declared = declaredPlatformKind(col.propertyName(), ownerClassFqn, model);
+        if (declared == null) {
+            return read;
+        }
+        // scope-block columns carry no [db] — skip (checker stays loud)
+        String db = col.database();
+        DatabaseDefinition.ColumnDefinition cd =
+                findPhysicalColumn(db, col.table(), col.column(), model);
+        String colKind = cd == null ? null : pureKindOf(cd.dataType());
+        if (colKind == null || colKind.equals(declared)) {
+            return read;
+        }
+        boolean subsumed = switch (declared) {
+            case "Number" -> java.util.Set.of("Integer", "Float", "Decimal").contains(colKind);
+            case "Date" -> java.util.Set.of("DateTime", "StrictDate").contains(colKind);
+            default -> false;
+        };
+        if (subsumed || !java.util.Set.of("String", "Integer", "Float", "Decimal",
+                "Number", "Boolean", "DateTime", "StrictDate", "Date").contains(declared)) {
+            return read;
+        }
+        return new AppliedFunction("cast", List.of(read,
+                new com.legend.parser.spec.TypeAnnotation.Named(
+                        new com.legend.parser.TypeExpression.NameRef(declared))));
+    }
+
+    /** The pure primitive kind a physical SQL type reads as, or null. */
+    private static String pureKindOf(RelationalDataType t) {
+        return switch (t) {
+            case RelationalDataType.Varchar v -> "String";
+            case RelationalDataType.Char_ c -> "String";
+            case RelationalDataType.BigInt b -> "Integer";
+            case RelationalDataType.SmallInt s -> "Integer";
+            case RelationalDataType.TinyInt s -> "Integer";
+            case RelationalDataType.Integer_ i -> "Integer";
+            case RelationalDataType.Float_ f -> "Float";
+            case RelationalDataType.Double_ d -> "Float";
+            case RelationalDataType.Real r -> "Float";
+            case RelationalDataType.Decimal d -> "Decimal";
+            case RelationalDataType.Numeric n -> "Decimal";
+            case RelationalDataType.Bool b -> "Boolean";
+            case RelationalDataType.Bit b -> "Boolean";
+            case RelationalDataType.Timestamp ts -> "DateTime";
+            case RelationalDataType.Date_ d -> "StrictDate";
+            default -> null;
+        };
+    }
+
+    /** The column's declared SQL type — schema-aware, include-walking. */
+    private static DatabaseDefinition.ColumnDefinition findPhysicalColumn(
+            String dbFqn, String table, String column, ModelBuilder model) {
+        if (dbFqn == null || table == null) {
+            return null;
+        }
+        String t = canonicalTable(table);
+        String schema = null;
+        int dot = t.indexOf('.');
+        if (dot > 0) {
+            schema = t.substring(0, dot);
+            t = t.substring(dot + 1);
+        }
+        return findPhysicalColumn(dbFqn, schema, t, column, model,
+                new java.util.HashSet<>());
+    }
+
+    private static DatabaseDefinition.ColumnDefinition findPhysicalColumn(
+            String dbFqn, String schema, String table, String column,
+            ModelBuilder model, java.util.Set<String> seen) {
+        if (!seen.add(dbFqn)) {
+            return null;
+        }
+        DatabaseDefinition db = model.findDatabase(dbFqn).orElse(null);
+        if (db == null) {
+            return null;
+        }
+        List<DatabaseDefinition.TableDefinition> tables = new ArrayList<>(db.tables());
+        for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
+            if (schema == null || s.name().equals(schema)) {
+                tables.addAll(s.tables());
+            }
+        }
+        for (DatabaseDefinition.TableDefinition td : tables) {
+            if (td.name().equalsIgnoreCase(table)) {
+                for (DatabaseDefinition.ColumnDefinition cd : td.columns()) {
+                    if (cd.name().equalsIgnoreCase(column)) {
+                        return cd;
+                    }
+                }
+            }
+        }
+        for (String inc : db.includes()) {
+            DatabaseDefinition.ColumnDefinition hit =
+                    findPhysicalColumn(inc, schema, table, column, model, seen);
+            if (hit != null) {
+                return hit;
+            }
+        }
+        return null;
     }
 
     private static void validatePmNames(ClassMapping.Relational rcm,
@@ -1971,7 +2091,9 @@ public final class MappingNormalizer {
                             md, ownerClassFqn, model),
                     false);
             case PropertyMapping.Column col -> new CtorField(col.propertyName(),
-                    RelOpTranslator.columnRead(col.table(), col.column(), tableScope, defaultTable, pipeline.view()),
+                    coerceColumnToDeclared(
+                            RelOpTranslator.columnRead(col.table(), col.column(), tableScope, defaultTable, pipeline.view()),
+                            col, ownerClassFqn, model),
                     false);
             case PropertyMapping.EnumeratedColumn ec -> new CtorField(ec.propertyName(),
                     translateEnumeratedColumn(ec, tableScope, defaultTable, md, pipeline,

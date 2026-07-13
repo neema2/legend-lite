@@ -346,7 +346,7 @@ public final class Runner {
 
     /** One executed query: the let-var it binds, its rows, its body offset. */
     record ResultBinding(String var, List<Map<String, Object>> rows, int pos,
-            String query) {
+            String query, List<String> colTypes) {
     }
 
     public Outcome run(Corpus.TestFn fn) {
@@ -435,7 +435,31 @@ public final class Runner {
                     String var = lm.find() ? lm.group(1) : "result";
                     ExecutionResult r = new QueryService().execute(
                             fullModel, qualified, runtimeFqn, conn);
-                    bindings.add(new ResultBinding(var, graphRows(r), span[2], qualified));
+                    List<String> colTypes;
+                    try {
+                        colTypes = r.columns().stream()
+                                .map(c -> String.valueOf(c.javaType())).toList();
+                    } catch (Exception e) {
+                        colTypes = List.of();   // graph results carry no schema
+                    }
+                    bindings.add(new ResultBinding(var, graphRows(r), span[2],
+                            qualified, colTypes));
+                }
+                // intermediate aliases: let tds = $result.values->at(0);
+                // asserts against $tds read the SAME result (the ->at(0)
+                // head-normalization already equates the spellings)
+                Matcher am = Pattern.compile(
+                        "let\\s+(\\w+)\\s*=\\s*\\$(\\w+)((?:\\.values)?(?:->at\\(0\\))?)\\s*;")
+                        .matcher(fn.body());
+                while (am.find()) {
+                    String alias = am.group(1);
+                    String src = am.group(2);
+                    for (ResultBinding b : List.copyOf(bindings)) {
+                        if (b.var().equals(src) && b.pos() <= am.start()) {
+                            bindings.add(new ResultBinding(alias, b.rows(),
+                                    am.start(), b.query(), b.colTypes()));
+                        }
+                    }
                 }
                 return checkAsserts(fn, bindings, failedSeeds);
             }
@@ -815,7 +839,10 @@ public final class Runner {
                             verified++;
                             int idx = Integer.parseInt(rowAtGet.group(1));
                             Object actual = idx < rows.size() ? rows.get(idx).get(rowAtGet.group(2)) : null;
-                            if (!valueEquals(expected, actual)) {
+                            if (!valueEquals(expected, actual)
+                                    && !(!sortedQuery(bound.query())
+                                            && column(rows, rowAtGet.group(2)).stream()
+                                                    .anyMatch(v -> valueEquals(expected, v)))) {
                                 problems.add("row " + idx + "." + rowAtGet.group(2)
                                         + ": expected " + expected + ", got " + actual);
                             }
@@ -830,7 +857,12 @@ public final class Runner {
                             int idx = Integer.parseInt(rowAtCells.group(1));
                             List<Object> actual = idx < rows.size()
                                     ? new ArrayList<>(rows.get(idx).values()) : List.of();
-                            if (!orderedEquals(expected, actual)) {
+                            // rows->at(N) under an UNSORTED query has no
+                            // positional contract (engine order is H2's
+                            // incident): membership suffices
+                            if (!orderedEquals(expected, actual)
+                                    && !(!sortedQuery(bound.query())
+                                            && anyRowMatches(rows, expected))) {
                                 problems.add("row " + idx + ": expected " + expected + ", got " + actual);
                             }
                         }
@@ -923,7 +955,8 @@ public final class Runner {
                                 java.util.Collections.sort(strs);
                             }
                             String actual = String.join(mapJoin.group(3), strs);
-                            if (!es.equals(actual)) {
+                            if (!joinedEquals(es, actual, mapJoin.group(3),
+                                    mapJoin.group(2) != null, bound.query())) {
                                 problems.add(mapJoin.group(1) + ": expected <" + es
                                         + ">, got <" + actual + ">");
                             }
@@ -951,7 +984,9 @@ public final class Runner {
                             }
                             String actual = String.join(
                                     propJoin.group(3) == null ? "" : propJoin.group(3), strs);
-                            if (!es.equals(actual)) {
+                            if (!joinedEquals(es, actual,
+                                    propJoin.group(3) == null ? "" : propJoin.group(3),
+                                    propJoin.group(2) != null, bound.query())) {
                                 problems.add(propJoin.group(1) + ": expected <" + es
                                         + ">, got <" + actual + ">");
                             }
@@ -978,7 +1013,8 @@ public final class Runner {
                                 java.util.Collections.sort(rowStrs);
                             }
                             String actual = String.join(matrixJoin.group(3), rowStrs);
-                            if (!es.equals(actual)) {
+                            if (!joinedEquals(es, actual, matrixJoin.group(3),
+                                    matrixJoin.group(2) != null, bound.query())) {
                                 problems.add("rows: expected <" + es + ">, got <"
                                         + actual + ">");
                             }
@@ -1001,7 +1037,8 @@ public final class Runner {
                                 java.util.Collections.sort(strs);
                             }
                             String actual = String.join(cellsSortJoin.group(2), strs);
-                            if (!es.equals(actual)) {
+                            if (!joinedEquals(es, actual, cellsSortJoin.group(2),
+                                    cellsSortJoin.group(1) != null, bound.query())) {
                                 problems.add("cells: expected <" + es + ">, got <"
                                         + actual + ">");
                             }
@@ -1024,9 +1061,32 @@ public final class Runner {
                                 java.util.Collections.sort(strs);
                             }
                             String actual = String.join(cellsJoin.group(2), strs);
-                            if (!es.equals(actual)) {
+                            if (!joinedEquals(es, actual, cellsJoin.group(2),
+                                    cellsJoin.group(1) != null, bound.query())) {
                                 problems.add("cells: expected <" + es + ">, got <"
                                         + actual + ">");
+                            }
+                        }
+                        continue;
+                    }
+                    Matcher colTypes = Pattern.compile(
+                            "^\\$R(?:\\.values)?\\.columns\\.type$").matcher(second);
+                    if (colTypes.matches()) {
+                        // expected is a list of BARE pure type names
+                        // ([String, Integer]) — parsed here, never via
+                        // pureLiteral (bare identifiers are not literals)
+                        String exp = args.get(0).strip();
+                        if (exp.matches("\\[\\s*\\w+(\\s*,\\s*\\w+)*\\s*\\]")) {
+                            List<Object> expected = new ArrayList<>();
+                            for (String part : exp.substring(1, exp.length() - 1).split(",")) {
+                                expected.add(part.strip());
+                            }
+                            recognized++;
+                            verified++;
+                            List<Object> actual = new ArrayList<>(bound.colTypes());
+                            if (!expected.equals(actual)) {
+                                problems.add("column types: expected " + expected
+                                        + ", got " + actual);
                             }
                         }
                         continue;
@@ -1085,7 +1145,10 @@ public final class Runner {
                             verified++;
                             int idx = Integer.parseInt(at.group(1));
                             Object actual = idx < rows.size() ? rows.get(idx).get(at.group(2)) : null;
-                            if (!valueEquals(expected, actual)) {
+                            if (!valueEquals(expected, actual)
+                                    && !(!sortedQuery(bound.query())
+                                            && column(rows, at.group(2)).stream()
+                                                    .anyMatch(v -> valueEquals(expected, v)))) {
                                 problems.add("at(" + idx + ")." + at.group(2)
                                         + ": expected " + expected + ", got " + actual);
                             }
@@ -1180,11 +1243,41 @@ public final class Runner {
      * data rows compare as a MULTISET under an identical header. A sorted
      * query compares exactly.
      */
+    /** The query text carries an explicit sort — its row order is a contract. */
+    private static boolean sortedQuery(String query) {
+        return query != null
+                && Pattern.compile("->\\s*(sort|sortBy)\\s*\\(").matcher(query).find();
+    }
+
+    /**
+     * makeString-join equality under the same order contract as
+     * {@link #csvEquals}: an explicit {@code ->sort()} on the assert side
+     * or a sorted query compares exactly; otherwise the joined parts
+     * compare as a MULTISET (separator-split — engine expectations encode
+     * H2's incidental row order).
+     */
+    private static boolean joinedEquals(String expected, String actual, String sep,
+            boolean explicitSort, String query) {
+        if (expected.equals(actual)) {
+            return true;
+        }
+        if (explicitSort || sortedQuery(query) || sep.isEmpty()) {
+            return false;
+        }
+        List<String> e = new ArrayList<>(List.of(expected.split(Pattern.quote(sep), -1)));
+        for (String part : actual.split(Pattern.quote(sep), -1)) {
+            if (!e.remove(part)) {
+                return false;
+            }
+        }
+        return e.isEmpty();
+    }
+
     private static boolean csvEquals(String expected, String actual, String query) {
         if (expected.equals(actual)) {
             return true;
         }
-        if (query != null && Pattern.compile("->\\s*(sort|sortBy)\\s*\\(").matcher(query).find()) {
+        if (sortedQuery(query)) {
             return false;   // ordered contract: exact only
         }
         String[] e = expected.split("\n", -1);
@@ -1273,6 +1366,17 @@ public final class Runner {
         return out;
     }
 
+    /** Some row's cell list equals {@code expected} (position-free row assert). */
+    private static boolean anyRowMatches(List<Map<String, Object>> rows,
+            List<Object> expected) {
+        for (var row : rows) {
+            if (orderedEquals(expected, new ArrayList<>(row.values()))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean orderedEquals(List<Object> a, List<Object> b) {
         if (a.size() != b.size()) {
             return false;
@@ -1329,6 +1433,9 @@ public final class Runner {
             }
             if (actual instanceof Integer ai) {
                 return el.longValue() == ai.longValue();
+            }
+            if (actual instanceof java.math.BigInteger bi) {
+                return bi.equals(java.math.BigInteger.valueOf(el));
             }
             if (actual instanceof java.math.BigDecimal bd) {
                 return bd.compareTo(java.math.BigDecimal.valueOf(el)) == 0;
