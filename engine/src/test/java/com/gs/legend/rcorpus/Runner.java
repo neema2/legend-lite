@@ -364,6 +364,10 @@ public final class Runner {
                         allSeeds.addAll(bp.sql());
                     }
                 }
+                // the same literal often arrives via BOTH the shared base
+                // and a BeforePackage expansion (run-once-per-package
+                // emulation): first occurrence wins
+                allSeeds = new ArrayList<>(new java.util.LinkedHashSet<>(allSeeds));
                 List<String> failedSeeds = new ArrayList<>();
                 for (String sql : allSeeds) {
                     try (var st = conn.createStatement()) {
@@ -390,6 +394,7 @@ public final class Runner {
                     if (query.startsWith("|")) {
                         query = query.substring(1);
                     }
+                    query = inlineLets(query, fn.body());
                     String mappingRef = qualify(args.get(1).strip(), fn);
                     String fullModel = modelText + runtimeBlock(modelText, mappingRef);
                     String qualified = qualifyQuery(query, fn);
@@ -409,6 +414,58 @@ public final class Runner {
             return new Outcome(fn.fqn(), Status.ERROR,
                     String.valueOf(e.getMessage()).replace("\n", " | "));
         }
+    }
+
+    private static final Pattern LET_BINDING = Pattern.compile("let\\s+(\\w+)\\s*=\\s*");
+
+    /**
+     * Inline the test body's simple {@code let} bindings into the query
+     * text: {@code let type = 'CUSIP'; execute(|...$type...)} — the query
+     * lambda references body-level constants the extraction would otherwise
+     * drop (unbound {@code $type}). Execute-bound lets never inline; atomic
+     * literals inline bare, other expressions parenthesize.
+     */
+    static String inlineLets(String query, String body) {
+        Map<String, String> vals = new LinkedHashMap<>();
+        Matcher m = LET_BINDING.matcher(body);
+        while (m.find()) {
+            int start = m.end();
+            int i = start;
+            int depth = 0;
+            while (i < body.length()) {
+                char c = body.charAt(i);
+                if (c == '\'') {
+                    i = Corpus.skipString(body, i);
+                    continue;
+                }
+                if (c == '(' || c == '[' || c == '{') {
+                    depth++;
+                } else if (c == ')' || c == ']' || c == '}') {
+                    depth--;
+                } else if (c == ';' && depth == 0) {
+                    break;
+                }
+                i++;
+            }
+            String rhs = body.substring(start, Math.min(i, body.length())).strip();
+            if (rhs.contains("execute")) {
+                continue;
+            }
+            // inline earlier lets into later RHS text
+            for (Map.Entry<String, String> e : vals.entrySet()) {
+                rhs = rhs.replaceAll("\\$" + Pattern.quote(e.getKey()) + "\\b",
+                        java.util.regex.Matcher.quoteReplacement(e.getValue()));
+            }
+            boolean atomic = rhs.matches("'[^']*'") || rhs.matches("-?\\d+(\\.\\d+)?")
+                    || rhs.matches("[\\w:.\\[\\]%]+") || rhs.matches("\\[[^;]*\\]");
+            vals.put(m.group(1), atomic ? rhs : "(" + rhs + ")");
+        }
+        String out = query;
+        for (Map.Entry<String, String> e : vals.entrySet()) {
+            out = out.replaceAll("\\$" + Pattern.quote(e.getKey()) + "\\b",
+                    java.util.regex.Matcher.quoteReplacement(e.getValue()));
+        }
+        return out;
     }
 
     /** Synthesized runtime binding EVERY database (stores pick what they need). */
@@ -653,6 +710,21 @@ public final class Runner {
                         }
                         continue;
                     }
+                    Matcher bare = Pattern.compile(
+                            "^\\$R(?:\\.values)?(?:->toOne\\(\\))?$").matcher(second);
+                    if (bare.matches() && rows.size() == 1 && rows.get(0).size() == 1
+                            && rows.get(0).containsKey("__scalar__")) {
+                        Object expected = pureLiteral(args.get(0).strip());
+                        if (expected != null) {
+                            recognized++;
+                            verified++;
+                            Object actual = rows.get(0).get("__scalar__");
+                            if (!valueEquals(expected, actual)) {
+                                problems.add("expected " + expected + ", got " + actual);
+                            }
+                        }
+                        continue;
+                    }
                     Matcher mapJoin = Pattern.compile(
                             "^\\$R(?:\\.values)?\\.rows->map\\(\\s*\\w+\\s*\\|\\s*\\$\\w+"
                                     + "\\.get\\w*\\('([^']+)'\\)\\s*\\)(->sort\\(\\))?"
@@ -767,6 +839,9 @@ public final class Runner {
     /** Class results arrive as the GRAPH envelope (JSON rows); TDS as tabular. */
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> graphRows(ExecutionResult r) {
+        if (r instanceof ExecutionResult.ScalarResult sc) {
+            return List.of(Map.of("__scalar__", sc.value() == null ? "" : sc.value()));
+        }
         if (r instanceof ExecutionResult.GraphResult g) {
             Object parsed = toJava(com.gs.legend.util.Json.parse(g.json()));
             List<Object> arr = parsed instanceof List<?> l ? (List<Object>) l : List.of(parsed);

@@ -156,6 +156,48 @@ public final class StoreResolver {
                                 "class query under if() without an else branch"));
                 yield resolveNode(unthunk(branch), context);
             }
+            // size()/count() over a class extent = the ROW COUNT of the
+            // resolved pipeline: project ONE constant column (no slot
+            // demand — engine emits select count(*)) and count the relation.
+            case com.legend.compiler.spec.typed.TypedNativeCall nc
+                    when nc.args().size() == 1 && isObjectSpace(nc.args().get(0))
+                    && (nc.callee().qualifiedName().endsWith("::size")
+                            || nc.callee().qualifiedName().endsWith("::count")) -> {
+                com.legend.compiler.element.type.Type intType =
+                        com.legend.compiler.element.type.Type.Primitive.INTEGER;
+                com.legend.compiler.element.type.ExprType oneInt =
+                        new com.legend.compiler.element.type.ExprType(intType,
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+                com.legend.compiler.element.type.ExprType rowParam =
+                        new com.legend.compiler.element.type.ExprType(
+                                nc.args().get(0).info().type(),
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+                TypedLambda one = new TypedLambda(java.util.List.of("p"),
+                        java.util.List.of(new com.legend.compiler.spec.typed.TypedCInteger(1L, oneInt)),
+                        new com.legend.compiler.element.type.ExprType(
+                                new com.legend.compiler.element.type.Type.FunctionType(
+                                        java.util.List.of(new com.legend.compiler.element.type.Type.Param(
+                                                rowParam.type(), rowParam.multiplicity())),
+                                        new com.legend.compiler.element.type.Type.Param(
+                                                intType,
+                                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+                com.legend.compiler.element.type.Type.RelationType relType =
+                        new com.legend.compiler.element.type.Type.RelationType(java.util.List.of(
+                                new com.legend.compiler.element.type.Type.RelationType.Column(
+                                        "c", intType,
+                                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE)));
+                TypedProject proj = new TypedProject(nc.args().get(0),
+                        java.util.List.of(new com.legend.compiler.spec.typed.TypedFuncCol("c", one)),
+                        new com.legend.compiler.element.type.ExprType(relType,
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+                TypedSpec rel = resolveChain(proj, context);
+                var relSize = ctx.findFunction("meta::pure::functions::relation::size")
+                        .stream().findFirst().orElseThrow(() -> new IllegalStateException(
+                                "relation size overload missing from the catalog"));
+                yield new com.legend.compiler.spec.typed.TypedNativeCall(relSize,
+                        java.util.List.of(rel), nc.info());
+            }
             case TypedLimit l when isObjectSpace(l.source()) ->
                     resolveChain(l, context);
             case TypedDrop d when isObjectSpace(d.source()) ->

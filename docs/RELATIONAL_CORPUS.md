@@ -4,7 +4,7 @@ RUN-as-data over the local legend-engine checkout; row equality is the
 contract, golden SQL is advisory. SHAPE = test body/assert form the
 runner does not yet recognize (accounted, not skipped silently).
 
-## Failed seed statements (96)
+## Failed seed statements (115)
 
 - `insert into LegendCalendarSchema.NY_Calendar ("date", "dayOfCalendarYear", "shortNameWeekDay", "adjustedDate", "fiscalWeekOffset", "fiscalDay", "fiscalDayOfMonth", "fiscalDayOfQuarter", "fiscalDayOfWeek", "prior4WeekDate", "prior12WeekDate", "prior52WeekDate", "currentMonthNum", "fiscalMonthEnd", "currentQuarterNum", "currentWeek", "fiscalWeekStart", "currentYear", "previousBusinessDay", "previousFiscalMonth", "previousFiscalQuarter", "previousFiscalYear", "numberOfFiscalDaysInMonth", "numberOfFiscalDaysInYear") values ('2022-01-15', 15,'Sat','2022-01-18', -49, 11,11,11,1,'2021-12-18','2021-10-23','2021-01-16', 1,'2022-01-31',1, 3,'2022-01-18',2022,'2022-01-14',12,4,2021,20,251); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into LegendCalendarSchema.NY_Calendar ("date", "dayOfCalendarYear", "shortNameWeekDay", "adjustedDate", "fiscalWeekOffset", "fiscalDay", "fiscalDayOfMonth", "fiscalDayOfQuarter", "fiscalDayOfWeek", "prior4WeekDate", "prior12WeekDate", "prior52WeekDate", "currentMonthNum", "fiscalMonthEnd", "currentQuarterNum", "currentWeek", "fiscalWeekStart", "currentYear", "previousBusinessDay", "previousFiscalMonth", "previousFiscalQuarter", "previousFiscalYear", "numberOfFiscalDaysInMonth", "numberOfFiscalDaysInYear") values ('2018-12-31',365,'Mon','2018-12-31',-210,252,20,64,5,'2018-12-04','2018-10-09','2017-12-30',12,'2018-12-31',4,52,'2018-12-24',2018,'2018-12-28',11,3,2017,20,252); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
@@ -74,7 +74,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - `insert into PersonTable ("id", "firstName", "lastName", "age", "addressId", "firmId", "managerId") values (11, 'Elena', 'Firm B',35, 7,3,null); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into PersonTable ("id", "firstName", "lastName", "age", "addressId", "firmId", "managerId") values (12, 'Don', 'New York',35, 7,1,null); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `Drop schema schemaB if exists cascade; => Parser Error: syntax error at or near "if"`
-- `create schema schemaB; => Catalog Error: Schema with name "schemaB" already exists!`
 - `insert into DATA_WITH_TIMESTAMPS_KEYS ("ID1", "ID2", "ID3", "PROP_STRING", "PROP_INT") values (1, 'Peter', 'Smith', 1, 'Firm X', '1 the street' , 1, '200 west',1); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into DATA_WITH_TIMESTAMPS_KEYS ("ID1", "ID2", "ID3", "PROP_STRING", "PROP_INT") values (2, 'John', 'Johnson',   1, 'Firm X', '5 Park Ave', 1, '200 west',1); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into DATA_WITH_TIMESTAMPS_KEYS ("ID1", "ID2", "ID3", "PROP_STRING", "PROP_INT") values (5, 'Fabrice', 'Roberts', 2, 'Firm A', '7 Palo Alto', 2, '3 somewhere',1); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
@@ -83,6 +82,17 @@ runner does not yet recognize (accounted, not skipped silently).
 - `insert into Person ("id", "state", "unitNumber", "in_z", "out_z") values (1, 'CA', 7, '2022-10-21 23:59:59', '9999-12-31 00:00:00' ); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into Person ("id", "state", "unitNumber", "in_z", "out_z") values (2, 'TX', 8, '2022-10-20 23:59:59', '9999-12-31 00:00:00' ); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into Person ("id", "state", "unitNumber", "in_z", "out_z") values (3, 'NY', 9, '2022-10-20 23:59:59', '9999-12-31 00:00:00' ); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `Create Table Car ("OWNER_ID" INT, "NAME" VARCHAR(200), "FUEL" INTEGER, "FROM_Z" DATE, "THRU_Z" DATE); => Catalog Error: Table with name "Car" already exists!`
+- `insert into Car ("OWNER_ID", "NAME", "FUEL", "FROM_Z", "THRU_Z") values (1, 'Peugeot', 1, '2025-01-01', '9999-12-31'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into Car ("OWNER_ID", "NAME", "FUEL", "FROM_Z", "THRU_Z") values (2, 'Renault', 2, '2023-01-01', '2025-12-31'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into Car ("OWNER_ID", "NAME", "FUEL", "FROM_Z", "THRU_Z") values (3, 'Nissan', 3, '2025-01-01', '9999-12-31'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `Create Table Bicycle("OWNER_ID" INT, "NAME" VARCHAR(200), "GEAR" INTEGER, "FROM_Z" DATE, "THRU_Z" DATE); => Catalog Error: Table with name "Bicycle" already exists!`
+- `insert into Bicycle ("OWNER_ID", "NAME", "GEAR", "FROM_Z", "THRU_Z") values (1, 'MBK', 3, '2025-01-01', '9999-12-31'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into Bicycle ("OWNER_ID", "NAME", "GEAR", "FROM_Z", "THRU_Z") values (2, 'BMX', 4, '2022-01-01', '2023-12-31'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `Create Table PersonTable("id" INT, "firstName" VARCHAR(200), "lastName" VARCHAR(200), "addressId" INT, "firmId" INT, "flag" INT, "AGE" INT); => Catalog Error: Table with name "PersonTable" already exists!`
+- `Create Table FirmTable("id" INT, "legalName" VARCHAR(200), "addressId" INT, "flag" INT); => Catalog Error: Table with name "FirmTable" already exists!`
+- `Create Table accountTable("ID" VARCHAR(200), "name" VARCHAR(200), "createDate" DATE); => Catalog Error: Table with name "accountTable" already exists!`
+- `Create Table tradeTable("id" INT, "accountId" INT, "quantity" FLOAT, "tradeDate" DATE); => Catalog Error: Table with name "tradeTable" already exists!`
 - `CREATE OR REPLACE TABLE PERSON_FIRM_ADDRESS_MULTIGRAIN ("OID" INT, "DLEVEL" VARCHAR(2), "//Person" Grain => Parser Error: syntax error at or near "PERSON_FIRSTNAME"`
 - `CREATE OR REPLACE TABLE FIRM_ACCT_IF_MULTIGRAIN ("OID" INT, "DLEVEL" VARCHAR(2), "//Account" grain => Parser Error: syntax error at or near "ACCOUNT_NUM"`
 - `insert into PERSON_FIRM_ADDRESS_MULTIGRAIN ("DLEVEL", "OID", "PERSON_FIRSTNAME", "PERSON_LASTNAME", "PERSON_FIRM_OID", "PERSON_ADDRESS_OID", "PERSON_ADDRESS_LINE_1", "FIRM_LEGALNAME", "FIRM_ADDRESS_OID", "FIRM_ADDRESS_LINE_1", "ADDRESS_LINE_1", "ADDRESS_TYPE") values ('P', 1, 'Peter', 'Smith', 4, 6, '1 the street','Firm X', 9, '200 west', null, null); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
@@ -102,6 +112,15 @@ runner does not yet recognize (accounted, not skipped silently).
 - `insert into FIRM_ACCT_IF_MULTIGRAIN("OID", "DLEVEL", "ACCOUNT_NUM", "IF_NUM", "IF_TYPE", "IF_PERCENT", "IF_DESCRIPTION") values(5, 'S', '7204567', 1022, 'P', 100.0, null); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into FIRM_ACCT_IF_MULTIGRAIN("OID", "DLEVEL", "ACCOUNT_NUM", "IF_NUM", "IF_TYPE", "IF_PERCENT", "IF_DESCRIPTION") values(6, 'I', null, 1022, null, null, 'IF 1'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into FIRM_ACCT_IF_MULTIGRAIN("OID", "DLEVEL", "ACCOUNT_NUM", "IF_NUM", "IF_TYPE", "IF_PERCENT", "IF_DESCRIPTION") values(7, 'I', null, 1023, null, null, 'IF 2'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `Create Table PersonTable("id" INT, "FIRST NAME" VARCHAR(200), "age" INT, "firmId" INT, "birthdate" DATE, "salary" DOUBLE, "IS_MALE" INT, "EMPLOYEE_TYPE" VARCHAR(20)); => Catalog Error: Table with name "PersonTable" already exists!`
+- `insert into PersonTable ("id", "FIRST NAME", "age", "firmId", "birthDate", "salary", "IS_MALE", "EMPLOYEE_TYPE") values (1, 'Peter',   23,  1, '2000-11-01', 14.34, 1, 'CONTRACT'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into PersonTable ("id", "FIRST NAME", "age", "firmId", "birthDate", "salary", "IS_MALE", "EMPLOYEE_TYPE") values (2, 'John',    30,  1, '1994-11-01', 72.40, 1, 'FULL_TIME'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into PersonTable ("id", "FIRST NAME", "age", "firmId", "birthDate", "salary", "IS_MALE", "EMPLOYEE_TYPE") values (3, 'Jane',    23,  2, '2000-11-01', 48.00, 0, 'CONTRACT'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into PersonTable ("id", "FIRST NAME", "age", "firmId", "birthDate", "salary", "IS_MALE", "EMPLOYEE_TYPE") values (4, 'Anthony', 19,  3, '2005-11-01', 64.90, 1, 'SALARY'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into PersonTable ("id", "FIRST NAME", "age", "firmId", "birthDate", "salary", "IS_MALE", "EMPLOYEE_TYPE") values (5, 'Fabrice', 45,  4, '1979-11-01', 19.29, 1, 'FULL_TIME'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into PersonTable ("id", "FIRST NAME", "age", "firmId", "birthDate", "salary", "IS_MALE", "EMPLOYEE_TYPE") values (6, 'Oliver',  26,  4, '1998-11-01', 42.34, 1, 'CONTRACT'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into PersonTable ("id", "FIRST NAME", "age", "firmId", "birthDate", "salary", "IS_MALE", "EMPLOYEE_TYPE") values (7, 'David',   52,  5, '1972-11-01', 88.88, 1, 'CONTRACT'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into FirmTable ("id", "legalName", "addressId", "ceoId") values (5, 'Firm D', 11, 2); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 
 | family | tests | pass | fail | error | shape |
 |---|---|---|---|---|---|
@@ -110,9 +129,9 @@ runner does not yet recognize (accounted, not skipped silently).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 0 | 0 | 92 | 0 |
 | executionPlan/tests | 109 | 0 | 0 | 0 | 109 |
-| functions/tests | 261 | 16 | 19 | 169 | 57 |
+| functions/tests | 261 | 33 | 2 | 164 | 62 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 1 | 0 | 0 |
-| functions/tests/projection | 165 | 5 | 7 | 104 | 49 |
+| functions/tests/projection | 165 | 6 | 7 | 97 | 55 |
 | graphFetch/domain | 2 | 0 | 0 | 0 | 2 |
 | graphFetch/tests | 5 | 0 | 0 | 0 | 5 |
 | graphFetch/tests/union | 1 | 0 | 0 | 0 | 1 |
@@ -132,7 +151,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | sqlQueryToString/DDL | 3 | 0 | 0 | 0 | 3 |
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 275 | 16 | 8 | 162 | 89 |
+| tds/tests | 275 | 16 | 12 | 158 | 89 |
 | testDataGeneration/tests | 40 | 0 | 0 | 0 | 40 |
 | tests | 39 | 0 | 0 | 0 | 39 |
 | tests/advanced | 71 | 0 | 0 | 58 | 13 |
@@ -142,10 +161,10 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/association | 24 | 1 | 0 | 19 | 4 |
 | tests/mapping/classMappingByClass | 3 | 0 | 0 | 0 | 3 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 0 | 0 | 30 | 2 |
-| tests/mapping/distinct | 18 | 4 | 4 | 10 | 0 |
+| tests/mapping/distinct | 18 | 6 | 3 | 9 | 0 |
 | tests/mapping/dynaJoin | 6 | 0 | 0 | 2 | 4 |
-| tests/mapping/embedded | 70 | 8 | 9 | 47 | 6 |
-| tests/mapping/enumeration | 27 | 1 | 1 | 10 | 15 |
+| tests/mapping/embedded | 70 | 8 | 8 | 47 | 7 |
+| tests/mapping/enumeration | 27 | 1 | 1 | 9 | 16 |
 | tests/mapping/filter | 10 | 3 | 0 | 5 | 2 |
 | tests/mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 |
@@ -163,11 +182,11 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/union | 125 | 0 | 0 | 107 | 18 |
 | tests/mapping/union/relation | 15 | 0 | 0 | 13 | 2 |
 | tests/platformOperations | 4 | 0 | 0 | 0 | 4 |
-| tests/query | 99 | 18 | 11 | 51 | 19 |
+| tests/query | 99 | 26 | 2 | 48 | 23 |
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2429 | **88** | 61 | 1373 | 907 |
+| **total** | 2429 | **116** | 37 | 1352 | 924 |
 
 ### mapping walls (dropped at assembly)
 
@@ -387,27 +406,26 @@ runner does not yet recognize (accounted, not skipped silently).
 ### top error buckets
 
 - 64x in function 'meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping$class$meta::relational::tests::mapping::sqlFunction::model::domain::SqlFunctionDemo': in call to 'meta::pure::functions::string::splitPart', argument 3: expected Integer, got String
-- 55x class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- 41x unbound variable '$businessDate'
+- 56x class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - 36x legacy groupBy expects (source, [keys], [aggs], ['aliases'])
 - 35x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- 34x unknown function 'restrict'
+- 30x unknown function 'product'
+- 29x class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - 27x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- 26x class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - 23x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- 23x milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
+- 23x [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - 22x class query under TypedMap is not resolvable yet (H2 vocabulary)
-- 21x unknown function 'product'
-- 21x unbound variable '$type'
+- 22x milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
 - 20x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - 20x expected at most one value, got many ([*])
-- 20x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
+- 18x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 18x unknown function 'getAllVersionsInRange'
 - 16x unknown function 'getAllVersions'
 - 15x unknown function 'synonymByType'
 - 15x milestoned class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet (H-scope exclusion)
 - 15x unknown function 'biTemporalProduct'
 - 15x milestoned class fetch of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X' is not supported yet (H-scope exclusion)
-- 14x unknown function 'restrict'
 - 14x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exactly one
 - 13x unknown function 'employeesByCityOrManager'
 - 13x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Person' (of 1 candidates); class-query dispatch needs exactly one
@@ -416,6 +434,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - 10x filter predicate references column 'firm_employees', unresolvable even after isolation
 - 10x property 'name' of class 'meta::relational::tests::model::simple::Person' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - 10x unknown function 'employeeByLastName'
+- 10x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Person' (of 1 candidates); class-query dispatch needs exactly one
 
 ### per-test outcomes (non-passing)
 
@@ -649,14 +668,14 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE planProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE executeProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE planGraphFetchWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
-- ERROR testDistanceHaversine [functions/tests]: unbound variable '$london'
-- ERROR testDistanceHaversine2 [functions/tests]: unbound variable '$london'
-- ERROR testDistanceHaversine3 [functions/tests]: unbound variable '$london'
-- ERROR testDistanceHaversineInProject [functions/tests]: unbound variable '$london'
-- ERROR testDistanceSphericalLawOfCosines [functions/tests]: unbound variable '$london'
-- ERROR testDistanceSphericalLawOfCosines2 [functions/tests]: unbound variable '$london'
-- ERROR testDistanceSphericalLawOfCosines3 [functions/tests]: unbound variable '$london'
-- ERROR testDistanceSphericalLawOfCosinesInProject [functions/tests]: unbound variable '$london'
+- ERROR testDistanceHaversine [functions/tests]: expected meta::relational::tests::functions::distance::GeographicCoordinate, got GeographicCoordinate
+- ERROR testDistanceHaversine2 [functions/tests]: expected meta::relational::tests::functions::distance::GeographicCoordinate, got GeographicCoordinate
+- ERROR testDistanceHaversine3 [functions/tests]: expected meta::relational::tests::functions::distance::GeographicCoordinate, got GeographicCoordinate
+- ERROR testDistanceHaversineInProject [functions/tests]: expected meta::relational::tests::functions::distance::GeographicCoordinate, got GeographicCoordinate
+- ERROR testDistanceSphericalLawOfCosines [functions/tests]: expected meta::relational::tests::functions::distance::GeographicCoordinate, got GeographicCoordinate
+- ERROR testDistanceSphericalLawOfCosines2 [functions/tests]: expected meta::relational::tests::functions::distance::GeographicCoordinate, got GeographicCoordinate
+- ERROR testDistanceSphericalLawOfCosines3 [functions/tests]: expected meta::relational::tests::functions::distance::GeographicCoordinate, got GeographicCoordinate
+- ERROR testDistanceSphericalLawOfCosinesInProject [functions/tests]: expected meta::relational::tests::functions::distance::GeographicCoordinate, got GeographicCoordinate
 - ERROR testAllWithProperty [functions/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - ERROR testAll [functions/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - ERROR testConcatenateDataType [functions/tests]: unknown function 'synonymByType'
@@ -683,10 +702,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testComplexExistsToManyProperty [functions/tests]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - ERROR testComplexOrExistsToManyProperty [functions/tests]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - ERROR testNotExists [functions/tests]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
-- FAIL testIn [functions/tests]: size: expected 2, got 3
-- FAIL testContains [functions/tests]: size: expected 2, got 3
-- FAIL testInNegated [functions/tests]: size: expected 10, got 12
-- FAIL testContainsNegated [functions/tests]: size: expected 10, got 14
+- SHAPE testIn [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold)
+- SHAPE testContains [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold)
+- FAIL testInNegated [functions/tests]: size: expected 10, got 9
+- SHAPE testContainsNegated [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testDupsFilterProject [functions/tests]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - ERROR testDupsFilterNoProjection [functions/tests]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - ERROR testExistsWithEmbedded [functions/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Firm' (of 1 candidates); class-query dispatch needs exactly one
@@ -719,17 +738,12 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testFetchDbColumnsMetaData [functions/tests]: no execute(|...) call
 - SHAPE testFetchDbSchemasMetaData [functions/tests]: no execute(|...) call
 - SHAPE testFetchDbPrimaryKeysMetaData [functions/tests]: no execute(|...) call
-- FAIL testLessThanEqualString [functions/tests]: size: expected 7, got 9; lastName: expected [Allen, Johnson, Harris, New York, Firm B, Roberts, Hill], got [Johnson, Hill, Allen, Roberts, Harris, Firm B, New York, Firm B, New York]
-- FAIL testGreaterThanEqualString [functions/tests]: size: expected 7, got 10; lastName: expected [Hill, Smith, Johnson, Smith, Hill, York, no Firm], got [Smith, Johnson, Hill, Hill, Smith, no Firm, York, Smith, no Firm, York]
-- FAIL testSelectNotEqual [functions/tests]: size: expected 10, got 15; lastName: expected [Allen, Hill, Smith, Harris, New York, Firm B, Roberts, Smith, York, no Firm], got [Smith, Allen, Roberts, Hill, Harris, Smith, no Firm, York, Firm B, New York, Smith, no Firm, York, Firm B, New York]
-- FAIL testSelectConstantPredicate [functions/tests]: size: expected 12, got 17; size: expected 12, got 17
-- FAIL testSelectNotEqualNotAnd [functions/tests]: size: expected 11, got 16; lastName: expected [Allen, Hill, Smith, Johnson, Harris, New York, Firm B, Roberts, Smith, York, no Firm], got [Smith, Johnson, Allen, Roberts, Hill, Harris, Smith, no Firm, York, Firm B, New York, Smith, no Firm, York, Firm B, New York]
 - ERROR testSelectChainOfAndOrOperators [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testGreaterThanDate [functions/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Account' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: Join 'AccountPnlView_Account' navigates to a CLASS mapped
 - SHAPE testLessThan [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testLessThanEqual [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testLessThanWithArithmetic [functions/tests]: partial: 1/3 asserts recognized (recognized ones hold)
-- ERROR testFilterUsingClassAttribute [functions/tests]: unbound variable '$firm'
+- ERROR testFilterUsingClassAttribute [functions/tests]: object-space expression node TypedNewInstance is not substitutable yet (H2 vocabulary)
 - SHAPE testBuildFilterWithValueThatCanBeNull [functions/tests]: no execute(|...) call
 - SHAPE testBuildFilterWithValueThatCanBeNullWithInWithEmpty [functions/tests]: no execute(|...) call
 - SHAPE testBuildFilterWithValueThatCanBeNullWithIn [functions/tests]: no execute(|...) call
@@ -760,15 +774,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testGetterTwice [functions/tests]: partial: 2/5 asserts recognized (recognized ones hold)
 - ERROR testDeepIn [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testDeepContains [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- ERROR testInWithOneValue [functions/tests]: unbound variable '$names'
-- ERROR testContainsWithOneValue [functions/tests]: unbound variable '$names'
-- ERROR testInWithVariables [functions/tests]: unbound variable '$john'
+- ERROR testInWithOneValue [functions/tests]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary)
+- ERROR testContainsWithOneValue [functions/tests]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary)
 - ERROR testInWithFunction [functions/tests]: unknown function 'meta::relational::tests::query::filter::in::getNames'
-- ERROR testContainsWithVariables [functions/tests]: unbound variable '$john'
-- ERROR testInWithListVariable [functions/tests]: unbound variable '$names'
-- ERROR testContainsWithListVariable [functions/tests]: unbound variable '$names'
-- FAIL testNotIn [functions/tests]: size: expected 9, got 14; lastName: expected [Allen, Hill, Harris, New York, Firm B, Roberts, Smith, York, no Firm], got [Allen, Roberts, Hill, Harris, Smith, no Firm, York, Firm B, New York, Smith, no Firm, York, Firm B, New York]
-- FAIL testNotContains [functions/tests]: size: expected 9, got 14; lastName: expected [Allen, Hill, Harris, New York, Firm B, Roberts, Smith, York, no Firm], got [Allen, Roberts, Hill, Harris, Smith, no Firm, York, Firm B, New York, Smith, no Firm, York, Firm B, New York]
 - FAIL testContainsOnToManyProperty [functions/tests]: size: expected 1, got 2
 - SHAPE testConsistencyWithNulls [functions/tests]: no recognizable assertions
 - SHAPE testConsistencyWithNullsInJoin [functions/tests]: no recognizable assertions
@@ -776,8 +784,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testContainsEscapeUnderscore [functions/tests]: partial: 1/2 asserts recognized (recognized ones hold)
 - ERROR testInWithinQualifiedPropertyCollectionAsLiteralList [functions/tests]: property 'isFirmXGroup' of class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testDerivedWithIsEmpty [functions/tests]: unknown function 'isValued'
-- ERROR testIsolationOfInputToIsEmpty [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- ERROR testIsolationOfInputToIsEmptyWithForcedFiltersOnInput [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
+- ERROR testIsolationOfInputToIsEmpty [functions/tests]: unbound variable '$result'
+- ERROR testIsolationOfInputToIsEmptyWithForcedFiltersOnInput [functions/tests]: unbound variable '$result'
 - ERROR testInputNotIsolatedWhenPropertyPathIsToOne [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testIsolationOfTheSameInputInABooleanExprWhereOneSideIsEmpty [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testSimpleTriangularJoinViaIsEmpty [functions/tests]: property 'employeeWithFirmAddressName' of class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -870,13 +878,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testPaginated [functions/tests]: no execute(|...) call
 - SHAPE testPaginatedByVendor [functions/tests]: no execute(|...) call
 - SHAPE testPaginatedWithVariables [functions/tests]: no execute(|...) call
-- FAIL testAll [functions/tests]: size: expected 12, got 17
-- ERROR testSize [functions/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - ERROR testDistinctSize [functions/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - SHAPE testSliceByVendor [functions/tests]: no execute(|...) call
 - SHAPE testLimitByVendor [functions/tests]: no execute(|...) call
 - SHAPE testTakeByVendor [functions/tests]: no execute(|...) call
-- FAIL testSimpleDrop [functions/tests]: size: expected 12, got 17; size: expected 11, got 16
 - SHAPE testLimitFilterInSequence [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testFilterLimitInSequence [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLimitFilterInSequenceForTableAccessor [functions/tests]: no execute(|...) call
@@ -885,14 +890,11 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testDropWithVariables [functions/tests]: no execute(|...) call
 - SHAPE testTakeWithVariables [functions/tests]: no execute(|...) call
 - SHAPE testLimitWithVariables [functions/tests]: no execute(|...) call
-- FAIL testSortSimple [functions/tests]: size: expected 12, got 17; lastName: expected [Allen, Firm B, Harris, Hill, Hill, Johnson, New York, Roberts, Smith, Smith, York, no Firm], got [Allen, Firm B, Firm B, Harris, Hill, Hill, Johnson, New York, New York, Roberts, Smith, Smith, Smith, York, York, no Firm, no Firm]
-- FAIL testSortByLambdaSimple [functions/tests]: size: expected 12, got 17; lastName: expected [Allen, Firm B, Harris, Hill, Hill, Johnson, New York, Roberts, Smith, Smith, York, no Firm], got [Allen, Firm B, Firm B, Harris, Hill, Hill, Johnson, New York, New York, Roberts, Smith, Smith, Smith, York, York, no Firm, no Firm]
-- FAIL testSortByLambdaMultiple [functions/tests]: size: expected 12, got 17; firstName: expected [Anthony, David, Don, Elena, Fabrice, John, John, New, No address, No firm, Oliver, Peter], got [Anthony, David, Don, Don, Elena, Elena, Fabrice, John, John, New, New, No address, No address, No firm, No firm, Oliver, Peter]
-- FAIL testSortByLambdaColumnAddition [functions/tests]: size: expected 12, got 17
+- SHAPE testSortByLambdaColumnAddition [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testSortByLambdaWithIfElseValue [functions/tests]: partial: 2/4 asserts recognized (recognized ones hold)
 - SHAPE testSortByLambdaWIthIfElseColumn [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testSortByLambdaWithComplexExpr [functions/tests]: property 'name' of class 'meta::relational::tests::model::simple::Person' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- FAIL testSortByLambdaDeepOptional [functions/tests]: size: expected 12, got 17
+- SHAPE testSortByLambdaDeepOptional [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testSortByLambda_QueryWithParameters_Plan [functions/tests]: no execute(|...) call
 - FAIL testLoadCsv [functions/tests/loadCsvToDbTable]: firstName: expected [Joe], got []; lastName: expected [Bloggs], got []; age: expected [21], got []; at(1).firstName: expected Jill, got null; at(1).lastName: expected Smith, got null; at(1).age: expected 31, got null
 - FAIL testSubAggregation [functions/tests/projection]: size: expected 4, got 7
@@ -916,7 +918,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testAssociationToManyColumnProtocolOneColumn [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testAssociationToManyColumnProtocol [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testAssociationToManyColumnProtocolWithDoc [functions/tests/projection]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testQualifiedPropertyUsingColumnProtocol [functions/tests/projection]: unbound variable '$firmAge'
+- ERROR testQualifiedPropertyUsingColumnProtocol [functions/tests/projection]: unknown function 'employeesByAge'
 - SHAPE testAssociationToMany [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testAssociationToManyWithQuery [functions/tests/projection]: class-typed property '$p.locations' used as a whole value is graph output (Phase H4)
 - ERROR testAssociationToManyDeepTwo [functions/tests/projection]: multi-hop navigation employees.address.name through an embedded/slot head is not supported yet
@@ -965,7 +967,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testGreaterThan [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testGreaterThanEqual [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testGreaterThanWithOptionalProperty [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
-- ERROR testLessThanFilterAsVariable [functions/tests/projection]: unbound variable '$filter'
 - ERROR testIsolationOfVariableNamesAccrossDifferentPaths [functions/tests/projection]: unknown function 'employeeWithFirmAddressName'
 - ERROR testIsolatioWhereNoConstaintsAndInnerJoin [functions/tests/projection]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testIsolationOfFiltersWithoutAlias [functions/tests/projection]: unknown function 'employeeByLastName'
@@ -1005,12 +1006,12 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testDeepInWithMultipleProject [functions/tests/projection]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testDeepContains [functions/tests/projection]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testDeepContainsWithMultipleProject [functions/tests/projection]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- ERROR testInWithOneValue [functions/tests/projection]: unbound variable '$names'
-- ERROR testContainsWithOneValue [functions/tests/projection]: unbound variable '$names'
-- ERROR testInWithVariables [functions/tests/projection]: unbound variable '$john'
-- ERROR testContainsWithVariables [functions/tests/projection]: unbound variable '$john'
-- ERROR testInWithListVariable [functions/tests/projection]: unbound variable '$names'
-- ERROR testContainsWithListVariable [functions/tests/projection]: unbound variable '$names'
+- ERROR testInWithOneValue [functions/tests/projection]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary)
+- ERROR testContainsWithOneValue [functions/tests/projection]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary)
+- SHAPE testInWithVariables [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
+- SHAPE testContainsWithVariables [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
+- SHAPE testInWithListVariable [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
+- SHAPE testContainsWithListVariable [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testNotIn [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testNotContains [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE H2Test [functions/tests/projection]: no execute(|...) call
@@ -1022,7 +1023,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testDerivedWithFiltering [functions/tests/projection]: property 'cusip' of class 'meta::relational::tests::model::simple::Product' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testDerivedWithFilteringTwoProperties [functions/tests/projection]: property 'cusip' of class 'meta::relational::tests::model::simple::Product' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testQualifierWithFilteringAndParameters [functions/tests/projection]: [1:263] navigation path segment 'synonymByType(meta::relational::tests::model::simple::ProductSynonymType.CUSIP)' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::model::simple::Product/synonymByType(meta::relational::tests::model::simple::ProductSy
-- ERROR testQualifierWithClassAsParameter [functions/tests/projection]: unbound variable '$personNameParameter'
+- ERROR testQualifierWithClassAsParameter [functions/tests/projection]: unknown function 'parameterizedName'
 - ERROR testTwoQualifiersUsingSameJoinWithNoUserParams [functions/tests/projection]: property 'isinSynonym' of class 'meta::relational::tests::model::simple::Product' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testQualifierInLambdaDeep [functions/tests/projection]: unknown function 'synonymByType'
 - ERROR testQualifierBeforeProject [functions/tests/projection]: unknown function 'synonymByType'
@@ -1042,8 +1043,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFilterOnRootTypeWithOrWithFilterInQualifier [functions/tests/projection]: unknown function 'tradeDateEvent'
 - SHAPE testAllOneSimpleProperty [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testAllOneSimplePropertyWithColsFromFunction [functions/tests/projection]: project expects ~[…] column specifications
-- ERROR testAllOneSimplePropertyUsingVariable [functions/tests/projection]: project expects ~[…] column specifications
-- ERROR testAllOneSimplePropertyUsingVariables [functions/tests/projection]: expected a string-literal column name
+- SHAPE testAllOneSimplePropertyUsingVariable [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
+- SHAPE testAllOneSimplePropertyUsingVariables [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testAllOneSimplePropertyUsingVariables2 [functions/tests/projection]: no execute(|...) call
 - SHAPE testAllOneSimplePropertyUsingOpenVariables [functions/tests/projection]: no execute(|...) call
 - SHAPE testAllTwoSimpleProperties [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
@@ -1132,8 +1133,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMultipleBiTemporalPropertyUsageInProjectWithMilestoningInfinitySpecifiedInDB [milestoning/tests]: unknown function 'biTemporalProduct'
 - ERROR testMultipleBiTemporalPropertyUsageInProjectPathWithMilestoningInfinitySpecifiedInDBPlusLatestPropagation [milestoning/tests]: [1:190] navigation path segment 'biTemporalProduct(%latest, %latest)' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::milestoning::Order/biTemporalProduct(%latest, %latest)/biTemporalClassification(%latest, %latest)/type#
 - ERROR testMultipleBiTemporalPropertyUsageInProjectWithMilestoningInfinitySpecifiedInDBPlusLatestPropagation [milestoning/tests]: unknown function 'biTemporalProduct'
-- ERROR testPopulationOfMilestonedThisBiTemporalDatesInProject [milestoning/tests]: unbound variable '$processingDate'
-- ERROR testPopulationOfMilestonedThisBiTemporalDatesInProjectAgainstNonMilestonedStore [milestoning/tests]: unbound variable '$processingDate'
+- ERROR testPopulationOfMilestonedThisBiTemporalDatesInProject [milestoning/tests]: [1:61] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testPopulationOfMilestonedThisBiTemporalDatesInProjectAgainstNonMilestonedStore [milestoning/tests]: [1:61] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testBiTemporalQueryMappedToSingleTemporalStore [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet (H-scope exclusion)
 - ERROR testBiTemporalToBiTemporalDatePropagation [milestoning/tests]: unknown function 'biTemporalProduct'
 - ERROR testBiTemporalToBiTemporalDatePropagationForAll [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet (H-scope exclusion)
@@ -1151,27 +1152,27 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testConstraintUsageOfThisMilestoningContext2WithNonTemporalStore [milestoning/tests]: no execute(|...) call
 - SHAPE testConstraintUsageOfThisMilestoningContext3 [milestoning/tests]: no execute(|...) call
 - SHAPE testConstraintUsageOfVarReferenceWithThisMilestoningContext [milestoning/tests]: no execute(|...) call
-- ERROR testPopulationOfMilestonedThisBusinessDatesInProject [milestoning/tests]: unbound variable '$busDate'
-- ERROR testMilestonedThisBusinessDateInPosition1InQualfiedPropertySequence [milestoning/tests]: unbound variable '$busDate'
+- ERROR testPopulationOfMilestonedThisBusinessDatesInProject [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestonedThisBusinessDateInPosition1InQualfiedPropertySequence [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - SHAPE testMilestonedThisBusinessDateInPosition1InQualfiedPropertySequence2 [milestoning/tests]: no execute(|...) call
 - SHAPE testMilestonedThisBusinessDateWithNestedDerivedProperty [milestoning/tests]: no execute(|...) call
 - SHAPE testMilestonedThisBusinessDateWithNonThisAccessParameter [milestoning/tests]: no execute(|...) call
 - SHAPE testProcessedMilestonedExchangeNameConstraint [milestoning/tests]: no execute(|...) call
-- ERROR testMilestonedThisBusinessDateInPosition2InQualfiedPropertySequence [milestoning/tests]: unbound variable '$busDate'
-- ERROR testMilestonedThisBusinessDateUsedAsParameterToFunctionParametersOfMilestonedQualifiedProperty [milestoning/tests]: unbound variable '$busDate'
+- ERROR testMilestonedThisBusinessDateInPosition2InQualfiedPropertySequence [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestonedThisBusinessDateUsedAsParameterToFunctionParametersOfMilestonedQualifiedProperty [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - SHAPE testMilestonedThisBusinessDateUsedAsParameterToFunctionInMilestoningQualifiedPropertyMappedToView [milestoning/tests]: no execute(|...) call
-- ERROR testMilestonedQualifiedPropertyWithDateProvidedByFunction [milestoning/tests]: unbound variable '$busDate'
+- ERROR testMilestonedQualifiedPropertyWithDateProvidedByFunction [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - SHAPE testViewChainsWithBusinessDate [milestoning/tests]: no execute(|...) call
-- ERROR testThisBusinessDateUsageInQualifiedProperty [milestoning/tests]: unbound variable '$businessDate'
+- ERROR testThisBusinessDateUsageInQualifiedProperty [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testPopulationOfLatestMilestonedDateInQuery [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
 - ERROR testPopulationOfMilestonedBusinessDateWithTimeComponentInQuery [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
-- ERROR testPopulationOfMilestonedBusinessDateInProject [milestoning/tests]: unbound variable '$businessDate'
+- ERROR testPopulationOfMilestonedBusinessDateInProject [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - SHAPE testMilestoningFiltersPreservedInTdsJoinWithConcatenate [milestoning/tests]: no execute(|...) call
 - ERROR testQueryOfMilestonedTypeWithFilterInMapping [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::StockProduct' is not supported yet (H-scope exclusion)
 - ERROR testQueryOfMilestonedTypeUsingLatestWithFilterInMapping [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::StockProduct' is not supported yet (H-scope exclusion)
-- ERROR testMilestoningQueryWithMilestoneFilterANdDifferentDatesOnTypeAndProperty [milestoning/tests]: unbound variable '$date'
-- ERROR testMilestoningQueryWithMilestoneFilterAndDifferentDatesOnTypeWithLatestDateOnProperty [milestoning/tests]: unbound variable '$date'
-- ERROR testMilestoningQueryWithMilestoneFilterOnAssociationProperty [milestoning/tests]: unbound variable '$date'
+- ERROR testMilestoningQueryWithMilestoneFilterANdDifferentDatesOnTypeAndProperty [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningQueryWithMilestoneFilterAndDifferentDatesOnTypeWithLatestDateOnProperty [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningQueryWithMilestoneFilterOnAssociationProperty [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testNonMilestoningQueryWithMilestoneFilterSimple [milestoning/tests]: unknown function 'product'
 - ERROR testNonMilestoningQueryWithLatestMilestoneFilterSimple [milestoning/tests]: unknown function 'product'
 - ERROR testNonMilestoningQueryWithMilestoneFilterOnAssociation [milestoning/tests]: unknown function 'ascProduct'
@@ -1194,34 +1195,34 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testPlanQueryWithVariableRundateWithinLambda [milestoning/tests]: no execute(|...) call
 - SHAPE testExecutionPlanForQueryWithVariableRundateWithinLambda [milestoning/tests]: no execute(|...) call
 - SHAPE testNonMilestoningQueryWithMilestoneFilterVariableRundateWithinLambda [milestoning/tests]: no execute(|...) call
-- ERROR testMilestoningCriteriaAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testMilestoningCriteriaAppliedToSimplePropertyJoinFromTemporalClassThroughQualifiedProperty [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testMilestoningCriteriaAppliedToJoinsOnBusinessTemporalClassForComplexProperty [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testMilestonedQualifiedPropertyUsedOnSuperTypeInEmbedded [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testMilestoneFiltersAreNotAppliedToEmbeddedPropertiesInQualifiersTriggeringIsolationSelfJoin [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testIsolationOfIntermediateJoinsInMultiLevelPropertyJoin [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testIsolationWhereLeftSideOfFilterIsEmbedded [milestoning/tests]: unbound variable '$businessDate'
+- ERROR testMilestoningCriteriaAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: unknown function 'product'
+- ERROR testMilestoningCriteriaAppliedToSimplePropertyJoinFromTemporalClassThroughQualifiedProperty [milestoning/tests]: unknown function 'productQp'
+- ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: unknown function 'product'
+- ERROR testMilestoningCriteriaAppliedToJoinsOnBusinessTemporalClassForComplexProperty [milestoning/tests]: unknown function 'stockProduct'
+- ERROR testMilestonedQualifiedPropertyUsedOnSuperTypeInEmbedded [milestoning/tests]: [1:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoneFiltersAreNotAppliedToEmbeddedPropertiesInQualifiersTriggeringIsolationSelfJoin [milestoning/tests]: [1:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testIsolationOfIntermediateJoinsInMultiLevelPropertyJoin [milestoning/tests]: [1:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testIsolationWhereLeftSideOfFilterIsEmbedded [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: no execute(|...) call
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: no execute(|...) call
-- ERROR testMilestoningCriteriaAppliedToViewRoot [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testMilestoningContextPropagatedFromParentViewToViewsReferencedInItsColumns [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testMilestoningCriteriaAppliedToJoinFromViewRoot [milestoning/tests]: unbound variable '$businessDate'
+- ERROR testMilestoningCriteriaAppliedToViewRoot [milestoning/tests]: [1:52] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: [1:49] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningContextPropagatedFromParentViewToViewsReferencedInItsColumns [milestoning/tests]: [1:52] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: [1:52] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningCriteriaAppliedToJoinFromViewRoot [milestoning/tests]: [1:52] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testIsolationOfCaseStmtTrueFalseFilters [milestoning/tests]: unknown function 'classification'
 - SHAPE testInFlowFilterWithMilestoning [milestoning/tests]: no execute(|...) call
 - SHAPE testPlanFilterWithMilestoning [milestoning/tests]: no execute(|...) call
 - SHAPE testProjectWithMilestoning [milestoning/tests]: no execute(|...) call
-- ERROR testMilestonedChainedJoinsWithAlias [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: unbound variable '$businessDate'
+- ERROR testMilestonedChainedJoinsWithAlias [milestoning/tests]: [1:60] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: unknown function 'product'
 - SHAPE testConcatenationOfTemporalTdsQueries [milestoning/tests]: no execute(|...) call
 - SHAPE testConcatenationOfTemporalTdsQueriesWithGroupBy [milestoning/tests]: no execute(|...) call
 - ERROR testPartiallyMilestoningUnionOperationWithNonTemporalRoot [milestoning/tests]: unknown function 'product'
 - ERROR testPartiallyMilestoningUnionOperationWithNonTemporalRootWithPropagation [milestoning/tests]: unknown function 'product'
 - ERROR testPartiallyMilestoningUnionOperationWithTemporalRootWithPropagation [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
-- ERROR testMilestoningContextPropagationForSimplePropertyReferenceWithMultipleJoinsViaProject [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testFilterOnMilestonedClassInProjectWithTDSFilter [milestoning/tests]: unbound variable '$businessDate'
+- ERROR testMilestoningContextPropagationForSimplePropertyReferenceWithMultipleJoinsViaProject [milestoning/tests]: unknown function 'product'
+- ERROR testFilterOnMilestonedClassInProjectWithTDSFilter [milestoning/tests]: unknown function 'product'
 - ERROR testIsolationOfMilestoningFiltersReferencedInAllPartsOfIfStmt [milestoning/tests]: unknown function 'productName'
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
 - ERROR testDeepUnionOperationWithNonTemporalAndNonUnionRoot [milestoning/tests]: unknown function 'product'
@@ -1231,8 +1232,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testFilterOnView [milestoning/tests]: no execute(|...) call
 - ERROR testMilestoningFilterPropagationThroughProject [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
 - SHAPE testCalculationOnBusinessDateInGetAll [milestoning/tests]: no execute(|...) call
-- ERROR testNestedExists_NestedExistsWithEmbeddedMapping [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testNestedExists_NestedExistsWithEmbeddedMappingInProject [milestoning/tests]: unbound variable '$businessDate'
+- ERROR testNestedExists_NestedExistsWithEmbeddedMapping [milestoning/tests]: [1:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testNestedExists_NestedExistsWithEmbeddedMappingInProject [milestoning/tests]: [1:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testDerivedPropertyOnNonTemporalClassWithMilestonedChain [milestoning/tests]: property 'childLeafValueDerived' of class 'meta::relational::tests::milestoning::RootEntity' has no binding in mapping 'meta::relational::tests::milestoning::derivedPropertyAssociationMilestoningMap' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - SHAPE testGraphFetchMultiPrimitiveOnInlineChild [milestoning/tests]: no execute(|...) call
 - ERROR testQueryOnTemporalRoot [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
@@ -1278,21 +1279,21 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMilestoningColumnProjectionForEmbedded [milestoning/tests]: unknown function 'getAllVersions'
 - ERROR testMilestoningColumnProjectionForInlineEmbedded [milestoning/tests]: unknown function 'getAllVersions'
 - ERROR testMilestoningColumnProjectionWithNonMilestonedTable [milestoning/tests]: unknown function 'getAllVersions'
-- ERROR testMilestoningFiltersAppliedToIntermediateMilestonedJoinTablesWhereTargetTypeIsTemporalAndTargetMainTableIsNotMilestoned [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testExtraColumnsAreNotAppliedToIntermediateMilestonedJoinTables [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testMilestoningFiltersAppliedToIntermediateMilestonedJoinTablesWhereSourceIsEmbeddedTargetTypeIsNonTemporalAndTargetMainTableIsNotMilestoned [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testMilestoningFiltersPropogatedToDataTypePropertiesFromAllInProject [milestoning/tests]: unbound variable '$businessDate'
+- ERROR testMilestoningFiltersAppliedToIntermediateMilestonedJoinTablesWhereTargetTypeIsTemporalAndTargetMainTableIsNotMilestoned [milestoning/tests]: unknown function 'systemADescription'
+- ERROR testExtraColumnsAreNotAppliedToIntermediateMilestonedJoinTables [milestoning/tests]: unknown function 'product'
+- ERROR testMilestoningFiltersAppliedToIntermediateMilestonedJoinTablesWhereSourceIsEmbeddedTargetTypeIsNonTemporalAndTargetMainTableIsNotMilestoned [milestoning/tests]: [1:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningFiltersPropogatedToDataTypePropertiesFromAllInProject [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testLatestMilestoningFiltersPropogatedToDataTypePropertiesFromAllInProject [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
-- ERROR testMilestoningFiltersPropogatedFromAllThroughFilterToDataTypePropertiesInProject [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testMilestoningFiltersPropogatedToDataTypePropertiesFromAllInFilter [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testMilestoningFiltersNotPropogatedFromAllToNonTemporalClassMappedToTemporalTable [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testMilestoningFiltersUsedOnIntermediateJoinOnlyFromAllToNonTemporalClassMappedToTemporalTable [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testMilestoningFiltersUsedOnIntermediateJoinOnlyFromAllToNonTemporalClassMappedToTemporalTableWithFilter [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testIsolationOfMilestoningFiltersUsedOnIntermediateJoinInOR [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testMilestoningFiltersOnIntermediateInnerJoins [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testMilestoningContextNotPropogatedThroughNonTemporalPropertiesFromAll [milestoning/tests]: unbound variable '$businessDate'
+- ERROR testMilestoningFiltersPropogatedFromAllThroughFilterToDataTypePropertiesInProject [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningFiltersPropogatedToDataTypePropertiesFromAllInFilter [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningFiltersNotPropogatedFromAllToNonTemporalClassMappedToTemporalTable [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningFiltersUsedOnIntermediateJoinOnlyFromAllToNonTemporalClassMappedToTemporalTable [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningFiltersUsedOnIntermediateJoinOnlyFromAllToNonTemporalClassMappedToTemporalTableWithFilter [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testIsolationOfMilestoningFiltersUsedOnIntermediateJoinInOR [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningFiltersOnIntermediateInnerJoins [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningContextNotPropogatedThroughNonTemporalPropertiesFromAll [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testMilestoningContextWithLatestDateNotPropogatedThroughNonTemporalPropertiesFromAll [milestoning/tests]: class meta::relational::tests::milestoning::System has no property 'systemDescriptionAllVersions'
-- ERROR testMilestoningContextNotPropogatedThroughNonTemporalPropertiesFromMilestonedQualifiedProperty [milestoning/tests]: unbound variable '$businessDate'
+- ERROR testMilestoningContextNotPropogatedThroughNonTemporalPropertiesFromMilestonedQualifiedProperty [milestoning/tests]: unknown function 'product'
 - ERROR testMilestoneDatePropogationThruFilterIsIndenpendentOfDateManipulationWithinTheFilter [milestoning/tests]: unknown function 'classification'
 - ERROR testMilestoneDatePropogationFromTypeQueryToNoArgMilestonedQpInFilter [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
 - ERROR testMilestoneDatePropogationFromTypeQueryThroughFilterToNoArgMilestonedQpInProject [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
@@ -1303,7 +1304,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMilestoneDatePropogationFromTypeQueryToProjectIsNotOverridenBySamePropertyUsedInFilterWithDifferentDateArguments [milestoning/tests]: unknown function 'classification'
 - ERROR testMilestoneDateNotPropogatedThroughNonMilestonedType [milestoning/tests]: unknown function 'systemDescription'
 - ERROR testMilestoneDatePropogationFromWithinTheMapToProject [milestoning/tests]: unknown function 'classification'
-- ERROR testRuntimeProcessingErrorWhenBusinessDateIsNotPropagatedThroughUserDefinedDerivedPropertyWithBusinessTemporalReturnType [milestoning/tests]: unbound variable '$businessDate'
+- ERROR testRuntimeProcessingErrorWhenBusinessDateIsNotPropagatedThroughUserDefinedDerivedPropertyWithBusinessTemporalReturnType [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testMilestoningQueryOnATypeWithManyRelationalPropertyMappingChildrenFollowedByMap [milestoning/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testMilestoneDatePropogationFromTypeQueryToNoArgMilestonedQpInMapFollowedByProjectOnDataTypeProperty [milestoning/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testMilestoneDatePropogationFromTypeQueryThroughNoArgMilestonedQpInMapThroughToProjectOnComplexDataMilestonedProperty [milestoning/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
@@ -1311,16 +1312,16 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFiltersRemainOnMilestonedRootTypeWhenMappedToNonTemporalTypeDataType [milestoning/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testMilestoneDatePropogationThruExistsIsIndenpendentOfDateManipulationWithinTheFilter [milestoning/tests]: unknown function 'classification'
 - ERROR testMilestoneDatePropogationThruExistsConditionalClause [milestoning/tests]: unknown function 'product'
-- ERROR testMilestoningContextIsPropogatedThroughAutoMap [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testMilestoningContextIsPropogatedThroughSubType [milestoning/tests]: unbound variable '$businessDate'
+- ERROR testMilestoningContextIsPropogatedThroughAutoMap [milestoning/tests]: unknown function 'product'
+- ERROR testMilestoningContextIsPropogatedThroughSubType [milestoning/tests]: unknown function 'product'
 - ERROR testMilestoningContextPropagatedThroughFilterToNoArgMilestonedQualifiedPropertyInProjectPath [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
 - ERROR testMilestoningContextPropagatedThroughToLeftSideOfQualifiedPropertyFilter [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::ProductClassification' is not supported yet (H-scope exclusion)
 - ERROR testMilestoningContextPropagatedFromMilestoningQualifiedPropertyWithArgToNoArgMilestonedQualifiedPropertyInProjectPath [milestoning/tests]: [1:242] navigation path segment 'classification(%2016-10-16)' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::milestoning::Product/classification(%2016-10-16)/exchange/name#
-- ERROR testMilestoningContextPropagatedUsingVariableInProjectPath [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testCurrentMappingPropagationThroughMilestonedQualifiedPropertyWithEmbeddedLeftSideToSubsequentPropertyInProjectPath [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testMilestoningContextPropagatedUsingVariableInProject [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testMilestoningContextPropagatedUsingConstantInProjectMoveLetInBlock [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
-- ERROR testDatePropagationWithInheritance [milestoning/tests]: unbound variable '$businessDate'
+- ERROR testMilestoningContextPropagatedUsingVariableInProjectPath [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testCurrentMappingPropagationThroughMilestonedQualifiedPropertyWithEmbeddedLeftSideToSubsequentPropertyInProjectPath [milestoning/tests]: [1:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningContextPropagatedUsingVariableInProject [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testMilestoningContextPropagatedUsingConstantInProjectMoveLetInBlock [milestoning/tests]: [2:75] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testDatePropagationWithInheritance [milestoning/tests]: [1:75] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testDistinctUsageAtRootOfMilestonedQuery [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
 - ERROR testInFromInclusive [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet (H-scope exclusion)
 - ERROR testInThruInclusive [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet (H-scope exclusion)
@@ -1332,9 +1333,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testOutFromInclusiveUnionOutFromInclusive [milestoning/tests]: unknown function 'biTemporalProduct'
 - ERROR testAssoWithOtherwise [milestoning/tests]: unknown function 'classification'
 - ERROR testAssoWithOtherwiseDeep [milestoning/tests]: unknown function 'classification'
-- ERROR testProcessingTemporalAllQuery [milestoning/tests]: unbound variable '$processingDate'
-- ERROR testProcessingTemporalPropertyQuery [milestoning/tests]: unbound variable '$processingDate'
-- ERROR testProcessingTemporalPropertyPropagationInQuery [milestoning/tests]: unbound variable '$processingDate'
+- ERROR testProcessingTemporalAllQuery [milestoning/tests]: [1:50] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testProcessingTemporalPropertyQuery [milestoning/tests]: [1:50] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
+- ERROR testProcessingTemporalPropertyPropagationInQuery [milestoning/tests]: [1:50] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testQueryOnTemporalRoot [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not supported yet (H-scope exclusion)
 - ERROR testQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'processingTemporalProduct'
 - ERROR testQueryWithPropagationOnTemporalRoot [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not supported yet (H-scope exclusion)
@@ -1535,13 +1536,13 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSimpleDistinctGroupBy [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - SHAPE testValidateTdsGroupByWithIsNotEmpty [tds/tests]: no execute(|...) call
 - ERROR simpleGroupCount [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR simpleGroupCountUsingVariables [tds/tests]: unbound variable '$columnName'
+- ERROR simpleGroupCountUsingVariables [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - ERROR simpleGroupDistinctCount [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - ERROR simpleGroupDistinctCountWithExtendedPrimitives [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - ERROR simpleFilterWithGroupByWithDistinct [tds/tests]: unknown function 'meta::pure::tds::distinct'
 - ERROR simpleGroupBySum [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - ERROR simpleGroupConstantAggregates [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR simpleGroupByAggFuncAsVariable [tds/tests]: unbound variable '$aggFunc'
+- ERROR simpleGroupByAggFuncAsVariable [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - SHAPE simpleGroupByAggFuncAsLambda [tds/tests]: no execute(|...) call
 - SHAPE simpleGroupByAggFuncAsLambdaWithTake [tds/tests]: no execute(|...) call
 - ERROR simpleGroupByAverage [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
@@ -1557,7 +1558,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR simpleGroupByWithAssociationWithJoinStrings [tds/tests]: expected at most one value, got many ([*])
 - ERROR groupByAfterASortOnColumnInGroupBy [tds/tests]: expected at most one value, got many ([*])
 - ERROR groupByAfterASortOnColumnNotInGroupBy [tds/tests]: expected at most one value, got many ([*])
-- ERROR simpleGroupByAggFuncNotStopFunc [tds/tests]: unbound variable '$aggFunc'
+- ERROR simpleGroupByAggFuncNotStopFunc [tds/tests]: unknown function 'uniqueValueOnly'
 - ERROR groupByAfterConcatenate [tds/tests]: expected at most one value, got many ([*])
 - SHAPE testTableToTDSWithQuotedColumns [tds/tests]: no execute(|...) call
 - ERROR testTDSGroupByPercentile [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
@@ -1648,32 +1649,32 @@ runner does not yet recognize (accounted, not skipped silently).
 - FAIL testInnerJoinConditionTrue [tds/tests]: size: expected 28, got 0
 - SHAPE testLeftOuterJoinConditionFalse [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold)
 - FAIL testRightOuterJoinConditionFalse [tds/tests]: size: expected 4, got 0
-- ERROR testJoinVariableInLambda [tds/tests]: unbound variable '$val'
-- ERROR testJoinLambdaAsVariable [tds/tests]: unbound variable '$jc'
-- ERROR testJoinWithLiteralColumn [tds/tests]: unbound variable '$jc'
-- ERROR testJoinTypeAsVariable [tds/tests]: unbound variable '$type'
-- ERROR testRestrictAfterJoin [tds/tests]: unbound variable '$type'
-- ERROR testMultipleJoins [tds/tests]: unbound variable '$type'
-- ERROR testFilterAfterJoinInner [tds/tests]: unbound variable '$type'
-- ERROR testFilterAfterJoinOuter [tds/tests]: unbound variable '$type'
-- ERROR testExtendAfterJoinInner [tds/tests]: unbound variable '$type'
-- ERROR testExtendAfterJoinOuter [tds/tests]: unbound variable '$type'
+- FAIL testJoinVariableInLambda [tds/tests]: size: expected 7, got 0
+- FAIL testJoinLambdaAsVariable [tds/tests]: size: expected 7, got 0
+- FAIL testJoinWithLiteralColumn [tds/tests]: size: expected 7, got 0
+- FAIL testJoinTypeAsVariable [tds/tests]: size: expected 7, got 0
+- ERROR testRestrictAfterJoin [tds/tests]: unknown function 'restrict'
+- ERROR testMultipleJoins [tds/tests]: unknown function 'restrict'
+- ERROR testFilterAfterJoinInner [tds/tests]: unknown function 'restrict'
+- ERROR testFilterAfterJoinOuter [tds/tests]: unknown function 'restrict'
+- ERROR testExtendAfterJoinInner [tds/tests]: unknown function 'restrict'
+- ERROR testExtendAfterJoinOuter [tds/tests]: unknown function 'restrict'
 - ERROR testJoinAfterExtendInner [tds/tests]: ~name_length: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testJoinAfterExtendOuter [tds/tests]: ~name_length: mapped/aggregate column specifications need an enclosing call to type against
-- ERROR testSelfJoinInner [tds/tests]: unbound variable '$type'
-- ERROR testSelfJoinOuter [tds/tests]: unbound variable '$type'
-- ERROR testGroupByAfterJoinInner [tds/tests]: unbound variable '$type'
-- ERROR testGroupByAfterJoinOuter [tds/tests]: unbound variable '$type'
-- ERROR testJoinAfterGroupByAfterJoinInner [tds/tests]: unbound variable '$type'
-- ERROR testJoinAfterGroupByAfterJoinOuter [tds/tests]: unbound variable '$type'
-- ERROR testExtendAfterJoinAfterAfterGroupByAfterJoinInner [tds/tests]: unbound variable '$type'
-- ERROR testExtendAfterJoinAfterAfterGroupByAfterJoinOuter [tds/tests]: unbound variable '$type'
-- ERROR testFilterAfterExtendJoinAfterAfterGroupByAfterJoinInner [tds/tests]: unbound variable '$type'
-- ERROR testFilterAfterExtendJoinAfterAfterGroupByAfterJoinOuter [tds/tests]: unbound variable '$type'
-- ERROR testGroupByAfterFilterAfterExtendJoinAfterAfterGroupByAfterJoinInner [tds/tests]: unbound variable '$type'
-- ERROR testGroupByAfterFilterAfterExtendJoinAfterAfterGroupByAfterJoinOuter [tds/tests]: unbound variable '$type'
-- ERROR testJoinAfterGroupByBothInner [tds/tests]: unbound variable '$type'
-- ERROR testJoinAfterGroupByBothOuter [tds/tests]: unbound variable '$type'
+- ERROR testSelfJoinInner [tds/tests]: unknown function 'restrict'
+- ERROR testSelfJoinOuter [tds/tests]: unknown function 'restrict'
+- ERROR testGroupByAfterJoinInner [tds/tests]: unknown function 'restrict'
+- ERROR testGroupByAfterJoinOuter [tds/tests]: unknown function 'restrict'
+- ERROR testJoinAfterGroupByAfterJoinInner [tds/tests]: unknown function 'restrict'
+- ERROR testJoinAfterGroupByAfterJoinOuter [tds/tests]: unknown function 'restrict'
+- ERROR testExtendAfterJoinAfterAfterGroupByAfterJoinInner [tds/tests]: unknown function 'restrict'
+- ERROR testExtendAfterJoinAfterAfterGroupByAfterJoinOuter [tds/tests]: unknown function 'restrict'
+- ERROR testFilterAfterExtendJoinAfterAfterGroupByAfterJoinInner [tds/tests]: unknown function 'restrict'
+- ERROR testFilterAfterExtendJoinAfterAfterGroupByAfterJoinOuter [tds/tests]: unknown function 'restrict'
+- ERROR testGroupByAfterFilterAfterExtendJoinAfterAfterGroupByAfterJoinInner [tds/tests]: unknown function 'restrict'
+- ERROR testGroupByAfterFilterAfterExtendJoinAfterAfterGroupByAfterJoinOuter [tds/tests]: unknown function 'restrict'
+- ERROR testJoinAfterGroupByBothInner [tds/tests]: unknown function 'restrict'
+- ERROR testJoinAfterGroupByBothOuter [tds/tests]: unknown function 'restrict'
 - ERROR testInnerJoinWithQualifiedPropertiesOnLeft [tds/tests]: unknown function 'restrict'
 - ERROR testInnerJoinWithQualifiedPropertiesOnRight [tds/tests]: relation has no column 'eID'
 - FAIL testJoinBySingleColumnName [tds/tests]: size: expected 7, got 0; columns: expected [personID, personName, eID, firmName, fID], got []
@@ -1707,7 +1708,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testDateLiteral [tds/tests]: no recognizable assertions
 - SHAPE testProjectReduceColumns [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testHourFunction [tds/tests]: no recognizable assertions
-- ERROR testProjectEnumFromOpenVariable [tds/tests]: unbound variable '$units'
+- ERROR testProjectEnumFromOpenVariable [tds/tests]: unknown function 'extractEnumValue'
 - SHAPE testProjectWithAdjustFunction [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold)
 - ERROR testFilterAfterLimit [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - ERROR testFilterAfterLimit2 [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
@@ -1720,7 +1721,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testTakeAfterLimit [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - ERROR testLimitAfterTake [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - ERROR testOptionalLimit_NoValue [tds/tests]: no overload of 'meta::pure::functions::relation::limit' structurally matches the argument types
-- ERROR testOptionalLimit_WithValue [tds/tests]: unbound variable '$l'
+- ERROR testOptionalLimit_WithValue [tds/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - ERROR testProjectWithColumnSubSet [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testProjectWithColumnSubSetFunctions [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testProjectWithColumnSubSetSQLTest [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
@@ -2012,10 +2013,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testCorrelatedSubSqlQueryGeneration [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::milestoning::Product' is not a known class, mapping, runtime, connection, or database
 - ERROR TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNestedGeneration [tests/mapping/classMappingFilterWithInnerJoin]: milestoned class fetch of 'meta::relational::tests::model::simple::TemporalTrade' is not supported yet (H-scope exclusion)
 - FAIL testDistinctMappingSimpleProjectSelectOneOfTheDistinctProperties [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
-- FAIL testDistinctMappingSimpleProjectDistinct [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\n>, got <name\nIF 2\nIF 1\n>
 - FAIL testDistinctMappingWithFilterSelectOneProperty [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
 - ERROR testDistinctMappingWithJoinSelectAll [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
-- FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\n\nIfName1\nIfName2\n>
 - ERROR testProjectDistinctMappingWithDistinctInJoin [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testProjectDistinctMappingWithDistinctInJoinWithDup [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testDistinctMappingWithDistinctInJoinWithFilter [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
@@ -2024,7 +2023,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testDistinctMappingWithFullDenormSelfJoinsWithFilterOnJoin [tests/mapping/distinct]: store-only navigate (class-extent target) reached the lowerer — resolver bug
 - ERROR testDistinctMappingWithFullDenormSelfJoinsWithTwoFiltersOnJoin [tests/mapping/distinct]: store-only navigate (class-extent target) reached the lowerer — resolver bug
 - ERROR testDistinctMappingWithCaseStatement [tests/mapping/distinct]: [1:335] navigation path segment 'meta::relational::tests::mapping::distinct::model::domain::Classification' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mapping::distinct::model::domain::IncomeFunction/meta::relational::tests::mapping::distinct:
-- ERROR testDistinctMappingWithSize [tests/mapping/distinct]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- FAIL testDistinctMappingWithSize [tests/mapping/distinct]: expected 3, got 1
 - ERROR testGet [tests/mapping/dynaJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Account' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: Join 'AccountPnlView_Account' navigates to a CLASS mapped
 - SHAPE testFilterOnMultiLevelJoinWithNonAggregateFunction [tests/mapping/dynaJoin]: partial: 1/2 asserts recognized (recognized ones hold)
 - SHAPE testJoinWithAggregateFunction [tests/mapping/dynaJoin]: partial: 3/4 asserts recognized (recognized ones hold)
@@ -2055,7 +2054,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE otherwiseTestGetterDeepTraversal [tests/mapping/embedded]: no recognizable assertions
 - ERROR testProjectionOtherwiseDeepTraversal [tests/mapping/embedded]: multi-hop navigation bondDetails.holder.name through an embedded/slot head is not supported yet
 - ERROR testProjectionOtherwiseNonPrimitive [tests/mapping/embedded]: in function 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise3$class$meta::relational::tests::mapping::embedded::advanced::model::Product': relation has no column 'bondClassification'
-- FAIL otherwiseTestGroupBy [tests/mapping/embedded]: toCSV: expected <Bond Type,Profit\n15 years,10.0\n5 years,1.0\n>, got <Bond Type,Profit\n5 years,1.0\n15 years,10.0\n>
+- SHAPE otherwiseTestGroupBy [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
 - FAIL otherwiseTestGroupByComplexAgg [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\n15 years,2.0\n5 years,5.0\n>, got <Bond Type,sum\n5 years,5.0\n15 years,2.0\n>
 - FAIL otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\nBond 1,1.0\nBond 2,1.0\nSuperBond 3 super,5.0\n>, got <Bond Type,sum\nSuperBond 3 super,5.0\nBond 2,1.0\nBond 1,1.0\n>
 - ERROR otherwiseTestQualifierProperty [tests/mapping/embedded]: property 'duration' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise'
@@ -2083,11 +2082,11 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testGroupByComplexAgg [tests/mapping/embedded]: multi-hop navigation holder.address.name through an embedded/slot head is not supported yet
 - ERROR testQualifierProperty [tests/mapping/embedded]: multi-hop navigation issuer.address.description through an embedded/slot head is not supported yet
 - ERROR testInlineInEmbedded [tests/mapping/embedded]: multi-hop navigation holder.address.name through an embedded/slot head is not supported yet
-- ERROR testInlineInEmbeddedGraphFetch [tests/mapping/embedded]: serialize expects (classCollection, #{Class{…}}#)
-- ERROR testMilestonedEmbeddedGraphFetch [tests/mapping/embedded]: serialize expects (classCollection, #{Class{…}}#)
-- ERROR testMilestonedEmbeddedInlineGraphFetch [tests/mapping/embedded]: serialize expects (classCollection, #{Class{…}}#)
-- ERROR testMilestonedExtendsEmbeddedGraphFetch [tests/mapping/embedded]: serialize expects (classCollection, #{Class{…}}#)
-- ERROR testMilestonedInlineGraphFetchWithEnumProperty [tests/mapping/embedded]: serialize expects (classCollection, #{Class{…}}#)
+- ERROR testInlineInEmbeddedGraphFetch [tests/mapping/embedded]: multi-hop navigation holder.address.name through an embedded/slot head is not supported yet
+- ERROR testMilestonedEmbeddedGraphFetch [tests/mapping/embedded]: milestoned class fetch of 'meta::relational::tests::mapping::embedded::advanced::model::Person' is not supported yet (H-scope exclusion)
+- ERROR testMilestonedEmbeddedInlineGraphFetch [tests/mapping/embedded]: milestoned class fetch of 'meta::relational::tests::mapping::embedded::advanced::model::Person' is not supported yet (H-scope exclusion)
+- ERROR testMilestonedExtendsEmbeddedGraphFetch [tests/mapping/embedded]: milestoned class fetch of 'meta::relational::tests::mapping::embedded::advanced::model::Person' is not supported yet (H-scope exclusion)
+- ERROR testMilestonedInlineGraphFetchWithEnumProperty [tests/mapping/embedded]: milestoned class fetch of 'meta::relational::tests::mapping::embedded::advanced::model::PersonWithGenderInfo' is not supported yet (H-scope exclusion)
 - ERROR testSubType [tests/mapping/embedded]: class-typed property '$p.issuer' used as a whole value is graph output (Phase H4)
 - ERROR testSubTypeOnPropertyMappedToNonRootInlineSetImpl [tests/mapping/embedded]: class-typed property '$p.holder' used as a whole value is graph output (Phase H4)
 - SHAPE testGroupBy [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
@@ -2108,7 +2107,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProjectionWithEnumQualifierParameter [tests/mapping/enumeration]: [2:237] navigation path segment 'synonymsByType(meta::relational::tests::mapping::enumeration::model::domain::ProductSynonymType.CUSIP)' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mapping::enumeration::model::domain::Product/synonymsByType(met
 - ERROR testFilterWithEnumQualifierParameter [tests/mapping/enumeration]: unknown function 'synonymsByType'
 - SHAPE testProjectWithIfWhereOneSideIsEnumLiteral [tests/mapping/enumeration]: no recognizable assertions
-- ERROR testProjectWithIfWhereOneSideIsEnumLiteral2 [tests/mapping/enumeration]: unbound variable '$value'
+- SHAPE testProjectWithIfWhereOneSideIsEnumLiteral2 [tests/mapping/enumeration]: no recognizable assertions
 - SHAPE testProjectWithIfWhereBothSidesUseTheSameEnumMapping [tests/mapping/enumeration]: no recognizable assertions
 - SHAPE testProjectWithIfWhereEnumEqualsClassProp [tests/mapping/enumeration]: partial: 1/3 asserts recognized (recognized ones hold)
 - ERROR testTdsProjectWithSingleStringEnumEqualityComparison [tests/mapping/enumeration]: unknown function 'getEnum'
@@ -2606,7 +2605,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testGroupByWithRelativeDateFunctions [tests/query]: no execute(|...) call
 - SHAPE testGroupByWithRelativeDateFunctions_noDatePath [tests/query]: no execute(|...) call
 - SHAPE testGroupByWithRelativeDateFunctionsWithPathFilter [tests/query]: no execute(|...) call
-- ERROR testProjectWithSeparateGroupBy [tests/query]: unbound variable '$startDate'
+- ERROR testProjectWithSeparateGroupBy [tests/query]: unknown function 'getReportingStartDate'
 - ERROR testDayOfWeek [tests/query]: unknown function 'mostRecentDayOfWeek'
 - ERROR testAssociationMixed [tests/query]: filter predicate references column 'firm_employees', unresolvable even after isolation
 - ERROR testAssociationMixedDeep [tests/query]: filter predicate references column 'firm_employees', unresolvable even after isolation
@@ -2617,14 +2616,11 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testAssociationToManyWithConstantPredicate [tests/query]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - ERROR testTwoAssociationsToManyDeepWithOr [tests/query]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - ERROR testAssociationToManyWithTwoSeparateExists [tests/query]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
-- FAIL testAssociationToOne [tests/query]: size: expected 6, got 8; lastName: expected [Allen, Smith, Johnson, New York, Hill, York], got [Smith, Johnson, Hill, Allen, York, New York, York, New York]
-- FAIL testAssociationToOneWithBoolean [tests/query]: size: expected 7, got 9; lastName: expected [Allen, Smith, Johnson, New York, Roberts, Hill, York], got [Smith, Johnson, Hill, Allen, Roberts, York, New York, York, New York]
-- FAIL testTwoAssociationsToOneBranchWithOr [tests/query]: size: expected 9, got 14; lastName: expected [Allen, Johnson, Harris, New York, Firm B, Smith, Hill, York, no Firm], got [Johnson, Hill, Allen, Harris, York, Firm B, New York, York, Firm B, New York, no Firm, no Firm, Smith, Smith]
 - ERROR testTwoAssociationsToOneDeep [tests/query]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- ERROR testGroupOpenVariable [tests/query]: unbound variable '$other'
-- ERROR testExistsOpenVariable [tests/query]: unbound variable '$var'
-- ERROR testExistsOpenVariableClass [tests/query]: unbound variable '$var'
-- ERROR testExistsAndBooleanOpenVariables [tests/query]: unbound variable '$var1'
+- SHAPE testGroupOpenVariable [tests/query]: partial: 2/3 asserts recognized (recognized ones hold)
+- ERROR testExistsOpenVariable [tests/query]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
+- ERROR testExistsOpenVariableClass [tests/query]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
+- ERROR testExistsAndBooleanOpenVariables [tests/query]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - ERROR testNoParameters [tests/query]: property 'name' of class 'meta::relational::tests::model::simple::Person' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testNoParametersThroughAssociation [tests/query]: property 'name' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testWithParameter [tests/query]: unknown function 'nameWithTitle'
@@ -2644,20 +2640,15 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testViewPropertyFilterWithPrimaryKey [tests/query]: in function 'meta::relational::tests::query::view::EmployeeMappingWithViewAndInnerJoin$class$meta::relational::tests::model::simple::Employee': unknown table 'OrgView' in database 'meta::relational::tests::db'
 - SHAPE testPushDownProject [tests/query]: no execute(|...) call
 - SHAPE testPushDownProjectWithParameter [tests/query]: no execute(|...) call
-- FAIL testAssociationToOneThroughEval [tests/query]: size: expected 7, got 9; lastName: expected [Allen, Smith, Johnson, New York, Roberts, Hill, York], got [Smith, Johnson, Hill, Allen, Roberts, York, New York, York, New York]
-- ERROR testFilterEnumOnClassProp [tests/query]: unbound variable '$eType'
-- FAIL testFilterUsingPlusFunction [tests/query]: size: expected 6, got 8; lastName: expected [Allen, Smith, Johnson, New York, Hill, York], got [Smith, Johnson, Hill, Allen, York, New York, York, New York]
 - ERROR testFilterThroughAssociationUsingPlusFunction [tests/query]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
-- FAIL testFilterUsingStartsWithFunction [tests/query]: size: expected 11, got 15; lastName: expected [Allen, Firm B, Harris, Hill, Hill, Johnson, New York, Roberts, Smith, Smith, York], got [Smith, Johnson, Hill, Allen, Roberts, Hill, Harris, Smith, York, Firm B, New York, Smith, York, Firm B, New York]
 - ERROR testFilterUsingIsAlphaNumericFunction [tests/query]: unknown function 'isAlphaNumeric'
-- FAIL testFilterUsingMatchesFunction [tests/query]: size: expected 6, got 15; lastName: expected [Allen, Smith, Johnson, New York, Hill, York], got [Smith, Johnson, Hill, Allen, Roberts, Hill, Harris, Smith, York, Firm B, New York, Smith, York, Firm B, New York]; size: expected 5, got 0; lastName: expected [Hill, Harris, Firm B, Roberts, Smith], got 
+- FAIL testFilterUsingMatchesFunction [tests/query]: size: expected 6, got 11; lastName: expected [Allen, Smith, Johnson, New York, Hill, York], got [Smith, Johnson, Hill, Allen, Roberts, Hill, Harris, Smith, York, Firm B, New York]; size: expected 5, got 0; lastName: expected [Hill, Harris, Firm B, Roberts, Smith], got []
 - FAIL testFilterUsingSubstringFunction [tests/query]: size: expected 2, got 0; lastName: expected [Johnson, Hill], got []
-- ERROR testFilterUsingFunctionWithVariable [tests/query]: unbound variable '$input'
-- ERROR testFilterUsingFunctionWithClassAttribute [tests/query]: unbound variable '$input'
-- FAIL testFilterUsingContainsFunction [tests/query]: size: expected 6, got 8; lastName: expected [Allen, Smith, Johnson, New York, Hill, York], got [Smith, Johnson, Hill, Allen, York, New York, York, New York]
-- FAIL testFilterUsingEndsWithFunction [tests/query]: size: expected 6, got 8; lastName: expected [Allen, Smith, Johnson, New York, Hill, York], got [Smith, Johnson, Hill, Allen, York, New York, York, New York]
+- ERROR testFilterUsingFunctionWithClassAttribute [tests/query]: object-space expression node TypedNewInstance is not substitutable yet (H2 vocabulary)
+- SHAPE testFilterUsingContainsFunction [tests/query]: partial: 3/5 asserts recognized (recognized ones hold)
+- SHAPE testFilterUsingEndsWithFunction [tests/query]: partial: 3/5 asserts recognized (recognized ones hold)
 - ERROR testFilterUsingIsEmptyFunction [tests/query]: class-typed property '$f.synonyms' used as a whole value is graph output (Phase H4)
-- FAIL testFilterUsingIfFunction [tests/query]: size: expected 7, got 10; lastName: expected [Allen, Smith, Johnson, New York, Smith, Hill, York], got [Smith, Johnson, Hill, Allen, Smith, York, New York, Smith, York, New York]
+- SHAPE testFilterUsingIfFunction [tests/query]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testMostRecentDayOfWeek [tests/query]: no execute(|...) call
 - ERROR testFilterUsingParseIntegerFunction [tests/query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Account' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: Join 'AccountPnlView_Account' navigates to a CLASS mapped
 - ERROR testFilterUsingParseDecimalFunction [tests/query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Account' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: Join 'AccountPnlView_Account' navigates to a CLASS mapped
