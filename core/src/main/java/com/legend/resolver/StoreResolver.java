@@ -1051,28 +1051,14 @@ public final class StoreResolver {
         }
         demanded = Pipelines.closeOverConditions(cs.pipeline(), demanded);
 
-        // Mapping ~distinct under a PROJECT terminal: the engine stamps
-        // DISTINCT on the GENERATED select, not the class rows — defer the
-        // pipeline's whole-row distinct (a no-op over a keyed table) to the
-        // projected output. Deferral is sound ONLY when nothing between the
-        // getAll and the project is row-count- or row-order-sensitive:
-        // limit/drop/slice must run over the DEDUPED rows, and a sortBy's
-        // ORDER BY would be buried beneath the deferred DISTINCT (audit —
-        // both produce verified wrong answers). Filters commute with
-        // whole-row dedup and stay deferral-safe.
+        // Mapping ~distinct stays IN the pipeline (a distinct subselect —
+        // the engine's own emission, its "could optimize to collapse" TODO
+        // notwithstanding): deferring it to the projected output dedups
+        // over the PROJECTED SUBSET of columns, which changes row counts
+        // whenever the projection is not injective on the distinct tuple
+        // (corpus testDistinctMappingSimpleProjectSelectOneOfTheDistinct-
+        // Properties: name-only projection must keep BOTH 'IF 2' rows).
         TypedSpec csPipe = cs.pipeline();
-        boolean deferredDistinct = false;
-        if (top instanceof TypedProject tp
-                && projectReadsRow(tp)
-                && ops.stream().allMatch(op -> op instanceof TypedFilter)
-                && csPipe instanceof com.legend.compiler.spec.typed.TypedDistinct dd) {
-            // A constant-only project (the synthetic size()/count() column)
-            // must count the DEDUPED rows — deferring its distinct would
-            // collapse the output to SELECT DISTINCT 1 = one row (audit S5),
-            // so the distinct stays in the pipeline for that shape.
-            deferredDistinct = true;
-            csPipe = dd.source();
-        }
         Pipelines.Materialized m = Pipelines.materialize(
                 csPipe, demanded, demandedNavs, cs.classFqn(),
                 targetClass -> Pipelines.materialize(
@@ -1232,9 +1218,41 @@ public final class StoreResolver {
             }
         }
 
+        // 2a'. JOIN-KEY COLLECTION under mapping ~distinct (engine L5135):
+        // demanded joins' source-side key columns must survive the
+        // ~distinct narrowing select — widen it (the distinct then dedups
+        // over the widened row, exactly the engine's query-dependent
+        // distinct tuple). Aggregated-navigation materials build here so
+        // their conditions participate.
+        Map<String, AssocJoin> aggMaterials = new java.util.LinkedHashMap<>();
+        for (var entry : aggDemands.entrySet()) {
+            Set<String> leaves = new java.util.LinkedHashSet<>();
+            for (AggDemand dm : entry.getValue()) {
+                leaves.add(dm.leaf());
+            }
+            aggMaterials.put(entry.getKey(),
+                    aggJoinMaterial(cs, entry.getKey(), context, leaves));
+        }
+        Set<String> joinKeyReads = new java.util.LinkedHashSet<>();
+        for (AssocJoin aj : assocJoins) {
+            collectParamColumnReads(aj.condition(), joinKeyReads);
+        }
+        for (AssocJoin aj : aggMaterials.values()) {
+            collectParamColumnReads(aj.condition(), joinKeyReads);
+        }
+        for (Substitution.ExistsSub ex : existsSubs.values()) {
+            collectParamColumnReads(ex.orientedCond(), joinKeyReads);
+        }
+        TypedSpec keyWidenedPipe = joinKeyReads.isEmpty() ? materializedPipe
+                : Pipelines.widenDistinctForKeys(materializedPipe, joinKeyReads);
+        if (keyWidenedPipe != materializedPipe) {
+            m = new Pipelines.Materialized(keyWidenedPipe, m.slotPrefixes(),
+                    m.stripped());
+        }
+
         // 2b. Materialize the association joins (descriptor -> emission,
         //     first-demand order) onto the pipeline.
-        TypedSpec withJoins = materializedPipe;
+        TypedSpec withJoins = keyWidenedPipe;
         for (AssocJoin aj : assocJoins) {
             com.legend.compiler.element.type.Type.RelationType leftRow =
                     (com.legend.compiler.element.type.Type.RelationType)
@@ -1269,7 +1287,7 @@ public final class StoreResolver {
             for (AggDemand d : entry.getValue()) {
                 leaves.add(d.leaf());
             }
-            AssocJoin aj = aggJoinMaterial(cs, head, context, leaves);
+            AssocJoin aj = aggMaterials.get(head);
             aggAssocJoins.add(aj);
             java.util.List<String> keyCols = targetEquiKeys(aj.condition(), head);
             java.util.List<com.legend.compiler.spec.typed.TypedGroupBy.GroupKey>
@@ -1472,21 +1490,11 @@ public final class StoreResolver {
                                         aggReads, false, fv, a.map()).identityLambda(a.map())
                                 : sub.apply(a.map()),
                         a.reduce());
-        final boolean distinctOutput = deferredDistinct;
         return switch (top) {
-            case TypedProject p -> {
-                TypedSpec proj = new TypedProject(base,
-                        p.columns().stream().map(col -> new TypedFuncCol(col.name(),
-                                sub.apply(col.fn()))).toList(),
-                        p.info());
-                if (!distinctOutput) {
-                    yield proj;
-                }
-                List<String> names = ((com.legend.compiler.element.type.Type.RelationType)
-                        p.info().type()).columns().stream()
-                        .map(com.legend.compiler.element.type.Type.Column::name).toList();
-                yield new com.legend.compiler.spec.typed.TypedDistinct(proj, names, p.info());
-            }
+            case TypedProject p -> new TypedProject(base,
+                    p.columns().stream().map(col -> new TypedFuncCol(col.name(),
+                            sub.apply(col.fn()))).toList(),
+                    p.info());
             case TypedGroupBy gb -> new TypedGroupBy(base,
                     gb.keys().stream().map(k -> new TypedGroupBy.GroupKey(k.column(),
                             java.util.Optional.of(sub.apply(k.fn().orElseThrow(() ->
@@ -2261,6 +2269,25 @@ public final class StoreResolver {
                 (com.legend.compiler.element.type.Type.RelationType)
                         tMat.pipeline().info().type(),
                 oriented, tMat.slotPrefixes());
+    }
+
+    /** Column names a join condition reads off its SOURCE param (param 0). */
+    private static void collectParamColumnReads(TypedLambda cond, Set<String> out) {
+        String src = cond.parameters().get(0);
+        for (TypedSpec b : cond.body()) {
+            collectVarColumnReads(b, src, out);
+        }
+    }
+
+    private static void collectVarColumnReads(TypedSpec n, String var, Set<String> out) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                && pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
+                && v.name().equals(var)) {
+            out.add(pa.property());
+        }
+        for (TypedSpec c : n.children()) {
+            collectVarColumnReads(c, var, out);
+        }
     }
 
     /** Slot aliases a binding expression reads ($row.alias...). */

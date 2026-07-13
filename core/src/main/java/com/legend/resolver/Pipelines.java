@@ -291,6 +291,22 @@ final class Pipelines {
                 }
                 yield new com.legend.compiler.spec.typed.TypedProject(src, cols, pr.info());
             }
+            // Mapping ~distinct above slots: the engine FORCES all-property
+            // materialization under a distinct (§A.6) — every slot joins and
+            // the distinct tuple is the FULL materialized row. Column list
+            // rebuilt from the widened row.
+            case com.legend.compiler.spec.typed.TypedDistinct d
+                    when containsSlot(d.source()) -> {
+                TypedSpec src = walk(d.source(), scalarSlotAliases(d.source()),
+                        demandedNavs, targets, prefixes, stripped, classFqn);
+                Type.RelationType row = (Type.RelationType) src.info().type();
+                // WHOLE-ROW distinct (empty column list -> DISTINCT *):
+                // dedup exactly what the source PROJECTS — naming the row
+                // type's columns would reference ones a milestoned scan
+                // does not project.
+                yield new com.legend.compiler.spec.typed.TypedDistinct(src,
+                        List.of(), new ExprType(row, Multiplicity.Bounded.ONE));
+            }
             default -> {
                 if (containsSlot(n)) {
                     throw new NotImplementedException("mapping pipeline for '"
@@ -300,6 +316,97 @@ final class Pipelines {
                 yield n;
             }
         };
+    }
+
+    /**
+     * JOIN-KEY COLLECTION under mapping ~distinct (engine: a demanded join
+     * widens the distinct tuple with its keys — pureToSQLQuery L5135): when
+     * a join condition reads source columns the ~distinct NARROWING SELECT
+     * dropped, re-add them to the select (and the distinct dedups over the
+     * widened row). No distinct-over-select at the head: unchanged.
+     */
+    static TypedSpec widenDistinctForKeys(TypedSpec pipeline, Set<String> cols) {
+        TypedSpec top = pipeline;
+        java.util.function.UnaryOperator<TypedSpec> rewrap =
+                java.util.function.UnaryOperator.identity();
+        if (top instanceof TypedFilter f) {
+            TypedSpec inner = f.source();
+            rewrap = d -> new TypedFilter(d, f.predicate(),
+                    new ExprType(d.info().type(), Multiplicity.Bounded.ONE));
+            top = inner;
+        }
+        if (!(top instanceof com.legend.compiler.spec.typed.TypedDistinct d)
+                || !(d.source() instanceof com.legend.compiler.spec.typed.TypedSelect sel)) {
+            return pipeline;
+        }
+        Type.RelationType selRow = (Type.RelationType) sel.info().type();
+        Set<String> have = new LinkedHashSet<>();
+        for (Type.Column c : selRow.columns()) {
+            have.add(c.name());
+        }
+        Type.RelationType srcRow = (Type.RelationType) sel.source().info().type();
+        List<String> newCols = new ArrayList<>(sel.columns());
+        List<Type.Column> newRowCols = new ArrayList<>(selRow.columns());
+        boolean widened = false;
+        for (String c : cols) {
+            if (have.contains(c)) {
+                continue;
+            }
+            for (Type.Column sc : srcRow.columns()) {
+                if (sc.name().equals(c)) {
+                    newCols.add(c);
+                    newRowCols.add(sc);
+                    widened = true;
+                    break;
+                }
+            }
+        }
+        if (!widened) {
+            return pipeline;
+        }
+        ExprType row = new ExprType(new Type.RelationType(newRowCols),
+                Multiplicity.Bounded.ONE);
+        TypedSpec ns = new com.legend.compiler.spec.typed.TypedSelect(
+                sel.source(), newCols, row);
+        return rewrap.apply(new com.legend.compiler.spec.typed.TypedDistinct(
+                ns, d.columns() == null || d.columns().isEmpty() ? d.columns()
+                        : newCols, row));
+    }
+
+    /** Join-slot aliases whose targets are CLASS-EXTENT-free — the slots
+     * the engine's all-properties-under-distinct materialization may
+     * demand (a class-typed navigation is not a property column). */
+    private static Set<String> scalarSlotAliases(TypedSpec pipeline) {
+        Set<String> out = new LinkedHashSet<>();
+        TypedSpec cur = pipeline;
+        while (cur != null) {
+            if (cur instanceof TypedJoinSlot js) {
+                if (!containsClassExtent(js.target())) {
+                    out.add(js.alias());
+                }
+                cur = js.source();
+            } else if (cur instanceof com.legend.compiler.spec.typed.TypedNavigate nv) {
+                cur = nv.source();
+            } else if (cur.children().isEmpty()) {
+                cur = null;
+            } else {
+                cur = cur.children().get(0);
+            }
+        }
+        return out;
+    }
+
+    private static boolean containsClassExtent(TypedSpec n) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedGetAll
+                || n instanceof com.legend.compiler.spec.typed.TypedNavigate) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (containsClassExtent(c)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Slot aliases read through {@code rowVar} in {@code n} ($row.slot...). */

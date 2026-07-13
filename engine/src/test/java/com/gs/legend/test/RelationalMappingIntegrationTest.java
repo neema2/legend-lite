@@ -2176,11 +2176,14 @@ class RelationalMappingIntegrationTest {
                     )
                     """, "test::DB", "test::M");
 
-            // 5 rows with duplicates on tag — ~distinct means DISTINCT on all generated SELECTs
+            // REFERENCE SEMANTICS (corpus testDistinctMappingSimpleProject-
+            // SelectOneOfTheDistinctProperties golden): ~distinct dedups over
+            // the MAPPED COLUMNS (id, tag) in a subselect — a narrower
+            // projection does NOT re-dedup. All 5 (id, tag) pairs are
+            // distinct, so all 5 tag values survive.
             var result = exec(model, "test::Tag.all()->project([x|$x.tag], ['tag'])");
             var tags = colStr(result, 0);
-            // DISTINCT collapses to 3 unique tag values: java, sql, rust
-            assertEquals(3, tags.size());
+            assertEquals(5, tags.size());
             assertTrue(tags.contains("java"));
             assertTrue(tags.contains("sql"));
             assertTrue(tags.contains("rust"));

@@ -122,9 +122,9 @@ runner does not yet recognize (accounted, not skipped silently).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 0 | 0 | 88 | 4 |
 | executionPlan/tests | 109 | 0 | 0 | 8 | 101 |
-| functions/tests | 241 | 72 | 6 | 121 | 42 |
+| functions/tests | 241 | 73 | 5 | 121 | 42 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 0 | 1 |
-| functions/tests/projection | 154 | 48 | 9 | 68 | 29 |
+| functions/tests/projection | 154 | 47 | 9 | 69 | 29 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 5 | 0 | 0 | 0 | 5 |
 | graphFetch/tests/union | 1 | 0 | 0 | 0 | 1 |
@@ -144,7 +144,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | sqlQueryToString/DDL | 3 | 0 | 0 | 0 | 3 |
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 265 | 103 | 3 | 102 | 57 |
+| tds/tests | 265 | 103 | 2 | 102 | 58 |
 | testDataGeneration/tests | 40 | 0 | 0 | 0 | 40 |
 | tests | 39 | 0 | 0 | 0 | 39 |
 | tests/advanced | 67 | 7 | 0 | 38 | 22 |
@@ -153,7 +153,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping | 10 | 1 | 2 | 6 | 1 |
 | tests/mapping/association | 23 | 3 | 0 | 19 | 1 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 0 | 0 | 32 | 0 |
-| tests/mapping/distinct | 18 | 6 | 6 | 6 | 0 |
+| tests/mapping/distinct | 18 | 8 | 6 | 4 | 0 |
 | tests/mapping/dynaJoin | 5 | 2 | 2 | 1 | 0 |
 | tests/mapping/embedded | 63 | 33 | 6 | 14 | 10 |
 | tests/mapping/enumeration | 26 | 6 | 5 | 12 | 3 |
@@ -174,11 +174,11 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/union | 124 | 12 | 1 | 91 | 20 |
 | tests/mapping/union/relation | 15 | 0 | 0 | 13 | 2 |
 | tests/platformOperations | 4 | 0 | 0 | 4 | 0 |
-| tests/query | 83 | 52 | 5 | 19 | 7 |
+| tests/query | 83 | 52 | 3 | 21 | 7 |
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **430** | 57 | 968 | 837 |
+| **total** | 2292 | **432** | 53 | 969 | 838 |
 
 ### mapping walls (dropped at assembly)
 
@@ -722,7 +722,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testUniqueValueOnly3 [functions/tests]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR testUniqueValueOnly4 [functions/tests]: unknown function 'uniqueValueOnly'
 - ERROR testAggFunctionUsingMultipleSetImplementation [functions/tests]: expected at most one value, got many ([*])
-- FAIL testGroupByPercentile [functions/tests]: assertEquals: expected [Firm X|290.5|320.0|246.25, Firm C|44.6|38.0|44.0, Firm A|30.2|23.0|27.5, TDSNull|5.0|5.0|5.0], got [Firm X|290.5|25.0|246.25, Firm C|44.6|38.0|44.0, Firm A|30.2|23.0|27.5, TDSNull|5.0|5.0|5.0]
 - ERROR testGroupByIsDistinct [functions/tests]: expected at most one value, got many ([*])
 - ERROR testGroupByEmptyColsTerminalOperation [functions/tests]: no overload of 'groupBy' matches the argument types
 - ERROR testGroupByEmptyColsNonTerminalOperation [functions/tests]: no overload of 'groupBy' matches the argument types
@@ -847,6 +846,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFilterOnRootTypeWithOrWithFilterInQualifier [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testAllOneSimplePropertyWithColsFromFunction [functions/tests/projection]: project expects ~[…] column specifications
 - SHAPE testAllOneSimplePropertyUsingOpenVariables [functions/tests/projection]: no execute(|...) call
+- ERROR testViewAllOneSimpleProperty [functions/tests/projection]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Ord
 - ERROR testJoinToView [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testJoinThroughView [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - ERROR testViewWithGroupBy [functions/tests/projection]: class 'meta::relational::tests::model::simple::AccountPnl' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -999,7 +999,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: no execute(|...) call
 - ERROR testMilestoningCriteriaAppliedToViewRoot [milestoning/tests]: 'milestoningmap' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: class 'meta::relational::tests::milestoning::Trade' is not mapped in mapping 'meta::relational::tests::milestoning::milestoningmap3'
-- ERROR testMilestoningContextPropagatedFromParentViewToViewsReferencedInItsColumns [milestoning/tests]: mapping pipeline for 'meta::relational::tests::milestoning::TradePnl' has TypedDistinct above join slot(s); H3-pending
+- ERROR testMilestoningContextPropagatedFromParentViewToViewsReferencedInItsColumns [milestoning/tests]: class meta::relational::tests::milestoning::TradePnl has no property 'businessDate'
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaAppliedToJoinFromViewRoot [milestoning/tests]: 'milestoningmap' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testIsolationOfCaseStmtTrueFalseFilters [milestoning/tests]: unknown function 'classification'
@@ -1295,7 +1295,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR groupByAfterASortOnColumnNotInGroupBy [tds/tests]: expected at most one value, got many ([*])
 - ERROR groupByAfterConcatenate [tds/tests]: expected at most one value, got many ([*])
 - SHAPE testTableToTDSWithQuotedColumns [tds/tests]: no execute(|...) call
-- FAIL testTDSGroupByPercentile [tds/tests]: assertEquals: expected [Firm X|292.5|322.0|248.25, Firm C|46.6|40.0|46.0, Firm A|32.2|25.0|29.5, TDSNull|7.0|7.0|7.0], got [Firm X|292.5|27.0|248.25, Firm C|46.6|40.0|46.0, Firm A|32.2|25.0|29.5, TDSNull|7.0|7.0|7.0]
+- SHAPE testTDSGroupByPercentile [tds/tests]: unsupported statement: meta::relational::functions::asserts::assertSameSQL
 - ERROR testTDSGroupByIsDistinct [tds/tests]: expected at most one value, got many ([*])
 - SHAPE testTDSGroupByEmptyColsTerminalOperation [tds/tests]: unsupported statement: meta::relational::functions::asserts::assertSameSQL
 - SHAPE testTDSGroupByEmptyColsNonTerminalOperation [tds/tests]: unsupported statement: meta::relational::functions::asserts::assertSameSQL
@@ -1638,18 +1638,16 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testLazyExecution [tests/mapping/classMappingFilterWithInnerJoin]: 'classOwnedMappingWithInnerJoinInFilter' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testCorrelatedSubSqlQueryGeneration [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::milestoning::Product' is not a known class, mapping, runtime, connection, or database
 - ERROR TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNestedGeneration [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::store::TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNested' is not a known class, mapping, runtime, connection, or database
-- FAIL testDistinctMappingSelectAll [tests/mapping/distinct]: assertSameElements: expected [IF 1, IF 2, IF 2], got [IF 2, IF 1]
-- FAIL testDistinctMappingSimpleProjectSelectOneOfTheDistinctProperties [tests/mapping/distinct]: assertEquals: expected name\nIF 1\nIF 2\nIF 2\n, got [IF 1, IF 2]
-- FAIL testDistinctMappingWithFilterSelectAll [tests/mapping/distinct]: assertSameElements: expected [IF 1, IF 2, IF 2], got [IF 2, IF 1]
-- FAIL testDistinctMappingWithFilterSelectOneProperty [tests/mapping/distinct]: assertEquals: expected name\nIF 1\nIF 2\nIF 2\n, got [IF 1, IF 2]
-- FAIL testDistinctMappingWithJoinSelectAll [tests/mapping/distinct]: assertSameElements: expected [IF 1, IF 2, IF 2], got [IF 2, IF 1]
-- ERROR testProjectDistinctMappingWithDistinctInJoin [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
-- ERROR testProjectDistinctMappingWithDistinctInJoinWithDup [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
-- ERROR testDistinctMappingWithDistinctInJoinWithFilter [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
-- ERROR testDistinctMappingWithDistinctInJoinWithFilterOnJoin [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
-- FAIL testDistinctMappingWithFullDenormSelfJoins [tests/mapping/distinct]: assertSameElements: expected [IF 1, IF 2, IF 2], got [IF 2, IF 1]
+- FAIL testDistinctMappingWithJoinSelectAll [tests/mapping/distinct]: assertSameElements: expected [IF 1, IF 2, IF 2], got [IF 2, IF 1, IF 2, IF 2, IF 2]
+- FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: assertEquals: expected IfName\nIfName1\nIfName2\n\n, got [IfName2, IfName1, null, IfName2, IfName2]
+- FAIL testProjectDistinctMappingWithDistinctInJoin [tests/mapping/distinct]: assertEquals: expected name,incomeFunction\nIfName1,IF 1\nIfName2,IF 2\n, got [IfName2, IF 2, IfName2, IF 2, IfName1, IF 1, IfName2, IF 2]
+- FAIL testProjectDistinctMappingWithDistinctInJoinWithDup [tests/mapping/distinct]: assertEquals: expected name,incomeFunction\nIfName1,IF 1\nIfName2,IF 2\n, got [IfName2, IF 2, IfName1, IF 1, IfName2, IF 2, IfName2, IF 2]
+- FAIL testDistinctMappingWithDistinctInJoinWithFilter [tests/mapping/distinct]: assertEquals: expected name,incomeFunction\nIfName2,IF 2\n, got [IfName2, IF 2, IfName2, IF 2, IfName2, IF 2]
+- FAIL testDistinctMappingWithDistinctInJoinWithFilterOnJoin [tests/mapping/distinct]: assertEquals: expected name,incomeFunction\nIfName2,IF 2\n, got [IfName2, IF 2, IfName2, IF 2, IfName2, IF 2]
+- ERROR testDistinctMappingWithFullDenormSelfJoins [tests/mapping/distinct]: store-only navigate (class-extent target) reached the lowerer — resolver bug
 - ERROR testDistinctMappingWithFullDenormSelfJoinsWithFilterOnJoin [tests/mapping/distinct]: store-only navigate (class-extent target) reached the lowerer — resolver bug
 - ERROR testDistinctMappingWithFullDenormSelfJoinsWithTwoFiltersOnJoin [tests/mapping/distinct]: store-only navigate (class-extent target) reached the lowerer — resolver bug
+- ERROR testDistinctMappingWithCaseStatement [tests/mapping/distinct]: store-only navigate (class-extent target) reached the lowerer — resolver bug
 - FAIL testFilterOnMultiLevelJoinWithNonAggregateFunction [tests/mapping/dynaJoin]: assertEquals: expected [New,Hoboken, Correct,New York, Settle,New York, New,New York, Cancel,San Fransisco], got [New,TDSNull, Correct,TDSNull, Settle,TDSNull, New,TDSNull, Cancel,TDSNull]
 - FAIL testFilterOnJoinWithAggregateFunctionWithProject [tests/mapping/dynaJoin]: assertEquals: expected [1, 2014-12-03], got [1, 2014-12-03]
 - ERROR testSelfJoinWithAggregateFunction [tests/mapping/dynaJoin]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected Boolean, got String
@@ -2108,10 +2106,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testTwoAssociationsToOneDeep [tests/query]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - FAIL testWithParameterToClassNestedSelect [tests/query]: assertSize: expected 0, got 1
 - ERROR testExistsWithQualifierOnleftSide [tests/query]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- FAIL testViewAll [tests/query]: assertSameElements: expected [100.0,Peter Smith, 150.0,John Johnson, 200.0,John Johnson], got [200.0,"John Johnson", 150.0,"John Johnson", 100.0,"Peter Smith"]
+- ERROR testViewAll [tests/query]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Ord
 - SHAPE testViewWithJoinsAndDistinct [tests/query]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testDistinctOnlyIncludesTopLevelColumns [tests/query]: in function 'meta::relational::tests::TestViewWithDistinctAndJoins$class$meta::relational::tests::model::simple::Person': unknown table 'FirstNameAddress' in database 'meta::relational::tests::db'
-- FAIL testViewSimpleFilter [tests/query]: assertSameElements: expected [150.0,John Johnson, 200.0,John Johnson], got [200.0,"John Johnson", 150.0,"John Johnson"]
+- ERROR testViewSimpleFilter [tests/query]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Ord
 - ERROR testAllWithJoinToView [tests/query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Order' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: view 'orderPnlView' used as a join target has a join-naviga
 - SHAPE testViewSimpleExists [tests/query]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testViewPropertyFilterWithPrimaryKey [tests/query]: in function 'meta::relational::tests::query::view::EmployeeMappingWithViewAndInnerJoin$class$meta::relational::tests::model::simple::Employee': unknown table 'OrgView' in database 'meta::relational::tests::db'

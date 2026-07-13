@@ -677,8 +677,18 @@ public final class Lowerer {
                     && extra.size() == 1) {
                 fn = flags.get(1) ? "QUANTILE_CONT" : "QUANTILE_DISC";
                 if (!flags.get(0)) {
-                    extra.set(0, SqlExpr.Call.of(SqlFn.MINUS,
-                            new SqlExpr.IntLit(1), extra.get(0)));
+                    if (flags.get(1)) {
+                        // CONTINUOUS interpolation is symmetric: the
+                        // descending p-quantile IS the ascending (1-p).
+                        extra.set(0, SqlExpr.Call.of(SqlFn.MINUS,
+                                new SqlExpr.IntLit(1), extra.get(0)));
+                    } else {
+                        // DISCRETE is NOT symmetric (SQL-standard
+                        // PERCENTILE_DISC picks the first value whose
+                        // cume_dist >= p in DESC order — the ceil(p*N)-th
+                        // largest); index the sorted list exactly.
+                        fn = "__QDISC_DESC__";
+                    }
                 }
             } else {
                 throw new IllegalStateException("boolean reducer arguments are"
@@ -738,6 +748,21 @@ public final class Lowerer {
                     SqlExpr.Call.of(SqlFn.CONCAT, extra.get(0),
                             new SqlAgg.Reducer(fn, List.of(value, extra.get(1)), false)),
                     extra.get(2));
+        }
+        // Descending DISCRETE percentile: the ceil(p*N)-th element of the
+        // DESC-sorted values (SQL-standard PERCENTILE_DISC ... ORDER BY
+        // DESC semantics — no direct DuckDB reducer).
+        if ("__QDISC_DESC__".equals(fn)) {
+            return SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_GET,
+                    SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_SORT_DESC,
+                            new SqlAgg.Reducer("LIST", List.of(value), false)),
+                    new SqlExpr.Cast(
+                            SqlExpr.Call.of(com.legend.sql.SqlFn.CEILING,
+                                    SqlExpr.Call.of(com.legend.sql.SqlFn.TIMES,
+                                            extra.get(0),
+                                            new SqlAgg.Reducer("COUNT",
+                                                    List.of(value), false))),
+                            com.legend.sql.SqlType.Scalar.BIGINT));
         }
         List<SqlExpr> args = new ArrayList<>();
         args.add(value);
