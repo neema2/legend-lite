@@ -663,7 +663,12 @@ public final class StoreResolver {
                 // the same correlated-EXISTS material as an association end.
                 var nav = Pipelines.navSteps(cs.pipeline()).get(head);
                 if (nav == null || !(nav.target()
-                        instanceof com.legend.compiler.spec.typed.TypedGetAll tg)) {
+                        instanceof com.legend.compiler.spec.typed.TypedGetAll tg)
+                        // eager material only when the target class IS mapped
+                        // here (an M2M chain's nav target lives upstream —
+                        // registration must not throw for a rewrite that may
+                        // never fire)
+                        || !sources.binds(cs.mappingFqn(), tg.classFqn())) {
                     continue;
                 }
                 ClassSource t = sources.get(cs.mappingFqn(), tg.classFqn());
