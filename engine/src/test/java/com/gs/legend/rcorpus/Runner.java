@@ -526,14 +526,16 @@ public final class Runner {
                         }
                         continue;
                     }
-                    Matcher pm = Pattern.compile("^\\$R(?:\\.values)?(?:->at\\((\\d+)\\))?\\.(\\w+)$")
+                    Matcher pm = Pattern.compile(
+                            "^\\$R(?:\\.values)?(?:->at\\((\\d+)\\))?"
+                                    + "(?:\\.(\\w+)|->map\\(\\s*\\w+\\s*\\|\\s*\\$\\w+\\.(\\w+)\\s*\\))$")
                             .matcher(args.size() == 2 ? args.get(1).strip() : "");
                     if (pm.matches()) {
                         List<Object> expected = pureLiteralList(args.get(0).strip());
                         if (expected != null) {
                             recognized++;
                             verified++;
-                            String prop = pm.group(2);
+                            String prop = pm.group(2) != null ? pm.group(2) : pm.group(3);
                             List<Object> actual = pm.group(1) == null
                                     ? column(rows, prop)
                                     : Integer.parseInt(pm.group(1)) < rows.size()
@@ -647,6 +649,30 @@ public final class Runner {
                             String actual = toCsv(rows);
                             if (!es.equals(actual)) {
                                 problems.add("toCSV: expected <" + es + ">, got <" + actual + ">");
+                            }
+                        }
+                        continue;
+                    }
+                    Matcher mapJoin = Pattern.compile(
+                            "^\\$R(?:\\.values)?\\.rows->map\\(\\s*\\w+\\s*\\|\\s*\\$\\w+"
+                                    + "\\.get\\w*\\('([^']+)'\\)\\s*\\)(->sort\\(\\))?"
+                                    + "->makeString\\('([^']*)'\\)$")
+                            .matcher(second);
+                    if (mapJoin.matches()) {
+                        Object expected = pureLiteral(args.get(0).strip());
+                        if (expected instanceof String es) {
+                            recognized++;
+                            verified++;
+                            List<Object> vals = column(rows, mapJoin.group(1));
+                            List<String> strs = new ArrayList<>(vals.stream()
+                                    .map(String::valueOf).toList());
+                            if (mapJoin.group(2) != null) {
+                                java.util.Collections.sort(strs);
+                            }
+                            String actual = String.join(mapJoin.group(3), strs);
+                            if (!es.equals(actual)) {
+                                problems.add(mapJoin.group(1) + ": expected <" + es
+                                        + ">, got <" + actual + ">");
                             }
                         }
                         continue;

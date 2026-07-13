@@ -110,9 +110,9 @@ runner does not yet recognize (accounted, not skipped silently).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 0 | 0 | 92 | 0 |
 | executionPlan/tests | 109 | 0 | 0 | 0 | 109 |
-| functions/tests | 261 | 9 | 19 | 169 | 64 |
+| functions/tests | 261 | 16 | 19 | 169 | 57 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 1 | 0 | 0 |
-| functions/tests/projection | 165 | 4 | 7 | 104 | 50 |
+| functions/tests/projection | 165 | 5 | 7 | 104 | 49 |
 | graphFetch/domain | 2 | 0 | 0 | 0 | 2 |
 | graphFetch/tests | 5 | 0 | 0 | 0 | 5 |
 | graphFetch/tests/union | 1 | 0 | 0 | 0 | 1 |
@@ -144,8 +144,8 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 0 | 0 | 30 | 2 |
 | tests/mapping/distinct | 18 | 4 | 4 | 10 | 0 |
 | tests/mapping/dynaJoin | 6 | 0 | 0 | 2 | 4 |
-| tests/mapping/embedded | 70 | 8 | 7 | 47 | 8 |
-| tests/mapping/enumeration | 27 | 0 | 1 | 10 | 16 |
+| tests/mapping/embedded | 70 | 8 | 9 | 47 | 6 |
+| tests/mapping/enumeration | 27 | 1 | 1 | 10 | 15 |
 | tests/mapping/filter | 10 | 3 | 0 | 5 | 2 |
 | tests/mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 |
@@ -167,7 +167,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2429 | **79** | 59 | 1373 | 918 |
+| **total** | 2429 | **88** | 61 | 1373 | 907 |
 
 ### mapping walls (dropped at assembly)
 
@@ -719,17 +719,13 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testFetchDbColumnsMetaData [functions/tests]: no execute(|...) call
 - SHAPE testFetchDbSchemasMetaData [functions/tests]: no execute(|...) call
 - SHAPE testFetchDbPrimaryKeysMetaData [functions/tests]: no execute(|...) call
-- SHAPE testSelectEqual [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold)
-- FAIL testLessThanEqualString [functions/tests]: size: expected 7, got 9
-- FAIL testGreaterThanEqualString [functions/tests]: size: expected 7, got 10
-- FAIL testSelectNotEqual [functions/tests]: size: expected 10, got 15
-- SHAPE testSelectNotEqualWithEnumMappedToConstant [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold)
+- FAIL testLessThanEqualString [functions/tests]: size: expected 7, got 9; lastName: expected [Allen, Johnson, Harris, New York, Firm B, Roberts, Hill], got [Johnson, Hill, Allen, Roberts, Harris, Firm B, New York, Firm B, New York]
+- FAIL testGreaterThanEqualString [functions/tests]: size: expected 7, got 10; lastName: expected [Hill, Smith, Johnson, Smith, Hill, York, no Firm], got [Smith, Johnson, Hill, Hill, Smith, no Firm, York, Smith, no Firm, York]
+- FAIL testSelectNotEqual [functions/tests]: size: expected 10, got 15; lastName: expected [Allen, Hill, Smith, Harris, New York, Firm B, Roberts, Smith, York, no Firm], got [Smith, Allen, Roberts, Hill, Harris, Smith, no Firm, York, Firm B, New York, Smith, no Firm, York, Firm B, New York]
 - FAIL testSelectConstantPredicate [functions/tests]: size: expected 12, got 17; size: expected 12, got 17
-- FAIL testSelectNotEqualNotAnd [functions/tests]: size: expected 11, got 16
+- FAIL testSelectNotEqualNotAnd [functions/tests]: size: expected 11, got 16; lastName: expected [Allen, Hill, Smith, Johnson, Harris, New York, Firm B, Roberts, Smith, York, no Firm], got [Smith, Johnson, Allen, Roberts, Hill, Harris, Smith, no Firm, York, Firm B, New York, Smith, no Firm, York, Firm B, New York]
 - ERROR testSelectChainOfAndOrOperators [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- SHAPE testGreaterThan [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testGreaterThanDate [functions/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Account' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: Join 'AccountPnlView_Account' navigates to a CLASS mapped
-- SHAPE testGreaterThanEqual [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testLessThan [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testLessThanEqual [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testLessThanWithArithmetic [functions/tests]: partial: 1/3 asserts recognized (recognized ones hold)
@@ -762,20 +758,17 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMultipleFromWithMapping [functions/tests]: [3504:34] expected type name, got NEW_SYMBOL
 - SHAPE testSimpleGetter [functions/tests]: no recognizable assertions
 - SHAPE testGetterTwice [functions/tests]: partial: 2/5 asserts recognized (recognized ones hold)
-- SHAPE testIn [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold)
-- SHAPE testContains [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testDeepIn [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testDeepContains [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testInWithOneValue [functions/tests]: unbound variable '$names'
 - ERROR testContainsWithOneValue [functions/tests]: unbound variable '$names'
 - ERROR testInWithVariables [functions/tests]: unbound variable '$john'
 - ERROR testInWithFunction [functions/tests]: unknown function 'meta::relational::tests::query::filter::in::getNames'
-- SHAPE testInWithJoinStrings [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testContainsWithVariables [functions/tests]: unbound variable '$john'
 - ERROR testInWithListVariable [functions/tests]: unbound variable '$names'
 - ERROR testContainsWithListVariable [functions/tests]: unbound variable '$names'
-- FAIL testNotIn [functions/tests]: size: expected 9, got 14
-- FAIL testNotContains [functions/tests]: size: expected 9, got 14
+- FAIL testNotIn [functions/tests]: size: expected 9, got 14; lastName: expected [Allen, Hill, Harris, New York, Firm B, Roberts, Smith, York, no Firm], got [Allen, Roberts, Hill, Harris, Smith, no Firm, York, Firm B, New York, Smith, no Firm, York, Firm B, New York]
+- FAIL testNotContains [functions/tests]: size: expected 9, got 14; lastName: expected [Allen, Hill, Harris, New York, Firm B, Roberts, Smith, York, no Firm], got [Allen, Roberts, Hill, Harris, Smith, no Firm, York, Firm B, New York, Smith, no Firm, York, Firm B, New York]
 - FAIL testContainsOnToManyProperty [functions/tests]: size: expected 1, got 2
 - SHAPE testConsistencyWithNulls [functions/tests]: no recognizable assertions
 - SHAPE testConsistencyWithNullsInJoin [functions/tests]: no recognizable assertions
@@ -977,7 +970,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testIsolatioWhereNoConstaintsAndInnerJoin [functions/tests/projection]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testIsolationOfFiltersWithoutAlias [functions/tests/projection]: unknown function 'employeeByLastName'
 - ERROR testIsolationOfFiltersWithoutAliasWithChainedJoins [functions/tests/projection]: unknown function 'synonymByType'
-- SHAPE testSimpleFunction [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testFunctionAndPathOneSide [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testFunctionAndPathOtherSide [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
 - SHAPE testSimpleRealFunction [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold)
@@ -2023,7 +2015,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - FAIL testDistinctMappingSimpleProjectDistinct [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\n>, got <name\nIF 2\nIF 1\n>
 - FAIL testDistinctMappingWithFilterSelectOneProperty [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
 - ERROR testDistinctMappingWithJoinSelectAll [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
-- FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\nIfName1\n\nIfName2\n>
+- FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\n\nIfName1\nIfName2\n>
 - ERROR testProjectDistinctMappingWithDistinctInJoin [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testProjectDistinctMappingWithDistinctInJoinWithDup [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testDistinctMappingWithDistinctInJoinWithFilter [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
@@ -2035,8 +2027,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testDistinctMappingWithSize [tests/mapping/distinct]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - ERROR testGet [tests/mapping/dynaJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Account' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: Join 'AccountPnlView_Account' navigates to a CLASS mapped
 - SHAPE testFilterOnMultiLevelJoinWithNonAggregateFunction [tests/mapping/dynaJoin]: partial: 1/2 asserts recognized (recognized ones hold)
-- SHAPE testJoinWithAggregateFunction [tests/mapping/dynaJoin]: partial: 2/4 asserts recognized (recognized ones hold)
-- SHAPE testFilterOnJoinWithAggregateFunction [tests/mapping/dynaJoin]: partial: 2/4 asserts recognized (recognized ones hold)
+- SHAPE testJoinWithAggregateFunction [tests/mapping/dynaJoin]: partial: 3/4 asserts recognized (recognized ones hold)
+- SHAPE testFilterOnJoinWithAggregateFunction [tests/mapping/dynaJoin]: partial: 3/4 asserts recognized (recognized ones hold)
 - SHAPE testFilterOnJoinWithAggregateFunctionWithProject [tests/mapping/dynaJoin]: partial: 1/4 asserts recognized (recognized ones hold)
 - ERROR testSelfJoinWithAggregateFunction [tests/mapping/dynaJoin]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected String, got Integer
 - ERROR testDenormMappingOneToManyProjectUsingPaths [tests/mapping/embedded]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
@@ -2063,8 +2055,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE otherwiseTestGetterDeepTraversal [tests/mapping/embedded]: no recognizable assertions
 - ERROR testProjectionOtherwiseDeepTraversal [tests/mapping/embedded]: multi-hop navigation bondDetails.holder.name through an embedded/slot head is not supported yet
 - ERROR testProjectionOtherwiseNonPrimitive [tests/mapping/embedded]: in function 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise3$class$meta::relational::tests::mapping::embedded::advanced::model::Product': relation has no column 'bondClassification'
-- SHAPE otherwiseTestGroupBy [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
-- SHAPE otherwiseTestGroupByComplexAgg [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
+- FAIL otherwiseTestGroupBy [tests/mapping/embedded]: toCSV: expected <Bond Type,Profit\n15 years,10.0\n5 years,1.0\n>, got <Bond Type,Profit\n5 years,1.0\n15 years,10.0\n>
+- FAIL otherwiseTestGroupByComplexAgg [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\n15 years,2.0\n5 years,5.0\n>, got <Bond Type,sum\n5 years,5.0\n15 years,2.0\n>
 - FAIL otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\nBond 1,1.0\nBond 2,1.0\nSuperBond 3 super,5.0\n>, got <Bond Type,sum\nSuperBond 3 super,5.0\nBond 2,1.0\nBond 1,1.0\n>
 - ERROR otherwiseTestQualifierProperty [tests/mapping/embedded]: property 'duration' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise'
 - ERROR otherwiseTestQualifierPropertyConstantExpression [tests/mapping/embedded]: property 'isBond' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise'
@@ -2102,9 +2094,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testGroupByComplexAgg [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
 - ERROR testQualifierProperty [tests/mapping/embedded]: property 'description' of embedded 'issuer' on class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedTargetIds'
 - SHAPE testEnumTheSame [tests/mapping/enumeration]: no execute(|...) call
-- SHAPE testMapping [tests/mapping/enumeration]: partial: 1/12 asserts recognized (recognized ones hold)
+- SHAPE testMapping [tests/mapping/enumeration]: partial: 2/12 asserts recognized (recognized ones hold)
 - SHAPE testEnumInRelation [tests/mapping/enumeration]: no recognizable assertions
-- SHAPE testQueryWithEnum [tests/mapping/enumeration]: partial: 4/8 asserts recognized (recognized ones hold)
 - SHAPE testEnumMappings [tests/mapping/enumeration]: no execute(|...) call
 - SHAPE testEnumMappingsWithInclude [tests/mapping/enumeration]: no execute(|...) call
 - SHAPE testProjectionWithEnum [tests/mapping/enumeration]: no recognizable assertions
