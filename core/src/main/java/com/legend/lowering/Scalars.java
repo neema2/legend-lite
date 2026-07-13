@@ -1786,6 +1786,10 @@ final class Scalars {
         // PARTIAL date — the ISO-prefix string carrier at that precision
         // (real pure prints date(1973,11,13,23) as 1973-11-13T23). Only the
         // full six-part form is a real timestamp; three parts is make_date.
+        // sqlNull() — the relational store's NULL literal dynafunction
+        for (String f : Pure.nativeKeysAt("sqlNull")) {
+            RULES.put(f, (n, args) -> new SqlExpr.NullLit());
+        }
         for (String f : Pure.nativeKeysAt("date")) {
             RULES.put(f, (n, args) -> {
                 // component RANGES validate with real pure's messages

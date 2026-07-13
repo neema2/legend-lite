@@ -20,17 +20,17 @@ runner does not yet recognize (accounted, not skipped silently).
 |---|---|---|---|---|---|
 | query | 99 | 24 | 2 | 51 | 22 |
 | mapping/association | 24 | 1 | 0 | 19 | 4 |
-| mapping/join | 29 | 14 | 1 | 13 | 1 |
-| mapping/embedded | 70 | 8 | 8 | 47 | 7 |
-| mapping/enumeration | 27 | 0 | 0 | 17 | 10 |
-| mapping/distinct | 18 | 4 | 4 | 10 | 0 |
+| mapping/join | 29 | 14 | 1 | 11 | 3 |
+| mapping/embedded | 70 | 8 | 9 | 47 | 6 |
+| mapping/enumeration | 27 | 0 | 1 | 10 | 16 |
+| mapping/distinct | 18 | 5 | 3 | 10 | 0 |
 | mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
 | mapping/filter | 10 | 3 | 0 | 6 | 1 |
 | mapping/inheritance | 51 | 0 | 0 | 51 | 0 |
 | mapping/selfJoin | 3 | 0 | 0 | 2 | 1 |
 | mapping/boolean.pure | 3 | 0 | 0 | 3 | 0 |
 | mapping/dates.pure | 7 | 2 | 0 | 1 | 4 |
-| **total** | 351 | **56** | 15 | 230 | 50 |
+| **total** | 351 | **57** | 16 | 221 | 57 |
 
 ### mapping walls (dropped at assembly)
 
@@ -48,7 +48,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - 10x project expects ~[…] column specifications
 - 9x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exactly one
 - 7x 'Product' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- 7x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::enumeration::model::domain::Employee' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::enumeration::model::mapping::employeeTestMapping' failed to normalize this class: enum-mapped constant/expression source for property 'role' is not resolvable yet
 - 7x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::groupBy::model::domain::Position' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::groupBy::model::mapping::testMapping' failed to normalize this class: PropertyMapping 'Join' for property 'product' is not supported under ~groupBy (only Column, Expression, JoinTerminalColumn, and aggregate Expression PMs are allowed). Mapping=meta::relational::tests::mapping::groupBy::model::mapping::testMapping
 - 6x [1:95] expected ']' to close collection literal
 - 6x class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross'
@@ -74,6 +73,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - 2x filter predicate references column 'firm_employees', unresolvable even after isolation
 - 2x unbound variable '$var'
 - 2x unknown function 'nameWithTitle'
+- 2x unknown function 'synonymByType'
 
 ### per-test outcomes (non-passing)
 
@@ -183,8 +183,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testConstraintTargetingMultipleJoinsInPropertyMapping [mapping/join]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - ERROR testConstraintTargetingMultipleJoinsInPropertyMappingNoJoinProperty [mapping/join]: class-typed property '$f.employees' used as a whole value is graph output (Phase H4)
 - SHAPE testChainedOuterJoinsMerge [mapping/join]: partial: 2/3 asserts recognized (recognized ones hold)
-- ERROR testChainedInnerJoinsMerge [mapping/join]: in function 'meta::relational::tests::mapping::join::model::mapping::chainedJoinsInner$class$meta::relational::tests::model::simple::Firm': unknown function 'case'
-- ERROR testChainedInnerJoinsWithFilterMerge [mapping/join]: in function 'meta::relational::tests::mapping::join::model::mapping::chainedJoinsInner$class$meta::relational::tests::model::simple::Firm': unknown function 'case'
+- SHAPE testChainedInnerJoinsMerge [mapping/join]: partial: 2/3 asserts recognized (recognized ones hold)
+- SHAPE testChainedInnerJoinsWithFilterMerge [mapping/join]: partial: 2/3 asserts recognized (recognized ones hold)
 - ERROR testConvertToStringH2 [mapping/join]: in function 'meta::relational::tests::mapping::join::model::mapping::MappingForAccountAndTrade$class$meta::relational::tests::model::simple::Trade': unknown function 'convertVarchar128'
 - ERROR testChainedOuterJoinsWithFilterInproject [mapping/join]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testChainedOuterJoinsWithQualifierInproject [mapping/join]: unknown function 'employeesByAge'
@@ -214,7 +214,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE otherwiseTestGetterDeepTraversal [mapping/embedded]: no recognizable assertions
 - ERROR testProjectionOtherwiseDeepTraversal [mapping/embedded]: multi-hop navigation bondDetails.holder.name through an embedded/slot head is not supported yet
 - ERROR testProjectionOtherwiseNonPrimitive [mapping/embedded]: in function 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise3$class$meta::relational::tests::mapping::embedded::advanced::model::Product': relation has no column 'bondClassification'
-- SHAPE otherwiseTestGroupBy [mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
+- FAIL otherwiseTestGroupBy [mapping/embedded]: toCSV: expected <Bond Type,Profit\n15 years,10.0\n5 years,1.0\n>, got <Bond Type,Profit\n5 years,1.0\n15 years,10.0\n>
 - FAIL otherwiseTestGroupByComplexAgg [mapping/embedded]: toCSV: expected <Bond Type,sum\n15 years,2.0\n5 years,5.0\n>, got <Bond Type,sum\n5 years,5.0\n15 years,2.0\n>
 - FAIL otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [mapping/embedded]: toCSV: expected <Bond Type,sum\nBond 1,1.0\nBond 2,1.0\nSuperBond 3 super,5.0\n>, got <Bond Type,sum\nSuperBond 3 super,5.0\nBond 1,1.0\nBond 2,1.0\n>
 - ERROR otherwiseTestQualifierProperty [mapping/embedded]: property 'duration' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise'
@@ -253,15 +253,15 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testGroupByComplexAgg [mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
 - ERROR testQualifierProperty [mapping/embedded]: property 'description' of embedded 'issuer' on class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedTargetIds'
 - SHAPE testEnumTheSame [mapping/enumeration]: no execute(|...) call
-- ERROR testMapping [mapping/enumeration]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::enumeration::model::domain::Employee' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::enumeration::model::mapping::employeeTestMapping' failed to normalize this class: 
-- ERROR testEnumInRelation [mapping/enumeration]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::enumeration::model::domain::Employee' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::enumeration::model::mapping::employeeTestMapping' failed to normalize this class: 
-- ERROR testQueryWithEnum [mapping/enumeration]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::enumeration::model::domain::Employee' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::enumeration::model::mapping::employeeTestMapping' failed to normalize this class: 
+- SHAPE testMapping [mapping/enumeration]: partial: 1/12 asserts recognized (recognized ones hold)
+- SHAPE testEnumInRelation [mapping/enumeration]: no recognizable assertions
+- SHAPE testQueryWithEnum [mapping/enumeration]: partial: 4/8 asserts recognized (recognized ones hold)
 - SHAPE testEnumMappings [mapping/enumeration]: no execute(|...) call
 - SHAPE testEnumMappingsWithInclude [mapping/enumeration]: no execute(|...) call
-- ERROR testProjectionWithEnum [mapping/enumeration]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::enumeration::model::domain::Employee' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::enumeration::model::mapping::employeeTestMapping' failed to normalize this class: 
-- ERROR testProjectionWithEnumUsingLambda [mapping/enumeration]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::enumeration::model::domain::Employee' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::enumeration::model::mapping::employeeTestMapping' failed to normalize this class: 
-- ERROR testProjectionWithEnumAndFunctionsUsingLambda [mapping/enumeration]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::enumeration::model::domain::Employee' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::enumeration::model::mapping::employeeTestMapping' failed to normalize this class: 
-- ERROR testInQueryWithEnum [mapping/enumeration]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::enumeration::model::domain::Employee' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::enumeration::model::mapping::employeeTestMapping' failed to normalize this class: 
+- SHAPE testProjectionWithEnum [mapping/enumeration]: no recognizable assertions
+- SHAPE testProjectionWithEnumUsingLambda [mapping/enumeration]: no recognizable assertions
+- SHAPE testProjectionWithEnumAndFunctionsUsingLambda [mapping/enumeration]: no recognizable assertions
+- FAIL testInQueryWithEnum [mapping/enumeration]: type: expected [EnumExpected[valueName=CONTRACT]], got [CONTRACT, CONTRACT]
 - ERROR testAggregationFunctionWithEnum [mapping/enumeration]: legacy groupBy expects (source, [keys], [aggs], ['aliases'])
 - SHAPE testProjectionWithInheritedEnum [mapping/enumeration]: no recognizable assertions
 - ERROR testProjectionWithEnumThroughAssociation [mapping/enumeration]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
@@ -280,10 +280,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testEnumValueReturnedInIfExp [mapping/enumeration]: no execute(|...) call
 - SHAPE testEnumValueReturnedInIfExpNotDistinctTransformers [mapping/enumeration]: no execute(|...) call
 - FAIL testDistinctMappingSimpleProjectSelectOneOfTheDistinctProperties [mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
-- FAIL testDistinctMappingSimpleProjectDistinct [mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\n>, got <name\nIF 2\nIF 1\n>
 - FAIL testDistinctMappingWithFilterSelectOneProperty [mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
 - ERROR testDistinctMappingWithJoinSelectAll [mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
-- FAIL testDistinctMappingWithJoinProject [mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\n\nIfName1\nIfName2\n>
+- FAIL testDistinctMappingWithJoinProject [mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\n\nIfName2\nIfName1\n>
 - ERROR testProjectDistinctMappingWithDistinctInJoin [mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testProjectDistinctMappingWithDistinctInJoinWithDup [mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testDistinctMappingWithDistinctInJoinWithFilter [mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending

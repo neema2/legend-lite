@@ -169,6 +169,26 @@ final class RelOpTranslator {
                             new EnumValue("meta::pure::functions::hash::HashType",
                                     DYNA_HASH_TYPES.get(call.name()))));
             case RelationalOperation.FunctionCall call
+                    when call.name().equals("case") && call.args().size() >= 3
+                            && call.args().size() % 2 == 1 -> {
+                    // the relational 'case' dynafunction:
+                    // case(c1, v1 [, c2, v2 ...], default) — pure spells it
+                    // as nested if(cond, {|then}, {|else})
+                    ValueSpecification tail = translate(
+                            call.args().get(call.args().size() - 1),
+                            tableScope, targetVarOrNull, rowBindOrNull, pipeline);
+                    for (int i = call.args().size() - 3; i >= 0; i -= 2) {
+                        ValueSpecification cond = translate(call.args().get(i),
+                                tableScope, targetVarOrNull, rowBindOrNull, pipeline);
+                        ValueSpecification then = translate(call.args().get(i + 1),
+                                tableScope, targetVarOrNull, rowBindOrNull, pipeline);
+                        tail = new AppliedFunction("if", List.of(cond,
+                                new LambdaFunction(List.of(), List.of(then)),
+                                new LambdaFunction(List.of(), List.of(tail))));
+                    }
+                    yield tail;
+            }
+            case RelationalOperation.FunctionCall call
                     when call.name().equals("concat") && call.args().size() >= 2 -> {
                     // The variadic 'concat' dynafunction has NO pure-function
                     // counterpart (engine renders it per-dialect straight to

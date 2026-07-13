@@ -1722,10 +1722,12 @@ public final class MappingNormalizer {
                     new AppliedProperty(rowBind, pm.propertyName()), false);
         }
         return switch (pm) {
-            case PropertyMapping.EnumeratedExpression ee ->
-                    throw new com.legend.error.NotImplementedException(
-                            "enum-mapped constant/expression source for property '"
-                                    + ee.propertyName() + "' is not resolvable yet");
+            case PropertyMapping.EnumeratedExpression ee -> new CtorField(ee.propertyName(),
+                    translateEnumeratedSource(ee.propertyName(), ee.enumMappingId(),
+                            RelOpTranslator.translate(ee.expression(), tableScope, null,
+                                    rowBind, pipeline.view()),
+                            md, ownerClassFqn, model),
+                    false);
             case PropertyMapping.Column col -> new CtorField(col.propertyName(),
                     RelOpTranslator.columnRead(col.table(), col.column(), tableScope, defaultTable, pipeline.view()),
                     false);
@@ -2320,26 +2322,41 @@ public final class MappingNormalizer {
             Map<String, ValueSpecification> tableScope,
             String defaultTable, LegacyMappingDefinition md, Pipeline p,
             String ownerClassFqn, ModelBuilder model) {
+        ValueSpecification colRead = RelOpTranslator.columnRead(ec.table(), ec.column(),
+                tableScope, defaultTable, p == null ? RelOpTranslator.PipelineView.NONE : p.view());
+        return translateEnumeratedSource(ec.propertyName(), ec.enumMappingId(),
+                colRead, md, ownerClassFqn, model);
+    }
+
+    /**
+     * The enum-decode if/equal chain over ANY source read — a column or a
+     * translated expression ({@code role: EnumerationMapping M : case(...)},
+     * constants included). Each mapped enum value tests its source values
+     * in turn; no match yields {@code []}.
+     */
+    private static ValueSpecification translateEnumeratedSource(
+            String propertyName, String enumMappingId, ValueSpecification sourceRead,
+            LegacyMappingDefinition md, String ownerClassFqn, ModelBuilder model) {
         EnumerationMapping em = null;
-        if (ec.enumMappingId() != null) {
+        if (enumMappingId != null) {
             for (EnumerationMapping cand : md.enumerationMappings()) {
-                if (ec.enumMappingId().equals(cand.mappingId())) { em = cand; break; }
+                if (enumMappingId.equals(cand.mappingId())) { em = cand; break; }
             }
         } else {
-            // ANONYMOUS reference (prop: EnumerationMapping: [db]T.COL) —
-            // resolved by the PROPERTY's declared enum type. Names are FQNs
-            // here (NameResolver runs before the normalizer). Two mappings
-            // for the SAME enum need the id spelled — loud, never arbitrary.
+            // ANONYMOUS reference — resolved by the PROPERTY's declared enum
+            // type. Names are FQNs here (NameResolver runs before the
+            // normalizer). Two mappings for the SAME enum need the id
+            // spelled — loud, never arbitrary.
             ClassDefinition owner = model.findClass(ownerClassFqn).orElse(null);
             TypeExpression propType = owner == null ? null
-                    : findPropertyTypeDeep(owner, ec.propertyName(), model);
+                    : findPropertyTypeDeep(owner, propertyName, model);
             String enumFqn = propType instanceof TypeExpression.NameRef nr ? nr.name() : null;
             for (EnumerationMapping cand : md.enumerationMappings()) {
                 if (cand.enumName().equals(enumFqn)) {
                     if (em != null) {
                         throw new com.legend.error.ModelException(
                                 com.legend.error.LegendCompileException.Phase.NORMALIZE,
-                                "EnumeratedColumn '" + ec.propertyName() + "' uses an"
+                                "enum-mapped property '" + propertyName + "' uses an"
                               + " anonymous EnumerationMapping but '" + enumFqn
                               + "' has more than one — name the mapping id; mapping="
                               + md.qualifiedName());
@@ -2350,17 +2367,15 @@ public final class MappingNormalizer {
         }
         if (em == null) {
             throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
-                    ec.enumMappingId() != null
-                            ? "EnumeratedColumn '" + ec.propertyName() + "' references unknown "
-                                    + "enum mapping '" + ec.enumMappingId() + "'; mapping="
+                    enumMappingId != null
+                            ? "enum-mapped property '" + propertyName + "' references unknown "
+                                    + "enum mapping '" + enumMappingId + "'; mapping="
                                     + md.qualifiedName()
-                            : "EnumeratedColumn '" + ec.propertyName() + "' uses an anonymous"
+                            : "enum-mapped property '" + propertyName + "' uses an anonymous"
                                     + " EnumerationMapping but no mapping for the property's"
                                     + " enum type exists (or the property is not enum-typed);"
                                     + " mapping=" + md.qualifiedName());
         }
-        ValueSpecification colRead = RelOpTranslator.columnRead(ec.table(), ec.column(),
-                tableScope, defaultTable, p == null ? RelOpTranslator.PipelineView.NONE : p.view());
         ValueSpecification tail = new PureCollection(List.of());
         List<EnumerationMapping.EnumValueMapping> values = em.valueMappings();
         // An entry naming a NON-EXISTENT enum value is a COMPILE error —
@@ -2391,15 +2406,15 @@ public final class MappingNormalizer {
                     throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, "Unhandled SourceValue: " + sv);
                 }
                 ValueSpecification eq = new AppliedFunction("equal",
-                        List.of(colRead, srcLit));
+                        List.of(sourceRead, srcLit));
                 disj = disj == null ? eq
                         : new AppliedFunction("or", List.of(disj, eq));
             }
             if (disj == null) {
                 throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
-                        "EnumerationMapping '" + ec.enumMappingId() + "' value '"
+                        "EnumerationMapping '" + enumMappingId + "' value '"
                       + ev.enumValue() + "' declares no source values; cannot build "
-                      + "a match condition for property '" + ec.propertyName()
+                      + "a match condition for property '" + propertyName
                       + "'. Mapping=" + md.qualifiedName());
             }
             ValueSpecification then = new EnumValue(em.enumName(), ev.enumValue());
