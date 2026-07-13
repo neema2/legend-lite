@@ -198,6 +198,38 @@ public final class StoreResolver {
                 yield new com.legend.compiler.spec.typed.TypedNativeCall(relSize,
                         java.util.List.of(rel), nc.info());
             }
+            // ->map(p|$p.scalarExpr) over instances IS the single-column
+            // projection (the map-terminal invariant); Person.all().prop is
+            // its property-access spelling (to-many paths explode via the
+            // projection funnel's positional rules).
+            case com.legend.compiler.spec.typed.TypedMap m
+                    when isObjectSpace(m.source())
+                    && !(((com.legend.compiler.element.type.Type.FunctionType) m.mapper().info().type()).result().type()
+                            instanceof com.legend.compiler.element.type.Type.ClassType) ->
+                    resolveChain(scalarMapAsProject(m.source(), m.mapper()), context);
+            case com.legend.compiler.spec.typed.TypedPropertyAccess pa when isObjectSpace(pa.source())
+                    && !(pa.info().type() instanceof com.legend.compiler.element.type.Type.ClassType) -> {
+                com.legend.compiler.element.type.ExprType elem =
+                        new com.legend.compiler.element.type.ExprType(pa.info().type(),
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+                String v = "p";
+                TypedLambda fn = new TypedLambda(java.util.List.of(v),
+                        java.util.List.of(new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                                new com.legend.compiler.spec.typed.TypedVariable(v,
+                                        new com.legend.compiler.element.type.ExprType(
+                                                sourceClassType(pa.source()),
+                                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                                pa.property(), elem)),
+                        new com.legend.compiler.element.type.ExprType(
+                                new com.legend.compiler.element.type.Type.FunctionType(
+                                        java.util.List.of(new com.legend.compiler.element.type.Type.Param(
+                                                sourceClassType(pa.source()),
+                                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                                        new com.legend.compiler.element.type.Type.Param(pa.info().type(),
+                                                pa.info().multiplicity())),
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+                yield resolveChain(scalarMapAsProject(pa.source(), fn), context);
+            }
             case TypedLimit l when isObjectSpace(l.source()) ->
                     resolveChain(l, context);
             case TypedDrop d when isObjectSpace(d.source()) ->
@@ -290,6 +322,37 @@ public final class StoreResolver {
         return c.args().size() == 1
                 && (c.callee().qualifiedName().endsWith("::distinct")
                         || c.callee().qualifiedName().endsWith("::removeDuplicates"));
+    }
+
+    /** The element CLASS of an object-space chain (for synthetic lambdas). */
+    private static com.legend.compiler.element.type.Type sourceClassType(TypedSpec chain) {
+        com.legend.compiler.element.type.Type t = chain.info().type();
+        if (!(t instanceof com.legend.compiler.element.type.Type.ClassType)) {
+            throw new IllegalStateException("resolver bug: object-space chain typed "
+                    + t.typeName());
+        }
+        return t;
+    }
+
+    /**
+     * {@code map(chain, λp.scalar)} as the equivalent single-column
+     * projection. The column takes the leaf property's name when the body
+     * is a straight property read, else {@code value}.
+     */
+    private static TypedProject scalarMapAsProject(TypedSpec source, TypedLambda mapper) {
+        TypedSpec body = mapper.body().get(mapper.body().size() - 1);
+        String name = body instanceof com.legend.compiler.spec.typed.TypedPropertyAccess bpa
+                ? bpa.property() : "value";
+        com.legend.compiler.element.type.Type.Param result =
+                ((com.legend.compiler.element.type.Type.FunctionType) mapper.info().type()).result();
+        com.legend.compiler.element.type.Type.RelationType row =
+                new com.legend.compiler.element.type.Type.RelationType(java.util.List.of(
+                        new com.legend.compiler.element.type.Type.RelationType.Column(
+                                name, result.type(), result.multiplicity())));
+        return new TypedProject(source,
+                java.util.List.of(new com.legend.compiler.spec.typed.TypedFuncCol(name, mapper)),
+                new com.legend.compiler.element.type.ExprType(row,
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
     }
 
     private static boolean isObjectSpace(TypedSpec source) {

@@ -583,6 +583,21 @@ public final class Runner {
                         }
                         continue;
                     }
+                    if (args.size() == 2 && args.get(1).strip().matches("\\$R(\\.values)?")
+                            && !rows.isEmpty() && rows.get(0).size() == 1) {
+                        List<Object> expected = pureLiteralList(args.get(0).strip());
+                        if (expected != null) {
+                            recognized++;
+                            verified++;
+                            String col = rows.get(0).keySet().iterator().next();
+                            List<Object> actual = column(rows, col);
+                            if (!multisetEquals(expected, actual)) {
+                                problems.add("values: expected " + expected
+                                        + ", got " + actual);
+                            }
+                        }
+                        continue;
+                    }
                     Matcher pm = Pattern.compile(
                             "^\\$R(?:\\.values)?(?:->at\\((\\d+)\\))?"
                                     + "(?:\\.(\\w+)|->map\\(\\s*\\w+\\s*\\|\\s*\\$\\w+\\.(\\w+)\\s*\\))$")
@@ -721,6 +736,22 @@ public final class Runner {
                             Object actual = rows.get(0).get("__scalar__");
                             if (!valueEquals(expected, actual)) {
                                 problems.add("expected " + expected + ", got " + actual);
+                            }
+                        }
+                        continue;
+                    }
+                    // a VALUE-COLLECTION result (map over instances lowers to
+                    // a single-column relation): bare $R.values against a list
+                    if (bare.matches() && !rows.isEmpty() && rows.get(0).size() == 1) {
+                        List<Object> expected = pureLiteralList(args.get(0).strip());
+                        if (expected != null) {
+                            recognized++;
+                            verified++;
+                            String col = rows.get(0).keySet().iterator().next();
+                            List<Object> actual = column(rows, col);
+                            if (!orderedEquals(expected, actual)) {
+                                problems.add("values: expected " + expected
+                                        + ", got " + actual);
                             }
                         }
                         continue;

@@ -129,7 +129,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 0 | 0 | 92 | 0 |
 | executionPlan/tests | 109 | 0 | 0 | 0 | 109 |
-| functions/tests | 261 | 50 | 6 | 129 | 76 |
+| functions/tests | 261 | 57 | 13 | 115 | 76 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 1 | 0 | 0 |
 | functions/tests/projection | 165 | 13 | 10 | 79 | 63 |
 | graphFetch/domain | 2 | 0 | 0 | 0 | 2 |
@@ -161,7 +161,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/association | 24 | 1 | 0 | 19 | 4 |
 | tests/mapping/classMappingByClass | 3 | 0 | 0 | 0 | 3 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 0 | 0 | 30 | 2 |
-| tests/mapping/distinct | 18 | 4 | 5 | 9 | 0 |
+| tests/mapping/distinct | 18 | 5 | 4 | 9 | 0 |
 | tests/mapping/dynaJoin | 6 | 0 | 0 | 2 | 4 |
 | tests/mapping/embedded | 70 | 14 | 14 | 36 | 6 |
 | tests/mapping/enumeration | 27 | 1 | 1 | 2 | 23 |
@@ -182,11 +182,11 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/union | 125 | 0 | 0 | 107 | 18 |
 | tests/mapping/union/relation | 15 | 0 | 0 | 13 | 2 |
 | tests/platformOperations | 4 | 0 | 0 | 0 | 4 |
-| tests/query | 99 | 39 | 2 | 33 | 25 |
+| tests/query | 99 | 39 | 2 | 32 | 26 |
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2429 | **205** | 83 | 1122 | 1019 |
+| **total** | 2429 | **213** | 89 | 1107 | 1020 |
 
 ### mapping walls (dropped at assembly)
 
@@ -407,16 +407,16 @@ runner does not yet recognize (accounted, not skipped silently).
 
 - 37x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - 35x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
-- 33x class query under TypedMap is not resolvable yet (H2 vocabulary)
 - 30x unknown function 'product'
 - 28x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - 23x expected at most one value, got many ([*])
-- 23x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 23x [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- 22x milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
+- 23x milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
+- 22x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 21x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 18x unknown function 'getAllVersionsInRange'
 - 16x unknown function 'getAllVersions'
+- 15x navigation through class-typed slot property 'address' is not supported yet
 - 15x milestoned class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet (H-scope exclusion)
 - 15x unknown function 'biTemporalProduct'
 - 15x milestoned class fetch of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X' is not supported yet (H-scope exclusion)
@@ -426,11 +426,11 @@ runner does not yet recognize (accounted, not skipped silently).
 - 12x filter predicate references column 'firm_employees', unresolvable even after isolation
 - 12x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected String, got Integer
 - 11x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::PersonWithAddress' (of 1 candidates); class-query dispatch needs exactly one
+- 10x object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - 10x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Person' (of 1 candidates); class-query dispatch needs exactly one
 - 10x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - 9x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - 9x in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
-- 9x navigation through class-typed slot property 'address' is not supported yet
 - 9x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::Person' (of 1 candidates); class-query dispatch needs exactly one
 - 8x unknown function 'ytd'
 - 8x expected meta::relational::tests::functions::distance::GeographicCoordinate, got GeographicCoordinate
@@ -785,8 +785,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testSimpleTriangularJoinViaIsEmpty [functions/tests]: partial: 1/2 asserts recognized (recognized ones hold)
 - ERROR testIsEmptyOnQualifiedPropertyFollowedByClassPropertyInput [functions/tests]: scalar lowering not yet implemented for TypedPropertyAccess
 - SHAPE testIsEmptyOnCollection [functions/tests]: no execute(|...) call
-- ERROR testSimpleAutoMap [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testSimpleExplicitMap [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testFilterOnSimpleTypeProperty [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testFilterThenMapAndReturnObject [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testFilterOnSimpleTypePropertyDeep [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
@@ -794,29 +792,24 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testAssociationToManyAutoMap [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testAssociationToOneAutoMap [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testAssociationDeep [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testOperation [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- ERROR testBoolean [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- ERROR testIntegerMultiply [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- ERROR testSimpleDerivedProperty [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- ERROR testAdvancedDerivedProperty [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- ERROR testAdvancedDerivedPropertyThroughAssociation [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
+- ERROR testAdvancedDerivedPropertyThroughAssociation [functions/tests]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - ERROR testFilter [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- ERROR testFilterWithProperty [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
+- ERROR testFilterWithProperty [functions/tests]: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
 - ERROR testFilterPostMapWithObject [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- ERROR testBooleanFilterWithProperty [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
+- FAIL testBooleanFilterWithProperty [functions/tests]: size: expected 1, got 4
 - ERROR testAutoMapBooleanFilterWithProperty [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testDeepBooleanFilterWithProperty [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- ERROR testDeepBooleanFilterWithPropertyUsingOr [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
+- ERROR testDeepBooleanFilterWithProperty [functions/tests]: navigation through class-typed slot property 'address' is not supported yet
+- ERROR testDeepBooleanFilterWithPropertyUsingOr [functions/tests]: navigation through class-typed slot property 'address' is not supported yet
 - ERROR testGlobalAggregation [functions/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testSubAggregation [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
+- FAIL testSubAggregation [functions/tests]: size: expected 4, got 7; values: expected [19.75, 32.0, 34.0, 35.0], got [23, 22, 12, 22, 34, 32, 35]
 - ERROR testSubAggregationMultiLevel [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testSubAggregationMultiLevelJoinString [functions/tests]: no overload of 'meta::pure::functions::string::joinStrings' accepts 1 argument(s)
-- ERROR testSubAggregationAverageWithOperation [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- ERROR testSubAggregationSumWithOperation [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- ERROR testSubAggregationUsingIf [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- ERROR testSubAggregationAverageInQualifier [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- ERROR testSubAggregationMaxInQualifier [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- ERROR testSubAggregationSumInQualifier [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
+- FAIL testSubAggregationAverageWithOperation [functions/tests]: size: expected 4, got 7; values: expected [39.5, 64.0, 68.0, 70.0], got [46, 44, 24, 44, 68, 64, 70]
+- FAIL testSubAggregationSumWithOperation [functions/tests]: size: expected 4, got 7; values: expected [320, 340, 350, 790], got [230, 220, 120, 220, 340, 320, 350]
+- ERROR testSubAggregationUsingIf [functions/tests]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
+- FAIL testSubAggregationAverageInQualifier [functions/tests]: size: expected 4, got 7; values: expected [39.5, 64.0, 68.0, 70.0], got [46.0, 44.0, 24.0, 44.0, 68.0, 64.0, 70.0]
+- FAIL testSubAggregationMaxInQualifier [functions/tests]: size: expected 4, got 7; values: expected [23, 32, 34, 35], got [23, 22, 12, 22, 34, 32, 35]
+- FAIL testSubAggregationSumInQualifier [functions/tests]: size: expected 4, got 7; values: expected [32, 34, 35, 79], got [23, 22, 12, 22, 34, 32, 35]
 - ERROR testSequenceMapWithConfusingSetImplementation [functions/tests]: 'Org' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testUsingAFunctionInTheMapLambdaAndAMultiplyInTheAggregation [functions/tests]: unknown function 'subFunction'
 - ERROR testUsingAnAssociationInTheMapFunction [functions/tests]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -1281,11 +1274,11 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMilestoneDateNotPropogatedThroughNonMilestonedType [milestoning/tests]: unknown function 'systemDescription'
 - ERROR testMilestoneDatePropogationFromWithinTheMapToProject [milestoning/tests]: unknown function 'classification'
 - ERROR testRuntimeProcessingErrorWhenBusinessDateIsNotPropagatedThroughUserDefinedDerivedPropertyWithBusinessTemporalReturnType [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testMilestoningQueryOnATypeWithManyRelationalPropertyMappingChildrenFollowedByMap [milestoning/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
+- ERROR testMilestoningQueryOnATypeWithManyRelationalPropertyMappingChildrenFollowedByMap [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
 - ERROR testMilestoneDatePropogationFromTypeQueryToNoArgMilestonedQpInMapFollowedByProjectOnDataTypeProperty [milestoning/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testMilestoneDatePropogationFromTypeQueryThroughNoArgMilestonedQpInMapThroughToProjectOnComplexDataMilestonedProperty [milestoning/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testMilestoneDatePropogationFromTypeQueryThroughNoArgMilestonedQpInMapWhereSubsequentProjectOverrides [milestoning/tests]: unknown function 'exchange'
-- ERROR testFiltersRemainOnMilestonedRootTypeWhenMappedToNonTemporalTypeDataType [milestoning/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
+- ERROR testFiltersRemainOnMilestonedRootTypeWhenMappedToNonTemporalTypeDataType [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::ProductClassification' is not supported yet (H-scope exclusion)
 - ERROR testMilestoneDatePropogationThruExistsIsIndenpendentOfDateManipulationWithinTheFilter [milestoning/tests]: unknown function 'classification'
 - ERROR testMilestoneDatePropogationThruExistsConditionalClause [milestoning/tests]: unknown function 'product'
 - ERROR testMilestoningContextIsPropogatedThroughAutoMap [milestoning/tests]: unknown function 'product'
@@ -1879,14 +1872,14 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testDerivedWithFilteringTwoPropertiesForcedOnClause [tests/advanced]: no execute(|...) call
 - ERROR testQualifierQueryWithOr [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
 - ERROR testQualifierQuery [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
-- ERROR testQualifierWithOperation [tests/advanced]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- ERROR testTwoQualifiersWithOperation [tests/advanced]: class query under TypedMap is not resolvable yet (H2 vocabulary)
+- ERROR testQualifierWithOperation [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
+- ERROR testTwoQualifiersWithOperation [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
 - ERROR testWithForkedQualifier [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testQualifierQueryWithOr2 [tests/advanced]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testQualifierQueryWithOr [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
 - ERROR testQualifierQuery [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
-- ERROR testQualifierWithOperation [tests/advanced]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- ERROR testTwoQualifiersWithOperation [tests/advanced]: class query under TypedMap is not resolvable yet (H2 vocabulary)
+- ERROR testQualifierWithOperation [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
+- ERROR testTwoQualifiersWithOperation [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
 - ERROR testQualifierWithForkAndOrWithInline [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
 - ERROR testQualifierWithForkAndOrWithInlineWithOffset [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testQualifierWithForkAndOrWithInlineWithOffsetExplosion [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
@@ -1983,7 +1976,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testCorrelatedSubSqlQueryGeneration [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::milestoning::Product' is not a known class, mapping, runtime, connection, or database
 - ERROR TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNestedGeneration [tests/mapping/classMappingFilterWithInnerJoin]: milestoned class fetch of 'meta::relational::tests::model::simple::TemporalTrade' is not supported yet (H-scope exclusion)
 - FAIL testDistinctMappingSimpleProjectSelectOneOfTheDistinctProperties [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
-- FAIL testDistinctMappingSimpleProjectDistinct [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\n>, got <name\nIF 2\nIF 1\n>
 - FAIL testDistinctMappingWithFilterSelectOneProperty [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
 - ERROR testDistinctMappingWithJoinSelectAll [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\n\nIfName2\nIfName1\n>
@@ -2028,7 +2020,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProjectionOtherwiseNonPrimitive [tests/mapping/embedded]: in function 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise3$class$meta::relational::tests::mapping::embedded::advanced::model::Product': relation has no column 'bondClassification'
 - SHAPE otherwiseTestGroupBy [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
 - FAIL otherwiseTestGroupByComplexAgg [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\n15 years,2.0\n5 years,5.0\n>, got <Bond Type,sum\n5 years,5.0\n15 years,2.0\n>
-- FAIL otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\nBond 1,1.0\nBond 2,1.0\nSuperBond 3 super,5.0\n>, got <Bond Type,sum\nSuperBond 3 super,5.0\nBond 1,1.0\nBond 2,1.0\n>
+- FAIL otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\nBond 1,1.0\nBond 2,1.0\nSuperBond 3 super,5.0\n>, got <Bond Type,sum\nSuperBond 3 super,5.0\nBond 2,1.0\nBond 1,1.0\n>
 - FAIL otherwiseTestQualifierPropertyConstantExpression [tests/mapping/embedded]: toCSV: expected <name,duration\nProduct 1,5\nProduct 2,5\n>, got <name,market\nProduct 1,LSE\nProduct 2,LSE\nProduct 3,MILAN\n>
 - ERROR otherwiseTestComplexExpressionWithEnumMapping [tests/mapping/embedded]: property 'type' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise2'
 - ERROR otherwiseTestEmbeddedToEmbedded [tests/mapping/embedded]: multi-hop navigation bondDetails.issuer.name through an embedded/slot head is not supported yet
@@ -2055,8 +2047,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMilestonedInlineGraphFetchWithEnumProperty [tests/mapping/embedded]: milestoned class fetch of 'meta::relational::tests::mapping::embedded::advanced::model::PersonWithGenderInfo' is not supported yet (H-scope exclusion)
 - ERROR testSubType [tests/mapping/embedded]: class-typed property '$p.issuer' used as a whole value is graph output (Phase H4)
 - ERROR testSubTypeOnPropertyMappedToNonRootInlineSetImpl [tests/mapping/embedded]: class-typed property '$p.holder' used as a whole value is graph output (Phase H4)
-- FAIL testGroupBy [tests/mapping/embedded]: toCSV: expected <holder,Profit\nholder1,10.0\nholder3,1.0\n>, got <holder,Profit\nholder3,1.0\nholder1,10.0\n>
-- SHAPE testGroupByComplexAgg [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
+- SHAPE testGroupBy [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold)
+- FAIL testGroupByComplexAgg [tests/mapping/embedded]: toCSV: expected <c1,sum\nholder1,2.0\nholder3,5.0\n>, got <c1,sum\nholder3,5.0\nholder1,2.0\n>
 - FAIL testQualifierProperty [tests/mapping/embedded]: toCSV: expected <name,c2,c3\nBond 1,issuer1,holder1\n>, got <>
 - SHAPE testEnumTheSame [tests/mapping/enumeration]: no execute(|...) call
 - SHAPE testMapping [tests/mapping/enumeration]: partial: 2/12 asserts recognized (recognized ones hold)
@@ -2577,7 +2569,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFilterTimesWithManyOperands [tests/query]: multi-hop navigation firm.employees.age through an embedded/slot head is not supported yet
 - SHAPE testFilterUsingQuarterNumberFunction [tests/query]: partial: 1/3 asserts recognized (recognized ones hold)
 - ERROR testCollectionDistinctFunction [tests/query]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testDivideFunctionPrecision [tests/query]: class query under TypedMap is not resolvable yet (H2 vocabulary)
+- SHAPE testDivideFunctionPrecision [tests/query]: partial: 1/4 asserts recognized (recognized ones hold)
 - ERROR testJoinStringFunction [tests/query]: no overload of 'meta::pure::functions::string::joinStrings' accepts 1 argument(s)
 - ERROR testDayOfWeekFunction [tests/query]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testDayOfWeekNumberFunction [tests/query]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
