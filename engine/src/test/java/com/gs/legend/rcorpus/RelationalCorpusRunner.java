@@ -22,22 +22,29 @@ import java.util.stream.Stream;
  */
 class RelationalCorpusRunner {
 
-    /** First-wave families: what the porting plan calls "families we claim to support". */
-    private static final List<String> FAMILIES = List.of(
-            "tests/query",
-            "tests/mapping/association",
-            "tests/mapping/join",
-            "tests/mapping/embedded",
-            "tests/mapping/enumeration",
-            "tests/mapping/distinct",
-            "tests/mapping/groupBy",
-            "tests/mapping/filter",
-            "tests/mapping/inheritance",
-            "tests/mapping/innerJoin",
-            "tests/mapping/selfJoin",
-            "tests/mapping/inClause",
-            "tests/mapping/boolean.pure",
-            "tests/mapping/dates.pure");
+    /**
+     * THE WHOLE core_relational estate: every directory (recursively) under
+     * the corpus root that directly contains .pure files is a family. No
+     * hand-picked first wave — the denominator is reality; unsupported
+     * territories (milestoning, union, ...) show up as walls/errors, never
+     * silently out of scope.
+     */
+    private static List<String> allFamilies() throws Exception {
+        List<String> out = new ArrayList<>();
+        try (Stream<Path> walk = Files.walk(Corpus.RELATIONAL)) {
+            walk.filter(Files::isDirectory)
+                    .filter(d -> {
+                        try (Stream<Path> files = Files.list(d)) {
+                            return files.anyMatch(f -> f.toString().endsWith(".pure"));
+                        } catch (Exception e) {
+                            return false;
+                        }
+                    })
+                    .sorted()
+                    .forEach(d -> out.add(Corpus.RELATIONAL.relativize(d).toString()));
+        }
+        return out;
+    }
 
     @Test
     void scoreboard() throws Exception {
@@ -63,15 +70,11 @@ class RelationalCorpusRunner {
         }
 
         Map<String, List<Runner.Outcome>> byFamily = new LinkedHashMap<>();
-        for (String family : FAMILIES) {
+        for (String family : allFamilies()) {
             Path p = Corpus.RELATIONAL.resolve(family);
             List<Path> files = new ArrayList<>();
-            if (Files.isDirectory(p)) {
-                try (Stream<Path> s = Files.walk(p)) {
-                    s.filter(f -> f.toString().endsWith(".pure")).sorted().forEach(files::add);
-                }
-            } else if (Files.exists(p)) {
-                files.add(p);
+            try (Stream<Path> s = Files.list(p)) {
+                s.filter(f -> f.toString().endsWith(".pure")).sorted().forEach(files::add);
             }
             List<Runner.Outcome> outcomes = new ArrayList<>();
             for (Path f : files) {
@@ -91,8 +94,12 @@ class RelationalCorpusRunner {
                     testSources.put(f, src);
                 }
             }
-            runner.useFamily(family, familySources,
-                    new ArrayList<>(testSources.values()));
+            // ANCESTOR setup inheritance was tried and REVERTED: sibling-dir
+            // models conflict (tests/ direct files carry alternative Person
+            // models) — net 48 vs 64 passes. Families see only their own
+            // directory's files.
+            List<String> modelOnly = new ArrayList<>(testSources.values());
+            runner.useFamily(family, familySources, modelOnly);
             for (Map.Entry<Path, String> e : testSources.entrySet()) {
                 runner.useFile(e.getKey().toString(), e.getValue());
                 for (Corpus.TestFn fn : Corpus.testFunctions(e.getValue())) {
@@ -100,7 +107,7 @@ class RelationalCorpusRunner {
                 }
             }
             if (!outcomes.isEmpty()) {
-                byFamily.put(family.replace("tests/", ""), outcomes);
+                byFamily.put(family, outcomes);
             }
         }
 

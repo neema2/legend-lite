@@ -43,11 +43,15 @@ public final class Runner {
     /** Advisory golden-SQL diffs: counted, never failed on. */
     public int sqlAsserts;
 
+    /** Element keys (kind::fqn) of the SHARED base model — dedup floor. */
+    private final java.util.Set<String> sharedSeen = new java.util.HashSet<>();
+
     public Runner(List<String> sharedSources, List<String> seedSources) {
         StringBuilder mandatory = new StringBuilder();
         List<String[]> mappings = new ArrayList<>();
         for (String src : sharedSources) {
             for (String[] el : splitSectioned(Corpus.modelElements(src))) {
+                sharedSeen.add(el[0] + "::" + el[1]);
                 if (el[0].equals("Mapping")) {
                     mappings.add(el);
                 } else {
@@ -127,7 +131,7 @@ public final class Runner {
         // file A may reference classes from file B, so mappings probe
         // after ALL classes/stores across the family are present.
         List<String[]> mappings = new ArrayList<>();
-        java.util.Set<String> seen = new java.util.HashSet<>();
+        java.util.Set<String> seen = new java.util.HashSet<>(sharedSeen);
         familySeen.put(familyKey, seen);
         for (String src : setupSources) {
             StringBuilder part = new StringBuilder();
