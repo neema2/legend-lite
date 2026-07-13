@@ -52,6 +52,7 @@ final class Substitution {
                   Map<String, AssocSub> assocs,
                   java.util.Set<String> assocEnds,
                   Map<String, ExistsSub> existsSubs,
+                  Map<TypedSpec, String> aggReads,
                   com.legend.compiler.element.TypedFunction isNotEmptyCallee,
                   boolean filterPosition, boolean nested) {}
 
@@ -173,6 +174,15 @@ final class Substitution {
     }
 
     private TypedSpec rewrite(TypedSpec n) {
+        // AGGREGATE over a to-many navigation (identity-registered by the
+        // demand scan): the whole call reads its grouped-subselect column —
+        // same ExprType as the node it replaces (discipline, plan risk #1).
+        String aggCol = target.aggReads().get(n);
+        if (aggCol != null) {
+            return new TypedPropertyAccess(new TypedVariable(target.freshRowVar(),
+                    new ExprType(target.rowType(), Multiplicity.Bounded.ONE)),
+                    aggCol, n.info());
+        }
         // TO-MANY navigation under an emptiness call: correlated EXISTS —
         // the target pipeline filtered by the association condition (parent
         // reads become the FREE outer row var, resolved through the
@@ -511,7 +521,7 @@ final class Substitution {
                 target.userVar(), target.freshRowVar(), target.classFqn(),
                 target.mappingFqn(), target.sourceRowVar(), target.bindings(),
                 target.rowType(), target.strippedSlots(), target.slotPrefixes(),
-                inner, target.assocEnds(), Map.of(), null, true, true));
+                inner, target.assocEnds(), Map.of(), Map.of(), null, true, true));
         TypedSpec leafInner = innerSub.rewrite(leaf);
         TypedLambda pred = new TypedLambda(List.of(tVar), List.of(leafInner), predType);
 
@@ -600,7 +610,7 @@ final class Substitution {
                 predLam.parameters().get(0), tVar, ex.targetClassFqn(),
                 target.mappingFqn(), ex.targetRowVar(), ex.targetBindings(),
                 ex.targetRow(), ex.targetSlotAliases(), Map.of(), Map.of(),
-                java.util.Set.of(), Map.of(), null, true, true));
+                java.util.Set.of(), Map.of(), Map.of(), null, true, true));
         TypedLambda inner = predSub.rewriteLambda(predLam);
         TypedLambda innerOuter = new TypedLambda(inner.parameters(),
                 inner.body().stream().map(this::rewrite).toList(), inner.info());
@@ -670,7 +680,7 @@ final class Substitution {
                     predLam.parameters().get(0), tVar, ex.targetClassFqn(),
                     target.mappingFqn(), ex.targetRowVar(), ex.targetBindings(),
                     ex.targetRow(), ex.targetSlotAliases(), Map.of(), Map.of(),
-                    java.util.Set.of(), Map.of(), null, true, true));
+                    java.util.Set.of(), Map.of(), Map.of(), null, true, true));
             TypedLambda inner = predSub.rewriteLambda(predLam);
             // OUTER reads inside the predicate ($s.name == $f.legal): a
             // second pass through THIS substitution turns them into

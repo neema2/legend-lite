@@ -414,6 +414,13 @@ public final class TestBody {
         body = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(body);
         body = new com.legend.resolver.StoreResolver(ctx, specs).resolve(body, runtimeFqn);
         TypedSpec root = body.get(body.size() - 1);
+        // from() is context-only: shape AND root type must come from the
+        // same looked-through node — a resolved source may be relation-shaped
+        // (scalar map lowers to a one-column project) while the from wrapper
+        // still carries the pre-resolution scalar info.
+        while (root instanceof com.legend.compiler.spec.typed.TypedFrom fr) {
+            root = fr.source();
+        }
         com.legend.sql.SqlQuery plan = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent()).lower(body);

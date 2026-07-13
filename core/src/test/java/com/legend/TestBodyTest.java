@@ -263,6 +263,84 @@ class TestBodyTest {
                 """), 2);
     }
 
+    private static final String FIRM_MODEL = """
+            Class test::Person { name : String[1]; age : Integer[1]; }
+            Class test::Firm { legal : String[1]; id : Integer[1]; }
+            Association test::Employment
+            { employer : test::Firm[1]; employees : test::Person[*]; }
+
+            Database test::DB (
+              Table FIRM ( ID INTEGER PRIMARY KEY, LEGAL VARCHAR(64) )
+              Table PERSON ( NAME VARCHAR(64) PRIMARY KEY, AGE INTEGER,
+                             FIRMID INTEGER )
+              Join FP ( FIRM.ID = PERSON.FIRMID )
+            )
+
+            Mapping test::M (
+              test::Person : Relational {
+                ~mainTable [test::DB] PERSON
+                name : [test::DB]PERSON.NAME, age : [test::DB]PERSON.AGE
+              }
+              test::Firm : Relational {
+                ~mainTable [test::DB] FIRM
+                legal : [test::DB]FIRM.LEGAL, id : [test::DB]FIRM.ID
+              }
+              test::Employment : Relational { AssociationMapping (
+                employer : [test::DB]@FP, employees : [test::DB]@FP
+              ) }
+            )
+
+            RelationalDatabaseConnection test::Conn
+            { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+
+            Runtime test::Rt
+            { mappings: [ test::M ]; connections: [ test::DB: [ c: test::Conn ] ] }
+            """;
+
+    private static TestBody.Outcome runFirm(String body) throws Exception {
+        ModelContext ctx = Compiler.compileModel(FIRM_MODEL);
+        try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
+            try (var st = conn.createStatement()) {
+                st.execute("CREATE TABLE FIRM (ID INT, LEGAL VARCHAR)");
+                st.execute("CREATE TABLE PERSON (NAME VARCHAR, AGE INT, FIRMID INT)");
+                st.execute("INSERT INTO FIRM VALUES (1,'X'),(2,'A'),(3,'B')");
+                st.execute("""
+                        INSERT INTO PERSON VALUES ('Bob',30,1),('Alice',20,1),
+                        ('Cid',40,2),('Dee',10,3)""");
+            }
+            return TestBody.run(ctx, body, IMPORTS, "test::Rt", conn);
+        }
+    }
+
+    /** The engine subAggregation family: an aggregate over a to-many
+     * navigation is a grouped-subselect join — one value PER SOURCE ROW,
+     * never a row explosion, and the aggregate runs in the database. */
+    @Test
+    void aggregateOverToManyNavigation() throws Exception {
+        assertHeld(runFirm("""
+                let result = execute(|test::Firm.all()
+                        ->map(f|$f.employees.age->average()),
+                        test::M, r(), e());
+                assertSize($result.values, 3);
+                assertSameElements([25.0, 40.0, 10.0], $result.values);
+                """), 2);
+    }
+
+    @Test
+    void aggregateOverToManyInProjectColumns() throws Exception {
+        assertHeld(runFirm("""
+                let result = execute(|test::Firm.all()->project(
+                        [f|$f.legal, f|$f.employees.age->max(),
+                         f|$f.employees.name->joinStrings('*')],
+                        ['legal', 'oldest', 'names']), test::M, r(), e());
+                assertSize($result.values->at(0), 3);
+                assertSameElements(['X|30|Bob*Alice', 'A|40|Cid', 'B|10|Dee'],
+                        $result.values->at(0)->map(r|
+                                $r.legal + '|' + $r.oldest->toOne()->toString()
+                                + '|' + $r.names->toOne()));
+                """), 2);
+    }
+
     @Test
     void unknownAssertFormIsLoudUnsupported() throws Exception {
         TestBody.Outcome o = run("""

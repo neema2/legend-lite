@@ -122,9 +122,9 @@ runner does not yet recognize (accounted, not skipped silently).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 0 | 0 | 88 | 4 |
 | executionPlan/tests | 109 | 0 | 0 | 8 | 101 |
-| functions/tests | 241 | 47 | 10 | 142 | 42 |
+| functions/tests | 241 | 61 | 9 | 129 | 42 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 0 | 1 |
-| functions/tests/projection | 154 | 42 | 15 | 68 | 29 |
+| functions/tests/projection | 154 | 48 | 9 | 68 | 29 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 5 | 0 | 0 | 0 | 5 |
 | graphFetch/tests/union | 1 | 0 | 0 | 0 | 1 |
@@ -144,7 +144,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | sqlQueryToString/DDL | 3 | 0 | 0 | 0 | 3 |
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 265 | 97 | 5 | 106 | 57 |
+| tds/tests | 265 | 97 | 6 | 105 | 57 |
 | testDataGeneration/tests | 40 | 0 | 0 | 0 | 40 |
 | tests | 39 | 0 | 0 | 0 | 39 |
 | tests/advanced | 67 | 7 | 0 | 38 | 22 |
@@ -178,7 +178,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **392** | 69 | 994 | 837 |
+| **total** | 2292 | **412** | 63 | 980 | 837 |
 
 ### mapping walls (dropped at assembly)
 
@@ -673,8 +673,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - FAIL testSimpleTriangularJoinViaIsEmpty [functions/tests]: assertEquals: expected 0, got 4
 - ERROR testIsEmptyOnQualifiedPropertyFollowedByClassPropertyInput [functions/tests]: scalar lowering not yet implemented for TypedPropertyAccess
 - SHAPE testIsEmptyOnCollection [functions/tests]: no execute(|...) call
-- ERROR testSimpleAutoMap [functions/tests]: TABULAR result without a relation root type: String
-- ERROR testSimpleExplicitMap [functions/tests]: TABULAR result without a relation root type: String
 - ERROR testFilterOnSimpleTypeProperty [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testFilterThenMapAndReturnObject [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testFilterOnSimpleTypePropertyDeep [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
@@ -682,11 +680,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testAssociationToManyAutoMap [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testAssociationToOneAutoMap [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testAssociationDeep [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testOperation [functions/tests]: TABULAR result without a relation root type: String
-- ERROR testBoolean [functions/tests]: TABULAR result without a relation root type: Boolean
-- ERROR testIntegerMultiply [functions/tests]: TABULAR result without a relation root type: Integer
-- ERROR testSimpleDerivedProperty [functions/tests]: TABULAR result without a relation root type: String
-- ERROR testAdvancedDerivedProperty [functions/tests]: TABULAR result without a relation root type: String
 - ERROR testAdvancedDerivedPropertyThroughAssociation [functions/tests]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - ERROR testFilter [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testFilterWithProperty [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
@@ -696,15 +689,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testDeepBooleanFilterWithProperty [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testDeepBooleanFilterWithPropertyUsingOr [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testGlobalAggregation [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testSubAggregation [functions/tests]: TABULAR result without a relation root type: Float
 - ERROR testSubAggregationMultiLevel [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testSubAggregationMultiLevelJoinString [functions/tests]: no overload of 'meta::pure::functions::string::joinStrings' accepts 1 argument(s)
-- ERROR testSubAggregationAverageWithOperation [functions/tests]: TABULAR result without a relation root type: Number
-- ERROR testSubAggregationSumWithOperation [functions/tests]: TABULAR result without a relation root type: Integer
 - ERROR testSubAggregationUsingIf [functions/tests]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
-- ERROR testSubAggregationAverageInQualifier [functions/tests]: TABULAR result without a relation root type: Float
-- ERROR testSubAggregationMaxInQualifier [functions/tests]: TABULAR result without a relation root type: Integer
-- ERROR testSubAggregationSumInQualifier [functions/tests]: TABULAR result without a relation root type: Integer
 - SHAPE testSequenceMapWithConfusingSetImplementation [functions/tests]: unsupported statement: meta::relational::tests::mapping::filter::model::store::createTablesAndFillDb
 - ERROR testSimple [functions/tests]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR testStdDevSample [functions/tests]: unknown class 'TDSNull' in ^TDSNull(…)
@@ -728,7 +715,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - FAIL testGroupByOnRootLevelPrimitiveAttributeWithNoJoinAndFilter [functions/tests]: assertEquals: expected [2014-12-01, 356.0], got [2014-12-01, 356.0]
 - ERROR testSimpleJoinStrings [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testJoinStringsWithAssociation [functions/tests]: expected at most one value, got many ([*])
-- FAIL testJoinStringsTwiceWithAssociation [functions/tests]: assertEquals: expected [CITY, Peter*John*John*Anthony-Fabrice-Oliver-David], got [CITY, Anthony-Fabrice-Oliver-David-John-John-Peter]
 - ERROR testUsingSameAggFunctionTwice [functions/tests]: scalar lowering not yet implemented for TypedSort
 - ERROR testUsingSameAggFunctionTwiceUsingQualifier [functions/tests]: scalar lowering not yet implemented for TypedSort
 - ERROR testAggToManyWithAverage [functions/tests]: expected at most one value, got many ([*])
@@ -773,21 +759,15 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSortByLambdaDeepOptional [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - SHAPE testSortByLambda_QueryWithParameters_Plan [functions/tests]: no execute(|...) call
 - SHAPE testLoadCsv [functions/tests/loadCsvToDbTable]: unsupported statement: meta::relational::functions::toDDL::dropAndCreateTableInDb
-- FAIL testSubAggregation [functions/tests/projection]: assertSize: expected 4, got 7
-- FAIL testSubAggregationWithAnotherSimpleProperty [functions/tests/projection]: assertSize: expected 4, got 7
 - ERROR testTwoSubAggregationSameProperty [functions/tests/projection]: no scalar lowering registered for resolved overload 'meta::pure::functions::collection::count' with 1 parameter(s)
-- FAIL testProjectQualifierContainingAggregation [functions/tests/projection]: assertSize: expected 4, got 7
 - ERROR testProjectQualifierContainingAggregationWithSubAgg [functions/tests/projection]: no scalar lowering registered for resolved overload 'meta::pure::functions::collection::count' with 1 parameter(s)
 - ERROR testDeepSubAggregation [functions/tests/projection]: multi-hop navigation employees.address.name through an embedded/slot head is not supported yet
 - ERROR testSubAggregationWithIf [functions/tests/projection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
-- FAIL testSubAggregationWithJoinStrings [functions/tests/projection]: assertSize: expected 4, got 7
 - ERROR testSubAggregationWithJoinStringsOrderBy [functions/tests/projection]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
 - SHAPE testSubAggregationWithDeepAndOverlap [functions/tests/projection]: unsupported statement: println
 - ERROR testSubAggregationWithDeepAndOverlap_WithColVar [functions/tests/projection]: project expects ~[…] column specifications
 - ERROR testSubAggregationWithDeep [functions/tests/projection]: multi-hop navigation employees.locations.place through an embedded/slot head is not supported yet
-- FAIL testSubAggregationWithMax [functions/tests/projection]: assertSize: expected 4, got 7
 - FAIL testDateAggregationWithMax [functions/tests/projection]: assertSize: expected 3, got 7
-- FAIL testSubAggregationWithTopLevelIf [functions/tests/projection]: assertSize: expected 4, got 7
 - ERROR testIsDistinctSubAggregation [functions/tests/projection]: no overload of 'meta::pure::functions::collection::isDistinct' accepts 1 argument(s)
 - ERROR testAssociationMixed [functions/tests/projection]: a scalar query has no row scope for $_r0.firm_employees
 - ERROR testAssociationMixedAdvanced [functions/tests/projection]: filter predicate references column 'firm_employees', unresolvable even after isolation
@@ -1417,9 +1397,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProjectWithColumnSubSetSQLTest [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
 - SHAPE testProjectWithQuotedColumnFromTableToTDS [tds/tests]: no execute(|...) call
 - ERROR testLowerProjectColsEliminated [tds/tests]: unknown function 'sqlRemoveFormatting'
-- FAIL testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: assertEquals: expected Anthony,David,Fabrice,John,Oliver,Peter, got David,Oliver,Fabrice,Peter,Anthony,John
+- FAIL testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: assertEquals: expected Anthony,David,Fabrice,John,Oliver,Peter, got David,Peter,Oliver,John,Fabrice,Anthony
 - ERROR testLowerProjectColsNotEliminatedWithSort [tds/tests]: unknown function 'sqlRemoveFormatting'
-- ERROR testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct [tds/tests]: unknown function 'sqlRemoveFormatting'
+- FAIL testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct [tds/tests]: assertEquals: expected Firm A|1,Firm B|1,Firm C|1,Firm X|4, got Firm B|1,Firm C|1,Firm X|4,Firm A|1
 - ERROR testRestrictOnGroupByColumn_SubSetOfGroupByColumns [tds/tests]: no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - ERROR testRestrictOnGroupByColumn_DropAllAggColumns [tds/tests]: unknown function 'sqlRemoveFormatting'
 - ERROR testRestrictHandlesQueryPathsCorrectlyOnRename [tds/tests]: ~age_new: mapped/aggregate column specifications need an enclosing call to type against
@@ -1677,7 +1657,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNestedGeneration [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::store::TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNested' is not a known class, mapping, runtime, connection, or database
 - FAIL testDistinctMappingSelectAll [tests/mapping/distinct]: assertSameElements: expected [IF 1, IF 2, IF 2], got [IF 2, IF 1]
 - FAIL testDistinctMappingSimpleProjectSelectOneOfTheDistinctProperties [tests/mapping/distinct]: assertEquals: expected name\nIF 1\nIF 2\nIF 2\n, got [IF 1, IF 2]
-- FAIL testDistinctMappingWithFilterSelectAll [tests/mapping/distinct]: assertSameElements: expected [IF 1, IF 2, IF 2], got [IF 1, IF 2]
+- FAIL testDistinctMappingWithFilterSelectAll [tests/mapping/distinct]: assertSameElements: expected [IF 1, IF 2, IF 2], got [IF 2, IF 1]
 - FAIL testDistinctMappingWithFilterSelectOneProperty [tests/mapping/distinct]: assertEquals: expected name\nIF 1\nIF 2\nIF 2\n, got [IF 1, IF 2]
 - FAIL testDistinctMappingWithJoinSelectAll [tests/mapping/distinct]: assertSameElements: expected [IF 1, IF 2, IF 2], got [IF 2, IF 1]
 - ERROR testProjectDistinctMappingWithDistinctInJoin [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
@@ -2145,10 +2125,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testTwoAssociationsToOneDeep [tests/query]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - FAIL testWithParameterToClassNestedSelect [tests/query]: assertSize: expected 0, got 1
 - ERROR testExistsWithQualifierOnleftSide [tests/query]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- FAIL testViewAll [tests/query]: assertSameElements: expected [100.0,Peter Smith, 150.0,John Johnson, 200.0,John Johnson], got [200.0,"John Johnson", 100.0,"Peter Smith", 150.0,"John Johnson"]
+- FAIL testViewAll [tests/query]: assertSameElements: expected [100.0,Peter Smith, 150.0,John Johnson, 200.0,John Johnson], got [200.0,"John Johnson", 150.0,"John Johnson", 100.0,"Peter Smith"]
 - SHAPE testViewWithJoinsAndDistinct [tests/query]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testDistinctOnlyIncludesTopLevelColumns [tests/query]: in function 'meta::relational::tests::TestViewWithDistinctAndJoins$class$meta::relational::tests::model::simple::Person': unknown table 'FirstNameAddress' in database 'meta::relational::tests::db'
-- FAIL testViewSimpleFilter [tests/query]: assertSameElements: expected [150.0,John Johnson, 200.0,John Johnson], got [200.0,"John Johnson", 150.0,"John Johnson"]
+- FAIL testViewSimpleFilter [tests/query]: assertSameElements: expected [150.0,John Johnson, 200.0,John Johnson], got [150.0,"John Johnson", 200.0,"John Johnson"]
 - ERROR testAllWithJoinToView [tests/query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Order' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: view 'orderPnlView' used as a join target has a join-naviga
 - SHAPE testViewSimpleExists [tests/query]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testViewPropertyFilterWithPrimaryKey [tests/query]: in function 'meta::relational::tests::query::view::EmployeeMappingWithViewAndInnerJoin$class$meta::relational::tests::model::simple::Employee': unknown table 'OrgView' in database 'meta::relational::tests::db'
