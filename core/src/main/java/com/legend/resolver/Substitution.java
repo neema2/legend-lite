@@ -261,6 +261,8 @@ final class Substitution {
             return renameRowVar(binding);
         }
         return switch (n) {
+            case TypedPropertyAccess pa when filteredNavLeafRead(pa) != null ->
+                    filteredNavLeafRead(pa);
             case TypedVariable v when v.name().equals(target.userVar()) ->
                     throw new NotImplementedException(
                             "object-space use of the instance variable '$" + v.name()
@@ -499,6 +501,94 @@ final class Substitution {
         return com.legend.builtin.Pure.nativeNamed("isEmpty", key)
                 || com.legend.builtin.Pure.nativeNamed("isNotEmpty", key)
                 || com.legend.builtin.Pure.nativeNamed("exists", key);
+    }
+
+    /**
+     * A FILTERED NAVIGATION consumed as a VALUE:
+     * {@code $p.assoc->filter(pred)->toOne().leaf} (derived-property bodies
+     * inline to exactly this shape). Rewrites to a CORRELATED single-column
+     * relation — target pipeline filtered by the oriented association
+     * condition AND the user predicate, projecting the leaf binding — which
+     * the lowerer renders as a scalar subquery in scalar position (DuckDB
+     * raises on more than one row: pure {@code toOne} semantics; empty is
+     * NULL: the read is {@code [0..1]}). Returns null when the shape does
+     * not match (the caller falls through to the ordinary walk).
+     */
+    private TypedSpec filteredNavLeafRead(TypedPropertyAccess pa) {
+        TypedSpec src = pa.source();
+        if (src instanceof TypedNativeCall c && c.args().size() == 1
+                && (c.callee().qualifiedName().endsWith("::toOne")
+                        || c.callee().qualifiedName().endsWith("::first")
+                        || c.callee().qualifiedName().endsWith("::head"))) {
+            src = c.args().get(0);
+        }
+        if (!(src instanceof com.legend.compiler.spec.typed.TypedFilter f)
+                || !(f.source() instanceof TypedPropertyAccess head)
+                || !(head.source() instanceof TypedVariable hv)
+                || !hv.name().equals(target.userVar())) {
+            return null;
+        }
+        ExistsSub ex = target.existsSubs().get(head.property());
+        if (ex == null) {
+            return null;
+        }
+        // 1. correlated association condition over the target pipeline
+        TypedLambda cond = ex.orientedCond();
+        String pVar = cond.parameters().get(0);
+        String tVar = cond.parameters().get(1);
+        List<TypedSpec> corrBody = cond.body().stream().map(b ->
+                Pipelines.rewriteRowReads(b, pVar, Map.of(), java.util.Set.of(),
+                        v -> new TypedVariable(target.freshRowVar(),
+                                new ExprType(target.rowType(), Multiplicity.Bounded.ONE))))
+                .toList();
+        TypedLambda corr = new TypedLambda(List.of(tVar), corrBody,
+                new ExprType(new Type.FunctionType(
+                        List.of(new Type.Param(ex.targetRow(), Multiplicity.Bounded.ONE)),
+                        new Type.Param(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE)),
+                        Multiplicity.Bounded.ONE));
+        TypedSpec rel = new com.legend.compiler.spec.typed.TypedFilter(
+                ex.targetPipeline(), corr, ex.targetPipeline().info());
+        // 2. the user predicate, substituted against the TARGET's bindings
+        //    (outer reads correlate through a second pass — same as exists)
+        TypedLambda predLam = f.predicate();
+        Substitution predSub = new Substitution(new Target(
+                predLam.parameters().get(0), tVar, ex.targetClassFqn(),
+                target.mappingFqn(), ex.targetRowVar(), ex.targetBindings(),
+                ex.targetRow(), ex.targetSlotAliases(), Map.of(), Map.of(),
+                java.util.Set.of(), Map.of(), null, true, true));
+        TypedLambda inner = predSub.rewriteLambda(predLam);
+        TypedLambda innerOuter = new TypedLambda(inner.parameters(),
+                inner.body().stream().map(this::rewrite).toList(), inner.info());
+        rel = new com.legend.compiler.spec.typed.TypedFilter(rel, innerOuter, rel.info());
+        // 3. project the leaf binding
+        TypedSpec leafBinding = ex.targetBindings().get(pa.property());
+        if (leafBinding == null) {
+            throw new MappingResolutionException("property '" + pa.property()
+                    + "' of class '" + ex.targetClassFqn()
+                    + "' has no binding in mapping '" + target.mappingFqn()
+                    + "' (filtered-navigation leaf)", ex.targetClassFqn());
+        }
+        if (Pipelines.referencesAliasOn(leafBinding, ex.targetRowVar(),
+                ex.targetSlotAliases())) {
+            throw new NotImplementedException("filtered-navigation leaf '"
+                    + pa.property() + "' reads a join slot of '"
+                    + ex.targetClassFqn() + "' — slot-demanding leaves under"
+                    + " value-position filters are not supported yet");
+        }
+        Type leafType = pa.info().type();
+        TypedLambda leafFn = new TypedLambda(List.of(ex.targetRowVar()),
+                List.of(leafBinding),
+                new ExprType(new Type.FunctionType(
+                        List.of(new Type.Param(ex.targetRow(), Multiplicity.Bounded.ONE)),
+                        new Type.Param(leafType, Multiplicity.Bounded.ONE)),
+                        Multiplicity.Bounded.ONE));
+        Type.RelationType outRow = new Type.RelationType(List.of(
+                new Type.RelationType.Column(pa.property(), leafType,
+                        pa.info().multiplicity())));
+        return new com.legend.compiler.spec.typed.TypedProject(rel,
+                List.of(new com.legend.compiler.spec.typed.TypedFuncCol(
+                        pa.property(), leafFn)),
+                new ExprType(outRow, Multiplicity.Bounded.ONE));
     }
 
     private TypedSpec rewriteExists(TypedNativeCall call, ExistsSub ex) {

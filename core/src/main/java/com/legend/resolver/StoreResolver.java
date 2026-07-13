@@ -654,9 +654,32 @@ public final class StoreResolver {
         for (java.util.List<String> path : paths) {
             String head = path.get(0);
             boolean filterTwoHop = path.size() == 2 && filterPaths.contains(path);
-            if ((path.size() != 1 && !filterTwoHop)
-                    || cs.bindings().containsKey(head)
-                    || existsSubs.containsKey(head)) {
+            if ((path.size() != 1 && !filterTwoHop) || existsSubs.containsKey(head)) {
+                continue;
+            }
+            if (cs.bindings().containsKey(head)) {
+                // A NAVIGATE-SLOT head (class-typed Join PM): the nav step
+                // carries the target extent + oriented (s, t) predicate —
+                // the same correlated-EXISTS material as an association end.
+                var nav = Pipelines.navSteps(cs.pipeline()).get(head);
+                if (nav == null || !(nav.target()
+                        instanceof com.legend.compiler.spec.typed.TypedGetAll tg)) {
+                    continue;
+                }
+                ClassSource t = sources.get(cs.mappingFqn(), tg.classFqn());
+                Pipelines.Materialized tMat = Pipelines.materialize(
+                        t.pipeline(), Set.of(), t.classFqn());
+                boolean navToMany = !(ctx.findProperty(cs.classFqn(), head)
+                        .map(pr -> pr.multiplicity())
+                        .filter(mm -> mm instanceof com.legend.compiler.element.type
+                                .Multiplicity.Bounded bb
+                                && Integer.valueOf(1).equals(bb.upper()))
+                        .isPresent());
+                existsSubs.put(head, new Substitution.ExistsSub(tMat.pipeline(),
+                        nav.predicate(), t.rowVar(), t.bindings(),
+                        (com.legend.compiler.element.type.Type.RelationType)
+                                tMat.pipeline().info().type(),
+                        t.classFqn(), Pipelines.slotAliases(t.pipeline()), navToMany));
                 continue;
             }
             var assocOpt = ctx.findAssociationOf(cs.classFqn(), head);

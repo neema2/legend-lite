@@ -2065,6 +2065,28 @@ public final class Lowerer {
                 int idx = fqn.lastIndexOf("::");
                 yield new SqlExpr.StringLit(idx < 0 ? fqn : fqn.substring(idx + 2));
             }
+            // A single-column RELATION consumed in SCALAR position — the
+            // correlated scalar subquery (value-position filtered
+            // navigation). DuckDB raises on more than one row (pure toOne
+            // semantics); an empty result is NULL (the read is [0..1]).
+            // The OUTER row resolver rides the enclosing channel so the
+            // inner predicate's correlated reads land on the outer alias.
+            case TypedSpec rel when rel.info().type()
+                    instanceof com.legend.compiler.element.type.Type.RelationType rt
+                    && rt.columns().size() == 1 -> {
+                enclosing.push((v, name) -> {
+                    SqlExpr r = columns.resolve(v, name);
+                    if (r == null) {
+                        throw new UnfoldableRef(name);
+                    }
+                    return r;
+                });
+                try {
+                    yield new SqlExpr.ScalarSubquery(relation(rel));
+                } finally {
+                    enclosing.pop();
+                }
+            }
             // SANCTIONED frontier default — see relation() above.
             default -> throw new com.legend.error.NotImplementedException("scalar lowering not yet implemented for "
                     + spec.getClass().getSimpleName());
