@@ -85,8 +85,12 @@ public final class Runner {
         this.seeds = sql;
     }
 
+    /** Zero-arg setup-function bodies across every scanned file. */
+    private final Map<String, String> setupFnBodies = new LinkedHashMap<>();
+
     public void addBeforePackages(String source) {
         beforePackages.addAll(Corpus.beforePackages(source));
+        Corpus.functionBodies(source).forEach(setupFnBodies::putIfAbsent);
     }
 
     /** Per-test-file model extensions (classes/mappings defined NEXT TO the tests). */
@@ -361,7 +365,9 @@ public final class Runner {
                 allSeeds.addAll(fileSeeds.getOrDefault(currentFileKey, List.of()));
                 for (Corpus.BeforePackage bp : beforePackages) {
                     if (fn.fqn().startsWith(bp.pkg() + "::")) {
-                        allSeeds.addAll(bp.sql());
+                        // expand against the WHOLE-RUN function corpus —
+                        // setup helpers live in sibling files
+                        allSeeds.addAll(Corpus.expandSeeds(bp.body(), bp.pkg(), setupFnBodies));
                     }
                 }
                 // the same literal often arrives via BOTH the shared base
@@ -699,6 +705,14 @@ public final class Runner {
                             ? args.get(1).strip().replaceAll("\\s+", " ")
                                     .replaceAll("\\s*->\\s*", "->")
                             : "";
+                    // 3-arg H2-compat: (legacySql, h2Sql, $r->sqlRemoveFormatting())
+                    if (args.size() == 3
+                            && args.get(2).strip().replaceAll("\\s+", "")
+                                    .endsWith("->sqlRemoveFormatting()")) {
+                        sqlAsserts++;
+                        recognized++;
+                        continue;
+                    }
                     if (second.endsWith("->sqlRemoveFormatting()") || second.endsWith("->sql()")) {
                         sqlAsserts++;   // advisory golden-SQL: recognized, NOT verified
                         recognized++;

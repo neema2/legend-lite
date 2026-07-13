@@ -4,7 +4,7 @@ RUN-as-data over the local legend-engine checkout; row equality is the
 contract, golden SQL is advisory. SHAPE = test body/assert form the
 runner does not yet recognize (accounted, not skipped silently).
 
-## Failed seed statements (122)
+## Failed seed statements (154)
 
 - `CREATE OR REPLACE TABLE testTable ("quantity" INT, "Class" VARCHAR(200), "boolean" INT, "abstract" INT, "assert" INT, "break" INT, "byte" INT, "catch" INT, "char" INT, "const" INT, "continue" INT, "default" INT, "do" INT, "double" INT, "else" INT, "enum" INT, "final" INT, "finally" INT, "DOUBLE" INT, "for" INT, "goto" INT, "implements" INT, "instanceof" INT, "interface" VARCHAR(100), "long" VARCHAR(100), "new" VARCHAR(100), "package" VARCHAR(100), "private" VARCHAR(100), "protected" VARCHAR(100), "public" VARCHAR(100), "return" VARCHAR(100), "short" VARCHAR(100), "static" VARCHAR(100), "strictfp" VARCHAR(100), "super" VARCHAR(100), "switch" VARCHAR(100), "synchronized" VARCHAR(100), "this" VARCHAR(100), "throw" VARCHAR(100), "throws" VARCHAR(100), "transient" VARCHAR(100), "try" VARCHAR(100), "void" VARCHAR(100), "volatile" VARCHAR(100), "while" VARCHAR(100)) => Catalog Error: Column with name DOUBLE already exists!`
 - `Create Table testTable("quantity" INT, "Class" VARCHAR(200), "boolean"  INT, "abstract"  INT, "assert"  INT, "break"  INT, "byte"  INT, "catch"  INT, "char"  INT, "const"  INT, "continue"  INT, "default"  INT, "do"  INT, "double"  INT, "else"  INT, "enum"  INT, "final"  INT, "finally"  INT, "DOUBLE"  INT, "goto"  INT, "implements"  INT, "instanceof"  INT, "interface" VARCHAR(100), "long" VARCHAR(100), "new" VARCHAR(100), "package" VARCHAR(100), "private" VARCHAR(100), "protected" VARCHAR(100), "public" VARCHAR(100), "return" VARCHAR(100), "short" VARCHAR(100), "static" VARCHAR(100), "strictfp" VARCHAR(100), "super" VARCHAR(100), "switch" VARCHAR(100), "synchronized" VARCHAR(100), "this" VARCHAR(100), "throw" VARCHAR(100), "throws" VARCHAR(100), "transient" VARCHAR(100), "try" VARCHAR(100), "void" VARCHAR(100), "volatile" VARCHAR(100), "while" VARCHAR(100)); => Catalog Error: Column with name DOUBLE already exists!`
@@ -71,6 +71,28 @@ runner does not yet recognize (accounted, not skipped silently).
 - `insert into LegendCalendarSchema.NY_Calendar ("date", "dayOfCalendarYear", "shortNameWeekDay", "adjustedDate", "fiscalWeekOffset", "fiscalDay", "fiscalDayOfMonth", "fiscalDayOfQuarter", "fiscalDayOfWeek", "prior4WeekDate", "prior12WeekDate", "prior52WeekDate", "currentMonthNum", "fiscalMonthEnd", "currentQuarterNum", "currentWeek", "fiscalWeekStart", "currentYear", "previousBusinessDay", "previousFiscalMonth", "previousFiscalQuarter", "previousFiscalYear", "numberOfFiscalDaysInMonth", "numberOfFiscalDaysInYear") values ('2021-10-15',288,'Fri','2021-10-15', -63,199,11,11,5,'2021-09-18','2021-07-24','2020-10-17',10,'2021-10-29',4,41,'2021-10-11',2021,'2021-10-14', 9,3,2020,21,252); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into LegendCalendarSchema.NY_Calendar ("date", "dayOfCalendarYear", "shortNameWeekDay", "adjustedDate", "fiscalWeekOffset", "fiscalDay", "fiscalDayOfMonth", "fiscalDayOfQuarter", "fiscalDayOfWeek", "prior4WeekDate", "prior12WeekDate", "prior52WeekDate", "currentMonthNum", "fiscalMonthEnd", "currentQuarterNum", "currentWeek", "fiscalWeekStart", "currentYear", "previousBusinessDay", "previousFiscalMonth", "previousFiscalQuarter", "previousFiscalYear", "numberOfFiscalDaysInMonth", "numberOfFiscalDaysInYear") values ('2021-10-16',289,'Sat','2021-10-18', -62,200,12,12,1,'2021-09-18','2021-07-24','2020-10-17',10,'2021-10-29',4,42,'2021-10-18',2021,'2021-10-15', 9,3,2020,21,252); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into Product ("id", "productDate", "name", "tradeId") values (1, '2014-12-01 21:00:00', 'prod 1 V1', 1); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into ProductClassificationTableWithBusinessSnapshotMilestoning values('STOCK', \ 'STOCK DESC-V1', '2015-8-15'); => Parser Error: syntax error at or near "\"`
+- `insert into ProductClassificationTableWithProcessingSnapshotMilestoning values('STOCK', \ 'STOCK DESC-V1', '2015-8-15'); => Parser Error: syntax error at or near "\"`
+- `Create Table tradeTable("ID" INT, "accountID" INT); => Catalog Error: Table with name "tradeTable" already exists!`
+- `Create Table salesPersonTable("ACCOUNT_ID" INT, "NAME" VARCHAR(200), "from_z" TIMESTAMP, "thru_z" TIMESTAMP); => Catalog Error: Table with name "salesPersonTable" already exists!`
+- `INSERT INTO Cars ("in_z", "out_z", "id", "description") VALUES\n('2020-01-01', '2050-01-01', 1, 'Sedan'),\n('2020-01-01', '2050-01-01', 2, 'SUV'),\n('2020-01-01', '2050-01-01', 3, 'Hatchback'),\n('2020-01-01', '2050-01-01', 4, 'Convertible'),\n('2020-01-01', '2050-01-01', 5, 'Truck'),\n('2100-01-01', '2200-01-01', 6, 'Nuclear Car'); => Parser Error: syntax error at or near "\"`
+- `INSERT INTO CarDetails ("id", "time") VALUES\n(1, '2025-01-01'),\n(2, '2030-01-01'),\n(3, '2035-01-01'),\n(4, '2040-01-01'),\n(5, '2045-01-01'),\n(6, '2150-01-01'); => Parser Error: syntax error at or near "\"`
+- `INSERT INTO Bicycles ("in_z", "out_z", "id", "description") VALUES\n('2020-01-01', '2050-01-01', 5, 'Mountain Bike'),\n('2020-01-01', '2050-01-01', 4, 'Road Bike'),\n('2020-01-01', '2050-01-01', 3, 'Hybrid Bike'),\n('2020-01-01', '2050-01-01', 2, 'Electric Bike'),\n('2020-01-01', '2050-01-01', 1, 'Folding Bike'),\n('2200-01-01', '2300-01-01', 6, 'Nuclear Bike'); => Parser Error: syntax error at or near "\"`
+- `INSERT INTO Jets ("in_z", "out_z", "id", "description") VALUES\n('2020-01-01', '2050-01-01', 3, 'Fighter Jet'),\n('2020-01-01', '2050-01-01', 8, 'Water Jet'),\n('2020-01-01', '2050-01-01', 6, 'Hybrid Jet'),\n('2020-01-01', '2050-01-01', 4, 'Supersonic Jet'),\n('2020-01-01', '2050-01-01', 2, 'Transformer Jet'); => Parser Error: syntax error at or near "\"`
+- `create table BiTemporalProductTable_Out_From_Inclusive ("id" Integer, "name" VARCHAR(200), "in_z" TIMESTAMP, "out_z" TIMESTAMP, "from_z" TIMESTAMP, "thru_z" TIMESTAMP); => Catalog Error: Table with name "BiTemporalProductTable_Out_From_Inclusive" already exists!`
+- `insert into BiTemporalProductTable_Out_From_Inclusive values(1, 'abc1', '2018-05-02 00:00:00', '9999-12-31 00:00:00', '2018-05-01 00:00:00', '9999-12-31 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into BiTemporalProductTable_Out_From_Inclusive values(2, 'def1', '2018-05-02 00:00:00', '2018-05-04 00:00:00', '2018-05-01 00:00:00', '2018-05-03 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into BiTemporalProductTable_Out_From_Inclusive values(2, 'def2', '2018-05-04 00:00:00', '2018-05-07 00:00:00', '2018-05-03 00:00:00', '2018-05-06 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into BiTemporalProductTable_Out_From_Inclusive values(2, 'def3', '2018-05-07 00:00:00', '9999-12-31 00:00:00', '2018-05-06 00:00:00', '9999-12-31 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into BiTemporalProductTable_Out_From_Inclusive values(3, 'ghi1', '2018-05-09 00:00:00', '9999-12-31 00:00:00', '2018-05-08 00:00:00', '9999-12-31 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `create table BiTemporalProductTable_Out_Thru_Inclusive ("id" Integer, "name" VARCHAR(200), "in_z" TIMESTAMP, "out_z" TIMESTAMP, "from_z" TIMESTAMP, "thru_z" TIMESTAMP); => Catalog Error: Table with name "BiTemporalProductTable_Out_Thru_Inclusive" already exists!`
+- `insert into BiTemporalProductTable_Out_Thru_Inclusive values(1, 'abc1', '2018-05-02 00:00:00', '9999-12-31 00:00:00', '2018-05-01 00:00:00', '9999-12-31 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into BiTemporalProductTable_Out_Thru_Inclusive values(2, 'def1', '2018-05-02 00:00:00', '2018-05-04 00:00:00', '2018-05-01 00:00:00', '2018-05-03 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into BiTemporalProductTable_Out_Thru_Inclusive values(2, 'def2', '2018-05-04 00:00:00', '2018-05-07 00:00:00', '2018-05-03 00:00:00', '2018-05-06 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into BiTemporalProductTable_Out_Thru_Inclusive values(2, 'def3', '2018-05-07 00:00:00', '9999-12-31 00:00:00', '2018-05-06 00:00:00', '9999-12-31 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into BiTemporalProductTable_Out_Thru_Inclusive values(3, 'ghi1', '2018-05-09 00:00:00', '9999-12-31 00:00:00', '2018-05-08 00:00:00', '9999-12-31 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into salesPersonTable ("account_id", "name", "from_z", "thru_z") values (1, 'Joe Martinez','2013-1-1 00:00:00','9999-12-31 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into salesPersonTable ("account_id", "name", "from_z", "thru_z") values (2, 'John Martinez','2015-1-1 00:00:00','9999-12-31 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into FirmTable ("id", "legalName", "addressId") values (8, 'No Employees', 11); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into PersonTable ("id", "firstName", "lastName", "age", "addressId", "firmId", "managerId") values (8, 'No address', 'Smith',35, null,4,null); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into PersonTable ("id", "firstName", "lastName", "age", "addressId", "firmId", "managerId") values (9, 'No firm', 'no Firm',35, 7,null,null); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
@@ -78,6 +100,16 @@ runner does not yet recognize (accounted, not skipped silently).
 - `insert into PersonTable ("id", "firstName", "lastName", "age", "addressId", "firmId", "managerId") values (11, 'Elena', 'Firm B',35, 7,3,null); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into PersonTable ("id", "firstName", "lastName", "age", "addressId", "firmId", "managerId") values (12, 'Don', 'New York',35, 7,1,null); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `Drop schema schemaB if exists cascade; => Parser Error: syntax error at or near "if"`
+- `Create Table productSchema.ProductTable("id" INT, "name" VARCHAR(200), "from_z" TIMESTAMP, "thru_z" TIMESTAMP); => Catalog Error: Table with name "ProductTable" already exists!`
+- `insert into productSchema.ProductTable ("id", "name", "from_z", "thru_z") values (1, 'Firm X', '2015-8-26 00:00:00', '2015-10-26 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into productSchema.ProductTable ("id", "name", "from_z", "thru_z") values (1, 'Firm A', '2015-10-26 00:00:00', '9999-12-31 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into productSchema.ProductTable ("id", "name", "from_z", "thru_z") values (2, 'Firm C', '2015-8-26 00:00:00', '2015-10-26 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into productSchema.ProductTable ("id", "name", "from_z", "thru_z") values (2, 'Firm D', '2015-10-26 00:00:00', '9999-12-31 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `Create Table productSchema.SynonymTable("id" INT, "prodid" INT, "type" VARCHAR(200), "name" VARCHAR(200), "from_z" TIMESTAMP, "thru_z" TIMESTAMP); => Catalog Error: Table with name "SynonymTable" already exists!`
+- `insert into productSchema.SynonymTable ("id", "prodid", "type", "name", "from_z", "thru_z") values (1, 1, 'CUSIP', 'CUSIP1', '2015-8-26 00:00:00', '2015-10-26 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into productSchema.SynonymTable ("id", "prodid", "type", "name", "from_z", "thru_z") values (2, 1, 'ISIN', 'ISIN1', '2015-10-26 00:00:00', '9999-12-31 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into productSchema.SynonymTable ("id", "prodid", "type", "name", "from_z", "thru_z") values (3, 2, 'ISIN', 'CUSIP2', '2015-8-26 00:00:00', '2015-10-26 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into productSchema.SynonymTable ("id", "prodid", "type", "name", "from_z", "thru_z") values (4, 2, 'CUSIP', 'ISIN2', '2015-10-26 00:00:00', '9999-12-31 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into DATA_WITH_TIMESTAMPS_KEYS ("ID1", "ID2", "ID3", "PROP_STRING", "PROP_INT") values (1, 'Peter', 'Smith', 1, 'Firm X', '1 the street' , 1, '200 west',1); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into DATA_WITH_TIMESTAMPS_KEYS ("ID1", "ID2", "ID3", "PROP_STRING", "PROP_INT") values (2, 'John', 'Johnson',   1, 'Firm X', '5 Park Ave', 1, '200 west',1); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into DATA_WITH_TIMESTAMPS_KEYS ("ID1", "ID2", "ID3", "PROP_STRING", "PROP_INT") values (5, 'Fabrice', 'Roberts', 2, 'Firm A', '7 Palo Alto', 2, '3 somewhere',1); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
@@ -145,7 +177,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 47 | 0 | 0 | 0 | 47 |
-| milestoning/tests | 257 | 0 | 6 | 201 | 50 |
+| milestoning/tests | 257 | 0 | 4 | 201 | 52 |
 | modelJoins | 9 | 0 | 0 | 0 | 9 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 12 | 0 | 0 | 0 | 12 |
@@ -193,7 +225,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2429 | **307** | 95 | 1088 | 939 |
+| **total** | 2429 | **307** | 93 | 1088 | 941 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1187,11 +1219,11 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testNestedExists_NestedExistsWithEmbeddedMappingInProject [milestoning/tests]: [1:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testDerivedPropertyOnNonTemporalClassWithMilestonedChain [milestoning/tests]: in function 'meta::relational::tests::milestoning::RootEntity$prop$childLeafValueDerived': unknown function 'rootChild'
 - SHAPE testGraphFetchMultiPrimitiveOnInlineChild [milestoning/tests]: no execute(|...) call
-- FAIL testQueryOnTemporalRoot [milestoning/tests]: id: expected [2], got []
+- SHAPE testQueryOnTemporalRoot [milestoning/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "root".id as "id" from ProductTableWithBusinessSnapshotMilestoning as "root" where
 - ERROR testQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'product'
 - ERROR testQueryWithPropagationOnTemporalRoot [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap'
 - ERROR testQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'product'
-- FAIL testUnionQueryOnTemporalRoot [milestoning/tests]: id: expected [2, 2], got []
+- FAIL testUnionQueryOnTemporalRoot [milestoning/tests]: id: expected [2, 2], got [2]
 - ERROR testUnionQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'product'
 - ERROR testUnionQueryWithPropagationOnTemporalRoot [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningUnionMap'
 - ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'product'
@@ -1287,11 +1319,11 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProcessingTemporalAllQuery [milestoning/tests]: [1:50] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testProcessingTemporalPropertyQuery [milestoning/tests]: [1:50] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testProcessingTemporalPropertyPropagationInQuery [milestoning/tests]: [1:50] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- FAIL testQueryOnTemporalRoot [milestoning/tests]: id: expected [2], got []
+- SHAPE testQueryOnTemporalRoot [milestoning/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "root".id as "id" from ProductTableWithProcessingSnapshotMilestoning as "root" whe
 - ERROR testQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'processingTemporalProduct'
 - ERROR testQueryWithPropagationOnTemporalRoot [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMap'
 - ERROR testQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'processingTemporalProduct'
-- FAIL testUnionQueryOnTemporalRoot [milestoning/tests]: id: expected [2, 2], got []
+- FAIL testUnionQueryOnTemporalRoot [milestoning/tests]: id: expected [2, 2], got [2]
 - ERROR testUnionQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'processingTemporalProduct'
 - ERROR testUnionQueryWithPropagationOnTemporalRoot [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningUnionMap'
 - ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'processingTemporalProduct'
@@ -1640,7 +1672,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProjectWithColumnSubSetSQLTest [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
 - SHAPE testProjectWithQuotedColumnFromTableToTDS [tds/tests]: no execute(|...) call
 - SHAPE testLowerProjectColsEliminated [tds/tests]: partial: 3/4 asserts recognized (recognized ones hold); first unrecognized: assertFalse($result->sqlRemoveFormatting()->toLower()->contains('hello'))
-- FAIL testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: rows: expected <Anthony,David,Fabrice,John,Oliver,Peter>, got <Fabrice,John,Oliver,Peter,Anthony,David>
+- FAIL testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: rows: expected <Anthony,David,Fabrice,John,Oliver,Peter>, got <Fabrice,Peter,Oliver,John,Anthony,David>
 - SHAPE testLowerProjectColsNotEliminatedWithSort [tds/tests]: partial: 3/4 asserts recognized (recognized ones hold); first unrecognized: assert($result->sqlRemoveFormatting()->toLower()->contains('hello'))
 - FAIL testRestrictOnGroupByEleminatesUncessaryAggs [tds/tests]: rows: expected <Firm A|1,Firm B|1,Firm C|1,Firm X|4>, got <null|7>
 - FAIL testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct [tds/tests]: rows: expected <Firm A|1,Firm B|1,Firm C|1,Firm X|4>, got <null|7>
@@ -1919,7 +1951,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - FAIL testDistinctMappingSimpleProjectDistinct [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\n>, got <name\nIF 2\nIF 1\n>
 - FAIL testDistinctMappingWithFilterSelectOneProperty [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
 - ERROR testDistinctMappingWithJoinSelectAll [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
-- FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\nIfName1\n\nIfName2\n>
+- FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\n\nIfName2\nIfName1\n>
 - ERROR testProjectDistinctMappingWithDistinctInJoin [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testProjectDistinctMappingWithDistinctInJoinWithDup [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testDistinctMappingWithDistinctInJoinWithFilter [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
@@ -1960,8 +1992,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProjectionOtherwiseDeepTraversal [tests/mapping/embedded]: multi-hop navigation bondDetails.holder.name through an embedded/slot head is not supported yet
 - ERROR testProjectionOtherwiseNonPrimitive [tests/mapping/embedded]: in function 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise3$class$meta::relational::tests::mapping::embedded::advanced::model::Product': relation has no column 'bondClassification'
 - SHAPE otherwiseTestGroupBy [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "bond_detail_0".TYPE as "Bond Type", sum(case when "root".MARKET_NAME = \'LSE\' th
-- SHAPE otherwiseTestGroupByComplexAgg [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "bond_detail_0".TYPE as "Bond Type", sum(case when "bond_detail_0".TYPE like \'5%\
-- FAIL otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\nBond 1,1.0\nBond 2,1.0\nSuperBond 3 super,5.0\n>, got <Bond Type,sum\nBond 2,1.0\nBond 1,1.0\nSuperBond 3 super,5.0\n>
+- FAIL otherwiseTestGroupByComplexAgg [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\n15 years,2.0\n5 years,5.0\n>, got <Bond Type,sum\n5 years,5.0\n15 years,2.0\n>
+- FAIL otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\nBond 1,1.0\nBond 2,1.0\nSuperBond 3 super,5.0\n>, got <Bond Type,sum\nSuperBond 3 super,5.0\nBond 2,1.0\nBond 1,1.0\n>
 - FAIL otherwiseTestQualifierPropertyConstantExpression [tests/mapping/embedded]: toCSV: expected <name,duration\nProduct 1,5\nProduct 2,5\n>, got <name,market\nProduct 1,LSE\nProduct 2,LSE\nProduct 3,MILAN\n>
 - ERROR otherwiseTestComplexExpressionWithEnumMapping [tests/mapping/embedded]: property 'type' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise2'
 - ERROR otherwiseTestEmbeddedToEmbedded [tests/mapping/embedded]: multi-hop navigation bondDetails.issuer.name through an embedded/slot head is not supported yet
@@ -1988,7 +2020,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMilestonedInlineGraphFetchWithEnumProperty [tests/mapping/embedded]: graph child 'genderInfo' of class 'meta::relational::tests::mapping::embedded::advanced::model::PersonWithGenderInfo' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - ERROR testSubType [tests/mapping/embedded]: class-typed property '$p.issuer' used as a whole value is graph output (Phase H4)
 - ERROR testSubTypeOnPropertyMappedToNonRootInlineSetImpl [tests/mapping/embedded]: class-typed property '$p.holder' used as a whole value is graph output (Phase H4)
-- FAIL testGroupBy [tests/mapping/embedded]: toCSV: expected <holder,Profit\nholder1,10.0\nholder3,1.0\n>, got <holder,Profit\nholder3,1.0\nholder1,10.0\n>
+- SHAPE testGroupBy [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "root".HOLDER as "holder", sum(case when "root".BOND_TYPE = \'5 years\' then 5.0 e
 - SHAPE testGroupByComplexAgg [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "root".HOLDER as "c1", sum(case when "root".HOLDER like \'holder3%\' then 5.0 else
 - FAIL testQualifierProperty [tests/mapping/embedded]: toCSV: expected <name,c2,c3\nBond 1,issuer1,holder1\n>, got <>
 - SHAPE testEnumTheSame [tests/mapping/enumeration]: no execute(|...) call

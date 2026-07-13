@@ -497,7 +497,8 @@ public final class Corpus {
 
     // ===== BeforePackage seeds =====
 
-    public record BeforePackage(String pkg, boolean callsBaseSetup, List<String> sql) {
+    public record BeforePackage(String pkg, boolean callsBaseSetup, List<String> sql,
+            String body) {
     }
 
     private static final Pattern BEFORE_PKG = Pattern.compile(
@@ -535,15 +536,104 @@ public final class Corpus {
                 i++;
             }
             String body = source.substring(bodyStart, i);
-            // a BeforePackage often just CALLS same-file setup helpers
-            // (join::model::store::createTablesAndFillDb) — expand the
-            // transitive closure of same-source calls so their executeInDb
-            // literals count as this package's seeds
+            // a BeforePackage often just CALLS setup helpers (possibly in
+            // SIBLING files — initDatabase() lives next door): the closure
+            // expands LAZILY against the whole-run function corpus
             out.add(new BeforePackage(m.group(1),
                     body.contains("createTablesAndFillDb"),
-                    seedSql(expandCalls(body, source))));
+                    seedSql(expandCalls(body, source)), body));
         }
         return out;
+    }
+
+    /**
+     * Seeds of {@code body} expanded against a CROSS-FILE function corpus
+     * keyed by FQN. Bare calls resolve to the candidate sharing the LONGEST
+     * package prefix with {@code homePkg} (files reuse simple names like
+     * createTablesAndFillDb across families — first-wins was wrong seeds).
+     */
+    public static List<String> expandSeeds(String body, String homePkg,
+            Map<String, String> fqnFns) {
+        StringBuilder expanded = new StringBuilder(body);
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        java.util.ArrayDeque<String> queue = new java.util.ArrayDeque<>();
+        queue.add(body);
+        while (!queue.isEmpty()) {
+            String cur = queue.poll();
+            Matcher call = Pattern.compile("((?:[\\w$]+::)*)([\\w$]+)\\s*\\(\\s*\\)").matcher(cur);
+            while (call.find()) {
+                String qualifier = call.group(1);
+                String name = call.group(2);
+                String resolved = null;
+                if (!qualifier.isEmpty()) {
+                    String fqn = qualifier + name;
+                    resolved = fqnFns.containsKey(fqn) ? fqn : null;
+                } else {
+                    int best = -1;
+                    int bestLen = Integer.MAX_VALUE;
+                    for (String fqn : fqnFns.keySet()) {
+                        if (!fqn.endsWith("::" + name)) {
+                            continue;
+                        }
+                        int shared = sharedPrefix(fqn, homePkg);
+                        // tie-break on the SHORTEST fqn: the closest package
+                        // (fewest segments beyond the shared prefix) wins
+                        if (shared > best
+                                || shared == best && fqn.length() < bestLen) {
+                            best = shared;
+                            bestLen = fqn.length();
+                            resolved = fqn;
+                        }
+                    }
+                }
+                if (resolved != null && seen.add(resolved)) {
+                    expanded.append('\n').append(fqnFns.get(resolved));
+                    queue.add(fqnFns.get(resolved));
+                }
+            }
+        }
+        return seedSql(expanded.toString());
+    }
+
+    private static int sharedPrefix(String a, String b) {
+        int i = 0;
+        while (i < a.length() && i < b.length() && a.charAt(i) == b.charAt(i)) {
+            i++;
+        }
+        return i;
+    }
+
+    /** FQN → body of every zero-arg function in {@code source}. */
+    public static Map<String, String> functionBodies(String source) {
+        Map<String, String> fns = new LinkedHashMap<>();
+        Matcher fm = Pattern.compile(
+                "(?m)^function\\s+(?:<<[^>]*>>\\s*)?((?:[\\w$]+::)*[\\w$]+)\\s*\\(\\s*\\)").matcher(source);
+        while (fm.find()) {
+            int bs = source.indexOf('{', fm.end());
+            if (bs < 0) {
+                continue;
+            }
+            int depth = 0;
+            int i = bs;
+            while (i < source.length()) {
+                char c = source.charAt(i);
+                if (c == '\'') {
+                    i = skipString(source, i);
+                    continue;
+                }
+                if (c == '{') {
+                    depth++;
+                } else if (c == '}') {
+                    depth--;
+                    if (depth == 0) {
+                        break;
+                    }
+                }
+                i++;
+            }
+            fns.putIfAbsent(fm.group(1), source.substring(bs, Math.min(i + 1, source.length())));
+        }
+        return fns;
     }
 
     /** {@code body} plus the bodies of same-source functions it calls (transitively). */
