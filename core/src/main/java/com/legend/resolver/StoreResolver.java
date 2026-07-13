@@ -208,7 +208,8 @@ public final class StoreResolver {
                     when isObjectSpace(m.source())
                     && !(((com.legend.compiler.element.type.Type.FunctionType) m.mapper().info().type()).result().type()
                             instanceof com.legend.compiler.element.type.Type.ClassType) ->
-                    resolveChain(scalarMapAsProject(m.source(), m.mapper()), context);
+                    resolveChain(scalarMapAsProject(m.source(), m.mapper(),
+                            m.info().multiplicity()), context);
             case com.legend.compiler.spec.typed.TypedPropertyAccess pa when isObjectSpace(pa.source())
                     && !(pa.info().type() instanceof com.legend.compiler.element.type.Type.ClassType) -> {
                 com.legend.compiler.element.type.ExprType elem =
@@ -230,7 +231,8 @@ public final class StoreResolver {
                                         new com.legend.compiler.element.type.Type.Param(pa.info().type(),
                                                 pa.info().multiplicity())),
                                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
-                yield resolveChain(scalarMapAsProject(pa.source(), fn), context);
+                yield resolveChain(scalarMapAsProject(pa.source(), fn,
+                        pa.info().multiplicity()), context);
             }
             case TypedLimit l when isObjectSpace(l.source()) ->
                     resolveChain(l, context);
@@ -649,7 +651,13 @@ public final class StoreResolver {
      * projection. The column takes the leaf property's name when the body
      * is a straight property read, else {@code value}.
      */
-    private static TypedProject scalarMapAsProject(TypedSpec source, TypedLambda mapper) {
+    /** The synthetic single-column projection for a scalar map/property
+     * read over instances. {@code valueMult} is the ORIGINAL expression's
+     * multiplicity — a to-many read is a VALUE COLLECTION and the scalar
+     * lowering must LIST-aggregate it (contains/in consumers), while a
+     * to-one read stays the bare scalar subquery. */
+    private static TypedProject scalarMapAsProject(TypedSpec source, TypedLambda mapper,
+            com.legend.compiler.element.type.Multiplicity valueMult) {
         TypedSpec body = mapper.body().get(mapper.body().size() - 1);
         String name = body instanceof com.legend.compiler.spec.typed.TypedPropertyAccess bpa
                 ? bpa.property() : "value";
@@ -661,8 +669,7 @@ public final class StoreResolver {
                                 name, result.type(), result.multiplicity())));
         return new TypedProject(source,
                 java.util.List.of(new com.legend.compiler.spec.typed.TypedFuncCol(name, mapper)),
-                new com.legend.compiler.element.type.ExprType(row,
-                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+                new com.legend.compiler.element.type.ExprType(row, valueMult));
     }
 
     private static boolean isObjectSpace(TypedSpec source) {
@@ -988,6 +995,22 @@ public final class StoreResolver {
             TypedSpec headBinding = cs.bindings().get(path.get(0));
             if (headBinding == null) {
                 continue;   // association heads (below)
+            }
+            // Filter-ONLY TO-MANY nav paths take the implicit-EXISTS route
+            // (same guard as the association loop below): materializing the
+            // slot would LEFT-JOIN-explode the class root — the reference
+            // semantics is EXISTS-then-select-parents, and the exploded
+            // rows would duplicate every matching parent object.
+            boolean navProjectionPosition = projectionPaths.stream()
+                    .anyMatch(pp -> pp.size() >= 2 && pp.get(0).equals(path.get(0)));
+            boolean navHeadToMany = ctx.findProperty(cs.classFqn(), path.get(0))
+                    .map(pr -> !(pr.multiplicity()
+                            instanceof com.legend.compiler.element.type
+                                    .Multiplicity.Bounded b
+                            && Integer.valueOf(1).equals(b.upper())))
+                    .orElse(false);
+            if (!navProjectionPosition && navHeadToMany) {
+                continue;
             }
             // OTHERWISE per-leaf dispatch (V1 §D.5): a leaf mapped by the
             // embedded partial reads the PARENT row — no demand; any other

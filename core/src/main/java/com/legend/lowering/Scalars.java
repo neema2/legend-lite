@@ -1980,6 +1980,16 @@ final class Scalars {
             SqlExpr needle = PlatformTypes.isAny(n.args().get(1).info().type())
                     ? SqlExpr.Call.of(SqlFn.TO_VARIANT, args.get(0))
                     : args.get(0);
+            // A RELATION-shaped collection lowers to a LIST-aggregated
+            // scalar subquery — membership is list containment (NULL list =
+            // empty collection = FALSE), not an IN-list of one expression.
+            if (n.args().get(1).info().type()
+                    instanceof com.legend.compiler.element.type.Type.RelationType) {
+                return SqlExpr.Call.of(SqlFn.COALESCE,
+                        new SqlExpr.Call(SqlFn.LIST_CONTAINS,
+                                List.of(args.get(1), needle)),
+                        new SqlExpr.BoolLit(false));
+            }
             List<SqlExpr> flat = new ArrayList<>();
             flat.add(needle);
             if (args.get(1) instanceof SqlExpr.ArrayLit arr) {

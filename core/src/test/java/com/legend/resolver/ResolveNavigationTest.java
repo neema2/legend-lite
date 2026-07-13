@@ -499,7 +499,11 @@ class ResolveNavigationTest {
     void notEqualCrossingKeepsNegationInsideExists() throws SQLException {
         String sql = sqlOf("m::Firm.all()->filter(f|$f.staff.name != 'Ann')"
                 + "->project(~[legal: f|$f.legal])->from(m::RT)");
-        assertEquals(1, count(sql, "EXISTS"), sql);
+        // TWO exists: the guarded form if(∃children, ∃(¬X), true) — a
+        // negated leaf also admits parents with ZERO children (engine
+        // parity: its LEFT-join null row passes the `or is null` it adds
+        // under `not`). The negation itself stays INSIDE the ∃.
+        assertEquals(2, count(sql, "EXISTS"), sql);
         assertEquals(0, count(sql, "NOT EXISTS"),
                 "hoisting the ¬ outside the ∃ silently inverts the rows:\n" + sql);
         // THE DATA PIN: ACME employs Cat (≠ Ann), so ∃(name≠Ann) admits it;

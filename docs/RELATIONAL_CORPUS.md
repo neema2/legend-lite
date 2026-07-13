@@ -122,7 +122,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 0 | 0 | 88 | 4 |
 | executionPlan/tests | 109 | 0 | 0 | 8 | 101 |
-| functions/tests | 241 | 61 | 9 | 129 | 42 |
+| functions/tests | 241 | 72 | 6 | 121 | 42 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 0 | 1 |
 | functions/tests/projection | 154 | 48 | 9 | 68 | 29 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -144,7 +144,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | sqlQueryToString/DDL | 3 | 0 | 0 | 0 | 3 |
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 265 | 97 | 6 | 105 | 57 |
+| tds/tests | 265 | 103 | 3 | 102 | 57 |
 | testDataGeneration/tests | 40 | 0 | 0 | 0 | 40 |
 | tests | 39 | 0 | 0 | 0 | 39 |
 | tests/advanced | 67 | 7 | 0 | 38 | 22 |
@@ -174,11 +174,11 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/union | 124 | 12 | 1 | 91 | 20 |
 | tests/mapping/union/relation | 15 | 0 | 0 | 13 | 2 |
 | tests/platformOperations | 4 | 0 | 0 | 4 | 0 |
-| tests/query | 83 | 51 | 5 | 20 | 7 |
+| tests/query | 83 | 52 | 5 | 19 | 7 |
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **412** | 63 | 980 | 837 |
+| **total** | 2292 | **430** | 57 | 968 | 837 |
 
 ### mapping walls (dropped at assembly)
 
@@ -578,7 +578,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE planProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE executeProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE planGraphFetchWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
-- ERROR testAllWithProperty [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY
 - ERROR testAll [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
 - ERROR testConcatenateDataType [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY
 - ERROR testConcatenateDataTypeMerge [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY
@@ -596,33 +595,27 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testConcatenateFlatWithOtherProperty [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - SHAPE testConcatenateWithPostFilteredGroupBy [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testConcatenateWithPreFilteredGroupBy [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testExistsToManyPropertyWithAndFilterAndLiteralConditionsDeep [functions/tests]: filter predicate references column 'employees_locations', unresolvable even after isolation
+- ERROR testExistsToManyPropertyWithAndFilterAndLiteralConditionsDeep [functions/tests]: navigation through class-typed slot property 'employees' is not supported yet
 - SHAPE testComplexOrExistsToManyProperty [functions/tests]: unsupported statement: map
-- ERROR testNotExists [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_contains(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_contains(T[], T)
-- FAIL testIn [functions/tests]: assertSize: expected 2, got 8
-- FAIL testContains [functions/tests]: assertSize: expected 2, got 8
-- FAIL testInNegated [functions/tests]: assertSize: expected 10, got 11
-- FAIL testContainsNegated [functions/tests]: assertSize: expected 10, got 11
+- FAIL testInNegated [functions/tests]: assertSize: expected 10, got 5
+- FAIL testContainsNegated [functions/tests]: assertSize: expected 10, got 5
 - SHAPE testDupsFilterProject [functions/tests]: unsupported statement: println
 - SHAPE testDupsFilterNoProjection [functions/tests]: unsupported statement: println
 - ERROR testExistsWithEmbedded [functions/tests]: 'testMappingEmbeddedWithFirmDistinct' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - SHAPE testExistsWithEmbeddedWithPostProcessor [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testInExistsCombined [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_contains(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_contains(T[], T)
 - SHAPE testWithFilterGroupBy [functions/tests]: unsupported statement: map
 - SHAPE testWithFilterGroupByNestedAssociation [functions/tests]: unsupported statement: map
 - SHAPE testWithProjectGroupByRemoveDups [functions/tests]: unsupported statement: println
 - SHAPE testWithProjectGroupByRemoveDupsTwo [functions/tests]: unsupported statement: println
 - SHAPE testNestedExistsOne [functions/tests]: unsupported statement: println
 - ERROR testNestedNotExists [functions/tests]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
-- ERROR testIsEmptyNested [functions/tests]: filter predicate references column 'employees_locations', unresolvable even after isolation
-- ERROR testIsEmpty [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_sort(VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_sort(ANY[]) -> ANY[] | 	list_sort(AN
-- ERROR testIsNotEmpty [functions/tests]: a scalar query has no row scope for $_r0.employees_locations
+- ERROR testIsEmptyNested [functions/tests]: navigation through class-typed slot property 'employees' is not supported yet
+- ERROR testIsNotEmpty [functions/tests]: navigation through class-typed slot property 'employees' is not supported yet
 - ERROR testAssociationOneLevelDeep [functions/tests]: a scalar query has no row scope for $_r0.firm_employees
 - ERROR testAssociationTwoLevelDeep [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
 - ERROR testAssociationThreeLevelDeep [functions/tests]: multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet
 - ERROR testAssociationHandlingDups [functions/tests]: multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet
 - ERROR testAssociationWithProjectionHandlingDups [functions/tests]: filter predicate references column 'firm_employees', unresolvable even after isolation
-- ERROR testExistsInAbstractProperty [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_sort(VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_sort(ANY[]) -> ANY[] | 	list_sort(AN
 - ERROR testNestedExistsWithExistsInAbstractProperty [functions/tests]: navigation through class-typed slot property 'firm' is not supported yet
 - ERROR testExistsWithOrCondition [functions/tests]: filter predicate references column 'firm_employees', unresolvable even after isolation
 - ERROR testExistsWithAttributesFromLeftInAndCondition [functions/tests]: filter predicate references column 'firm_employees', unresolvable even after isolation
@@ -645,10 +638,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testOrFilterWithTypeFilter [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - SHAPE testFilterBeforeAndAfterGroupBy [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testFilterBeforeAndAfterProject [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testIsolationOfCaseStmtTrueFalseFilters [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding! |  or: Referenced column "x" was not found because the FROM clause is missing
-- ERROR testIsolationOfClassFiltersOperatingOnParametersReferencedInIf [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding! |  or: Referenced column "x" was not found because the FROM clause is missing
 - ERROR testLateIsolationOfTypeFilterDoesntPreventMerging [functions/tests]: multi-hop navigation firm.ceo.address.name through an embedded/slot head is not supported yet
-- ERROR testMultipleFilters [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding! |  or: Referenced column "x" was not found because the FROM clause is missing
 - ERROR testFilterAfterFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testFilterInWithJoin [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testMappingFromQueriesViaMappingWithAssociationsOnly [functions/tests]: unknown function 'meta::external::store::relational::tests::testRuntime'
@@ -662,7 +652,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testDeepContains [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testInWithOneValue [functions/tests]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary)
 - ERROR testInWithFunction [functions/tests]: unknown function 'meta::relational::tests::query::filter::in::getNames'
-- FAIL testContainsOnToManyProperty [functions/tests]: assertSize: expected 1, got 6
 - ERROR testConsistencyWithNulls [functions/tests]: class meta::relational::tests::model::simple::Address has no property 'values'
 - SHAPE testInWithinQualifiedPropertyCollectionAsLiteralList [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testDerivedWithIsEmpty [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "t0" does not have a column named "value" |  | Candidate bindings: : "else" |  | LINE 3: WHERE t0.value IS NULL |               ^
@@ -1319,7 +1308,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testSortQuotes [tds/tests]: no execute(|...) call
 - SHAPE testTableToTDSWithQuotes [tds/tests]: no execute(|...) call
 - ERROR testMultiConcatenate [tds/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
-- FAIL testConcatenateWithJoin [tds/tests]: assertEquals: expected Allen|Anthony,Allen|Anthony,Harris|David,Harris|David,Hill|John,Hill|John,Hill|John,Hill|John,Hill|Oliver,Hill|Oliver,Hill|Oliver,Hill|Oliver,Johnson|John,Johnson|John,Roberts|Fabrice,Roberts|Fabrice,Smith|Peter,Smith|Peter, got Allen|Anthony,Allen|Anthony,Harris|David,Harris|
 - ERROR testTDSContainsType1 [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testTDSContainsType1Negation [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testTDSContainsType1NegationWithExtendedPrimitives [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
@@ -1396,12 +1384,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProjectWithColumnSubSetFunctions [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testProjectWithColumnSubSetSQLTest [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
 - SHAPE testProjectWithQuotedColumnFromTableToTDS [tds/tests]: no execute(|...) call
-- ERROR testLowerProjectColsEliminated [tds/tests]: unknown function 'sqlRemoveFormatting'
-- FAIL testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: assertEquals: expected Anthony,David,Fabrice,John,Oliver,Peter, got David,Peter,Oliver,John,Fabrice,Anthony
-- ERROR testLowerProjectColsNotEliminatedWithSort [tds/tests]: unknown function 'sqlRemoveFormatting'
-- FAIL testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct [tds/tests]: assertEquals: expected Firm A|1,Firm B|1,Firm C|1,Firm X|4, got Firm B|1,Firm C|1,Firm X|4,Firm A|1
 - ERROR testRestrictOnGroupByColumn_SubSetOfGroupByColumns [tds/tests]: no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
-- ERROR testRestrictOnGroupByColumn_DropAllAggColumns [tds/tests]: unknown function 'sqlRemoveFormatting'
 - ERROR testRestrictHandlesQueryPathsCorrectlyOnRename [tds/tests]: ~age_new: mapped/aggregate column specifications need an enclosing call to type against
 - SHAPE testRestrictWithPostProcessor [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testRestrictAfterMultiColumnGroupByFollowedByRename [tds/tests]: unknown function 'renameColumns'
@@ -2121,14 +2104,14 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testAssociationMixedDeep [tests/query]: unsupported statement: println
 - ERROR testTwoAssociationsToManyDeep [tests/query]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
 - ERROR testTwoAssociationsToManyDeepWithOr [tests/query]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
-- ERROR testAssociationToManyWithTwoSeparateExists [tests/query]: scalar lowering not yet implemented for TypedSerializeGraph
+- ERROR testAssociationToManyWithTwoSeparateExists [tests/query]: navigation through class-typed slot property 'employees' is not supported yet
 - ERROR testTwoAssociationsToOneDeep [tests/query]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - FAIL testWithParameterToClassNestedSelect [tests/query]: assertSize: expected 0, got 1
 - ERROR testExistsWithQualifierOnleftSide [tests/query]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - FAIL testViewAll [tests/query]: assertSameElements: expected [100.0,Peter Smith, 150.0,John Johnson, 200.0,John Johnson], got [200.0,"John Johnson", 150.0,"John Johnson", 100.0,"Peter Smith"]
 - SHAPE testViewWithJoinsAndDistinct [tests/query]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testDistinctOnlyIncludesTopLevelColumns [tests/query]: in function 'meta::relational::tests::TestViewWithDistinctAndJoins$class$meta::relational::tests::model::simple::Person': unknown table 'FirstNameAddress' in database 'meta::relational::tests::db'
-- FAIL testViewSimpleFilter [tests/query]: assertSameElements: expected [150.0,John Johnson, 200.0,John Johnson], got [150.0,"John Johnson", 200.0,"John Johnson"]
+- FAIL testViewSimpleFilter [tests/query]: assertSameElements: expected [150.0,John Johnson, 200.0,John Johnson], got [200.0,"John Johnson", 150.0,"John Johnson"]
 - ERROR testAllWithJoinToView [tests/query]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Order' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: view 'orderPnlView' used as a join target has a join-naviga
 - SHAPE testViewSimpleExists [tests/query]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testViewPropertyFilterWithPrimaryKey [tests/query]: in function 'meta::relational::tests::query::view::EmployeeMappingWithViewAndInnerJoin$class$meta::relational::tests::model::simple::Employee': unknown table 'OrgView' in database 'meta::relational::tests::db'
@@ -2141,7 +2124,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFilterUsingArcSinFunction [tests/query]: Invalid Input Error: Unable to compute asin of 1.1
 - ERROR testFilterUsingArcCosFunction [tests/query]: Invalid Input Error: Unable to compute acos of 1.1
 - SHAPE testFilterTimesWithManyOperands [tests/query]: sql-only: 2 advisory golden-SQL assert(s), no row verification
-- ERROR testFilterUsingQuarterNumberFunction [tests/query]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_sort(INTEGER)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_sort(ANY[]) -> ANY[] | 	list_sort(AN
 - SHAPE testCollectionDistinctFunction [tests/query]: assert form 'assertEq/2' is not supported yet
 - SHAPE testDivideFunctionPrecision [tests/query]: assert form 'assertEq/2' is not supported yet
 - ERROR testJoinStringFunction [tests/query]: a bare lambda has no type outside a call position (lambdas type against their call's signature)

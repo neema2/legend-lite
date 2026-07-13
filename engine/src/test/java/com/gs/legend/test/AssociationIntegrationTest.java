@@ -1215,18 +1215,24 @@ class AssociationIntegrationTest {
         }
 
         @Test
-        @DisplayName("GroupBy to-one association after to-many filter (EXISTS + aggregation)")
+        @DisplayName("GroupBy to-one association after NEGATED to-many filter (null-tolerant ∃)")
         void testGroupByToOneAfterToManyFilter() throws SQLException {
-            // Filter: person has address in a known city (EXISTS) — Alice(NYC,LA), Bob(Chicago)
-            // Charlie and Diana have no addresses, so EXISTS is false for them.
-            // GroupBy firm, count — only Acme people (Alice, Bob) survive the filter.
-            // Globex (Charlie) excluded. Diana (NULL firm) excluded.
+            // REFERENCE SEMANTICS (corpus testInNegated golden SQL:
+            // `not X or <read> is null` over the LEFT join): a NEGATED
+            // crossing leaf admits (a) children whose crossed value is NULL
+            // (Charlie's address has a NULL city) and (b) parents with ZERO
+            // children (Diana) — not just ∃(child: ¬X).
+            // Alice/Bob (Acme, non-empty cities) pass ¬(city=''); Charlie
+            // (Globex) passes via the NULL city; Diana passes with no
+            // addresses at all, grouping under her NULL firm.
             var r = exec(fullModel(),
                 "test::Person.all()->filter({p|$p.addresses.city != ''})->project(~[firm:p|$p.firm.legalName, name:p|$p.name])->groupBy(~firm, ~cnt:x|$x.name:y|$y->count())->sort(~firm->ascending())");
-            // Only Acme people have addresses — 1 group
-            assertEquals(1, r.rowCount());
+            assertEquals(3, r.rowCount());
             assertEquals("Acme", colStr(r, 0).get(0));
             assertEquals(Integer.valueOf(2), colInt(r, 1).get(0));
+            assertEquals("Globex", colStr(r, 0).get(1));
+            assertEquals(Integer.valueOf(1), colInt(r, 1).get(1));
+            assertEquals(Integer.valueOf(1), colInt(r, 1).get(2));
         }
 
         @Test

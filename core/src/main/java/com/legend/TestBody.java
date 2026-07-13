@@ -228,6 +228,9 @@ public final class TestBody {
                 if (args.isEmpty()) {
                     return UNSUPPORTED_MARKER;
                 }
+                if (containsSqlText(args.get(0))) {
+                    return ADVISORY_MARKER;   // predicate over golden SQL text
+                }
                 Object v = evalScalar(args.get(0), lets, handles, ctx, imports,
                         runtimeFqn, conn);
                 boolean expect = af.function().equals("assert");
@@ -240,7 +243,8 @@ public final class TestBody {
                     return UNSUPPORTED_MARKER;
                 }
                 // golden-SQL spellings are advisory: our SQL is DuckDB's
-                if (isSqlText(args.get(args.size() - 1)) || isSqlText(args.get(0))) {
+                if (containsSqlText(args.get(args.size() - 1))
+                        || containsSqlText(args.get(0))) {
                     return ADVISORY_MARKER;
                 }
                 // legacy 3-arg H2-compat: (legacySql, h2Sql, actualSql) —
@@ -310,11 +314,36 @@ public final class TestBody {
                 && (af.function().equals("sqlRemoveFormatting") || af.function().equals("sql"));
     }
 
+    /** A golden-SQL read ANYWHERE in the expression (nested spellings:
+     * {@code $r->sqlRemoveFormatting()->toLower()->contains(...)}) — the
+     * whole assertion is about SQL text, advisory by policy. */
+    private static boolean containsSqlText(ValueSpecification v) {
+        if (isSqlText(v)) {
+            return true;
+        }
+        if (v instanceof AppliedFunction af) {
+            for (ValueSpecification p : af.parameters()) {
+                if (containsSqlText(p)) {
+                    return true;
+                }
+            }
+        }
+        if (v instanceof AppliedProperty ap) {
+            return containsSqlText(ap.receiver());
+        }
+        return false;
+    }
+
     // ===== evaluation: compile one side through the pipeline =====
 
     /** One evaluated side: the execution result + how it compares. */
     private record Eval(com.legend.exec.ExecutionResult result, boolean sortedChain,
-            boolean csvTail) {
+            boolean csvTail, String joinSep) {
+
+        Eval(com.legend.exec.ExecutionResult result, boolean sortedChain,
+                boolean csvTail) {
+            this(result, sortedChain, csvTail, null);
+        }
 
         long size() {
             return switch (result) {
@@ -390,7 +419,20 @@ public final class TestBody {
         }
         com.legend.exec.ExecutionResult r = evalSpliced(spliced, ctx, imports,
                 runtimeFqn, conn);
-        return new Eval(r, endsInSort(spliced), csv);
+        // A makeString/joinStrings tail over an UNSORTED chain: the joined
+        // string's element order is the DB's incidental row order — record
+        // the separator so the compare can fall back to split-multiset
+        // (the ORDER POLICY at string granularity).
+        String joinSep = null;
+        if (spliced instanceof AppliedFunction jf
+                && (simpleName(jf.function()).equals("makeString")
+                        || simpleName(jf.function()).equals("joinStrings"))
+                && jf.parameters().size() == 2
+                && jf.parameters().get(1) instanceof CString sep
+                && !endsInSort(jf.parameters().get(0))) {
+            joinSep = sep.value();
+        }
+        return new Eval(r, endsInSort(spliced), csv, joinSep);
     }
 
     private static Object evalScalar(ValueSpecification expr,
@@ -479,6 +521,23 @@ public final class TestBody {
             if (ok) {
                 return true;
             }
+        }
+        // ORDER POLICY at STRING granularity: a makeString over an
+        // unsorted chain joined the DB's incidental row order — compare
+        // the split parts as a multiset.
+        if (actual.joinSep() != null && e.size() == 1 && a.size() == 1
+                && e.get(0) instanceof String es2 && a.get(0) instanceof String as2
+                && !es2.equals(as2)) {
+            List<String> ep = new ArrayList<>(List.of(
+                    es2.split(java.util.regex.Pattern.quote(actual.joinSep()), -1)));
+            List<String> ap = new ArrayList<>(List.of(
+                    as2.split(java.util.regex.Pattern.quote(actual.joinSep()), -1)));
+            if (ep.size() == ap.size()) {
+                java.util.Collections.sort(ep);
+                java.util.Collections.sort(ap);
+                return ep.equals(ap);
+            }
+            return false;
         }
         List<Object> pool = new ArrayList<>(a);
         for (Object x : e) {

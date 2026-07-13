@@ -2186,12 +2186,14 @@ public final class Lowerer {
                         ? SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_FLATTEN, listed)
                         : listed;
             }
-            // A single-column RELATION consumed in SCALAR position — the
-            // correlated scalar subquery (value-position filtered
-            // navigation). DuckDB raises on more than one row (pure toOne
-            // semantics); an empty result is NULL (the read is [0..1]).
-            // The OUTER row resolver rides the enclosing channel so the
-            // inner predicate's correlated reads land on the outer alias.
+            // A single-column RELATION consumed in SCALAR position. A
+            // TO-ONE read is the correlated scalar subquery (value-position
+            // filtered navigation): DuckDB raises on more than one row
+            // (pure toOne semantics); an empty result is NULL ([0..1]). A
+            // TO-MANY read is a VALUE COLLECTION (contains/in/makeString
+            // consumers): aggregate the column to a LIST — the bare scalar
+            // subquery would raise on the second row. The OUTER row
+            // resolver rides the enclosing channel either way.
             case TypedSpec rel when rel.info().type()
                     instanceof com.legend.compiler.element.type.Type.RelationType rt
                     && rt.columns().size() == 1 -> {
@@ -2203,7 +2205,26 @@ public final class Lowerer {
                     return r;
                 });
                 try {
-                    yield new SqlExpr.ScalarSubquery(relation(rel));
+                    boolean toMany = !(rel.info().multiplicity()
+                            instanceof com.legend.compiler.element.type
+                                    .Multiplicity.Bounded mb1
+                            && Integer.valueOf(1).equals(mb1.upper()));
+                    if (!toMany) {
+                        yield new SqlExpr.ScalarSubquery(relation(rel));
+                    }
+                    String sub = nextAlias();
+                    String col = rt.columns().get(0).name();
+                    SqlSelect agg = SqlSelect.starOf(
+                            new SqlSource.Subselect(relation(rel), sub))
+                            .withProjections(List.of(new SqlSelect.Projection(
+                                            new SqlAgg.Reducer("LIST", List.of(
+                                                    new SqlExpr.Column(sub, col)),
+                                                    false),
+                                            null)),
+                                    List.of(new com.legend.sql.OutputCol(col,
+                                            com.legend.sql.SqlType.Scalar.VARCHAR,
+                                            true)));
+                    yield new SqlExpr.ScalarSubquery(agg);
                 } finally {
                     enclosing.pop();
                 }
