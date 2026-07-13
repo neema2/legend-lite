@@ -684,6 +684,7 @@ public final class MappingNormalizer {
             case ClassMapping.Pure pcm       -> synthM2M(md, pcm, model, new HashSet<>());
             case ClassMapping.Relational rcm -> synthRelational(md, rcm, model);
             case ClassMapping.Union u        -> synthUnion(md, u, model);
+            case ClassMapping.Inheritance ih -> synthInheritance(md, ih, model);
             case ClassMapping.RelationFunction rf -> synthRelationFunction(md, rf, model);
         };
         return new FunctionDefinition(
@@ -1038,12 +1039,20 @@ public final class MappingNormalizer {
                   + " member set(s); class=" + u.className()
                   + ", mapping=" + md.qualifiedName());
         }
-        List<RelationalParts> parts = new ArrayList<>(u.memberSetIds().size());
+        // member sets resolve by setId ACROSS INCLUDES; a member may map a
+        // SUBCLASS of the operation class (special_union over an
+        // inheritance hierarchy) — the shared-property projection over the
+        // operation class is the semantics either way
+        Map<String, ClassMapping> bySetId = new LinkedHashMap<>();
+        collectIncludedSetIds(md, model, bySetId, new java.util.HashSet<>());
+        for (ClassMapping cm : md.classMappings()) {
+            if (cm.setId() != null) {
+                bySetId.put(cm.setId(), cm);
+            }
+        }
+        List<ClassMapping.Relational> memberSets = new ArrayList<>();
         for (String setId : u.memberSetIds()) {
-            ClassMapping member = md.classMappings().stream()
-                    .filter(x -> setId.equals(x.setId())
-                            && u.className().equals(x.className()))
-                    .findFirst().orElse(null);
+            ClassMapping member = bySetId.get(setId);
             if (!(member instanceof ClassMapping.Relational mr)) {
                 throw new com.legend.error.NotImplementedException(
                         "Operation union member set '" + setId + "' of class '"
@@ -1051,6 +1060,93 @@ public final class MappingNormalizer {
                               : "not a Relational set") + "; mapping="
                       + md.qualifiedName());
             }
+            memberSets.add(mr);
+        }
+        return synthMemberUnion(md, u.className(), memberSets, model);
+    }
+
+    /**
+     * Inheritance Operation: the extent is the UNION of every Relational
+     * set mapped for the class's SUBCLASSES (transitively; nested
+     * union/inheritance operations expand to their concrete members).
+     * Queries on the base class can only touch base-class-typed properties,
+     * so the shared-property projection over the base owner is exactly the
+     * engine's router semantics.
+     */
+    private static ValueSpecification synthInheritance(LegacyMappingDefinition md,
+            ClassMapping.Inheritance ih, ModelBuilder model) {
+        List<ClassMapping.Relational> members = new ArrayList<>();
+        collectConcreteSubclassSets(md, ih.className(), ih, model, members,
+                new java.util.HashSet<>());
+        if (members.isEmpty()) {
+            throw new com.legend.error.NotImplementedException(
+                    "inheritance Operation for '" + ih.className()
+                    + "' finds no Relational subclass sets; mapping="
+                    + md.qualifiedName());
+        }
+        if (members.size() == 1) {
+            return synthRelational(md, members.get(0), model);
+        }
+        return synthMemberUnion(md, ih.className(), members, model);
+    }
+
+    /** Every Relational set of {@code base} or a subclass, operations expanded. */
+    private static void collectConcreteSubclassSets(LegacyMappingDefinition md,
+            String base, ClassMapping self, ModelBuilder model,
+            List<ClassMapping.Relational> out, java.util.Set<ClassMapping> seen) {
+        for (ClassMapping cm : md.classMappings()) {
+            if (cm == self || !seen.add(cm)) {
+                continue;
+            }
+            if (!isSubclassOf(cm.className(), base, model)) {
+                continue;
+            }
+            switch (cm) {
+                case ClassMapping.Relational mr -> out.add(mr);
+                case ClassMapping.Union u2 -> {
+                    for (String setId : u2.memberSetIds()) {
+                        md.classMappings().stream()
+                                .filter(x -> setId.equals(x.setId())
+                                        && x instanceof ClassMapping.Relational)
+                                .map(x -> (ClassMapping.Relational) x)
+                                .filter(seen::add)
+                                .forEach(out::add);
+                    }
+                }
+                case ClassMapping.Inheritance ih2 ->
+                        collectConcreteSubclassSets(md, ih2.className(), ih2,
+                                model, out, seen);
+                default -> { }
+            }
+        }
+    }
+
+    /** {@code candidate} equals {@code base} or transitively extends it. */
+    private static boolean isSubclassOf(String candidate, String base, ModelBuilder model) {
+        if (candidate.equals(base)) {
+            return true;
+        }
+        ClassDefinition cd = model.findClass(candidate).orElse(null);
+        if (cd == null) {
+            return false;
+        }
+        for (TypeExpression sup : cd.superClasses()) {
+            if (sup instanceof TypeExpression.NameRef nr
+                    && isSubclassOf(nr.name(), base, model)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The shared-property UNION ALL over resolved member sets. */
+    private static ValueSpecification synthMemberUnion(LegacyMappingDefinition md,
+            String className, List<ClassMapping.Relational> memberSets,
+            ModelBuilder model) {
+        List<RelationalParts> parts = new ArrayList<>(memberSets.size());
+        for (ClassMapping.Relational mrIn : memberSets) {
+            ClassMapping.Relational mr = mrIn;
+            String setId = mr.setId();
             if (mr.sourceUrl() != null) {
                 throw new com.legend.error.NotImplementedException(
                         "Operation union over a JSON-source member set is not"
@@ -1077,7 +1173,7 @@ public final class MappingNormalizer {
             parts.add(synthTableBackedParts(md, mr, model, null));
         }
         // the SHARED scalar property set, in the first member's order
-        ClassDefinition owner = model.findClass(u.className()).orElse(null);
+        ClassDefinition owner = model.findClass(className).orElse(null);
         List<String> common = new ArrayList<>();
         for (String prop : parts.get(0).fields().keySet()) {
             TypeExpression t = owner == null ? null
@@ -1090,7 +1186,7 @@ public final class MappingNormalizer {
         }
         if (common.isEmpty()) {
             throw new com.legend.error.NotImplementedException(
-                    "Operation union members of '" + u.className()
+                    "Operation union members of '" + className
                   + "' share no scalar properties; mapping=" + md.qualifiedName());
         }
         ValueSpecification union = null;
@@ -1104,7 +1200,7 @@ public final class MappingNormalizer {
                 // date kinds coerce, and a declared-[1] property wraps in
                 // toOne (typing [1] on both sides; lowering is erasure)
                 ValueSpecification value = coerceToDeclaredNumeric(
-                        pp.fields().get(prop).value(), prop, u.className(), model);
+                        pp.fields().get(prop).value(), prop, className, model);
                 // String is safe INSIDE the union projection: the members
                 // must agree on the declared kind, and the engine's union
                 // coerces at the SQL boundary
@@ -1136,7 +1232,7 @@ public final class MappingNormalizer {
         }
         return new AppliedFunction("map", List.of(union,
                 new LambdaFunction(List.of(row),
-                        List.of(buildNewInstanceToOne(u.className(), ctor, model)))));
+                        List.of(buildNewInstanceToOne(className, ctor, model)))));
     }
 
     /** The declared multiplicity of {@code prop} on {@code owner} (chain walk). */
@@ -2965,6 +3061,31 @@ public final class MappingNormalizer {
                 colRead, md, ownerClassFqn, model);
     }
 
+    /** This mapping's enum mappings PLUS its includes' (transitively; own first). */
+    private static List<EnumerationMapping> enumerationMappingsWithIncludes(
+            LegacyMappingDefinition md, ModelBuilder model) {
+        List<EnumerationMapping> out = new ArrayList<>(md.enumerationMappings());
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        collectIncludedEnumMappings(md, model, out, seen);
+        return out;
+    }
+
+    private static void collectIncludedEnumMappings(LegacyMappingDefinition md,
+            ModelBuilder model, List<EnumerationMapping> out, java.util.Set<String> seen) {
+        for (com.legend.parser.element.MappingInclude inc : md.includes()) {
+            if (!seen.add(inc.mappingPath())) {
+                continue;
+            }
+            LegacyMappingDefinition included =
+                    model.findLegacyMapping(inc.mappingPath()).orElse(null);
+            if (included == null) {
+                continue;
+            }
+            out.addAll(included.enumerationMappings());
+            collectIncludedEnumMappings(included, model, out, seen);
+        }
+    }
+
     /**
      * The enum-decode if/equal chain over ANY source read — a column or a
      * translated expression ({@code role: EnumerationMapping M : case(...)},
@@ -2975,8 +3096,9 @@ public final class MappingNormalizer {
             String propertyName, String enumMappingId, ValueSpecification sourceRead,
             LegacyMappingDefinition md, String ownerClassFqn, ModelBuilder model) {
         EnumerationMapping em = null;
+        List<EnumerationMapping> ems = enumerationMappingsWithIncludes(md, model);
         if (enumMappingId != null) {
-            for (EnumerationMapping cand : md.enumerationMappings()) {
+            for (EnumerationMapping cand : ems) {
                 if (enumMappingId.equals(cand.mappingId())) { em = cand; break; }
             }
         } else {
@@ -2988,7 +3110,7 @@ public final class MappingNormalizer {
             TypeExpression propType = owner == null ? null
                     : findPropertyTypeDeep(owner, propertyName, model);
             String enumFqn = propType instanceof TypeExpression.NameRef nr ? nr.name() : null;
-            for (EnumerationMapping cand : md.enumerationMappings()) {
+            for (EnumerationMapping cand : ems) {
                 if (cand.enumName().equals(enumFqn)) {
                     if (em != null) {
                         throw new com.legend.error.ModelException(

@@ -39,7 +39,8 @@ import java.util.Objects;
  * {@link PropertyMapping.Embedded} sub-mappings).
  */
 public sealed interface ClassMapping permits ClassMapping.Relational,
-        ClassMapping.Pure, ClassMapping.Union, ClassMapping.RelationFunction {
+        ClassMapping.Pure, ClassMapping.Union, ClassMapping.RelationFunction,
+        ClassMapping.Inheritance {
 
     /** Fully-qualified class name being mapped. */
     String className();
@@ -224,6 +225,23 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
         public Union {
             Objects.requireNonNull(className, "Class name cannot be null");
             memberSetIds = memberSetIds == null ? List.of() : List.copyOf(memberSetIds);
+        }
+    }
+
+    /**
+     * An inheritance Operation mapping ({@code RoadVehicle : Operation {
+     * inheritance_OperationSetImplementation_1__SetImplementation_MANY_() }})
+     * — the class's extent is the UNION of every mapped set of its
+     * subclasses (members are implicit: the engine's router resolves them
+     * from the hierarchy).
+     */
+    record Inheritance(
+            String className,
+            String setId,
+            String extendsSetId,
+            boolean root) implements ClassMapping {
+        public Inheritance {
+            Objects.requireNonNull(className, "Class name cannot be null");
         }
     }
 

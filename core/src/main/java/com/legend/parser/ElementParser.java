@@ -1972,8 +1972,24 @@ public final class ElementParser implements TokenStreamCursor {
             advance();
             expect(TokenType.BRACE_OPEN);
             String fn = parseQualifiedName();
-            if (!"meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_"
+            if ("meta::pure::router::operations::inheritance_OperationSetImplementation_1__SetImplementation_MANY_"
                     .equals(fn)) {
+                // members are IMPLICIT (the mapped subclass sets)
+                if (peek() == TokenType.PAREN_OPEN) {
+                    skipBalancedBlock();
+                }
+                expect(TokenType.BRACE_CLOSE);
+                accum.classMappings.add(new ClassMapping.Inheritance(
+                        elementPath, setId, extendsSetId, root));
+                return;
+            }
+            // union_ = STORE union (one SQL); special_union_ = ROUTER union
+            // (per-member execution, results concatenated). ROW CONTENT is
+            // identical — both synthesize as the member union here.
+            if (!"meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_"
+                    .equals(fn)
+                    && !"meta::pure::router::operations::special_union_OperationSetImplementation_1__SetImplementation_MANY_"
+                            .equals(fn)) {
                 int depth = 1;
                 while (depth > 0 && !atEnd()) {
                     if (peek() == TokenType.BRACE_OPEN) {
