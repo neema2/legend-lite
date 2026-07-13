@@ -67,11 +67,33 @@ public record DatabaseDefinition(
     }
 
     /** A table with ordered column declarations. */
-    public record TableDefinition(String name, List<ColumnDefinition> columns) {
+    public record TableDefinition(String name, List<ColumnDefinition> columns,
+            Milestoning milestoning) {
+
+        /** Without a milestoning block. */
+        public TableDefinition(String name, List<ColumnDefinition> columns) {
+            this(name, columns, null);
+        }
+
         public TableDefinition {
             Objects.requireNonNull(name, "Table name cannot be null");
             Objects.requireNonNull(columns, "Columns cannot be null");
             columns = List.copyOf(columns);
+        }
+
+        /**
+         * The table's temporal columns ({@code milestoning(business(
+         * BUS_FROM=..., BUS_THRU=...), processing(...))}); each pair
+         * nullable — a table may be business-, processing- or bi-temporal.
+         */
+        public record Milestoning(String busFrom, String busThru,
+                String procIn, String procOut, String snapshot) {
+
+            /** Range-milestoned (no snapshot column). */
+            public Milestoning(String busFrom, String busThru,
+                    String procIn, String procOut) {
+                this(busFrom, busThru, procIn, procOut, null);
+            }
         }
     }
 

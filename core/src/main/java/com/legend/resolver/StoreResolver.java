@@ -324,6 +324,114 @@ public final class StoreResolver {
                         || c.callee().qualifiedName().endsWith("::removeDuplicates"));
     }
 
+    /**
+     * BUSINESS-temporal fetch {@code Class.all(%date)}: filter the
+     * materialized pipeline by the main table's milestoning columns —
+     * {@code from_z <= d < thru_z}; {@code %latest} selects the open-ended
+     * row ({@code thru_z = 9999-12-31}, the engine's convention).
+     */
+    private TypedSpec milestonedPipe(TypedSpec pipe, TypedSpec date, String classFqn) {
+        com.legend.compiler.spec.typed.TypedTableReference root = rootTable(pipe);
+        var ms = root == null ? null
+                : ctx.findTableMilestoning(root.store(), root.table()).orElse(null);
+        String fromCol = ms == null ? null
+                : ms.busFrom() != null ? ms.busFrom() : ms.procIn();
+        String thruCol = ms == null ? null
+                : ms.busFrom() != null ? ms.busThru() : ms.procOut();
+        String snapCol = ms == null ? null : ms.snapshot();
+        if (snapCol == null && (fromCol == null || thruCol == null)) {
+            throw new MappingResolutionException("milestoned fetch of '" + classFqn
+                    + "': the main table declares no matching milestoning block",
+                    classFqn);
+        }
+        if (!(date instanceof com.legend.compiler.spec.typed.TypedCDate
+                || date instanceof com.legend.compiler.spec.typed.TypedCLatestDate)) {
+            throw new MappingResolutionException("milestoned fetch of '" + classFqn
+                    + "' with a non-literal date is not supported yet", classFqn);
+        }
+        com.legend.compiler.element.type.Type.RelationType row = (com.legend.compiler.element.type.Type.RelationType) pipe.info().type();
+        String v = "ms_row";
+        com.legend.compiler.element.type.ExprType rowT =
+                new com.legend.compiler.element.type.ExprType(row,
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+        java.util.function.Function<String, TypedSpec> col = name -> {
+            com.legend.compiler.element.type.Type.Column c = row.columns().stream()
+                    .filter(x -> x.name().equalsIgnoreCase(name)).findFirst()
+                    .orElseThrow(() -> new MappingResolutionException(
+                            "milestoning column '" + name + "' is not on the"
+                                    + " pipeline row of '" + classFqn + "'", classFqn));
+            return new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                    new com.legend.compiler.spec.typed.TypedVariable(v, rowT),
+                    c.name(), new com.legend.compiler.element.type.ExprType(
+                            c.type(), c.multiplicity()));
+        };
+        com.legend.compiler.element.type.ExprType boolT =
+                new com.legend.compiler.element.type.ExprType(
+                        com.legend.compiler.element.type.Type.Primitive.BOOLEAN,
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+        TypedSpec cond;
+        if (snapCol != null) {
+            // SNAPSHOT milestoning: the fetch date selects its snapshot rows
+            if (date instanceof com.legend.compiler.spec.typed.TypedCLatestDate) {
+                throw new MappingResolutionException("%latest over a SNAPSHOT-"
+                        + "milestoned table is not supported yet", classFqn);
+            }
+            cond = cmpCall("meta::pure::functions::boolean::equal",
+                    col.apply(snapCol), date, boolT);
+        } else if (date instanceof com.legend.compiler.spec.typed.TypedCLatestDate) {
+            com.legend.compiler.element.type.ExprType dt =
+                    new com.legend.compiler.element.type.ExprType(
+                            com.legend.compiler.element.type.Type.Primitive.DATE_TIME,
+                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+            cond = cmpCall("meta::pure::functions::boolean::equal",
+                    col.apply(thruCol),
+                    new com.legend.compiler.spec.typed.TypedCDate(com.legend.values.PureDateLiteral.parse("9999-12-31T00:00:00"), dt),
+                    boolT);
+        } else {
+            cond = cmpCall("meta::pure::functions::boolean::and",
+                    cmpCall("meta::pure::functions::boolean::lessThanEqual",
+                            col.apply(fromCol), date, boolT),
+                    cmpCall("meta::pure::functions::boolean::greaterThan",
+                            col.apply(thruCol), date, boolT),
+                    boolT);
+        }
+        TypedLambda pred = new TypedLambda(java.util.List.of(v),
+                java.util.List.of(cond),
+                new com.legend.compiler.element.type.ExprType(
+                        new com.legend.compiler.element.type.Type.FunctionType(
+                                java.util.List.of(new com.legend.compiler.element.type.Type.Param(row,
+                                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                                new com.legend.compiler.element.type.Type.Param(
+                                        com.legend.compiler.element.type.Type.Primitive.BOOLEAN,
+                                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+        return new com.legend.compiler.spec.typed.TypedFilter(pipe, pred, pipe.info());
+    }
+
+    private TypedSpec cmpCall(String fqn, TypedSpec a, TypedSpec b,
+            com.legend.compiler.element.type.ExprType out) {
+        var fn = ctx.findFunction(fqn).stream()
+                .filter(f -> f.parameters().size() == 2)
+                .findFirst().orElseThrow(() -> new IllegalStateException(
+                        "resolver bug: no 2-arg overload of " + fqn));
+        return new com.legend.compiler.spec.typed.TypedNativeCall(fn,
+                java.util.List.of(a, b), out);
+    }
+
+    /** The LEFTMOST physical table of a materialized pipeline. */
+    private static com.legend.compiler.spec.typed.TypedTableReference rootTable(TypedSpec n) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedTableReference tr) {
+            return tr;
+        }
+        for (TypedSpec c : n.children()) {
+            com.legend.compiler.spec.typed.TypedTableReference r = rootTable(c);
+            if (r != null) {
+                return r;
+            }
+        }
+        return null;
+    }
+
     /** The element CLASS of an object-space chain (for synthetic lambdas). */
     private static com.legend.compiler.element.type.Type sourceClassType(TypedSpec chain) {
         com.legend.compiler.element.type.Type t = chain.info().type();
@@ -571,10 +679,9 @@ public final class StoreResolver {
             };
         }
         TypedGetAll g = (TypedGetAll) cur;
-        if (!g.milestoning().isEmpty()) {
-            throw new MappingResolutionException("milestoned class fetch of '"
-                    + g.classFqn() + "' is not supported yet (H-scope exclusion)",
-                    g.classFqn());
+        if (g.milestoning().size() > 1) {
+            throw new MappingResolutionException("bi-temporal class fetch of '"
+                    + g.classFqn() + "' is not supported yet", g.classFqn());
         }
         ClassSource cs = sources.get(dispatch(context, g.classFqn()), g.classFqn(),
                 target -> dispatch(context, target),
@@ -709,6 +816,9 @@ public final class StoreResolver {
                 targetClass -> Pipelines.materialize(
                         sources.get(cs.mappingFqn(), targetClass).pipeline(),
                         Set.of(), targetClass).pipeline());
+        final TypedSpec materializedPipe = g.milestoning().isEmpty()
+                ? m.pipeline()
+                : milestonedPipe(m.pipeline(), g.milestoning().get(0), g.classFqn());
 
         // To-many association heads (1-hop, exists/isEmpty position):
         // correlated-EXISTS material — target pipeline + oriented condition,
@@ -861,7 +971,7 @@ public final class StoreResolver {
 
         // 2b. Materialize the association joins (descriptor -> emission,
         //     first-demand order) onto the pipeline.
-        TypedSpec withJoins = m.pipeline();
+        TypedSpec withJoins = materializedPipe;
         for (AssocJoin aj : assocJoins) {
             com.legend.compiler.element.type.Type.RelationType leftRow =
                     (com.legend.compiler.element.type.Type.RelationType)

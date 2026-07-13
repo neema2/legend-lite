@@ -4,7 +4,7 @@ RUN-as-data over the local legend-engine checkout; row equality is the
 contract, golden SQL is advisory. SHAPE = test body/assert form the
 runner does not yet recognize (accounted, not skipped silently).
 
-## Failed seed statements (125)
+## Failed seed statements (122)
 
 - `CREATE OR REPLACE TABLE testTable ("quantity" INT, "Class" VARCHAR(200), "boolean" INT, "abstract" INT, "assert" INT, "break" INT, "byte" INT, "catch" INT, "char" INT, "const" INT, "continue" INT, "default" INT, "do" INT, "double" INT, "else" INT, "enum" INT, "final" INT, "finally" INT, "DOUBLE" INT, "for" INT, "goto" INT, "implements" INT, "instanceof" INT, "interface" VARCHAR(100), "long" VARCHAR(100), "new" VARCHAR(100), "package" VARCHAR(100), "private" VARCHAR(100), "protected" VARCHAR(100), "public" VARCHAR(100), "return" VARCHAR(100), "short" VARCHAR(100), "static" VARCHAR(100), "strictfp" VARCHAR(100), "super" VARCHAR(100), "switch" VARCHAR(100), "synchronized" VARCHAR(100), "this" VARCHAR(100), "throw" VARCHAR(100), "throws" VARCHAR(100), "transient" VARCHAR(100), "try" VARCHAR(100), "void" VARCHAR(100), "volatile" VARCHAR(100), "while" VARCHAR(100)) => Catalog Error: Column with name DOUBLE already exists!`
 - `Create Table testTable("quantity" INT, "Class" VARCHAR(200), "boolean"  INT, "abstract"  INT, "assert"  INT, "break"  INT, "byte"  INT, "catch"  INT, "char"  INT, "const"  INT, "continue"  INT, "default"  INT, "do"  INT, "double"  INT, "else"  INT, "enum"  INT, "final"  INT, "finally"  INT, "DOUBLE"  INT, "goto"  INT, "implements"  INT, "instanceof"  INT, "interface" VARCHAR(100), "long" VARCHAR(100), "new" VARCHAR(100), "package" VARCHAR(100), "private" VARCHAR(100), "protected" VARCHAR(100), "public" VARCHAR(100), "return" VARCHAR(100), "short" VARCHAR(100), "static" VARCHAR(100), "strictfp" VARCHAR(100), "super" VARCHAR(100), "switch" VARCHAR(100), "synchronized" VARCHAR(100), "this" VARCHAR(100), "throw" VARCHAR(100), "throws" VARCHAR(100), "transient" VARCHAR(100), "try" VARCHAR(100), "void" VARCHAR(100), "volatile" VARCHAR(100), "while" VARCHAR(100)); => Catalog Error: Column with name DOUBLE already exists!`
@@ -83,9 +83,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - `insert into DATA_WITH_TIMESTAMPS_KEYS ("ID1", "ID2", "ID3", "PROP_STRING", "PROP_INT") values (5, 'Fabrice', 'Roberts', 2, 'Firm A', '7 Palo Alto', 2, '3 somewhere',1); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into DATA_WITH_TIMESTAMPS_KEYS ("ID1", "ID2", "ID3", "PROP_STRING", "PROP_INT") values (2, CURRENT_TIMESTAMP(), 21,  'bar', 2); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into DATA_WITH_TIMESTAMPS_KEYS ("ID1", "ID2", "ID3", "PROP_STRING", "PROP_INT") values (3, CURRENT_TIMESTAMP(), 31, '', 3); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into Person ("id", "state", "unitNumber", "in_z", "out_z") values (1, 'CA', 7, '2022-10-21 23:59:59', '9999-12-31 00:00:00' ); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into Person ("id", "state", "unitNumber", "in_z", "out_z") values (2, 'TX', 8, '2022-10-20 23:59:59', '9999-12-31 00:00:00' ); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into Person ("id", "state", "unitNumber", "in_z", "out_z") values (3, 'NY', 9, '2022-10-20 23:59:59', '9999-12-31 00:00:00' ); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `Create Table Car ("OWNER_ID" INT, "NAME" VARCHAR(200), "FUEL" INTEGER, "FROM_Z" DATE, "THRU_Z" DATE); => Catalog Error: Table with name "Car" already exists!`
 - `insert into Car ("OWNER_ID", "NAME", "FUEL", "FROM_Z", "THRU_Z") values (1, 'Peugeot', 1, '2025-01-01', '9999-12-31'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into Car ("OWNER_ID", "NAME", "FUEL", "FROM_Z", "THRU_Z") values (2, 'Renault', 2, '2023-01-01', '2025-12-31'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
@@ -148,7 +145,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 47 | 0 | 0 | 0 | 47 |
-| milestoning/tests | 257 | 0 | 0 | 207 | 50 |
+| milestoning/tests | 257 | 0 | 6 | 201 | 50 |
 | modelJoins | 9 | 0 | 0 | 0 | 9 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 12 | 0 | 0 | 0 | 12 |
@@ -171,9 +168,9 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/association | 24 | 1 | 0 | 19 | 4 |
 | tests/mapping/classMappingByClass | 3 | 0 | 0 | 0 | 3 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 0 | 0 | 30 | 2 |
-| tests/mapping/distinct | 18 | 5 | 4 | 9 | 0 |
+| tests/mapping/distinct | 18 | 4 | 5 | 9 | 0 |
 | tests/mapping/dynaJoin | 6 | 0 | 0 | 2 | 4 |
-| tests/mapping/embedded | 70 | 14 | 15 | 36 | 5 |
+| tests/mapping/embedded | 70 | 14 | 13 | 36 | 7 |
 | tests/mapping/enumeration | 27 | 1 | 2 | 2 | 22 |
 | tests/mapping/filter | 10 | 4 | 0 | 5 | 1 |
 | tests/mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
@@ -189,14 +186,14 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/selfJoin | 3 | 0 | 0 | 2 | 1 |
 | tests/mapping/sqlFunction | 73 | 52 | 1 | 4 | 16 |
 | tests/mapping/tree | 13 | 0 | 0 | 13 | 0 |
-| tests/mapping/union | 125 | 9 | 2 | 95 | 19 |
+| tests/mapping/union | 125 | 9 | 2 | 94 | 20 |
 | tests/mapping/union/relation | 15 | 0 | 0 | 13 | 2 |
 | tests/platformOperations | 4 | 0 | 0 | 0 | 4 |
 | tests/query | 99 | 39 | 2 | 32 | 26 |
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2429 | **308** | 90 | 1095 | 936 |
+| **total** | 2429 | **307** | 95 | 1088 | 939 |
 
 ### mapping walls (dropped at assembly)
 
@@ -424,20 +421,19 @@ runner does not yet recognize (accounted, not skipped silently).
 - 28x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - 23x expected at most one value, got many ([*])
 - 23x [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- 23x milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
 - 22x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 21x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 18x unknown function 'getAllVersionsInRange'
 - 16x unknown function 'getAllVersions'
 - 15x navigation through class-typed slot property 'address' is not supported yet
-- 15x milestoned class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet (H-scope exclusion)
+- 15x bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
 - 15x unknown function 'biTemporalProduct'
-- 15x milestoned class fetch of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X' is not supported yet (H-scope exclusion)
 - 13x unknown function 'classification'
 - 13x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exactly one
 - 13x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Person' (of 1 candidates); class-query dispatch needs exactly one
 - 12x filter predicate references column 'firm_employees', unresolvable even after isolation
 - 12x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected String, got Integer
+- 12x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::Product' (of 1 candidates); class-query dispatch needs exactly one
 - 11x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::PersonWithAddress' (of 1 candidates); class-query dispatch needs exactly one
 - 10x object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - 10x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Person' (of 1 candidates); class-query dispatch needs exactly one
@@ -448,6 +444,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - 8x unknown function 'ytd'
 - 8x expected meta::relational::tests::functions::distance::GeographicCoordinate, got GeographicCoordinate
 - 8x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Account' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::relational::tests::simpleRelationalMapping
+- 8x class query under TypedMap is not resolvable yet (H2 vocabulary)
 
 ### per-test outcomes (non-passing)
 
@@ -1079,7 +1076,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testTableToTdsWithCrossJoin [lineage/scanRelations]: no execute(|...) call
 - SHAPE testTdsJoinConcatenateAndJoin [lineage/scanRelations]: no execute(|...) call
 - SHAPE testMileStoningWithNewTDSFilterAndPostProcessor [milestoning/tests]: no execute(|...) call
-- ERROR testBiTemporalAllTypeQuery [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet (H-scope exclusion)
+- ERROR testBiTemporalAllTypeQuery [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
 - ERROR testBiTemporalPropertyUsageInProject [milestoning/tests]: unknown function 'biTemporalProduct'
 - ERROR testBiTemporalPropertyUsageInProjectPath [milestoning/tests]: [1:150] navigation path segment 'biTemporalProduct(%2017-6-10, %2017-6-9)' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::milestoning::Order/biTemporalProduct(%2017-6-10, %2017-6-9)/id#
 - ERROR testMultipleBiTemporalPropertyUsageInProject [milestoning/tests]: unknown function 'biTemporalProduct'
@@ -1089,11 +1086,11 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMultipleBiTemporalPropertyUsageInProjectWithMilestoningInfinitySpecifiedInDBPlusLatestPropagation [milestoning/tests]: unknown function 'biTemporalProduct'
 - ERROR testPopulationOfMilestonedThisBiTemporalDatesInProject [milestoning/tests]: [1:61] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testPopulationOfMilestonedThisBiTemporalDatesInProjectAgainstNonMilestonedStore [milestoning/tests]: [1:61] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testBiTemporalQueryMappedToSingleTemporalStore [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet (H-scope exclusion)
+- ERROR testBiTemporalQueryMappedToSingleTemporalStore [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
 - ERROR testBiTemporalToBiTemporalDatePropagation [milestoning/tests]: unknown function 'biTemporalProduct'
-- ERROR testBiTemporalToBiTemporalDatePropagationForAll [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet (H-scope exclusion)
+- ERROR testBiTemporalToBiTemporalDatePropagationForAll [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
 - ERROR testBiTemporalToBiTemporalSingleDatePropagationForAll [milestoning/tests]: unknown function 'biTemporalClassification'
-- ERROR testBiTemporalToSingleSingleTemporalDatePropagation [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet (H-scope exclusion)
+- ERROR testBiTemporalToSingleSingleTemporalDatePropagation [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
 - ERROR testBusinessToBiTemporalDatePropagation [milestoning/tests]: unknown function 'biTemporalClassification'
 - ERROR testProcessingToBiTemporalDatePropagation [milestoning/tests]: unknown function 'location'
 - ERROR testBiTemporalToBiTemporalProjectWithMilestoningInfinitySpecifiedInDB [milestoning/tests]: unknown function 'biTemporalProduct'
@@ -1118,12 +1115,12 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMilestonedQualifiedPropertyWithDateProvidedByFunction [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - SHAPE testViewChainsWithBusinessDate [milestoning/tests]: no execute(|...) call
 - ERROR testThisBusinessDateUsageInQualifiedProperty [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testPopulationOfLatestMilestonedDateInQuery [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
-- ERROR testPopulationOfMilestonedBusinessDateWithTimeComponentInQuery [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
+- ERROR testPopulationOfLatestMilestonedDateInQuery [milestoning/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::Product' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testPopulationOfMilestonedBusinessDateWithTimeComponentInQuery [milestoning/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::Product' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testPopulationOfMilestonedBusinessDateInProject [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - SHAPE testMilestoningFiltersPreservedInTdsJoinWithConcatenate [milestoning/tests]: no execute(|...) call
-- ERROR testQueryOfMilestonedTypeWithFilterInMapping [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::StockProduct' is not supported yet (H-scope exclusion)
-- ERROR testQueryOfMilestonedTypeUsingLatestWithFilterInMapping [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::StockProduct' is not supported yet (H-scope exclusion)
+- ERROR testQueryOfMilestonedTypeWithFilterInMapping [milestoning/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::StockProduct' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testQueryOfMilestonedTypeUsingLatestWithFilterInMapping [milestoning/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::StockProduct' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testMilestoningQueryWithMilestoneFilterANdDifferentDatesOnTypeAndProperty [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testMilestoningQueryWithMilestoneFilterAndDifferentDatesOnTypeWithLatestDateOnProperty [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testMilestoningQueryWithMilestoneFilterOnAssociationProperty [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
@@ -1174,38 +1171,38 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testConcatenationOfTemporalTdsQueriesWithGroupBy [milestoning/tests]: no execute(|...) call
 - ERROR testPartiallyMilestoningUnionOperationWithNonTemporalRoot [milestoning/tests]: unknown function 'product'
 - ERROR testPartiallyMilestoningUnionOperationWithNonTemporalRootWithPropagation [milestoning/tests]: unknown function 'product'
-- ERROR testPartiallyMilestoningUnionOperationWithTemporalRootWithPropagation [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
+- ERROR testPartiallyMilestoningUnionOperationWithTemporalRootWithPropagation [milestoning/tests]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::milestoning::Product'
 - ERROR testMilestoningContextPropagationForSimplePropertyReferenceWithMultipleJoinsViaProject [milestoning/tests]: unknown function 'product'
 - ERROR testFilterOnMilestonedClassInProjectWithTDSFilter [milestoning/tests]: unknown function 'product'
 - ERROR testIsolationOfMilestoningFiltersReferencedInAllPartsOfIfStmt [milestoning/tests]: in function 'meta::relational::tests::milestoning::Order$prop$productName': unknown function 'product'
-- ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
+- ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product': expected Boolean, got String
 - ERROR testDeepUnionOperationWithNonTemporalAndNonUnionRoot [milestoning/tests]: unknown function 'product'
-- ERROR testMilestoningFilterPropagationThroughFilter [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
-- ERROR testMilestoningFilterPropagationThroughNestedFilter [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
-- ERROR testMilestoningFilterPropagationWithNowInFilter [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
+- ERROR testMilestoningFilterPropagationThroughFilter [milestoning/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::Product' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testMilestoningFilterPropagationThroughNestedFilter [milestoning/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::Product' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testMilestoningFilterPropagationWithNowInFilter [milestoning/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::Product' (of 1 candidates); class-query dispatch needs exactly one
 - SHAPE testFilterOnView [milestoning/tests]: no execute(|...) call
-- ERROR testMilestoningFilterPropagationThroughProject [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
+- ERROR testMilestoningFilterPropagationThroughProject [milestoning/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::Product' (of 1 candidates); class-query dispatch needs exactly one
 - SHAPE testCalculationOnBusinessDateInGetAll [milestoning/tests]: no execute(|...) call
 - ERROR testNestedExists_NestedExistsWithEmbeddedMapping [milestoning/tests]: [1:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testNestedExists_NestedExistsWithEmbeddedMappingInProject [milestoning/tests]: [1:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testDerivedPropertyOnNonTemporalClassWithMilestonedChain [milestoning/tests]: in function 'meta::relational::tests::milestoning::RootEntity$prop$childLeafValueDerived': unknown function 'rootChild'
 - SHAPE testGraphFetchMultiPrimitiveOnInlineChild [milestoning/tests]: no execute(|...) call
-- ERROR testQueryOnTemporalRoot [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
+- FAIL testQueryOnTemporalRoot [milestoning/tests]: id: expected [2], got []
 - ERROR testQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'product'
-- ERROR testQueryWithPropagationOnTemporalRoot [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
+- ERROR testQueryWithPropagationOnTemporalRoot [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap'
 - ERROR testQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'product'
-- ERROR testUnionQueryOnTemporalRoot [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
+- FAIL testUnionQueryOnTemporalRoot [milestoning/tests]: id: expected [2, 2], got []
 - ERROR testUnionQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'product'
-- ERROR testUnionQueryWithPropagationOnTemporalRoot [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
+- ERROR testUnionQueryWithPropagationOnTemporalRoot [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningUnionMap'
 - ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'product'
 - ERROR testAllVersionInRangeForBuisnessSnapshotMilestoning [milestoning/tests]: unknown function 'getAllVersionsInRange'
 - ERROR testBuisnessSnapshotRangeQueryOnProperty [milestoning/tests]: unknown function 'getAllVersions'
 - ERROR testBuisnessSnapshotRangeQueryOnRootAndProperty [milestoning/tests]: unknown function 'getAllVersionsInRange'
-- ERROR testDateTimeMilestoningParam [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
+- FAIL testDateTimeMilestoningParam [milestoning/tests]: id: expected [2], got []
 - SHAPE testDateTimeVariableMilestoningParam [milestoning/tests]: no execute(|...) call
-- ERROR testDateTimeMilestoningParamPropagation [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
+- ERROR testDateTimeMilestoningParamPropagation [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap'
 - SHAPE testDateTimeVariableMilestoningParamPropagation [milestoning/tests]: no execute(|...) call
-- ERROR testDateTimeMilestoningParamUnion [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
+- ERROR testDateTimeMilestoningParamUnion [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningUnionMap'
 - SHAPE testDateTimeVariableMilestoningParamUnion [milestoning/tests]: no execute(|...) call
 - SHAPE testProcessingTemporalQueryWithInnerQuery [milestoning/tests]: no execute(|...) call
 - SHAPE testProcessingTemporalQueryWithInclusivityBehaviour [milestoning/tests]: no execute(|...) call
@@ -1222,10 +1219,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testLinkageBetweenUnionWithIsolatedMultiJoinSelectLHS [milestoning/tests]: unknown function 'product'
 - ERROR testIsolationOfSubselectWithChildNodesUsingCorrelatedSubQueryStrategy [milestoning/tests]: unknown function 'product'
 - ERROR testSubSelectsWithDifferentColumnsMerge [milestoning/tests]: unknown function 'product'
-- ERROR testRootUnionQueryWithRelationalJoinsForDataTypes [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet (H-scope exclusion)
-- ERROR testRootUnionQueryWithRelationalPropertyJoin [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet (H-scope exclusion)
-- ERROR testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
-- ERROR testLatestIgnoredForNonMilestonedMappedBiTemporalClassesAllQuery [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet (H-scope exclusion)
+- ERROR testRootUnionQueryWithRelationalJoinsForDataTypes [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
+- ERROR testRootUnionQueryWithRelationalPropertyJoin [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
+- ERROR testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::Product': the main table declares no matching milestoning block
+- ERROR testLatestIgnoredForNonMilestonedMappedBiTemporalClassesAllQuery [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
 - ERROR testLatestIgnoredForNonMilestonedMappedClasses [milestoning/tests]: unknown function 'product'
 - ERROR testLatestIgnoredForNonMilestonedMappedBiTemporalClasses [milestoning/tests]: unknown function 'biTemporalProduct'
 - ERROR testLatestIgnoredForNonMilestonedMappedBiTemporalClassesWithProject [milestoning/tests]: unknown function 'biTemporalProduct'
@@ -1237,7 +1234,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testExtraColumnsAreNotAppliedToIntermediateMilestonedJoinTables [milestoning/tests]: unknown function 'product'
 - ERROR testMilestoningFiltersAppliedToIntermediateMilestonedJoinTablesWhereSourceIsEmbeddedTargetTypeIsNonTemporalAndTargetMainTableIsNotMilestoned [milestoning/tests]: [1:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testMilestoningFiltersPropogatedToDataTypePropertiesFromAllInProject [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testLatestMilestoningFiltersPropogatedToDataTypePropertiesFromAllInProject [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
+- ERROR testLatestMilestoningFiltersPropogatedToDataTypePropertiesFromAllInProject [milestoning/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::Product' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testMilestoningFiltersPropogatedFromAllThroughFilterToDataTypePropertiesInProject [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testMilestoningFiltersPropogatedToDataTypePropertiesFromAllInFilter [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testMilestoningFiltersNotPropogatedFromAllToNonTemporalClassMappedToTemporalTable [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
@@ -1249,40 +1246,40 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMilestoningContextWithLatestDateNotPropogatedThroughNonTemporalPropertiesFromAll [milestoning/tests]: class meta::relational::tests::milestoning::System has no property 'systemDescriptionAllVersions'
 - ERROR testMilestoningContextNotPropogatedThroughNonTemporalPropertiesFromMilestonedQualifiedProperty [milestoning/tests]: unknown function 'product'
 - ERROR testMilestoneDatePropogationThruFilterIsIndenpendentOfDateManipulationWithinTheFilter [milestoning/tests]: unknown function 'classification'
-- ERROR testMilestoneDatePropogationFromTypeQueryToNoArgMilestonedQpInFilter [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
-- ERROR testMilestoneDatePropogationFromTypeQueryThroughFilterToNoArgMilestonedQpInProject [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
+- ERROR testMilestoneDatePropogationFromTypeQueryToNoArgMilestonedQpInFilter [milestoning/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::Product' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testMilestoneDatePropogationFromTypeQueryThroughFilterToNoArgMilestonedQpInProject [milestoning/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::Product' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testMilestoneDatePropogationFromTypeQueryDoesNotOverrideThatSpecifiedAsArgToMilestonedQpInFilter [milestoning/tests]: unknown function 'classification'
 - ERROR testLatestMilestoneDatePropogationFromTypeQueryDoesNotOverrideThatSpecifiedAsArgToMilestonedQpInFilter [milestoning/tests]: unknown function 'classification'
-- ERROR testLatestMilestoneDateMappedTableDateDoesNotOverrideLatestDateFromChildPropertyInPropogation [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
+- ERROR testLatestMilestoneDateMappedTableDateDoesNotOverrideLatestDateFromChildPropertyInPropogation [milestoning/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::Product' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testMilestoneDatePropogationFromTypeQueryDoesNotOverrideThatSpecifiedAsArgToMilestonedQpInProject [milestoning/tests]: unknown function 'classification'
 - ERROR testMilestoneDatePropogationFromTypeQueryToProjectIsNotOverridenBySamePropertyUsedInFilterWithDifferentDateArguments [milestoning/tests]: unknown function 'classification'
 - ERROR testMilestoneDateNotPropogatedThroughNonMilestonedType [milestoning/tests]: unknown function 'systemDescription'
 - ERROR testMilestoneDatePropogationFromWithinTheMapToProject [milestoning/tests]: unknown function 'classification'
 - ERROR testRuntimeProcessingErrorWhenBusinessDateIsNotPropagatedThroughUserDefinedDerivedPropertyWithBusinessTemporalReturnType [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testMilestoningQueryOnATypeWithManyRelationalPropertyMappingChildrenFollowedByMap [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
+- ERROR testMilestoningQueryOnATypeWithManyRelationalPropertyMappingChildrenFollowedByMap [milestoning/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::Product' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testMilestoneDatePropogationFromTypeQueryToNoArgMilestonedQpInMapFollowedByProjectOnDataTypeProperty [milestoning/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testMilestoneDatePropogationFromTypeQueryThroughNoArgMilestonedQpInMapThroughToProjectOnComplexDataMilestonedProperty [milestoning/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testMilestoneDatePropogationFromTypeQueryThroughNoArgMilestonedQpInMapWhereSubsequentProjectOverrides [milestoning/tests]: unknown function 'exchange'
-- ERROR testFiltersRemainOnMilestonedRootTypeWhenMappedToNonTemporalTypeDataType [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::ProductClassification' is not supported yet (H-scope exclusion)
+- ERROR testFiltersRemainOnMilestonedRootTypeWhenMappedToNonTemporalTypeDataType [milestoning/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::ProductClassification' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testMilestoneDatePropogationThruExistsIsIndenpendentOfDateManipulationWithinTheFilter [milestoning/tests]: unknown function 'classification'
 - ERROR testMilestoneDatePropogationThruExistsConditionalClause [milestoning/tests]: unknown function 'product'
 - ERROR testMilestoningContextIsPropogatedThroughAutoMap [milestoning/tests]: unknown function 'product'
 - ERROR testMilestoningContextIsPropogatedThroughSubType [milestoning/tests]: unknown function 'product'
-- ERROR testMilestoningContextPropagatedThroughFilterToNoArgMilestonedQualifiedPropertyInProjectPath [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
-- ERROR testMilestoningContextPropagatedThroughToLeftSideOfQualifiedPropertyFilter [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::ProductClassification' is not supported yet (H-scope exclusion)
+- ERROR testMilestoningContextPropagatedThroughFilterToNoArgMilestonedQualifiedPropertyInProjectPath [milestoning/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::Product' (of 1 candidates); class-query dispatch needs exactly one
+- ERROR testMilestoningContextPropagatedThroughToLeftSideOfQualifiedPropertyFilter [milestoning/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::ProductClassification' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testMilestoningContextPropagatedFromMilestoningQualifiedPropertyWithArgToNoArgMilestonedQualifiedPropertyInProjectPath [milestoning/tests]: [1:242] navigation path segment 'classification(%2016-10-16)' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::milestoning::Product/classification(%2016-10-16)/exchange/name#
 - ERROR testMilestoningContextPropagatedUsingVariableInProjectPath [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testCurrentMappingPropagationThroughMilestonedQualifiedPropertyWithEmbeddedLeftSideToSubsequentPropertyInProjectPath [milestoning/tests]: [1:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testMilestoningContextPropagatedUsingVariableInProject [milestoning/tests]: [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testMilestoningContextPropagatedUsingConstantInProjectMoveLetInBlock [milestoning/tests]: [2:75] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testDatePropagationWithInheritance [milestoning/tests]: [1:75] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testDistinctUsageAtRootOfMilestonedQuery [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet (H-scope exclusion)
-- ERROR testInFromInclusive [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet (H-scope exclusion)
-- ERROR testInThruInclusive [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet (H-scope exclusion)
-- ERROR testOutFromInclusive [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet (H-scope exclusion)
-- ERROR testOutThruInclusive [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet (H-scope exclusion)
-- ERROR testInThruInclusiveUnionOutFromInclusive [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet (H-scope exclusion)
-- ERROR testOutFromInclusiveUnionInThruInclusive [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet (H-scope exclusion)
+- ERROR testDistinctUsageAtRootOfMilestonedQuery [milestoning/tests]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::milestoning::Product'
+- ERROR testInFromInclusive [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
+- ERROR testInThruInclusive [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
+- ERROR testOutFromInclusive [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
+- ERROR testOutThruInclusive [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
+- ERROR testInThruInclusiveUnionOutFromInclusive [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
+- ERROR testOutFromInclusiveUnionInThruInclusive [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
 - ERROR testInThruInclusiveUnionInThruInclusive [milestoning/tests]: unknown function 'biTemporalProduct'
 - ERROR testOutFromInclusiveUnionOutFromInclusive [milestoning/tests]: unknown function 'biTemporalProduct'
 - ERROR testAssoWithOtherwise [milestoning/tests]: unknown function 'classification'
@@ -1290,22 +1287,22 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProcessingTemporalAllQuery [milestoning/tests]: [1:50] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testProcessingTemporalPropertyQuery [milestoning/tests]: [1:50] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testProcessingTemporalPropertyPropagationInQuery [milestoning/tests]: [1:50] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- ERROR testQueryOnTemporalRoot [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not supported yet (H-scope exclusion)
+- FAIL testQueryOnTemporalRoot [milestoning/tests]: id: expected [2], got []
 - ERROR testQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'processingTemporalProduct'
-- ERROR testQueryWithPropagationOnTemporalRoot [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not supported yet (H-scope exclusion)
+- ERROR testQueryWithPropagationOnTemporalRoot [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMap'
 - ERROR testQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'processingTemporalProduct'
-- ERROR testUnionQueryOnTemporalRoot [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not supported yet (H-scope exclusion)
+- FAIL testUnionQueryOnTemporalRoot [milestoning/tests]: id: expected [2, 2], got []
 - ERROR testUnionQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'processingTemporalProduct'
-- ERROR testUnionQueryWithPropagationOnTemporalRoot [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not supported yet (H-scope exclusion)
+- ERROR testUnionQueryWithPropagationOnTemporalRoot [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningUnionMap'
 - ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'processingTemporalProduct'
 - ERROR testAllVersionInRangeForProcessingSnapshotMilestoning [milestoning/tests]: unknown function 'getAllVersionsInRange'
 - ERROR testProcessingSnapshotRangeQueryOnProperty [milestoning/tests]: unknown function 'getAllVersions'
 - ERROR testProcessingSnapshotRangeQueryOnRootAndProperty [milestoning/tests]: unknown function 'getAllVersionsInRange'
-- ERROR testDateTimeMilestoningParam [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not supported yet (H-scope exclusion)
+- FAIL testDateTimeMilestoningParam [milestoning/tests]: id: expected [2], got []
 - SHAPE testDateTimeVariableMilestoningParam [milestoning/tests]: no execute(|...) call
-- ERROR testDateTimeMilestoningParamPropagation [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not supported yet (H-scope exclusion)
+- ERROR testDateTimeMilestoningParamPropagation [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMap'
 - SHAPE testDateTimeVariableMilestoningParamPropagation [milestoning/tests]: no execute(|...) call
-- ERROR testDateTimeMilestoningParamUnion [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not supported yet (H-scope exclusion)
+- ERROR testDateTimeMilestoningParamUnion [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningUnionMap'
 - SHAPE testDateTimeVariableMilestoningParamUnion [milestoning/tests]: no execute(|...) call
 - ERROR testBusinessDateForAllVersions [milestoning/tests]: unknown function 'getAllVersions'
 - ERROR testProcessingDateForAllVersions [milestoning/tests]: unknown function 'getAllVersions'
@@ -1332,8 +1329,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testPlanHybridMilestoningUnionOperationWithNonTemporalRootWithPropagation [milestoning/tests]: no execute(|...) call
 - ERROR testInFlowHybridMilestoningUnionOperationWithNonTemporalRootWithPropagation [milestoning/tests]: unknown function 'biTemporalProduct'
 - SHAPE testPlanHybridMilestoningUnionOperationWithTemporalRootWithPropagation [milestoning/tests]: no execute(|...) call
-- ERROR testInFlowHybridMilestoningUnionOperationWithTemporalRootWithPropagation [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet (H-scope exclusion)
-- ERROR testMilestoningWithUnionOnView [milestoning/tests]: milestoned class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet (H-scope exclusion)
+- ERROR testInFlowHybridMilestoningUnionOperationWithTemporalRootWithPropagation [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
+- ERROR testMilestoningWithUnionOnView [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
 - ERROR testMilestoningWithUnionOnViewWithAllVersions [milestoning/tests]: class meta::relational::tests::milestoning::BiTemporalProduct has no property 'classificationAllVersions'
 - SHAPE testPersonToFirmUsingProject [modelJoins]: no execute(|...) call
 - SHAPE testJoinWithConstantDouble [modelJoins]: no execute(|...) call
@@ -1643,7 +1640,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProjectWithColumnSubSetSQLTest [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
 - SHAPE testProjectWithQuotedColumnFromTableToTDS [tds/tests]: no execute(|...) call
 - SHAPE testLowerProjectColsEliminated [tds/tests]: partial: 3/4 asserts recognized (recognized ones hold); first unrecognized: assertFalse($result->sqlRemoveFormatting()->toLower()->contains('hello'))
-- FAIL testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: rows: expected <Anthony,David,Fabrice,John,Oliver,Peter>, got <David,Fabrice,Oliver,Peter,Anthony,John>
+- FAIL testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: rows: expected <Anthony,David,Fabrice,John,Oliver,Peter>, got <Fabrice,John,Oliver,Peter,Anthony,David>
 - SHAPE testLowerProjectColsNotEliminatedWithSort [tds/tests]: partial: 3/4 asserts recognized (recognized ones hold); first unrecognized: assert($result->sqlRemoveFormatting()->toLower()->contains('hello'))
 - FAIL testRestrictOnGroupByEleminatesUncessaryAggs [tds/tests]: rows: expected <Firm A|1,Firm B|1,Firm C|1,Firm X|4>, got <null|7>
 - FAIL testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct [tds/tests]: rows: expected <Firm A|1,Firm B|1,Firm C|1,Firm X|4>, got <null|7>
@@ -1917,11 +1914,12 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMergeForClassMappingInnerJoinFilter1 [tests/mapping/classMappingFilterWithInnerJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::model::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testLazyExecution [tests/mapping/classMappingFilterWithInnerJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testCorrelatedSubSqlQueryGeneration [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::milestoning::Product' is not a known class, mapping, runtime, connection, or database
-- ERROR TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNestedGeneration [tests/mapping/classMappingFilterWithInnerJoin]: milestoned class fetch of 'meta::relational::tests::model::simple::TemporalTrade' is not supported yet (H-scope exclusion)
+- ERROR TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNestedGeneration [tests/mapping/classMappingFilterWithInnerJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::TemporalTrade' (of 1 candidates); class-query dispatch needs exactly one
 - FAIL testDistinctMappingSimpleProjectSelectOneOfTheDistinctProperties [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
+- FAIL testDistinctMappingSimpleProjectDistinct [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\n>, got <name\nIF 2\nIF 1\n>
 - FAIL testDistinctMappingWithFilterSelectOneProperty [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
 - ERROR testDistinctMappingWithJoinSelectAll [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
-- FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\n\nIfName2\nIfName1\n>
+- FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\nIfName1\n\nIfName2\n>
 - ERROR testProjectDistinctMappingWithDistinctInJoin [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testProjectDistinctMappingWithDistinctInJoinWithDup [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testDistinctMappingWithDistinctInJoinWithFilter [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
@@ -1961,9 +1959,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE otherwiseTestGetterDeepTraversal [tests/mapping/embedded]: no recognizable assertions
 - ERROR testProjectionOtherwiseDeepTraversal [tests/mapping/embedded]: multi-hop navigation bondDetails.holder.name through an embedded/slot head is not supported yet
 - ERROR testProjectionOtherwiseNonPrimitive [tests/mapping/embedded]: in function 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise3$class$meta::relational::tests::mapping::embedded::advanced::model::Product': relation has no column 'bondClassification'
-- FAIL otherwiseTestGroupBy [tests/mapping/embedded]: toCSV: expected <Bond Type,Profit\n15 years,10.0\n5 years,1.0\n>, got <Bond Type,Profit\n5 years,1.0\n15 years,10.0\n>
-- FAIL otherwiseTestGroupByComplexAgg [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\n15 years,2.0\n5 years,5.0\n>, got <Bond Type,sum\n5 years,5.0\n15 years,2.0\n>
-- FAIL otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\nBond 1,1.0\nBond 2,1.0\nSuperBond 3 super,5.0\n>, got <Bond Type,sum\nSuperBond 3 super,5.0\nBond 2,1.0\nBond 1,1.0\n>
+- SHAPE otherwiseTestGroupBy [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "bond_detail_0".TYPE as "Bond Type", sum(case when "root".MARKET_NAME = \'LSE\' th
+- SHAPE otherwiseTestGroupByComplexAgg [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "bond_detail_0".TYPE as "Bond Type", sum(case when "bond_detail_0".TYPE like \'5%\
+- FAIL otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\nBond 1,1.0\nBond 2,1.0\nSuperBond 3 super,5.0\n>, got <Bond Type,sum\nBond 2,1.0\nBond 1,1.0\nSuperBond 3 super,5.0\n>
 - FAIL otherwiseTestQualifierPropertyConstantExpression [tests/mapping/embedded]: toCSV: expected <name,duration\nProduct 1,5\nProduct 2,5\n>, got <name,market\nProduct 1,LSE\nProduct 2,LSE\nProduct 3,MILAN\n>
 - ERROR otherwiseTestComplexExpressionWithEnumMapping [tests/mapping/embedded]: property 'type' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise2'
 - ERROR otherwiseTestEmbeddedToEmbedded [tests/mapping/embedded]: multi-hop navigation bondDetails.issuer.name through an embedded/slot head is not supported yet
@@ -1984,14 +1982,14 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testQualifierProperty [tests/mapping/embedded]: multi-hop navigation issuer.address.name through an embedded/slot head is not supported yet
 - ERROR testInlineInEmbedded [tests/mapping/embedded]: multi-hop navigation holder.address.name through an embedded/slot head is not supported yet
 - ERROR testInlineInEmbeddedGraphFetch [tests/mapping/embedded]: multi-hop navigation holder.address.name through an embedded/slot head is not supported yet
-- ERROR testMilestonedEmbeddedGraphFetch [tests/mapping/embedded]: milestoned class fetch of 'meta::relational::tests::mapping::embedded::advanced::model::Person' is not supported yet (H-scope exclusion)
-- ERROR testMilestonedEmbeddedInlineGraphFetch [tests/mapping/embedded]: milestoned class fetch of 'meta::relational::tests::mapping::embedded::advanced::model::Person' is not supported yet (H-scope exclusion)
-- ERROR testMilestonedExtendsEmbeddedGraphFetch [tests/mapping/embedded]: milestoned class fetch of 'meta::relational::tests::mapping::embedded::advanced::model::Person' is not supported yet (H-scope exclusion)
-- ERROR testMilestonedInlineGraphFetchWithEnumProperty [tests/mapping/embedded]: milestoned class fetch of 'meta::relational::tests::mapping::embedded::advanced::model::PersonWithGenderInfo' is not supported yet (H-scope exclusion)
+- ERROR testMilestonedEmbeddedGraphFetch [tests/mapping/embedded]: graph child 'address' of class 'meta::relational::tests::mapping::embedded::advanced::model::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
+- ERROR testMilestonedEmbeddedInlineGraphFetch [tests/mapping/embedded]: graph child 'address' of class 'meta::relational::tests::mapping::embedded::advanced::model::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
+- ERROR testMilestonedExtendsEmbeddedGraphFetch [tests/mapping/embedded]: graph child 'firm' of class 'meta::relational::tests::mapping::embedded::advanced::model::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
+- ERROR testMilestonedInlineGraphFetchWithEnumProperty [tests/mapping/embedded]: graph child 'genderInfo' of class 'meta::relational::tests::mapping::embedded::advanced::model::PersonWithGenderInfo' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - ERROR testSubType [tests/mapping/embedded]: class-typed property '$p.issuer' used as a whole value is graph output (Phase H4)
 - ERROR testSubTypeOnPropertyMappedToNonRootInlineSetImpl [tests/mapping/embedded]: class-typed property '$p.holder' used as a whole value is graph output (Phase H4)
-- SHAPE testGroupBy [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "root".HOLDER as "holder", sum(case when "root".BOND_TYPE = \'5 years\' then 5.0 e
-- FAIL testGroupByComplexAgg [tests/mapping/embedded]: toCSV: expected <c1,sum\nholder1,2.0\nholder3,5.0\n>, got <c1,sum\nholder3,5.0\nholder1,2.0\n>
+- FAIL testGroupBy [tests/mapping/embedded]: toCSV: expected <holder,Profit\nholder1,10.0\nholder3,1.0\n>, got <holder,Profit\nholder3,1.0\nholder1,10.0\n>
+- SHAPE testGroupByComplexAgg [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "root".HOLDER as "c1", sum(case when "root".HOLDER like \'holder3%\' then 5.0 else
 - FAIL testQualifierProperty [tests/mapping/embedded]: toCSV: expected <name,c2,c3\nBond 1,issuer1,holder1\n>, got <>
 - SHAPE testEnumTheSame [tests/mapping/enumeration]: no execute(|...) call
 - SHAPE testMapping [tests/mapping/enumeration]: partial: 2/12 asserts recognized (recognized ones hold); first unrecognized: null
@@ -2063,7 +2061,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFilteringOnColumnsNotInProjectSingleChildStructure [tests/mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Gasoline' (of 1 candidates); class-query dispatch needs exactly one
 - FAIL testProjectQualifiedPropertyFromUnmappedSuperClass [tests/mapping/inheritance]: owner description: expected [David Scott, Atul Anand], got [Unknown, Unknown]
 - ERROR testEmbeddMappingInSubTypes [tests/mapping/inheritance]: property 'vehicles' of class 'meta::relational::tests::model::inheritance::Person' has no binding in mapping 'meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- ERROR testMilestonedSubTyping [tests/mapping/inheritance]: milestoned class fetch of 'meta::relational::tests::model::inheritance::milestoned::VehicleOwner' is not supported yet (H-scope exclusion)
+- ERROR testMilestonedSubTyping [tests/mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::milestoned::VehicleOwner' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testMilestonedSubTypingWithDifferentDates [tests/mapping/inheritance]: unknown function 'vehicle'
 - ERROR testProjectAssociation [tests/mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testSubTypeProjectDirect [tests/mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exactly one
@@ -2123,11 +2121,11 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSubAggregationRelational [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testMilestonedContract [tests/mapping/modelJoin]: unknown function 'contracts'
 - ERROR testMilestoningTargetOnly [tests/mapping/modelJoin]: unknown function 'orders'
-- ERROR testMilestoningSourceOnly [tests/mapping/modelJoin]: milestoned class fetch of 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order' is not supported yet (H-scope exclusion)
+- ERROR testMilestoningSourceOnly [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testMilestoningSameScheme [tests/mapping/modelJoin]: unknown function 'shipments'
 - ERROR testMilestoningDiffScheme [tests/mapping/modelJoin]: unknown function 'auditEntries'
 - ERROR testRelationalMilestoningTargetOnly [tests/mapping/modelJoin]: unknown function 'orders'
-- ERROR testRelationalMilestoningSourceOnly [tests/mapping/modelJoin]: milestoned class fetch of 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order' is not supported yet (H-scope exclusion)
+- ERROR testRelationalMilestoningSourceOnly [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testRelationalMilestoningSameScheme [tests/mapping/modelJoin]: unknown function 'shipments'
 - ERROR testRelationalMilestoningDiffScheme [tests/mapping/modelJoin]: unknown function 'auditEntries'
 - ERROR testSimpleEquality [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
@@ -2212,7 +2210,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMixedMappingWithFilterInProject [tests/mapping/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::Person' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testMixedMappingWithObjectGroupByAndTdsProject [tests/mapping/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::Person' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testMappingWithWindowColumn [tests/mapping/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::ExtendedPerson' (of 1 candidates); class-query dispatch needs exactly one
-- ERROR testMappingWithGroupBy [tests/mapping/relation]: milestoned class fetch of 'meta::relational::tests::mapping::relation::GroupByClass' is not supported yet (H-scope exclusion)
+- ERROR testMappingWithGroupBy [tests/mapping/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::GroupByClass' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testMappingWithProcessingSnapshotMilestoning [tests/mapping/relation]: unknown function 'ptFirm'
 - ERROR testMappingWithProcessingSnapshotMilestoningAllVersionsInRange [tests/mapping/relation]: unknown function 'getAllVersionsInRange'
 - ERROR testMappingWithBusinessSnapshotMilestoning [tests/mapping/relation]: unknown function 'biztFirm'
@@ -2222,7 +2220,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMappingWithBusinessTemporalMilestoning [tests/mapping/relation]: unknown function 'biztFirm'
 - ERROR testMappingWithBusinessTemporalMilestoningAllVersionsInRange [tests/mapping/relation]: unknown function 'getAllVersionsInRange'
 - ERROR testMappingWithBiTemporalMilestoning [tests/mapping/relation]: unknown function 'btFirm'
-- ERROR testMappingWithMultipleMilestonedTables [tests/mapping/relation]: milestoned class fetch of 'meta::relational::tests::mapping::relation::ProcessingTemporalPerson' is not supported yet (H-scope exclusion)
+- ERROR testMappingWithMultipleMilestonedTables [tests/mapping/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::ProcessingTemporalPerson' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testMixedTemporalMapping [tests/mapping/relation]: unknown function 'biztFirm'
 - ERROR testMixedTemporalMappingWithAllVersionsInRange1 [tests/mapping/relation]: unknown function 'biztFirmAllVersionsInRange'
 - ERROR testMixedTemporalMappingWithAllVersionsInRange2 [tests/mapping/relation]: unknown function 'biztEmployeesAllVersionsInRange'
@@ -2395,23 +2393,23 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testChainedUnionsWithAggregationWithAdditionalColumn [tests/mapping/union]: no execute(|...) call
 - SHAPE testChainedUnionsWithMultipleAggregationWithAdditionalColumn [tests/mapping/union]: no execute(|...) call
 - SHAPE testChainedUnionsWithMapAggregation [tests/mapping/union]: no execute(|...) call
-- ERROR testUnionWithChainedJoinsAcross2SetsV1 [tests/mapping/union]: milestoned class fetch of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X' is not supported yet (H-scope exclusion)
-- ERROR testUnionWithChainedJoinsAcross3SetsV1 [tests/mapping/union]: milestoned class fetch of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X' is not supported yet (H-scope exclusion)
-- ERROR testUnionWithChainedJoinsAcross4SetsV1 [tests/mapping/union]: milestoned class fetch of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X' is not supported yet (H-scope exclusion)
-- ERROR testUnionWithChainedJoinsAcross2SetsV2 [tests/mapping/union]: milestoned class fetch of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X' is not supported yet (H-scope exclusion)
-- ERROR testUnionWithChainedJoinsAcross3SetsV2 [tests/mapping/union]: milestoned class fetch of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X' is not supported yet (H-scope exclusion)
-- ERROR testUnionWithChainedJoinsAcross4SetsV2 [tests/mapping/union]: milestoned class fetch of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X' is not supported yet (H-scope exclusion)
-- ERROR testUnionWithChainedJoinsAcross2SetsV3 [tests/mapping/union]: milestoned class fetch of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X' is not supported yet (H-scope exclusion)
-- ERROR testUnionWithChainedJoinsAcross3SetsV3 [tests/mapping/union]: milestoned class fetch of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X' is not supported yet (H-scope exclusion)
-- ERROR testUnionWithChainedJoinsAcross4SetsV3 [tests/mapping/union]: milestoned class fetch of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X' is not supported yet (H-scope exclusion)
-- ERROR testUnionWithChainedJoinsAcross2SetsV4 [tests/mapping/union]: milestoned class fetch of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X' is not supported yet (H-scope exclusion)
-- ERROR testUnionWithChainedJoinsAcross3SetsV4 [tests/mapping/union]: milestoned class fetch of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X' is not supported yet (H-scope exclusion)
-- ERROR testUnionWithChainedJoinsAcross4SetsV4 [tests/mapping/union]: milestoned class fetch of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X' is not supported yet (H-scope exclusion)
-- ERROR testUnionWithChainedJoinsAcross2SetsV5 [tests/mapping/union]: milestoned class fetch of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X' is not supported yet (H-scope exclusion)
-- ERROR testUnionWithChainedJoinsAcross3SetsV5 [tests/mapping/union]: milestoned class fetch of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X' is not supported yet (H-scope exclusion)
-- ERROR testUnionWithChainedJoinsAcross4SetsV5 [tests/mapping/union]: milestoned class fetch of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X' is not supported yet (H-scope exclusion)
-- ERROR testViewToViewToUnion [tests/mapping/union]: milestoned class fetch of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' is not supported yet (H-scope exclusion)
-- ERROR testUnionedViewsToViewToUnion [tests/mapping/union]: milestoned class fetch of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' is not supported yet (H-scope exclusion)
+- ERROR testUnionWithChainedJoinsAcross2SetsV1 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross2SetsV1'
+- ERROR testUnionWithChainedJoinsAcross3SetsV1 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross3SetsV1'
+- ERROR testUnionWithChainedJoinsAcross4SetsV1 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross4SetsV1'
+- ERROR testUnionWithChainedJoinsAcross2SetsV2 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross2SetsV2'
+- ERROR testUnionWithChainedJoinsAcross3SetsV2 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross3SetsV2'
+- ERROR testUnionWithChainedJoinsAcross4SetsV2 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross4SetsV2'
+- ERROR testUnionWithChainedJoinsAcross2SetsV3 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross2SetsV3'
+- ERROR testUnionWithChainedJoinsAcross3SetsV3 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross3SetsV3'
+- ERROR testUnionWithChainedJoinsAcross4SetsV3 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross4SetsV3'
+- ERROR testUnionWithChainedJoinsAcross2SetsV4 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross2SetsV4'
+- ERROR testUnionWithChainedJoinsAcross3SetsV4 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross3SetsV4'
+- ERROR testUnionWithChainedJoinsAcross4SetsV4 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross4SetsV4'
+- ERROR testUnionWithChainedJoinsAcross2SetsV5 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross2SetsV5'
+- ERROR testUnionWithChainedJoinsAcross3SetsV5 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross3SetsV5'
+- ERROR testUnionWithChainedJoinsAcross4SetsV5 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross4SetsV5'
+- SHAPE testViewToViewToUnion [tests/mapping/union]: no recognizable assertions
+- ERROR testUnionedViewsToViewToUnion [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::unionOfViewsToViewToUnion' failed to normal
 - ERROR testUnionTwoRelationMappings_SimpleProject [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testUnionOfTwoRelationMappings_FilterAcrossSets [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testUnionTwoRelationMappings_FilterWithStartsWith [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one

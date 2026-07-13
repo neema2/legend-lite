@@ -109,6 +109,12 @@ public interface ModelContext {
      */
     Optional<Type.RelationType> findTable(String dbFqn, String name);
 
+    /** The table's temporal columns, when it declares a milestoning block. */
+    default Optional<com.legend.parser.element.DatabaseDefinition.TableDefinition.Milestoning>
+            findTableMilestoning(String dbFqn, String name) {
+        return Optional.empty();
+    }
+
     /**
      * Whether {@code fqn} names an <em>execution-context</em> element &mdash; a
      * mapping, runtime, connection, or database. These are referenced as values by

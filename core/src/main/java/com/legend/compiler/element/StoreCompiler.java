@@ -31,7 +31,7 @@ final class StoreCompiler {
         return findTableDef(db, name).map(StoreCompiler::tableSchema);
     }
 
-    private static Optional<DatabaseDefinition.TableDefinition> findTableDef(
+    static Optional<DatabaseDefinition.TableDefinition> findTableDef(
             DatabaseDefinition db, String name) {
         // A DOTTED name is schema-qualified (~mainTable [db] hr.EMPLOYEES):
         // match the named schema's table only.

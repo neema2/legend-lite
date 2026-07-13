@@ -201,6 +201,34 @@ public final class PureModelContext implements ModelContext {
                 .flatMap(db -> resolveTableWithIncludes(db, name, new java.util.HashSet<>()));
     }
 
+    @Override
+    public Optional<com.legend.parser.element.DatabaseDefinition.TableDefinition.Milestoning>
+            findTableMilestoning(String dbFqn, String name) {
+        return model.findDatabase(dbFqn)
+                .flatMap(db -> milestoningWithIncludes(db, name, new java.util.HashSet<>()));
+    }
+
+    private Optional<com.legend.parser.element.DatabaseDefinition.TableDefinition.Milestoning>
+            milestoningWithIncludes(com.legend.parser.element.DatabaseDefinition db,
+                    String name, java.util.Set<String> seen) {
+        var own = StoreCompiler.findTableDef(db, name)
+                .map(com.legend.parser.element.DatabaseDefinition.TableDefinition::milestoning);
+        if (own.isPresent() && own.get() != null) {
+            return Optional.of(own.get());
+        }
+        for (String include : db.includes()) {
+            if (!seen.add(include)) {
+                continue;
+            }
+            var inc = model.findDatabase(include)
+                    .flatMap(d -> milestoningWithIncludes(d, name, seen));
+            if (inc.isPresent()) {
+                return inc;
+            }
+        }
+        return Optional.empty();
+    }
+
     /** Own tables first, then each {@code include}d database, depth-first (cycle-safe). */
     private Optional<Type.RelationType> resolveTableWithIncludes(
             com.legend.parser.element.DatabaseDefinition db, String name,

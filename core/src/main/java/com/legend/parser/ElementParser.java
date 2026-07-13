@@ -1395,14 +1395,51 @@ public final class ElementParser implements TokenStreamCursor {
         advance(); // "Table"
         String tableName = parseRelationalIdentifier();
         expect(TokenType.PAREN_OPEN);
-        // milestoning(business(...)/processing(...)) is a table DIRECTIVE
-        // preceding the columns (no comma after it) — parsed and dropped:
-        // the milestoning columns are physically declared in the column
-        // list; temporal query semantics stay a loud wall elsewhere
+        // milestoning(business(BUS_FROM=..., BUS_THRU=...),
+        // processing(PROCESSING_IN=..., PROCESSING_OUT=...)) — the table's
+        // temporal columns, captured for milestoned-fetch filters
+        DatabaseDefinition.TableDefinition.Milestoning milestoning = null;
         if (isIdentifierToken(peek()) && "milestoning".equals(text())
                 && peek(1) == TokenType.PAREN_OPEN) {
             advance();
-            skipBalancedContent(TokenType.PAREN_OPEN, TokenType.PAREN_CLOSE);
+            expect(TokenType.PAREN_OPEN);
+            String busFrom = null;
+            String busThru = null;
+            String procIn = null;
+            String procOut = null;
+            String snapshot = null;
+            while (peek() != TokenType.PAREN_CLOSE && !atEnd()) {
+                String kind = parseIdentifier();
+                expect(TokenType.PAREN_OPEN);
+                java.util.Map<String, String> kv = new java.util.LinkedHashMap<>();
+                while (peek() != TokenType.PAREN_CLOSE && !atEnd()) {
+                    String k = parseIdentifier();
+                    if (match(TokenType.EQUAL)) {
+                        // values may be column names or (rarely) other
+                        // tokens; capture identifiers, skip the rest
+                        if (isIdentifierToken(peek())) {
+                            kv.put(k, parseRelationalIdentifier());
+                        } else {
+                            advance();
+                        }
+                    }
+                    match(TokenType.COMMA);
+                }
+                expect(TokenType.PAREN_CLOSE);
+                if (kind.equalsIgnoreCase("business")) {
+                    busFrom = kv.get("BUS_FROM");
+                    busThru = kv.get("BUS_THRU");
+                    snapshot = kv.getOrDefault("BUS_SNAPSHOT_DATE", snapshot);
+                } else if (kind.equalsIgnoreCase("processing")) {
+                    procIn = kv.get("PROCESSING_IN");
+                    procOut = kv.get("PROCESSING_OUT");
+                    snapshot = kv.getOrDefault("PROCESSING_SNAPSHOT_DATE", snapshot);
+                }
+                match(TokenType.COMMA);
+            }
+            expect(TokenType.PAREN_CLOSE);
+            milestoning = new DatabaseDefinition.TableDefinition.Milestoning(
+                    busFrom, busThru, procIn, procOut, snapshot);
         }
         List<DatabaseDefinition.ColumnDefinition> columns = new ArrayList<>();
         if (peek() != TokenType.PAREN_CLOSE) {
@@ -1413,7 +1450,7 @@ public final class ElementParser implements TokenStreamCursor {
             }
         }
         expect(TokenType.PAREN_CLOSE);
-        return new DatabaseDefinition.TableDefinition(tableName, columns);
+        return new DatabaseDefinition.TableDefinition(tableName, columns, milestoning);
     }
 
     private DatabaseDefinition.ColumnDefinition parseColumnDefinition() {

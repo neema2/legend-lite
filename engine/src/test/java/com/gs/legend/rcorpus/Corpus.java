@@ -362,9 +362,29 @@ public final class Corpus {
             parts.add(columnsText.substring(start));
             for (String raw : parts) {
                 // a milestoning(business(...)) block is a table DIRECTIVE,
-                // not a column — not part of the physical DDL
-                if (raw.strip().startsWith("milestoning")) {
-                    continue;
+                // not a column — strip the balanced block; the FIRST column
+                // follows it in the SAME comma part (no separating comma)
+                String stripped = raw.strip();
+                if (stripped.startsWith("milestoning")) {
+                    int open = stripped.indexOf('(');
+                    int d = 0;
+                    int k = open;
+                    while (k < stripped.length()) {
+                        char ch = stripped.charAt(k);
+                        if (ch == '(') {
+                            d++;
+                        } else if (ch == ')') {
+                            d--;
+                            if (d == 0) {
+                                break;
+                            }
+                        }
+                        k++;
+                    }
+                    raw = stripped.substring(Math.min(k + 1, stripped.length()));
+                    if (raw.strip().isEmpty()) {
+                        continue;
+                    }
                 }
                 String col = raw.strip().replaceAll("(?i)\\s+PRIMARY\\s+KEY", "")
                         .replaceAll("(?i)\\s+NOT\\s+NULL", "")
