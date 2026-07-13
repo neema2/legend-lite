@@ -2003,14 +2003,21 @@ public final class ElementParser implements TokenStreamCursor {
             }
             return;
         }
+        // Relation (~func-sourced) class mapping: the class's extent is the
+        // relation a zero-arg function returns; properties bind to columns.
+        if (isIdentifierToken(peek()) && "Relation".equals(text())) {
+            advance();
+            expect(TokenType.BRACE_OPEN);
+            accum.classMappings.add(parseRelationFunctionBody(
+                    elementPath, setId, extendsSetId, root));
+            expect(TokenType.BRACE_CLOSE);
+            return;
+        }
         if (isIdentifierToken(peek())
                 && ("AggregationAware".equals(text())
-                        // Relation (~func-sourced) and XStore mappings:
-                        // parse-and-skip so the surrounding mapping's OTHER
-                        // classes load; a query against the skipped class
-                        // stays loud at resolution ("0 mappings binding").
-                        // Relation-mapping support is its own milestone.
-                        || "Relation".equals(text())
+                        // XStore/ModelJoin mappings: parse-and-skip so the
+                        // surrounding mapping's OTHER classes load; a query
+                        // against the skipped class stays loud at resolution.
                         || "ModelJoin".equals(text())
                         || "XStore".equals(text()))) {
             advance();
@@ -2018,6 +2025,74 @@ public final class ElementParser implements TokenStreamCursor {
             return;
         }
         throw error("unsupported class mapping type: '" + safeText() + "'");
+    }
+
+    /**
+     * Body of a {@code : Relation} class mapping (opening brace consumed;
+     * stops AT the closing brace): {@code ~func <ref>} then comma-separated
+     * column bindings — {@code prop: COL}, {@code prop: 'QUOTED COL'}, or
+     * mapping-local {@code +prop: Type[m]: COL} (XStore association keys).
+     */
+    private ClassMapping.RelationFunction parseRelationFunctionBody(String className,
+            String setId, String extendsSetId, boolean root) {
+        expect(TokenType.TILDE);
+        String kw = parseIdentifier();
+        if (!"func".equals(kw)) {
+            throw error("expected ~func in Relation class mapping, got ~" + kw);
+        }
+        String ref = parseQualifiedName();
+        if (peek() == TokenType.PAREN_OPEN) {
+            // signature spelling f():Relation<Any>[1] — the FQN identifies
+            // the function; the signature tokens are redundant here
+            skipBalancedBlock();
+            if (match(TokenType.COLON)) {
+                parseQualifiedName();
+                skipTypeArgsAndMultiplicity();
+            }
+        }
+        List<ClassMapping.RelationFunction.Col> cols = new ArrayList<>();
+        while (peek() != TokenType.BRACE_CLOSE && !atEnd()) {
+            boolean local = match(TokenType.PLUS);
+            String prop = parseIdentifier();
+            expect(TokenType.COLON);
+            if (local) {
+                parseQualifiedName();       // declared local-property type
+                skipTypeArgsAndMultiplicity();
+                expect(TokenType.COLON);
+            }
+            String col = parseIdentifier();
+            cols.add(new ClassMapping.RelationFunction.Col(prop, col, local));
+            if (!match(TokenType.COMMA)) {
+                break;
+            }
+        }
+        return new ClassMapping.RelationFunction(className, setId, extendsSetId,
+                root, ref, cols);
+    }
+
+    /** Consume {@code <...>} type arguments and a {@code [..]} multiplicity, if present. */
+    private void skipTypeArgsAndMultiplicity() {
+        if (peek() == TokenType.LESS_THAN) {
+            int depth = 0;
+            while (!atEnd()) {
+                if (peek() == TokenType.LESS_THAN) {
+                    depth++;
+                } else if (peek() == TokenType.GREATER_THAN) {
+                    depth--;
+                    if (depth == 0) {
+                        advance();
+                        break;
+                    }
+                }
+                advance();
+            }
+        }
+        if (peek() == TokenType.BRACKET_OPEN) {
+            while (!atEnd() && peek() != TokenType.BRACKET_CLOSE) {
+                advance();
+            }
+            match(TokenType.BRACKET_CLOSE);
+        }
     }
 
     /** Consume a balanced {@code {...}} or {@code (...)} block (strings skipped by the lexer). */

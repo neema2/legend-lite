@@ -684,6 +684,7 @@ public final class MappingNormalizer {
             case ClassMapping.Pure pcm       -> synthM2M(md, pcm, model, new HashSet<>());
             case ClassMapping.Relational rcm -> synthRelational(md, rcm, model);
             case ClassMapping.Union u        -> synthUnion(md, u, model);
+            case ClassMapping.RelationFunction rf -> synthRelationFunction(rf, model);
         };
         return new FunctionDefinition(
                 SynthFqn.mappingClass(md.qualifiedName(), cm.className()),
@@ -694,6 +695,56 @@ public final class MappingNormalizer {
                 List.of(), List.of())
                 .withSynthesizedFrom(new FunctionDefinition.Synthesized(
                         SynthHat.CLASS, md.qualifiedName(), cm.className()));
+    }
+
+    /**
+     * Relation({@code ~func}) class mapping: the class's extent is the
+     * RELATION the referenced zero-arg function returns; property bindings
+     * read its columns by name. The function's single body expression
+     * β-inlines as the pipeline (it is zero-arg by grammar), then the
+     * standard map terminal projects the constructor:
+     * {@code <fn body> -> map(row | ^Class(prop = $row.COL, ...))}.
+     * Mapping-local ({@code +}) columns are XStore association keys — not
+     * class properties; they are omitted from the constructor and consumed
+     * by XStore association support when it lands.
+     */
+    private static ValueSpecification synthRelationFunction(
+            ClassMapping.RelationFunction rf, ModelBuilder model) {
+        String ref = rf.funcRef();
+        List<com.legend.parser.element.Function> fns = model.findFunction(ref);
+        if (fns.isEmpty()) {
+            // the MANGLED spelling f__Relation_1_ encodes the signature in
+            // the name — strip the suffix and retry
+            java.util.regex.Matcher mangled = java.util.regex.Pattern
+                    .compile("^(.*?)__[A-Za-z0-9$]+_(?:\\d+|MANY)_$").matcher(ref);
+            if (mangled.matches()) {
+                fns = model.findFunction(mangled.group(1));
+            }
+        }
+        if (fns.size() != 1
+                || !(fns.get(0) instanceof FunctionDefinition fn)) {
+            throw new com.legend.error.NotImplementedException(
+                    "Relation mapping for '" + rf.className() + "': ~func '"
+                    + ref + "' resolves to " + fns.size() + " function(s)");
+        }
+        if (!fn.parameters().isEmpty() || fn.body().size() != 1) {
+            throw new com.legend.error.NotImplementedException(
+                    "Relation mapping ~func '" + fn.qualifiedName()
+                    + "' must be a zero-arg single-expression function");
+        }
+        ValueSpecification pipeline = fn.body().get(0);
+        Variable row = new Variable("rf_row");
+        Map<String, KeyExpression> fields = new LinkedHashMap<>();
+        for (ClassMapping.RelationFunction.Col c : rf.columns()) {
+            if (c.local()) {
+                continue;
+            }
+            fields.put(c.property(), new KeyExpression(
+                    new AppliedProperty(row, c.column()), false, false));
+        }
+        return new AppliedFunction("map", List.of(pipeline,
+                new LambdaFunction(List.of(row),
+                        List.of(buildNewInstanceToOne(rf.className(), fields, model)))));
     }
 
     // ====================================================================

@@ -686,6 +686,14 @@ public final class NameResolver {
                         : new ClassMapping.Union(className, u.setId(),
                                 u.extendsSetId(), u.root(), u.memberSetIds());
             }
+            case ClassMapping.RelationFunction rf -> {
+                String className = resolveName(rf.className(), scope);
+                String funcRef = resolveName(rf.funcRef(), scope);
+                yield className.equals(rf.className()) && funcRef.equals(rf.funcRef())
+                        ? rf
+                        : new ClassMapping.RelationFunction(className, rf.setId(),
+                                rf.extendsSetId(), rf.root(), funcRef, rf.columns());
+            }
             case ClassMapping.Pure p -> {
                 String className = resolveName(p.className(), scope);
                 String sourceClass = p.sourceClass() == null

@@ -1034,6 +1034,45 @@ public final class Runner {
                     }
                     Matcher bare = Pattern.compile(
                             "^\\$R(?:\\.values)?(?:->toOne\\(\\))?$").matcher(second);
+                    // #TDS ... # literal expectation (optionally
+                    // ->toString() on both sides, optionally an explicit
+                    // ->sort(~col->ascending()) on the actual side):
+                    // header + full row grid
+                    String exp0 = args.get(0).strip();
+                    if (exp0.endsWith("->toString()")) {
+                        exp0 = exp0.substring(0, exp0.length() - "->toString()".length()).strip();
+                    }
+                    Matcher tdsAct = Pattern.compile(
+                            "^\\$R(?:\\.values)?(?:->toOne\\(\\))?"
+                                    + "(?:->sort\\(~(\\w+)->(ascending|descending)\\(\\)\\))?"
+                                    + "(?:->toString\\(\\))?$")
+                            .matcher(second);
+                    if (tdsAct.matches()
+                            && pureLiteral(exp0) instanceof TdsExpected te) {
+                        recognized++;
+                        verified++;
+                        List<String> actualCols = rows.isEmpty()
+                                ? List.of() : new ArrayList<>(rows.get(0).keySet());
+                        List<Map<String, Object>> cmpRows = rows;
+                        if (tdsAct.group(1) != null && !rows.isEmpty()) {
+                            cmpRows = new ArrayList<>(rows);
+                            String key = tdsAct.group(1);
+                            boolean desc = "descending".equals(tdsAct.group(2));
+                            cmpRows.sort((r1, r2) -> {
+                                int c = compareCells(r1.get(key), r2.get(key));
+                                return desc ? -c : c;
+                            });
+                        }
+                        if (!rows.isEmpty() && !te.cols().equals(actualCols)) {
+                            problems.add("TDS columns: expected " + te.cols()
+                                    + ", got " + actualCols);
+                        } else if (!tdsRowsEqual(te.rows(), cmpRows,
+                                tdsAct.group(1) != null ? "->sort(" : bound.query())) {
+                            problems.add("TDS rows: expected " + te.rows() + ", got "
+                                    + cmpRows.stream().map(r2 -> new ArrayList<>(r2.values())).toList());
+                        }
+                        continue;
+                    }
                     if (bare.matches() && rows.size() == 1 && rows.get(0).size() == 1
                             && rows.get(0).containsKey("__scalar__")) {
                         Object expected = pureLiteral(args.get(0).strip());
@@ -1631,6 +1670,29 @@ public final class Runner {
         if (text.equals("^TDSNull()")) {
             return NULL_EXPECTED;
         }
+        // #TDS <header>\n<rows>...# grid literal
+        if (text.startsWith("#TDS") && text.endsWith("#")) {
+            String[] lines = text.substring(4, text.length() - 1).strip().split("\n");
+            if (lines.length == 0) {
+                return null;
+            }
+            List<String> cols = new ArrayList<>();
+            for (String c : lines[0].split(",")) {
+                cols.add(c.strip());
+            }
+            List<List<Object>> rows2 = new ArrayList<>();
+            for (int li = 1; li < lines.length; li++) {
+                if (lines[li].strip().isEmpty()) {
+                    continue;
+                }
+                List<Object> row = new ArrayList<>();
+                for (String cell : lines[li].split(",", -1)) {
+                    row.add(tdsCell(cell.strip()));
+                }
+                rows2.add(row);
+            }
+            return new TdsExpected(cols, rows2);
+        }
         // %date literals — compared through their canonical print form
         if (text.matches("%-?\\d{4}[-\\dT:.+Z]*")) {
             return new DateExpected(text.substring(1));
@@ -1651,6 +1713,74 @@ public final class Runner {
             return "^TDSNull()";
         }
     };
+
+    /** A {@code #TDS ... #} literal expectation: header + parsed row grid. */
+    record TdsExpected(List<String> cols, List<List<Object>> rows) {
+    }
+
+    /** One TDS-literal cell: integer/float/boolean/date by shape, null for empty. */
+    private static Object tdsCell(String cell) {
+        if (cell.isEmpty() || cell.equals("null")) {
+            return NULL_EXPECTED;
+        }
+        if (cell.matches("-?\\d+")) {
+            return Long.parseLong(cell);
+        }
+        if (cell.matches("-?\\d+\\.\\d+")) {
+            return Double.parseDouble(cell);
+        }
+        if (cell.equals("true") || cell.equals("false")) {
+            return Boolean.parseBoolean(cell);
+        }
+        if (cell.matches("\\d{4}-\\d{2}-\\d{2}([T ].*)?")) {
+            return new DateExpected(cell.replace(' ', 'T'));
+        }
+        return cell;
+    }
+
+    /** Type-aware cell comparison for assert-side sorts (nulls last). */
+    private static int compareCells(Object a, Object b) {
+        if (a == null || b == null) {
+            return a == null ? (b == null ? 0 : 1) : -1;
+        }
+        if (a instanceof Number na && b instanceof Number nb) {
+            return Double.compare(na.doubleValue(), nb.doubleValue());
+        }
+        return String.valueOf(a).compareTo(String.valueOf(b));
+    }
+
+    /** Row-grid equality under the query's order contract. */
+    private static boolean tdsRowsEqual(List<List<Object>> expected,
+            List<Map<String, Object>> actual, String query) {
+        if (expected.size() != actual.size()) {
+            return false;
+        }
+        if (sortedQuery(query)) {
+            for (int i = 0; i < expected.size(); i++) {
+                if (!orderedEquals(expected.get(i),
+                        new ArrayList<>(actual.get(i).values()))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        List<List<Object>> pool = new ArrayList<>();
+        actual.forEach(r -> pool.add(new ArrayList<>(r.values())));
+        for (List<Object> e : expected) {
+            int hit = -1;
+            for (int i = 0; i < pool.size(); i++) {
+                if (orderedEquals(e, pool.get(i))) {
+                    hit = i;
+                    break;
+                }
+            }
+            if (hit < 0) {
+                return false;
+            }
+            pool.remove(hit);
+        }
+        return true;
+    }
 
     private static String canonicalDate(String s) {
         // zone suffix and insignificant fractional zeros are PRINT
@@ -1720,6 +1850,13 @@ public final class Runner {
                 i = Corpus.skipString(s, i) - 1;
                 continue;
             }
+            if (c == '#') {
+                int close = s.indexOf('#', i + 1);
+                if (close > 0) {
+                    i = close;      // #...# island: parens inside are data
+                    continue;
+                }
+            }
             if (c == '(') {
                 depth++;
             } else if (c == ')') {
@@ -1732,7 +1869,11 @@ public final class Runner {
         return -1;
     }
 
-    /** Split a call's argument text on top-level commas (string/bracket aware). */
+    /**
+     * Split a call's argument text on top-level commas (string/bracket
+     * aware; {@code #...#} islands — TDS literals, relation refs, path
+     * literals — are opaque: their commas and brackets are data).
+     */
     static List<String> splitArgs(String s) {
         List<String> out = new ArrayList<>();
         int depth = 0;
@@ -1742,6 +1883,13 @@ public final class Runner {
             if (c == '\'') {
                 i = Corpus.skipString(s, i) - 1;
                 continue;
+            }
+            if (c == '#') {
+                int close = s.indexOf('#', i + 1);
+                if (close > 0) {
+                    i = close;
+                    continue;
+                }
             }
             if (c == '(' || c == '[' || c == '{') {
                 depth++;

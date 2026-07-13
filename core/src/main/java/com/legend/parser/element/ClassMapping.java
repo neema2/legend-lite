@@ -38,7 +38,8 @@ import java.util.Objects;
  * relational class mappings as standalone records (they appear only as
  * {@link PropertyMapping.Embedded} sub-mappings).
  */
-public sealed interface ClassMapping permits ClassMapping.Relational, ClassMapping.Pure, ClassMapping.Union {
+public sealed interface ClassMapping permits ClassMapping.Relational,
+        ClassMapping.Pure, ClassMapping.Union, ClassMapping.RelationFunction {
 
     /** Fully-qualified class name being mapped. */
     String className();
@@ -223,6 +224,43 @@ public sealed interface ClassMapping permits ClassMapping.Relational, ClassMappi
         public Union {
             Objects.requireNonNull(className, "Class name cannot be null");
             memberSetIds = memberSetIds == null ? List.of() : List.copyOf(memberSetIds);
+        }
+    }
+
+    /**
+     * A Relation-function class mapping — the class's extent is the
+     * RELATION a zero-arg function returns; properties bind to its columns
+     * by name:
+     * <pre>
+     *   *Person[person]: Relation
+     *   {
+     *     ~func my::pkg::personTable():Relation&lt;Any&gt;[1]
+     *     firstName: FIRSTNAME,
+     *     +firmId: Integer[1]: FIRMID
+     *   }
+     * </pre>
+     * {@code +local} columns declare mapping-local properties (XStore
+     * association keys), recorded with {@code local=true}.
+     *
+     * @param funcRef the {@code ~func} reference as written — a plain FQN,
+     *                a signature form {@code f():Relation<Any>[1]}, or the
+     *                mangled form {@code f__Relation_1_}
+     */
+    record RelationFunction(
+            String className,
+            String setId,
+            String extendsSetId,
+            boolean root,
+            String funcRef,
+            List<Col> columns) implements ClassMapping {
+        public RelationFunction {
+            Objects.requireNonNull(className, "Class name cannot be null");
+            Objects.requireNonNull(funcRef, "funcRef cannot be null");
+            columns = columns == null ? List.of() : List.copyOf(columns);
+        }
+
+        /** One {@code property: COLUMN} binding. */
+        public record Col(String property, String column, boolean local) {
         }
     }
 }

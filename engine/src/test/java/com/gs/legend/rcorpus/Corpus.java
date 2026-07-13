@@ -85,7 +85,18 @@ public final class Corpus {
                     || trimmed.matches("function\\s+<<.*")
                     || trimmed.equals("function")
                     || trimmed.startsWith("native function ")) {
-                i = skipFunction(source, i);
+                int end = skipFunction(source, i);
+                // Relation-mapping provider functions (~func targets —
+                // zero-arg, returning Relation<...>) are MODEL, not test
+                // machinery: they must survive into the compiled text
+                String fnText = source.substring(i, end);
+                if (fnText.substring(0, Math.min(fnText.length(), fnText.indexOf('{') < 0
+                                ? fnText.length() : fnText.indexOf('{')))
+                        .matches("(?s).*\\(\\s*\\)\\s*:\\s*"
+                                + "(?:meta::pure::metamodel::relation::)?Relation\\s*<.*")) {
+                    out.append(fnText).append('\n');
+                }
+                i = end;
                 continue;
             }
             out.append(line).append('\n');
