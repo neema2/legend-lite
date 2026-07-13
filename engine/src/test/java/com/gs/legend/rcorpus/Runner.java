@@ -582,6 +582,22 @@ public final class Runner {
                             && !args.get(1).strip().startsWith("$R")) {
                         args = List.of(args.get(1), args.get(0));   // actual-first spelling
                     }
+                    Matcher getMap = Pattern.compile(
+                            "^\\$R(?:\\.values(?:->at\\(\\d+\\))?)?(?:\\.rows)?->map\\(\\s*\\w+\\s*\\|\\s*\\$\\w+\\.get\\w*\\('([^']+)'\\)\\s*\\)$")
+                            .matcher(args.size() == 2 ? args.get(1).strip() : "");
+                    if (getMap.matches()) {
+                        List<Object> expected = pureLiteralList(args.get(0).strip());
+                        if (expected != null) {
+                            recognized++;
+                            verified++;
+                            List<Object> actual = column(rows, getMap.group(1));
+                            if (!multisetEquals(expected, actual)) {
+                                problems.add(getMap.group(1) + ": expected " + expected
+                                        + ", got " + actual);
+                            }
+                        }
+                        continue;
+                    }
                     Matcher cellAt = Pattern.compile(
                             "^\\$R(?:\\.values->at\\(\\d+\\))?\\.rows->map\\(\\s*\\w+\\s*\\|\\s*\\$\\w+\\.values->at\\((\\d+)\\)\\s*\\)$")
                             .matcher(args.size() == 2 ? args.get(1).strip() : "");
@@ -677,7 +693,12 @@ public final class Runner {
                             && !args.get(1).strip().startsWith("$R")) {
                         args = List.of(args.get(1), args.get(0));   // actual-first spelling
                     }
-                    String second = args.size() == 2 ? args.get(1).strip() : "";
+                    // multi-line arrow chains: collapse whitespace and
+                    // tighten '->' so the shape matchers see one line
+                    String second = args.size() == 2
+                            ? args.get(1).strip().replaceAll("\\s+", " ")
+                                    .replaceAll("\\s*->\\s*", "->")
+                            : "";
                     if (second.endsWith("->sqlRemoveFormatting()") || second.endsWith("->sql()")) {
                         sqlAsserts++;   // advisory golden-SQL: recognized, NOT verified
                         recognized++;
@@ -828,6 +849,84 @@ public final class Runner {
                             if (!es.equals(actual)) {
                                 problems.add(mapJoin.group(1) + ": expected <" + es
                                         + ">, got <" + actual + ">");
+                            }
+                        }
+                        continue;
+                    }
+                    Matcher propJoin = Pattern.compile(
+                            "^\\$R(?:\\.values)?->map\\(\\s*\\w+\\s*\\|\\s*\\$\\w+\\.(\\w+)\\s*\\)"
+                                    + "(->sort\\(\\))?->makeString\\((?:'([^']*)')?\\)$")
+                            .matcher(second);
+                    if (propJoin.matches()) {
+                        Object expRaw = pureLiteral(args.get(0).strip());
+                        List<Object> expList = expRaw == null
+                                ? pureLiteralList(args.get(0).strip()) : null;
+                        Object expected = expRaw != null ? expRaw
+                                : expList != null && expList.size() == 1 ? expList.get(0) : null;
+                        if (expected instanceof String es) {
+                            recognized++;
+                            verified++;
+                            List<String> strs = new ArrayList<>(
+                                    column(rows, propJoin.group(1)).stream()
+                                            .map(String::valueOf).toList());
+                            if (propJoin.group(2) != null) {
+                                java.util.Collections.sort(strs);
+                            }
+                            String actual = String.join(
+                                    propJoin.group(3) == null ? "" : propJoin.group(3), strs);
+                            if (!es.equals(actual)) {
+                                problems.add(propJoin.group(1) + ": expected <" + es
+                                        + ">, got <" + actual + ">");
+                            }
+                        }
+                        continue;
+                    }
+                    Matcher matrixJoin = Pattern.compile(
+                            "^\\$R(?:\\.values(?:->at\\(\\d+\\))?)?\\.rows->map\\(\\s*\\w+\\s*\\|\\s*\\$\\w+\\.values->makeString\\('([^']*)'\\)\\s*\\)"
+                                    + "(->sort\\(\\))?->makeString\\('([^']*)'\\)$")
+                            .matcher(second);
+                    if (matrixJoin.matches()) {
+                        Object expected = pureLiteral(args.get(0).strip());
+                        if (expected instanceof String es) {
+                            recognized++;
+                            verified++;
+                            List<String> rowStrs = new ArrayList<>();
+                            for (var row : rows) {
+                                rowStrs.add(row.values().stream()
+                                        .map(String::valueOf)
+                                        .collect(java.util.stream.Collectors
+                                                .joining(matrixJoin.group(1))));
+                            }
+                            if (matrixJoin.group(2) != null) {
+                                java.util.Collections.sort(rowStrs);
+                            }
+                            String actual = String.join(matrixJoin.group(3), rowStrs);
+                            if (!es.equals(actual)) {
+                                problems.add("rows: expected <" + es + ">, got <"
+                                        + actual + ">");
+                            }
+                        }
+                        continue;
+                    }
+                    Matcher cellsSortJoin = Pattern.compile(
+                            "^\\$R(?:\\.values(?:->at\\(\\d+\\))?)?\\.rows\\.values"
+                                    + "(->sort\\(\\))?->makeString\\('([^']*)'\\)$")
+                            .matcher(second);
+                    if (cellsSortJoin.matches()) {
+                        Object expected = pureLiteral(args.get(0).strip());
+                        if (expected instanceof String es) {
+                            recognized++;
+                            verified++;
+                            List<String> strs = new ArrayList<>();
+                            rows.forEach(row -> row.values().forEach(v ->
+                                    strs.add(String.valueOf(v))));
+                            if (cellsSortJoin.group(1) != null) {
+                                java.util.Collections.sort(strs);
+                            }
+                            String actual = String.join(cellsSortJoin.group(2), strs);
+                            if (!es.equals(actual)) {
+                                problems.add("cells: expected <" + es + ">, got <"
+                                        + actual + ">");
                             }
                         }
                         continue;

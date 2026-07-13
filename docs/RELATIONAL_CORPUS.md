@@ -135,7 +135,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 0 | 0 | 92 | 0 |
 | executionPlan/tests | 109 | 0 | 0 | 0 | 109 |
-| functions/tests | 261 | 59 | 14 | 115 | 73 |
+| functions/tests | 261 | 59 | 19 | 115 | 68 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 1 | 0 | 0 |
 | functions/tests/projection | 165 | 38 | 14 | 79 | 34 |
 | graphFetch/domain | 2 | 0 | 0 | 0 | 2 |
@@ -157,7 +157,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | sqlQueryToString/DDL | 3 | 0 | 0 | 0 | 3 |
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 275 | 39 | 21 | 83 | 132 |
+| tds/tests | 275 | 64 | 27 | 83 | 101 |
 | testDataGeneration/tests | 40 | 0 | 0 | 0 | 40 |
 | tests | 39 | 0 | 0 | 0 | 39 |
 | tests/advanced | 71 | 0 | 4 | 54 | 13 |
@@ -169,12 +169,12 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 0 | 0 | 30 | 2 |
 | tests/mapping/distinct | 18 | 4 | 5 | 9 | 0 |
 | tests/mapping/dynaJoin | 6 | 0 | 0 | 2 | 4 |
-| tests/mapping/embedded | 70 | 14 | 13 | 36 | 7 |
+| tests/mapping/embedded | 70 | 14 | 14 | 36 | 6 |
 | tests/mapping/enumeration | 27 | 1 | 2 | 2 | 22 |
 | tests/mapping/filter | 10 | 4 | 0 | 5 | 1 |
 | tests/mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 |
-| tests/mapping/inheritance | 51 | 0 | 0 | 50 | 1 |
+| tests/mapping/inheritance | 51 | 0 | 1 | 50 | 0 |
 | tests/mapping/join | 29 | 18 | 1 | 9 | 1 |
 | tests/mapping/merge | 1 | 0 | 0 | 1 | 0 |
 | tests/mapping/modelJoin | 47 | 0 | 0 | 47 | 0 |
@@ -185,14 +185,14 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/selfJoin | 3 | 0 | 0 | 2 | 1 |
 | tests/mapping/sqlFunction | 73 | 38 | 20 | 4 | 11 |
 | tests/mapping/tree | 13 | 0 | 0 | 13 | 0 |
-| tests/mapping/union | 125 | 4 | 2 | 95 | 24 |
+| tests/mapping/union | 125 | 9 | 2 | 95 | 19 |
 | tests/mapping/union/relation | 15 | 0 | 0 | 13 | 2 |
 | tests/platformOperations | 4 | 0 | 0 | 0 | 4 |
 | tests/query | 99 | 40 | 2 | 32 | 25 |
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2429 | **262** | 99 | 1095 | 973 |
+| **total** | 2429 | **292** | 112 | 1095 | 930 |
 
 ### mapping walls (dropped at assembly)
 
@@ -759,10 +759,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testOrFilterWithTypeFilter [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testFilterBeforeAndAfterGroupBy [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testFilterBeforeAndAfterProject [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- SHAPE testIsolationOfCaseStmtTrueFalseFilters [functions/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEquals(['No firm no Firm'], $result.values->map(p|$p.name)->makeString())
-- SHAPE testIsolationOfClassFiltersOperatingOnParametersReferencedInIf [functions/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEquals(['Peter Smith'], $result.values->map(p|$p.name)->makeString())
+- FAIL testIsolationOfCaseStmtTrueFalseFilters [functions/tests]: name: expected <No firm no Firm>, got <>
+- FAIL testIsolationOfClassFiltersOperatingOnParametersReferencedInIf [functions/tests]: name: expected <Peter Smith>, got <>
 - ERROR testLateIsolationOfTypeFilterDoesntPreventMerging [functions/tests]: multi-hop navigation firm.ceo.address.name through an embedded/slot head is not supported yet
-- SHAPE testMultipleFilters [functions/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEquals(['Peter Smith'], $result.values->map(p|$p.name)->makeString())
+- FAIL testMultipleFilters [functions/tests]: name: expected <Peter Smith>, got <>
 - ERROR testFilterAfterFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testFilterInWithJoin [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - SHAPE testMappingFromQueriesViaMappingWithAssociationsOnly [functions/tests]: no execute(|...) call
@@ -782,8 +782,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - FAIL testContainsOnToManyProperty [functions/tests]: size: expected 1, got 6
 - SHAPE testConsistencyWithNulls [functions/tests]: no recognizable assertions
 - SHAPE testConsistencyWithNullsInJoin [functions/tests]: no recognizable assertions
-- SHAPE testContainsEscapePercentage [functions/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Hoboken|TDSNull|A comment with a % in the middle',\n      $tds.rows->map(r|$r.values->makeString('|'))->mak
-- SHAPE testContainsEscapeUnderscore [functions/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEquals('New York|TDSNull|A comment with a _ in the middle',\n      $tds.rows->map(r|$r.values->makeString('|'))->ma
+- FAIL testContainsEscapePercentage [functions/tests]: rows: expected <Hoboken|TDSNull|A comment with a % in the middle>, got <Hoboken|null|A comment with a % in the middle>
+- FAIL testContainsEscapeUnderscore [functions/tests]: rows: expected <New York|TDSNull|A comment with a _ in the middle>, got <New York|null|A comment with a _ in the middle>
 - SHAPE testInWithinQualifiedPropertyCollectionAsLiteralList [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testIsolationOfInputToIsEmpty [functions/tests]: unbound variable '$result'
 - ERROR testIsolationOfInputToIsEmptyWithForcedFiltersOnInput [functions/tests]: unbound variable '$result'
@@ -880,7 +880,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testSortByLambdaDeepOptional [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals(['Hoboken|Peter|Smith', 'Hong Kong|Oliver|Hill', 'New York|Anthony|Allen', 'New York|David|Harris', 'New Yo
 - SHAPE testSortByLambda_QueryWithParameters_Plan [functions/tests]: no execute(|...) call
 - FAIL testLoadCsv [functions/tests/loadCsvToDbTable]: firstName: expected [Joe], got []; lastName: expected [Bloggs], got []; age: expected [21], got []; at(1).firstName: expected Jill, got null; at(1).lastName: expected Smith, got null; at(1).age: expected 31, got null
-- FAIL testSubAggregation [functions/tests/projection]: size: expected 4, got 7
+- FAIL testSubAggregation [functions/tests/projection]: size: expected 4, got 7; a: expected [19.75, 32.0, 34.0, 35.0], got [23, 22, 12, 22, 34, 32, 35]
 - FAIL testSubAggregationWithAnotherSimpleProperty [functions/tests/projection]: size: expected 4, got 7
 - ERROR testTwoSubAggregationSameProperty [functions/tests/projection]: no scalar lowering registered for resolved overload 'meta::pure::functions::collection::count' with 1 parameter(s)
 - FAIL testProjectQualifierContainingAggregation [functions/tests/projection]: size: expected 4, got 7
@@ -894,7 +894,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSubAggregationWithDeep [functions/tests/projection]: multi-hop navigation employees.locations.place through an embedded/slot head is not supported yet
 - FAIL testSubAggregationWithMax [functions/tests/projection]: size: expected 4, got 7
 - FAIL testDateAggregationWithMax [functions/tests/projection]: size: expected 3, got 7
-- FAIL testSubAggregationWithTopLevelIf [functions/tests/projection]: size: expected 4, got 7
+- FAIL testSubAggregationWithTopLevelIf [functions/tests/projection]: size: expected 4, got 7; a: expected [1.0, 32.0, 34.0, 35.0], got [1, 1, 1, 1, 34, 32, 35]
 - ERROR testIsDistinctSubAggregation [functions/tests/projection]: no overload of 'meta::pure::functions::collection::isDistinct' accepts 1 argument(s)
 - ERROR testAssociationMixed [functions/tests/projection]: filter predicate references column 'firm_employees', unresolvable even after isolation
 - ERROR testAssociationMixedAdvanced [functions/tests/projection]: filter predicate references column 'firm_employees', unresolvable even after isolation
@@ -1569,7 +1569,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testInOnColumnInSubselect [tds/tests]: no overload of 'olapGroupBy' matches 5 argument(s) of these shapes
 - SHAPE testFilterOnQuotedColumnFromTableToTds [tds/tests]: no execute(|...) call
 - ERROR testFirstNotNullFunction [tds/tests]: unknown function 'meta::pure::tds::extensions::firstNotNull'
-- SHAPE testChainPostFilter [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEquals('John,John', $result.values.rows->map(r|$r.values->makeString('|'))->makeString(','))
 - FAIL testInnerJoinSimple [tds/tests]: size: expected 7, got 0
 - SHAPE testLeftOuterJoinSimple [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['1,Smith,1,Firm B,3', '2,Johnson,1,Firm B,3', '3,Hill,1,Firm B,3', '4,Allen,1,Firm B,3',\n           
 - FAIL testRightOuterJoinSimple [tds/tests]: size: expected 7, got 0
@@ -1626,55 +1625,31 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testSimpleJoinColumns [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['1,Smith,1,Firm X,1', '2,Johnson,1,Firm X,1', '3,Hill,1,Firm X,1', '4,Allen,1,Firm X,1',\n           
 - SHAPE testTwoJoinsWithinConcatenate [tds/tests]: no execute(|...) call
 - SHAPE testJoinWithExtendWithDigestOnColumnsOnBothQueries [tds/tests]: no execute(|...) call
-- SHAPE testProjectStringLiteral [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Peter|Hello,John|Hello,John|Hello,Anthony|Hello,Fabrice|Hello,Oliver|Hello,David|Hello',\n      $result.val
-- SHAPE testProjectFunctionOnStringLiteral [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Peter|5,John|5,John|5,Anthony|5,Fabrice|5,Oliver|5,David|5',\n      $result.values.rows->map(r|$r.values->m
-- SHAPE testProjectStringColumn [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Peter|Peter,John|John,John|John,Anthony|Anthony,Fabrice|Fabrice,Oliver|Oliver,David|David',\n      $result.
-- SHAPE testProjectFunctionOnStringColumn [tds/tests]: partial: 2/4 asserts recognized (recognized ones hold); first unrecognized: assertEquals([String, Integer], $result.values.columns.type)
-- SHAPE testProjectMultipleFunctions [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Peter|Hello|5,John|Hello|4,John|Hello|4,Anthony|Hello|7,Fabrice|Hello|7,Oliver|Hello|6,David|Hello|5',\n   
-- SHAPE testProjectAndProjectAgain [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Peter|5|10,John|4|8,John|4|8,Anthony|7|14,Fabrice|7|14,Oliver|6|12,David|5|10',\n      $result.values.rows-
-- SHAPE testProjectOnDynaFunctionColumn [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Peter|SMITH|5,John|JOHNSON|7,John|HILL|4,Anthony|ALLEN|5,Fabrice|ROBERTS|7,Oliver|HILL|4,David|HARRIS|6',\n
-- SHAPE testProjectOnMultiple [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Peter|Smith|10,John|Johnson|11,John|Hill|8,Anthony|Allen|12,Fabrice|Roberts|14,Oliver|Hill|10,David|Harris
+- SHAPE testProjectFunctionOnStringColumn [tds/tests]: partial: 3/4 asserts recognized (recognized ones hold); first unrecognized: assertEquals([String, Integer], $result.values.columns.type)
 - SHAPE testDateLiteral [tds/tests]: no recognizable assertions
-- SHAPE testProjectReduceColumns [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Peter,John,John,Anthony,Fabrice,Oliver,David',\n      $result.values.rows->map(r|$r.values->makeString('|')
 - SHAPE testHourFunction [tds/tests]: no recognizable assertions
 - ERROR testProjectEnumFromOpenVariable [tds/tests]: unknown function 'extractEnumValue'
 - SHAPE testProjectWithAdjustFunction [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold); first unrecognized: null
 - FAIL testFilterAfterLimit [tds/tests]: columns: expected 1, got (no rows)
 - ERROR testFilterAfterLimit2 [tds/tests]: no overload of 'meta::pure::functions::relation::limit' structurally matches the argument types
-- SHAPE testSortAfterLimit [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals('22,22,12',\n      $result.values.rows->map(r|$r.values->makeString('|'))->makeString(','))
 - FAIL testSliceAfterLimit [tds/tests]: columns: expected 1, got (no rows)
-- SHAPE testLimitAfterSlice [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals('22,22',\n      $result.values.rows->map(r|$r.values->makeString('|'))->makeString(','))
-- SHAPE testDropAfterLimit [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals('22,23,32',\n      $result.values.rows->map(r|$r.values->makeString('|'))->makeString(','))
-- SHAPE testLimitAfterDrop [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals('22,23,32,34,35',\n      $result.values.rows->map(r|$r.values->makeString('|'))->makeString(','))
-- SHAPE testTakeAfterLimit [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals('12,22',\n      $result.values.rows->map(r|$r.values->makeString('|'))->makeString(','))
-- SHAPE testLimitAfterTake [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals('12,22',\n      $result.values.rows->map(r|$r.values->makeString('|'))->makeString(','))
 - ERROR testOptionalLimit_NoValue [tds/tests]: no overload of 'meta::pure::functions::relation::limit' structurally matches the argument types
 - ERROR testOptionalLimit_WithValue [tds/tests]: dynamic slicing bounds are not lowered yet (literal expected), got TypedNativeCall
 - ERROR testProjectWithColumnSubSet [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testProjectWithColumnSubSetFunctions [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testProjectWithColumnSubSetSQLTest [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
-- SHAPE testGetNumber [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals('32,34,35',\n      $result.values.rows->map(r|$r.values->makeString('|'))->makeString(','))
 - SHAPE testProjectWithQuotedColumnFromTableToTDS [tds/tests]: no execute(|...) call
-- SHAPE testProjectAllColumns_Single [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Peter,John,John,Anthony,Fabrice,Oliver,David',\n      $result.values.rows->map(r|$r.values->makeString('|')
-- SHAPE testProjectAllColumns_Mulitple [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Peter|Hello,John|Hello,John|Hello,Anthony|Hello,Fabrice|Hello,Oliver|Hello,David|Hello',\n      $result.val
-- SHAPE testLowerProjectColsEliminated [tds/tests]: partial: 2/4 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Peter,John,John,Anthony,Fabrice,Oliver,David',\n      $result.values.rows->map(r|$r.values->makeString('|')
-- SHAPE testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: partial: 2/4 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Anthony,David,Fabrice,John,Oliver,Peter',\n      $result.values.rows->map(r|$r.values->makeString('|'))->ma
-- SHAPE testLowerProjectColsNotEliminatedWithSort [tds/tests]: partial: 2/4 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Anthony,David,Fabrice,John,John,Oliver,Peter',\n      $result.values.rows->map(r|$r.values->makeString('|')
-- SHAPE testRestrictOnGroupByEleminatesUncessaryAggs [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Firm A|1,Firm B|1,Firm C|1,Firm X|4',\n      $result.values.rows->map(r|$r.values->makeString('|'))->makeSt
-- SHAPE testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct [tds/tests]: partial: 2/5 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Firm A|1,Firm B|1,Firm C|1,Firm X|4',\n      $result.values.rows->map(r|$r.values->makeString('|'))->makeSt
-- SHAPE testRestrictOnGroupByColumn_SubSetOfGroupByColumns [tds/tests]: partial: 2/6 asserts recognized (recognized ones hold); first unrecognized: assertEquals([String, Integer], $result.values.columns.type)
-- SHAPE testRestrictOnGroupByColumn_DropAllAggColumns [tds/tests]: partial: 2/6 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Firm A,Firm A,Firm B,Firm B,Firm C,Firm X,Firm X,Firm X,Firm X',\n      $result.values.rows->map(r|$r.value
+- SHAPE testLowerProjectColsEliminated [tds/tests]: partial: 3/4 asserts recognized (recognized ones hold); first unrecognized: assertFalse($result->sqlRemoveFormatting()->toLower()->contains('hello'))
+- FAIL testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: rows: expected <Anthony,David,Fabrice,John,Oliver,Peter>, got <David,Fabrice,John,Oliver,Peter,Anthony>
+- SHAPE testLowerProjectColsNotEliminatedWithSort [tds/tests]: partial: 3/4 asserts recognized (recognized ones hold); first unrecognized: assert($result->sqlRemoveFormatting()->toLower()->contains('hello'))
+- FAIL testRestrictOnGroupByEleminatesUncessaryAggs [tds/tests]: rows: expected <Firm A|1,Firm B|1,Firm C|1,Firm X|4>, got <null|7>
+- FAIL testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct [tds/tests]: rows: expected <Firm A|1,Firm B|1,Firm C|1,Firm X|4>, got <null|7>
+- FAIL testRestrictOnGroupByColumn_SubSetOfGroupByColumns [tds/tests]: rows: expected <Firm A|1,Firm A|1,Firm B|1,Firm B|1,Firm C|1,Firm X|1,Firm X|1,Firm X|2,Firm X|4>, got <null|1,null|1,null|1,null|1,null|1,null|1,null|2,null|5>
+- FAIL testRestrictOnGroupByColumn_DropAllAggColumns [tds/tests]: rows: expected <Firm A,Firm A,Firm B,Firm B,Firm C,Firm X,Firm X,Firm X,Firm X>, got <null,null,null,null,null,null,null,null>
 - ERROR testRestrictHandlesQueryPathsCorrectlyOnRename [tds/tests]: ~age_new: mapped/aggregate column specifications need an enclosing call to type against
 - SHAPE testRestrictWithPostProcessor [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testRestrictAfterMultiColumnGroupByFollowedByRename [tds/tests]: unknown function 'renameColumns'
-- SHAPE testRestrictAfterConcatenate [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Anthony,David,Fabrice,John,John,Oliver,Peter',\n      $result.values.rows->map(r|$r.values->makeString('|')
-- SHAPE testRestrictDistinct_JoinCutDown_ProjectFunctions [tds/tests]: partial: 4/6 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Anthony,David,Fabrice,John,Oliver,Peter', $res1.values.rows.values->sort()->makeString(','))
-- SHAPE testRestrictDistinct_JoinCutDown_ColumnSpecs [tds/tests]: partial: 4/6 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Anthony,David,Fabrice,John,Oliver,Peter', $res1.values.rows.values->sort()->makeString(','))
-- SHAPE testRestrictDistinct_NoOptimization_NotAfterProject [tds/tests]: partial: 4/6 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Anthony,David,Fabrice,John,Oliver,Peter', $res1.values.rows.values->sort()->makeString(','))
-- SHAPE testRestrictDistinct_NoOptimization_NotRestrictFollowedByDistinct [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Anthony,David,Fabrice,John,Oliver,Peter', $res1.values.rows.values->sort()->makeString(','))
-- SHAPE testRestrictDistinct_JoinCutDown_PostTdsOperations [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals('6', $res1.values.rows.values->sort()->makeString(','))
-- SHAPE testRestrictDistinct_NoJoinCutDown [tds/tests]: partial: 4/6 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Firm A|Roberts,Firm B|Hill,Firm C|Harris,Firm X|Allen,Firm X|Hill,Firm X|Johnson,Firm X|Smith', $res1.valu
-- SHAPE testRestrictDistinct_ColumnOrdering [tds/tests]: partial: 4/6 asserts recognized (recognized ones hold); first unrecognized: assertEquals('Allen|Anthony,Harris|David,Hill|John,Hill|Oliver,Johnson|John,Roberts|Fabrice,Smith|Peter', $res1.values.r
+- FAIL testRestrictDistinct_NoJoinCutDown [tds/tests]: rows: expected <Firm A|Roberts,Firm B|Hill,Firm C|Harris,Firm X|Allen,Firm X|Hill,Firm X|Johnson,Firm X|Smith>, got <null|Allen,null|Harris,null|Hill,null|Johnson,null|Roberts,null|Smith>; rows: expected <Firm A|Roberts,Firm B|Hill,Firm C|Harris,Firm X|Allen,Firm X|Hill,Firm X|Johnson,Firm X|Smith>,
 - SHAPE testRestrictDistinct_NoOptimization_WindowColumns [tds/tests]: no execute(|...) call
 - SHAPE testSimpleRelationalUnion [tds/tests]: no execute(|...) call
 - ERROR testSimpleUnion [tds/tests]: unknown function 'union'
@@ -1944,7 +1919,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - FAIL testDistinctMappingSimpleProjectDistinct [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\n>, got <name\nIF 2\nIF 1\n>
 - FAIL testDistinctMappingWithFilterSelectOneProperty [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
 - ERROR testDistinctMappingWithJoinSelectAll [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
-- FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\n\nIfName1\nIfName2\n>
+- FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\n\nIfName2\nIfName1\n>
 - ERROR testProjectDistinctMappingWithDistinctInJoin [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testProjectDistinctMappingWithDistinctInJoinWithDup [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testDistinctMappingWithDistinctInJoinWithFilter [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
@@ -1986,7 +1961,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProjectionOtherwiseNonPrimitive [tests/mapping/embedded]: in function 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise3$class$meta::relational::tests::mapping::embedded::advanced::model::Product': relation has no column 'bondClassification'
 - FAIL otherwiseTestGroupBy [tests/mapping/embedded]: toCSV: expected <Bond Type,Profit\n15 years,10.0\n5 years,1.0\n>, got <Bond Type,Profit\n5 years,1.0\n15 years,10.0\n>
 - FAIL otherwiseTestGroupByComplexAgg [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\n15 years,2.0\n5 years,5.0\n>, got <Bond Type,sum\n5 years,5.0\n15 years,2.0\n>
-- SHAPE otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "root".BOND_DETAILS as "Bond Type", sum(case when "bond_detail_0".TYPE like \'5%\'
+- FAIL otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\nBond 1,1.0\nBond 2,1.0\nSuperBond 3 super,5.0\n>, got <Bond Type,sum\nSuperBond 3 super,5.0\nBond 2,1.0\nBond 1,1.0\n>
 - FAIL otherwiseTestQualifierPropertyConstantExpression [tests/mapping/embedded]: toCSV: expected <name,duration\nProduct 1,5\nProduct 2,5\n>, got <name,market\nProduct 1,LSE\nProduct 2,LSE\nProduct 3,MILAN\n>
 - ERROR otherwiseTestComplexExpressionWithEnumMapping [tests/mapping/embedded]: property 'type' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise2'
 - ERROR otherwiseTestEmbeddedToEmbedded [tests/mapping/embedded]: multi-hop navigation bondDetails.issuer.name through an embedded/slot head is not supported yet
@@ -2084,7 +2059,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSubTypeGroupByThroughMap [tests/mapping/inheritance]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testFilteringOnColumnsNotInProject [tests/mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testFilteringOnColumnsNotInProjectSingleChildStructure [tests/mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Gasoline' (of 1 candidates); class-query dispatch needs exactly one
-- SHAPE testProjectQualifiedPropertyFromUnmappedSuperClass [tests/mapping/inheritance]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['David Scott', 'Atul Anand'], $result.rows->map(r|$r.getString('owner description')))
+- FAIL testProjectQualifiedPropertyFromUnmappedSuperClass [tests/mapping/inheritance]: owner description: expected [David Scott, Atul Anand], got [Unknown, Unknown]
 - ERROR testEmbeddMappingInSubTypes [tests/mapping/inheritance]: property 'vehicles' of class 'meta::relational::tests::model::inheritance::Person' has no binding in mapping 'meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testMilestonedSubTyping [tests/mapping/inheritance]: milestoned class fetch of 'meta::relational::tests::model::inheritance::milestoned::VehicleOwner' is not supported yet (H-scope exclusion)
 - ERROR testMilestonedSubTypingWithDifferentDates [tests/mapping/inheritance]: unknown function 'vehicle'
@@ -2335,23 +2310,18 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner [tests/mapping/tree]: in function 'meta::relational::tests::mapping::tree::model::mapping::orgTestMapping$class$meta::relational::tests::mapping::tree::model::domain::Account': expected String, got Integer
 - ERROR testReplaceTablesPostProcessorJoinIsolation [tests/mapping/tree]: in function 'meta::relational::tests::mapping::tree::model::mapping::orgTestMapping$class$meta::relational::tests::mapping::tree::model::domain::Account': expected String, got Integer
 - ERROR testFilteredGetAll [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::specialUnion::specialUnionMapping'
-- SHAPE testProject [tests/mapping/union]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['Anand', 'Scott', 'Taylor', 'Wright', 'Roberts'], $res.values.rows->map(r | $r.getString('lastName')
 - ERROR testFilteredProject [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::specialUnion::specialUnionMapping'
 - ERROR testFilteredProjectWithFrom [tests/mapping/union]: [6495:34] expected type name, got NEW_SYMBOL
 - ERROR testMultiFilterProject [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::specialUnion::specialUnionMapping'
 - ERROR testProjectWithPostTdsOperations [tests/mapping/union]: ~Len: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testFilteredProjectWithPostTdsOperations [tests/mapping/union]: ~Len: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testGroupBy [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::specialUnion::specialUnionMapping'
-- SHAPE testSimpleProject [tests/mapping/union]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['Anand', 'Scott', 'Taylor', 'Wright', 'Roberts'], $result1.rows->map(r|$r.getString('name')))
-- SHAPE testSimpleProjectWithFunctionInMappingProject [tests/mapping/union]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['1Anand', '1Scott', '1Roberts', '2Taylor', '2Wright'], $result1.rows->map(r|$r.getString('name')))
 - ERROR testSimpleQueryFrom [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMapping'
 - ERROR testSimpleQueryTo [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMapping'
 - ERROR testProjectThroughAsso [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMapping'
 - ERROR testSimpleQueryFromAssociationMapping [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Values list "t2" does not have a column named "FirmID" |  | LINE 9: LEFT OUTER JOIN Firm AS t3 ON t2.FirmID = t3.ID |                                       ^
 - ERROR testSimpleQueryToAssociationMapping [tests/mapping/union]: filter predicate references column 'FirmID', unresolvable even after isolation
 - ERROR testProjectThroughAssoWithAssociationMapping [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Values list "t3" does not have a column named "FirmID" |  | LINE 9: ) AS t3 ON t3.FirmID = t0.ID |                    ^
-- SHAPE testSimpleProjectWithJoinInMapping [tests/mapping/union]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['Anand', 'Scott', 'Taylor', 'Wright', 'Roberts'], $result1.rows->map(r|$r.getString('name')))
-- SHAPE testSimpleProjectWithJoinInMappingWithFunction [tests/mapping/union]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['Anand', 'Scott', 'Taylor', 'Wright', 'Roberts'], $result1.rows->map(r|$r.getString('name')))
 - ERROR testSimpleQueryFromWithJoinInMapping [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithJoinInProperty'
 - ERROR testSimpleQueryToWithJoinInMapping [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithJoinInProperty'
 - ERROR testProjectThroughAssoWithJoinInMapping [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithJoinInProperty'
