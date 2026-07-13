@@ -165,6 +165,27 @@ public final class Lowerer {
         if (spec.info().type() instanceof Type.RelationType) {
             return relation(spec);
         }
+        // relation->map(row|scalar) at the ROOT is the single-column
+        // projection (pure: a VALUE collection derived from rows; the
+        // Executor's COLLECTION shape reads N rows × 1 column)
+        if (spec instanceof com.legend.compiler.spec.typed.TypedMap m
+                && m.source().info().type() instanceof Type.RelationType
+                && m.mapper() instanceof com.legend.compiler.spec.typed.TypedLambda ml
+                && !(ml.info().type() instanceof Type.FunctionType ft
+                        && ft.result().type() instanceof Type.RelationType)) {
+            com.legend.compiler.element.type.Multiplicity colMult =
+                    ml.info().type() instanceof Type.FunctionType fnT
+                            ? fnT.result().multiplicity()
+                            : com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE;
+            return relation(new com.legend.compiler.spec.typed.TypedProject(
+                    m.source(),
+                    List.of(new com.legend.compiler.spec.typed.TypedFuncCol("value", ml)),
+                    new com.legend.compiler.element.type.ExprType(
+                            new Type.RelationType(List.of(
+                                    new Type.RelationType.Column("value",
+                                            spec.info().type(), colMult))),
+                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE)));
+        }
         return scalarRoot(spec);
     }
 

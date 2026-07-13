@@ -307,6 +307,23 @@ public final class StoreResolver {
                     new com.legend.compiler.spec.typed.TypedJoin(
                             resolveNode(j.left(), context), resolveNode(j.right(), context),
                             j.kind(), j.condition(), j.prefix(), j.info());
+            // map over RELATION rows above a class chain (the object-space
+            // map arm matched earlier; this is the relation-space wrapper)
+            case com.legend.compiler.spec.typed.TypedMap m
+                    when containsGetAll(m.source())
+                    && m.source().info().type()
+                            instanceof com.legend.compiler.element.type.Type.RelationType ->
+                    new com.legend.compiler.spec.typed.TypedMap(
+                            resolveNode(m.source(), context), m.mapper(), m.info());
+            // scalar/relation NATIVES over chains bottoming at a getAll
+            // (size()/equal()/isEmpty() tails of assert expressions): the
+            // object-space native arms matched earlier; here every arg
+            // resolves structurally
+            case com.legend.compiler.spec.typed.TypedNativeCall nc
+                    when containsGetAll(nc) ->
+                    new com.legend.compiler.spec.typed.TypedNativeCall(nc.callee(),
+                            nc.args().stream().map(a2 -> resolveNode(a2, context))
+                                    .toList(), nc.info());
             default -> {
                 if (containsGetAll(n)) {
                     throw new NotImplementedException("class query under "

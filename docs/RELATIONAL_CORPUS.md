@@ -144,7 +144,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | sqlQueryToString/DDL | 3 | 0 | 0 | 0 | 3 |
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 265 | 79 | 6 | 99 | 81 |
+| tds/tests | 265 | 79 | 5 | 99 | 82 |
 | testDataGeneration/tests | 40 | 0 | 0 | 0 | 40 |
 | tests | 39 | 0 | 0 | 0 | 39 |
 | tests/advanced | 67 | 6 | 0 | 49 | 12 |
@@ -178,7 +178,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **393** | 59 | 1096 | 744 |
+| **total** | 2292 | **393** | 58 | 1096 | 745 |
 
 ### mapping walls (dropped at assembly)
 
@@ -319,9 +319,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - 28x unknown function 'product'
 - 23x expected at most one value, got many ([*])
 - 23x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
+- 22x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 22x [1:13] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - 22x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
-- 21x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 17x unknown function 'getAllVersionsInRange'
 - 17x [3245:34] expected type name, got DOLLAR
 - 16x unknown function 'getAllVersions'
@@ -578,8 +578,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE planProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE executeProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE planGraphFetchWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
-- ERROR testAllWithProperty [functions/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
-- ERROR testAll [functions/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- ERROR testAllWithProperty [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY
+- ERROR testAll [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
 - ERROR testConcatenateDataType [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY
 - ERROR testConcatenateDataTypeMerge [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY
@@ -692,7 +692,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testAutoMapBooleanFilterWithProperty [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testDeepBooleanFilterWithProperty [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testDeepBooleanFilterWithPropertyUsingOr [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testGlobalAggregation [functions/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- ERROR testGlobalAggregation [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - FAIL testSubAggregation [functions/tests]: size: expected 4, got 7; values: expected [19.75, 32.0, 34.0, 35.0], got [23, 22, 12, 22, 34, 32, 35]
 - ERROR testSubAggregationMultiLevel [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testSubAggregationMultiLevelJoinString [functions/tests]: no overload of 'meta::pure::functions::string::joinStrings' accepts 1 argument(s)
@@ -1429,9 +1429,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProjectWithColumnSubSetSQLTest [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testProjectWithQuotedColumnFromTableToTDS [tds/tests]: [3245:34] expected type name, got DOLLAR
 - SHAPE testLowerProjectColsEliminated [tds/tests]: partial: 3/4 asserts recognized (recognized ones hold); first unrecognized: assertFalse($result->sqlRemoveFormatting()->toLower()->contains('hello'))
-- FAIL testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: rows: expected <Anthony,David,Fabrice,John,Oliver,Peter>, got <David,Oliver,John,Peter,Anthony,Fabrice>
+- FAIL testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: rows: expected <Anthony,David,Fabrice,John,Oliver,Peter>, got <David,John,Oliver,Anthony,Fabrice,Peter>
 - SHAPE testLowerProjectColsNotEliminatedWithSort [tds/tests]: partial: 3/4 asserts recognized (recognized ones hold); first unrecognized: assert($result->sqlRemoveFormatting()->toLower()->contains('hello'))
-- FAIL testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct [tds/tests]: rows: expected <Firm A|1,Firm B|1,Firm C|1,Firm X|4>, got <Firm A|1,Firm X|4,Firm B|1,Firm C|1>
+- SHAPE testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct [tds/tests]: partial: 3/5 asserts recognized (recognized ones hold); first unrecognized: assert($result->sqlRemoveFormatting()->toLower()->contains('count'))
 - SHAPE testRestrictOnGroupByColumn_SubSetOfGroupByColumns [tds/tests]: partial: 4/6 asserts recognized (recognized ones hold); first unrecognized: assertFalse($result->sqlRemoveFormatting()->toLower()->contains('max'))
 - SHAPE testRestrictOnGroupByColumn_DropAllAggColumns [tds/tests]: partial: 3/6 asserts recognized (recognized ones hold); first unrecognized: assertFalse($result->sqlRemoveFormatting()->toLower()->contains('max'))
 - ERROR testRestrictHandlesQueryPathsCorrectlyOnRename [tds/tests]: ~age_new: mapped/aggregate column specifications need an enclosing call to type against
@@ -2161,7 +2161,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFilterUsingArcCosFunction [tests/query]: Invalid Input Error: Unable to compute acos of 1.1
 - ERROR testFilterTimesWithManyOperands [tests/query]: multi-hop navigation firm.employees.age through an embedded/slot head is not supported yet
 - SHAPE testFilterUsingQuarterNumberFunction [tests/query]: partial: 1/3 asserts recognized (recognized ones hold); first unrecognized: assertSameElements([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], $result.values.id->sort())
-- ERROR testCollectionDistinctFunction [tests/query]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
+- ERROR testCollectionDistinctFunction [tests/query]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - SHAPE testDivideFunctionPrecision [tests/query]: partial: 1/4 asserts recognized (recognized ones hold); first unrecognized: assertEq(10287257069.44, $result.values->at(0))
 - ERROR testJoinStringFunction [tests/query]: no overload of 'meta::pure::functions::string::joinStrings' accepts 1 argument(s)
 - ERROR testDayOfWeekFunction [tests/query]: a bare lambda has no type outside a call position (lambdas type against their call's signature)

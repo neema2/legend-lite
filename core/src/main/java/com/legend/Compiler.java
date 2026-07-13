@@ -131,7 +131,7 @@ public final class Compiler {
      * &mdash; the caller-supplied-connection path) defaults to DuckDB, the
      * reference dialect.
      */
-    private static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx, String runtimeFqn) {
+    static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx, String runtimeFqn) {
         if (runtimeFqn == null) {
             return new com.legend.sql.dialect.DuckDb();
         }
