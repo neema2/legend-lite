@@ -67,7 +67,11 @@ final class JoinChecker {
     private static AppliedFunction tdsLegacyToModern(AppliedFunction af) {
         List<ValueSpecification> ps = af.parameters();
         if (ps.size() < 3 || !(ps.get(2) instanceof EnumValue kind)
-                || !kind.fullPath().endsWith("meta::relational::metamodel::join::JoinType")) {
+                // EXACT identification: the FQN, or the bare import
+                // spelling — a suffix match would also capture a user enum
+                // named ...::JoinType
+                || !(kind.fullPath().equals("meta::relational::metamodel::join::JoinType")
+                        || kind.fullPath().equals("JoinType"))) {
             return af;
         }
         String mapped = switch (kind.value()) {

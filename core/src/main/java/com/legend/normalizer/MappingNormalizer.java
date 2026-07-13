@@ -928,6 +928,21 @@ public final class MappingNormalizer {
         for (PropertyMapping pm : rcm.propertyMappings()) {
             collectMainTables(pm, refs);
         }
+        // the DATABASE is part of table identity: [db1]T and [db2]T are
+        // different tables — table-name-only dedup would silently pick
+        // refs.get(0)'s database. Null (scope-block) refs inherit the
+        // explicit one, so only NON-NULL databases enter the check.
+        Set<String> dbs = new LinkedHashSet<>();
+        refs.forEach(r -> {
+            if (r.database() != null) {
+                dbs.add(r.database());
+            }
+        });
+        if (dbs.size() > 1) {
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                    "Inconsistent database definitions for the mapping of class '"
+                  + rcm.className() + "': " + dbs);
+        }
         Set<String> names = new LinkedHashSet<>();
         refs.forEach(r -> names.add(canonicalTable(r.table())));
         if (names.size() > 1) {
@@ -1529,8 +1544,17 @@ public final class MappingNormalizer {
         if (name == null) {
             return value;
         }
-        String simple = name.substring(name.lastIndexOf("::") + 2 > 1
-                ? name.lastIndexOf("::") + 2 : 0);
+        // PLATFORM primitives only, identified exactly: the bare spelling
+        // (not shadowed by a user class — 'm::Number' must never coerce) or
+        // the full platform FQN. Suffix-matching is the banned idiom.
+        String simple;
+        if (!name.contains("::") && model.findClass(name).isEmpty()) {
+            simple = name;
+        } else if (name.startsWith("meta::pure::metamodel::type::")) {
+            simple = name.substring("meta::pure::metamodel::type::".length());
+        } else {
+            return value;
+        }
         if (!java.util.Set.of("Float", "Integer", "Decimal", "Number",
                 "DateTime", "StrictDate", "Date").contains(simple)) {
             return value;

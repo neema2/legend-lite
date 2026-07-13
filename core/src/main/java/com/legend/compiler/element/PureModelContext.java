@@ -96,6 +96,12 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
+    public Optional<com.legend.parser.element.ClassDefinition>
+            findClassDefinition(String fqn) {
+        return classifier.classDef(fqn);
+    }
+
+    @Override
     public Optional<TypedEnum> findEnum(String fqn) {
         TypedEnum cached = enumCache.get(fqn);
         if (cached != null) {

@@ -1403,11 +1403,8 @@ public final class ElementParser implements TokenStreamCursor {
                 && peek(1) == TokenType.PAREN_OPEN) {
             advance();
             expect(TokenType.PAREN_OPEN);
-            String busFrom = null;
-            String busThru = null;
-            String procIn = null;
-            String procOut = null;
-            String snapshot = null;
+            DatabaseDefinition.TableDefinition.Milestoning.Business business = null;
+            DatabaseDefinition.TableDefinition.Milestoning.Processing processing = null;
             while (peek() != TokenType.PAREN_CLOSE && !atEnd()) {
                 String kind = parseIdentifier();
                 expect(TokenType.PAREN_OPEN);
@@ -1415,11 +1412,15 @@ public final class ElementParser implements TokenStreamCursor {
                 while (peek() != TokenType.PAREN_CLOSE && !atEnd()) {
                     String k = parseIdentifier();
                     if (match(TokenType.EQUAL)) {
-                        // values may be column names or (rarely) other
-                        // tokens; capture identifiers, skip the rest
+                        // values are column names, date literals
+                        // (INFINITY_DATE=%9999-12-31...) or booleans
+                        // (THRU_IS_INCLUSIVE=true) — ALL are load-bearing
+                        // (the engine's %latest filter and range-boundary
+                        // operators derive from them); capture verbatim.
                         if (isIdentifierToken(peek())) {
                             kv.put(k, parseRelationalIdentifier());
                         } else {
+                            kv.put(k, text());
                             advance();
                         }
                     }
@@ -1427,19 +1428,25 @@ public final class ElementParser implements TokenStreamCursor {
                 }
                 expect(TokenType.PAREN_CLOSE);
                 if (kind.equalsIgnoreCase("business")) {
-                    busFrom = kv.get("BUS_FROM");
-                    busThru = kv.get("BUS_THRU");
-                    snapshot = kv.getOrDefault("BUS_SNAPSHOT_DATE", snapshot);
+                    business = new DatabaseDefinition.TableDefinition
+                            .Milestoning.Business(
+                            kv.get("BUS_FROM"), kv.get("BUS_THRU"),
+                            "true".equalsIgnoreCase(kv.get("THRU_IS_INCLUSIVE")),
+                            kv.get("BUS_SNAPSHOT_DATE"),
+                            kv.get("INFINITY_DATE"));
                 } else if (kind.equalsIgnoreCase("processing")) {
-                    procIn = kv.get("PROCESSING_IN");
-                    procOut = kv.get("PROCESSING_OUT");
-                    snapshot = kv.getOrDefault("PROCESSING_SNAPSHOT_DATE", snapshot);
+                    processing = new DatabaseDefinition.TableDefinition
+                            .Milestoning.Processing(
+                            kv.get("PROCESSING_IN"), kv.get("PROCESSING_OUT"),
+                            "true".equalsIgnoreCase(kv.get("OUT_IS_INCLUSIVE")),
+                            kv.get("PROCESSING_SNAPSHOT_DATE"),
+                            kv.get("INFINITY_DATE"));
                 }
                 match(TokenType.COMMA);
             }
             expect(TokenType.PAREN_CLOSE);
             milestoning = new DatabaseDefinition.TableDefinition.Milestoning(
-                    busFrom, busThru, procIn, procOut, snapshot);
+                    business, processing);
         }
         List<DatabaseDefinition.ColumnDefinition> columns = new ArrayList<>();
         if (peek() != TokenType.PAREN_CLOSE) {
@@ -1912,14 +1919,35 @@ public final class ElementParser implements TokenStreamCursor {
             accum.classMappings.add(cm);
             return;
         }
-        // Operation UNION captures its member sets (synthesized as a
-        // projected UNION ALL); other operations and AggregationAware stay
-        // parse-and-skip so the surrounding mapping loads -- a query against
-        // the class stays LOUD at resolution ("no mapping for class").
+        // Operation STORE-UNION captures its member sets (synthesized as a
+        // projected UNION ALL); identification is by EXACT FQN — the engine
+        // walker (OperationClassMappingParseTreeWalker) dispatches
+        // union_* = STORE_UNION vs special_union_* = ROUTER_UNION vs
+        // inheritance_*/merge_*, and the latter three have different
+        // semantics (a contains-match would silently run a router union as
+        // a store union). Non-store-union operations and AggregationAware
+        // stay parse-and-skip so the surrounding mapping loads — a query
+        // against the class stays LOUD at resolution ("no mapping for
+        // class"). The skip is a BALANCED-BRACE consume: merge bodies carry
+        // set LISTS + a validation lambda that the member-list parse would
+        // choke on (audit F6 — one merge mapping sank its whole model).
         if (isIdentifierToken(peek()) && "Operation".equals(text())) {
             advance();
             expect(TokenType.BRACE_OPEN);
             String fn = parseQualifiedName();
+            if (!"meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_"
+                    .equals(fn)) {
+                int depth = 1;
+                while (depth > 0 && !atEnd()) {
+                    if (peek() == TokenType.BRACE_OPEN) {
+                        depth++;
+                    } else if (peek() == TokenType.BRACE_CLOSE) {
+                        depth--;
+                    }
+                    advance();
+                }
+                return;
+            }
             List<String> members = new ArrayList<>();
             if (peek() == TokenType.PAREN_OPEN) {
                 advance();
@@ -1932,11 +1960,10 @@ public final class ElementParser implements TokenStreamCursor {
                 expect(TokenType.PAREN_CLOSE);
             }
             expect(TokenType.BRACE_CLOSE);
-            if (fn.contains("union") && members.size() >= 2) {
+            if (members.size() >= 2) {
                 accum.classMappings.add(new ClassMapping.Union(
                         elementPath, setId, extendsSetId, root, members));
             }
-            // non-union operations (merge, ...) drop: loud at resolution
             return;
         }
         if (isIdentifierToken(peek()) && "AggregationAware".equals(text())) {

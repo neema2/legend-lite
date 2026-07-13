@@ -161,8 +161,10 @@ public final class StoreResolver {
             // demand — engine emits select count(*)) and count the relation.
             case com.legend.compiler.spec.typed.TypedNativeCall nc
                     when nc.args().size() == 1 && isObjectSpace(nc.args().get(0))
-                    && (nc.callee().qualifiedName().endsWith("::size")
-                            || nc.callee().qualifiedName().endsWith("::count")) -> {
+                    && (nc.callee().qualifiedName().equals(
+                                    "meta::pure::functions::collection::size")
+                            || nc.callee().qualifiedName().equals(
+                                    "meta::pure::functions::collection::count")) -> {
                 com.legend.compiler.element.type.Type intType =
                         com.legend.compiler.element.type.Type.Primitive.INTEGER;
                 com.legend.compiler.element.type.ExprType oneInt =
@@ -320,25 +322,68 @@ public final class StoreResolver {
     /** Collection distinct/removeDuplicates over instances (no comparator). */
     private static boolean isClassDistinct(com.legend.compiler.spec.typed.TypedNativeCall c) {
         return c.args().size() == 1
-                && (c.callee().qualifiedName().endsWith("::distinct")
-                        || c.callee().qualifiedName().endsWith("::removeDuplicates"));
+                && (c.callee().qualifiedName().equals(
+                                "meta::pure::functions::collection::distinct")
+                        || c.callee().qualifiedName().equals(
+                                "meta::pure::functions::collection::removeDuplicates"));
     }
 
     /**
-     * BUSINESS-temporal fetch {@code Class.all(%date)}: filter the
-     * materialized pipeline by the main table's milestoning columns —
-     * {@code from_z <= d < thru_z}; {@code %latest} selects the open-ended
-     * row ({@code thru_z = 9999-12-31}, the engine's convention).
+     * Temporal fetch {@code Class.all(%date)}: filter the materialized
+     * pipeline by the main table's milestoning columns for the CLASS's
+     * temporal dimension (engine {@code milestoningCanSupportTemporalStrategy}
+     * — a processing-temporal class on a bi-temporal table must filter the
+     * PROCESSING columns, never whichever block happens to be declared
+     * first). Range form {@code from <= d AND thru > d} flips to
+     * {@code from < d AND thru >= d} under the block's inclusivity flag;
+     * {@code %latest} selects {@code thru = INFINITY_DATE}, which the
+     * engine REQUIRES the table to declare (milestoning.pure
+     * getInfinityDate assert) — never a hardcoded constant.
      */
     private TypedSpec milestonedPipe(TypedSpec pipe, TypedSpec date, String classFqn) {
         com.legend.compiler.spec.typed.TypedTableReference root = rootTable(pipe);
         var ms = root == null ? null
                 : ctx.findTableMilestoning(root.store(), root.table()).orElse(null);
-        String fromCol = ms == null ? null
-                : ms.busFrom() != null ? ms.busFrom() : ms.procIn();
-        String thruCol = ms == null ? null
-                : ms.busFrom() != null ? ms.busThru() : ms.procOut();
-        String snapCol = ms == null ? null : ms.snapshot();
+        String strategy = temporalStrategy(classFqn);
+        if (strategy == null) {
+            throw new MappingResolutionException("milestoned fetch of '" + classFqn
+                    + "': the class declares no temporal stereotype", classFqn);
+        }
+        String fromCol;
+        String thruCol;
+        String snapCol;
+        boolean inclusive;
+        String infinity;
+        if (strategy.equals("businesstemporal")) {
+            var b = ms == null ? null : ms.business();
+            if (b == null) {
+                throw new MappingResolutionException("milestoned fetch of '"
+                        + classFqn + "': the main table declares no matching"
+                        + " milestoning block for the business dimension",
+                        classFqn);
+            }
+            fromCol = b.from();
+            thruCol = b.thru();
+            snapCol = b.snapshotDate();
+            inclusive = b.thruIsInclusive();
+            infinity = b.infinityDate();
+        } else if (strategy.equals("processingtemporal")) {
+            var p = ms == null ? null : ms.processing();
+            if (p == null) {
+                throw new MappingResolutionException("milestoned fetch of '"
+                        + classFqn + "': the main table declares no matching"
+                        + " milestoning block for the processing dimension",
+                        classFqn);
+            }
+            fromCol = p.in();
+            thruCol = p.out();
+            snapCol = p.snapshotDate();
+            inclusive = p.outIsInclusive();
+            infinity = p.infinityDate();
+        } else {
+            throw new MappingResolutionException("bi-temporal class fetch of '"
+                    + classFqn + "' is not supported yet", classFqn);
+        }
         if (snapCol == null && (fromCol == null || thruCol == null)) {
             throw new MappingResolutionException("milestoned fetch of '" + classFqn
                     + "': the main table declares no matching milestoning block",
@@ -379,19 +424,41 @@ public final class StoreResolver {
             cond = cmpCall("meta::pure::functions::boolean::equal",
                     col.apply(snapCol), date, boolT);
         } else if (date instanceof com.legend.compiler.spec.typed.TypedCLatestDate) {
+            if (infinity == null) {
+                // engine: getInfinityDate ASSERTS the declaration — a
+                // defaulted constant would silently return zero rows for
+                // any table milestoned with a different infinity date
+                throw new MappingResolutionException("%latest usage for"
+                        + " temporal fetch of '" + classFqn + "' requires"
+                        + " table '" + root.table() + "' to specify a"
+                        + " milestoning 'INFINITY_DATE'", classFqn);
+            }
             com.legend.compiler.element.type.ExprType dt =
                     new com.legend.compiler.element.type.ExprType(
                             com.legend.compiler.element.type.Type.Primitive.DATE_TIME,
                             com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
             cond = cmpCall("meta::pure::functions::boolean::equal",
                     col.apply(thruCol),
-                    new com.legend.compiler.spec.typed.TypedCDate(com.legend.values.PureDateLiteral.parse("9999-12-31T00:00:00"), dt),
+                    new com.legend.compiler.spec.typed.TypedCDate(
+                            com.legend.values.PureDateLiteral.parse(
+                                    infinity.startsWith("%")
+                                            ? infinity.substring(1) : infinity),
+                            dt),
+                    boolT);
+        } else if (inclusive) {
+            // THRU/OUT_IS_INCLUSIVE=true: engine flips both boundary
+            // operators — from < d AND thru >= d
+            cond = cmpCall("meta::pure::functions::boolean::and",
+                    dateCmpCall("meta::pure::functions::boolean::lessThan",
+                            col.apply(fromCol), date, boolT),
+                    dateCmpCall("meta::pure::functions::boolean::greaterThanEqual",
+                            col.apply(thruCol), date, boolT),
                     boolT);
         } else {
             cond = cmpCall("meta::pure::functions::boolean::and",
-                    cmpCall("meta::pure::functions::boolean::lessThanEqual",
+                    dateCmpCall("meta::pure::functions::boolean::lessThanEqual",
                             col.apply(fromCol), date, boolT),
-                    cmpCall("meta::pure::functions::boolean::greaterThan",
+                    dateCmpCall("meta::pure::functions::boolean::greaterThan",
                             col.apply(thruCol), date, boolT),
                     boolT);
         }
@@ -408,14 +475,132 @@ public final class StoreResolver {
         return new com.legend.compiler.spec.typed.TypedFilter(pipe, pred, pipe.info());
     }
 
+    /**
+     * The class's temporal stereotype ({@code <<temporal.businesstemporal>>}
+     * etc., inherited through superclasses), or {@code null} for a
+     * non-temporal class. Drives which milestoning block filters the fetch
+     * — engine {@code milestoningCanSupportTemporalStrategy}.
+     */
+    private String temporalStrategy(String classFqn) {
+        java.util.ArrayDeque<String> work = new java.util.ArrayDeque<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        work.add(classFqn);
+        while (!work.isEmpty()) {
+            String fqn = work.poll();
+            if (!seen.add(fqn)) {
+                continue;
+            }
+            var def = ctx.findClassDefinition(fqn).orElse(null);
+            if (def != null) {
+                for (var st : def.stereotypes()) {
+                    if (("temporal".equals(st.profileName())
+                            || "meta::pure::profiles::temporal".equals(st.profileName()))
+                            && java.util.Set.of("businesstemporal",
+                                    "processingtemporal", "bitemporal")
+                                    .contains(st.stereotypeName())) {
+                        return st.stereotypeName();
+                    }
+                }
+            }
+            ctx.findClass(fqn).ifPresent(tc -> work.addAll(tc.superClassFqns()));
+        }
+        return null;
+    }
+
+    /**
+     * The SOLE 2-arg overload of {@code fqn} ({@code and}/{@code equal}) —
+     * loud if the catalog ever gains a second one, so a reorder can never
+     * silently stamp a different signature.
+     */
     private TypedSpec cmpCall(String fqn, TypedSpec a, TypedSpec b,
             com.legend.compiler.element.type.ExprType out) {
-        var fn = ctx.findFunction(fqn).stream()
+        var fns = ctx.findFunction(fqn).stream()
                 .filter(f -> f.parameters().size() == 2)
+                .toList();
+        if (fns.size() != 1) {
+            throw new IllegalStateException("resolver bug: expected exactly"
+                    + " one 2-arg overload of " + fqn + ", found " + fns.size());
+        }
+        return new com.legend.compiler.spec.typed.TypedNativeCall(fns.get(0),
+                java.util.List.of(a, b), out);
+    }
+
+    /**
+     * The Date×Date comparison overload of {@code fqn} — pinned by
+     * parameter TYPE, never catalog order (the comparison family carries
+     * Date, Number, String and Boolean overloads).
+     */
+    private TypedSpec dateCmpCall(String fqn, TypedSpec a, TypedSpec b,
+            com.legend.compiler.element.type.ExprType out) {
+        var fn = ctx.findFunction(fqn).stream()
+                .filter(f -> f.parameters().size() == 2
+                        && f.parameters().stream().allMatch(p ->
+                                com.legend.compiler.element.type.Type.Primitive.DATE
+                                        .equals(p.type())))
                 .findFirst().orElseThrow(() -> new IllegalStateException(
-                        "resolver bug: no 2-arg overload of " + fqn));
+                        "resolver bug: no Date,Date overload of " + fqn));
         return new com.legend.compiler.spec.typed.TypedNativeCall(fn,
                 java.util.List.of(a, b), out);
+    }
+
+    /**
+     * INTERIM temporal-propagation wall (audit S1): the engine applies the
+     * fetch date to EVERY milestoned table in the query
+     * ({@code getAppliedJoinMilestoningFilters}); lite filters only the
+     * root — joining a temporal class's UNFILTERED extent would silently
+     * multiply rows across its versions, so navigation to one stays loud
+     * until propagation lands.
+     */
+    private void requireNonMilestonedTarget(ClassSource target, String head) {
+        if (temporalStrategy(target.classFqn()) == null) {
+            return;
+        }
+        var root = rootTable(target.pipeline());
+        var ms = root == null ? null
+                : ctx.findTableMilestoning(root.store(), root.table()).orElse(null);
+        if (ms != null) {
+            throw new NotImplementedException("navigation to temporal class '"
+                    + target.classFqn() + "' via '" + head + "' is not"
+                    + " supported yet (temporal context propagation)");
+        }
+    }
+
+    /**
+     * Any colspec body reading its row parameter? A constant-only project
+     * (the synthetic count column) is NOT a function of the row — mapping
+     * {@code ~distinct} must not defer past it.
+     */
+    private static boolean projectReadsRow(TypedProject p) {
+        for (var fc : p.columns()) {
+            TypedLambda l = fc.fn();
+            String param = l.parameters().isEmpty() ? null : l.parameters().get(0);
+            if (param == null) {
+                return true;    // shape surprise: keep the verified behavior
+            }
+            for (TypedSpec b : l.body()) {
+                if (readsVar(b, param)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** {@code $var} read anywhere beneath {@code n}; shadowing lambdas stop the walk. */
+    private static boolean readsVar(TypedSpec n, String var) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedVariable v
+                && v.name().equals(var)) {
+            return true;
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(var)) {
+            return false;
+        }
+        for (TypedSpec c : n.children()) {
+            if (readsVar(c, var)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The LEFTMOST physical table of a materialized pipeline. */
@@ -683,6 +868,15 @@ public final class StoreResolver {
             throw new MappingResolutionException("bi-temporal class fetch of '"
                     + g.classFqn() + "' is not supported yet", g.classFqn());
         }
+        if (g.milestoning().isEmpty() && temporalStrategy(g.classFqn()) != null) {
+            // engine: .all() on a temporal class REQUIRES a date argument
+            // (allVersions() is the version-sweep spelling) — an unfiltered
+            // extent would silently return every version as a row
+            throw new MappingResolutionException("fetch of temporal class '"
+                    + g.classFqn() + "' requires a milestoning date argument"
+                    + " (use allVersions() for the unfiltered extent)",
+                    g.classFqn());
+        }
         ClassSource cs = sources.get(dispatch(context, g.classFqn()), g.classFqn(),
                 target -> dispatch(context, target),
                 (context.explicitMapping() == null ? "" : context.explicitMapping())
@@ -805,9 +999,14 @@ public final class StoreResolver {
         // whole-row dedup and stay deferral-safe.
         TypedSpec csPipe = cs.pipeline();
         boolean deferredDistinct = false;
-        if (top instanceof TypedProject
+        if (top instanceof TypedProject tp
+                && projectReadsRow(tp)
                 && ops.stream().allMatch(op -> op instanceof TypedFilter)
                 && csPipe instanceof com.legend.compiler.spec.typed.TypedDistinct dd) {
+            // A constant-only project (the synthetic size()/count() column)
+            // must count the DEDUPED rows — deferring its distinct would
+            // collapse the output to SELECT DISTINCT 1 = one row (audit S5),
+            // so the distinct stays in the pipeline for that shape.
             deferredDistinct = true;
             csPipe = dd.source();
         }
@@ -845,6 +1044,7 @@ public final class StoreResolver {
                     continue;
                 }
                 ClassSource t = sources.get(cs.mappingFqn(), tg.classFqn());
+                requireNonMilestonedTarget(t, head);
                 Pipelines.Materialized tMat = Pipelines.materialize(
                         t.pipeline(), Set.of(), t.classFqn());
                 boolean navToMany = !(ctx.findProperty(cs.classFqn(), head)
@@ -1592,6 +1792,7 @@ public final class StoreResolver {
         String targetClass = ((com.legend.parser.TypeExpression.NameRef)
                 end.targetClass()).name();
         ClassSource target = sources.get(cs.mappingFqn(), targetClass);
+        requireNonMilestonedTarget(target, head);
         // The TARGET's own join slots materialize on demand too: a demanded
         // leaf whose binding reads a slot ($p.firm.country where country is
         // @FirmCountry-mapped) pulls that slot's LEFT join into the target

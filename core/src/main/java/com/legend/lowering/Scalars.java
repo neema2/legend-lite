@@ -1798,22 +1798,32 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("convertDateFormat")) {
             RULES.put(f, (n, args) -> strptimeOf(args, true));
         }
-        // isNumeric(str): the text parses as a number (dyna semantics)
+        // isNumeric(str): PINNED to the engine's H2 emission
+        // lower(x) = upper(x) — true iff the text has no cased letters
+        // (h2Extension2_1_214.pure:230). Semantically loose ('', '$5' and
+        // '1.2.3' are all "numeric") but it is what generated every corpus
+        // expectation; a tighter regex silently diverges on those inputs.
         for (String f : Pure.nativeKeysAt("isNumeric")) {
-            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.NOT_EQUAL,
-                    SqlExpr.Call.of(SqlFn.REGEXP_EXTRACT, args.get(0),
-                            new SqlExpr.StringLit("^[-+]?[0-9]*\\.?[0-9]+$")),
-                    new SqlExpr.StringLit("")));
+            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.EQUAL,
+                    SqlExpr.Call.of(SqlFn.LOWER, args.get(0)),
+                    SqlExpr.Call.of(SqlFn.UPPER, args.get(0))));
         }
-        // convertTimeZone(dt, tz, fmt): print in the target zone
+        // convertTimeZone(dt, tz, fmt): the input is UTC, printed in the
+        // target zone (engine H2 UDF: utcTime.withZoneSameInstant(target)).
+        // DuckDB's timezone(tz, naive_ts) goes the OTHER way (interprets
+        // the naive value as tz-local), so pin the instant first:
+        // timezone('UTC', dt) tags the naive value AS UTC, then
+        // timezone(tz, ...) renders that instant in the target zone.
         for (String f : Pure.nativeKeysAt("convertTimeZoneFormat")) {
             RULES.put(f, (n, args) -> {
                 if (!(args.get(2) instanceof SqlExpr.StringLit fmt)) {
                     throw new com.legend.error.NotImplementedException(
                             "convertTimeZone needs a LITERAL format string");
                 }
+                SqlExpr asUtc = new SqlExpr.Call(SqlFn.TIMEZONE,
+                        List.of(new SqlExpr.StringLit("UTC"), args.get(0)));
                 SqlExpr shifted = new SqlExpr.Call(SqlFn.TIMEZONE,
-                        List.of(args.get(1), args.get(0)));
+                        List.of(args.get(1), asUtc));
                 return new SqlExpr.Call(SqlFn.STRFTIME, List.of(shifted,
                         new SqlExpr.StringLit(translateFormat(fmt.value()))));
             });
@@ -1985,8 +1995,20 @@ final class Scalars {
     }
 
     /** The engine's format tokens, longest-first, to DuckDB strptime tokens. */
+    /**
+     * Longest-first token map: engine format spellings (SimpleDateFormat +
+     * the Oracle-style TO_CHAR tokens the corpus mixes in) to DuckDB
+     * strptime. Case is load-bearing (MM month vs mm minutes). Two entries
+     * are pinned by ENGINE-PRODUCED expected values rather than a spec:
+     * '.mmm' and '.FF' both read as fractional seconds — the sqlFunction
+     * corpus asserts %2016-06-23T15:03:00.000 for 'yyyy-MM-dd hh:mm:ss.mmm'
+     * over '2016-06-23 15:03:00.000000000', i.e. the engine result treats
+     * the tail as millis, not minutes (SimpleDateFormat's reading would
+     * shift the minute field). SSS is SimpleDateFormat millis proper.
+     */
     private static final String[][] FORMAT_TOKENS = {
-            {"HH24", "%H"}, {"MMM", "%b"}, {"MON", "%b"}, {"mmm", "%g"},
+            {"HH24", "%H"}, {"SSS", "%g"}, {"MMM", "%b"}, {"MON", "%b"},
+            {"mmm", "%g"},
             {"yyyy", "%Y"}, {"YYYY", "%Y"}, {"MM", "%m"}, {"dd", "%d"},
             {"DD", "%d"}, {"MI", "%M"}, {"mm", "%M"}, {"hh", "%H"},
             {"HH", "%H"}, {"ss", "%S"}, {"SS", "%S"}, {"FF", "%g"},

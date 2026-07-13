@@ -289,7 +289,6 @@ public final class Corpus {
      * on the engine's H2 setup and a syntax error on DuckDB unquoted.
      */
     private static String quoteCreateColumns(String sql, int bodyStart) {
-        sql = sql.replaceAll("(?i)\\bFLOAT\\b", "DOUBLE");
         int depth = 1;
         int end = bodyStart;
         while (end < sql.length() && depth > 0) {
@@ -333,7 +332,12 @@ public final class Corpus {
                     || head.matches("(?i)primary|constraint|foreign|unique|check")) {
                 out.append(col);
             } else {
-                out.append('\"').append(head).append('\"').append(col.substring(sp));
+                // FLOAT→DOUBLE on the TYPE PART only (H2's FLOAT is an
+                // 8-byte double; DuckDB's is REAL) — the whole-statement
+                // replace also renamed a column literally named "float"
+                // (relationalSetUp testTable, audit C1)
+                out.append('\"').append(head).append('\"').append(
+                        col.substring(sp).replaceAll("(?i)\\bFLOAT\\b", "DOUBLE"));
             }
         }
         return sql.substring(0, bodyStart) + out + sql.substring(end - 1);
@@ -387,13 +391,14 @@ public final class Corpus {
                     }
                 }
                 String col = raw.strip().replaceAll("(?i)\\s+PRIMARY\\s+KEY", "")
-                        .replaceAll("(?i)\\s+NOT\\s+NULL", "")
-                        // H2's FLOAT is an 8-byte double; DuckDB's is REAL —
-                        // engine-parity means DOUBLE
-                        .replaceAll("(?i)\\bFLOAT\\b", "DOUBLE");
+                        .replaceAll("(?i)\\s+NOT\\s+NULL", "");
                 int sp = col.startsWith("\"") ? col.indexOf('"', 1) + 1 : firstSpace(col);
                 String name = col.substring(0, sp).strip();
-                String type = col.substring(sp).strip();
+                // H2's FLOAT is an 8-byte double; DuckDB's is REAL —
+                // engine-parity means DOUBLE. TYPE position only: a column
+                // may literally be NAMED float (audit C1).
+                String type = col.substring(sp).strip()
+                        .replaceAll("(?i)\\bFLOAT\\b", "DOUBLE");
                 if (!name.startsWith("\"")) {
                     name = '"' + name + '"';
                 }
@@ -497,12 +502,12 @@ public final class Corpus {
 
     // ===== BeforePackage seeds =====
 
-    public record BeforePackage(String pkg, boolean callsBaseSetup, List<String> sql,
-            String body) {
+    public record BeforePackage(String pkg, String fqn, boolean callsBaseSetup,
+            List<String> sql, String body) {
     }
 
     private static final Pattern BEFORE_PKG = Pattern.compile(
-            "function\\s+<<[^>]*test\\.BeforePackage[^>]*>>\\s+((?:\\w+::)*\\w+)::\\w+\\s*\\(");
+            "function\\s+<<[^>]*test\\.BeforePackage[^>]*>>\\s+((?:\\w+::)*\\w+)::(\\w+)\\s*\\(");
 
     /**
      * {@code <<test.BeforePackage>>} setup functions: the engine harness runs
@@ -540,6 +545,7 @@ public final class Corpus {
             // SIBLING files — initDatabase() lives next door): the closure
             // expands LAZILY against the whole-run function corpus
             out.add(new BeforePackage(m.group(1),
+                    m.group(1) + "::" + m.group(2),
                     body.contains("createTablesAndFillDb"),
                     seedSql(expandCalls(body, source)), body));
         }
@@ -554,8 +560,23 @@ public final class Corpus {
      */
     public static List<String> expandSeeds(String body, String homePkg,
             Map<String, String> fqnFns) {
-        StringBuilder expanded = new StringBuilder(body);
-        java.util.Set<String> seen = new java.util.HashSet<>();
+        return expandSeeds(body, homePkg, fqnFns, new java.util.HashSet<>(), true);
+    }
+
+    /**
+     * Run-once emulation across the WHOLE seed replay: {@code seen} carries
+     * every function FQN whose body literals are already in the stream
+     * (raw shared-file seeds + earlier BeforePackage expansions), so the
+     * same setup function never seeds twice — while duplicate statements
+     * WITHIN one function body (deliberately repeated inserts feeding
+     * distinct() tests) are preserved. {@code includeBody=false} walks the
+     * body's CALLS without re-emitting its own literals (a BeforePackage
+     * whose defining file already seeded raw).
+     */
+    public static List<String> expandSeeds(String body, String homePkg,
+            Map<String, String> fqnFns, java.util.Set<String> seen,
+            boolean includeBody) {
+        StringBuilder expanded = new StringBuilder(includeBody ? body : "");
         java.util.ArrayDeque<String> queue = new java.util.ArrayDeque<>();
         queue.add(body);
         while (!queue.isEmpty()) {
@@ -595,9 +616,17 @@ public final class Corpus {
         return seedSql(expanded.toString());
     }
 
+    /**
+     * Shared package prefix in WHOLE :: segments — a character-level count
+     * let {@code ...::testA} score against {@code ...::testB} on partial
+     * segment text, occasionally absorbing a sibling family's same-named
+     * helper.
+     */
     private static int sharedPrefix(String a, String b) {
+        String[] as = a.split("::");
+        String[] bs = b.split("::");
         int i = 0;
-        while (i < a.length() && i < b.length() && a.charAt(i) == b.charAt(i)) {
+        while (i < as.length && i < bs.length && as[i].equals(bs[i])) {
             i++;
         }
         return i;

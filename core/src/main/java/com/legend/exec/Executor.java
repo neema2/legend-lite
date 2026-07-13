@@ -52,8 +52,14 @@ public final class Executor {
                 case COLLECTION -> {
                     List<Object> values = new ArrayList<>();
                     while (rs.next()) {
-                        values.add(latticeKind(cell(rs, plan, dialect, anyRoot),
-                                rootType.type(), plan));
+                        Object v = latticeKind(cell(rs, plan, dialect, anyRoot),
+                                rootType.type(), plan);
+                        // a NULL cell is a pure EMPTY, and no pure collection
+                        // holds empties — Person.all().middleName over a row
+                        // with no middle name contributes nothing, not null
+                        if (v != null) {
+                            values.add(v);
+                        }
                     }
                     yield new ExecutionResult.Collection(values, rootType.type());
                 }

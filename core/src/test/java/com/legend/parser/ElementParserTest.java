@@ -1518,6 +1518,59 @@ final class ElementParserTest {
     }
 
     @Test
+    void databaseTableMilestoningCapturesInclusivityAndInfinityDate() {
+        // engine: %latest REQUIRES the declared INFINITY_DATE and the
+        // inclusivity flags flip the boundary operators — all three are
+        // load-bearing, never skippable tokens
+        DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse("""
+                Database store::Db
+                (
+                  Table ProductTable
+                  (
+                    milestoning
+                    (
+                      processing(PROCESSING_IN=in_z, PROCESSING_OUT=out_z, OUT_IS_INCLUSIVE=false, INFINITY_DATE=%9999-12-31T00:00:00.0000),
+                      business(BUS_FROM=from_z, BUS_THRU=thru_z, THRU_IS_INCLUSIVE=true, INFINITY_DATE=%9999-12-31T00:00:00.0000)
+                    )
+                    id INTEGER PRIMARY KEY,
+                    from_z TIMESTAMP,
+                    thru_z TIMESTAMP,
+                    in_z TIMESTAMP,
+                    out_z TIMESTAMP
+                  )
+                )
+                """).elements().get(0);
+        TableDefinition t = db.tables().get(0);
+        assertEquals(new TableDefinition.Milestoning(
+                new TableDefinition.Milestoning.Business(
+                        "from_z", "thru_z", true, null, "%9999-12-31T00:00:00.0000"),
+                new TableDefinition.Milestoning.Processing(
+                        "in_z", "out_z", false, null, "%9999-12-31T00:00:00.0000")),
+                t.milestoning());
+        assertEquals("id", t.columns().get(0).name());
+    }
+
+    @Test
+    void databaseTableSnapshotMilestoning() {
+        DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse("""
+                Database store::Db
+                (
+                  Table OrderTable
+                  (
+                    milestoning( business(BUS_SNAPSHOT_DATE=snapshotDate) )
+                    id INTEGER PRIMARY KEY,
+                    snapshotDate DATE
+                  )
+                )
+                """).elements().get(0);
+        assertEquals(new TableDefinition.Milestoning(
+                new TableDefinition.Milestoning.Business(
+                        null, null, false, "snapshotDate", null),
+                null),
+                db.tables().get(0).milestoning());
+    }
+
+    @Test
     void databaseQuotedTableAndColumnIdentifiers() {
         DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
                 "Database s::Db ( Table \"Mixed Case\" ( \"Col One\" INTEGER ) )")

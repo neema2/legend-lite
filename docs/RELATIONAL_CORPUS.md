@@ -4,12 +4,10 @@ RUN-as-data over the local legend-engine checkout; row equality is the
 contract, golden SQL is advisory. SHAPE = test body/assert form the
 runner does not yet recognize (accounted, not skipped silently).
 
-## Failed seed statements (154)
+## Failed seed statements (113)
 
-- `CREATE OR REPLACE TABLE testTable ("quantity" INT, "Class" VARCHAR(200), "boolean" INT, "abstract" INT, "assert" INT, "break" INT, "byte" INT, "catch" INT, "char" INT, "const" INT, "continue" INT, "default" INT, "do" INT, "double" INT, "else" INT, "enum" INT, "final" INT, "finally" INT, "DOUBLE" INT, "for" INT, "goto" INT, "implements" INT, "instanceof" INT, "interface" VARCHAR(100), "long" VARCHAR(100), "new" VARCHAR(100), "package" VARCHAR(100), "private" VARCHAR(100), "protected" VARCHAR(100), "public" VARCHAR(100), "return" VARCHAR(100), "short" VARCHAR(100), "static" VARCHAR(100), "strictfp" VARCHAR(100), "super" VARCHAR(100), "switch" VARCHAR(100), "synchronized" VARCHAR(100), "this" VARCHAR(100), "throw" VARCHAR(100), "throws" VARCHAR(100), "transient" VARCHAR(100), "try" VARCHAR(100), "void" VARCHAR(100), "volatile" VARCHAR(100), "while" VARCHAR(100)) => Catalog Error: Column with name DOUBLE already exists!`
-- `Create Table testTable("quantity" INT, "Class" VARCHAR(200), "boolean"  INT, "abstract"  INT, "assert"  INT, "break"  INT, "byte"  INT, "catch"  INT, "char"  INT, "const"  INT, "continue"  INT, "default"  INT, "do"  INT, "double"  INT, "else"  INT, "enum"  INT, "final"  INT, "finally"  INT, "DOUBLE"  INT, "goto"  INT, "implements"  INT, "instanceof"  INT, "interface" VARCHAR(100), "long" VARCHAR(100), "new" VARCHAR(100), "package" VARCHAR(100), "private" VARCHAR(100), "protected" VARCHAR(100), "public" VARCHAR(100), "return" VARCHAR(100), "short" VARCHAR(100), "static" VARCHAR(100), "strictfp" VARCHAR(100), "super" VARCHAR(100), "switch" VARCHAR(100), "synchronized" VARCHAR(100), "this" VARCHAR(100), "throw" VARCHAR(100), "throws" VARCHAR(100), "transient" VARCHAR(100), "try" VARCHAR(100), "void" VARCHAR(100), "volatile" VARCHAR(100), "while" VARCHAR(100)); => Catalog Error: Column with name DOUBLE already exists!`
-- `insert into testTable ("quantity", "Class", "boolean", "abstract", "assert", "break", "byte", "catch", "char", "const", "continue", "default", "do", "double", "else", "enum", "final", "finally", "float", "goto", "implements", "instanceof", "interface", "long", "new", "package", "private", "protected", "public", "return", "short", "static", "strictfp", "super", "switch", "synchronized", "this", "throw", "throws", "transient", "try", "void", "volatile", "while") values (1, 'Department A',1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into testTable ("quantity", "Class", "boolean", "abstract", "assert", "break", "byte", "catch", "char", "const", "continue", "default", "do", "double", "else", "enum", "final", "finally", "float", "goto", "implements", "instanceof", "interface", "long", "new", "package", "private", "protected", "public", "return", "short", "static", "strictfp", "super", "switch", "synchronized", "this", "throw", "throws", "transient", "try", "void", "volatile", "while") values (2, 'Department B',20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,'v','u','t','s','r','q','p','o','n','m','l','k','j','i','h','g','f','e','d','c','b','a'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into FirmTable ("firmName", "employeeId") values ('GS',19); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into FirmTable ("firmName", "employeeId") values ('JP',20); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into LegendCalendarSchema.NY_Calendar ("date", "dayOfCalendarYear", "shortNameWeekDay", "adjustedDate", "fiscalWeekOffset", "fiscalDay", "fiscalDayOfMonth", "fiscalDayOfQuarter", "fiscalDayOfWeek", "prior4WeekDate", "prior12WeekDate", "prior52WeekDate", "currentMonthNum", "fiscalMonthEnd", "currentQuarterNum", "currentWeek", "fiscalWeekStart", "currentYear", "previousBusinessDay", "previousFiscalMonth", "previousFiscalQuarter", "previousFiscalYear", "numberOfFiscalDaysInMonth", "numberOfFiscalDaysInYear") values ('2022-01-15', 15,'Sat','2022-01-18', -49, 11,11,11,1,'2021-12-18','2021-10-23','2021-01-16', 1,'2022-01-31',1, 3,'2022-01-18',2022,'2022-01-14',12,4,2021,20,251); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into LegendCalendarSchema.NY_Calendar ("date", "dayOfCalendarYear", "shortNameWeekDay", "adjustedDate", "fiscalWeekOffset", "fiscalDay", "fiscalDayOfMonth", "fiscalDayOfQuarter", "fiscalDayOfWeek", "prior4WeekDate", "prior12WeekDate", "prior52WeekDate", "currentMonthNum", "fiscalMonthEnd", "currentQuarterNum", "currentWeek", "fiscalWeekStart", "currentYear", "previousBusinessDay", "previousFiscalMonth", "previousFiscalQuarter", "previousFiscalYear", "numberOfFiscalDaysInMonth", "numberOfFiscalDaysInYear") values ('2018-12-31',365,'Mon','2018-12-31',-210,252,20,64,5,'2018-12-04','2018-10-09','2017-12-30',12,'2018-12-31',4,52,'2018-12-24',2018,'2018-12-28',11,3,2017,20,252); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into LegendCalendarSchema.NY_Calendar ("date", "dayOfCalendarYear", "shortNameWeekDay", "adjustedDate", "fiscalWeekOffset", "fiscalDay", "fiscalDayOfMonth", "fiscalDayOfQuarter", "fiscalDayOfWeek", "prior4WeekDate", "prior12WeekDate", "prior52WeekDate", "currentMonthNum", "fiscalMonthEnd", "currentQuarterNum", "currentWeek", "fiscalWeekStart", "currentYear", "previousBusinessDay", "previousFiscalMonth", "previousFiscalQuarter", "previousFiscalYear", "numberOfFiscalDaysInMonth", "numberOfFiscalDaysInYear") values ('2019-01-01',  1,'Tue','2019-01-02',-209,  1, 1, 1,1,'2018-12-05','2018-10-10','2018-01-03', 1,'2019-01-31',1, 1,'2019-01-01',2019,'2018-12-31',12,4,2018,21,252); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
@@ -70,62 +68,33 @@ runner does not yet recognize (accounted, not skipped silently).
 - `insert into LegendCalendarSchema.NY_Calendar ("date", "dayOfCalendarYear", "shortNameWeekDay", "adjustedDate", "fiscalWeekOffset", "fiscalDay", "fiscalDayOfMonth", "fiscalDayOfQuarter", "fiscalDayOfWeek", "prior4WeekDate", "prior12WeekDate", "prior52WeekDate", "currentMonthNum", "fiscalMonthEnd", "currentQuarterNum", "currentWeek", "fiscalWeekStart", "currentYear", "previousBusinessDay", "previousFiscalMonth", "previousFiscalQuarter", "previousFiscalYear", "numberOfFiscalDaysInMonth", "numberOfFiscalDaysInYear") values ('2021-12-16',350,'Thu','2021-12-16', -54,242,12,54,4,'2021-11-19','2021-09-24','2020-12-18',12,'2021-12-31',4,50,'2021-12-13',2021,'2021-12-15',11,3,2020,22,252); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into LegendCalendarSchema.NY_Calendar ("date", "dayOfCalendarYear", "shortNameWeekDay", "adjustedDate", "fiscalWeekOffset", "fiscalDay", "fiscalDayOfMonth", "fiscalDayOfQuarter", "fiscalDayOfWeek", "prior4WeekDate", "prior12WeekDate", "prior52WeekDate", "currentMonthNum", "fiscalMonthEnd", "currentQuarterNum", "currentWeek", "fiscalWeekStart", "currentYear", "previousBusinessDay", "previousFiscalMonth", "previousFiscalQuarter", "previousFiscalYear", "numberOfFiscalDaysInMonth", "numberOfFiscalDaysInYear") values ('2021-10-15',288,'Fri','2021-10-15', -63,199,11,11,5,'2021-09-18','2021-07-24','2020-10-17',10,'2021-10-29',4,41,'2021-10-11',2021,'2021-10-14', 9,3,2020,21,252); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into LegendCalendarSchema.NY_Calendar ("date", "dayOfCalendarYear", "shortNameWeekDay", "adjustedDate", "fiscalWeekOffset", "fiscalDay", "fiscalDayOfMonth", "fiscalDayOfQuarter", "fiscalDayOfWeek", "prior4WeekDate", "prior12WeekDate", "prior52WeekDate", "currentMonthNum", "fiscalMonthEnd", "currentQuarterNum", "currentWeek", "fiscalWeekStart", "currentYear", "previousBusinessDay", "previousFiscalMonth", "previousFiscalQuarter", "previousFiscalYear", "numberOfFiscalDaysInMonth", "numberOfFiscalDaysInYear") values ('2021-10-16',289,'Sat','2021-10-18', -62,200,12,12,1,'2021-09-18','2021-07-24','2020-10-17',10,'2021-10-29',4,42,'2021-10-18',2021,'2021-10-15', 9,3,2020,21,252); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into testTable ("id", "value") values (1, 'Bla'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into testTable ("id", "value") values (2, null); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into Product ("id", "productDate", "name", "tradeId") values (1, '2014-12-01 21:00:00', 'prod 1 V1', 1); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into ProductClassificationTableWithBusinessSnapshotMilestoning values('STOCK', \ 'STOCK DESC-V1', '2015-8-15'); => Parser Error: syntax error at or near "\"`
 - `insert into ProductClassificationTableWithProcessingSnapshotMilestoning values('STOCK', \ 'STOCK DESC-V1', '2015-8-15'); => Parser Error: syntax error at or near "\"`
-- `Create Table tradeTable("ID" INT, "accountID" INT); => Catalog Error: Table with name "tradeTable" already exists!`
-- `Create Table salesPersonTable("ACCOUNT_ID" INT, "NAME" VARCHAR(200), "from_z" TIMESTAMP, "thru_z" TIMESTAMP); => Catalog Error: Table with name "salesPersonTable" already exists!`
 - `INSERT INTO Cars ("in_z", "out_z", "id", "description") VALUES\n('2020-01-01', '2050-01-01', 1, 'Sedan'),\n('2020-01-01', '2050-01-01', 2, 'SUV'),\n('2020-01-01', '2050-01-01', 3, 'Hatchback'),\n('2020-01-01', '2050-01-01', 4, 'Convertible'),\n('2020-01-01', '2050-01-01', 5, 'Truck'),\n('2100-01-01', '2200-01-01', 6, 'Nuclear Car'); => Parser Error: syntax error at or near "\"`
 - `INSERT INTO CarDetails ("id", "time") VALUES\n(1, '2025-01-01'),\n(2, '2030-01-01'),\n(3, '2035-01-01'),\n(4, '2040-01-01'),\n(5, '2045-01-01'),\n(6, '2150-01-01'); => Parser Error: syntax error at or near "\"`
 - `INSERT INTO Bicycles ("in_z", "out_z", "id", "description") VALUES\n('2020-01-01', '2050-01-01', 5, 'Mountain Bike'),\n('2020-01-01', '2050-01-01', 4, 'Road Bike'),\n('2020-01-01', '2050-01-01', 3, 'Hybrid Bike'),\n('2020-01-01', '2050-01-01', 2, 'Electric Bike'),\n('2020-01-01', '2050-01-01', 1, 'Folding Bike'),\n('2200-01-01', '2300-01-01', 6, 'Nuclear Bike'); => Parser Error: syntax error at or near "\"`
 - `INSERT INTO Jets ("in_z", "out_z", "id", "description") VALUES\n('2020-01-01', '2050-01-01', 3, 'Fighter Jet'),\n('2020-01-01', '2050-01-01', 8, 'Water Jet'),\n('2020-01-01', '2050-01-01', 6, 'Hybrid Jet'),\n('2020-01-01', '2050-01-01', 4, 'Supersonic Jet'),\n('2020-01-01', '2050-01-01', 2, 'Transformer Jet'); => Parser Error: syntax error at or near "\"`
-- `create table BiTemporalProductTable_Out_From_Inclusive ("id" Integer, "name" VARCHAR(200), "in_z" TIMESTAMP, "out_z" TIMESTAMP, "from_z" TIMESTAMP, "thru_z" TIMESTAMP); => Catalog Error: Table with name "BiTemporalProductTable_Out_From_Inclusive" already exists!`
-- `insert into BiTemporalProductTable_Out_From_Inclusive values(1, 'abc1', '2018-05-02 00:00:00', '9999-12-31 00:00:00', '2018-05-01 00:00:00', '9999-12-31 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into BiTemporalProductTable_Out_From_Inclusive values(2, 'def1', '2018-05-02 00:00:00', '2018-05-04 00:00:00', '2018-05-01 00:00:00', '2018-05-03 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into BiTemporalProductTable_Out_From_Inclusive values(2, 'def2', '2018-05-04 00:00:00', '2018-05-07 00:00:00', '2018-05-03 00:00:00', '2018-05-06 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into BiTemporalProductTable_Out_From_Inclusive values(2, 'def3', '2018-05-07 00:00:00', '9999-12-31 00:00:00', '2018-05-06 00:00:00', '9999-12-31 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into BiTemporalProductTable_Out_From_Inclusive values(3, 'ghi1', '2018-05-09 00:00:00', '9999-12-31 00:00:00', '2018-05-08 00:00:00', '9999-12-31 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `create table BiTemporalProductTable_Out_Thru_Inclusive ("id" Integer, "name" VARCHAR(200), "in_z" TIMESTAMP, "out_z" TIMESTAMP, "from_z" TIMESTAMP, "thru_z" TIMESTAMP); => Catalog Error: Table with name "BiTemporalProductTable_Out_Thru_Inclusive" already exists!`
-- `insert into BiTemporalProductTable_Out_Thru_Inclusive values(1, 'abc1', '2018-05-02 00:00:00', '9999-12-31 00:00:00', '2018-05-01 00:00:00', '9999-12-31 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into BiTemporalProductTable_Out_Thru_Inclusive values(2, 'def1', '2018-05-02 00:00:00', '2018-05-04 00:00:00', '2018-05-01 00:00:00', '2018-05-03 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into BiTemporalProductTable_Out_Thru_Inclusive values(2, 'def2', '2018-05-04 00:00:00', '2018-05-07 00:00:00', '2018-05-03 00:00:00', '2018-05-06 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into BiTemporalProductTable_Out_Thru_Inclusive values(2, 'def3', '2018-05-07 00:00:00', '9999-12-31 00:00:00', '2018-05-06 00:00:00', '9999-12-31 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into BiTemporalProductTable_Out_Thru_Inclusive values(3, 'ghi1', '2018-05-09 00:00:00', '9999-12-31 00:00:00', '2018-05-08 00:00:00', '9999-12-31 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into salesPersonTable ("account_id", "name", "from_z", "thru_z") values (1, 'Joe Martinez','2013-1-1 00:00:00','9999-12-31 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into salesPersonTable ("account_id", "name", "from_z", "thru_z") values (2, 'John Martinez','2015-1-1 00:00:00','9999-12-31 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into FirmTable ("id", "legalName", "addressId") values (8, 'No Employees', 11); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into PersonTable ("id", "firstName", "lastName", "age", "addressId", "firmId", "managerId") values (8, 'No address', 'Smith',35, null,4,null); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into PersonTable ("id", "firstName", "lastName", "age", "addressId", "firmId", "managerId") values (9, 'No firm', 'no Firm',35, 7,null,null); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into PersonTable ("id", "firstName", "lastName", "age", "addressId", "firmId", "managerId") values (10, 'New', 'York',35, 7,1,null); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into PersonTable ("id", "firstName", "lastName", "age", "addressId", "firmId", "managerId") values (11, 'Elena', 'Firm B',35, 7,3,null); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into PersonTable ("id", "firstName", "lastName", "age", "addressId", "firmId", "managerId") values (12, 'Don', 'New York',35, 7,1,null); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `Drop schema schemaB if exists cascade; => Parser Error: syntax error at or near "if"`
-- `Create Table productSchema.ProductTable("id" INT, "name" VARCHAR(200), "from_z" TIMESTAMP, "thru_z" TIMESTAMP); => Catalog Error: Table with name "ProductTable" already exists!`
-- `insert into productSchema.ProductTable ("id", "name", "from_z", "thru_z") values (1, 'Firm X', '2015-8-26 00:00:00', '2015-10-26 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into productSchema.ProductTable ("id", "name", "from_z", "thru_z") values (1, 'Firm A', '2015-10-26 00:00:00', '9999-12-31 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into productSchema.ProductTable ("id", "name", "from_z", "thru_z") values (2, 'Firm C', '2015-8-26 00:00:00', '2015-10-26 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into productSchema.ProductTable ("id", "name", "from_z", "thru_z") values (2, 'Firm D', '2015-10-26 00:00:00', '9999-12-31 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `Create Table productSchema.SynonymTable("id" INT, "prodid" INT, "type" VARCHAR(200), "name" VARCHAR(200), "from_z" TIMESTAMP, "thru_z" TIMESTAMP); => Catalog Error: Table with name "SynonymTable" already exists!`
-- `insert into productSchema.SynonymTable ("id", "prodid", "type", "name", "from_z", "thru_z") values (1, 1, 'CUSIP', 'CUSIP1', '2015-8-26 00:00:00', '2015-10-26 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into productSchema.SynonymTable ("id", "prodid", "type", "name", "from_z", "thru_z") values (2, 1, 'ISIN', 'ISIN1', '2015-10-26 00:00:00', '9999-12-31 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into productSchema.SynonymTable ("id", "prodid", "type", "name", "from_z", "thru_z") values (3, 2, 'ISIN', 'CUSIP2', '2015-8-26 00:00:00', '2015-10-26 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into productSchema.SynonymTable ("id", "prodid", "type", "name", "from_z", "thru_z") values (4, 2, 'CUSIP', 'ISIN2', '2015-10-26 00:00:00', '9999-12-31 00:00:00'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `create schema schemaB; => Catalog Error: Schema with name "schemaB" already exists!`
 - `insert into DATA_WITH_TIMESTAMPS_KEYS ("ID1", "ID2", "ID3", "PROP_STRING", "PROP_INT") values (1, 'Peter', 'Smith', 1, 'Firm X', '1 the street' , 1, '200 west',1); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into DATA_WITH_TIMESTAMPS_KEYS ("ID1", "ID2", "ID3", "PROP_STRING", "PROP_INT") values (2, 'John', 'Johnson',   1, 'Firm X', '5 Park Ave', 1, '200 west',1); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into DATA_WITH_TIMESTAMPS_KEYS ("ID1", "ID2", "ID3", "PROP_STRING", "PROP_INT") values (5, 'Fabrice', 'Roberts', 2, 'Firm A', '7 Palo Alto', 2, '3 somewhere',1); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into DATA_WITH_TIMESTAMPS_KEYS ("ID1", "ID2", "ID3", "PROP_STRING", "PROP_INT") values (2, CURRENT_TIMESTAMP(), 21,  'bar', 2); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into DATA_WITH_TIMESTAMPS_KEYS ("ID1", "ID2", "ID3", "PROP_STRING", "PROP_INT") values (3, CURRENT_TIMESTAMP(), 31, '', 3); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `Create Table Car ("OWNER_ID" INT, "NAME" VARCHAR(200), "FUEL" INTEGER, "FROM_Z" DATE, "THRU_Z" DATE); => Catalog Error: Table with name "Car" already exists!`
-- `insert into Car ("OWNER_ID", "NAME", "FUEL", "FROM_Z", "THRU_Z") values (1, 'Peugeot', 1, '2025-01-01', '9999-12-31'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into Car ("OWNER_ID", "NAME", "FUEL", "FROM_Z", "THRU_Z") values (2, 'Renault', 2, '2023-01-01', '2025-12-31'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into Car ("OWNER_ID", "NAME", "FUEL", "FROM_Z", "THRU_Z") values (3, 'Nissan', 3, '2025-01-01', '9999-12-31'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `Create Table Bicycle("OWNER_ID" INT, "NAME" VARCHAR(200), "GEAR" INTEGER, "FROM_Z" DATE, "THRU_Z" DATE); => Catalog Error: Table with name "Bicycle" already exists!`
-- `insert into Bicycle ("OWNER_ID", "NAME", "GEAR", "FROM_Z", "THRU_Z") values (1, 'MBK', 3, '2025-01-01', '9999-12-31'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into Bicycle ("OWNER_ID", "NAME", "GEAR", "FROM_Z", "THRU_Z") values (2, 'BMX', 4, '2022-01-01', '2023-12-31'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `Create Table PersonTable("id" INT, "firstName" VARCHAR(200), "lastName" VARCHAR(200), "addressId" INT, "firmId" INT, "flag" INT, "AGE" INT); => Catalog Error: Table with name "PersonTable" already exists!`
-- `Create Table FirmTable("id" INT, "legalName" VARCHAR(200), "addressId" INT, "flag" INT); => Catalog Error: Table with name "FirmTable" already exists!`
-- `Create Table accountTable("ID" VARCHAR(200), "name" VARCHAR(200), "createDate" DATE); => Catalog Error: Table with name "accountTable" already exists!`
-- `Create Table tradeTable("id" INT, "accountId" INT, "quantity" DOUBLE, "tradeDate" DATE); => Catalog Error: Table with name "tradeTable" already exists!`
+- `insert into addressTable ("id", "type", "name", "street", "comments") values (1,1,'Hoboken', null, 'A comment with a % in the middle'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into addressTable ("id", "type", "name", "street", "comments") values (2,1,'New York', null, 'A comment with a _ in the middle'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into addressTable ("id", "type", "name", "street") values (3,1,'New York', null); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into addressTable ("id", "type", "name", "street") values (4,1,'New York', null); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into addressTable ("id", "type", "name", "street") values (5,1,'San Fransisco', null); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into addressTable ("id", "type", "name", "street") values (6,1,'Hong Kong', null); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into addressTable ("id", "type", "name", "street") values (7,1,'New York', null); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into addressTable ("id", "type", "name", "street") values (8,1,'New York', 'West Street'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into addressTable ("id", "type", "name", "street") values (9,1,'Cupertino', 'Infinite Loop'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into addressTable ("id", "type", "name", "street") values (10,1,'Tokyo', null); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into addressTable ("id", "type", "name", "street") values (11,1,'Mountain View', null); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `CREATE OR REPLACE TABLE PERSON_FIRM_ADDRESS_MULTIGRAIN ("OID" INT, "DLEVEL" VARCHAR(2), "//Person" Grain => Parser Error: syntax error at or near "PERSON_FIRSTNAME"`
 - `CREATE OR REPLACE TABLE FIRM_ACCT_IF_MULTIGRAIN ("OID" INT, "DLEVEL" VARCHAR(2), "//Account" grain => Parser Error: syntax error at or near "ACCOUNT_NUM"`
 - `insert into PERSON_FIRM_ADDRESS_MULTIGRAIN ("DLEVEL", "OID", "PERSON_FIRSTNAME", "PERSON_LASTNAME", "PERSON_FIRM_OID", "PERSON_ADDRESS_OID", "PERSON_ADDRESS_LINE_1", "FIRM_LEGALNAME", "FIRM_ADDRESS_OID", "FIRM_ADDRESS_LINE_1", "ADDRESS_LINE_1", "ADDRESS_TYPE") values ('P', 1, 'Peter', 'Smith', 4, 6, '1 the street','Firm X', 9, '200 west', null, null); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
@@ -145,19 +114,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - `insert into FIRM_ACCT_IF_MULTIGRAIN("OID", "DLEVEL", "ACCOUNT_NUM", "IF_NUM", "IF_TYPE", "IF_PERCENT", "IF_DESCRIPTION") values(5, 'S', '7204567', 1022, 'P', 100.0, null); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into FIRM_ACCT_IF_MULTIGRAIN("OID", "DLEVEL", "ACCOUNT_NUM", "IF_NUM", "IF_TYPE", "IF_PERCENT", "IF_DESCRIPTION") values(6, 'I', null, 1022, null, null, 'IF 1'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into FIRM_ACCT_IF_MULTIGRAIN("OID", "DLEVEL", "ACCOUNT_NUM", "IF_NUM", "IF_TYPE", "IF_PERCENT", "IF_DESCRIPTION") values(7, 'I', null, 1023, null, null, 'IF 2'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `Create Table PersonTable("id" INT, "FIRST NAME" VARCHAR(200), "age" INT, "firmId" INT, "birthdate" DATE, "salary" DOUBLE, "IS_MALE" INT, "EMPLOYEE_TYPE" VARCHAR(20)); => Catalog Error: Table with name "PersonTable" already exists!`
-- `insert into PersonTable ("id", "FIRST NAME", "age", "firmId", "birthDate", "salary", "IS_MALE", "EMPLOYEE_TYPE") values (1, 'Peter',   23,  1, '2000-11-01', 14.34, 1, 'CONTRACT'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into PersonTable ("id", "FIRST NAME", "age", "firmId", "birthDate", "salary", "IS_MALE", "EMPLOYEE_TYPE") values (2, 'John',    30,  1, '1994-11-01', 72.40, 1, 'FULL_TIME'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into PersonTable ("id", "FIRST NAME", "age", "firmId", "birthDate", "salary", "IS_MALE", "EMPLOYEE_TYPE") values (3, 'Jane',    23,  2, '2000-11-01', 48.00, 0, 'CONTRACT'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into PersonTable ("id", "FIRST NAME", "age", "firmId", "birthDate", "salary", "IS_MALE", "EMPLOYEE_TYPE") values (4, 'Anthony', 19,  3, '2005-11-01', 64.90, 1, 'SALARY'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into PersonTable ("id", "FIRST NAME", "age", "firmId", "birthDate", "salary", "IS_MALE", "EMPLOYEE_TYPE") values (5, 'Fabrice', 45,  4, '1979-11-01', 19.29, 1, 'FULL_TIME'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into PersonTable ("id", "FIRST NAME", "age", "firmId", "birthDate", "salary", "IS_MALE", "EMPLOYEE_TYPE") values (6, 'Oliver',  26,  4, '1998-11-01', 42.34, 1, 'CONTRACT'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into PersonTable ("id", "FIRST NAME", "age", "firmId", "birthDate", "salary", "IS_MALE", "EMPLOYEE_TYPE") values (7, 'David',   52,  5, '1972-11-01', 88.88, 1, 'CONTRACT'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `insert into FirmTable ("id", "legalName", "addressId", "ceoId") values (5, 'Firm D', 11, 2); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `Create Table AddressSet1("id" INT, "name" VARCHAR(200)); => Catalog Error: Table with name "AddressSet1" already exists!`
-- `insert into AddressSet1 ("id", "name") values (1, 'New York'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
-- `Create Table AddressSet2("id" INT, "name" VARCHAR(200)); => Catalog Error: Table with name "AddressSet2" already exists!`
-- `insert into AddressSet2 ("id", "name") values (2, 'Hoboken'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into tradeTable ("id", "traderId", "accountId") values (1, 1, 11); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into tradeTable ("id", "traderId", "accountId") values (2, 2, 11); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
+- `insert into tradeTable ("id", "traderId", "accountId") values (3, 3, 11); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into ApplicationsSet1 ("date", "personID", "firstName_s1", "lastName_s1", "nickName_s1", "firmID", "firm_legalName_s1", "firm_nickName_s1") values ('2016-01-01',1, 'firstName_s1','lastName_s1','nickName_s1', 1,'firm_legalName_s1','firm_nickName_s1'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into ApplicationsSet2  ("date", "firstName", "lastName", "nickName", "firm_legalName", "firm_nickName") values ('2016-01-01', 'firstName','lastName','nickName', 'firm_legalName','firm_nickName'); => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 
@@ -168,21 +127,21 @@ runner does not yet recognize (accounted, not skipped silently).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 0 | 0 | 92 | 0 |
 | executionPlan/tests | 109 | 0 | 0 | 0 | 109 |
-| functions/tests | 261 | 59 | 19 | 115 | 68 |
+| functions/tests | 261 | 59 | 18 | 117 | 67 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 1 | 0 | 0 |
-| functions/tests/projection | 165 | 39 | 12 | 79 | 35 |
+| functions/tests/projection | 165 | 42 | 12 | 80 | 31 |
 | graphFetch/domain | 2 | 0 | 0 | 0 | 2 |
 | graphFetch/tests | 5 | 0 | 0 | 0 | 5 |
 | graphFetch/tests/union | 1 | 0 | 0 | 0 | 1 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 47 | 0 | 0 | 0 | 47 |
-| milestoning/tests | 257 | 0 | 4 | 201 | 52 |
+| milestoning/tests | 257 | 2 | 4 | 201 | 50 |
 | modelJoins | 9 | 0 | 0 | 0 | 9 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 12 | 0 | 0 | 0 | 12 |
 | postprocessor | 7 | 0 | 0 | 0 | 7 |
-| postprocessor/tests | 30 | 0 | 0 | 6 | 24 |
+| postprocessor/tests | 30 | 0 | 0 | 16 | 14 |
 | pureToSQLQuery/tests | 18 | 0 | 0 | 2 | 16 |
 | router/tests | 31 | 0 | 0 | 4 | 27 |
 | sqlDialectTranslation | 21 | 0 | 0 | 0 | 21 |
@@ -190,19 +149,19 @@ runner does not yet recognize (accounted, not skipped silently).
 | sqlQueryToString/DDL | 3 | 0 | 0 | 0 | 3 |
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 275 | 64 | 27 | 83 | 101 |
+| tds/tests | 275 | 64 | 6 | 83 | 122 |
 | testDataGeneration/tests | 40 | 0 | 0 | 0 | 40 |
 | tests | 39 | 0 | 0 | 0 | 39 |
-| tests/advanced | 71 | 0 | 4 | 54 | 13 |
+| tests/advanced | 71 | 6 | 0 | 51 | 14 |
 | tests/datatype | 5 | 0 | 0 | 5 | 0 |
 | tests/injection | 3 | 0 | 0 | 3 | 0 |
 | tests/mapping | 10 | 2 | 0 | 4 | 4 |
 | tests/mapping/association | 24 | 1 | 0 | 19 | 4 |
 | tests/mapping/classMappingByClass | 3 | 0 | 0 | 0 | 3 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 0 | 0 | 30 | 2 |
-| tests/mapping/distinct | 18 | 5 | 4 | 9 | 0 |
+| tests/mapping/distinct | 18 | 6 | 3 | 9 | 0 |
 | tests/mapping/dynaJoin | 6 | 0 | 0 | 2 | 4 |
-| tests/mapping/embedded | 70 | 14 | 14 | 36 | 6 |
+| tests/mapping/embedded | 70 | 23 | 19 | 23 | 5 |
 | tests/mapping/enumeration | 27 | 1 | 2 | 2 | 22 |
 | tests/mapping/filter | 10 | 4 | 0 | 5 | 1 |
 | tests/mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
@@ -216,16 +175,16 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/relation | 93 | 0 | 0 | 50 | 43 |
 | tests/mapping/relation/aggregation | 9 | 0 | 0 | 0 | 9 |
 | tests/mapping/selfJoin | 3 | 0 | 0 | 2 | 1 |
-| tests/mapping/sqlFunction | 73 | 52 | 1 | 4 | 16 |
+| tests/mapping/sqlFunction | 73 | 56 | 1 | 4 | 12 |
 | tests/mapping/tree | 13 | 0 | 0 | 13 | 0 |
-| tests/mapping/union | 125 | 9 | 2 | 94 | 20 |
+| tests/mapping/union | 125 | 7 | 2 | 97 | 19 |
 | tests/mapping/union/relation | 15 | 0 | 0 | 13 | 2 |
 | tests/platformOperations | 4 | 0 | 0 | 0 | 4 |
-| tests/query | 99 | 39 | 2 | 32 | 26 |
+| tests/query | 99 | 46 | 2 | 32 | 19 |
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2429 | **308** | 93 | 1088 | 940 |
+| **total** | 2429 | **338** | 71 | 1088 | 932 |
 
 ### mapping walls (dropped at assembly)
 
@@ -447,36 +406,36 @@ runner does not yet recognize (accounted, not skipped silently).
 
 ### top error buckets
 
-- 37x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- 56x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - 35x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
 - 30x unknown function 'product'
 - 28x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - 23x expected at most one value, got many ([*])
 - 23x [1:51] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - 22x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- 21x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 18x unknown function 'getAllVersionsInRange'
 - 16x unknown function 'getAllVersions'
-- 15x navigation through class-typed slot property 'address' is not supported yet
 - 15x bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
 - 15x unknown function 'biTemporalProduct'
+- 15x navigation to temporal class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' via 'y' is not supported yet (temporal context propagation)
+- 14x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
+- 14x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exactly one
 - 13x unknown function 'classification'
-- 13x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exactly one
 - 13x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Person' (of 1 candidates); class-query dispatch needs exactly one
 - 12x filter predicate references column 'firm_employees', unresolvable even after isolation
 - 12x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected String, got Integer
 - 12x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::milestoning::Product' (of 1 candidates); class-query dispatch needs exactly one
+- 11x object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - 11x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::PersonWithAddress' (of 1 candidates); class-query dispatch needs exactly one
-- 10x object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
+- 10x Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "t0" does not have a column named "quantity" |  | Candidate bindings: : "accountID" |  | LINE 1: SELECT t0.ID AS TradeID, t0.quantity AS Quantity, t2.maxTradeEventDate AS LastEventD... |                                  ^
 - 10x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Person' (of 1 candidates); class-query dispatch needs exactly one
 - 10x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - 9x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Firm' (of 1 candidates); class-query dispatch needs exactly one
 - 9x in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
+- 9x navigation through class-typed slot property 'address' is not supported yet
 - 9x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::relation::Person' (of 1 candidates); class-query dispatch needs exactly one
 - 8x unknown function 'ytd'
 - 8x expected meta::relational::tests::functions::distance::GeographicCoordinate, got GeographicCoordinate
-- 8x runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Account' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::relational::tests::simpleRelationalMapping
-- 8x class query under TypedMap is not resolvable yet (H2 vocabulary)
 
 ### per-test outcomes (non-passing)
 
@@ -777,7 +736,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testGreaterThanDate [functions/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Account' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: Join 'AccountPnlView_Account' navigates to a CLASS mapped
 - SHAPE testLessThan [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals([25.0, 11.0, 23.0, 32.0, 27.0, 44.0, 22.0, 38.0, 5.0], $result.values->map(t|$t.quantity))
 - SHAPE testLessThanEqual [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals([25.0, 11.0, 23.0, 32.0, 27.0, 44.0, 22.0, 45.0, 38.0, 5.0], $result.values->map(t|$t.quantity))
-- SHAPE testLessThanWithArithmetic [functions/tests]: partial: 1/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals([25.0, 11.0, 23.0, 32.0, 27.0, 22.0, 5.0], $result.values->map(t|$t.quantity))
+- SHAPE testLessThanWithArithmetic [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals([25.0, 11.0, 23.0, 32.0, 27.0, 22.0, 5.0], $result.values->map(t|$t.quantity))
 - ERROR testFilterUsingClassAttribute [functions/tests]: object-space expression node TypedNewInstance is not substitutable yet (H2 vocabulary)
 - SHAPE testBuildFilterWithValueThatCanBeNull [functions/tests]: no execute(|...) call
 - SHAPE testBuildFilterWithValueThatCanBeNullWithInWithEmpty [functions/tests]: no execute(|...) call
@@ -818,6 +777,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - FAIL testContainsEscapePercentage [functions/tests]: rows: expected <Hoboken|TDSNull|A comment with a % in the middle>, got <Hoboken|null|A comment with a % in the middle>
 - FAIL testContainsEscapeUnderscore [functions/tests]: rows: expected <New York|TDSNull|A comment with a _ in the middle>, got <New York|null|A comment with a _ in the middle>
 - SHAPE testInWithinQualifiedPropertyCollectionAsLiteralList [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- ERROR testDerivedWithIsEmpty [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "t0" does not have a column named "value" |  | Candidate bindings: : "else" |  | LINE 3: WHERE t0.value IS NULL |               ^
 - ERROR testIsolationOfInputToIsEmpty [functions/tests]: unbound variable '$result'
 - ERROR testIsolationOfInputToIsEmptyWithForcedFiltersOnInput [functions/tests]: unbound variable '$result'
 - ERROR testInputNotIsolatedWhenPropertyPathIsToOne [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
@@ -834,12 +794,12 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testAssociationDeep [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testAdvancedDerivedPropertyThroughAssociation [functions/tests]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - ERROR testFilter [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- ERROR testFilterWithProperty [functions/tests]: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
+- ERROR testFilterWithProperty [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testFilterPostMapWithObject [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- FAIL testBooleanFilterWithProperty [functions/tests]: size: expected 1, got 4
+- ERROR testBooleanFilterWithProperty [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testAutoMapBooleanFilterWithProperty [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testDeepBooleanFilterWithProperty [functions/tests]: navigation through class-typed slot property 'address' is not supported yet
-- ERROR testDeepBooleanFilterWithPropertyUsingOr [functions/tests]: navigation through class-typed slot property 'address' is not supported yet
+- ERROR testDeepBooleanFilterWithProperty [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testDeepBooleanFilterWithPropertyUsingOr [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testGlobalAggregation [functions/tests]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)
 - FAIL testSubAggregation [functions/tests]: size: expected 4, got 7; values: expected [19.75, 32.0, 34.0, 35.0], got [23, 22, 12, 22, 34, 32, 35]
 - ERROR testSubAggregationMultiLevel [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
@@ -862,7 +822,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testUsingFunctionInMapLambdaTakingAPathParameterPartial [functions/tests]: no overload of 'subFunction6' matches 2 argument(s) of these shapes
 - ERROR testUsingFunctionInMapLambdaTakingAParameterPartial [functions/tests]: no overload of 'subFunction6' matches 2 argument(s) of these shapes
 - ERROR testFilterWithQualifiedProperty [functions/tests]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
-- SHAPE testGroupByOnRootLevelPrimitiveAttributeWithNoJoinAndFilter [functions/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "root".tradeDate as "Date", sum("root".quantity) as "Total Quantity" from tradeTab
 - SHAPE testSimpleJoinStrings [functions/tests]: partial: 1/4 asserts recognized (recognized ones hold); first unrecognized: assertEquals(['Smith'], $result.values->first().rows->filter(r | $r.getString('firstName') == 'Peter')->first()->toOne()
 - ERROR testJoinStringsWithAssociation [functions/tests]: expected at most one value, got many ([*])
 - SHAPE testJoinStringsTwiceWithAssociation [functions/tests]: partial: 1/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals(1, $result.values->first().rows->size())
@@ -942,20 +901,17 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testConcatenationOfTdsQueriesWithFilterAndGroupBy [functions/tests/projection]: no execute(|...) call
 - SHAPE testToday [functions/tests/projection]: no execute(|...) call
 - SHAPE testNow [functions/tests/projection]: no execute(|...) call
-- SHAPE testAdjust [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "root".tradeDate as "date" from tradeTable as "root" where "root".tradeDate = date
-- SHAPE testAdjustWithMicroseconds [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "root".settlementDateTime as "settlementDateTime" from tradeTable as "root" where 
 - ERROR testFirstDayOfWeek [functions/tests/projection]: unknown function 'firstDayOfWeek'
 - ERROR testFirstDayOfThisMonth [functions/tests/projection]: unknown function 'firstDayOfThisMonth'
-- SHAPE testFirstDayOfMonth [functions/tests/projection]: no recognizable assertions
+- SHAPE testFirstDayOfMonth [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testFirstDayOfThisQuarter [functions/tests/projection]: unknown function 'firstDayOfThisQuarter'
-- SHAPE testFirstDayOfQuarter [functions/tests/projection]: no recognizable assertions
+- SHAPE testFirstDayOfQuarter [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testFirstDayOfThisYear [functions/tests/projection]: unknown function 'firstDayOfThisYear'
-- SHAPE testFirstDayOfYear [functions/tests/projection]: no recognizable assertions
+- SHAPE testFirstDayOfYear [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testMostRecentDayOfWeek [functions/tests/projection]: no execute(|...) call
 - ERROR testPreviousDayOfWeek [functions/tests/projection]: unknown function 'previousDayOfWeek'
 - ERROR testMostRecentDayOfWeekWithDate [functions/tests/projection]: unknown function 'mostRecentDayOfWeek'
 - ERROR testPreviousDayOfWeekWithDate [functions/tests/projection]: unknown function 'previousDayOfWeek'
-- SHAPE testDateWithSeconds [functions/tests/projection]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "root".settlementDateTime as "date" from tradeTable as "root" where ("root".settle
 - ERROR testSimpleExists [functions/tests/projection]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testExistsEmbeddedOnSameTable [functions/tests/projection]: class-typed property '$p.dependencies' used as a whole value is graph output (Phase H4)
 - ERROR testExistsAsNullWithSubType [functions/tests/projection]: property 'functions' of class 'meta::relational::tests::projection::exists::MyClass' has no binding in mapping 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
@@ -966,8 +922,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testChainedFiltersProject [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testIsNullColumn [functions/tests/projection]: unknown function 'isNull'
 - ERROR testIsNotNullColumn [functions/tests/projection]: unknown function 'isNotNull'
-- ERROR testCompressSQLforINFilter [functions/tests/projection]: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
-- ERROR testCompressSQLforINFilter2 [functions/tests/projection]: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
+- ERROR testCompressSQLforINFilter [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testCompressSQLforINFilter2 [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - SHAPE testParametrizedEnumFilter [functions/tests/projection]: no execute(|...) call
 - SHAPE testFilterAfterJoinInRelation [functions/tests/projection]: no execute(|...) call
 - SHAPE testFilterAfterJoinInRelationWithExtendedPrimitives [functions/tests/projection]: no execute(|...) call
@@ -988,14 +944,14 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProjectReferenceInRhsFilterWithConflictingVarNamesViaQualifiedProperty [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - SHAPE testProjectOnQualifiedPropertyReturningAConstant [functions/tests/projection]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: null
 - ERROR testProjectReferenceInRhsFilterWithPotentiallyConflictingVarNamesViaQualifiedProperty [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
-- ERROR testProjectReferenceInRhsFilterWithDistinctVarNamesViaNonPropertyFunctionExpression [functions/tests/projection]: navigation through class-typed slot property 'address' is not supported yet
-- SHAPE testVariableReferenceInFilterWithSameNameAsThatInParentProject [functions/tests/projection]: no recognizable assertions
+- ERROR testProjectReferenceInRhsFilterWithDistinctVarNamesViaNonPropertyFunctionExpression [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testVariableReferenceInFilterWithSameNameAsThatInParentProject [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testVariableReferenceInMapWithSameNameAsThatInParentProject [functions/tests/projection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - ERROR testVariableReferenceInMapWithNestedFilter [functions/tests/projection]: expected at most one value, got many ([*])
 - ERROR testProjectReferenceInFilterWithMultiLevelLhs [functions/tests/projection]: expected at most one value, got many ([*])
 - ERROR testProjectReferenceInRhsFilterWithDistinctVarNamesViaNonPropertyFunctionExpressionUsingAggregation [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - ERROR testVariableReferenceInMapWithNestedFunction [functions/tests/projection]: [1:118] expected ')' to close argument list
-- ERROR testVariableReferenceInExists [functions/tests/projection]: class-typed property '$e.address' used as a whole value is graph output (Phase H4)
+- ERROR testVariableReferenceInExists [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testVariableReferenceQualifiedPropertyFollowedByExists [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testVariableReferenceWithNestedFilterMultiple [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testDeepIn [functions/tests/projection]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
@@ -1019,14 +975,14 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testQualifierWithIsNotEmptyOnComplexType [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testNestedIfWithIsEmpty [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testNestedIfWithIsEmptyCanReturnNull [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testQualifierWithFilterWithDataTypeResult [functions/tests/projection]: property 'eventDate' of class 'meta::relational::tests::model::simple::Trade' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- ERROR testQualifierFunctionConsistencyWithDataTypeProperty [functions/tests/projection]: property 'eventDate' of class 'meta::relational::tests::model::simple::Trade' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- ERROR testQualifierFunctionConsistencyWithComplexTypeProperty [functions/tests/projection]: property 'eventDate' of class 'meta::relational::tests::model::simple::Trade' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- ERROR testQualifierWithFilterWithDataTypeResult [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierFunctionConsistencyWithDataTypeProperty [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierFunctionConsistencyWithComplexTypeProperty [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - FAIL testFilterInQualifierWithFilterInMappingInProjectGroupBy [functions/tests/projection]: cells: expected [^TDSNull(), 2, CUSIP2, 1, CUSIP3, 1], got [CUSIP2, 1, CUSIP3, 1, null, 2]
 - SHAPE testQualifierWithVariableArg [functions/tests/projection]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: null
 - SHAPE testQualifierWithVariableArgReferencedFirstInFilterEqualCriteria [functions/tests/projection]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: null
 - ERROR testQualifierWithVariableArgWithComplexTypeProperty [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
-- ERROR testQualifierWithVariableArgWithComplexTypePropertyAndSubsequentComplexTypePropertyCall [functions/tests/projection]: navigation through class-typed slot property 'address' is not supported yet
+- ERROR testQualifierWithVariableArgWithComplexTypePropertyAndSubsequentComplexTypePropertyCall [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testFilterOnRootTypeWithOrWithFilterInQualifier [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testAllOneSimplePropertyWithColsFromFunction [functions/tests/projection]: project expects ~[…] column specifications
 - SHAPE testAllOneSimplePropertyUsingVariables2 [functions/tests/projection]: no execute(|...) call
@@ -1219,7 +1175,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testNestedExists_NestedExistsWithEmbeddedMappingInProject [milestoning/tests]: [1:56] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testDerivedPropertyOnNonTemporalClassWithMilestonedChain [milestoning/tests]: in function 'meta::relational::tests::milestoning::RootEntity$prop$childLeafValueDerived': unknown function 'rootChild'
 - SHAPE testGraphFetchMultiPrimitiveOnInlineChild [milestoning/tests]: no execute(|...) call
-- SHAPE testQueryOnTemporalRoot [milestoning/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "root".id as "id" from ProductTableWithBusinessSnapshotMilestoning as "root" where
 - ERROR testQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'product'
 - ERROR testQueryWithPropagationOnTemporalRoot [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap'
 - ERROR testQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'product'
@@ -1253,7 +1208,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSubSelectsWithDifferentColumnsMerge [milestoning/tests]: unknown function 'product'
 - ERROR testRootUnionQueryWithRelationalJoinsForDataTypes [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
 - ERROR testRootUnionQueryWithRelationalPropertyJoin [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
-- ERROR testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::Product': the main table declares no matching milestoning block
+- ERROR testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::Product': the main table declares no matching milestoning block for the business dimension
 - ERROR testLatestIgnoredForNonMilestonedMappedBiTemporalClassesAllQuery [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
 - ERROR testLatestIgnoredForNonMilestonedMappedClasses [milestoning/tests]: unknown function 'product'
 - ERROR testLatestIgnoredForNonMilestonedMappedBiTemporalClasses [milestoning/tests]: unknown function 'biTemporalProduct'
@@ -1319,7 +1274,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProcessingTemporalAllQuery [milestoning/tests]: [1:50] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testProcessingTemporalPropertyQuery [milestoning/tests]: [1:50] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
 - ERROR testProcessingTemporalPropertyPropagationInQuery [milestoning/tests]: [1:50] expected milestoning expression (%date, %latest, or $variable), got PAREN_OPEN ('(')
-- SHAPE testQueryOnTemporalRoot [milestoning/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "root".id as "id" from ProductTableWithProcessingSnapshotMilestoning as "root" whe
 - ERROR testQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'processingTemporalProduct'
 - ERROR testQueryWithPropagationOnTemporalRoot [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMap'
 - ERROR testQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: unknown function 'processingTemporalProduct'
@@ -1345,7 +1299,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testTemporalDateForAllVersionsWithOutThruInclusive [milestoning/tests]: unknown function 'getAllVersions'
 - ERROR testBusinessDateForAllVersionsInRange [milestoning/tests]: unknown function 'getAllVersionsInRange'
 - ERROR testProcessingDateForAllVersionsInRange [milestoning/tests]: unknown function 'getAllVersionsInRange'
-- SHAPE testLatestTemporalMilestoningPostProcessor [milestoning/tests]: no recognizable assertions
+- SHAPE testLatestTemporalMilestoningPostProcessor [milestoning/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: null
 - ERROR testBusinessTemporalRangeQueryOnRoot [milestoning/tests]: unknown function 'getAllVersionsInRange'
 - ERROR testBusinessTemporalRangeQueryOnRootAndProperty [milestoning/tests]: unknown function 'getAllVersionsInRange'
 - ERROR testBusinessTemporalRangeQueryOnRootAndPropertyDeep [milestoning/tests]: unknown function 'getAllVersionsInRange'
@@ -1404,24 +1358,24 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testReplaceTablePostProcessorWithExists [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testReplaceTablePostProcessorWithView [postprocessor/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Order' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testReplaceTablePostProcessorWithSubQueries [postprocessor/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- SHAPE testPushFiltersDownToJoinsPostProcessorSimpleObjectFilterEqual [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testPushFiltersDownToJoinsPostProcessorSimpleTDSFilterEqual [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testPushFiltersDownToJoinsPostProcessorTDSFilterGreaterThan [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testPushFiltersDownToJoinsPostProcessorTDSFilterGreaterThanWithDyna [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testPushFiltersDownToJoinsPostProcessorTDSFilterUnaryOp [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testPushFiltersDownToJoinsPostProcessorTDSFilterInOp [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testPushFiltersDownToJoinsPostProcessorTDSFilterAndOp [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testPushFiltersDownToJoinsPostProcessorTDSFilterOrOp [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testPushFiltersDownToJoinsPostProcessorTDSFilterCombinedOp [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testPushFiltersDownToJoinsPostProcessorTDSFilterCombinedWithOrOp [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testPushFiltersDownToJoinsPostProcessorMultipleChildren [postprocessor/tests]: extend/project columns [initiator] reference names unresolvable even after isolation
+- ERROR testPushFiltersDownToJoinsPostProcessorSimpleObjectFilterEqual [postprocessor/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "t0" does not have a column named "quantity" |  | Candidate bindings: : "accountID" |  | LINE 1: SELECT t0.ID AS TradeID, t0.quantity AS Quantity, t2.maxTradeEventDate AS LastEventD
+- ERROR testPushFiltersDownToJoinsPostProcessorSimpleTDSFilterEqual [postprocessor/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "t0" does not have a column named "quantity" |  | Candidate bindings: : "accountID" |  | LINE 1: SELECT t0.ID AS TradeID, t0.quantity AS Quantity, t2.maxTradeEventDate AS LastEventD
+- ERROR testPushFiltersDownToJoinsPostProcessorTDSFilterGreaterThan [postprocessor/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "t0" does not have a column named "quantity" |  | Candidate bindings: : "accountID" |  | LINE 1: SELECT t0.ID AS TradeID, t0.quantity AS Quantity, t2.maxTradeEventDate AS LastEventD
+- ERROR testPushFiltersDownToJoinsPostProcessorTDSFilterGreaterThanWithDyna [postprocessor/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "t0" does not have a column named "quantity" |  | Candidate bindings: : "accountID" |  | LINE 1: SELECT t0.ID AS TradeID, t0.quantity AS Quantity, t2.maxTradeEventDate AS LastEventD
+- ERROR testPushFiltersDownToJoinsPostProcessorTDSFilterUnaryOp [postprocessor/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "t0" does not have a column named "quantity" |  | Candidate bindings: : "accountID" |  | LINE 1: SELECT t0.ID AS TradeID, t0.quantity AS Quantity, t2.maxTradeEventDate AS LastEventD
+- ERROR testPushFiltersDownToJoinsPostProcessorTDSFilterInOp [postprocessor/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "t0" does not have a column named "quantity" |  | Candidate bindings: : "accountID" |  | LINE 1: SELECT t0.ID AS TradeID, t0.quantity AS Quantity, t2.maxTradeEventDate AS LastEventD
+- ERROR testPushFiltersDownToJoinsPostProcessorTDSFilterAndOp [postprocessor/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "t0" does not have a column named "quantity" |  | Candidate bindings: : "accountID" |  | LINE 1: SELECT t0.ID AS TradeID, t0.quantity AS Quantity, t2.maxTradeEventDate AS LastEventD
+- ERROR testPushFiltersDownToJoinsPostProcessorTDSFilterOrOp [postprocessor/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "t0" does not have a column named "quantity" |  | Candidate bindings: : "accountID" |  | LINE 1: SELECT t0.ID AS TradeID, t0.quantity AS Quantity, t2.maxTradeEventDate AS LastEventD
+- ERROR testPushFiltersDownToJoinsPostProcessorTDSFilterCombinedOp [postprocessor/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "t0" does not have a column named "quantity" |  | Candidate bindings: : "accountID" |  | LINE 1: SELECT t0.ID AS TradeID, t0.quantity AS Quantity, t2.maxTradeEventDate AS LastEventD
+- ERROR testPushFiltersDownToJoinsPostProcessorTDSFilterCombinedWithOrOp [postprocessor/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "t0" does not have a column named "quantity" |  | Candidate bindings: : "accountID" |  | LINE 1: SELECT t0.ID AS TradeID, t0.quantity AS Quantity, t2.maxTradeEventDate AS LastEventD
+- ERROR testPushFiltersDownToJoinsPostProcessorMultipleChildren [postprocessor/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - SHAPE testPushFiltersDownIntoSubQuery [postprocessor/tests]: no execute(|...) call
 - SHAPE testPushFiltersDownIntoSubQueryWithTDSJoin [postprocessor/tests]: no execute(|...) call
 - SHAPE testPushFiltersDownIntoSubQueryWithTDSJoinPartial [postprocessor/tests]: no execute(|...) call
 - SHAPE testPushFiltersDownIntoSubQueryWithGroupByGroupingColumnsFilter [postprocessor/tests]: no execute(|...) call
 - SHAPE testPushFiltersDownIntoSubQueryWithGroupByGroupingAndAggregateColumnsFilter [postprocessor/tests]: no execute(|...) call
 - SHAPE testPushFiltersDownToJoinsPostProcessorToSQL [postprocessor/tests]: no execute(|...) call
-- ERROR testSqlRealiasJoin [postprocessor/tests]: extend/project columns [initiator] reference names unresolvable even after isolation
+- ERROR testSqlRealiasJoin [postprocessor/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testSqlRealiasViews [postprocessor/tests]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::AccountPnl' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: PropertyMapping 'Join' for property 'account' is not s
 - SHAPE testSqlRealiasFreeMarker [postprocessor/tests]: no execute(|...) call
 - ERROR testSQLRealiasCaseSensitiveTableNames [postprocessor/tests]: property 'age' of class 'meta::relational::tests::model::simple::Person' is mapped through the target's own join slots; nested navigation joins are not supported in this position yet
@@ -1536,7 +1490,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR simpleGroupByOr [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::or'
 - SHAPE GroupByWithMapFnConstant [tds/tests]: partial: 1/6 asserts recognized (recognized ones hold); first unrecognized: null
 - SHAPE GroupByWithMapFnColumns [tds/tests]: partial: 1/6 asserts recognized (recognized ones hold); first unrecognized: null
-- SHAPE GroupByWithIfInMap [tds/tests]: no recognizable assertions
+- SHAPE GroupByWithIfInMap [tds/tests]: partial: 1/6 asserts recognized (recognized ones hold); first unrecognized: null
 - SHAPE simpleGroupByWithJoinStrings [tds/tests]: partial: 1/5 asserts recognized (recognized ones hold); first unrecognized: null
 - ERROR simpleGroupByWithAssociationWithJoinStrings [tds/tests]: expected at most one value, got many ([*])
 - ERROR groupByAfterASortOnColumnInGroupBy [tds/tests]: expected at most one value, got many ([*])
@@ -1552,6 +1506,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testGroupByWithWavgAggregation [tds/tests]: no execute(|...) call
 - SHAPE testGroupByWithMultipleWavgAggregation [tds/tests]: no execute(|...) call
 - SHAPE testSimpleSliceZeroSameAsTake [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testSimpleLimit [tds/tests]: assertSize 0 unverifiable: 6 seed statement(s) failed: insert into ProductClassificationTableWithBusinessSnapshotMilestoning values('STOCK', \ 'STOCK DESC-V1', '2015-8-15'); => Parser Error: syntax error at or near "\"
+- SHAPE testSimpleTake [tds/tests]: assertSize 0 unverifiable: 6 seed statement(s) failed: insert into ProductClassificationTableWithBusinessSnapshotMilestoning values('STOCK', \ 'STOCK DESC-V1', '2015-8-15'); => Parser Error: syntax error at or near "\"
 - SHAPE testSimpleSortAscWithPreval [tds/tests]: no execute(|...) call
 - SHAPE testSimpleSortAscInputToProject [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: null
 - SHAPE testSortQuotes [tds/tests]: no execute(|...) call
@@ -1601,21 +1557,21 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testInOnColumnInSubselect [tds/tests]: no overload of 'olapGroupBy' matches 5 argument(s) of these shapes
 - SHAPE testFilterOnQuotedColumnFromTableToTds [tds/tests]: no execute(|...) call
 - ERROR testFirstNotNullFunction [tds/tests]: unknown function 'meta::pure::tds::extensions::firstNotNull'
-- FAIL testInnerJoinSimple [tds/tests]: size: expected 7, got 0
+- SHAPE testInnerJoinSimple [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['1,Smith,1,Firm X,1', '2,Johnson,1,Firm X,1', '3,Hill,1,Firm X,1', '4,Allen,1,Firm X,1',\n           
 - SHAPE testLeftOuterJoinSimple [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['1,Smith,1,Firm B,3', '2,Johnson,1,Firm B,3', '3,Hill,1,Firm B,3', '4,Allen,1,Firm B,3',\n           
-- FAIL testRightOuterJoinSimple [tds/tests]: size: expected 7, got 0
+- SHAPE testRightOuterJoinSimple [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold); first unrecognized: assertEquals([Integer , String, Integer, String, Integer], $result.values.columns.type)
 - SHAPE testFullOuterJoinSimple [tds/tests]: no execute(|...) call
-- FAIL testInnerJoinConditionTrueUsingCol [tds/tests]: size: expected 28, got 0
-- FAIL testInnerJoinConditionTrue [tds/tests]: size: expected 28, got 0
+- SHAPE testInnerJoinConditionTrueUsingCol [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['1,Smith,1,Firm X,1', '1,Smith,1,Firm A,2', '1,Smith,1,Firm B,3', '1,Smith,1,Firm C,4',\n            
+- SHAPE testInnerJoinConditionTrue [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['1,Smith,1,Firm X,1', '1,Smith,1,Firm A,2', '1,Smith,1,Firm B,3', '1,Smith,1,Firm C,4',\n            
 - SHAPE testLeftOuterJoinConditionFalse [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['1,Smith,1,TDSNull,TDSNull', '2,Johnson,1,TDSNull,TDSNull', '3,Hill,1,TDSNull,TDSNull', '4,Allen,1,T
-- FAIL testRightOuterJoinConditionFalse [tds/tests]: size: expected 4, got 0
-- FAIL testJoinVariableInLambda [tds/tests]: size: expected 7, got 0
-- FAIL testJoinLambdaAsVariable [tds/tests]: size: expected 7, got 0
-- FAIL testJoinWithLiteralColumn [tds/tests]: size: expected 7, got 0
-- FAIL testJoinTypeAsVariable [tds/tests]: size: expected 7, got 0
-- FAIL testRestrictAfterJoin [tds/tests]: size: expected 7, got 0
-- FAIL testMultipleJoins [tds/tests]: size: expected 7, got 0
-- FAIL testFilterAfterJoinInner [tds/tests]: size: expected 3, got 0
+- SHAPE testRightOuterJoinConditionFalse [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['TDSNull,TDSNull,TDSNull,Firm X,1', 'TDSNull,TDSNull,TDSNull,Firm A,2', 'TDSNull,TDSNull,TDSNull,Fir
+- SHAPE testJoinVariableInLambda [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['1,Smith,1,Firm X,1', '2,Johnson,1,Firm X,1', '3,Hill,1,Firm X,1', '4,Allen,1,Firm X,1',\n           
+- SHAPE testJoinLambdaAsVariable [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['1,Smith,1,Firm X,1', '2,Johnson,1,Firm X,1', '3,Hill,1,Firm X,1', '4,Allen,1,Firm X,1',\n           
+- SHAPE testJoinWithLiteralColumn [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['1,Smith,1,true,Firm X,1', '2,Johnson,1,true,Firm X,1', '3,Hill,1,true,Firm X,1', '4,Allen,1,true,Fi
+- SHAPE testJoinTypeAsVariable [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['1,Smith,1,Firm X,1', '2,Johnson,1,Firm X,1', '3,Hill,1,Firm X,1', '4,Allen,1,Firm X,1',\n           
+- SHAPE testRestrictAfterJoin [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['Smith,8', 'Johnson,8', 'Hill,8', 'Allen,8',\n                       'Roberts,9', 'Hill,10', 'Harris,
+- SHAPE testMultipleJoins [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['Smith,New York', 'Johnson,New York', 'Hill,New York', 'Allen,New York',\n                       'Rob
+- SHAPE testFilterAfterJoinInner [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['Roberts,34,9', 'Hill,32,10', 'Harris,35,11'], $result.values.rows->map(r|$r.values->makeString(',')
 - SHAPE testFilterAfterJoinOuter [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['Roberts,34,9', 'Hill,32,10', 'Harris,35,11'], $result.values.rows->map(r|$r.values->makeString(',')
 - ERROR testExtendAfterJoinInner [tds/tests]: ~name_length: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testExtendAfterJoinOuter [tds/tests]: ~name_length: mapped/aggregate column specifications need an enclosing call to type against
@@ -1623,8 +1579,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testJoinAfterExtendOuter [tds/tests]: ~name_length: mapped/aggregate column specifications need an enclosing call to type against
 - SHAPE testSelfJoinInner [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['Smith,Johnson', 'Johnson,Allen', 'Hill,Johnson'], $result.values.rows->map(r|$r.values->makeString(
 - SHAPE testSelfJoinOuter [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['Smith,Johnson', 'Johnson,Allen', 'Hill,Johnson', 'Allen,TDSNull',\n                       'Roberts,T
-- FAIL testGroupByAfterJoinInner [tds/tests]: size: expected 4, got 0
-- FAIL testGroupByAfterJoinOuter [tds/tests]: size: expected 4, got 1
+- SHAPE testGroupByAfterJoinInner [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['8,4', '9,1', '11,1', '10,1'], $result.values.rows->map(r|$r.values->makeString(',')))
+- SHAPE testGroupByAfterJoinOuter [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['8,4', '9,1', '11,1', '10,1'], $result.values.rows->map(r|$r.values->makeString(',')))
 - ERROR testJoinAfterGroupByAfterJoinInner [tds/tests]: relation has no column 'aID'
 - ERROR testJoinAfterGroupByAfterJoinOuter [tds/tests]: relation has no column 'aID'
 - ERROR testExtendAfterJoinAfterAfterGroupByAfterJoinInner [tds/tests]: relation has no column 'aID'
@@ -1633,14 +1589,14 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFilterAfterExtendJoinAfterAfterGroupByAfterJoinOuter [tds/tests]: relation has no column 'aID'
 - ERROR testGroupByAfterFilterAfterExtendJoinAfterAfterGroupByAfterJoinInner [tds/tests]: relation has no column 'aID'
 - ERROR testGroupByAfterFilterAfterExtendJoinAfterAfterGroupByAfterJoinOuter [tds/tests]: relation has no column 'aID'
-- FAIL testJoinAfterGroupByBothInner [tds/tests]: size: expected 4, got 0
+- SHAPE testJoinAfterGroupByBothInner [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['1,4', '2,1', '3,1', '4,1'], $result.values.rows->map(r|$r.values->makeString(',')))
 - SHAPE testJoinAfterGroupByBothOuter [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['1,4', '2,1', '3,1', '4,1'], $result.values.rows->map(r|$r.values->makeString(',')))
-- FAIL testInnerJoinWithQualifiedPropertiesOnLeft [tds/tests]: size: expected 7, got 0
+- SHAPE testInnerJoinWithQualifiedPropertiesOnLeft [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['Firm A,Fabrice Roberts', 'Firm X,Anthony Allen', 'Firm X,John Johnson', 'Firm X,John Hill', 'Firm X
 - ERROR testInnerJoinWithQualifiedPropertiesOnRight [tds/tests]: relation has no column 'eID'
-- FAIL testJoinBySingleColumnName [tds/tests]: size: expected 7, got 0; columns: expected [personID, personName, eID, firmName, fID], got []
+- SHAPE testJoinBySingleColumnName [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['1,Smith,1,Firm X,1', '2,Johnson,1,Firm X,1', '3,Hill,1,Firm X,1', '4,Allen,1,Firm X,1',\n           
 - SHAPE testJoinBySingleColumnNameLeftOuter [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['1,Smith,1,TDSNull,TDSNull', '2,Johnson,1,TDSNull,TDSNull', '3,Hill,1,TDSNull,TDSNull',\n         '4,
-- FAIL testJoinBySingleColumnNameRightOuter [tds/tests]: size: expected 4, got 0; columns: expected [personID, personName, eID, firmName, fID], got []
-- FAIL testJoinByMultiColumnName [tds/tests]: size: expected 7, got 0; columns: expected [personID, personName, eID, firmName, fID], got []
+- SHAPE testJoinBySingleColumnNameRightOuter [tds/tests]: partial: 2/5 asserts recognized (recognized ones hold); first unrecognized: assertFalse($result.values->columnValues('fID')->contains(^TDSNull()))
+- SHAPE testJoinByMultiColumnName [tds/tests]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['1,Smith,1,Firm X,1', '2,Johnson,1,Firm X,1', '3,Hill,1,Firm X,1', '4,Allen,1,Firm X,1',\n           
 - ERROR testJoinByCommonColumnName [tds/tests]: the column 'fID' already exists in the relation (personID:Integer[1], personName:String[1], fID:Integer[0..1])
 - ERROR testJoinByCommonColumnName_RightOuter [tds/tests]: the column 'fID' already exists in the relation (personID:Integer[1], personName:String[1], fID:Integer[0..1])
 - ERROR testJoinByColumnName_AfterLimit [tds/tests]: the column 'fID' already exists in the relation (personID:Integer[1], personName:String[1], fID:Integer[0..1])
@@ -1653,13 +1609,13 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testTableToTDSWithQuotesGroupBy [tds/tests]: no execute(|...) call
 - SHAPE testJoinByColAfterQueryWithConcatenate [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testJoinByColAfterQueryWithConcatenateToQueryWithConcatenate [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testSimpleJoin [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['1,Smith,1,Firm X,1', '2,Johnson,1,Firm X,1', '3,Hill,1,Firm X,1', '4,Allen,1,Firm X,1',\n           
-- SHAPE testSimpleJoinColumns [tds/tests]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['1,Smith,1,Firm X,1', '2,Johnson,1,Firm X,1', '3,Hill,1,Firm X,1', '4,Allen,1,Firm X,1',\n           
+- FAIL testSimpleJoin [tds/tests]: size: expected 7, got 14
+- FAIL testSimpleJoinColumns [tds/tests]: size: expected 7, got 14
 - SHAPE testTwoJoinsWithinConcatenate [tds/tests]: no execute(|...) call
 - SHAPE testJoinWithExtendWithDigestOnColumnsOnBothQueries [tds/tests]: no execute(|...) call
 - SHAPE testProjectFunctionOnStringColumn [tds/tests]: partial: 3/4 asserts recognized (recognized ones hold); first unrecognized: assertEquals([String, Integer], $result.values.columns.type)
-- SHAPE testDateLiteral [tds/tests]: no recognizable assertions
-- SHAPE testHourFunction [tds/tests]: no recognizable assertions
+- SHAPE testDateLiteral [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold); first unrecognized: null
+- SHAPE testHourFunction [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold); first unrecognized: null
 - ERROR testProjectEnumFromOpenVariable [tds/tests]: unknown function 'extractEnumValue'
 - SHAPE testProjectWithAdjustFunction [tds/tests]: partial: 1/3 asserts recognized (recognized ones hold); first unrecognized: null
 - FAIL testFilterAfterLimit [tds/tests]: columns: expected 1, got (no rows)
@@ -1672,16 +1628,14 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProjectWithColumnSubSetSQLTest [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
 - SHAPE testProjectWithQuotedColumnFromTableToTDS [tds/tests]: no execute(|...) call
 - SHAPE testLowerProjectColsEliminated [tds/tests]: partial: 3/4 asserts recognized (recognized ones hold); first unrecognized: assertFalse($result->sqlRemoveFormatting()->toLower()->contains('hello'))
-- FAIL testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: rows: expected <Anthony,David,Fabrice,John,Oliver,Peter>, got <David,Fabrice,Oliver,Peter,John,Anthony>
+- FAIL testLowerProjectColsNotEliminatedWithDistinct [tds/tests]: rows: expected <Anthony,David,Fabrice,John,Oliver,Peter>, got <John,David,Fabrice,Peter,Anthony,Oliver>
 - SHAPE testLowerProjectColsNotEliminatedWithSort [tds/tests]: partial: 3/4 asserts recognized (recognized ones hold); first unrecognized: assert($result->sqlRemoveFormatting()->toLower()->contains('hello'))
-- FAIL testRestrictOnGroupByEleminatesUncessaryAggs [tds/tests]: rows: expected <Firm A|1,Firm B|1,Firm C|1,Firm X|4>, got <null|7>
-- FAIL testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct [tds/tests]: rows: expected <Firm A|1,Firm B|1,Firm C|1,Firm X|4>, got <null|7>
-- FAIL testRestrictOnGroupByColumn_SubSetOfGroupByColumns [tds/tests]: rows: expected <Firm A|1,Firm A|1,Firm B|1,Firm B|1,Firm C|1,Firm X|1,Firm X|1,Firm X|2,Firm X|4>, got <null|1,null|1,null|1,null|1,null|1,null|1,null|2,null|5>
-- FAIL testRestrictOnGroupByColumn_DropAllAggColumns [tds/tests]: rows: expected <Firm A,Firm A,Firm B,Firm B,Firm C,Firm X,Firm X,Firm X,Firm X>, got <null,null,null,null,null,null,null,null>
+- FAIL testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct [tds/tests]: rows: expected <Firm A|1,Firm B|1,Firm C|1,Firm X|4>, got <Firm B|1,Firm C|1,Firm X|4,Firm A|1>
+- SHAPE testRestrictOnGroupByColumn_SubSetOfGroupByColumns [tds/tests]: partial: 3/6 asserts recognized (recognized ones hold); first unrecognized: assertEquals([String, Integer], $result.values.columns.type)
+- SHAPE testRestrictOnGroupByColumn_DropAllAggColumns [tds/tests]: partial: 3/6 asserts recognized (recognized ones hold); first unrecognized: assertFalse($result->sqlRemoveFormatting()->toLower()->contains('max'))
 - ERROR testRestrictHandlesQueryPathsCorrectlyOnRename [tds/tests]: ~age_new: mapped/aggregate column specifications need an enclosing call to type against
 - SHAPE testRestrictWithPostProcessor [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testRestrictAfterMultiColumnGroupByFollowedByRename [tds/tests]: unknown function 'renameColumns'
-- FAIL testRestrictDistinct_NoJoinCutDown [tds/tests]: rows: expected <Firm A|Roberts,Firm B|Hill,Firm C|Harris,Firm X|Allen,Firm X|Hill,Firm X|Johnson,Firm X|Smith>, got <null|Allen,null|Harris,null|Hill,null|Johnson,null|Roberts,null|Smith>; rows: expected <Firm A|Roberts,Firm B|Hill,Firm C|Harris,Firm X|Allen,Firm X|Hill,Firm X|Johnson,Firm X|Smith>,
 - SHAPE testRestrictDistinct_NoOptimization_WindowColumns [tds/tests]: no execute(|...) call
 - SHAPE testSimpleRelationalUnion [tds/tests]: no execute(|...) call
 - ERROR testSimpleUnion [tds/tests]: unknown function 'union'
@@ -1809,28 +1763,22 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE failMoveFilterOnTop [tests/advanced]: no execute(|...) call
 - SHAPE BuildCorrelatedSubQuery [tests/advanced]: no execute(|...) call
 - ERROR projectFunctionExpressionWithConditionOnRightTable [tests/advanced]: unknown function 'conditionRightTable'
-- FAIL projectAbstractPropertyWithConditionOnRightTable [tests/advanced]: size: expected 5, got 1
 - ERROR projectAbstractPropertyWithConditionOnRightTableNested [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
 - ERROR projectFunctionExpressionWithConditionOnRightTableNested [tests/advanced]: unknown function 'conditionRightTableNested'
-- FAIL projectAbstractPropertyWithConditionOnLeftAndRightTable [tests/advanced]: size: expected 5, got 1
 - ERROR projectFunctionExpressionWithConditionOnLeftAndRightTableNestedDynaFunction [tests/advanced]: unknown function 'conditionLeftAndRightTablesNestedDynaFunction'
 - ERROR projectFunctionExpressionWithConditionOnLeftAndRightTableNested [tests/advanced]: unknown function 'conditionLeftAndRightTablesNested'
 - ERROR projectFunctionExpressionWithConditionOnLeftAndRightTable [tests/advanced]: unknown function 'conditionLeftAndRightTables'
 - ERROR filterFunctionExpressionWithConditionRightTable [tests/advanced]: unknown function 'conditionRightTable'
-- FAIL filterAsbtractPropertyWithConditionRightTable [tests/advanced]: size: expected 1, got 0
-- FAIL filterAbstractPropertyWithConditionOnLeftAndRightTable [tests/advanced]: size: expected 1, got 0
 - ERROR filterFunctionExpressionWithConditionOnLeftAndRightTableNested [tests/advanced]: unknown function 'conditionLeftAndRightTablesNested'
 - ERROR filterFunctionExpressionWithConditionOnLeftAndRightTableNestedDynaFunction [tests/advanced]: unknown function 'conditionLeftAndRightTablesNestedDynaFunction'
 - ERROR filterFunctionExpressionWithConditionOnLeftAndRightTable [tests/advanced]: unknown function 'conditionLeftAndRightTables'
 - ERROR filterAndProjectFunctionExpressionWithConditionOnRightTable [tests/advanced]: unknown function 'conditionRightTable'
 - ERROR filterFunctionExpressionWithConditionOnRightTableAndExpression [tests/advanced]: unknown function 'conditionRightTable'
-- ERROR filterFunctionExpressionWithAndConditionOnRightTable [tests/advanced]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t1" not found! | Candidate tables: "t0" |  | LINE 3: ... AS t1 WHERE t0.ID = t1.FIRMID AND t1.LASTNAME = 'Roberts' AND t1.AGE > 20) = 'Fabrice' |                        
-- ERROR filterFunctionExpressionWithAndConditionOnRootAndRightTable [tests/advanced]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t1" not found! | Candidate tables: "t0" |  | LINE 3: ... t1 WHERE t0.ID = t1.FIRMID AND t1.LASTNAME = t0.LEGALNAME AND t1.AGE > 20) = 'Fabrice' |                        
 - ERROR filterFunctionExpressionWithConditionOnRightTableOrExpression [tests/advanced]: unknown function 'conditionRightTable'
-- ERROR filterFunctionExpressionWithOrConditionOnRightTable [tests/advanced]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t1" not found! | Candidate tables: "t0" |  | LINE 3: ... AS t1 WHERE t0.ID = t1.FIRMID AND (t1.LASTNAME = 'Lopez' OR t1.AGE > 20)) = 'Smith' |                           
+- ERROR filterFunctionExpressionWithOrConditionOnRightTable [tests/advanced]: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
 - ERROR filterAbstractPropertyWithConditionOnRightTableExistsExpression [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR filterFunctionExpressionWithConditionOnRightTableIsEmptyExpression [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR nestedFilterFunctionExpressionWithOrCondition [tests/advanced]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t1" not found! | Candidate tables: "t0" |  | LINE 3: WHERE (SELECT t1.AGE AS age FROM personTable AS t1 WHERE t0.ID = t1.FIRMID... |                       ^
+- SHAPE nestedFilterFunctionExpressionWithOrCondition [tests/advanced]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['Firm X','Firm C', 'Firm B'],$result1.values.rows->map(r | $r.getString('Firm Name'))->sort())
 - ERROR nestedFilterInQualifierWithOrCondition [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR projectionInvolvingOneNestedAtributeOnTriangularJoinAndOtherJoin [tests/advanced]: navigation through class-typed slot property 'locations' is not supported yet
 - SHAPE testFilterMappingWithProjectionOverlappForcedCorrelated [tests/advanced]: no execute(|...) call
@@ -1852,10 +1800,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testQualifierQuery [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
 - ERROR testQualifierWithOperation [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
 - ERROR testTwoQualifiersWithOperation [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
-- ERROR testQualifierWithForkAndOrWithInline [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
+- ERROR testQualifierWithForkAndOrWithInline [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testQualifierWithForkAndOrWithInlineWithOffset [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testQualifierWithForkAndOrWithInlineWithOffsetExplosion [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testQualifierWithLineAndOrWithInLine [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
+- ERROR testQualifierWithLineAndOrWithInLine [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testQualifierWithIsolation [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testQualifierWithIsolationXX [tests/advanced]: extend/project columns [firm] reference names unresolvable even after isolation
 - ERROR testQualifierWithIsolationForced [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
@@ -1950,7 +1898,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - FAIL testDistinctMappingSimpleProjectSelectOneOfTheDistinctProperties [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
 - FAIL testDistinctMappingWithFilterSelectOneProperty [tests/mapping/distinct]: toCSV: expected <name\nIF 1\nIF 2\nIF 2\n>, got <name\nIF 1\nIF 2\n>
 - ERROR testDistinctMappingWithJoinSelectAll [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
-- FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\n\nIfName1\nIfName2\n>
+- FAIL testDistinctMappingWithJoinProject [tests/mapping/distinct]: toCSV: expected <IfName\nIfName1\nIfName2\n\n>, got <IfName\nIfName1\n\nIfName2\n>
 - ERROR testProjectDistinctMappingWithDistinctInJoin [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testProjectDistinctMappingWithDistinctInJoinWithDup [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
 - ERROR testDistinctMappingWithDistinctInJoinWithFilter [tests/mapping/distinct]: mapping pipeline for 'meta::relational::tests::mapping::distinct::model::domain::IncomeFunction' has TypedDistinct above join slot(s); H3-pending
@@ -1959,29 +1907,28 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testDistinctMappingWithFullDenormSelfJoinsWithFilterOnJoin [tests/mapping/distinct]: store-only navigate (class-extent target) reached the lowerer — resolver bug
 - ERROR testDistinctMappingWithFullDenormSelfJoinsWithTwoFiltersOnJoin [tests/mapping/distinct]: store-only navigate (class-extent target) reached the lowerer — resolver bug
 - ERROR testDistinctMappingWithCaseStatement [tests/mapping/distinct]: [1:335] navigation path segment 'meta::relational::tests::mapping::distinct::model::domain::Classification' uses an unsupported path feature (only plain property segments desugar): #/meta::relational::tests::mapping::distinct::model::domain::IncomeFunction/meta::relational::tests::mapping::distinct:
-- FAIL testDistinctMappingWithSize [tests/mapping/distinct]: expected 3, got 1
 - ERROR testGet [tests/mapping/dynaJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Account' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::simpleRelationalMapping' failed to normalize this class: Join 'AccountPnlView_Account' navigates to a CLASS mapped
 - SHAPE testFilterOnMultiLevelJoinWithNonAggregateFunction [tests/mapping/dynaJoin]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: null
 - SHAPE testJoinWithAggregateFunction [tests/mapping/dynaJoin]: partial: 3/4 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['1','6'],$result.values->map(r |$r.id->toString()))
 - SHAPE testFilterOnJoinWithAggregateFunction [tests/mapping/dynaJoin]: partial: 3/4 asserts recognized (recognized ones hold); first unrecognized: assertSameElements(['1'],$result.values->map(r |$r.id->toString() ))
 - SHAPE testFilterOnJoinWithAggregateFunctionWithProject [tests/mapping/dynaJoin]: partial: 1/4 asserts recognized (recognized ones hold); first unrecognized: null
 - ERROR testSelfJoinWithAggregateFunction [tests/mapping/dynaJoin]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': expected String, got Integer
-- ERROR testDenormMappingOneToManyProjectUsingPaths [tests/mapping/embedded]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- ERROR testDenormMappingOneToManyProject [tests/mapping/embedded]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
+- FAIL testDenormMappingOneToManyProjectUsingPaths [tests/mapping/embedded]: toCSV: expected <firstName,address,legalName,firmAddress\nPeter,1 the street,Firm X,200 west\nJohn,5 Park Ave,Firm X,200 west\nFabrice,7 Palo Alto,Firm A,3 somewhere\n>, got <>
+- FAIL testDenormMappingOneToManyProject [tests/mapping/embedded]: toCSV: expected <firstName,address,legalName,firmAddress\nPeter,1 the street,Firm X,200 west\nJohn,5 Park Ave,Firm X,200 west\nFabrice,7 Palo Alto,Firm A,3 somewhere\n>, got <>
 - ERROR testDenormMappingOneToManyProjectLambdaSyntaxWithMap [tests/mapping/embedded]: multi-hop navigation employees.address.name through an embedded/slot head is not supported yet
-- ERROR testDenormMappingOneToManyProjectWithFilter [tests/mapping/embedded]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- ERROR testDenormMappingOneToManyProjectWithComplexFilter [tests/mapping/embedded]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
+- FAIL testDenormMappingOneToManyProjectWithFilter [tests/mapping/embedded]: toCSV: expected <firstName,address,legalName,firmAddress\nFabrice,7 Palo Alto,Firm A,3 somewhere\n>, got <>
+- FAIL testDenormMappingOneToManyProjectWithComplexFilter [tests/mapping/embedded]: toCSV: expected <firstName,address,legalName,firmAddress\nFabrice,7 Palo Alto,Firm A,3 somewhere\n>, got <>
 - FAIL testDenormMappingOneToManyProjectWithEnum [tests/mapping/embedded]: toCSV: expected <firstName,address\nPeter,CITY\nJohn,CITY\nFabrice,REGION\n>, got <>
 - FAIL testDenormMappingOneToManyProjectWithFilterOnEnumLeft [tests/mapping/embedded]: toCSV: expected <firstName,address\nPeter,CITY\nJohn,CITY\n>, got <>
 - FAIL testDenormMappingOneToManyProjectWithFilterOnEnumRight [tests/mapping/embedded]: toCSV: expected <firstName,address\nPeter,CITY\nJohn,CITY\n>, got <>
 - FAIL testGroupByEmbeddedProperty [tests/mapping/embedded]: toCSV: expected <Firm Name,Count\nFirm A,0.0\nFirm X,1.0\n>, got <>
 - ERROR testProjectToEmbedded [tests/mapping/embedded]: multi-hop navigation employees.address.name through an embedded/slot head is not supported yet
-- ERROR testDenormMappingOneToManyProjectEmbeddedQualifier [tests/mapping/embedded]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
+- FAIL testDenormMappingOneToManyProjectEmbeddedQualifier [tests/mapping/embedded]: toCSV: expected <firstName,nameAndAddress\nPeter,"Firm X,200 west"\nJohn,"Firm X,200 west"\nFabrice,"Firm A,3 somewhere"\n>, got <>
 - FAIL testDenormMappingWithQualifierWithIfAndEquals [tests/mapping/embedded]: toCSV: expected <name,FirmX\nPeter,Yes\nJohn,Yes\nFabrice,No\n>, got <>
-- ERROR testFilterWithEmbeddedQualifier [tests/mapping/embedded]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
+- FAIL testFilterWithEmbeddedQualifier [tests/mapping/embedded]: toCSV: expected <firstName,nameAndAddress\nPeter,"Firm X,200 west"\nJohn,"Firm X,200 west"\n>, got <>
 - ERROR testExists [tests/mapping/embedded]: class-typed property '$p.firm' used as a whole value is graph output (Phase H4)
 - FAIL testIsEmpty [tests/mapping/embedded]: toCSV: expected <name,firm\n\n>, got <>
-- ERROR testMapEmbeddedQualifierWithIfTwoEmbeddedProperties [tests/mapping/embedded]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
+- ERROR testMapEmbeddedQualifierWithIfTwoEmbeddedProperties [tests/mapping/embedded]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - SHAPE testGetter [tests/mapping/embedded]: no recognizable assertions
 - FAIL testGetterTwoJoinTraversal [tests/mapping/embedded]: size: expected 1, got 0; size: expected 1, got 0
 - SHAPE testRoutingQualifiedPropertySameVariableNames [tests/mapping/embedded]: no execute(|...) call
@@ -1991,8 +1938,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProjectionOtherwiseDeepTraversal [tests/mapping/embedded]: multi-hop navigation bondDetails.holder.name through an embedded/slot head is not supported yet
 - ERROR testProjectionOtherwiseNonPrimitive [tests/mapping/embedded]: in function 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise3$class$meta::relational::tests::mapping::embedded::advanced::model::Product': relation has no column 'bondClassification'
 - FAIL otherwiseTestGroupBy [tests/mapping/embedded]: toCSV: expected <Bond Type,Profit\n15 years,10.0\n5 years,1.0\n>, got <Bond Type,Profit\n5 years,1.0\n15 years,10.0\n>
-- FAIL otherwiseTestGroupByComplexAgg [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\n15 years,2.0\n5 years,5.0\n>, got <Bond Type,sum\n5 years,5.0\n15 years,2.0\n>
-- FAIL otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\nBond 1,1.0\nBond 2,1.0\nSuperBond 3 super,5.0\n>, got <Bond Type,sum\nBond 1,1.0\nSuperBond 3 super,5.0\nBond 2,1.0\n>
+- FAIL otherwiseTestGroupByComplexExpressionEmbeddedAndJoin [tests/mapping/embedded]: toCSV: expected <Bond Type,sum\nBond 1,1.0\nBond 2,1.0\nSuperBond 3 super,5.0\n>, got <Bond Type,sum\nSuperBond 3 super,5.0\nBond 1,1.0\nBond 2,1.0\n>
 - FAIL otherwiseTestQualifierPropertyConstantExpression [tests/mapping/embedded]: toCSV: expected <name,duration\nProduct 1,5\nProduct 2,5\n>, got <name,market\nProduct 1,LSE\nProduct 2,LSE\nProduct 3,MILAN\n>
 - ERROR otherwiseTestComplexExpressionWithEnumMapping [tests/mapping/embedded]: property 'type' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise2'
 - ERROR otherwiseTestEmbeddedToEmbedded [tests/mapping/embedded]: multi-hop navigation bondDetails.issuer.name through an embedded/slot head is not supported yet
@@ -2005,22 +1951,14 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testGroupByComplexAgg [tests/mapping/embedded]: 'Product' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testQualifierProperty [tests/mapping/embedded]: 'Product' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testInlineEmbeddedMappingWithAssociationFromRootMapping [tests/mapping/embedded]: 'Product' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testProjection [tests/mapping/embedded]: multi-hop navigation issuer.address.name through an embedded/slot head is not supported yet
-- ERROR testFilter [tests/mapping/embedded]: multi-hop navigation issuer.address.name through an embedded/slot head is not supported yet
-- ERROR testDenormWithComplexFilter [tests/mapping/embedded]: multi-hop navigation issuer.address.name through an embedded/slot head is not supported yet
-- ERROR testGroupBy [tests/mapping/embedded]: multi-hop navigation holder.address.name through an embedded/slot head is not supported yet
-- ERROR testGroupByComplexAgg [tests/mapping/embedded]: multi-hop navigation holder.address.name through an embedded/slot head is not supported yet
-- ERROR testQualifierProperty [tests/mapping/embedded]: multi-hop navigation issuer.address.name through an embedded/slot head is not supported yet
-- ERROR testInlineInEmbedded [tests/mapping/embedded]: multi-hop navigation holder.address.name through an embedded/slot head is not supported yet
-- ERROR testInlineInEmbeddedGraphFetch [tests/mapping/embedded]: multi-hop navigation holder.address.name through an embedded/slot head is not supported yet
+- SHAPE testInlineInEmbedded [tests/mapping/embedded]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- ERROR testInlineInEmbeddedGraphFetch [tests/mapping/embedded]: graph child 'issuer' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - ERROR testMilestonedEmbeddedGraphFetch [tests/mapping/embedded]: graph child 'address' of class 'meta::relational::tests::mapping::embedded::advanced::model::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - ERROR testMilestonedEmbeddedInlineGraphFetch [tests/mapping/embedded]: graph child 'address' of class 'meta::relational::tests::mapping::embedded::advanced::model::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - ERROR testMilestonedExtendsEmbeddedGraphFetch [tests/mapping/embedded]: graph child 'firm' of class 'meta::relational::tests::mapping::embedded::advanced::model::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - ERROR testMilestonedInlineGraphFetchWithEnumProperty [tests/mapping/embedded]: graph child 'genderInfo' of class 'meta::relational::tests::mapping::embedded::advanced::model::PersonWithGenderInfo' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - ERROR testSubType [tests/mapping/embedded]: class-typed property '$p.issuer' used as a whole value is graph output (Phase H4)
 - ERROR testSubTypeOnPropertyMappedToNonRootInlineSetImpl [tests/mapping/embedded]: class-typed property '$p.holder' used as a whole value is graph output (Phase H4)
-- SHAPE testGroupBy [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "root".HOLDER as "holder", sum(case when "root".BOND_TYPE = \'5 years\' then 5.0 e
-- SHAPE testGroupByComplexAgg [tests/mapping/embedded]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "root".HOLDER as "c1", sum(case when "root".HOLDER like \'holder3%\' then 5.0 else
 - FAIL testQualifierProperty [tests/mapping/embedded]: toCSV: expected <name,c2,c3\nBond 1,issuer1,holder1\n>, got <>
 - SHAPE testEnumTheSame [tests/mapping/enumeration]: no execute(|...) call
 - SHAPE testMapping [tests/mapping/enumeration]: partial: 2/12 asserts recognized (recognized ones hold); first unrecognized: null
@@ -2067,7 +2005,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testStoreSubstitution [tests/mapping/include]: no execute(|...) call
 - ERROR testAssociation [tests/mapping/inheritance]: class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross'
 - ERROR testGroupBy [tests/mapping/inheritance]: expected at most one value, got many ([*])
-- ERROR testProject [tests/mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross' failed to normalize this class: Operation union mem
+- ERROR testProject [tests/mapping/inheritance]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::RoadVehicle' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testProjectAssociation [tests/mapping/inheritance]: class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross'
 - ERROR testProjectAssociationTdsV2 [tests/mapping/inheritance]: class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross'
 - ERROR testProjectTwoLambdas [tests/mapping/inheritance]: class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross'
@@ -2123,8 +2061,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testConstraintTargetingMultipleJoinsInPropertyMapping [tests/mapping/join]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'Person_PersonExtension' (the demand scan and the rewrite disagreed)
 - SHAPE testConstraintTargetingMultipleJoinsInPropertyMappingNoJoinProperty [tests/mapping/join]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertSize($result.values->size(), 1)
 - ERROR testConvertToStringH2 [tests/mapping/join]: in function 'meta::relational::tests::mapping::join::model::mapping::MappingForAccountAndTrade$class$meta::relational::tests::model::simple::Trade': expected Float, got Integer
-- ERROR testChainedOuterJoinsWithFilterInproject [tests/mapping/join]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'Person_MiddleTable__MiddleTable_PersonExtension' (the demand scan and the rewrite disagreed)
-- ERROR testChainedOuterJoinsWithQualifierInproject [tests/mapping/join]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'Person_MiddleTable__MiddleTable_PersonExtension' (the demand scan and the rewrite disagreed)
+- ERROR testChainedOuterJoinsWithFilterInproject [tests/mapping/join]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testChainedOuterJoinsWithQualifierInproject [tests/mapping/join]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testChainedInnerJoinsWithQualifierInGroupBy [tests/mapping/join]: no overload of 'groupBy' matches the argument types
 - ERROR testDynafunctionMerge [tests/mapping/merge]: in function 'meta::relational::tests::mapping::merge::MergeAliasMapping$class$meta::relational::tests::model::simple::Person': no overload of 'meta::pure::functions::boolean::or' accepts 4 argument(s)
 - ERROR testNestedPropertyChain [tests/mapping/modelJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::modelJoin::domain::Firm' (of 1 candidates); class-query dispatch needs exactly one
@@ -2293,8 +2231,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSelfJoinPropertyMappingWithDynaFunction [tests/mapping/selfJoin]: multi-hop navigation parent.parent.parent.name through an embedded/slot head is not supported yet
 - SHAPE testTriminNotSybaseASE [tests/mapping/sqlFunction]: no execute(|...) call
 - ERROR testProject [tests/mapping/sqlFunction]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_aggregate(INTEGER, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_aggregate(ANY[]
-- SHAPE testFilter [tests/mapping/sqlFunction]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n      'select sin("root".float1) as "sin" from dataTable as "root" where sin("root".float1) > 
-- SHAPE testFilter [tests/mapping/sqlFunction]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n      'select atan2("root".float1,"root".int1) as "atan2" from dataTable as "root" where atan2
 - ERROR testProject [tests/mapping/sqlFunction]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_aggregate(INTEGER, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_aggregate(ANY[]
 - SHAPE testProject [tests/mapping/sqlFunction]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: null
 - SHAPE testFilter [tests/mapping/sqlFunction]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqWithinTolerance(123.456, $result.values->cast(@TabularDataSet).rows.values->at(0)->cast(@Float), 0.001)
@@ -2306,10 +2242,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testToSQLStringconvertToDateinDb2 [tests/mapping/sqlFunction]: no execute(|...) call
 - ERROR testToSQLStringconvertToDateTimeinH2 [tests/mapping/sqlFunction]: Invalid Input Error: Could not parse string "2016-06-23 13:00:00" according to format specifier "%Y-%m-%d %H:%M:%S.%g" | 2016-06-23 13:00:00 |                     ^ | Error: Literal does not match, expected .
 - SHAPE testToSQLStringconvertToDateTimeinDb2 [tests/mapping/sqlFunction]: no execute(|...) call
-- SHAPE testFilter [tests/mapping/sqlFunction]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n      'select power("root".float1, 3) as "power" from dataTable as "root" where power("root".f
-- SHAPE testFilter [tests/mapping/sqlFunction]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n      'select ln("root".float1) as "log" from dataTable as "root" where ln("root".float1) < 0.
 - FAIL testProject [tests/mapping/sqlFunction]: cells: expected [12, 12], got [11, 11]
-- ERROR testFilter [tests/mapping/sqlFunction]: Parser Error: syntax error at or near "=" |  | LINE 3: ...xp_extract(t0.stringToInt, '^[-+]?[0-9]*\.?[0-9]+$') <> '' = TRUE |                                                                       ^
+- ERROR testFilter [tests/mapping/sqlFunction]: Parser Error: syntax error at or near "=" |  | LINE 3: WHERE lower(t0.stringToInt) = upper(t0.stringToInt) = TRUE |                                                             ^
 - SHAPE testToSQLConvertDateH2 [tests/mapping/sqlFunction]: no execute(|...) call
 - SHAPE testAdjustDateTranslationInMappingAndQuery [tests/mapping/sqlFunction]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: null
 - ERROR testQuerySimple [tests/mapping/tree]: filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
@@ -2325,13 +2259,15 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testJoinIsolationDeeper_LeftOuterLeftOuterThenInner [tests/mapping/tree]: in function 'meta::relational::tests::mapping::tree::model::mapping::orgTestMapping$class$meta::relational::tests::mapping::tree::model::domain::Account': expected String, got Integer
 - ERROR testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner [tests/mapping/tree]: in function 'meta::relational::tests::mapping::tree::model::mapping::orgTestMapping$class$meta::relational::tests::mapping::tree::model::domain::Account': expected String, got Integer
 - ERROR testReplaceTablesPostProcessorJoinIsolation [tests/mapping/tree]: in function 'meta::relational::tests::mapping::tree::model::mapping::orgTestMapping$class$meta::relational::tests::mapping::tree::model::domain::Account': expected String, got Integer
-- ERROR testFilteredGetAll [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::specialUnion::specialUnionMapping'
-- ERROR testFilteredProject [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::specialUnion::specialUnionMapping'
+- ERROR testSimpleGetAll [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::specialUnion::specialUnionMapping' failed to normalize this class: class is mapped through multiple
+- ERROR testFilteredGetAll [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::specialUnion::specialUnionMapping' failed to normalize this class: class is mapped through multiple
+- ERROR testProject [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::specialUnion::specialUnionMapping' failed to normalize this class: class is mapped through multiple
+- ERROR testFilteredProject [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::specialUnion::specialUnionMapping' failed to normalize this class: class is mapped through multiple
 - ERROR testFilteredProjectWithFrom [tests/mapping/union]: [6495:34] expected type name, got NEW_SYMBOL
-- ERROR testMultiFilterProject [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::specialUnion::specialUnionMapping'
+- ERROR testMultiFilterProject [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::specialUnion::specialUnionMapping' failed to normalize this class: class is mapped through multiple
 - ERROR testProjectWithPostTdsOperations [tests/mapping/union]: ~Len: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testFilteredProjectWithPostTdsOperations [tests/mapping/union]: ~Len: mapped/aggregate column specifications need an enclosing call to type against
-- ERROR testGroupBy [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::specialUnion::specialUnionMapping'
+- ERROR testGroupBy [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::specialUnion::specialUnionMapping' failed to normalize this class: class is mapped through multiple
 - ERROR testSimpleQueryFrom [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMapping'
 - ERROR testSimpleQueryTo [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMapping'
 - ERROR testProjectThroughAsso [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMapping'
@@ -2424,22 +2360,22 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testChainedUnionsWithAggregationWithAdditionalColumn [tests/mapping/union]: no execute(|...) call
 - SHAPE testChainedUnionsWithMultipleAggregationWithAdditionalColumn [tests/mapping/union]: no execute(|...) call
 - SHAPE testChainedUnionsWithMapAggregation [tests/mapping/union]: no execute(|...) call
-- ERROR testUnionWithChainedJoinsAcross2SetsV1 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross2SetsV1'
-- ERROR testUnionWithChainedJoinsAcross3SetsV1 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross3SetsV1'
-- ERROR testUnionWithChainedJoinsAcross4SetsV1 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross4SetsV1'
-- ERROR testUnionWithChainedJoinsAcross2SetsV2 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross2SetsV2'
-- ERROR testUnionWithChainedJoinsAcross3SetsV2 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross3SetsV2'
-- ERROR testUnionWithChainedJoinsAcross4SetsV2 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross4SetsV2'
-- ERROR testUnionWithChainedJoinsAcross2SetsV3 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross2SetsV3'
-- ERROR testUnionWithChainedJoinsAcross3SetsV3 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross3SetsV3'
-- ERROR testUnionWithChainedJoinsAcross4SetsV3 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross4SetsV3'
-- ERROR testUnionWithChainedJoinsAcross2SetsV4 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross2SetsV4'
-- ERROR testUnionWithChainedJoinsAcross3SetsV4 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross3SetsV4'
-- ERROR testUnionWithChainedJoinsAcross4SetsV4 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross4SetsV4'
-- ERROR testUnionWithChainedJoinsAcross2SetsV5 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross2SetsV5'
-- ERROR testUnionWithChainedJoinsAcross3SetsV5 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross3SetsV5'
-- ERROR testUnionWithChainedJoinsAcross4SetsV5 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross4SetsV5'
-- SHAPE testViewToViewToUnion [tests/mapping/union]: no recognizable assertions
+- ERROR testUnionWithChainedJoinsAcross2SetsV1 [tests/mapping/union]: navigation to temporal class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' via 'y' is not supported yet (temporal context propagation)
+- ERROR testUnionWithChainedJoinsAcross3SetsV1 [tests/mapping/union]: navigation to temporal class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' via 'y' is not supported yet (temporal context propagation)
+- ERROR testUnionWithChainedJoinsAcross4SetsV1 [tests/mapping/union]: navigation to temporal class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' via 'y' is not supported yet (temporal context propagation)
+- ERROR testUnionWithChainedJoinsAcross2SetsV2 [tests/mapping/union]: navigation to temporal class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' via 'y' is not supported yet (temporal context propagation)
+- ERROR testUnionWithChainedJoinsAcross3SetsV2 [tests/mapping/union]: navigation to temporal class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' via 'y' is not supported yet (temporal context propagation)
+- ERROR testUnionWithChainedJoinsAcross4SetsV2 [tests/mapping/union]: navigation to temporal class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' via 'y' is not supported yet (temporal context propagation)
+- ERROR testUnionWithChainedJoinsAcross2SetsV3 [tests/mapping/union]: navigation to temporal class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' via 'y' is not supported yet (temporal context propagation)
+- ERROR testUnionWithChainedJoinsAcross3SetsV3 [tests/mapping/union]: navigation to temporal class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' via 'y' is not supported yet (temporal context propagation)
+- ERROR testUnionWithChainedJoinsAcross4SetsV3 [tests/mapping/union]: navigation to temporal class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' via 'y' is not supported yet (temporal context propagation)
+- ERROR testUnionWithChainedJoinsAcross2SetsV4 [tests/mapping/union]: navigation to temporal class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' via 'y' is not supported yet (temporal context propagation)
+- ERROR testUnionWithChainedJoinsAcross3SetsV4 [tests/mapping/union]: navigation to temporal class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' via 'y' is not supported yet (temporal context propagation)
+- ERROR testUnionWithChainedJoinsAcross4SetsV4 [tests/mapping/union]: navigation to temporal class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' via 'y' is not supported yet (temporal context propagation)
+- ERROR testUnionWithChainedJoinsAcross2SetsV5 [tests/mapping/union]: navigation to temporal class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' via 'y' is not supported yet (temporal context propagation)
+- ERROR testUnionWithChainedJoinsAcross3SetsV5 [tests/mapping/union]: navigation to temporal class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' via 'y' is not supported yet (temporal context propagation)
+- ERROR testUnionWithChainedJoinsAcross4SetsV5 [tests/mapping/union]: navigation to temporal class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' via 'y' is not supported yet (temporal context propagation)
+- ERROR testViewToViewToUnion [tests/mapping/union]: navigation to temporal class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Z' via 'z' is not supported yet (temporal context propagation)
 - ERROR testUnionedViewsToViewToUnion [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::unionOfViewsToViewToUnion' failed to normal
 - ERROR testUnionTwoRelationMappings_SimpleProject [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
 - ERROR testUnionOfTwoRelationMappings_FilterAcrossSets [tests/mapping/union/relation]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one
@@ -2475,7 +2411,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testTwoAssociationsToManyDeep [tests/query]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
 - ERROR testTwoAssociationsToManyDeepWithOr [tests/query]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
 - ERROR testAssociationToManyWithTwoSeparateExists [tests/query]: filter predicate references column 'employees_address', unresolvable even after isolation
-- SHAPE testSimpleAndAssociationToOne [tests/query]: assertEmpty unverifiable: 4 seed statement(s) failed: CREATE OR REPLACE TABLE testTable ("quantity" INT, "Class" VARCHAR(200), "boolean" INT, "abstract" INT, "assert" INT, "break" INT, "byte" INT, "catch" INT, "char" INT, "const" INT, "continue" INT, "default" INT, "do" INT, "double" INT, "else" INT
 - ERROR testTwoAssociationsToOneDeep [tests/query]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - SHAPE testGroupOpenVariable [tests/query]: partial: 2/3 asserts recognized (recognized ones hold); first unrecognized: assertSameSQL('select "root".ID as "pk_0", "root".FIRSTNAME as "firstName", "root".AGE as "age", "root".LASTNAME as "las
 - ERROR testExistsOpenVariableClass [tests/query]: object-space expression node TypedNewInstance is not substitutable yet (H2 vocabulary)
@@ -2505,14 +2440,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFilterUsingFirstDayOfThisYearH2 [tests/query]: unknown function 'firstDayOfThisYear'
 - ERROR testFilterUsingFirstDayOfThisQuarter [tests/query]: unknown function 'firstDayOfThisQuarter'
 - SHAPE testFilterUsingRoundFunctionWithScale [tests/query]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEquals('roundedQuantity\n' +\n                      '106.67\n'+\n                      '10.67\n'+\n                  
-- SHAPE testFilterUsingExpFunction [tests/query]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "root".ID as "pk_0", "root".ID as "id", "root".quantity as "quantity", "root".trad
-- SHAPE testFilterUsingsinFunction [tests/query]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "root".ID as "pk_0", "root".ID as "id", "root".quantity as "quantity", "root".trad
-- SHAPE testFilterUsingCosFunction [tests/query]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "root".ID as "pk_0", "root".ID as "id", "root".quantity as "quantity", "root".trad
-- SHAPE testFilterUsingCotFunction [tests/query]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "root".ID as "pk_0", "root".ID as "id", "root".quantity as "quantity", "root".trad
-- SHAPE testFilterUsingTanFunction [tests/query]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "root".ID as "pk_0", "root".ID as "id", "root".quantity as "quantity", "root".trad
 - ERROR testFilterUsingArcSinFunction [tests/query]: Invalid Input Error: Unable to compute asin of 1.1
 - ERROR testFilterUsingArcCosFunction [tests/query]: Invalid Input Error: Unable to compute acos of 1.1
-- SHAPE testFilterUsingArcTan2Function [tests/query]: partial: 1/2 asserts recognized (recognized ones hold); first unrecognized: assertEqualsH2Compatible(\n    'select "root".ID as "pk_0", "root".ID as "id", "root".quantity as "quantity", "root".trad
 - ERROR testFilterTimesWithManyOperands [tests/query]: multi-hop navigation firm.employees.age through an embedded/slot head is not supported yet
 - SHAPE testFilterUsingQuarterNumberFunction [tests/query]: partial: 1/3 asserts recognized (recognized ones hold); first unrecognized: assertSameElements([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], $result.values.id->sort())
 - ERROR testCollectionDistinctFunction [tests/query]: class query under TypedNativeCall is not resolvable yet (H2 vocabulary)

@@ -223,7 +223,8 @@ final class Substitution {
             while (cur != null && hop < path.size()) {
                 TypedSpec inner = cur;
                 if (inner instanceof TypedNativeCall c1 && c1.args().size() == 1
-                        && c1.callee().qualifiedName().endsWith("::toOne")) {
+                        && c1.callee().qualifiedName().equals(
+                                "meta::pure::functions::multiplicity::toOne")) {
                     inner = c1.args().get(0);
                 }
                 var ow = otherwiseOf(inner);
@@ -542,11 +543,29 @@ final class Substitution {
      */
     private TypedSpec filteredNavLeafRead(TypedPropertyAccess pa) {
         TypedSpec src = pa.source();
-        if (src instanceof TypedNativeCall c && c.args().size() == 1
-                && (c.callee().qualifiedName().endsWith("::toOne")
-                        || c.callee().qualifiedName().endsWith("::first")
-                        || c.callee().qualifiedName().endsWith("::head"))) {
-            src = c.args().get(0);
+        boolean firstRow = false;
+        boolean unwrapped = true;
+        if (src instanceof TypedNativeCall c && c.args().size() == 1) {
+            String callee = c.callee().qualifiedName();
+            if (callee.equals("meta::pure::functions::multiplicity::toOne")) {
+                src = c.args().get(0);
+                unwrapped = false;
+            } else if (callee.equals("meta::pure::functions::collection::first")
+                    || callee.equals("meta::pure::functions::collection::head")) {
+                // first()/head() keep AT MOST one row — the scalar bridge's
+                // toOne rendering raises on >1, so the subquery must LIMIT 1
+                src = c.args().get(0);
+                firstRow = true;
+                unwrapped = false;
+            }
+        }
+        if (unwrapped
+                && !(pa.info().multiplicity() instanceof Multiplicity.Bounded ub
+                        && Integer.valueOf(1).equals(ub.upper()))) {
+            // a BARE [*] read ($p.xs->filter(..).name) is a collection, not
+            // a scalar — imposing toOne semantics on it would raise (or
+            // worse, be wrong under an aggregation); fall through loud
+            return null;
         }
         if (!(src instanceof com.legend.compiler.spec.typed.TypedFilter f)
                 || !(f.source() instanceof TypedPropertyAccess head)
@@ -611,10 +630,17 @@ final class Substitution {
         Type.RelationType outRow = new Type.RelationType(List.of(
                 new Type.RelationType.Column(pa.property(), leafType,
                         pa.info().multiplicity())));
-        return new com.legend.compiler.spec.typed.TypedProject(rel,
+        TypedSpec projected = new com.legend.compiler.spec.typed.TypedProject(rel,
                 List.of(new com.legend.compiler.spec.typed.TypedFuncCol(
                         pa.property(), leafFn)),
                 new ExprType(outRow, Multiplicity.Bounded.ONE));
+        if (firstRow) {
+            projected = new com.legend.compiler.spec.typed.TypedLimit(projected,
+                    new com.legend.compiler.spec.typed.TypedCInteger(1L,
+                            ExprType.one(Type.Primitive.INTEGER)),
+                    projected.info());
+        }
+        return projected;
     }
 
     private TypedSpec rewriteExists(TypedNativeCall call, ExistsSub ex) {

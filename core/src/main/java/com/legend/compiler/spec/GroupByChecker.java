@@ -137,10 +137,14 @@ final class GroupByChecker {
             LambdaFunction aggFn = (LambdaFunction) aggCall.parameters().get(2);
             // the row-count idiom agg('cnt', x|$x, y|$y->count()): an
             // IDENTITY selector over the row maps to the constant 1 —
-            // count(1) counts rows, exactly the TDS semantics
+            // count(1) counts rows, exactly the engine's count(*) emission
+            // for the empty-params TDS map. Gated on the aggregator BEING
+            // count: max/min/sum over $x would silently aggregate the
+            // constant (the engine emits broken SQL and dies loud there).
             if (mapFn.parameters().size() == 1 && mapFn.body().size() == 1
                     && mapFn.body().get(0) instanceof Variable v
-                    && v.name().equals(mapFn.parameters().get(0).name())) {
+                    && v.name().equals(mapFn.parameters().get(0).name())
+                    && isCountAgg(aggFn)) {
                 mapFn = new LambdaFunction(mapFn.parameters(),
                         List.of(new CInteger(1)));
             }
@@ -148,6 +152,16 @@ final class GroupByChecker {
         }
         return new AppliedFunction(af.function(), List.of(ps.get(0),
                 new ColSpecArray(keyCols), new ColSpecArray(aggCols)));
+    }
+
+    /** The aggregator body is a bare {@code $y->count()} over its own param. */
+    private static boolean isCountAgg(LambdaFunction aggFn) {
+        return aggFn.parameters().size() == 1 && aggFn.body().size() == 1
+                && aggFn.body().get(0) instanceof AppliedFunction call
+                && call.function().equals("count")
+                && call.parameters().size() == 1
+                && call.parameters().get(0) instanceof Variable av
+                && av.name().equals(aggFn.parameters().get(0).name());
     }
 
     private static PureCollection asCollection(ValueSpecification v) {

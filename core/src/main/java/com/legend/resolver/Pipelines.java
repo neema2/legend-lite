@@ -311,6 +311,9 @@ final class Pipelines {
                 && slotAliases.contains(pa.property())) {
             out.add(pa.property());
         }
+        if (n instanceof TypedLambda l && l.parameters().contains(rowVar)) {
+            return;     // shadowing lambda: its $rowVar is NOT our row
+        }
         for (TypedSpec c : n.children()) {
             collectSlotReads(c, rowVar, slotAliases, out);
         }

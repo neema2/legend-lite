@@ -29,6 +29,17 @@ public interface ModelContext {
     /** O(1)-ish. The {@link TypedClass} for {@code fqn}, if present. */
     Optional<TypedClass> findClass(String fqn);
 
+    /**
+     * The raw parsed class declaration (stereotypes, tagged values) —
+     * {@link TypedClass} deliberately drops annotations, but the store
+     * resolver needs the temporal stereotype to pick a milestoning
+     * dimension.
+     */
+    default Optional<com.legend.parser.element.ClassDefinition>
+            findClassDefinition(String fqn) {
+        return Optional.empty();
+    }
+
     /** The {@link TypedEnum} for {@code fqn}, if present. */
     Optional<TypedEnum> findEnum(String fqn);
 

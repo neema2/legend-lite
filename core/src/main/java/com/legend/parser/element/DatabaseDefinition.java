@@ -82,17 +82,27 @@ public record DatabaseDefinition(
         }
 
         /**
-         * The table's temporal columns ({@code milestoning(business(
-         * BUS_FROM=..., BUS_THRU=...), processing(...))}); each pair
-         * nullable — a table may be business-, processing- or bi-temporal.
+         * The table's {@code milestoning(...)} block &mdash; per-dimension
+         * temporal declarations mirroring the engine's
+         * {@code BusinessMilestoning} / {@code ProcessingMilestoning} /
+         * {@code TemporalSnapshotMilestoning}. Either dimension may be
+         * absent; each carries its own inclusivity flag and (optional)
+         * declared infinity date — the engine REQUIRES the latter for
+         * {@code %latest} fetches (milestoning.pure getInfinityDate assert),
+         * so it must be captured, never defaulted.
          */
-        public record Milestoning(String busFrom, String busThru,
-                String procIn, String procOut, String snapshot) {
+        public record Milestoning(Business business, Processing processing) {
 
-            /** Range-milestoned (no snapshot column). */
-            public Milestoning(String busFrom, String busThru,
-                    String procIn, String procOut) {
-                this(busFrom, busThru, procIn, procOut, null);
+            /** {@code business(BUS_FROM=.., BUS_THRU=.. [,THRU_IS_INCLUSIVE=..][,INFINITY_DATE=..])} or {@code business(BUS_SNAPSHOT_DATE=..)}. */
+            public record Business(String from, String thru,
+                    boolean thruIsInclusive, String snapshotDate,
+                    String infinityDate) {
+            }
+
+            /** {@code processing(PROCESSING_IN=.., PROCESSING_OUT=.. [,OUT_IS_INCLUSIVE=..][,INFINITY_DATE=..])} or {@code processing(PROCESSING_SNAPSHOT_DATE=..)}. */
+            public record Processing(String in, String out,
+                    boolean outIsInclusive, String snapshotDate,
+                    String infinityDate) {
             }
         }
     }

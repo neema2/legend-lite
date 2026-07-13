@@ -190,19 +190,35 @@ final class RelOpTranslator {
                     new AppliedFunction("isNumeric", translateArgs(call, tableScope,
                             targetVarOrNull, rowBindOrNull, pipeline));
             case RelationalOperation.FunctionCall call
-                    when call.name().equals("dayOfWeekNumber") && call.args().size() == 2 -> {
-                    // 2-arg form fixes the WEEK START; DuckDB isodow is
-                    // Monday-based already — any other start day is loud
-                    if (!(call.args().get(1) instanceof RelationalOperation.Literal lit)
-                            || !(lit.value() instanceof String ws)
-                            || !ws.equalsIgnoreCase("Monday")) {
-                        throw new com.legend.error.NotImplementedException(
-                                "dayOfWeekNumber with a non-Monday week start is not"
-                              + " supported yet");
+                    when call.name().equals("dayOfWeekNumber")
+                    && (call.args().size() == 1 || call.args().size() == 2) -> {
+                    // Engine H2: 1-arg = DAY_OF_WEEK (SUNDAY=1); the 2-arg
+                    // form fixes the week start — 'Monday' emits
+                    // ISO_DAY_OF_WEEK, 'Sunday' emits DAY_OF_WEEK, anything
+                    // else asserts (dayOfWeekNumberH2). The pure native
+                    // lowers to isodow (Monday=1), so Sunday-based forms
+                    // conform by emission: mod(isodow, 7) + 1.
+                    String weekStart = "Sunday";
+                    if (call.args().size() == 2) {
+                        if (!(call.args().get(1) instanceof RelationalOperation.Literal lit)
+                                || !(lit.value() instanceof String ws)
+                                || !(ws.equalsIgnoreCase("Monday")
+                                        || ws.equalsIgnoreCase("Sunday"))) {
+                            throw new com.legend.error.NotImplementedException(
+                                    "dayOfWeekNumber requires 'Sunday' or"
+                                  + " 'Monday' as the week start (engine assert)");
+                        }
+                        weekStart = (String) lit.value();
                     }
-                    yield new AppliedFunction("dayOfWeekNumber", List.of(
-                            translate(call.args().get(0), tableScope, targetVarOrNull,
-                                    rowBindOrNull, pipeline)));
+                    ValueSpecification iso = new AppliedFunction("dayOfWeekNumber",
+                            List.of(translate(call.args().get(0), tableScope,
+                                    targetVarOrNull, rowBindOrNull, pipeline)));
+                    yield weekStart.equalsIgnoreCase("Monday")
+                            ? iso
+                            : new AppliedFunction("plus", List.of(
+                                    new AppliedFunction("mod", List.of(iso,
+                                            new CInteger(7L))),
+                                    new CInteger(1L)));
             }
             case RelationalOperation.FunctionCall call
                     when call.name().equals("adjust") && call.args().size() == 3

@@ -37,7 +37,19 @@ public final class Runner {
 
     private final String model;
     private final List<String> walls = new ArrayList<>();
-    private final List<String> seeds;
+    /** Shared-file table DDL — replayed FIRST, before ANY data. */
+    private final List<String> ddlSeeds;
+    /** Shared-file executeInDb data literals — replayed after ALL DDL. */
+    private final List<String> dataSeeds;
+    /**
+     * FQNs of every zero-arg function defined in the shared seed files:
+     * their body literals already ride {@link #dataSeeds}, so BeforePackage
+     * expansion must not run them a SECOND time. Run-once emulation at
+     * FUNCTION granularity — the old statement-level dedup also destroyed
+     * deliberately repeated inserts feeding distinct() tests (audit A1) and
+     * silently swallowed post-REPLACE refills (audit A2).
+     */
+    private final java.util.Set<String> sharedSeededFns = new java.util.HashSet<>();
     /** {@code <<test.BeforePackage>>} setups collected corpus-wide. */
     private final List<Corpus.BeforePackage> beforePackages = new ArrayList<>();
     /** Advisory golden-SQL diffs: counted, never failed on. */
@@ -70,19 +82,22 @@ public final class Runner {
             }
         }
         this.model = assembled.toString();
-        List<String> sql = new ArrayList<>();
+        List<String> ddl = new ArrayList<>();
         for (String src : sharedSources) {
             for (var d : Corpus.tableDefs(src).values()) {
                 if (!d.schema().isEmpty() && !d.schema().equals("default")) {
-                    sql.add("CREATE SCHEMA IF NOT EXISTS " + d.schema());
+                    ddl.add("CREATE SCHEMA IF NOT EXISTS " + d.schema());
                 }
-                sql.add(d.createSql());
+                ddl.add(d.createSql());
             }
         }
+        this.ddlSeeds = ddl;
+        List<String> data = new ArrayList<>();
         for (String src : seedSources) {
-            sql.addAll(Corpus.seedSql(src));
+            data.addAll(Corpus.seedSql(src));
+            sharedSeededFns.addAll(Corpus.functionBodies(src).keySet());
         }
-        this.seeds = sql;
+        this.dataSeeds = data;
     }
 
     /** Zero-arg setup-function bodies across every scanned file. */
@@ -358,22 +373,30 @@ public final class Runner {
                 try (var st = conn.createStatement()) {
                     st.execute("SET TimeZone='UTC'");
                 }
-                // base seeds + every BeforePackage setup covering the test's
-                // package (the engine harness's test.BeforePackage contract)
-                List<String> allSeeds = new ArrayList<>(seeds);
+                // ALL DDL first (shared, family, file — a sibling's CREATE
+                // OR REPLACE must never wipe already-inserted base rows,
+                // audit A2), then data: base literals + every BeforePackage
+                // setup covering the test's package (the engine harness's
+                // test.BeforePackage contract). Run-once is enforced at
+                // FUNCTION granularity via the shared `expanded` set — never
+                // by statement-text dedup, which destroyed deliberately
+                // repeated inserts (audit A1).
+                List<String> allSeeds = new ArrayList<>(ddlSeeds);
                 allSeeds.addAll(familySeeds.getOrDefault(currentFamilyKey, List.of()));
                 allSeeds.addAll(fileSeeds.getOrDefault(currentFileKey, List.of()));
+                allSeeds.addAll(dataSeeds);
+                java.util.Set<String> expanded = new java.util.HashSet<>(sharedSeededFns);
                 for (Corpus.BeforePackage bp : beforePackages) {
                     if (fn.fqn().startsWith(bp.pkg() + "::")) {
                         // expand against the WHOLE-RUN function corpus —
-                        // setup helpers live in sibling files
-                        allSeeds.addAll(Corpus.expandSeeds(bp.body(), bp.pkg(), setupFnBodies));
+                        // setup helpers live in sibling files. A bp whose
+                        // defining file already seeded raw contributes only
+                        // its CALL closure, not its own literals again.
+                        boolean includeBody = expanded.add(bp.fqn());
+                        allSeeds.addAll(Corpus.expandSeeds(bp.body(), bp.pkg(),
+                                setupFnBodies, expanded, includeBody));
                     }
                 }
-                // the same literal often arrives via BOTH the shared base
-                // and a BeforePackage expansion (run-once-per-package
-                // emulation): first occurrence wins
-                allSeeds = new ArrayList<>(new java.util.LinkedHashSet<>(allSeeds));
                 List<String> failedSeeds = new ArrayList<>();
                 for (String sql : allSeeds) {
                     try (var st = conn.createStatement()) {
@@ -459,19 +482,50 @@ public final class Runner {
             }
             // inline earlier lets into later RHS text
             for (Map.Entry<String, String> e : vals.entrySet()) {
-                rhs = rhs.replaceAll("\\$" + Pattern.quote(e.getKey()) + "\\b",
-                        java.util.regex.Matcher.quoteReplacement(e.getValue()));
+                rhs = replaceVarOutsideStrings(rhs, e.getKey(), e.getValue());
             }
-            boolean atomic = rhs.matches("'[^']*'") || rhs.matches("-?\\d+(\\.\\d+)?")
+            // a NEGATIVE literal is not atomic: bare it flips arrow
+            // precedence ($v->abs() with v=-5 becoming -5->abs(), audit B4)
+            boolean atomic = rhs.matches("'[^']*'") || rhs.matches("\\d+(\\.\\d+)?")
                     || rhs.matches("[\\w:.\\[\\]%]+") || rhs.matches("\\[[^;]*\\]");
             vals.put(m.group(1), atomic ? rhs : "(" + rhs + ")");
         }
         String out = query;
         for (Map.Entry<String, String> e : vals.entrySet()) {
-            out = out.replaceAll("\\$" + Pattern.quote(e.getKey()) + "\\b",
-                    java.util.regex.Matcher.quoteReplacement(e.getValue()));
+            out = replaceVarOutsideStrings(out, e.getKey(), e.getValue());
         }
         return out;
+    }
+
+    /**
+     * {@code $var} → replacement, skipping single-quoted string literals —
+     * pure does not interpolate, so a '$type' INSIDE a literal is data
+     * (audit B4).
+     */
+    private static String replaceVarOutsideStrings(String text, String var,
+            String replacement) {
+        StringBuilder out = new StringBuilder();
+        int i = 0;
+        while (i < text.length()) {
+            char c = text.charAt(i);
+            if (c == '\'') {
+                int end = Corpus.skipString(text, i);
+                out.append(text, i, end);
+                i = end;
+                continue;
+            }
+            if (c == '$' && text.startsWith(var, i + 1)
+                    && (i + 1 + var.length() >= text.length()
+                            || !Character.isJavaIdentifierPart(
+                                    text.charAt(i + 1 + var.length())))) {
+                out.append(replacement);
+                i += 1 + var.length();
+                continue;
+            }
+            out.append(c);
+            i++;
+        }
+        return out.toString();
     }
 
     /** Synthesized runtime binding EVERY database (stores pick what they need). */
@@ -554,9 +608,16 @@ public final class Runner {
                     if (args.size() == 2 && args.get(1).strip().matches("\\d+")
                             && (target.equals("$R.values") || target.equals("$R.rows")
                                     || target.equals("$R"))) {
+                        int expected = Integer.parseInt(args.get(1).strip());
+                        if (expected == 0 && !failedSeeds.isEmpty()) {
+                            // expected-zero over a table a failed seed left
+                            // empty proves nothing (same rule as assertEmpty)
+                            return new Outcome(fn.fqn(), Status.SHAPE,
+                                    "assertSize 0 unverifiable: " + failedSeeds.size()
+                                            + " seed statement(s) failed: " + failedSeeds.get(0));
+                        }
                         recognized++;
                         verified++;
-                        int expected = Integer.parseInt(args.get(1).strip());
                         if (rows.size() != expected) {
                             problems.add("size: expected " + expected + ", got " + rows.size());
                         }
@@ -694,16 +755,17 @@ public final class Runner {
                         }
                     }
                 }
-                case "assertEquals", "assertEqualsHNCompatible" -> {
+                case "assertEquals", "assertEqualsH2Compatible" -> {
                     if (args.size() == 2 && args.get(0).strip().startsWith("$R")
                             && !args.get(1).strip().startsWith("$R")) {
                         args = List.of(args.get(1), args.get(0));   // actual-first spelling
                     }
                     // multi-line arrow chains: collapse whitespace and
-                    // tighten '->' so the shape matchers see one line
+                    // tighten '->' so the shape matchers see one line —
+                    // OUTSIDE string literals only (a makeString separator's
+                    // spaces are data, audit B2)
                     String second = args.size() == 2
-                            ? args.get(1).strip().replaceAll("\\s+", " ")
-                                    .replaceAll("\\s*->\\s*", "->")
+                            ? collapseOutsideStrings(args.get(1).strip())
                             : "";
                     // 3-arg H2-compat: (legacySql, h2Sql, $r->sqlRemoveFormatting())
                     if (args.size() == 3
@@ -1063,7 +1125,11 @@ public final class Runner {
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> graphRows(ExecutionResult r) {
         if (r instanceof ExecutionResult.ScalarResult sc) {
-            return List.of(Map.of("__scalar__", sc.value() == null ? "" : sc.value()));
+            // NULL stays null — coercing to "" let an empty-string
+            // expectation pass against a wrongly-NULL scalar (audit A3);
+            // ^TDSNull() matches null via NULL_EXPECTED, everything else
+            // honestly fails
+            return List.of(java.util.Collections.singletonMap("__scalar__", sc.value()));
         }
         if (r instanceof ExecutionResult.GraphResult g) {
             Object parsed = toJava(com.gs.legend.util.Json.parse(g.json()));
@@ -1122,6 +1188,45 @@ public final class Runner {
                 line.append(v == null ? "" : String.valueOf(v));
             }
             out.append(line).append('\n');
+        }
+        return out.toString();
+    }
+
+    /**
+     * Collapse whitespace runs to one space and tighten spacing around
+     * {@code ->} — OUTSIDE single-quoted string literals only. The old
+     * whole-text collapse corrupted separators like {@code makeString(' ')}
+     * and any literal containing {@code ->} (audit B2).
+     */
+    static String collapseOutsideStrings(String s) {
+        StringBuilder out = new StringBuilder();
+        int i = 0;
+        while (i < s.length()) {
+            char c = s.charAt(i);
+            if (c == '\'') {
+                int end = Corpus.skipString(s, i);
+                out.append(s, i, end);
+                i = end;
+                continue;
+            }
+            if (Character.isWhitespace(c)) {
+                int j = i;
+                while (j < s.length() && Character.isWhitespace(s.charAt(j))) {
+                    j++;
+                }
+                boolean beforeArrow = j + 1 < s.length()
+                        && s.charAt(j) == '-' && s.charAt(j + 1) == '>';
+                boolean afterArrow = out.length() >= 2
+                        && out.charAt(out.length() - 1) == '>'
+                        && out.charAt(out.length() - 2) == '-';
+                if (!beforeArrow && !afterArrow && j < s.length()) {
+                    out.append(' ');
+                }
+                i = j;
+                continue;
+            }
+            out.append(c);
+            i++;
         }
         return out.toString();
     }
@@ -1211,7 +1316,13 @@ public final class Runner {
         if (expected instanceof Boolean eb) {
             return actual instanceof Boolean ab ? eb.equals(ab) : false;
         }
-        return expected instanceof String es && es.equals(String.valueOf(actual));
+        // string expectation vs stringified actual — but NEVER across the
+        // number/boolean kinds ('25' must not equal integer 25: that
+        // collapse masked wrong column typing, audit B5). Date/time actuals
+        // legitimately compare through their wire print form.
+        return expected instanceof String es
+                && !(actual instanceof Number) && !(actual instanceof Boolean)
+                && es.equals(String.valueOf(actual));
     }
 
     // ===== pure literal parsing (expected values) =====
@@ -1281,12 +1392,15 @@ public final class Runner {
     };
 
     private static String canonicalDate(String s) {
+        // zone suffix and insignificant fractional zeros are PRINT
+        // variance; a trailing T00:00 is NOT — stripping it equated a DATE
+        // with a midnight DATETIME, masking wrong column typing (audit A4)
         String v = s.replace(' ', 'T')
                 .replaceAll("\\+0000$", "").replaceAll("Z$", "");
         if (v.contains(".")) {
             v = v.replaceAll("0+$", "").replaceAll("\\.$", "");
         }
-        return v.replaceAll("T00:00(:00)?$", "");
+        return v;
     }
 
     /** A %date expectation: equality via canonical date-print comparison. */
