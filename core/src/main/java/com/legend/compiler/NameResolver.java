@@ -680,6 +680,12 @@ public final class NameResolver {
                         groupBy, primaryKey, props, r.sourceUrl(),
                         r.propertyTargetSets());
             }
+            case ClassMapping.Union u -> {
+                String className = resolveName(u.className(), scope);
+                yield className.equals(u.className()) ? u
+                        : new ClassMapping.Union(className, u.setId(),
+                                u.extendsSetId(), u.root(), u.memberSetIds());
+            }
             case ClassMapping.Pure p -> {
                 String className = resolveName(p.className(), scope);
                 String sourceClass = p.sourceClass() == null

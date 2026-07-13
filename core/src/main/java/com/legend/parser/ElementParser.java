@@ -1875,12 +1875,34 @@ public final class ElementParser implements TokenStreamCursor {
             accum.classMappings.add(cm);
             return;
         }
-        // Operation (union) and AggregationAware are ROADMAP mapping
-        // families (docs/LEGEND_ENGINE_TEST_PORTING.md): their bodies parse-
-        // and-skip so the surrounding mapping loads; a query against the
-        // class stays LOUD at resolution ("no mapping for class").
-        if (isIdentifierToken(peek())
-                && ("Operation".equals(text()) || "AggregationAware".equals(text()))) {
+        // Operation UNION captures its member sets (synthesized as a
+        // projected UNION ALL); other operations and AggregationAware stay
+        // parse-and-skip so the surrounding mapping loads -- a query against
+        // the class stays LOUD at resolution ("no mapping for class").
+        if (isIdentifierToken(peek()) && "Operation".equals(text())) {
+            advance();
+            expect(TokenType.BRACE_OPEN);
+            String fn = parseQualifiedName();
+            List<String> members = new ArrayList<>();
+            if (peek() == TokenType.PAREN_OPEN) {
+                advance();
+                if (peek() != TokenType.PAREN_CLOSE) {
+                    members.add(parseIdentifier());
+                    while (match(TokenType.COMMA)) {
+                        members.add(parseIdentifier());
+                    }
+                }
+                expect(TokenType.PAREN_CLOSE);
+            }
+            expect(TokenType.BRACE_CLOSE);
+            if (fn.contains("union") && members.size() >= 2) {
+                accum.classMappings.add(new ClassMapping.Union(
+                        elementPath, setId, extendsSetId, root, members));
+            }
+            // non-union operations (merge, ...) drop: loud at resolution
+            return;
+        }
+        if (isIdentifierToken(peek()) && "AggregationAware".equals(text())) {
             advance();
             skipBalancedBlock();
             return;

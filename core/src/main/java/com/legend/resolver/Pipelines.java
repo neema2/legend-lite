@@ -249,6 +249,48 @@ final class Pipelines {
                 }
                 yield new TypedFilter(src, f.predicate(), src.info());
             }
+            // UNION pipelines: each concatenate branch materializes
+            // INDEPENDENTLY (its projection's own slot reads are its demand)
+            case com.legend.compiler.spec.typed.TypedConcatenate cc ->
+                    new com.legend.compiler.spec.typed.TypedConcatenate(
+                            walk(cc.left(), demanded, demandedNavs, targets,
+                                    prefixes, stripped, classFqn),
+                            walk(cc.right(), demanded, demandedNavs, targets,
+                                    prefixes, stripped, classFqn),
+                            cc.info());
+            // a PROJECT over a slotted member pipeline: the colspec lambdas
+            // demand their own slot reads; materialize the source with that
+            // demand and rewrite the reads to the prefixed columns
+            case com.legend.compiler.spec.typed.TypedProject pr
+                    when containsSlot(pr.source()) || !navSteps(pr.source()).isEmpty() -> {
+                Set<String> slotAliases = slotAliases(pr.source());
+                Set<String> ownDemand = new LinkedHashSet<>();
+                for (var col : pr.columns()) {
+                    String rv = col.fn().parameters().get(0);
+                    for (TypedSpec b : col.fn().body()) {
+                        collectSlotReads(b, rv, slotAliases, ownDemand);
+                    }
+                }
+                ownDemand = closeOverConditions(pr.source(), ownDemand);
+                Map<String, String> branchPrefixes = new LinkedHashMap<>();
+                Set<String> branchStripped = new LinkedHashSet<>();
+                TypedSpec src = walk(pr.source(), ownDemand, Set.of(), targets,
+                        branchPrefixes, branchStripped, classFqn);
+                List<com.legend.compiler.spec.typed.TypedFuncCol> cols =
+                        new java.util.ArrayList<>(pr.columns().size());
+                for (var col : pr.columns()) {
+                    String rv = col.fn().parameters().get(0);
+                    List<TypedSpec> body = col.fn().body().stream()
+                            .map(b -> rewriteRowReads(b, rv, branchPrefixes,
+                                    branchStripped,
+                                    java.util.function.UnaryOperator.identity()))
+                            .toList();
+                    cols.add(new com.legend.compiler.spec.typed.TypedFuncCol(
+                            col.name(), new TypedLambda(col.fn().parameters(),
+                                    body, col.fn().info())));
+                }
+                yield new com.legend.compiler.spec.typed.TypedProject(src, cols, pr.info());
+            }
             default -> {
                 if (containsSlot(n)) {
                     throw new NotImplementedException("mapping pipeline for '"
@@ -258,6 +300,20 @@ final class Pipelines {
                 yield n;
             }
         };
+    }
+
+    /** Slot aliases read through {@code rowVar} in {@code n} ($row.slot...). */
+    private static void collectSlotReads(TypedSpec n, String rowVar,
+            Set<String> slotAliases, Set<String> out) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                && pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
+                && v.name().equals(rowVar)
+                && slotAliases.contains(pa.property())) {
+            out.add(pa.property());
+        }
+        for (TypedSpec c : n.children()) {
+            collectSlotReads(c, rowVar, slotAliases, out);
+        }
     }
 
     private static Set<String> slotAliasUniverse(Set<String> stripped,

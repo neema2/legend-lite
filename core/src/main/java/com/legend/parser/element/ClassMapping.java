@@ -38,7 +38,7 @@ import java.util.Objects;
  * relational class mappings as standalone records (they appear only as
  * {@link PropertyMapping.Embedded} sub-mappings).
  */
-public sealed interface ClassMapping permits ClassMapping.Relational, ClassMapping.Pure {
+public sealed interface ClassMapping permits ClassMapping.Relational, ClassMapping.Pure, ClassMapping.Union {
 
     /** Fully-qualified class name being mapped. */
     String className();
@@ -204,6 +204,25 @@ public sealed interface ClassMapping permits ClassMapping.Relational, ClassMappi
                 Objects.requireNonNull(propertyName, "Property name cannot be null");
                 Objects.requireNonNull(expression, "Property binding expression cannot be null");
             }
+        }
+    }
+
+    /**
+     * An Operation UNION class mapping ({@code *Person : Operation {
+     * union_...(pSet1, pSet2) }}): the class extent is the UNION ALL of its
+     * member sets' extents. Synthesized as
+     * {@code concatenate(project(set1), project(set2)) -> map(^Class(...))}
+     * over the members' SHARED scalar properties.
+     */
+    record Union(
+            String className,
+            String setId,
+            String extendsSetId,
+            boolean root,
+            List<String> memberSetIds) implements ClassMapping {
+        public Union {
+            Objects.requireNonNull(className, "Class name cannot be null");
+            memberSetIds = memberSetIds == null ? List.of() : List.copyOf(memberSetIds);
         }
     }
 }

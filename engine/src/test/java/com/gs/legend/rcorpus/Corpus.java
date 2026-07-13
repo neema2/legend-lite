@@ -140,7 +140,7 @@ public final class Corpus {
     // ===== seed SQL =====
 
     private static final Pattern EXECUTE_IN_DB = Pattern.compile(
-            "executeInDb\\s*\\(");
+            "executeInDb\\w*\\s*\\(");
 
     private static final Pattern LET_STRING = Pattern.compile(
             "let\\s+(\\w+)\\s*=\\s*(?=')");

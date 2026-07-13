@@ -228,16 +228,24 @@ public final class MappingNormalizer {
         }
         List<MappingDefinition.ClassBinding> classBindings =
                 new ArrayList<>(md.classMappings().size());
+        java.util.Set<String> unionRooted = new java.util.HashSet<>();
+        for (ClassMapping cm : md.classMappings()) {
+            if (cm instanceof ClassMapping.Union) {
+                unionRooted.add(cm.className());
+            }
+        }
         for (ClassMapping cm : md.classMappings()) {
             if (mappingsPerClass.get(cm.className()) > 1 && !cm.root()) {
-                // multi-set class without a root: real .all() dispatch is the
-                // UNION of sets (a roadmap feature) — recorded as a poison so
-                // the 0-binder error explains itself, never silent
-                model.mappingPoisons.putIfAbsent(
-                        md.qualifiedName() + "::" + cm.className(),
-                        "class is mapped through multiple set IDs; .all() over"
-                                + " multi-set mappings (implicit union) is a"
-                                + " roadmap feature");
+                if (!unionRooted.contains(cm.className())) {
+                    // multi-set class without a UNION root: .all() dispatch
+                    // is undefined — recorded as a poison so the 0-binder
+                    // error explains itself, never silent
+                    model.mappingPoisons.putIfAbsent(
+                            md.qualifiedName() + "::" + cm.className(),
+                            "class is mapped through multiple set IDs; .all() over"
+                                    + " multi-set mappings (implicit union) is a"
+                                    + " roadmap feature");
+                }
                 continue;
             }
             FunctionDefinition fn;
@@ -647,6 +655,7 @@ public final class MappingNormalizer {
         ValueSpecification body = switch (cm) {
             case ClassMapping.Pure pcm       -> synthM2M(md, pcm, model, new HashSet<>());
             case ClassMapping.Relational rcm -> synthRelational(md, rcm, model);
+            case ClassMapping.Union u        -> synthUnion(md, u, model);
         };
         return new FunctionDefinition(
                 SynthFqn.mappingClass(md.qualifiedName(), cm.className()),
@@ -729,6 +738,147 @@ public final class MappingNormalizer {
     // ====================================================================
     // Relational dispatch:  JsonSource | View-backed | Table-backed
     // ====================================================================
+
+    /**
+     * An Operation UNION class mapping: the extent is UNION ALL of the
+     * member sets. Each member synthesizes its own pipeline+fields; the
+     * SHARED SCALAR properties (declared type not a model class) project to
+     * property-named columns, the projections concatenate, and one map
+     * terminal reads the aligned row. Properties outside the shared set are
+     * absent from the binding table — demanding one is loud downstream.
+     */
+    private static ValueSpecification synthUnion(LegacyMappingDefinition md,
+                                                ClassMapping.Union u,
+                                                ModelBuilder model) {
+        if (u.memberSetIds().size() < 2) {
+            throw new com.legend.error.NotImplementedException(
+                    "Operation union of " + u.memberSetIds().size()
+                  + " member set(s); class=" + u.className()
+                  + ", mapping=" + md.qualifiedName());
+        }
+        List<RelationalParts> parts = new ArrayList<>(u.memberSetIds().size());
+        for (String setId : u.memberSetIds()) {
+            ClassMapping member = md.classMappings().stream()
+                    .filter(x -> setId.equals(x.setId())
+                            && u.className().equals(x.className()))
+                    .findFirst().orElse(null);
+            if (!(member instanceof ClassMapping.Relational mr)) {
+                throw new com.legend.error.NotImplementedException(
+                        "Operation union member set '" + setId + "' of class '"
+                      + u.className() + "' is " + (member == null ? "missing"
+                              : "not a Relational set") + "; mapping="
+                      + md.qualifiedName());
+            }
+            if (mr.sourceUrl() != null) {
+                throw new com.legend.error.NotImplementedException(
+                        "Operation union over a JSON-source member set is not"
+                      + " supported yet; mapping=" + md.qualifiedName());
+            }
+            if (mr.mainTable() == null) {
+                LegacyMappingDefinition.TableReference inferred = inferMainTable(mr);
+                if (inferred == null) {
+                    throw new com.legend.error.NotImplementedException(
+                            "union member set '" + setId + "' has no inferable"
+                          + " main table; mapping=" + md.qualifiedName());
+                }
+                mr = new ClassMapping.Relational(mr.className(), mr.setId(),
+                        mr.extendsSetId(), mr.root(), inferred, mr.filter(),
+                        mr.distinct(), mr.groupBy(), mr.primaryKey(),
+                        mr.propertyMappings(), mr.sourceUrl());
+            }
+            if (model.findView(mr.mainTable().database(),
+                    mr.mainTable().table()).isPresent()) {
+                throw new com.legend.error.NotImplementedException(
+                        "Operation union over a VIEW-backed member set is not"
+                      + " supported yet; mapping=" + md.qualifiedName());
+            }
+            parts.add(synthTableBackedParts(md, mr, model, null));
+        }
+        // the SHARED scalar property set, in the first member's order
+        ClassDefinition owner = model.findClass(u.className()).orElse(null);
+        List<String> common = new ArrayList<>();
+        for (String prop : parts.get(0).fields().keySet()) {
+            TypeExpression t = owner == null ? null
+                    : findPropertyTypeDeep(owner, prop, model);
+            boolean scalar = t instanceof TypeExpression.NameRef nr
+                    && model.findClass(nr.name()).isEmpty();
+            if (scalar && parts.stream().allMatch(pp -> pp.fields().containsKey(prop))) {
+                common.add(prop);
+            }
+        }
+        if (common.isEmpty()) {
+            throw new com.legend.error.NotImplementedException(
+                    "Operation union members of '" + u.className()
+                  + "' share no scalar properties; mapping=" + md.qualifiedName());
+        }
+        ValueSpecification union = null;
+        for (RelationalParts pp : parts) {
+            List<ColSpec> cols = new ArrayList<>(common.size());
+            for (String prop : common) {
+                // member sets may disagree on the COLUMN kind (String col in
+                // set1, Integer expression in set2) and MULTIPLICITY (a
+                // join-terminal read is [0..1], a plain column [1]) — the
+                // declared property is the union's schema contract: numeric/
+                // date kinds coerce, and a declared-[1] property wraps in
+                // toOne (typing [1] on both sides; lowering is erasure)
+                ValueSpecification value = coerceToDeclaredNumeric(
+                        pp.fields().get(prop).value(), prop, u.className(), model);
+                // String is safe INSIDE the union projection: the members
+                // must agree on the declared kind, and the engine's union
+                // coerces at the SQL boundary
+                TypeExpression dt = owner == null ? null
+                        : findPropertyTypeDeep(owner, prop, model);
+                if (dt instanceof TypeExpression.NameRef dn
+                        && ("String".equals(simpleTypeName(dn.name())))) {
+                    value = new AppliedFunction("cast", List.of(value,
+                            new com.legend.parser.spec.TypeAnnotation.Named(
+                                    new TypeExpression.NameRef("String"))));
+                }
+                // every member column aligns to [1] (toOne types both sides
+                // identically; lowering is erasure — the union's SQL columns
+                // are nullable regardless, engine parity)
+                value = new AppliedFunction("toOne", List.of(value));
+                cols.add(new ColSpec(prop, new LambdaFunction(
+                        List.of(pp.rowBind()), List.of(value)), null));
+            }
+            ValueSpecification projected = new AppliedFunction("project",
+                    List.of(pp.pipeline(), new ColSpecArray(cols)));
+            union = union == null ? projected
+                    : new AppliedFunction("concatenate", List.of(union, projected));
+        }
+        Variable row = new Variable("u_row");
+        Map<String, KeyExpression> ctor = new LinkedHashMap<>();
+        for (String prop : common) {
+            ctor.put(prop, new KeyExpression(
+                    new AppliedProperty(row, prop), false, false));
+        }
+        return new AppliedFunction("map", List.of(union,
+                new LambdaFunction(List.of(row),
+                        List.of(buildNewInstanceToOne(u.className(), ctor, model)))));
+    }
+
+    /** The declared multiplicity of {@code prop} on {@code owner} (chain walk). */
+    private static com.legend.parser.Multiplicity findPropertyDeclared(
+            ClassDefinition owner, String prop, ModelBuilder model) {
+        for (com.legend.parser.element.ClassDefinition.PropertyDefinition pd
+                : owner.properties()) {
+            if (pd.name().equals(prop)) {
+                return pd.multiplicity();
+            }
+        }
+        for (TypeExpression sup : owner.superClasses()) {
+            if (sup instanceof TypeExpression.NameRef nr) {
+                ClassDefinition sc = model.findClass(nr.name()).orElse(null);
+                if (sc != null) {
+                    com.legend.parser.Multiplicity m = findPropertyDeclared(sc, prop, model);
+                    if (m != null) {
+                        return m;
+                    }
+                }
+            }
+        }
+        return null;
+    }
 
     private static ValueSpecification synthRelational(LegacyMappingDefinition md,
                                                      ClassMapping.Relational rcm,
@@ -1182,6 +1332,11 @@ public final class MappingNormalizer {
         }
     }
 
+    /** A synthesized relational body BEFORE its map terminal composes. */
+    record RelationalParts(ValueSpecification pipeline, Variable rowBind,
+                           Map<String, KeyExpression> fields) {
+    }
+
     private static ValueSpecification synthTableBackedMapping(LegacyMappingDefinition md,
                                                               ClassMapping.Relational rcm,
                                                               ModelBuilder model) {
@@ -1189,6 +1344,16 @@ public final class MappingNormalizer {
     }
 
     private static ValueSpecification synthTableBackedMapping(LegacyMappingDefinition md,
+                                                              ClassMapping.Relational rcm,
+                                                              ModelBuilder model,
+                                                              String backingView) {
+        RelationalParts parts = synthTableBackedParts(md, rcm, model, backingView);
+        return new AppliedFunction("map", List.of(parts.pipeline(),
+                new LambdaFunction(List.of(parts.rowBind()),
+                        List.of(buildNewInstanceToOne(rcm.className(), parts.fields(), model)))));
+    }
+
+    private static RelationalParts synthTableBackedParts(LegacyMappingDefinition md,
                                                              ClassMapping.Relational rcm,
                                                              ModelBuilder model,
                                                               String backingView) {
@@ -1296,9 +1461,7 @@ public final class MappingNormalizer {
                     rcm.className(), md, model, !rcm.groupBy().isEmpty());
             fields.put(cf.name(), new KeyExpression(cf.value(), false, cf.isLocal()));
         }
-        return new AppliedFunction("map", List.of(p.expr,
-                new LambdaFunction(List.of(rowBind),
-                        List.of(buildNewInstanceToOne(rcm.className(), fields, model)))));
+        return new RelationalParts(p.expr, rowBind, fields);
     }
 
     /**

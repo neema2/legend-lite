@@ -357,8 +357,10 @@ public final class ModelBuilder {
             }
             long roots = e.getValue().stream().filter(ClassMapping::root).count();
             Set<String> setIds = new LinkedHashSet<>();
+            // a UNION Operation set needs no id of its own (its members do)
             boolean idsDistinct = e.getValue().stream()
-                    .allMatch(cm -> cm.setId() != null && setIds.add(cm.setId()));
+                    .allMatch(cm -> cm instanceof ClassMapping.Union && cm.setId() == null
+                            || cm.setId() != null && setIds.add(cm.setId()));
             if (roots != 1 || !idsDistinct) {
                 // ZERO roots with distinct set IDs is the UNION shape: the
                 // root lives in an Operation class mapping (a roadmap
