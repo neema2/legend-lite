@@ -497,7 +497,10 @@ public final class Runner {
         // verified = recognized minus advisory golden-SQL asserts.
         int recognized = 0;
         int verified = 0;
+        String firstUnrecognized = null;
+        int recognizedBefore;
         for (int[] callPos : assertCallSpans(fn.body())) {
+            recognizedBefore = recognized;
             String call = fn.body().substring(callPos[0], callPos[1]);
             String head = call.substring(0, call.indexOf('(')).strip();
             List<String> args = splitArgs(call.substring(call.indexOf('(') + 1, call.length() - 1));
@@ -530,6 +533,18 @@ public final class Runner {
             switch (head) {
                 case "assertSize" -> {
                     String target = args.get(0).strip();
+                    if (args.size() == 2 && args.get(1).strip().matches("\\d+")
+                            && target.matches("\\$R(\\.values)?\\.columns")) {
+                        recognized++;
+                        verified++;
+                        int expected = Integer.parseInt(args.get(1).strip());
+                        int actual = rows.isEmpty() ? -1 : rows.get(0).size();
+                        if (actual != expected) {
+                            problems.add("columns: expected " + expected + ", got "
+                                    + (actual < 0 ? "(no rows)" : actual));
+                        }
+                        continue;
+                    }
                     if (args.size() == 2 && args.get(1).strip().matches("\\d+")
                             && (target.equals("$R.values") || target.equals("$R.rows")
                                     || target.equals("$R"))) {
@@ -566,6 +581,43 @@ public final class Runner {
                     if (args.size() == 2 && args.get(0).strip().startsWith("$R")
                             && !args.get(1).strip().startsWith("$R")) {
                         args = List.of(args.get(1), args.get(0));   // actual-first spelling
+                    }
+                    Matcher cellAt = Pattern.compile(
+                            "^\\$R(?:\\.values->at\\(\\d+\\))?\\.rows->map\\(\\s*\\w+\\s*\\|\\s*\\$\\w+\\.values->at\\((\\d+)\\)\\s*\\)$")
+                            .matcher(args.size() == 2 ? args.get(1).strip() : "");
+                    if (cellAt.matches()) {
+                        List<Object> expected = pureLiteralList(args.get(0).strip());
+                        if (expected != null) {
+                            recognized++;
+                            verified++;
+                            int ci = Integer.parseInt(cellAt.group(1));
+                            List<Object> actual = new ArrayList<>();
+                            for (var row : rows) {
+                                List<Object> vals = new ArrayList<>(row.values());
+                                actual.add(ci < vals.size() ? vals.get(ci) : null);
+                            }
+                            if (!multisetEquals(expected, actual)) {
+                                problems.add("col[" + ci + "]: expected " + expected
+                                        + ", got " + actual);
+                            }
+                        }
+                        continue;
+                    }
+                    Matcher allCellsSame = Pattern.compile(
+                            "^\\$R(?:\\.values(?:->at\\(\\d+\\))?)?\\.rows\\.values$")
+                            .matcher(args.size() == 2 ? args.get(1).strip() : "");
+                    if (allCellsSame.matches()) {
+                        List<Object> expected = pureLiteralList(args.get(0).strip());
+                        if (expected != null) {
+                            recognized++;
+                            verified++;
+                            List<Object> actual = new ArrayList<>();
+                            rows.forEach(row -> actual.addAll(row.values()));
+                            if (!multisetEquals(expected, actual)) {
+                                problems.add("cells: expected " + expected + ", got " + actual);
+                            }
+                        }
+                        continue;
                     }
                     Matcher cellsMap = Pattern.compile(
                             "^\\$R(?:\\.values->at\\(\\d+\\))?\\.rows->map\\(\\s*\\w+\\s*\\|\\s*\\$\\w+\\.values\\s*\\)$")
@@ -780,6 +832,29 @@ public final class Runner {
                         }
                         continue;
                     }
+                    Matcher cellsJoin = Pattern.compile(
+                            "^\\$R(?:\\.values(?:->at\\(\\d+\\))?)?\\.rows->map\\(\\s*\\w+\\s*\\|\\s*\\$\\w+\\.values\\s*\\)"
+                                    + "(->sort\\(\\))?->makeString\\('([^']*)'\\)$")
+                            .matcher(second);
+                    if (cellsJoin.matches()) {
+                        Object expected = pureLiteral(args.get(0).strip());
+                        if (expected instanceof String es) {
+                            recognized++;
+                            verified++;
+                            List<String> strs = new ArrayList<>();
+                            rows.forEach(row -> row.values().forEach(v ->
+                                    strs.add(String.valueOf(v))));
+                            if (cellsJoin.group(1) != null) {
+                                java.util.Collections.sort(strs);
+                            }
+                            String actual = String.join(cellsJoin.group(2), strs);
+                            if (!es.equals(actual)) {
+                                problems.add("cells: expected <" + es + ">, got <"
+                                        + actual + ">");
+                            }
+                        }
+                        continue;
+                    }
                     Matcher colNames = Pattern.compile(
                             "^\\$R(?:\\.values)?\\.columns\\.name$").matcher(second);
                     if (colNames.matches()) {
@@ -843,6 +918,9 @@ public final class Runner {
                 }
                 default -> { }
             }
+            if (recognized == recognizedBefore && firstUnrecognized == null) {
+                firstUnrecognized = call.length() > 120 ? call.substring(0, 120) : call;
+            }
         }
         if (recognized == 0) {
             return new Outcome(fn.fqn(), Status.SHAPE, "no recognizable assertions");
@@ -858,7 +936,8 @@ public final class Runner {
         if (recognized < total) {
             return new Outcome(fn.fqn(), Status.SHAPE,
                     "partial: " + recognized + "/" + total + " asserts recognized"
-                            + " (recognized ones hold)");
+                            + " (recognized ones hold); first unrecognized: "
+                            + firstUnrecognized);
         }
         if (verified == 0) {
             return new Outcome(fn.fqn(), Status.SHAPE,
