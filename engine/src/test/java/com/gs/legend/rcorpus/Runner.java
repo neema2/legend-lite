@@ -400,16 +400,22 @@ public final class Runner {
                 }
                 List<String> failedSeeds = new ArrayList<>();
                 for (String sql : allSeeds) {
-                    try (var st = conn.createStatement()) {
-                        st.execute(sql);
-                    } catch (Exception e) {
-                        // a failed seed leaves a table EMPTY, not wrong — an
-                        // empty-expectation assert over it would false-pass.
-                        // Track and report; checkAsserts refuses to verify
-                        // emptiness under any failed seed.
-                        String head = sql.strip().split("\n")[0];
-                        failedSeeds.add(head + " => "
-                                + String.valueOf(e.getMessage()).split("\n")[0]);
+                    // ONE STATEMENT PER EXECUTE: a multi-statement batch
+                    // that fails mid-way reports DuckDB's useless "pending
+                    // query result" error (the real cause is swallowed) and
+                    // silently drops every statement after the failing one
+                    for (String stmt : splitStatements(sql)) {
+                        try (var st = conn.createStatement()) {
+                            st.execute(stmt);
+                        } catch (Exception e) {
+                            // a failed seed leaves a table EMPTY, not wrong —
+                            // an empty-expectation assert over it would
+                            // false-pass. Track and report; checkAsserts
+                            // refuses to verify emptiness under failed seeds.
+                            String head = stmt.strip().split("\n")[0];
+                            failedSeeds.add(head + " => "
+                                    + String.valueOf(e.getMessage()).split("\n")[0]);
+                        }
                     }
                 }
                 seedFailures.addAll(failedSeeds);
@@ -468,6 +474,33 @@ public final class Runner {
             return new Outcome(fn.fqn(), Status.ERROR,
                     String.valueOf(e.getMessage()).replace("\n", " | "));
         }
+    }
+
+    /** Split a SQL blob into single statements on top-level {@code ;} (string-aware). */
+    static List<String> splitStatements(String sql) {
+        List<String> out = new ArrayList<>();
+        int start = 0;
+        int i = 0;
+        while (i < sql.length()) {
+            char c = sql.charAt(i);
+            if (c == '\'') {
+                i = Corpus.skipString(sql, i);
+                continue;
+            }
+            if (c == ';') {
+                String stmt = sql.substring(start, i).strip();
+                if (!stmt.isEmpty()) {
+                    out.add(stmt);
+                }
+                start = i + 1;
+            }
+            i++;
+        }
+        String tail = sql.substring(start).strip();
+        if (!tail.isEmpty()) {
+            out.add(tail);
+        }
+        return out;
     }
 
     private static final Pattern LET_BINDING = Pattern.compile("let\\s+(\\w+)\\s*=\\s*");

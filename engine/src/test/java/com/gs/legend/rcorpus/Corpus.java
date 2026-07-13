@@ -220,25 +220,41 @@ public final class Corpus {
      * surface as loud row diffs / seed-failure accounting downstream).
      */
     public static List<String> seedSql(String source) {
-        // let-bound string constants (values may themselves concatenate)
-        Map<String, String> lets = new LinkedHashMap<>();
+        // let-bound string constants resolve IN TEXT ORDER: a binding
+        // applies to the executeInDb calls that FOLLOW it until re-bound.
+        // (A whole-file last-write-wins map attached one function's rows to
+        // another function's insert header — the same variable name `s` is
+        // re-bound per setup function across the corpus.)
+        List<int[]> letAt = new ArrayList<>();      // [position, matcher index]
+        List<String[]> letDefs = new ArrayList<>(); // [name, exprText]
         Matcher lm = LET_STRING.matcher(source);
         while (lm.find()) {
             int start = lm.end();
             int end = exprEnd(source, start);
-            String folded = foldConcat(source.substring(start, end), lets);
-            if (folded != null) {
-                lets.put(lm.group(1), folded);
-            }
+            letAt.add(new int[]{lm.start(), letDefs.size()});
+            letDefs.add(new String[]{lm.group(1), source.substring(start, end)});
         }
         List<String> out = new ArrayList<>();
+        Map<String, String> lets = new LinkedHashMap<>();
+        int nextLet = 0;
         Matcher m = EXECUTE_IN_DB.matcher(source);
         while (m.find()) {
+            while (nextLet < letAt.size() && letAt.get(nextLet)[0] < m.start()) {
+                String[] def = letDefs.get(letAt.get(nextLet)[1]);
+                String folded = foldConcat(def[1], lets);
+                if (folded != null) {
+                    lets.put(def[0], folded);
+                }
+                nextLet++;
+            }
             int argStart = m.end();
             int end = exprEnd(source, argStart);
             String folded = foldConcat(source.substring(argStart, end), lets);
             if (folded != null) {
-                out.add(quoteInsertColumns(folded));
+                // dialect at the wire: H2 spells the niladic function with
+                // parens, DuckDB without
+                out.add(quoteInsertColumns(folded)
+                        .replaceAll("(?i)\\bCURRENT_TIMESTAMP\\(\\)", "CURRENT_TIMESTAMP"));
             }
         }
         return out;
