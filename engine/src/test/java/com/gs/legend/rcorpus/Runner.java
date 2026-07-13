@@ -645,7 +645,7 @@ public final class Runner {
                                     + "|->map\\(\\s*\\w+\\s*\\|\\s*\\$\\w+\\.values\\s*\\))$")
                             .matcher(second);
                     Matcher sizeOf = Pattern.compile(
-                            "^\\$R(?:\\.rows)?->size\\(\\)$").matcher(second);
+                            "^\\$R(?:\\.values|\\.rows)?(?:\\.rows)?->size\\(\\)$").matcher(second);
                     if (colGet.matches()) {
                         List<Object> expected = pureLiteralList(args.get(0).strip());
                         if (expected != null) {
