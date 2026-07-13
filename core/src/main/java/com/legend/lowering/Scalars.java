@@ -293,7 +293,7 @@ final class Scalars {
                 // Strings — plain families first; index-shifted below.
                 Map.entry("startsWith", SqlFn.STARTS_WITH),
                 Map.entry("endsWith", SqlFn.ENDS_WITH),
-                Map.entry("matches", SqlFn.MATCHES),
+                Map.entry("matches", SqlFn.REGEXP_FULL_MATCH),
                 Map.entry("left", SqlFn.LEFT), Map.entry("right", SqlFn.RIGHT),
 
                 Map.entry("trim", SqlFn.TRIM), Map.entry("ltrim", SqlFn.LTRIM),

@@ -1991,8 +1991,25 @@ public final class MappingNormalizer {
                         .map(c -> new ColSpec(c, null, null)).toList();
                 p.expr = new AppliedFunction("select",
                         List.of(p.expr, new ColSpecArray(cols)));
+                p.expr = new AppliedFunction("distinct", List.of(p.expr));
+            } else if (!mappedCols.isEmpty()) {
+                // SLOT-CARRYING ~distinct: dedup by the mapped MAIN-TABLE
+                // columns (the unmapped PK must not defeat the dedup —
+                // engine dedups the mapped row) PLUS the slot pseudo-columns
+                // (so slot reads above the distinct still type-check); the
+                // materializer swaps each demanded slot for its prefixed
+                // physical columns (join-equality makes them dependent,
+                // dedup-neutral) and drops the undemanded ones.
+                List<ColSpec> cols = new java.util.ArrayList<>(mappedCols.stream()
+                        .map(c -> new ColSpec(c, null, null)).toList());
+                for (String alias : p.aliasToTargetTable.keySet()) {
+                    cols.add(new ColSpec(alias, null, null));
+                }
+                p.expr = new AppliedFunction("distinct",
+                        List.of(p.expr, new ColSpecArray(cols)));
+            } else {
+                p.expr = new AppliedFunction("distinct", List.of(p.expr));
             }
-            p.expr = new AppliedFunction("distinct", List.of(p.expr));
         }
 
         // Terminal: map(row | ^Class(...)).

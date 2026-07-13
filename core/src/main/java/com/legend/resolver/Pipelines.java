@@ -206,6 +206,17 @@ final class Pipelines {
                 String prefix = alias + "_";
                 prefixes.put(alias, prefix);
                 TypedSpec targetPipeline = targets.pipelineFor(ga.classFqn());
+                // TARGET-SIDE join-key collection (engine L5135's other
+                // half): a distinct-narrowed target must expose the key
+                // columns this navigation binds on.
+                if (nav.predicate().parameters().size() == 2) {
+                    Set<String> tgtReads = new LinkedHashSet<>();
+                    for (TypedSpec b : nav.predicate().body()) {
+                        collectVarReads(b, nav.predicate().parameters().get(1),
+                                tgtReads);
+                    }
+                    targetPipeline = widenDistinctForKeys(targetPipeline, tgtReads);
+                }
                 // The condition speaks (parent row, target TABLE row) — the
                 // 4-arg emission; prior joinslot sub-row reads prefix.
                 TypedLambda condLam = nav.predicate();
@@ -297,9 +308,41 @@ final class Pipelines {
             // rebuilt from the widened row.
             case com.legend.compiler.spec.typed.TypedDistinct d
                     when containsSlot(d.source()) -> {
+                Set<String> prefixesBefore = new LinkedHashSet<>(prefixes.values());
                 TypedSpec src = walk(d.source(), scalarSlotAliases(d.source()),
                         demandedNavs, targets, prefixes, stripped, classFqn);
                 Type.RelationType row = (Type.RelationType) src.info().type();
+                if (d.columns() != null && !d.columns().isEmpty()) {
+                    // MAPPED-COLUMN distinct (slot-carrying ~distinct): the
+                    // tuple is the mapped main columns plus each newly
+                    // materialized slot's prefixed columns (join-equality
+                    // makes them dependent — dedup-neutral, engine-equal).
+                    // physical mapped cols survive; slot pseudo-columns in
+                    // the declared list are REPLACED by the materialized
+                    // slots' prefixed columns (undemanded slots just drop)
+                    List<String> cols = new ArrayList<>();
+                    List<Type.Column> outCols = new ArrayList<>();
+                    for (Type.Column c : row.columns()) {
+                        if (d.columns().contains(c.name())) {
+                            cols.add(c.name());
+                            outCols.add(c);
+                        }
+                    }
+                    for (String pfx : prefixes.values()) {
+                        if (prefixesBefore.contains(pfx)) {
+                            continue;
+                        }
+                        for (Type.Column c : row.columns()) {
+                            if (c.name().startsWith(pfx) && !cols.contains(c.name())) {
+                                cols.add(c.name());
+                                outCols.add(c);
+                            }
+                        }
+                    }
+                    yield new com.legend.compiler.spec.typed.TypedDistinct(src,
+                            cols, new ExprType(new Type.RelationType(outCols),
+                                    Multiplicity.Bounded.ONE));
+                }
                 // WHOLE-ROW distinct (empty column list -> DISTINCT *):
                 // dedup exactly what the source PROJECTS — naming the row
                 // type's columns would reference ones a milestoned scan
@@ -335,8 +378,45 @@ final class Pipelines {
                     new ExprType(d.info().type(), Multiplicity.Bounded.ONE));
             top = inner;
         }
-        if (!(top instanceof com.legend.compiler.spec.typed.TypedDistinct d)
-                || !(d.source() instanceof com.legend.compiler.spec.typed.TypedSelect sel)) {
+        if (!(top instanceof com.legend.compiler.spec.typed.TypedDistinct d)) {
+            return pipeline;
+        }
+        // A COLUMN-LIST distinct (slot-carrying ~distinct, already
+        // materialized): widen the tuple with the missing key columns
+        // present on its source row.
+        if (d.columns() != null && !d.columns().isEmpty()
+                && !(d.source() instanceof com.legend.compiler.spec.typed.TypedSelect)) {
+            Type.RelationType srow = (Type.RelationType) d.source().info().type();
+            List<String> dcols = new ArrayList<>(d.columns());
+            List<Type.Column> outCols = new ArrayList<>();
+            for (Type.Column c : srow.columns()) {
+                if (dcols.contains(c.name())) {
+                    outCols.add(c);
+                }
+            }
+            boolean grew = false;
+            for (String c : cols) {
+                if (dcols.contains(c)) {
+                    continue;
+                }
+                for (Type.Column sc : srow.columns()) {
+                    if (sc.name().equals(c)) {
+                        dcols.add(c);
+                        outCols.add(sc);
+                        grew = true;
+                        break;
+                    }
+                }
+            }
+            if (!grew) {
+                return pipeline;
+            }
+            return rewrap.apply(new com.legend.compiler.spec.typed.TypedDistinct(
+                    d.source(), dcols,
+                    new ExprType(new Type.RelationType(outCols),
+                            Multiplicity.Bounded.ONE)));
+        }
+        if (!(d.source() instanceof com.legend.compiler.spec.typed.TypedSelect sel)) {
             return pipeline;
         }
         Type.RelationType selRow = (Type.RelationType) sel.info().type();
@@ -407,6 +487,18 @@ final class Pipelines {
             }
         }
         return false;
+    }
+
+    /** Column names read on {@code var} anywhere in {@code n}. */
+    static void collectVarReads(TypedSpec n, String var, Set<String> out) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                && pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
+                && v.name().equals(var)) {
+            out.add(pa.property());
+        }
+        for (TypedSpec c : n.children()) {
+            collectVarReads(c, var, out);
+        }
     }
 
     /** Slot aliases read through {@code rowVar} in {@code n} ($row.slot...). */

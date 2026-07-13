@@ -660,6 +660,40 @@ public final class TestBody {
     }
 
     /** STRICT wire equality: integral kinds normalize; decimal by compareTo; no cross-kind. */
+    private static boolean isTemporal(Object v) {
+        return v instanceof java.sql.Timestamp || v instanceof java.sql.Date
+                || v instanceof java.time.LocalDate
+                || v instanceof java.time.LocalDateTime
+                || v instanceof java.time.OffsetDateTime;
+    }
+
+    private static boolean temporalEquals(String s, Object t) {
+        // wire temporals are NAIVE (UTC-normalized); strip a UTC-zero
+        // offset/zone suffix from the string form
+        String v = s.trim().replaceFirst("(Z|\\+00(:?00)?|\\+0000)$", "")
+                .replace('T', ' ').trim();
+        try {
+            if (t instanceof java.sql.Date d) {
+                return java.time.LocalDate.parse(v).equals(d.toLocalDate());
+            }
+            if (t instanceof java.time.LocalDate ld) {
+                return java.time.LocalDate.parse(v).equals(ld);
+            }
+            java.time.LocalDateTime other = t instanceof java.sql.Timestamp ts
+                    ? ts.toLocalDateTime()
+                    : t instanceof java.time.LocalDateTime ldt ? ldt
+                    : t instanceof java.time.OffsetDateTime odt
+                            ? odt.toLocalDateTime() : null;
+            if (other == null) {
+                return false;
+            }
+            String norm = v.contains(" ") ? v.replace(' ', 'T') : v + "T00:00";
+            return java.time.LocalDateTime.parse(norm).equals(other);
+        } catch (java.time.format.DateTimeParseException ex) {
+            return false;
+        }
+    }
+
     /** RFC4180 cell rendering (the engine's toCSV): a cell containing a
      * comma, quote or newline wraps in quotes, inner quotes double. */
     private static String csvCell(Object v) {
@@ -709,6 +743,16 @@ public final class TestBody {
                 return Math.abs(de - da) <= 2 * ulp;
             }
             return false;
+        }
+        // TEMPORAL through the Any-carrier: a mixed-collection literal's
+        // date decodes as its JSON STRING (the variant carrier is untyped
+        // for temporals) — bridge by PARSING, value-exact. Every other
+        // string-vs-nonstring compare stays strictly unequal.
+        if (e instanceof String es && isTemporal(a)) {
+            return temporalEquals(es, a);
+        }
+        if (a instanceof String as && isTemporal(e)) {
+            return temporalEquals(as, e);
         }
         if (e instanceof Map<?, ?> em && a instanceof Map<?, ?> am) {
             if (!em.keySet().equals(am.keySet())) {

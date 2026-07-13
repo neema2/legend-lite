@@ -2265,9 +2265,16 @@ public final class StoreResolver {
                     new com.legend.compiler.element.type.ExprType(swapped,
                             com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
         }
-        return new AssocJoin(prefixFor(head, cs), target, tMat.pipeline(),
+        // TARGET-SIDE join-key collection: a distinct-narrowed target must
+        // expose the key columns the association condition binds on.
+        Set<String> tgtReads = new java.util.LinkedHashSet<>();
+        for (TypedSpec b : oriented.body()) {
+            Pipelines.collectVarReads(b, oriented.parameters().get(1), tgtReads);
+        }
+        TypedSpec tPipe = Pipelines.widenDistinctForKeys(tMat.pipeline(), tgtReads);
+        return new AssocJoin(prefixFor(head, cs), target, tPipe,
                 (com.legend.compiler.element.type.Type.RelationType)
-                        tMat.pipeline().info().type(),
+                        tPipe.info().type(),
                 oriented, tMat.slotPrefixes());
     }
 

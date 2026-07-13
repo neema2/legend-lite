@@ -376,7 +376,11 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case STRPOS -> fn("strpos", a);
             case STARTS_WITH -> fn("starts_with", a);
             case ENDS_WITH -> fn("ends_with", a);
+            // MATCHES is the PARTIAL regexp test (regexpLike's SQL
+            // semantics); pure matches() is REGEXP_FULL_MATCH (the engine
+            // anchors ^...$).
             case MATCHES -> fn("regexp_matches", a);
+            case REGEXP_FULL_MATCH -> fn("regexp_full_match", a);
             case REGEXP_EXTRACT -> fn("regexp_extract", a);
             case REGEXP_EXTRACT_ALL -> fn("regexp_extract_all", a);
             case REGEXP_REPLACE -> fn("regexp_replace", a);
