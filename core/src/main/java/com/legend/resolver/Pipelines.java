@@ -545,41 +545,18 @@ final class Pipelines {
         List<Type.Column> outCols = new ArrayList<>(
                 ((Type.RelationType) p.info().type()).columns());
         for (String c : missing) {
-            int routed = -1;
-            String base = c;
-            var m = java.util.regex.Pattern.compile("^(.*)_(\\d+)$").matcher(c);
-            if (m.matches() && columnOf(srcRow, c) == null) {
-                int i = Integer.parseInt(m.group(2));
-                if (i < members.size()
-                        && members.get(i) instanceof com.legend.compiler.spec.typed
-                                .TypedProject rp
-                        && columnOf((Type.RelationType) rp.source().info().type(),
-                                m.group(1)) != null) {
-                    routed = i;
-                    base = m.group(1);
-                }
-            }
-            Type.Column src = columnOf(srcRow, base);
-            if (routed >= 0 && routed != ordinal) {
-                // un-routed thread: typed NULL under the suffixed name
-                Type.Column onRouted = columnOf((Type.RelationType)
-                        ((com.legend.compiler.spec.typed.TypedProject)
-                                members.get(routed)).source().info().type(), base);
-                ExprType nullType = new ExprType(onRouted.type(),
-                        new Multiplicity.Bounded(0, 0));
-                var fnType = new Type.FunctionType(
-                        List.of(new Type.Param(srcRow, Multiplicity.Bounded.ONE)),
-                        new Type.Param(onRouted.type(),
-                                new Multiplicity.Bounded(0, 1)));
-                newCols.add(new com.legend.compiler.spec.typed.TypedFuncCol(c,
-                        new com.legend.compiler.spec.typed.TypedLambda(
-                                List.of("u_k"),
-                                List.of(new com.legend.compiler.spec.typed
-                                        .TypedCollection(List.of(), nullType)),
-                                new ExprType(fnType, Multiplicity.Bounded.ONE))));
-                outCols.add(new Type.Column(c, onRouted.type(),
-                        new Multiplicity.Bounded(0, 1)));
-                continue;
+            Type.Column src = columnOf(srcRow, c);
+            if (src == null
+                    && java.util.regex.Pattern.matches("^.*_\\d+$", c)) {
+                // ROUTED (member-suffixed) keys carry full provenance: the
+                // normalizer projects them INTO the union body (lift source
+                // keys + inbound route scan). A suffixed demand reaching
+                // this widening means that projection was missed — never
+                // re-derive meaning from the name pattern (audit 11: a real
+                // column spelled like a suffix hijacked the NULL thread).
+                throw new IllegalStateException("resolver bug: routed union"
+                        + " key column '" + c + "' was not projected by the"
+                        + " union body (normalizer inbound-route scan)");
             }
             if (src == null) {
                 throw new com.legend.error.NotImplementedException(

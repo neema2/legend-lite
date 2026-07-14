@@ -475,88 +475,181 @@ public final class MappingNormalizer {
      * (and the engine's {@code _N} key-column suffix). {@code null} when
      * the property isn't class-typed or no local Union covers the set.
      */
-    private static Integer unionOrdinalOf(LegacyMappingDefinition md,
-            ModelBuilder model, String ownerClassFqn, String prop, String setId) {
-        ClassDefinition owner = model.findClass(ownerClassFqn).orElse(null);
-        TypeExpression t = owner == null ? null
-                : findPropertyTypeDeep(owner, prop, model);
-        if (!(t instanceof TypeExpression.NameRef nr)
-                || model.findClass(nr.name()).isEmpty()) {
-            return null;
+    /**
+     * The set-implementation with effective id {@code setId}, resolved in
+     * {@code md} and its includes transitively (engine {@code
+     * classMappingById} is include-recursive — audit 11: own-mapping-only
+     * lookup dropped routes to included sets). Own definitions win.
+     */
+    private static ClassMapping findSetById(LegacyMappingDefinition md,
+            ModelBuilder model, String setId) {
+        for (ClassMapping cm : md.classMappings()) {
+            if (setId.equals(setIdOf(cm))) {
+                return cm;
+            }
         }
+        Map<String, ClassMapping> included = new HashMap<>();
+        collectIncludedSetIds(md, model, included, new java.util.HashSet<>());
+        return included.get(setId);
+    }
+
+    /**
+     * The Union operation mapping for {@code classFqn} in {@code md} or its
+     * includes (own wins), or {@code null}. Member ORDINAL order = the
+     * union's declaration order = the synthesized concatenate's thread
+     * order = the engine's {@code _N} key suffix.
+     */
+    private static ClassMapping.Union unionForClass(LegacyMappingDefinition md,
+            ModelBuilder model, String classFqn) {
         for (ClassMapping cm : md.classMappings()) {
             if (cm instanceof ClassMapping.Union u
-                    && u.className().equals(nr.name())) {
-                int i = u.memberSetIds().indexOf(setId);
-                return i >= 0 ? i : null;
+                    && u.className().equals(classFqn)) {
+                return u;
+            }
+        }
+        for (com.legend.parser.element.MappingInclude inc : md.includes()) {
+            LegacyMappingDefinition inner =
+                    model.findLegacyMapping(inc.mappingPath()).orElse(null);
+            if (inner != null) {
+                ClassMapping.Union u = unionForClass(inner, model, classFqn);
+                if (u != null) {
+                    return u;
+                }
             }
         }
         return null;
     }
 
-    /**
-     * Whether every set-qualified duplicate of {@code propName} is a
-     * single-hop {@code @Join} whose condition is structurally identical to
-     * the first's modulo table names, with the SAME column names on both
-     * sides ({@code @PersonSet1Firm(PersonSet1.FirmID = Firm.ID)} vs
-     * {@code @PersonSet2Firm(PersonSet2.FirmID = Firm.ID)}). Under that
-     * shape the duplicates collapse to one navigation of the union root:
-     * every member thread projects the key under the one shared name, so
-     * one join condition serves all members (engine's suffixed-key OR
-     * degenerates to it). Any other shape: not equivalent (caller drops
-     * the property, loud at demand).
-     */
-    private static boolean equivalentMemberJoins(ClassMapping.Relational r,
-            String propName, LegacyMappingDefinition md, ModelBuilder model) {
-        List<String> canon = new ArrayList<>();
-        for (PropertyMapping pm : r.propertyMappings()) {
-            if (!pm.propertyName().equals(propName)) {
-                continue;
-            }
-            if (!(pm instanceof PropertyMapping.Join j) || j.joins().size() != 1) {
-                return false;
-            }
-            var jd = model.findJoin(j.database(), j.joins().get(0).joinName())
-                    .orElse(null);
-            if (jd == null) {
-                return false;
-            }
-            canon.add(canonicalCondition(jd.operation(),
-                    r.mainTable() == null ? "" : r.mainTable().table()));
-        }
-        return canon.size() > 1 && canon.stream().distinct().count() == 1;
+    /** One routed navigation entry: the target's union-member ORDINAL
+     * (declaration order = concatenate thread order = the engine's
+     * {@code _N} suffix) and the entry's own join. Ordinal {@code -1}
+     * marks a root/sole-set route (the un-routed navigation). */
+    record UnionRoute(int targetOrdinal, PropertyMapping.Join join) {
+    }
+
+    /** Extends-merge identity: (property name, route) — per-set duplicates
+     * of a routed property are distinct mappings. */
+    private static String pmIdentity(PropertyMapping pm) {
+        return pm.propertyName() + ' '
+                + (pm instanceof PropertyMapping.Join j
+                        && j.targetSetId() != null ? j.targetSetId() : "");
     }
 
     /**
-     * The condition with MEMBER-side table names erased (the owning class's
-     * main table stays literal — the anchor both members must join to the
-     * same way) — column-structure identity across member joins.
+     * The ordinal of the member whose set id OR extends-LINEAGE matches
+     * {@code setId}: a re-rooted union ({@code Person[mySet1] extends
+     * [set1]}) is navigated by routes naming the ANCESTOR sets — the
+     * corpus extends-of-union shape. {@code -1} when no member matches.
      */
-    private static String canonicalCondition(RelationalOperation cond, String ownerTable) {
-        return switch (cond) {
-            case RelationalOperation.ColumnRef c -> "col("
-                    + (ownerTable.equals(c.table()) ? ownerTable + "." : "")
-                    + c.column() + ")";
-            case RelationalOperation.TargetColumnRef c -> "tcol(" + c.column() + ")";
-            case RelationalOperation.Literal l -> "lit(" + l.value() + ")";
-            case RelationalOperation.Comparison c -> "cmp("
-                    + canonicalCondition(c.left(), ownerTable)
-                    + " " + c.op() + " " + canonicalCondition(c.right(), ownerTable) + ")";
-            case RelationalOperation.BooleanOp b -> "bool("
-                    + canonicalCondition(b.left(), ownerTable)
-                    + " " + b.op() + " " + canonicalCondition(b.right(), ownerTable) + ")";
-            case RelationalOperation.Group g -> canonicalCondition(g.inner(), ownerTable);
-            case RelationalOperation.IsNull n ->
-                    "isNull(" + canonicalCondition(n.operand(), ownerTable) + ")";
-            case RelationalOperation.IsNotNull n ->
-                    "isNotNull(" + canonicalCondition(n.operand(), ownerTable) + ")";
-            case RelationalOperation.FunctionCall f -> "fn(" + f.name() + ","
-                    + f.args().stream().map(x -> canonicalCondition(x, ownerTable))
-                            .collect(java.util.stream.Collectors.joining(",")) + ")";
-            // any other shape canonicalizes to a UNIQUE token — never
-            // equal across members, so the caller conservatively drops
-            default -> "opaque(" + cond + ")";
-        };
+    private static int memberOrdinalOf(List<String> memberIds,
+            LegacyMappingDefinition md, ModelBuilder model, String setId) {
+        int direct = memberIds.indexOf(setId);
+        if (direct >= 0) {
+            return direct;
+        }
+        for (int i = 0; i < memberIds.size(); i++) {
+            ClassMapping m = findSetById(md, model, memberIds.get(i));
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            while (m instanceof ClassMapping.Relational r
+                    && r.extendsSetId() != null && seen.add(r.extendsSetId())) {
+                if (r.extendsSetId().equals(setId)) {
+                    return i;
+                }
+                m = findSetById(md, model, r.extendsSetId());
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Classify every {@code prop[setId]}-routed class-typed Join PM of
+     * {@code rcm} from its OWN {@code targetSetId} (per-PM fidelity —
+     * audit 11: the name-keyed map's put() lost duplicates and made the
+     * outcome depend on textual PM order). Outcomes per property:
+     * <ul>
+     *   <li>every route hits a member of the target class's union &rarr;
+     *       {@code p.unionRoutes} (ONE navigate, OR over the entries,
+     *       each member-suffixed — engine parity; coverage of ALL members
+     *       is NOT assumed, un-routed members read NULL keys);</li>
+     *   <li>every route hits the target's root/sole set &rarr; the
+     *       un-routed navigation (duplicates dedup at emission);</li>
+     *   <li>anything else (unknown set, non-root non-member set, chained
+     *       join on a routed entry, mixed root+member) &rarr; the property
+     *       DROPS from this synthesis with the reason on the poison
+     *       ledger; demanding it fails loudly.</li>
+     * </ul>
+     */
+    private static void classifyUnionRoutes(LegacyMappingDefinition md,
+            ClassMapping.Relational rcm, ModelBuilder model, Pipeline p) {
+        Map<String, List<PropertyMapping.Join>> routedByProp = new LinkedHashMap<>();
+        for (PropertyMapping pm : rcm.propertyMappings()) {
+            if (pm instanceof PropertyMapping.Join j && j.targetSetId() != null) {
+                routedByProp.computeIfAbsent(j.propertyName(),
+                        k -> new ArrayList<>()).add(j);
+            }
+        }
+        for (var e : routedByProp.entrySet()) {
+            String prop = e.getKey();
+            ClassDefinition owner = model.findClass(rcm.className()).orElse(null);
+            TypeExpression pt = owner == null ? null
+                    : findPropertyTypeDeep(owner, prop, model);
+            String targetClass = pt instanceof TypeExpression.NameRef nr
+                    && model.findClass(nr.name()).isPresent() ? nr.name() : null;
+            ClassMapping.Union tu = targetClass == null ? null
+                    : unionForClass(md, model, targetClass);
+            List<UnionRoute> routes = new ArrayList<>();
+            String poison = null;
+            for (PropertyMapping.Join j : e.getValue()) {
+                ClassMapping set = findSetById(md, model, j.targetSetId());
+                if (set == null) {
+                    poison = "unknown mapping set '" + j.targetSetId() + "'";
+                    break;
+                }
+                int ord = tu == null ? -1
+                        : memberOrdinalOf(tu.memberSetIds(), md, model,
+                                j.targetSetId());
+                // engine rootClassMappingByClass: the * set, or the class's
+                // SOLE set (sole-ness judged in the OWNING mapping's scope)
+                boolean rootOrSole = set instanceof ClassMapping.Relational tr
+                        && (tr.root() || md.classMappings().stream()
+                                .filter(x -> x.className().equals(tr.className()))
+                                .count() == 1);
+                if (ord >= 0) {
+                    if (j.joins().size() != 1) {
+                        poison = "union member set '" + j.targetSetId()
+                                + "' via a CHAINED join — per-member chained"
+                                + " joins are not supported yet";
+                        break;
+                    }
+                    routes.add(new UnionRoute(ord, j));
+                } else if (rootOrSole) {
+                    routes.add(new UnionRoute(-1, j));
+                } else {
+                    poison = "NON-root mapping set '" + j.targetSetId()
+                            + "' — multi-set dispatch outside union members"
+                            + " is a roadmap feature";
+                    break;
+                }
+            }
+            if (poison == null && routes.stream()
+                    .anyMatch(r -> r.targetOrdinal() >= 0)
+                    && routes.stream().anyMatch(r -> r.targetOrdinal() < 0)) {
+                poison = "MIXED root-set and union-member routes";
+            }
+            if (poison != null) {
+                p.droppedRoutedProps.add(prop);
+                model.mappingPoisons.merge(
+                        md.qualifiedName() + "::" + rcm.className(),
+                        "property '" + prop + "' routes to " + poison
+                                + "; the property is dropped from this synthesis",
+                        (a, b) -> a + "; " + b);
+                continue;
+            }
+            if (routes.stream().allMatch(r -> r.targetOrdinal() < 0)) {
+                continue;   // root routes = the un-routed navigation
+            }
+            p.unionRoutes.put(prop, routes);
+        }
     }
 
     /**
@@ -657,13 +750,18 @@ public final class MappingNormalizer {
         ClassMapping.Relational flatParent = parentRcm.extendsSetId() != null
                 ? flattenExtends(parentRcm, bySetId, chain, md)
                 : parentRcm;
-        // Parent PMs first (declaration order), child overrides by property name.
+        // Parent PMs first (declaration order), child overrides by property
+        // IDENTITY = (name, targetSetId): a routed property's per-set
+        // duplicates (employees[set1], employees[set2]) are DISTINCT
+        // mappings — merging by name alone silently dropped all but the
+        // last route (audit 11: the extends-of-union-Firm corpus family
+        // then navigated one member only).
         LinkedHashMap<String, PropertyMapping> merged = new LinkedHashMap<>();
         for (PropertyMapping pm : flatParent.propertyMappings()) {
-            merged.put(pm.propertyName(), pm);
+            merged.put(pmIdentity(pm), pm);
         }
         for (PropertyMapping pm : child.propertyMappings()) {
-            merged.put(pm.propertyName(), pm);
+            merged.put(pmIdentity(pm), pm);
         }
         // prop[setId] routes do NOT inherit: the parent's set ids name the
         // PARENT mapping's sets — a child that re-unions its own members
@@ -789,90 +887,11 @@ public final class MappingNormalizer {
     private static FunctionDefinition synthesizeClassMapping(LegacyMappingDefinition md,
                                                             ClassMapping cm,
                                                             ModelBuilder model) {
-        if (cm instanceof ClassMapping.Relational r && !r.propertyTargetSets().isEmpty()) {
-            // prop[setId] routing: a ROOT-set target is the un-routed
-            // navigation we synthesize anyway. A target set that is a MEMBER
-            // of a union-rooted class also routes: the navigation targets
-            // the union root (the resolver widens union pipelines with the
-            // demanded keys), and the per-member duplicate PMs collapse to
-            // one — sound only when every duplicate's join is structurally
-            // identical modulo its member table (the shared-key form; the
-            // engine's per-member suffixed keys are the heterogeneous rung).
-            // Anything else drops from this synthesis (never silently
-            // navigate the root set instead) with the reason on the class
-            // poison ledger; DEMANDING it fails loudly at no-binding.
-            java.util.Set<String> dropped = new java.util.LinkedHashSet<>();
-            java.util.Set<String> collapse = new java.util.LinkedHashSet<>();
-            Map<String, String> partial = new LinkedHashMap<>();
-            for (var e : r.propertyTargetSets().entrySet()) {
-                ClassMapping target = md.classMappings().stream()
-                        .filter(x -> e.getValue().equals(setIdOf(x)))
-                        .findFirst().orElse(null);
-                // engine rootClassMappingByClass: the * set, or the class's
-                // SOLE set (explicit ids without * are the corpus norm)
-                boolean rootTarget = target instanceof ClassMapping.Relational tr
-                        && (tr.root() || md.classMappings().stream()
-                                .filter(x -> x.className().equals(tr.className()))
-                                .count() == 1);
-                if (target != null && rootTarget) {
-                    continue;
-                }
-                boolean unionMember = target != null && md.classMappings().stream()
-                        .anyMatch(x -> x instanceof ClassMapping.Union u
-                                && u.memberSetIds().contains(e.getValue()));
-                if (unionMember && equivalentMemberJoins(r, e.getKey(), md, model)) {
-                    collapse.add(e.getKey());
-                    continue;
-                }
-                // PARTIAL route: ONE set-qualified PM to one union member —
-                // kept; the navigate emits member-suffixed key reads so only
-                // the routed member's thread matches (un-routed members read
-                // NULL; the TDSNull goldens). The route survives on the
-                // rebuilt propertyTargetSets for the emission to see.
-                if (unionMember
-                        && r.propertyMappings().stream().filter(pm ->
-                                pm.propertyName().equals(e.getKey())).count() == 1
-                        && unionOrdinalOf(md, model, r.className(),
-                                e.getKey(), e.getValue()) != null) {
-                    partial.put(e.getKey(), e.getValue());
-                    continue;
-                }
-                dropped.add(e.getKey());
-                String reason = "property '" + e.getKey() + "' routes to "
-                        + (target == null
-                                ? "unknown mapping set '" + e.getValue() + "'"
-                                : "NON-root mapping set '" + e.getValue() + "'")
-                        + (unionMember
-                                ? " with per-member joins that differ beyond their"
-                                        + " member table — heterogeneous union keys"
-                                        + " are not supported yet"
-                                : " — multi-set union dispatch is a roadmap feature")
-                        + "; the property is dropped from this synthesis";
-                model.mappingPoisons.merge(
-                        md.qualifiedName() + "::" + cm.className(), reason,
-                        (a, b) -> a + "; " + b);
-            }
-            if (!dropped.isEmpty() || !collapse.isEmpty() || !partial.isEmpty()) {
-                java.util.Set<String> seenCollapsed = new java.util.HashSet<>();
-                List<PropertyMapping> kept = new ArrayList<>();
-                for (PropertyMapping pm : r.propertyMappings()) {
-                    if (dropped.contains(pm.propertyName())) {
-                        continue;
-                    }
-                    if (collapse.contains(pm.propertyName())
-                            && !seenCollapsed.add(pm.propertyName())) {
-                        continue;   // per-member duplicates: first wins
-                    }
-                    kept.add(pm);
-                }
-                // only the PARTIAL routes survive on the rebuilt map — they
-                // are what the navigate emission member-suffixes
-                cm = new ClassMapping.Relational(r.className(), r.setId(),
-                        r.extendsSetId(), r.root(), r.mainTable(), r.filter(),
-                        r.distinct(), r.groupBy(), r.primaryKey(), kept,
-                        r.sourceUrl(), partial);
-            }
-        }
+        // prop[setId] routing is classified PER-PM (Join.targetSetId) inside
+        // synthTableBackedParts — the name-keyed propertyTargetSets map
+        // cannot distinguish same-named duplicates (audit 11: textual PM
+        // order silently decided the outcome), so no map-driven pre-rewrite
+        // happens here.
         ValueSpecification body = switch (cm) {
             case ClassMapping.Pure pcm       -> synthM2M(md, pcm, model, new HashSet<>());
             case ClassMapping.Relational rcm -> synthRelational(md, rcm, model);
@@ -1555,6 +1574,14 @@ public final class MappingNormalizer {
                         k -> new LinkedHashMap<>()).putAll(en.getValue());
             }
         }
+        // keys demanded by EXTERNAL routed navigations INTO this union
+        // (audit 11: the union body carries every routed key with full
+        // PROVENANCE — the resolver must never re-derive key meaning from
+        // column-name patterns, a real column spelled like a suffix hijacked
+        // the NULL thread)
+        collectInboundRouteKeys(md, model,
+                members.stream().map(MappingNormalizer::setIdOf).toList(),
+                members, srcKeysByOrdinal);
         ValueSpecification union = null;
         int ordinal = -1;
         for (RelationalParts pp : parts) {
@@ -1692,12 +1719,34 @@ public final class MappingNormalizer {
                     || isTemporalClass(targetClassFqn, model)) {
                 continue;
             }
-            ClassMapping.Union targetUnion = null;
-            for (ClassMapping cm : md.classMappings()) {
-                if (cm instanceof ClassMapping.Union u
-                        && u.className().equals(targetClassFqn)) {
-                    targetUnion = u;
+            ClassMapping.Union targetUnion = unionForClass(md, model, targetClassFqn);
+            // Pre-validate the property's entries: any unsupported or
+            // unresolvable entry SKIPS the whole property's lift (poison
+            // reason recorded; demanding the property fails loudly) —
+            // audit 11: a partial lift matched the wrong members, a throw
+            // here poisoned scalar-only union queries.
+            String skipReason = null;
+            for (PropertyMapping.Join j0 : joins.get(prop)) {
+                if (j0.joins().size() != 1) {
+                    skipReason = "a CHAINED member join — per-member chained"
+                            + " joins over unions are not supported yet";
+                    break;
                 }
+                if (j0.targetSetId() != null && (targetUnion == null
+                        || memberOrdinalOf(targetUnion.memberSetIds(), md,
+                                model, j0.targetSetId()) < 0)) {
+                    skipReason = "route '[" + j0.targetSetId() + "]' that is"
+                            + " not a member of the target class's union";
+                    break;
+                }
+            }
+            if (skipReason != null) {
+                model.mappingPoisons.merge(
+                        md.qualifiedName() + "::" + className,
+                        "union navigation '" + prop + "' uses " + skipReason
+                                + "; the property is not lifted",
+                        (a, b) -> a + "; " + b);
+                continue;
             }
             Variable s = new Variable("s");
             Variable t = new Variable("t");
@@ -1711,13 +1760,6 @@ public final class MappingNormalizer {
             for (int k = 0; k < js.size(); k++) {
                 int memberOrd = ords.get(k)[0];
                 PropertyMapping.Join j = js.get(k);
-                if (j.joins().size() != 1) {
-                    throw new com.legend.error.NotImplementedException(
-                            "union member navigation '" + prop + "' uses a"
-                            + " CHAINED join — per-member chained joins over"
-                            + " unions are not supported yet; mapping="
-                            + md.qualifiedName());
-                }
                 JoinChainElement hop = j.joins().get(0);
                 String hopDb = hop.databaseName() != null ? hop.databaseName()
                         : j.database();
@@ -1749,7 +1791,8 @@ public final class MappingNormalizer {
                 srcKeys.computeIfAbsent(memberOrd, x -> new LinkedHashMap<>())
                         .putAll(srcOut);
                 Integer tgtOrd = j.targetSetId() != null && targetUnion != null
-                        ? targetUnion.memberSetIds().indexOf(j.targetSetId())
+                        ? memberOrdinalOf(targetUnion.memberSetIds(), md,
+                                model, j.targetSetId())
                         : null;
                 if (tgtOrd != null && tgtOrd >= 0) {
                     Map<String, String> tgtOut = new LinkedHashMap<>();
@@ -1779,6 +1822,99 @@ public final class MappingNormalizer {
                     new LambdaFunction(List.of(s, t), List.of(orCond)), srcKeys));
         }
         return lifts;
+    }
+
+    /**
+     * Scan the mapping closure (own + includes) for routed Join PMs whose
+     * target set is one of this union's members; add each route's
+     * MEMBER-side key columns to {@code sink} as
+     * ordinal &rarr; (base &rarr; {@code base_ordinal}) so the union body
+     * projects them with full provenance.
+     */
+    private static void collectInboundRouteKeys(LegacyMappingDefinition md,
+            ModelBuilder model, List<String> memberIds,
+            List<ClassMapping.Relational> members,
+            Map<Integer, Map<String, String>> sink) {
+        List<LegacyMappingDefinition> closure = new ArrayList<>();
+        collectMappingClosure(md, model, closure, new java.util.HashSet<>());
+        for (LegacyMappingDefinition m : closure) {
+            for (ClassMapping cm : m.classMappings()) {
+                if (!(cm instanceof ClassMapping.Relational rcm)) {
+                    continue;
+                }
+                for (PropertyMapping pm : rcm.propertyMappings()) {
+                    if (!(pm instanceof PropertyMapping.Join j)
+                            || j.targetSetId() == null
+                            || j.joins().size() != 1) {
+                        continue;
+                    }
+                    int ord = memberOrdinalOf(memberIds, md, model,
+                            j.targetSetId());
+                    if (ord < 0) {
+                        continue;
+                    }
+                    JoinChainElement hop = j.joins().get(0);
+                    String db = hop.databaseName() != null
+                            ? hop.databaseName() : j.database();
+                    DatabaseDefinition.JoinDefinition jd =
+                            model.findJoin(db, hop.joinName()).orElse(null);
+                    if (jd == null) {
+                        continue;   // loud at the route's own emission
+                    }
+                    String memberTable = members.get(ord).mainTable().table();
+                    java.util.Set<String> cols = new LinkedHashSet<>();
+                    collectColumnsOfTable(jd.operation(), memberTable, cols);
+                    for (String c : cols) {
+                        sink.computeIfAbsent(ord, k -> new LinkedHashMap<>())
+                                .put(c, c + "_" + ord);
+                    }
+                }
+            }
+        }
+    }
+
+    /** {@code md} plus its includes, transitively. */
+    private static void collectMappingClosure(LegacyMappingDefinition md,
+            ModelBuilder model, List<LegacyMappingDefinition> out,
+            java.util.Set<String> seen) {
+        if (!seen.add(md.qualifiedName())) {
+            return;
+        }
+        out.add(md);
+        for (com.legend.parser.element.MappingInclude inc : md.includes()) {
+            model.findLegacyMapping(inc.mappingPath())
+                    .ifPresent(m -> collectMappingClosure(m, model, out, seen));
+        }
+    }
+
+    /** Column names of {@code table} referenced anywhere in the condition. */
+    private static void collectColumnsOfTable(RelationalOperation cond,
+            String table, java.util.Set<String> out) {
+        switch (cond) {
+            case RelationalOperation.ColumnRef c -> {
+                if (table.equals(c.table())) {
+                    out.add(c.column());
+                }
+            }
+            case RelationalOperation.Comparison c -> {
+                collectColumnsOfTable(c.left(), table, out);
+                collectColumnsOfTable(c.right(), table, out);
+            }
+            case RelationalOperation.BooleanOp b -> {
+                collectColumnsOfTable(b.left(), table, out);
+                collectColumnsOfTable(b.right(), table, out);
+            }
+            case RelationalOperation.Group g ->
+                    collectColumnsOfTable(g.inner(), table, out);
+            case RelationalOperation.IsNull n ->
+                    collectColumnsOfTable(n.operand(), table, out);
+            case RelationalOperation.IsNotNull n ->
+                    collectColumnsOfTable(n.operand(), table, out);
+            case RelationalOperation.FunctionCall f ->
+                    f.args().forEach(x -> collectColumnsOfTable(x, table, out));
+            default -> {
+            }
+        }
     }
 
     /** Whether the class (or a superclass) carries a temporal stereotype. */
@@ -2320,13 +2456,17 @@ public final class MappingNormalizer {
         // carries filter/distinct/groupBy — those row semantics already live
         // in the class pipeline; any OTHER non-plain view stays a wall.
         String backingView;
-        /** PARTIAL union routes: property name -> the target's union-member
-         * ORDINAL. The navigate for such a property emits its target-side
-         * key reads MEMBER-SUFFIXED ({@code FirmID_1}, the engine's own
-         * spelling) so only the routed member's thread carries the key —
-         * the other threads read NULL (partial-union golden: un-routed
-         * members must not match). */
-        final Map<String, Integer> partialUnionRouteOrdinal = new LinkedHashMap<>();
+        /** Routed class-typed navigations: property -> per-PM route entries
+         * (target union-member ordinal + join), classified from each PM's
+         * OWN {@code Join.targetSetId} (audit 11: the name-keyed map lost
+         * same-named duplicates). ONE navigate per property emits the OR
+         * over ALL entries, each target-side member-suffixed
+         * ({@code FirmID_1}) so exactly the routed members' threads match. */
+        final Map<String, List<UnionRoute>> unionRoutes = new LinkedHashMap<>();
+        /** Routed properties DROPPED from this synthesis (unresolvable or
+         * unsupported route shape — reason on the poison ledger). Their PMs
+         * emit nothing and bind no field; demand fails loudly. */
+        final Set<String> droppedRoutedProps = new HashSet<>();
         Pipeline(ValueSpecification expr) { this.expr = expr; }
 
         /** The translator-facing view of this pipeline (seam b). */
@@ -2385,18 +2525,7 @@ public final class MappingNormalizer {
         Pipeline p = new Pipeline(new AppliedFunction("tableReference",
                 List.of(new PackageableElementPtr(mainDb), new CString(mainTable))));
         p.backingView = backingView;
-        // PARTIAL union routes surviving the pre-check ride the rebuilt
-        // propertyTargetSets: prop -> member setId. Resolve each to the
-        // member ORDINAL for the navigate emission (a root-set or
-        // non-union entry resolves to null and stays un-suffixed).
-        for (var e : rcm.propertyTargetSets().entrySet()) {
-            Integer ord = unionOrdinalOf(md, model, rcm.className(),
-                    e.getKey(), e.getValue());
-            if (ord != null && rcm.propertyMappings().stream().filter(pm ->
-                    pm.propertyName().equals(e.getKey())).count() == 1) {
-                p.partialUnionRouteOrdinal.put(e.getKey(), ord);
-            }
-        }
+        classifyUnionRoutes(md, rcm, model, p);
 
         // Pass 1: structural chain emission (Join, JoinTerminalColumn,
         // LocalProperty-wrapping-JTC). Class-typed Join PMs to mapped
@@ -2502,6 +2631,9 @@ public final class MappingNormalizer {
 
         Map<String, KeyExpression> fields = new LinkedHashMap<>();
         for (PropertyMapping pm : rcm.propertyMappings()) {
+            if (p.droppedRoutedProps.contains(pm.propertyName())) {
+                continue;   // dropped route: no binding (loud at demand)
+            }
             CtorField cf = translatePmToField(pm, rowBind, tableScope, mainTable, p,
                     rcm.className(), md, model, !rcm.groupBy().isEmpty());
             fields.put(cf.name(), new KeyExpression(cf.value(), false, cf.isLocal()));
@@ -2747,6 +2879,11 @@ public final class MappingNormalizer {
                                                String mainTable, Variable rowBind,
                                                ModelBuilder model, LegacyMappingDefinition md) {
         switch (pm) {
+            case PropertyMapping.Join j when p.droppedRoutedProps
+                    .contains(j.propertyName()) -> {
+                // routed property dropped at classification (poisoned
+                // reason on the ledger) — no hops, no slot, no binding
+            }
             case PropertyMapping.Join j -> emitJoinChain(p, j.joins(), j.database(),
                     j.propertyName(), ownerClassFqn, mainDb, mainTable,
                     rowBind, model, md, /*classTypedTerminus*/ true);
@@ -2949,25 +3086,85 @@ public final class MappingNormalizer {
                         "tableReference", List.of(
                                 new PackageableElementPtr(hopDb),
                                 new CString(targetTable)));
-                // PARTIAL union route: the target-side key reads suffix with
-                // the routed member's ordinal (engine `<col>_<i>`); only that
-                // member's thread carries the key, the others read NULL. The
-                // target-rows arg projects the suffixed schema so the cond
-                // types (conform by emission).
-                Integer unionOrd = propName == null ? null
-                        : p.partialUnionRouteOrdinal.get(propName);
+                // ROUTED union navigation: ONE navigate carries the OR over
+                // ALL the property's route entries, each entry's condition
+                // built from ITS OWN join with target-side reads suffixed by
+                // ITS member ordinal (engine `<col>_<i>`) — exactly the
+                // routed members' threads carry keys, the others read NULL.
+                List<UnionRoute> routes = propName == null ? null
+                        : p.unionRoutes.get(propName);
                 LambdaFunction navCond = condLambda;
-                if (unionOrd != null) {
-                    Map<String, String> keyCols = new LinkedHashMap<>();
-                    ValueSpecification suffixed =
-                            suffixTargetReads(cond, t, unionOrd, keyCols);
-                    navCond = new LambdaFunction(List.of(s, t), List.of(suffixed));
+                if (routes != null) {
+                    ValueSpecification orCond = null;
+                    // suffixed name -> [base column, its route's db, its
+                    // route's landing table] (the typing arg needs the kind)
+                    Map<String, String[]> keyCols = new LinkedHashMap<>();
+                    for (UnionRoute route : routes) {
+                        JoinChainElement rHop = route.join().joins().get(0);
+                        String rDb = rHop.databaseName() != null
+                                ? rHop.databaseName() : route.join().database();
+                        DatabaseDefinition.JoinDefinition rJd =
+                                model.findJoin(rDb, rHop.joinName()).orElseThrow(() ->
+                                        new com.legend.error.ModelException(
+                                                com.legend.error.LegendCompileException
+                                                        .Phase.NORMALIZE,
+                                                "Join '" + rHop.joinName()
+                                                + "' not found in db '" + rDb
+                                                + "'; PM='" + propName + "', mapping="
+                                                + md.qualifiedName()));
+                        String rTgt = determineTargetTable(rJd.operation(),
+                                prevTable, rHop.joinName(), propName, 1,
+                                md.qualifiedName());
+                        Map<String, ValueSpecification> rScope = new LinkedHashMap<>();
+                        rScope.put(prevTable, prevAlias == null
+                                ? s : new AppliedProperty(s, prevAlias));
+                        if (!rTgt.equals(prevTable)) {
+                            rScope.put(rTgt, t);
+                        }
+                        ValueSpecification rCond = RelOpTranslator.translate(
+                                rJd.operation(), rScope, t, null,
+                                RelOpTranslator.PipelineView.NONE);
+                        Map<String, String> out = new LinkedHashMap<>();
+                        rCond = suffixTargetReads(rCond, t, route.targetOrdinal(), out);
+                        for (var en : out.entrySet()) {
+                            keyCols.put(en.getValue(),
+                                    new String[]{en.getKey(), rDb, rTgt});
+                        }
+                        orCond = orCond == null ? rCond
+                                : new AppliedFunction("or", List.of(orCond, rCond));
+                    }
+                    navCond = new LambdaFunction(List.of(s, t), List.of(orCond));
+                    // typing arg: the suffixed key schema off the FIRST
+                    // landing table; a key whose base column is absent
+                    // there types as a NULL cast of ITS OWN landing
+                    // table's column kind (audit 11: heterogeneous target
+                    // key names across routed members)
                     List<ColSpec> keySpecs = new ArrayList<>();
                     for (var en : keyCols.entrySet()) {
                         Variable kr = new Variable("kr");
-                        keySpecs.add(new ColSpec(en.getValue(),
-                                new LambdaFunction(List.of(kr), List.of(
-                                        new AppliedProperty(kr, en.getKey()))), null));
+                        String base = en.getValue()[0];
+                        ValueSpecification read;
+                        if (findPhysicalColumn(hopDb, targetTable, base, model) != null) {
+                            read = new AppliedProperty(kr, base);
+                        } else {
+                            DatabaseDefinition.ColumnDefinition cd =
+                                    findPhysicalColumn(en.getValue()[1],
+                                            en.getValue()[2], base, model);
+                            String kind = cd == null ? null : pureKindOf(cd.dataType());
+                            if (kind == null) {
+                                throw new com.legend.error.NotImplementedException(
+                                        "routed union key column '" + base
+                                        + "' has no derivable pure kind on table '"
+                                        + en.getValue()[2] + "'; mapping="
+                                        + md.qualifiedName());
+                            }
+                            read = new AppliedFunction("cast", List.of(
+                                    new PureCollection(List.of()),
+                                    new com.legend.parser.spec.TypeAnnotation.Named(
+                                            new TypeExpression.NameRef(kind))));
+                        }
+                        keySpecs.add(new ColSpec(en.getKey(),
+                                new LambdaFunction(List.of(kr), List.of(read)), null));
                     }
                     targetRows = new AppliedFunction("project",
                             List.of(targetRows, new ColSpecArray(keySpecs)));
