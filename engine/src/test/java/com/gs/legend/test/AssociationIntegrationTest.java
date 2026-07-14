@@ -427,10 +427,15 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("Filter to-many: multiple matches still returns person once")
         void testFilterToManyMultipleMatchesOnePerson() throws SQLException {
-            // Alice has addresses in NYC and LA — filter city in ('NYC', 'LA') should return Alice once
+            // ROW SEMANTICS (engine testInNegated golden — a bare LEFT JOIN
+            // with the predicate in WHERE): Alice's NYC and LA address rows
+            // BOTH survive, so Alice appears once PER MATCHING CHILD. The
+            // parent-dedup reading belongs to explicit exists(), not to an
+            // implicit crossing.
             var r = exec(fullModel(), "test::Person.all()->filter({p|$p.addresses.city == 'NYC' || $p.addresses.city == 'LA'})->project(~[name:p|$p.name])");
             var names = colStr(r, 0);
-            assertEquals(1, Collections.frequency(names, "Alice"), "Alice should appear exactly once");
+            assertEquals(2, Collections.frequency(names, "Alice"),
+                    "one row per matching address");
         }
     }
 
@@ -1229,7 +1234,8 @@ class AssociationIntegrationTest {
                 "test::Person.all()->filter({p|$p.addresses.city != ''})->project(~[firm:p|$p.firm.legalName, name:p|$p.name])->groupBy(~firm, ~cnt:x|$x.name:y|$y->count())->sort(~firm->ascending())");
             assertEquals(3, r.rowCount());
             assertEquals("Acme", colStr(r, 0).get(0));
-            assertEquals(Integer.valueOf(2), colInt(r, 1).get(0));
+            // Alice contributes one row PER qualifying address (2) + Bob (1)
+            assertEquals(Integer.valueOf(3), colInt(r, 1).get(0));
             assertEquals("Globex", colStr(r, 0).get(1));
             assertEquals(Integer.valueOf(1), colInt(r, 1).get(1));
             assertEquals(Integer.valueOf(1), colInt(r, 1).get(2));

@@ -10,6 +10,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -715,9 +716,12 @@ class JsonMappingIntegrationTest {
             String sql = plan.sql();
             System.out.println("Filter Scalar + Project JSON Association SQL: " + sql);
 
-            // Should use EXISTS for to-many association filtering
-            assertTrue(sql.contains("EXISTS"), "Should use EXISTS for to-many association filter");
-            assertTrue(sql.contains("LEFT OUTER JOIN"), "Should use LEFT OUTER JOIN for projection");
+            // Implicit to-many crossing in the filter lowers to a bare LEFT JOIN shared
+            // with the projection, predicate in WHERE — engine row semantics (corpus
+            // testInNegated golden): one row per matching child; explicit exists()
+            // keeps the semi-join.
+            assertFalse(sql.contains("EXISTS"), "Implicit crossing should not use EXISTS");
+            assertTrue(sql.contains("LEFT OUTER JOIN"), "Should use LEFT OUTER JOIN shared by filter and projection");
 
             var result = queryService.execute(pureModel, query, "test::TestRuntime", connection);
 

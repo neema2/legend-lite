@@ -335,16 +335,18 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
     // ==================== Pure Association Navigation Tests ====================
     // These tests start with REAL Pure queries that navigate through associations.
-    // The compiler automatically generates EXISTS for to-many navigation in
-    // filters.
+    // An implicit to-many crossing in a filter lowers to a bare LEFT JOIN with the
+    // predicate in WHERE — engine row semantics (corpus testInNegated golden): one
+    // row per matching child; explicit exists() keeps the semi-join.
 
     /**
      * THE KEY TEST: Starting from a real Pure query with association navigation.
-     * 
+     *
      * Pure query: model::Person.all()->filter({p | $p.addresses.street == '123 Main St'})
-     * 
+     *
      * This navigates through the to-many 'addresses' association.
-     * The compiler should automatically generate EXISTS to prevent row explosion.
+     * The implicit crossing lowers to a bare LEFT JOIN with the predicate in WHERE,
+     * yielding one row per matching child.
      */
     @Test
     @DisplayName("Pure: model::Person.all()->filter({p | $p.addresses.street == '...'})")
@@ -362,9 +364,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         System.out.println("Pure Query: " + pureQuery);
         System.out.println("Generated SQL: " + sql);
 
-        // THEN: SQL uses EXISTS (not INNER JOIN) to prevent row explosion
-        assertTrue(sql.contains("EXISTS"), "Should generate EXISTS for to-many navigation");
-        assertTrue(sql.contains("SELECT 1"), "Should use SELECT 1 in EXISTS subquery");
+        // THEN: SQL uses a bare LEFT JOIN with the predicate in WHERE (no EXISTS)
+        // — engine row semantics (corpus testInNegated golden)
+        assertTrue(sql.contains("LEFT OUTER JOIN"), "Should generate LEFT OUTER JOIN for implicit to-many crossing");
+        assertFalse(sql.contains("EXISTS"), "Implicit crossing should NOT use EXISTS");
         assertFalse(sql.contains("INNER JOIN"), "Should NOT use INNER JOIN for filtering");
 
         // AND: Execute via QueryService and verify results
@@ -499,17 +502,19 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // THE ULTIMATE TEST: Both filter and project navigate through associations!
         //
         // Query: Find people who have an address in New York,
-        // and show their name plus ALL their addresses
+        // and show their name plus their addresses
         //
-        // Expected behavior:
-        // - Filter: EXISTS (find people with at least one NY address)
-        // - Project: LEFT JOIN (get all their addresses for display)
+        // Expected behavior — engine row semantics (corpus testInNegated golden):
+        // the filter and the projection share ONE LEFT JOIN on the same association
+        // head, and the WHERE predicate filters the exploded rows. One row per
+        // MATCHING child; explicit exists() would keep the semi-join.
         //
         // John has addresses in New York and Boston
         // Jane has address in Chicago
         // Bob has address in Detroit
         //
-        // Result: Only John (has NY address), but show BOTH his addresses
+        // Result: only John's NEW YORK address row survives the WHERE
+        // (his Boston join row fails city = 'New York')
 
         String pureQuery = """
                 model::Person.all()
@@ -522,10 +527,9 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         System.out.println("Pure Query (filter + project through association): " + pureQuery);
         System.out.println("Generated SQL: " + sql);
 
-        // THEN: SQL should have BOTH EXISTS (for filter) AND LEFT JOIN (for projection)
-        assertTrue(sql.contains("EXISTS"), "Should use EXISTS for filter");
-        assertTrue(sql.contains("LEFT OUTER JOIN"), "Should use LEFT OUTER JOIN for projection");
-        assertTrue(sql.contains("SELECT 1"), "EXISTS subquery should use SELECT 1");
+        // THEN: SQL has a single shared LEFT JOIN with the predicate in WHERE (no EXISTS)
+        assertFalse(sql.contains("EXISTS"), "Implicit crossing should NOT use EXISTS");
+        assertTrue(sql.contains("LEFT OUTER JOIN"), "Should use LEFT OUTER JOIN shared by filter and projection");
 
         // AND: Execute via QueryService and verify results
         var result = executeRelation(pureQuery);
@@ -538,13 +542,13 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
             System.out.println("  " + firstName + ": " + street + ", " + city);
         }
 
-        // John is the only one with a New York address
-        // But we should see BOTH of John's addresses (row multiplication from LEFT
-        // JOIN)
-        assertEquals(2, results.size(), "Should have 2 rows (both of John's addresses)");
+        // John is the only one with a New York address. The join is SHARED, so the
+        // WHERE filters the exploded rows: only his New York row remains (the Boston
+        // join row fails the predicate).
+        assertEquals(1, results.size(), "Should have 1 row (John's New York address only)");
         assertTrue(results.stream().allMatch(r -> r.startsWith("John:")), "All results should be John");
         assertTrue(results.stream().anyMatch(r -> r.contains("New York")), "Should include NY address");
-        assertTrue(results.stream().anyMatch(r -> r.contains("Boston")), "Should include Boston address");
+        assertTrue(results.stream().noneMatch(r -> r.contains("Boston")), "Boston join row fails the WHERE predicate");
     }
 
     @Test
@@ -561,9 +565,11 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         System.out.println("Pure Query (filter city, project street): " + pureQuery);
         System.out.println("Generated SQL: " + sql);
 
-        // Should have EXISTS for filter AND LEFT JOIN for projection
-        assertTrue(sql.contains("EXISTS"), "Should use EXISTS for filter");
-        assertTrue(sql.contains("LEFT OUTER JOIN"), "Should use LEFT OUTER JOIN for projection");
+        // Single shared LEFT JOIN with the predicate in WHERE (no EXISTS) — engine
+        // row semantics (corpus testInNegated golden): one row per matching child;
+        // explicit exists() keeps the semi-join
+        assertFalse(sql.contains("EXISTS"), "Implicit crossing should NOT use EXISTS");
+        assertTrue(sql.contains("LEFT OUTER JOIN"), "Should use LEFT OUTER JOIN shared by filter and projection");
 
         // Execute via QueryService and verify results
         var result = executeRelation(pureQuery);
@@ -576,6 +582,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         // Jane is the only one with a Chicago address, and she has only 1 address
+        // (one matching join row → one result row)
         assertEquals(1, results.size(), "Should have 1 row");
         assertTrue(results.getFirst().startsWith("Jane:"), "Should be Jane");
         assertTrue(results.getFirst().contains("789 Main Rd"), "Should show Jane's street");
@@ -704,25 +711,27 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
-    @DisplayName("Pure: Verify EXISTS SQL structure for association filter")
+    @DisplayName("Pure: Verify LEFT JOIN SQL structure for implicit association filter")
     void testPureAssociationExistsSqlStructure() {
-        // GIVEN: A Pure query with association navigation
+        // GIVEN: A Pure query with an IMPLICIT association crossing in the filter
+        // (no explicit ->exists()). Engine row semantics (corpus testInNegated
+        // golden): one row per matching child; explicit exists() keeps the semi-join.
         String pureQuery = "model::Person.all()->filter({p | $p.addresses.street == 'Test St'})->project(~[firstName:p|$p.firstName])";
 
         // WHEN: We compile
         String sql = generateSql(pureQuery);
         System.out.println("SQL Structure Test: " + sql);
 
-        // THEN: Verify the SQL structure matches expected EXISTS pattern
+        // THEN: Verify the SQL structure matches the bare LEFT JOIN pattern
         // Expected form:
-        // SELECT ... FROM "T_PERSON" AS "t0"
-        // WHERE EXISTS (SELECT 1 FROM "T_ADDRESS" AS "sub0"
-        // WHERE ("sub0"."PERSON_ID" = "t0"."ID" AND "sub0"."STREET" = 'Test St'))
+        // SELECT ... FROM T_PERSON AS t0
+        // LEFT OUTER JOIN T_ADDRESS AS t1 ON t0.ID = t1.PERSON_ID
+        // WHERE t1.STREET = 'Test St'
 
-        assertTrue(sql.contains("EXISTS"), "Must use EXISTS");
-        assertTrue(sql.contains("SELECT 1"), "Subquery must use SELECT 1");
-        assertTrue(sql.contains("T_ADDRESS"), "Must reference T_ADDRESS in subquery");
-        assertTrue(sql.contains("PERSON_ID"), "Must have correlation on PERSON_ID");
+        assertTrue(sql.contains("LEFT OUTER JOIN"), "Must use LEFT OUTER JOIN for implicit crossing");
+        assertFalse(sql.contains("EXISTS"), "Implicit crossing must NOT use EXISTS");
+        assertTrue(sql.contains("T_ADDRESS"), "Must reference T_ADDRESS in the join");
+        assertTrue(sql.contains("PERSON_ID"), "Must join on PERSON_ID");
         assertTrue(sql.contains("STREET"), "Must filter on STREET");
         assertTrue(sql.contains("'Test St'"), "Must include the literal value");
     }

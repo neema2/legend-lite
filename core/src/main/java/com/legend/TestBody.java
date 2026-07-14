@@ -12,6 +12,7 @@ import com.legend.parser.SpecParser;
 import com.legend.parser.spec.AppliedFunction;
 import com.legend.parser.spec.AppliedProperty;
 import com.legend.parser.spec.CBoolean;
+import com.legend.parser.spec.CInteger;
 import com.legend.parser.spec.CString;
 import com.legend.parser.spec.LambdaFunction;
 import com.legend.parser.spec.PackageableElementPtr;
@@ -85,7 +86,54 @@ public final class TestBody {
     }
 
     /** A bound {@code execute(...)}: the lazy query handle + its context. */
-    private record ExecHandle(LambdaFunction query, ValueSpecification mappingRef) {
+    private record ExecHandle(LambdaFunction query, ValueSpecification mappingRef,
+            boolean relationRooted) {
+
+        ExecHandle(LambdaFunction query, ValueSpecification mappingRef) {
+            this(query, mappingRef, true);
+        }
+    }
+
+    /** at(k>0) on a relation-rooted Result.values: the envelope has ONE
+     * element — collapsing would silently ignore the index. */
+    private static String envelopeIndexError(java.util.List<AppliedFunction> wrappers) {
+        for (AppliedFunction w : wrappers) {
+            if (w.function().equals("at") && w.parameters().size() == 2
+                    && !(w.parameters().get(1) instanceof CInteger k
+                            && k.value().longValue() == 0)) {
+                return "Result.values->at(k>0) on a relation-rooted query"
+                        + " — the values envelope holds one TDS";
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The engine's {@code Result.values} shape depends on the QUERY ROOT:
+     * a relation/TDS query's values holds ONE element (the TDS — the
+     * {@code ->at(0)}/{@code ->toOne()} wrappers are envelope peels), while
+     * a class- or scalar-rooted query's values IS the row collection and
+     * {@code at(k)} means the k-th VALUE (audit 9: the blind collapse
+     * silently read all objects). Decided from the USER-LEVEL type — the
+     * query typed BEFORE store resolution.
+     */
+    private static boolean relationRooted(ExecHandle h, ModelContext ctx,
+            ImportScope imports, String runtimeFqn) {
+        try {
+            ValueSpecification spliced = splice(h, runtimeFqn);
+            LambdaFunction wrapped = new LambdaFunction(List.of(), List.of(spliced));
+            ValueSpecification resolved = com.legend.compiler.NameResolver
+                    .resolveQuery(wrapped, imports, ctx.elementFqns());
+            List<TypedSpec> body = new SpecCompiler(ctx).typeQueryBody(resolved);
+            TypedSpec root = body.get(body.size() - 1);
+            while (root instanceof com.legend.compiler.spec.typed.TypedFrom fr) {
+                root = fr.source();
+            }
+            return root.info().type()
+                    instanceof com.legend.compiler.element.type.Type.RelationType;
+        } catch (RuntimeException e) {
+            return true;   // typing fails loudly at evaluation either way
+        }
     }
 
     /**
@@ -141,7 +189,11 @@ public final class TestBody {
                     && af.parameters().get(0) instanceof CString name) {
                 ValueSpecification raw = af.parameters().get(1);
                 // let r = execute(...).values / .values->at(0) / ->toOne():
-                // the wrappers are the Result envelope — peel to the handle
+                // for a RELATION-rooted query these wrappers are the Result
+                // envelope and peel to the handle; for a class/scalar root
+                // values IS the collection and at/toOne are REAL selections
+                // (audit 9) — those bind as ordinary lazy lets instead.
+                java.util.List<AppliedFunction> wrappers = new ArrayList<>();
                 while (true) {
                     if (raw instanceof AppliedProperty pw
                             && pw.property().equals("values")) {
@@ -154,6 +206,7 @@ public final class TestBody {
                             && (fw.parameters().get(0) instanceof AppliedProperty
                                     || fw.parameters().get(0) instanceof AppliedFunction ifn
                                             && isExecuteCall(ifn))) {
+                        wrappers.add(fw);
                         raw = fw.parameters().get(0);
                         continue;
                     }
@@ -170,6 +223,21 @@ public final class TestBody {
                         return new Outcome.Unsupported(
                                 "execute() whose query argument is not a lambda");
                     }
+                    h = new ExecHandle(h.query(), h.mappingRef(),
+                            relationRooted(h, ctx, imports, runtimeFqn));
+                    if (!wrappers.isEmpty() && !h.relationRooted()) {
+                        // class/scalar root: at/toOne are REAL selections —
+                        // bind the whole wrapped chain as a lazy let (the
+                        // inline-execute substitution splices the query and
+                        // keeps the wrappers in place)
+                        lets.put(name.value(), substitute(af.parameters().get(1),
+                                lets, handles, runtimeFqn));
+                        continue;
+                    }
+                    String bad = envelopeIndexError(wrappers);
+                    if (bad != null) {
+                        return new Outcome.Unsupported(bad);
+                    }
                     handles.put(name.value(), h);
                 } else {
                     lets.put(name.value(), rhs);
@@ -183,7 +251,7 @@ public final class TestBody {
                     return new Outcome.Unsupported("assert form '" + af.function()
                             + "/" + af.parameters().size() + "' is not supported yet");
                 }
-                if (ADVISORY_MARKER.equals(failure)) {
+                if (failure == ADVISORY_MARKER) {
                     advisory++;
                     continue;
                 }
@@ -229,7 +297,11 @@ public final class TestBody {
                     return UNSUPPORTED_MARKER;
                 }
                 if (containsSqlText(args.get(0))) {
-                    return ADVISORY_MARKER;   // predicate over golden SQL text
+                    // predicate PURELY over golden SQL text is advisory; a
+                    // MIXED assert (sql text AND value reads) must not have
+                    // its value conjuncts silently skipped (audit 9)
+                    return containsValuesRead(args.get(0))
+                            ? UNSUPPORTED_MARKER : ADVISORY_MARKER;
                 }
                 Object v = evalScalar(args.get(0), lets, handles, ctx, imports,
                         runtimeFqn, conn);
@@ -242,10 +314,14 @@ public final class TestBody {
                 if (args.size() < 2) {
                     return UNSUPPORTED_MARKER;
                 }
-                // golden-SQL spellings are advisory: our SQL is DuckDB's
+                // golden-SQL spellings are advisory: our SQL is DuckDB's.
+                // A MIXED side (sql text AND value reads) is loud instead —
+                // skipping its value conjuncts would be silent (audit 9).
                 if (containsSqlText(args.get(args.size() - 1))
                         || containsSqlText(args.get(0))) {
-                    return ADVISORY_MARKER;
+                    return containsValuesRead(args.get(0))
+                            || containsValuesRead(args.get(args.size() - 1))
+                            ? UNSUPPORTED_MARKER : ADVISORY_MARKER;
                 }
                 // legacy 3-arg H2-compat: (legacySql, h2Sql, actualSql) —
                 // all SQL text, advisory
@@ -253,6 +329,12 @@ public final class TestBody {
                     return ADVISORY_MARKER;
                 }
                 Eval e = eval(args.get(0), lets, handles, ctx, imports, runtimeFqn, conn);
+                if (emptinessUnverifiable && e.size() == 0) {
+                    // seeds failed: an EMPTY expectation would hollow-PASS
+                    // against the empty tables (audit 9 — the assertSize-0/
+                    // assertEmpty guard alone missed the equals spellings)
+                    return UNSUPPORTED_MARKER;
+                }
                 Eval a = eval(args.get(1), lets, handles, ctx, imports, runtimeFqn, conn);
                 boolean equal = compare(e, a, /* ordered */ true);
                 if (af.function().equals("assertNotEquals")) {
@@ -266,6 +348,9 @@ public final class TestBody {
                     return UNSUPPORTED_MARKER;
                 }
                 Eval e = eval(args.get(0), lets, handles, ctx, imports, runtimeFqn, conn);
+                if (emptinessUnverifiable && e.size() == 0) {
+                    return UNSUPPORTED_MARKER;   // see the assertEquals guard
+                }
                 Eval a = eval(args.get(1), lets, handles, ctx, imports, runtimeFqn, conn);
                 return compare(e, a, /* ordered */ false) ? null
                         : "assertSameElements: expected " + e.render() + ", got " + a.render();
@@ -312,6 +397,25 @@ public final class TestBody {
     private static boolean isSqlText(ValueSpecification v) {
         return v instanceof AppliedFunction af
                 && (af.function().equals("sqlRemoveFormatting") || af.function().equals("sql"));
+    }
+
+    /** A Result VALUES read anywhere in the expression — the assert also
+     * verifies row data, so it must not be swallowed as advisory. */
+    private static boolean containsValuesRead(ValueSpecification v) {
+        if (v instanceof AppliedProperty ap && ap.property().equals("values")) {
+            return true;
+        }
+        if (v instanceof AppliedFunction af) {
+            for (ValueSpecification p2 : af.parameters()) {
+                if (containsValuesRead(p2)) {
+                    return true;
+                }
+            }
+        }
+        if (v instanceof AppliedProperty ap2) {
+            return containsValuesRead(ap2.receiver());
+        }
+        return false;
     }
 
     /** A golden-SQL read ANYWHERE in the expression (nested spellings:
@@ -525,7 +629,8 @@ public final class TestBody {
         // ORDER POLICY at STRING granularity: a makeString over an
         // unsorted chain joined the DB's incidental row order — compare
         // the split parts as a multiset.
-        if (actual.joinSep() != null && e.size() == 1 && a.size() == 1
+        if (actual.joinSep() != null && !actual.joinSep().isEmpty()
+                && e.size() == 1 && a.size() == 1
                 && e.get(0) instanceof String es2 && a.get(0) instanceof String as2
                 && !es2.equals(as2)) {
             List<String> ep = new ArrayList<>(List.of(
@@ -538,6 +643,40 @@ public final class TestBody {
                 return ep.equals(ap);
             }
             return false;
+        }
+        // ROW COHESION (audit 9): an ORDERED compare's multiset fallback
+        // (the order policy) must match ROW TUPLES, not loose cells —
+        // cross-row cell shuffles must not compare equal. assertSameElements
+        // stays a loose pool: the corpus itself writes its flat expected
+        // sets column-grouped (testGreaterThanWithOptionalProperty), so
+        // loose multiset IS that assert's reference semantics.
+        if (ordered
+                && actual.result() instanceof com.legend.exec.ExecutionResult.Tabular tab
+                && tab.columns().size() > 1
+                && !(expected.result()
+                        instanceof com.legend.exec.ExecutionResult.Tabular)
+                && e.size() == a.size() && a.size() % tab.columns().size() == 0) {
+            int w = tab.columns().size();
+            List<List<Object>> ep = chunk(e, w);
+            List<List<Object>> ap = chunk(a, w);
+            for (List<Object> row : ep) {
+                int hit = -1;
+                for (int i = 0; i < ap.size(); i++) {
+                    boolean all = true;
+                    for (int j = 0; j < w && all; j++) {
+                        all = wireEquals(row.get(j), ap.get(i).get(j));
+                    }
+                    if (all) {
+                        hit = i;
+                        break;
+                    }
+                }
+                if (hit < 0) {
+                    return false;
+                }
+                ap.remove(hit);
+            }
+            return true;
         }
         List<Object> pool = new ArrayList<>(a);
         for (Object x : e) {
@@ -554,6 +693,14 @@ public final class TestBody {
             pool.remove(hit);
         }
         return true;
+    }
+
+    private static List<List<Object>> chunk(List<Object> flat, int w) {
+        List<List<Object>> out = new ArrayList<>(flat.size() / w);
+        for (int i = 0; i + w <= flat.size(); i += w) {
+            out.add(new ArrayList<>(flat.subList(i, i + w)));
+        }
+        return out;
     }
 
     /** Column-name + row-grid equality (rows ordered iff the chain sorts). */
@@ -744,15 +891,14 @@ public final class TestBody {
             }
             return false;
         }
-        // TEMPORAL through the Any-carrier: a mixed-collection literal's
+        // TEMPORAL through the Any-carrier: a mixed-collection LITERAL's
         // date decodes as its JSON STRING (the variant carrier is untyped
-        // for temporals) — bridge by PARSING, value-exact. Every other
-        // string-vs-nonstring compare stays strictly unequal.
+        // for temporals) — bridge by PARSING, value-exact, and ONLY in the
+        // expected-string vs actual-temporal direction: an ACTUAL that
+        // comes back as a string where the engine returns a Date is a
+        // TYPING BUG this compare must catch (audit 9), never bridge.
         if (e instanceof String es && isTemporal(a)) {
             return temporalEquals(es, a);
-        }
-        if (a instanceof String as && isTemporal(e)) {
-            return temporalEquals(as, e);
         }
         if (e instanceof Map<?, ?> em && a instanceof Map<?, ?> am) {
             if (!em.keySet().equals(am.keySet())) {
@@ -801,8 +947,11 @@ public final class TestBody {
                 && ap.property().equals("values")) {
             return splice(handles.get(var.name()), runtimeFqn);
         }
-        // $r.values->at(0) / ->toOne(): the values envelope of a TDS query
-        // holds ONE TDS — the wrapper collapses
+        // $r.values->at(0) / ->toOne(): for a RELATION-rooted query the
+        // values envelope holds ONE TDS — the wrapper collapses. For a
+        // class/scalar root, values IS the collection: keep the wrapper as
+        // a REAL selection over the spliced chain (audit 9). at(k>0) on a
+        // relation root is loud — the envelope has one element.
         if (v instanceof AppliedFunction af
                 && (af.function().equals("at") || af.function().equals("toOne"))
                 && !af.parameters().isEmpty()
@@ -810,7 +959,20 @@ public final class TestBody {
                 && ap2.receiver() instanceof Variable var2
                 && handles.containsKey(var2.name())
                 && ap2.property().equals("values")) {
-            return splice(handles.get(var2.name()), runtimeFqn);
+            ExecHandle h2 = handles.get(var2.name());
+            if (!h2.relationRooted()) {
+                List<ValueSpecification> ps = new ArrayList<>(af.parameters());
+                ps.set(0, splice(h2, runtimeFqn));
+                return new AppliedFunction(af.function(), ps);
+            }
+            if (af.function().equals("at") && af.parameters().size() == 2
+                    && !(af.parameters().get(1) instanceof CInteger k2
+                            && k2.value().longValue() == 0)) {
+                throw new IllegalStateException("Result.values->at(k>0) on a"
+                        + " relation-rooted query — the values envelope holds"
+                        + " one TDS");
+            }
+            return splice(h2, runtimeFqn);
         }
         return switch (v) {
             case Variable var when lets.containsKey(var.name()) -> lets.get(var.name());
@@ -879,14 +1041,18 @@ public final class TestBody {
 
     /** The chain's OUTER tail carries a sort — its order is a contract. */
     private static boolean endsInSort(ValueSpecification v) {
+        // names compare by SIMPLE name uniformly — an FQN-spelled sort must
+        // still count as sorted (audit 9: raw-name matching left FQN
+        // spellings silently lenient)
         if (!(v instanceof AppliedFunction af)) {
             return false;
         }
-        if (af.function().equals("sort") || af.function().equals("sortBy")) {
+        String fn = simpleName(af.function());
+        if (fn.equals("sort") || fn.equals("sortBy")) {
             return true;
         }
         // order survives through order-preserving tails only
-        return switch (af.function()) {
+        return switch (fn) {
             case "map", "limit", "take", "drop", "slice", "rows", "toOne", "at",
                     "makeString", "toCSV", "toString", "from" ->
                     !af.parameters().isEmpty() && endsInSort(af.parameters().get(0));

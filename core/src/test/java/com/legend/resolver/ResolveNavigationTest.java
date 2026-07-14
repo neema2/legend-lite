@@ -359,13 +359,17 @@ class ResolveNavigationTest {
     }
 
     @Test
-    @DisplayName("implicit EXISTS: filter crossing a to-many with NO exists() call (plangen F1)")
-    void implicitExistsOnToManyCrossing() throws SQLException {
+    @DisplayName("implicit to-many crossing in a filter — LEFT JOIN row semantics (engine testIn golden)")
+    void filterCrossingJoinsWithRowSemantics() throws SQLException {
+        // AUDIT 9: the engine's golden for an implicit crossing is a BARE
+        // LEFT JOIN with the predicate in WHERE — result rows DUPLICATE the
+        // parent per matching child (the distinct-subselect semi-join is
+        // reserved for EXPLICIT exists/isEmpty calls).
         String sql = sqlOf("m::Firm.all()->filter(f|$f.staff.name == 'Ann')"
                 + "->project(~[legal: f|$f.legal])->from(m::RT)");
-        assertEquals(1, count(sql, "EXISTS"), sql);
-        assertEquals(0, count(sql, "LEFT OUTER JOIN"), sql);
-        assertEquals(List.of("ACME"), exec(sql));
+        assertEquals(0, count(sql, "EXISTS"), sql);
+        assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
+        assertEquals(List.of("ACME"), exec(sql), "one row per matching child");
     }
 
     @Test
@@ -380,17 +384,17 @@ class ResolveNavigationTest {
     }
 
     @Test
-    @DisplayName("mixed position: filter EXISTS-selects parents, projection explodes ALL their children")
+    @DisplayName("mixed position: filter and projection SHARE the join (merge-by-identity); WHERE filters the exploded rows")
     void mixedPositionSameHead() throws SQLException {
+        // Engine merge-by-identity (§A.1): the filter thread and the
+        // projection thread reference the same association — ONE join; the
+        // filter lands in WHERE over the exploded rows, so only matching
+        // child rows survive.
         String sql = sqlOf("m::Firm.all()->filter(f|$f.staff.name == 'Ann')"
                 + "->project(~[legal: f|$f.legal, who: f|$f.staff.name])->from(m::RT)");
-        assertEquals(1, count(sql, "EXISTS"),
-                "the filter stays EXISTS even though projection forced the join:\n" + sql);
+        assertEquals(0, count(sql, "EXISTS"), sql);
         assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
-        // THE SEMANTIC PIN (audit): ACME qualifies via Ann and explodes ALL
-        // its staff — filter-on-exploded-rows would drop Cat.
-        assertEquals(List.of("ACME|Ann", "ACME|Cat"),
-                exec(sql).stream().sorted().toList());
+        assertEquals(List.of("ACME|Ann"), exec(sql).stream().sorted().toList());
     }
 
     @Test
@@ -441,17 +445,14 @@ class ResolveNavigationTest {
     }
 
     @Test
-    @DisplayName("emptiness leaf over a to-many crossing is REFUSED loud (not ∃-distributive)")
-    void emptinessLeafOverToManyCrossingIsLoud() {
-        var ctx = Compiler.compileModel(MODEL);
-        SpecCompiler specs = new SpecCompiler(ctx);
-        var body = specs.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(
-                "m::Firm.all()->filter(f|$f.staff.name->isEmpty())"
-                        + "->project(~[legal: f|$f.legal])->from(m::RT)")));
-        var e = org.junit.jupiter.api.Assertions.assertThrows(
-                com.legend.error.NotImplementedException.class,
-                () -> new StoreResolver(ctx, specs).resolve(body, null));
-        assertTrue(e.getMessage().contains("staff.name"), e.getMessage());
+    @DisplayName("emptiness leaf over a to-many crossing — row-level IS NULL through the join")
+    void emptinessLeafOverToManyCrossingIsRowLevel() throws SQLException {
+        String sql = sqlOf("m::Firm.all()->filter(f|$f.staff.name->isEmpty())"
+                + "->project(~[legal: f|$f.legal])->from(m::RT)");
+        assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
+        assertEquals(0, count(sql, "EXISTS"), sql);
+        // both ACME staffers have names; no null rows survive
+        assertEquals(List.of(), exec(sql));
     }
 
     @Test
@@ -499,30 +500,28 @@ class ResolveNavigationTest {
     void notEqualCrossingKeepsNegationInsideExists() throws SQLException {
         String sql = sqlOf("m::Firm.all()->filter(f|$f.staff.name != 'Ann')"
                 + "->project(~[legal: f|$f.legal])->from(m::RT)");
-        // TWO exists: the guarded form if(∃children, ∃(¬X), true) — a
-        // negated leaf also admits parents with ZERO children (engine
-        // parity: its LEFT-join null row passes the `or is null` it adds
-        // under `not`). The negation itself stays INSIDE the ∃.
-        assertEquals(2, count(sql, "EXISTS"), sql);
-        assertEquals(0, count(sql, "NOT EXISTS"),
-                "hoisting the ¬ outside the ∃ silently inverts the rows:\n" + sql);
-        // THE DATA PIN: ACME employs Cat (≠ Ann), so ∃(name≠Ann) admits it;
-        // the wrong ¬∃(name=Ann) reading would exclude ACME via Ann.
+        // Engine negation isolation over the JOIN (testInNegated golden:
+        // `NOT X OR <read> IS NULL` over a bare LEFT JOIN): the negation
+        // applies per exploded row, and a NULL crossing read (no child, or
+        // a null child value) passes.
+        assertEquals(0, count(sql, "EXISTS"), sql);
+        assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
+        assertEquals(1, count(sql, "CASE"), sql);
+        // THE DATA PIN: Ann's row fails ¬(name='Ann'), Cat's row passes —
+        // ACME survives once, via Cat.
         assertEquals(List.of("ACME"), exec(sql));
     }
 
     @Test
-    @DisplayName("negated emptiness INSIDE a not-leaf refuses the implicit wrap (¬∃ ≠ ∃¬)")
-    void notOverEmptinessCrossingIsLoud() {
-        var ctx = Compiler.compileModel(MODEL);
-        SpecCompiler specs = new SpecCompiler(ctx);
-        var body = specs.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(
-                "m::Firm.all()->filter(f|!($f.staff.name->isNotEmpty()))"
-                        + "->project(~[legal: f|$f.legal])->from(m::RT)")));
-        var e = org.junit.jupiter.api.Assertions.assertThrows(
-                com.legend.error.NotImplementedException.class,
-                () -> new StoreResolver(ctx, specs).resolve(body, null));
-        assertTrue(e.getMessage().contains("staff.name"), e.getMessage());
+    @DisplayName("negated emptiness over a crossing — row-level through the join")
+    void notOverEmptinessCrossingIsRowLevel() throws SQLException {
+        // not(isNotEmpty(crossing)): the emptiness call substitutes through
+        // the JOIN (row-level IS NOT NULL) and the not applies per row —
+        // both staffers have names, no row survives.
+        String sql = sqlOf("m::Firm.all()->filter(f|!($f.staff.name->isNotEmpty()))"
+                + "->project(~[legal: f|$f.legal])->from(m::RT)");
+        assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
+        assertEquals(List.of(), exec(sql));
     }
 
     @Test

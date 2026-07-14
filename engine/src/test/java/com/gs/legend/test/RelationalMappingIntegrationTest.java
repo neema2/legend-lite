@@ -819,12 +819,14 @@ class RelationalMappingIntegrationTest {
             assertEquals("Alice", r.rows().get(0).get(0).toString());
         }
 
-        @Test @DisplayName("To-many: person with multiple addresses appears once in filter")
+        @Test @DisplayName("To-many: implicit filter crossing duplicates parent (one row per matching child)")
         void testNoRowExplosion() throws SQLException {
-            // Alice has 2 addresses. Filtering by either city should return Alice ONCE
+            // Alice has 2 matching addresses (New York, Boston) → appears twice.
+            // Engine row semantics (corpus testInNegated golden): one row per matching
+            // child; explicit exists() keeps the semi-join.
             var r = exec(model, "model::Person.all()->filter({p|$p.addresses.city == 'New York' || $p.addresses.city == 'Boston'})->project(~[name:p|$p.name])");
             long aliceCount = colStr(r, 0).stream().filter("Alice"::equals).count();
-            assertEquals(1, aliceCount, "Alice should appear exactly once despite matching 2 addresses");
+            assertEquals(2, aliceCount, "Alice should appear once per matching address (LEFT JOIN row semantics)");
         }
 
         @Test @DisplayName("Project through to-many (LEFT JOIN)")

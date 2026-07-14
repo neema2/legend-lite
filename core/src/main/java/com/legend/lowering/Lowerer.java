@@ -229,6 +229,25 @@ public final class Lowerer {
      * those): declared multiplicity above one, or an ARRAY-producing body
      * (a one-column row's cells is a single-element LIST, not a scalar).
      */
+    /** Every element is a property read off the SAME row variable — the
+     * Typer's TDSRow cells synthesis, the one shape that prints TDSNull. */
+    private static boolean isRowCells(com.legend.compiler.spec.typed.TypedCollection tc) {
+        String var = null;
+        for (TypedSpec e : tc.elements()) {
+            if (!(e instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                    && pa.source()
+                            instanceof com.legend.compiler.spec.typed.TypedVariable v)) {
+                return false;
+            }
+            if (var == null) {
+                var = v.name();
+            } else if (!var.equals(v.name())) {
+                return false;
+            }
+        }
+        return !tc.elements().isEmpty();
+    }
+
     private static boolean isCollectionMapper(
             com.legend.compiler.spec.typed.TypedLambda ml) {
         // Collection mapper iff the lowered value is a SQL LIST, which is
@@ -2141,16 +2160,19 @@ public final class Lowerer {
                 letBindings.put(l.name(), v);
                 yield v;
             }
-            // makeString/joinStrings over a STATIC collection (TDS row
-            // cells, mixed literals): stringify each element HERE — pure
-            // print semantics, 'TDSNull' for an empty cell — so the list
+            // makeString/joinStrings over TDS ROW CELLS (the Typer's
+            // row-var $r.values synthesis: per-column reads off ONE row
+            // variable): stringify each element HERE — the engine's TDSRow
+            // print convention, 'TDSNull' for an empty cell — so the list
             // never takes the Any-collection JSON carrier (whose VARCHAR
-            // cast quotes strings).
+            // cast quotes strings). Keyed to the CELLS SHAPE (audit 9): an
+            // arbitrary user collection must not print 'TDSNull'.
             case TypedNativeCall n
                     when (isFamily(n, "makeString") || isFamily(n, "joinStrings"))
                     && !n.args().isEmpty()
                     && n.args().get(0)
-                            instanceof com.legend.compiler.spec.typed.TypedCollection tc -> {
+                            instanceof com.legend.compiler.spec.typed.TypedCollection tc
+                    && isRowCells(tc) -> {
                 List<SqlExpr> elems = new ArrayList<>(tc.elements().size());
                 for (TypedSpec e : tc.elements()) {
                     elems.add(SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE,

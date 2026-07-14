@@ -933,13 +933,16 @@ class RelationalMappingCompositionTest {
             assertEquals("Alice", colStr(r, 0).get(0));
         }
 
-        @Test @DisplayName("filter to-many: person with multiple addresses appears once")
+        @Test @DisplayName("filter to-many: implicit crossing duplicates parent (one row per matching child)")
         void filterToManyNoExplosion() throws SQLException {
+            // Alice has 2 matching addresses (New York, Boston) → appears twice.
+            // Engine row semantics (corpus testInNegated golden): one row per matching
+            // child; explicit exists() keeps the semi-join.
             setupToManyData();
             var r = exec(assocToManyModel(),
                     "model::Person.all()->filter({p|$p.addresses.city == 'New York' || $p.addresses.city == 'Boston'})->project(~[name:p|$p.name])");
             long aliceCount = colStr(r, 0).stream().filter("Alice"::equals).count();
-            assertEquals(1, aliceCount, "Alice should appear once despite matching 2 addresses");
+            assertEquals(2, aliceCount, "Alice should appear once per matching address (LEFT JOIN row semantics)");
         }
 
         @Test @DisplayName("person with no addresses still appears (LEFT JOIN)")

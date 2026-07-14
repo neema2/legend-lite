@@ -608,8 +608,11 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
         }
 
         @Test
-        @DisplayName("Association filter generates EXISTS (not INNER JOIN)")
+        @DisplayName("Association filter generates bare LEFT JOIN with predicate in WHERE (not EXISTS)")
         void testExistsViaAssociationFilter() throws SQLException {
+            // Implicit to-many crossing in a filter lowers to a bare LEFT JOIN with the
+            // predicate in WHERE — engine row semantics (corpus testInNegated golden):
+            // one row per matching child; explicit exists() keeps the semi-join.
             String pureQuery = """
                     model::Person.all()
                         ->filter({p | $p.addresses.city == 'New York'})
@@ -618,19 +621,23 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
 
             String sql = generateSql(pureQuery);
 
-            assertTrue(sql.contains("EXISTS"));
+            assertTrue(sql.contains("LEFT OUTER JOIN"));
+            assertFalse(sql.contains("EXISTS"));
             assertFalse(sql.contains("INNER JOIN"));
 
             var result = executeRelation(pureQuery);
 
+            // John has exactly one New York address → one row
             assertEquals(1, result.rows().size());
             assertEquals("John", result.rows().get(0).get(0));
         }
 
         @Test
-        @DisplayName("JOIN with multiple matches doesn't explode rows (EXISTS)")
+        @DisplayName("Implicit crossing duplicates parent: one row per matching child")
         void testNoRowExplosion() throws SQLException {
-            // John has 2 addresses but should appear only once
+            // John has 2 matching addresses (New York, Boston) → appears twice.
+            // Engine row semantics (corpus testInNegated golden): one row per matching
+            // child; explicit exists() keeps the semi-join.
             String pureQuery = """
                     model::Person.all()
                         ->filter({p | $p.addresses.city == 'New York'
@@ -645,7 +652,7 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
                     .filter(row -> "John".equals(row.get(0)))
                     .count();
 
-            assertEquals(1, johnCount, "John should appear exactly once with EXISTS");
+            assertEquals(2, johnCount, "John should appear once per matching address (LEFT JOIN row semantics)");
         }
 
         // ==================== Explicit join() Tests ====================

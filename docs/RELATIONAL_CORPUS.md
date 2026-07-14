@@ -120,11 +120,11 @@ runner does not yet recognize (accounted, not skipped silently).
 | aggregationAware/test/rewrite | 13 | 0 | 0 | 0 | 13 |
 | aggregationAware/test/rewrite/NOP | 15 | 0 | 0 | 0 | 15 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
-| calendarAggregation/tests | 92 | 0 | 0 | 88 | 4 |
+| calendarAggregation/tests | 92 | 0 | 0 | 87 | 5 |
 | executionPlan/tests | 109 | 0 | 0 | 8 | 101 |
-| functions/tests | 241 | 74 | 4 | 121 | 42 |
+| functions/tests | 241 | 76 | 2 | 121 | 42 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 0 | 1 |
-| functions/tests/projection | 154 | 52 | 5 | 68 | 29 |
+| functions/tests/projection | 154 | 54 | 5 | 66 | 29 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 5 | 0 | 0 | 0 | 5 |
 | graphFetch/tests/union | 1 | 0 | 0 | 0 | 1 |
@@ -156,7 +156,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/distinct | 18 | 14 | 0 | 4 | 0 |
 | tests/mapping/dynaJoin | 5 | 3 | 1 | 1 | 0 |
 | tests/mapping/embedded | 63 | 37 | 2 | 14 | 10 |
-| tests/mapping/enumeration | 26 | 6 | 5 | 12 | 3 |
+| tests/mapping/enumeration | 26 | 6 | 4 | 13 | 3 |
 | tests/mapping/filter | 9 | 4 | 0 | 5 | 0 |
 | tests/mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 |
@@ -178,7 +178,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **459** | 27 | 968 | 838 |
+| **total** | 2292 | **463** | 24 | 966 | 839 |
 
 ### mapping walls (dropped at assembly)
 
@@ -403,7 +403,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testPymtdDateRange [calendarAggregation/tests]: unknown function 'pymtd'
 - ERROR testPyqtdDateRange [calendarAggregation/tests]: unknown function 'pyqtd'
 - ERROR testPytdDateRange [calendarAggregation/tests]: unknown function 'pytd'
-- ERROR testPywaDateRange [calendarAggregation/tests]: unknown function 'pywa'
+- SHAPE testPywaDateRange [calendarAggregation/tests]: assert form 'assertEquals/2' is not supported yet
 - ERROR testPywtdDateRange [calendarAggregation/tests]: unknown function 'pywtd'
 - ERROR testQtdDateRange [calendarAggregation/tests]: unknown function 'qtd'
 - ERROR testReportenddayDateRange [calendarAggregation/tests]: unknown function 'reportEndDay'
@@ -595,10 +595,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testConcatenateFlatWithOtherProperty [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - SHAPE testConcatenateWithPostFilteredGroupBy [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testConcatenateWithPreFilteredGroupBy [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testExistsToManyPropertyWithAndFilterAndLiteralConditionsDeep [functions/tests]: navigation through class-typed slot property 'employees' is not supported yet
+- ERROR testExistsToManyPropertyWithAndFilterAndLiteralConditionsDeep [functions/tests]: filter predicate references column 'employees_locations', unresolvable even after isolation
 - SHAPE testComplexOrExistsToManyProperty [functions/tests]: unsupported statement: map
-- FAIL testInNegated [functions/tests]: assertSize: expected 10, got 5
-- FAIL testContainsNegated [functions/tests]: assertSize: expected 10, got 5
 - SHAPE testDupsFilterProject [functions/tests]: unsupported statement: println
 - SHAPE testDupsFilterNoProjection [functions/tests]: unsupported statement: println
 - ERROR testExistsWithEmbedded [functions/tests]: 'testMappingEmbeddedWithFirmDistinct' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
@@ -609,8 +607,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testWithProjectGroupByRemoveDupsTwo [functions/tests]: unsupported statement: println
 - SHAPE testNestedExistsOne [functions/tests]: unsupported statement: println
 - ERROR testNestedNotExists [functions/tests]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
-- ERROR testIsEmptyNested [functions/tests]: navigation through class-typed slot property 'employees' is not supported yet
-- ERROR testIsNotEmpty [functions/tests]: navigation through class-typed slot property 'employees' is not supported yet
+- ERROR testIsEmptyNested [functions/tests]: filter predicate references column 'employees_locations', unresolvable even after isolation
+- ERROR testIsNotEmpty [functions/tests]: a scalar query has no row scope for $_r0.employees_locations
 - ERROR testAssociationOneLevelDeep [functions/tests]: a scalar query has no row scope for $_r0.firm_employees
 - ERROR testAssociationTwoLevelDeep [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
 - ERROR testAssociationThreeLevelDeep [functions/tests]: multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet
@@ -746,14 +744,12 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSortByLambdaDeepOptional [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - SHAPE testSortByLambda_QueryWithParameters_Plan [functions/tests]: no execute(|...) call
 - SHAPE testLoadCsv [functions/tests/loadCsvToDbTable]: unsupported statement: meta::relational::functions::toDDL::dropAndCreateTableInDb
-- ERROR testTwoSubAggregationSameProperty [functions/tests/projection]: no scalar lowering registered for resolved overload 'meta::pure::functions::collection::count' with 1 parameter(s)
-- ERROR testProjectQualifierContainingAggregationWithSubAgg [functions/tests/projection]: no scalar lowering registered for resolved overload 'meta::pure::functions::collection::count' with 1 parameter(s)
-- ERROR testDeepSubAggregation [functions/tests/projection]: multi-hop navigation employees.address.name through an embedded/slot head is not supported yet
+- ERROR testDeepSubAggregation [functions/tests/projection]: aggregate 'meta::pure::functions::collection::count' over the multi-hop to-many navigation employees.address.name is not supported yet
 - ERROR testSubAggregationWithIf [functions/tests/projection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - ERROR testSubAggregationWithJoinStringsOrderBy [functions/tests/projection]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
 - SHAPE testSubAggregationWithDeepAndOverlap [functions/tests/projection]: unsupported statement: println
 - ERROR testSubAggregationWithDeepAndOverlap_WithColVar [functions/tests/projection]: project expects ~[…] column specifications
-- ERROR testSubAggregationWithDeep [functions/tests/projection]: multi-hop navigation employees.locations.place through an embedded/slot head is not supported yet
+- ERROR testSubAggregationWithDeep [functions/tests/projection]: aggregate 'meta::pure::functions::collection::count' over the multi-hop to-many navigation employees.locations.place is not supported yet
 - FAIL testDateAggregationWithMax [functions/tests/projection]: assertSize: expected 3, got 7
 - ERROR testIsDistinctSubAggregation [functions/tests/projection]: no overload of 'meta::pure::functions::collection::isDistinct' accepts 1 argument(s)
 - ERROR testAssociationMixed [functions/tests/projection]: a scalar query has no row scope for $_r0.firm_employees
@@ -1671,7 +1667,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProjectionWithEnum [tests/mapping/enumeration]: unknown function 'columnValues'
 - ERROR testProjectionWithEnumUsingLambda [tests/mapping/enumeration]: unknown function 'columnValues'
 - ERROR testProjectionWithEnumAndFunctionsUsingLambda [tests/mapping/enumeration]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- FAIL testInQueryWithEnum [tests/mapping/enumeration]: assertEquals: expected CONTRACT, got [CONTRACT, CONTRACT]
+- ERROR testInQueryWithEnum [tests/mapping/enumeration]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: subqueries in lambda expressions are not supported
 - FAIL testAggregationFunctionWithEnum [tests/mapping/enumeration]: assertEquals: expected [CONTRACT, 1, CONTRACT, 1, FULL_TIME, 1], got [CONTRACT, 2, FULL_TIME, 1]
 - ERROR testProjectionWithInheritedEnum [tests/mapping/enumeration]: unknown function 'columnValues'
 - ERROR testProjectionWithEnumThroughAssociation [tests/mapping/enumeration]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
@@ -2076,7 +2072,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testAssociationMixedDeep [tests/query]: unsupported statement: println
 - ERROR testTwoAssociationsToManyDeep [tests/query]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
 - ERROR testTwoAssociationsToManyDeepWithOr [tests/query]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
-- ERROR testAssociationToManyWithTwoSeparateExists [tests/query]: navigation through class-typed slot property 'employees' is not supported yet
+- ERROR testAssociationToManyWithTwoSeparateExists [tests/query]: scalar lowering not yet implemented for TypedSerializeGraph
 - ERROR testTwoAssociationsToOneDeep [tests/query]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - FAIL testWithParameterToClassNestedSelect [tests/query]: assertSize: expected 0, got 1
 - ERROR testExistsWithQualifierOnleftSide [tests/query]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)

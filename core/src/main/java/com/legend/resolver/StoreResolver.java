@@ -684,12 +684,35 @@ public final class StoreResolver {
             case TypedSortBy sb -> isObjectSpace(sb.source());
             case TypedNativeCall c when isFirstLike(c) ->
                     isObjectSpace(c.args().get(0));
+            case TypedNativeCall c when isStaticAt(c) ->
+                    isObjectSpace(c.args().get(0));
+            case TypedNativeCall c when isClassToOne(c) ->
+                    isObjectSpace(c.args().get(0));
             case TypedNativeCall c when isClassDistinct(c) ->
                     isObjectSpace(c.args().get(0));
             case TypedNativeCall c when classSortOf(c) != null ->
                     isObjectSpace(c.args().get(0));
             default -> false;
         };
+    }
+
+    /** {@code at(coll, k)} with a LITERAL index — class-space slice. */
+    private static boolean isStaticAt(TypedNativeCall c) {
+        return c.args().size() == 2
+                && "meta::pure::functions::collection::at"
+                        .equals(c.callee().qualifiedName())
+                && c.args().get(1)
+                        instanceof com.legend.compiler.spec.typed.TypedCInteger;
+    }
+
+    /** {@code toOne(instances)}: multiplicity coercion over a class
+     * collection — PASS-THROUGH in the pipeline (the engine raises on
+     * N&ne;1; here the value compare sees all N and fails loud — a
+     * documented, weaker-but-never-silent stand-in). */
+    private static boolean isClassToOne(TypedNativeCall c) {
+        return c.args().size() == 1
+                && "meta::pure::functions::multiplicity::toOne"
+                        .equals(c.callee().qualifiedName());
     }
 
     private static final String FIRST_FQN = "meta::pure::functions::collection::first";
@@ -874,6 +897,24 @@ public final class StoreResolver {
                         nc.info());
                 continue;
             }
+            if (cur instanceof TypedNativeCall nc && isClassToOne(nc)) {
+                cur = nc.args().get(0);
+                continue;
+            }
+            if (cur instanceof TypedNativeCall nc && isStaticAt(nc)) {
+                // at(k) over instances = the k-th row: slice(k, k+1)
+                long k = ((com.legend.compiler.spec.typed.TypedCInteger)
+                        nc.args().get(1)).value().longValue();
+                cur = new TypedSlice(nc.args().get(0),
+                        new TypedCInteger(k, com.legend.compiler.element.type
+                                .ExprType.one(com.legend.compiler.element.type
+                                        .Type.Primitive.INTEGER)),
+                        new TypedCInteger(k + 1, com.legend.compiler.element.type
+                                .ExprType.one(com.legend.compiler.element.type
+                                        .Type.Primitive.INTEGER)),
+                        nc.info());
+                continue;
+            }
             TypedSortBy asSort = classSortOf(cur);
             if (asSort != null) {
                 cur = asSort;
@@ -937,7 +978,9 @@ public final class StoreResolver {
                 new java.util.LinkedHashMap<>();
         for (TypedSpec op : ops) {
             if (op instanceof TypedFilter f) {
-                scanLambda(f.predicate(), filterPaths);
+                for (TypedSpec b : f.predicate().body()) {
+                    memberScan(b, f.predicate().parameters().get(0), cs, filterPaths);
+                }
             }
             if (op instanceof TypedSortBy sb) {
                 for (TypedSpec b : sb.key().body()) {
@@ -995,22 +1038,6 @@ public final class StoreResolver {
             TypedSpec headBinding = cs.bindings().get(path.get(0));
             if (headBinding == null) {
                 continue;   // association heads (below)
-            }
-            // Filter-ONLY TO-MANY nav paths take the implicit-EXISTS route
-            // (same guard as the association loop below): materializing the
-            // slot would LEFT-JOIN-explode the class root — the reference
-            // semantics is EXISTS-then-select-parents, and the exploded
-            // rows would duplicate every matching parent object.
-            boolean navProjectionPosition = projectionPaths.stream()
-                    .anyMatch(pp -> pp.size() >= 2 && pp.get(0).equals(path.get(0)));
-            boolean navHeadToMany = ctx.findProperty(cs.classFqn(), path.get(0))
-                    .map(pr -> !(pr.multiplicity()
-                            instanceof com.legend.compiler.element.type
-                                    .Multiplicity.Bounded b
-                            && Integer.valueOf(1).equals(b.upper())))
-                    .orElse(false);
-            if (!navProjectionPosition && navHeadToMany) {
-                continue;
             }
             // OTHERWISE per-leaf dispatch (V1 §D.5): a leaf mapped by the
             // embedded partial reads the PARENT row — no demand; any other
@@ -1151,17 +1178,13 @@ public final class StoreResolver {
                 continue;   // 1-hop, or embedded/slot heads (substitution-side)
             }
             String head = path.get(0);
-            // Filter-ONLY TO-MANY paths take the implicit-EXISTS route; a
-            // projection-position to-many path joins with ROW EXPLOSION
-            // (the unanimous reference semantics). A TO-ONE head always gets
-            // its flat LEFT join even though ExistsSub material exists for it
-            // (that material serves only explicit emptiness calls).
-            boolean projectionPosition = projectionPaths.stream()
-                    .anyMatch(pp -> pp.size() >= 2 && pp.get(0).equals(head));
-            if (!projectionPosition && existsSubs.containsKey(head)
-                    && existsSubs.get(head).toMany()) {
-                continue;
-            }
+            // EVERY to-many crossing joins with ROW EXPLOSION — filter
+            // position included (engine testInNegated golden: a bare LEFT
+            // JOIN whose surviving rows DUPLICATE the parent value; the
+            // distinct-subselect semi-join is reserved for EXPLICIT
+            // exists/isEmpty calls, whose paths are 1-hop and never reach
+            // this loop). AUDIT 9: the previous filter-only EXISTS diversion
+            // was set-correct but cardinality-wrong.
             ClassSource parent = cs;
             String parentPrefix = "";
             for (int hop = 0; hop + 1 < path.size(); hop++) {
@@ -1278,7 +1301,7 @@ public final class StoreResolver {
         // aggregate column per demand. Each aggregate node then reads its
         // column off the joined row; no row explosion reaches the
         // projection, and the aggregate itself runs IN the database.
-        java.util.Map<TypedSpec, String> aggReads =
+        java.util.Map<TypedSpec, Substitution.AggRead> aggReads =
                 new java.util.IdentityHashMap<>();
         java.util.List<AssocJoin> aggAssocJoins = new ArrayList<>();
         for (var entry : aggDemands.entrySet()) {
@@ -1401,7 +1424,8 @@ public final class StoreResolver {
                                     .Bounded.ONE));
             ord = 0;
             for (AggDemand d : entry.getValue()) {
-                aggReads.put(d.node(), prefix + "agg_" + ord++);
+                aggReads.put(d.node(), new Substitution.AggRead(
+                        prefix + "agg_" + ord++, isCountFamily(d.node())));
             }
         }
         m = new Pipelines.Materialized(withJoins, m.slotPrefixes(), m.stripped());
@@ -1912,12 +1936,19 @@ public final class StoreResolver {
         for (String name : java.util.List.of("average", "mean", "sum", "max",
                 "min", "joinStrings", "percentile", "median",
                 "stdDevPopulation", "stdDevSample",
-                "variancePopulation", "varianceSample")) {
+                "variancePopulation", "varianceSample", "count", "size")) {
             for (var f : com.legend.builtin.Pure.nativeFunctionsAt(name)) {
                 out.add(f.qualifiedName());
             }
         }
         return out;
+    }
+
+    /** COUNT over no children is pure 0 — the LEFT join delivers NULL. */
+    private static boolean isCountFamily(com.legend.compiler.spec.typed.TypedNativeCall nc) {
+        String q = nc.callee().qualifiedName();
+        return q.equals("meta::pure::functions::collection::count")
+                || q.equals("meta::pure::functions::collection::size");
     }
 
     /** One aggregate call over a to-many association path in projection
@@ -1950,6 +1981,22 @@ public final class StoreResolver {
                 }
                 return;   // the path is agg-consumed, not bare
             }
+            // LOUD FALLTHROUGH (audit 9): any other aggregate whose argument
+            // crosses a to-many would bare-demand the path — the join
+            // explodes and the scalar reducer's to-one identity silently
+            // EATS the aggregate. Never silent.
+            if (path != null && path.size() > 2
+                    && isToManyAssocHead(cs, path.get(0))) {
+                throw new NotImplementedException("aggregate '"
+                        + nc.callee().qualifiedName() + "' over the multi-hop"
+                        + " to-many navigation " + String.join(".", path)
+                        + " is not supported yet");
+            }
+            if (path == null && containsToManyCrossing(nc.args().get(0), userVar, cs)) {
+                throw new NotImplementedException("aggregate '"
+                        + nc.callee().qualifiedName() + "' over an expression"
+                        + " containing a to-many navigation is not supported yet");
+            }
         }
         java.util.List<String> path = Substitution.pathOf(n, userVar);
         if (path != null) {
@@ -1960,6 +2007,73 @@ public final class StoreResolver {
         }
         for (TypedSpec c : n.children()) {
             aggScan(c, userVar, cs, aggOut, bareOut);
+        }
+    }
+
+    /** Any {@code $p.<toManyHead>.<...>} read anywhere under {@code n}. */
+    private boolean containsToManyCrossing(TypedSpec n, String userVar, ClassSource cs) {
+        java.util.List<String> path = Substitution.pathOf(n, userVar);
+        if (path != null && path.size() >= 2 && isToManyAssocHead(cs, path.get(0))) {
+            return true;
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(userVar)) {
+            return false;
+        }
+        for (TypedSpec c : n.children()) {
+            if (containsToManyCrossing(c, userVar, cs)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The FILTER-position scan: a bare to-many crossing consumed AS A
+     * COLLECTION by contains/in is set MEMBERSHIP (EXISTS route — engine
+     * testContainsOnToManyProperty golden) and demands only its HEAD's
+     * exists material, never the explosion join; everything else records
+     * bare demand exactly as {@link #consumedPaths}.
+     */
+    private void memberScan(TypedSpec n, String userVar, ClassSource cs,
+                            Set<java.util.List<String>> out) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall mc
+                && mc.args().size() == 2) {
+            String key = mc.callee().signatureKey();
+            boolean isContains = com.legend.builtin.Pure.nativeNamed("contains", key);
+            boolean isIn = com.legend.builtin.Pure.nativeNamed("in", key);
+            if (isContains || isIn) {
+                TypedSpec coll = isContains ? mc.args().get(0) : mc.args().get(1);
+                TypedSpec other = isContains ? mc.args().get(1) : mc.args().get(0);
+                java.util.List<String> cp = coll
+                        instanceof com.legend.compiler.spec.typed.TypedPropertyAccess
+                        ? Substitution.pathOf(coll, userVar) : null;
+                if (cp != null && cp.size() == 2 && isToManyAssocHead(cs, cp.get(0))) {
+                    out.add(java.util.List.of(cp.get(0)));
+                    memberScan(other, userVar, cs, out);
+                    return;
+                }
+            }
+        }
+        // LOUD (audit 9): an aggregate over a to-many crossing in FILTER
+        // position would join-explode and the reducer's to-one identity
+        // silently eats the aggregate (max() > 30 becoming any-match).
+        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall ac
+                && !ac.args().isEmpty()
+                && AGG_FQNS.contains(ac.callee().qualifiedName())
+                && containsToManyCrossing(ac.args().get(0), userVar, cs)) {
+            throw new NotImplementedException("aggregate '"
+                    + ac.callee().qualifiedName() + "' over a to-many"
+                    + " navigation in FILTER position is not supported yet");
+        }
+        java.util.List<String> path = Substitution.pathOf(n, userVar);
+        if (path != null) {
+            out.add(path);
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(userVar)) {
+            return;
+        }
+        for (TypedSpec c : n.children()) {
+            memberScan(c, userVar, cs, out);
         }
     }
 
@@ -2315,7 +2429,7 @@ public final class StoreResolver {
                                       Map<String, Substitution.AssocSub> assocs,
                                       Set<String> assocEnds,
                                       Map<String, Substitution.ExistsSub> existsSubs,
-                                      Map<TypedSpec, String> aggReads,
+                                      Map<TypedSpec, Substitution.AggRead> aggReads,
                                       boolean filterPosition,
                                       String freshRowVar, TypedLambda userLambda) {
         return new Substitution(new Substitution.Target(
@@ -2324,7 +2438,13 @@ public final class StoreResolver {
                 (com.legend.compiler.element.type.Type.RelationType)
                         m.pipeline().info().type(),
                 m.stripped(), m.slotPrefixes(), assocs, assocEnds, existsSubs,
-                aggReads, isNotEmptyCallee(), filterPosition, false));
+                aggReads, isNotEmptyCallee(), equalCallee(), filterPosition, false));
+    }
+
+    /** Any registered equal overload — membership-crossing emission. */
+    private com.legend.compiler.element.TypedFunction equalCallee() {
+        var fns = ctx.findFunction("equal");
+        return fns.isEmpty() ? null : fns.get(0);
     }
 
     /** Any registered isNotEmpty overload — the lowerer dispatches by family. */

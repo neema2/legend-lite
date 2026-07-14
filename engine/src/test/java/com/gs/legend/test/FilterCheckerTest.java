@@ -231,13 +231,17 @@ public class FilterCheckerTest extends AbstractDatabaseTest {
         }
 
         @Test
-        @DisplayName("filter via association with contains")
+        @DisplayName("filter via association with contains (collection membership)")
         void testFilterViaAssociationContains() throws SQLException {
-            // Navigate through association, apply string contains on target column
+            // contains() on a bare to-many path is COLLECTION membership, not string
+            // contains: EXISTS(address WHERE street = 'Main'). No street equals 'Main'
+            // exactly, so no person matches — engine row semantics (corpus testInNegated
+            // golden): one row per matching child; explicit exists() keeps the semi-join,
+            // and bare-path contains() takes the membership EXISTS form.
             var result = executeRelation(
                     "model::Person.all()->filter(p|$p.addresses.street->contains('Main'))->project(~[name:p|$p.firstName])");
             assertNotNull(result);
-            assertEquals(2, result.rows().size(), "John (123 Main St) and Jane (789 Main Rd)");
+            assertEquals(0, result.rows().size(), "No street is exactly 'Main' (set membership, not substring)");
         }
     }
 
