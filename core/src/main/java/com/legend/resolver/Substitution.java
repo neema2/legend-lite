@@ -537,6 +537,19 @@ final class Substitution {
                         && !target.rootTemporalDates().isEmpty()) {
                     return contextDate(target.rootTemporalDates(), prop);
                 }
+                // VERSION SWEEP (allVersions / allVersionsInRange — the
+                // root context is EMPTY): each version row's OWN
+                // validity-start column IS its generated date (engine maps
+                // the property to BUS_FROM / PROCESSING_IN / snapshot)
+                if (prop.equals("businessDate") || prop.equals("processingDate")) {
+                    String col = target.milestoneColumns().get(
+                            prop.equals("processingDate")
+                                    ? "genProcessingDate" : "genBusinessDate");
+                    if (col != null) {
+                        return milestoneColumnRead(col, target.freshRowVar(),
+                                target.rowType(), "", n);
+                    }
+                }
                 if (target.nested()) {
                     throw new NotImplementedException("nested navigation '$"
                             + target.userVar() + "." + prop + "' inside an"

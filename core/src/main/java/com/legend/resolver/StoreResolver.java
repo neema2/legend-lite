@@ -1325,6 +1325,11 @@ public final class StoreResolver {
         rootMilestoning = g.versionSweep() ? java.util.List.of()
                 : normalizeContextDates(g.milestoning());
         rootStrategy = temporalStrategy(g.classFqn());
+        // a 2-date fetch on a NON-bitemporal class is the allVersionsInRange
+        // spelling (getAll(Class, start, end)) — a SWEEP: the generated date
+        // reads each version row's column, never a range constant
+        rootSweep = g.versionSweep() || (g.milestoning().size() == 2
+                && !"bitemporal".equals(temporalStrategy(g.classFqn())));
         temporalByHead = java.util.Map.of();
         final Context fctx = chainContext;
         ClassSource cs = sources.get(dispatch(fctx, g.classFqn()), g.classFqn(),
@@ -2402,7 +2407,7 @@ public final class StoreResolver {
      * ctors, navigation slots) are graph CHILDREN territory and stay out
      * of the bare-root envelope (plan §E10).
      */
-    private static List<TypedGraphTree> synthesizeScalarTree(ClassSource cs) {
+    private List<TypedGraphTree> synthesizeScalarTree(ClassSource cs) {
         List<TypedGraphTree> tree = new ArrayList<>();
         for (Map.Entry<String, TypedSpec> e : cs.bindings().entrySet()) {
             TypedSpec inner = e.getValue();
@@ -2418,7 +2423,58 @@ public final class StoreResolver {
             }
             tree.add(new TypedGraphTree(e.getKey(), List.of()));
         }
+        // GENERATED temporal-context properties ride the implicit envelope
+        // (engine: temporal instances serialize their dates; sweeps read
+        // each version row's own validity-start)
+        String strat = temporalStrategy(cs.classFqn());
+        if (strat != null) {
+            if (!"processingtemporal".equals(strat)
+                    && !cs.bindings().containsKey("businessDate")) {
+                tree.add(new TypedGraphTree("businessDate", List.of()));
+            }
+            if (!"businesstemporal".equals(strat)
+                    && !cs.bindings().containsKey("processingDate")) {
+                tree.add(new TypedGraphTree("processingDate", List.of()));
+            }
+        }
         return tree;
+    }
+
+    /** The generated date's VALUE for an envelope leaf: the fetch context
+     * date when one exists (point fetch), else the row's own
+     * validity-start milestone column (version sweep); {@code null} when
+     * the property is not a generated date here. */
+    private TypedSpec generatedDateLeaf(ClassSource cs, String prop,
+            com.legend.compiler.element.type.Type.RelationType rowType,
+            String rowVar) {
+        if (!prop.equals("businessDate") && !prop.equals("processingDate")) {
+            return null;
+        }
+        Map<String, String> mc = milestoneColumnsOf(cs.pipeline(), cs.classFqn());
+        if (mc.isEmpty()) {
+            return null;
+        }
+        if (!rootSweep && !rootMilestoning.isEmpty()) {
+            return rootMilestoning.size() == 2 && prop.equals("businessDate")
+                    ? rootMilestoning.get(1) : rootMilestoning.get(0);
+        }
+        String col = mc.get(prop.equals("processingDate")
+                ? "genProcessingDate" : "genBusinessDate");
+        if (col == null) {
+            return null;
+        }
+        var colDef = rowType.columns().stream()
+                .filter(c -> c.name().equals(col)).findFirst().orElse(null);
+        if (colDef == null) {
+            return null;
+        }
+        return new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                new TypedVariable(rowVar,
+                        new com.legend.compiler.element.type.ExprType(rowType,
+                                com.legend.compiler.element.type.Multiplicity
+                                        .Bounded.ONE)),
+                col, new com.legend.compiler.element.type.ExprType(
+                        colDef.type(), colDef.multiplicity()));
     }
 
     /**
@@ -2450,9 +2506,31 @@ public final class StoreResolver {
             }
             TypedSpec binding = cs.bindings().get(node.property());
             if (binding == null) {
-                throw new MappingResolutionException("property '" + node.property()
-                        + "' of class '" + cs.classFqn() + "' is not mapped in"
-                        + " mapping '" + cs.mappingFqn() + "'", cs.classFqn());
+                // GENERATED temporal-context property on the envelope:
+                // point fetch = the context date constant; VERSION SWEEP =
+                // each row's own validity-start column (engine: the
+                // property maps to BUS_FROM / PROCESSING_IN / snapshot)
+                TypedSpec gen = generatedDateLeaf(cs, node.property(),
+                        rowType, rowVar);
+                if (gen == null) {
+                    throw new MappingResolutionException("property '"
+                            + node.property() + "' of class '" + cs.classFqn()
+                            + "' is not mapped in mapping '" + cs.mappingFqn()
+                            + "'", cs.classFqn());
+                }
+                var genFn = new com.legend.compiler.element.type.Type.FunctionType(
+                        List.of(new com.legend.compiler.element.type.Type.Param(
+                                rowType,
+                                com.legend.compiler.element.type.Multiplicity
+                                        .Bounded.ONE)),
+                        new com.legend.compiler.element.type.Type.Param(
+                                gen.info().type(), gen.info().multiplicity()));
+                leaves.add(new TypedFuncCol(node.property(),
+                        new TypedLambda(List.of(rowVar), List.of(gen),
+                                new com.legend.compiler.element.type.ExprType(genFn,
+                                        com.legend.compiler.element.type
+                                                .Multiplicity.Bounded.ONE))));
+                continue;
             }
             TypedSpec inner = binding;
             if (inner instanceof com.legend.compiler.spec.typed.TypedNativeCall c
@@ -3452,6 +3530,10 @@ public final class StoreResolver {
     private java.util.Map<String, TemporalSpec> temporalByHead = java.util.Map.of();
     private java.util.List<TypedSpec> rootMilestoning = java.util.List.of();
     private String rootStrategy = null;
+    /** The root fetch is a VERSION SWEEP (allVersions / allVersionsInRange
+     * incl. its getAll(C, start, end) spelling): generated dates read the
+     * version row's own milestone column, never a context constant. */
+    private boolean rootSweep = false;
 
     /** Lifted filtered-navigation heads: synthetic name → the user
      * predicate parked on the head ({@link #liftFilteredHeads}).
@@ -4226,7 +4308,8 @@ public final class StoreResolver {
                         m.pipeline().info().type(),
                 m.stripped(), m.slotPrefixes(), assocs, assocEnds, existsSubs,
                 aggReads, isNotEmptyCallee(), equalCallee(),
-                rootMilestoning, headTemporalDates(),
+                rootSweep ? java.util.List.of() : rootMilestoning,
+                headTemporalDates(),
                 milestoneColumnsOf(cs.pipeline(), cs.classFqn()),
                 filterPosition, false));
     }
@@ -4253,6 +4336,15 @@ public final class StoreResolver {
             if (b.snapshotDate() != null) {
                 out.put("snapshotDate", b.snapshotDate());
             }
+            // the GENERATED businessDate under a version sweep: the
+            // INCLUSIVE endpoint is the date at which .all(d) returns the
+            // version (engine allVersions goldens: THRU_IS_INCLUSIVE
+            // reads thru_z)
+            String gen = b.snapshotDate() != null ? b.snapshotDate()
+                    : b.thruIsInclusive() ? b.thru() : b.from();
+            if (gen != null) {
+                out.put("genBusinessDate", gen);
+            }
         }
         if (!"businesstemporal".equals(strat) && ms.processing() != null) {
             var pr = ms.processing();
@@ -4266,6 +4358,10 @@ public final class StoreResolver {
             }
             if (pr.snapshotDate() != null) {
                 out.putIfAbsent("snapshotDate", pr.snapshotDate());
+            }
+            String gen = pr.outIsInclusive() ? pr.out() : pr.in();
+            if (gen != null) {
+                out.put("genProcessingDate", gen);
             }
         }
         return out;
