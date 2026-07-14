@@ -920,12 +920,40 @@ public final class TestBody {
         return af.function().equals("execute") && af.parameters().size() >= 2;
     }
 
+    /**
+     * A multi-statement query lambda ({@code {| let date = %d; Product.all(
+     * $date)->...}}) folds its OWN lets into the final expression — pure
+     * lets are single-assignment, so textual inlining is exact (the outer
+     * statement driver does the same for test-body lets).
+     */
+    private static LambdaFunction inlineQueryLets(LambdaFunction lf) {
+        if (lf.body().size() <= 1) {
+            return lf;
+        }
+        Map<String, ValueSpecification> lets = new LinkedHashMap<>();
+        ValueSpecification last = null;
+        for (ValueSpecification stmt : lf.body()) {
+            if (stmt instanceof AppliedFunction af
+                    && af.function().equals("letFunction")
+                    && af.parameters().size() == 2
+                    && af.parameters().get(0) instanceof CString name) {
+                lets.put(name.value(),
+                        substitute(af.parameters().get(1), lets, Map.of(), null));
+                continue;
+            }
+            last = substitute(stmt, lets, Map.of(), null);
+        }
+        return new LambdaFunction(lf.parameters(),
+                List.of(last != null ? last
+                        : lf.body().get(lf.body().size() - 1)));
+    }
+
     private static ExecHandle toHandle(AppliedFunction ex) {
         ValueSpecification q = ex.parameters().get(0);
         if (!(q instanceof LambdaFunction lf) || !lf.parameters().isEmpty()) {
             return null;
         }
-        return new ExecHandle(lf, ex.parameters().get(1));
+        return new ExecHandle(inlineQueryLets(lf), ex.parameters().get(1));
     }
 
     /**

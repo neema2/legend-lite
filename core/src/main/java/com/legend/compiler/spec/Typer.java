@@ -940,6 +940,25 @@ final class Typer {
             return applyGeneric(new AppliedFunction(d.bodyFunctionFqn(),
                     List.of(ap.receiver())), env);
         }
+        // the AllVersions PROPERTY spelling (no parens): a version-sweep
+        // navigation — normalized to the same TypedMilestonedAccess the
+        // call spelling produces, so every downstream layer sees ONE shape
+        if (source.info().type() instanceof Type.ClassType ctv
+                && ap.property().endsWith("AllVersions")) {
+            String base = ap.property().substring(0,
+                    ap.property().length() - "AllVersions".length());
+            var bp = ctx.findProperty(ctv.fqn(), base).orElse(null);
+            String tFqn = bp != null && bp.type() instanceof Type.ClassType bct
+                    ? bct.fqn() : null;
+            if (tFqn != null && com.legend.compiler.element.Temporal
+                    .strategyOf(ctx, tFqn) != null) {
+                return new com.legend.compiler.spec.typed.TypedMilestonedAccess(
+                        source, base, List.of(), true,
+                        new ExprType(bp.type(),
+                                com.legend.compiler.element.type.Multiplicity
+                                        .Bounded.ZERO_MANY));
+            }
+        }
         // The member is either a class property ($obj.prop) or a relation column ($row.col).
         ExprType member = switch (source.info().type()) {
             case Type.ClassType ct -> {
@@ -961,6 +980,25 @@ final class Typer {
                         yield new ExprType(Type.Primitive.DATE,
                                 com.legend.compiler.element.type.Multiplicity
                                         .Bounded.ONE);
+                    }
+                    // the generated milestone STRUCT ($p.milestoning.from /
+                    // .thru): typed as the platform milestoning class
+                    if (ap.property().equals("milestoning") && strat != null) {
+                        yield new ExprType(new Type.ClassType(
+                                "meta::pure::milestoning::" + (strat
+                                        .equals("processingtemporal")
+                                        ? "ProcessingDateMilestoning"
+                                        : "BusinessDateMilestoning")),
+                                com.legend.compiler.element.type.Multiplicity
+                                        .Bounded.ZERO_ONE);
+                    }
+                    if ((ct.fqn().equals("meta::pure::milestoning::BusinessDateMilestoning")
+                            || ct.fqn().equals("meta::pure::milestoning::ProcessingDateMilestoning"))
+                            && java.util.Set.of("from", "thru", "in", "out",
+                                    "snapshotDate").contains(ap.property())) {
+                        yield new ExprType(Type.Primitive.DATE,
+                                com.legend.compiler.element.type.Multiplicity
+                                        .Bounded.ZERO_ONE);
                     }
                     throw new TypeInferenceException("class " + ct.fqn()
                             + " has no property '" + ap.property() + "'");

@@ -57,6 +57,7 @@ final class Substitution {
                   com.legend.compiler.element.TypedFunction equalCallee,
                   java.util.List<TypedSpec> rootTemporalDates,
                   Map<String, java.util.List<TypedSpec>> headTemporalDates,
+                  Map<String, String> milestoneColumns,
                   boolean filterPosition, boolean nested) {}
 
     /** An aggregated-navigation column read: {@code column} on the joined
@@ -80,13 +81,14 @@ final class Substitution {
                     Map<String, TypedSpec> targetBindings, String targetClassFqn,
                     java.util.Set<String> targetSlotAliases,
                     Map<String, String> targetSlotPrefixes,
-                    String readVar, Type.RelationType readRowType) {
+                    String readVar, Type.RelationType readRowType,
+                    Map<String, String> targetMilestoneColumns) {
 
         AssocSub(String prefix, String targetRowVar,
                  Map<String, TypedSpec> targetBindings, String targetClassFqn,
                  java.util.Set<String> targetSlotAliases) {
             this(prefix, targetRowVar, targetBindings, targetClassFqn,
-                    targetSlotAliases, Map.of(), null, null);
+                    targetSlotAliases, Map.of(), null, null, Map.of());
         }
 
         AssocSub(String prefix, String targetRowVar,
@@ -94,7 +96,17 @@ final class Substitution {
                  java.util.Set<String> targetSlotAliases,
                  Map<String, String> targetSlotPrefixes) {
             this(prefix, targetRowVar, targetBindings, targetClassFqn,
-                    targetSlotAliases, targetSlotPrefixes, null, null);
+                    targetSlotAliases, targetSlotPrefixes, null, null, Map.of());
+        }
+
+        AssocSub(String prefix, String targetRowVar,
+                 Map<String, TypedSpec> targetBindings, String targetClassFqn,
+                 java.util.Set<String> targetSlotAliases,
+                 Map<String, String> targetSlotPrefixes,
+                 String readVar, Type.RelationType readRowType) {
+            this(prefix, targetRowVar, targetBindings, targetClassFqn,
+                    targetSlotAliases, targetSlotPrefixes, readVar, readRowType,
+                    Map.of());
         }
     }
 
@@ -308,6 +320,20 @@ final class Substitution {
             return rewritePath(path.get(0), path.get(1), n);
         }
         if (path != null && path.size() > 2) {
+            // TARGET milestone struct: $p.assoc.milestoning.from reads the
+            // TARGET table's milestone column, prefixed on the joined row
+            if (path.size() == 3 && path.get(1).equals("milestoning")
+                    && target.assocs().containsKey(path.get(0))) {
+                AssocSub a2 = target.assocs().get(path.get(0));
+                String col2 = a2.targetMilestoneColumns().get(path.get(2));
+                if (col2 != null) {
+                    return milestoneColumnRead(col2,
+                            a2.readVar() != null ? a2.readVar() : target.freshRowVar(),
+                            a2.readRowType() != null ? a2.readRowType()
+                                    : target.rowType(),
+                            a2.readVar() != null ? "" : a2.prefix(), n);
+                }
+            }
             // MULTI-HOP association chain ($p.dept.org.name): the demand scan
             // registered one join per hop under its chain key — the leaf reads
             // the DEEPEST hop's target with the chained prefix (dept_org_).
@@ -438,6 +464,13 @@ final class Substitution {
 
     /** {@code $p.head.leaf}: embedded ctor look-through, or association leaf. */
     private TypedSpec rewritePath(String head, String leaf, TypedSpec original) {
+        // the generated milestone STRUCT: $p.milestoning.from/.thru reads
+        // the MAIN table's milestone column
+        if (head.equals("milestoning")
+                && target.milestoneColumns().containsKey(leaf)) {
+            return milestoneColumnRead(target.milestoneColumns().get(leaf),
+                    target.freshRowVar(), target.rowType(), "", original);
+        }
         TypedSpec headBinding = target.bindings().get(head);
         if (headBinding != null) {
             TypedSpec inner = headBinding;
@@ -575,6 +608,25 @@ final class Substitution {
      * leaf's crossing reads rewritten onto the subquery row, everything
      * else staying correlated to the outer row.
      */
+
+    /** A milestone-column read off the (possibly prefixed) row. */
+    private static TypedSpec milestoneColumnRead(String column, String rowVar,
+            Type.RelationType row, String prefix, TypedSpec original) {
+        String name = prefix + column;
+        Type colType = Type.Primitive.DATE;
+        Multiplicity colMult = Multiplicity.Bounded.ZERO_ONE;
+        for (Type.Column c : row.columns()) {
+            if (c.name().equalsIgnoreCase(name)) {
+                name = c.name();
+                colType = c.type();
+                colMult = c.multiplicity();
+                break;
+            }
+        }
+        return new TypedPropertyAccess(
+                new TypedVariable(rowVar, new ExprType(row, Multiplicity.Bounded.ONE)),
+                name, new ExprType(colType, colMult));
+    }
 
     /** A bi-temporal context carries (processingDate, businessDate) — the
      * generated property picks its own; a single date serves either. */
@@ -813,7 +865,7 @@ final class Substitution {
                 target.mappingFqn(), ex.targetRowVar(), ex.targetBindings(),
                 ex.targetRow(), ex.targetSlotAliases(), Map.of(), Map.of(),
                 java.util.Set.of(), Map.of(), Map.of(), null, null,
-                java.util.List.of(), Map.of(), true, true));
+                java.util.List.of(), Map.of(), Map.of(), true, true));
         TypedLambda inner = predSub.rewriteLambda(predLam);
         TypedLambda innerOuter = new TypedLambda(inner.parameters(),
                 inner.body().stream().map(this::rewrite).toList(), inner.info());
@@ -884,7 +936,7 @@ final class Substitution {
                     target.mappingFqn(), ex.targetRowVar(), ex.targetBindings(),
                     ex.targetRow(), ex.targetSlotAliases(), Map.of(), Map.of(),
                     java.util.Set.of(), Map.of(), Map.of(), null, null,
-                    java.util.List.of(), Map.of(), true, true));
+                    java.util.List.of(), Map.of(), Map.of(), true, true));
             TypedLambda inner = predSub.rewriteLambda(predLam);
             // OUTER reads inside the predicate ($s.name == $f.legal): a
             // second pass through THIS substitution turns them into

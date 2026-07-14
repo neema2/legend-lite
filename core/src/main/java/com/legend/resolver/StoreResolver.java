@@ -1308,7 +1308,8 @@ public final class StoreResolver {
             }
             assocs.put(path.get(0), new Substitution.AssocSub(alias + "_",
                     target.rowVar(), target.bindings(), target.classFqn(),
-                    Pipelines.slotAliases(target.pipeline())));
+                    Pipelines.slotAliases(target.pipeline()), Map.of(), null, null,
+                    milestoneColumnsOf(target.pipeline(), target.classFqn())));
         }
         demanded = Pipelines.closeOverConditions(cs.pipeline(), demanded);
 
@@ -1452,7 +1453,12 @@ public final class StoreResolver {
             // was set-correct but cardinality-wrong.
             ClassSource parent = cs;
             String parentPrefix = "";
-            for (int hop = 0; hop + 1 < path.size(); hop++) {
+            // $p.assoc.milestoning.from: the struct is a COLUMN read on the
+            // assoc target, not a further hop
+            int effectiveSize = path.size() >= 2
+                    && path.get(path.size() - 2).equals("milestoning")
+                    ? path.size() - 1 : path.size();
+            for (int hop = 0; hop + 1 < effectiveSize; hop++) {
                 String chainKey = String.join(".", path.subList(0, hop + 1));
                 AssocJoin known = joinsByChain.get(chainKey);
                 if (known != null) {
@@ -1500,7 +1506,9 @@ public final class StoreResolver {
                         aj.target().rowVar(), aj.target().bindings(),
                         aj.target().classFqn(),
                         Pipelines.slotAliases(aj.target().pipeline()),
-                        aj.targetSlotPrefixes()));
+                        aj.targetSlotPrefixes(), null, null,
+                        milestoneColumnsOf(aj.target().pipeline(),
+                                aj.target().classFqn())));
                 parent = aj.target();
                 parentPrefix = aj.prefix();
             }
@@ -2814,7 +2822,49 @@ public final class StoreResolver {
                         m.pipeline().info().type(),
                 m.stripped(), m.slotPrefixes(), assocs, assocEnds, existsSubs,
                 aggReads, isNotEmptyCallee(), equalCallee(),
-                rootMilestoning, headTemporalDates(), filterPosition, false));
+                rootMilestoning, headTemporalDates(),
+                milestoneColumnsOf(cs.pipeline(), cs.classFqn()),
+                filterPosition, false));
+    }
+
+    /** The generated milestone-struct leaf -> physical column map for the
+     * pipe's root table, by the class's temporal dimension. */
+    private Map<String, String> milestoneColumnsOf(TypedSpec pipe, String classFqn) {
+        String strat = temporalStrategy(classFqn);
+        com.legend.compiler.spec.typed.TypedTableReference root = rootTable(pipe);
+        var ms = root == null || strat == null ? null
+                : ctx.findTableMilestoning(root.store(), root.table()).orElse(null);
+        if (ms == null) {
+            return Map.of();
+        }
+        Map<String, String> out = new java.util.LinkedHashMap<>();
+        if (!"processingtemporal".equals(strat) && ms.business() != null) {
+            var b = ms.business();
+            if (b.from() != null) {
+                out.put("from", b.from());
+            }
+            if (b.thru() != null) {
+                out.put("thru", b.thru());
+            }
+            if (b.snapshotDate() != null) {
+                out.put("snapshotDate", b.snapshotDate());
+            }
+        }
+        if (!"businesstemporal".equals(strat) && ms.processing() != null) {
+            var pr = ms.processing();
+            if (pr.in() != null) {
+                out.putIfAbsent("in", pr.in());
+                out.putIfAbsent("from", pr.in());
+            }
+            if (pr.out() != null) {
+                out.putIfAbsent("out", pr.out());
+                out.putIfAbsent("thru", pr.out());
+            }
+            if (pr.snapshotDate() != null) {
+                out.putIfAbsent("snapshotDate", pr.snapshotDate());
+            }
+        }
+        return out;
     }
 
     /** Explicit per-head property-function dates for the substitution. */
