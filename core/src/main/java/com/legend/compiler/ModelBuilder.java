@@ -357,10 +357,15 @@ public final class ModelBuilder {
             }
             long roots = e.getValue().stream().filter(ClassMapping::root).count();
             Set<String> setIds = new LinkedHashSet<>();
-            // a UNION Operation set needs no id of its own (its members do)
+            // a UNION Operation set needs no id of its own (its members do).
+            // Identity = EFFECTIVE id (explicit or the engine's implicit
+            // classFqn-underscored default) — raw setId() spuriously
+            // rejected one-explicit-one-implicit and missed effective
+            // collisions (audit 11a-F3).
             boolean idsDistinct = e.getValue().stream()
                     .allMatch(cm -> cm instanceof ClassMapping.Union && cm.setId() == null
-                            || cm.setId() != null && setIds.add(cm.setId()));
+                            || setIds.add(cm.setId() != null ? cm.setId()
+                                    : cm.className().replace("::", "_")));
             if (roots != 1 || !idsDistinct) {
                 // ZERO roots with distinct set IDs is the UNION shape: the
                 // root lives in an Operation class mapping (a roadmap
@@ -378,6 +383,26 @@ public final class ModelBuilder {
                               + "MappingDefinition may map a given class at most once, "
                               + "or through distinct set IDs with exactly one root "
                               + "marker (*) naming the .all() set.");
+            }
+        }
+        // CROSS-CLASS effective-id collision (engine MappingValidator spans
+        // all class mappings): silent bySetId overwrites downstream would
+        // bind extends/union references to the wrong set (audit 11a-F3).
+        java.util.Map<String, String> idOwner = new java.util.HashMap<>();
+        for (ClassMapping cm : md.classMappings()) {
+            if (cm instanceof ClassMapping.Union && cm.setId() == null) {
+                continue;
+            }
+            String effective = cm.setId() != null ? cm.setId()
+                    : cm.className().replace("::", "_");
+            String prev = idOwner.putIfAbsent(effective, cm.className());
+            if (prev != null && !prev.equals(cm.className())) {
+                throw new com.legend.error.ModelException(
+                        com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                        "MappingDefinition '" + md.qualifiedName() + "': set id '"
+                                + effective + "' is used by class mappings of both '"
+                                + prev + "' and '" + cm.className()
+                                + "' — duplicated set ids are ambiguous");
             }
         }
     }

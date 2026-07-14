@@ -1507,7 +1507,7 @@ public final class MappingNormalizer {
         List<ClassMapping.Relational> members = new ArrayList<>(memberSets.size());
         for (ClassMapping.Relational mrIn : memberSets) {
             ClassMapping.Relational mr = mrIn;
-            String setId = mr.setId();
+            String setId = setIdOf(mr);
             if (mr.sourceUrl() != null) {
                 throw new com.legend.error.NotImplementedException(
                         "Operation union over a JSON-source member set is not"
@@ -1919,6 +1919,14 @@ public final class MappingNormalizer {
 
     /** Whether the class (or a superclass) carries a temporal stereotype. */
     private static boolean isTemporalClass(String classFqn, ModelBuilder model) {
+        return isTemporalClass(classFqn, model, new java.util.HashSet<>());
+    }
+
+    private static boolean isTemporalClass(String classFqn, ModelBuilder model,
+            java.util.Set<String> visited) {
+        if (!visited.add(classFqn)) {
+            return false;   // superclass cycle guard
+        }
         ClassDefinition cd = model.findClass(classFqn).orElse(null);
         if (cd == null) {
             return false;
@@ -1933,7 +1941,7 @@ public final class MappingNormalizer {
         }
         for (TypeExpression sup : cd.superClasses()) {
             if (sup instanceof TypeExpression.NameRef nr
-                    && isTemporalClass(nr.name(), model)) {
+                    && isTemporalClass(nr.name(), model, visited)) {
                 return true;
             }
         }
@@ -4019,8 +4027,13 @@ public final class MappingNormalizer {
         EnumerationMapping em = null;
         List<EnumerationMapping> ems = enumerationMappingsWithIncludes(md, model);
         if (enumMappingId != null) {
+            // engine getEnumerationMappingId (HelperMappingBuilder:348-351):
+            // an anonymous enum mapping's IMPLICIT id is its enumeration FQN
+            // with :: -> _ — references by that spelling resolve
             for (EnumerationMapping cand : ems) {
-                if (enumMappingId.equals(cand.mappingId())) { em = cand; break; }
+                String candId = cand.mappingId() != null ? cand.mappingId()
+                        : cand.enumName().replace("::", "_");
+                if (enumMappingId.equals(candId)) { em = cand; break; }
             }
         } else {
             // ANONYMOUS reference — resolved by the PROPERTY's declared enum

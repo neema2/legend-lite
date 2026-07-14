@@ -2871,7 +2871,12 @@ public final class StoreResolver {
                 .findFirst()
                 .orElseThrow(() -> new MappingResolutionException("association '"
                         + assoc.qualifiedName() + "' is not mapped in mapping '"
-                        + cs.mappingFqn() + "'", assoc.qualifiedName()));
+                        + cs.mappingFqn() + "'"
+                        // a dropped/poisoned property route often lands here
+                        // (the assoc fallback) — surface the recorded reason
+                        + ctx.mappingPoison(cs.mappingFqn(), cs.classFqn())
+                                .map(r -> " (" + r + ")").orElse(""),
+                        assoc.qualifiedName()));
         var fns = ctx.findFunction(binding.predicateFunctionFqn());
         if (fns.size() != 1) {
             throw new IllegalStateException("resolver bug: association predicate '"

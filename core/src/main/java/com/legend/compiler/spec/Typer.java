@@ -211,12 +211,21 @@ final class Typer {
         }
         // the UNTYPED TDSRow getter $r.get('COL') — same desugar, but the
         // name collides with variant/map get: divert ONLY when the receiver
-        // is relation-shaped (type-aware, unlike the typed getters above)
+        // is relation-shaped (type-aware, unlike the typed getters above).
+        // The CELL is one value like the typed getters (engine tds.pure
+        // get: Any[1]) — same toOne emission over non-[1] columns.
         if (af.function().equals("get") && af.parameters().size() == 2
                 && af.parameters().get(1) instanceof CString gcol) {
             TypedSpec grecv = synth(af.parameters().get(0), env);
             if (grecv.info().type() instanceof Type.RelationType) {
-                return synth(new AppliedProperty(af.parameters().get(0), gcol.value()), env);
+                TypedSpec gcell = synth(new AppliedProperty(
+                        af.parameters().get(0), gcol.value()), env);
+                if (gcell.info().multiplicity() instanceof Multiplicity.Bounded gb
+                        && Integer.valueOf(1).equals(gb.upper()) && gb.lower() == 1) {
+                    return gcell;
+                }
+                return synth(new AppliedFunction("toOne", List.of(
+                        new AppliedProperty(af.parameters().get(0), gcol.value()))), env);
             }
         }
         // restrict(['c1','c2']) — the legacy TDS column-subset select
