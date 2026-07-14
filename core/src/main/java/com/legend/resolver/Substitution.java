@@ -73,14 +73,26 @@ final class Substitution {
                      String targetRowVar, Map<String, TypedSpec> targetBindings,
                      Type.RelationType targetRow, String targetClassFqn,
                      java.util.Set<String> targetSlotAliases,
-                     Map<String, String> targetSlotPrefixes, boolean toMany) {
+                     Map<String, String> targetSlotPrefixes, boolean toMany,
+                     TypedSpec scalarPipeline, Type.RelationType scalarRow) {
 
         ExistsSub(TypedSpec targetPipeline, TypedLambda orientedCond,
                   String targetRowVar, Map<String, TypedSpec> targetBindings,
                   Type.RelationType targetRow, String targetClassFqn,
                   java.util.Set<String> targetSlotAliases, boolean toMany) {
             this(targetPipeline, orientedCond, targetRowVar, targetBindings,
-                    targetRow, targetClassFqn, targetSlotAliases, Map.of(), toMany);
+                    targetRow, targetClassFqn, targetSlotAliases, Map.of(), toMany,
+                    targetPipeline, targetRow);
+        }
+
+        ExistsSub(TypedSpec targetPipeline, TypedLambda orientedCond,
+                  String targetRowVar, Map<String, TypedSpec> targetBindings,
+                  Type.RelationType targetRow, String targetClassFqn,
+                  java.util.Set<String> targetSlotAliases,
+                  Map<String, String> targetSlotPrefixes, boolean toMany) {
+            this(targetPipeline, orientedCond, targetRowVar, targetBindings,
+                    targetRow, targetClassFqn, targetSlotAliases,
+                    targetSlotPrefixes, toMany, targetPipeline, targetRow);
         }
     }
 
@@ -1068,11 +1080,14 @@ final class Substitution {
                 .toList();
         TypedLambda corr = new TypedLambda(List.of(tVar), corrBody,
                 new ExprType(new Type.FunctionType(
-                        List.of(new Type.Param(ex.targetRow(), Multiplicity.Bounded.ONE)),
+                        List.of(new Type.Param(ex.scalarRow(), Multiplicity.Bounded.ONE)),
                         new Type.Param(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE)),
                         Multiplicity.Bounded.ONE));
+        // the SCALAR pipeline (slot-UNDEMANDED): a slot demanded by some
+        // OTHER consumer (an exists site) must not fan this single-row
+        // subquery out (audit 13 B3 — data-dependent "more than one row")
         TypedSpec rel = new com.legend.compiler.spec.typed.TypedFilter(
-                ex.targetPipeline(), corr, ex.targetPipeline().info());
+                ex.scalarPipeline(), corr, ex.scalarPipeline().info());
         // 2. the user predicate, substituted against the TARGET's bindings
         //    (outer reads correlate through a second pass — same as exists)
         TypedLambda predLam = f.predicate();

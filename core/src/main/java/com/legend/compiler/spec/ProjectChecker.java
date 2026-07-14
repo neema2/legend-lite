@@ -115,12 +115,19 @@ final class ProjectChecker {
                 return ap.property();
             }
             // a MILESTONED property-function leaf (prop(%d), path-literal
-            // dated segments) names its column by the property, engine
-            // buildColumnNameOutOfPath parity
-            if (leaf instanceof AppliedFunction laf && !laf.parameters().isEmpty()
+            // dated segments) names its column by the property — engine
+            // buildColumnNameOutOfPath parity. Audit 13 F6: shape alone
+            // admitted ANY function ($p.x->toUpper() named 'toUpper');
+            // dated property functions have >= 2 args whose tail args are
+            // DATE-ish, and the name must not be a catalog native.
+            if (leaf instanceof AppliedFunction laf && laf.parameters().size() >= 2
                     && (laf.parameters().get(0) instanceof Variable
                             || laf.parameters().get(0) instanceof AppliedProperty
-                            || laf.parameters().get(0) instanceof AppliedFunction)) {
+                            || laf.parameters().get(0) instanceof AppliedFunction)
+                    && laf.parameters().subList(1, laf.parameters().size()).stream()
+                            .allMatch(a -> a instanceof com.legend.parser.spec.CDate
+                                    || a instanceof com.legend.parser.spec.CLatestDate
+                                    || a instanceof Variable)) {
                 return laf.function();
             }
         }

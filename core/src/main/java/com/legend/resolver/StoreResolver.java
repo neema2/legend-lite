@@ -503,7 +503,13 @@ public final class StoreResolver {
                 // as date)) — a raw timestamp equality silently matches
                 // nothing
                 var dpFns = ctx.findFunction("meta::pure::functions::date::datePart");
-                if (dpFns.size() == 1) {
+                if (dpFns.size() != 1) {
+                    throw new IllegalStateException("resolver bug: datePart"
+                            + " resolves to " + dpFns.size() + " overloads —"
+                            + " the raw timestamp equality would silently"
+                            + " match nothing");
+                }
+                {
                     snapDate = new TypedNativeCall(dpFns.get(0),
                             java.util.List.of(date),
                             new com.legend.compiler.element.type.ExprType(
@@ -578,6 +584,12 @@ public final class StoreResolver {
      */
     private TypedSpec applyJoinTemporalFilters(TypedSpec n, ClassSource cs,
             Map<String, String> navPrefixToClass) {
+        return applyJoinTemporalFilters(n, cs, navPrefixToClass, Map.of());
+    }
+
+    private TypedSpec applyJoinTemporalFilters(TypedSpec n, ClassSource cs,
+            Map<String, String> navPrefixToClass,
+            Map<String, String> navPrefixToChain) {
         // ROOT context absent: physical joinslot targets have nothing to
         // filter by, but CLASS-typed navigate targets may carry EXPLICIT
         // property-function dates (temporalByHead) — those still apply
@@ -598,10 +610,16 @@ public final class StoreResolver {
                     // CLASS's temporality (a non-temporal class mapped to a
                     // temporal table gets NO filter — corpus
                     // testMilestoningFiltersNotPropogated... golden)
-                    String head = j.prefix().get().substring(0,
+                    String bare = j.prefix().get().substring(0,
                             j.prefix().get().length() - 1);
+                    // the spec registry keys by the DOTTED chain (drilled
+                    // embedded heads) — the alias is the fallback (audit
+                    // 13 B1: alias-keyed lookup silently root-dated
+                    // explicitly-dated drilled chains)
+                    String chainHead = navPrefixToChain
+                            .getOrDefault(j.prefix().get(), bare);
                     filtered = temporalTargetPipe(cs,
-                            sources.get(cs.mappingFqn(), navClass), head, right);
+                            sources.get(cs.mappingFqn(), navClass), chainHead, right);
                 } else if ("bitemporal".equals(rootStrategy)
                         && rootMilestoning.size() == 2) {
                     filtered = right;
@@ -627,26 +645,26 @@ public final class StoreResolver {
                     filtered = right;   // no root context; no head date here
                 }
                 yield new com.legend.compiler.spec.typed.TypedJoin(
-                        applyJoinTemporalFilters(j.left(), cs, navPrefixToClass),
+                        applyJoinTemporalFilters(j.left(), cs, navPrefixToClass, navPrefixToChain),
                         filtered, j.kind(), j.condition(), j.prefix(), j.info());
             }
             case TypedFilter f -> new TypedFilter(
-                    applyJoinTemporalFilters(f.source(), cs, navPrefixToClass),
+                    applyJoinTemporalFilters(f.source(), cs, navPrefixToClass, navPrefixToChain),
                     f.predicate(), f.info());
             case com.legend.compiler.spec.typed.TypedDistinct d ->
                     new com.legend.compiler.spec.typed.TypedDistinct(
-                            applyJoinTemporalFilters(d.source(), cs, navPrefixToClass),
+                            applyJoinTemporalFilters(d.source(), cs, navPrefixToClass, navPrefixToChain),
                             d.columns(), d.info());
             case TypedSelect sel -> new TypedSelect(
-                    applyJoinTemporalFilters(sel.source(), cs, navPrefixToClass),
+                    applyJoinTemporalFilters(sel.source(), cs, navPrefixToClass, navPrefixToChain),
                     sel.columns(), sel.info());
             case TypedProject pr -> new TypedProject(
-                    applyJoinTemporalFilters(pr.source(), cs, navPrefixToClass),
+                    applyJoinTemporalFilters(pr.source(), cs, navPrefixToClass, navPrefixToChain),
                     pr.columns(), pr.info());
             case com.legend.compiler.spec.typed.TypedConcatenate cc ->
                     new com.legend.compiler.spec.typed.TypedConcatenate(
-                            applyJoinTemporalFilters(cc.left(), cs, navPrefixToClass),
-                            applyJoinTemporalFilters(cc.right(), cs, navPrefixToClass),
+                            applyJoinTemporalFilters(cc.left(), cs, navPrefixToClass, navPrefixToChain),
+                            applyJoinTemporalFilters(cc.right(), cs, navPrefixToClass, navPrefixToChain),
                             cc.info());
             default -> {
                 // LOUD on unrecognized shapes carrying joins (audit 10): a
@@ -750,14 +768,26 @@ public final class StoreResolver {
      */
     private TypedSpec rangeMilestonedPipe(TypedSpec pipe, TypedSpec start,
             TypedSpec end, String classFqn) {
-        com.legend.compiler.spec.typed.TypedTableReference root = rootTable(pipe);
-        var ms = root == null ? null
-                : ctx.findTableMilestoning(root.store(), root.table()).orElse(null);
         String strategy = temporalStrategy(classFqn);
         if (strategy == null) {
             throw new MappingResolutionException("allVersionsInRange of '" + classFqn
                     + "': the class declares no temporal stereotype", classFqn);
         }
+        return rangeScanPipe(pipe, start, end, strategy, classFqn);
+    }
+
+    /** The range filter over a pipe by an EXPLICIT strategy (raw slot-target
+     * scans under a range context — audit 13 F3). */
+    private TypedSpec rangeScanPipe(TypedSpec pipe, TypedSpec start,
+            TypedSpec end, String strategy) {
+        return rangeScanPipe(pipe, start, end, strategy, "join target");
+    }
+
+    private TypedSpec rangeScanPipe(TypedSpec pipe, TypedSpec start,
+            TypedSpec end, String strategy, String classFqn) {
+        com.legend.compiler.spec.typed.TypedTableReference root = rootTable(pipe);
+        var ms = root == null ? null
+                : ctx.findTableMilestoning(root.store(), root.table()).orElse(null);
         String fromCol;
         String thruCol;
         String snapCol;
@@ -1535,14 +1565,18 @@ public final class StoreResolver {
                                 sources.get(cs.mappingFqn(), targetClass).pipeline(),
                                 Set.of(), targetClass).pipeline());
         Map<String, String> navPrefixToClass = new java.util.LinkedHashMap<>();
+        Map<String, String> navPrefixToChain = new java.util.LinkedHashMap<>();
         for (var navE : Pipelines.navSteps(cs.pipeline()).entrySet()) {
             if (navE.getValue().target()
                     instanceof com.legend.compiler.spec.typed.TypedGetAll tg2) {
                 navPrefixToClass.put(navE.getKey() + "_", tg2.classFqn());
+                navPrefixToChain.put(navE.getKey() + "_",
+                        navHeadByAlias.getOrDefault(navE.getKey(), navE.getKey()));
             }
         }
         final TypedSpec basePipe =
-                applyJoinTemporalFilters(m.pipeline(), cs, navPrefixToClass);
+                applyJoinTemporalFilters(m.pipeline(), cs, navPrefixToClass,
+                        navPrefixToChain);
         m = new Pipelines.Materialized(basePipe, m.slotPrefixes(), m.stripped());
         final TypedSpec materializedPipe;
         if (g.versionSweep()) {
@@ -1655,6 +1689,14 @@ public final class StoreResolver {
             boolean isToMany = !(assocEnd.multiplicity()
                     instanceof com.legend.parser.Multiplicity.Concrete emc
                     && Integer.valueOf(1).equals(emc.upperBound()));
+            // the SCALAR (slot-undemanded) pipeline serves value-position
+            // consumers (filteredNavLeafRead): other consumers' slot demand
+            // must not fan a single-row subquery out (audit 13 B3)
+            // B3 (scalar fan-out) DEFERRED: a separate slot-undemanded
+            // scalar pipeline regressed real corpus value-leaf reads
+            // (testConstraintTargetingMultipleJoinsInPropertyMapping); the
+            // engineered fan-out shape stays data-dependent-loud for now —
+            // the plumbing (scalarPipeline field) is in place for the fix.
             existsSubs.put(head, new Substitution.ExistsSub(aj.targetPipeline(),
                     aj.condition(), aj.target().rowVar(), aj.target().bindings(),
                     aj.targetRow(), aj.target().classFqn(),
@@ -2840,8 +2882,20 @@ public final class StoreResolver {
             }
             return milestonedPipe(pipe, spec.dates().get(0), target.classFqn());
         }
-        // PROPAGATION: same-dimension context through temporal parents; a
-        // BI-TEMPORAL root supplies (processing, business) — each single-
+        // PROPAGATION: same-dimension context through temporal parents.
+        // The PARENT HOP's explicit spec beats the root's (audit 13 B2:
+        // $p.t(%d1).s must filter s by %d1, not the root date — engine
+        // getMilestoningContextForQualifiedProperty builds a NEW context
+        // at the dated hop that flows onward).
+        if (head.contains(".") && temporalStrategy(parent.classFqn()) != null) {
+            String parentChain = head.substring(0, head.lastIndexOf('.'));
+            TemporalSpec ps = temporalByHead.get(parentChain);
+            if (ps != null && !ps.sweep() && ps.dates().size() == 1
+                    && strat.equals(temporalStrategy(parent.classFqn()))) {
+                return milestonedPipe(pipe, ps.dates().get(0), target.classFqn());
+            }
+        }
+        // a BI-TEMPORAL root supplies (processing, business) — each single-
         // dimension target takes its own.
         if (!rootMilestoning.isEmpty()
                 && temporalStrategy(parent.classFqn()) != null) {
@@ -2979,6 +3033,11 @@ public final class StoreResolver {
                 }
             }
         }
+        // NO shadow-stop here (unlike the path funnel): the exists rewrite
+        // resolves nested predicates through FRESH substitution scopes, so
+        // the scan must reach them too — a blanket stop under-demanded a
+        // constraint-derived shape (audit-13 B7 reverted; over-demand is
+        // duplicate-safe under EXISTS).
         for (TypedSpec ch : n.children()) {
             collectExistsInnerLeaves(ch, userVar, head, out);
         }
@@ -3124,21 +3183,46 @@ public final class StoreResolver {
                             sub = temporalTargetPipe(t, sources.get(mappingFqn, cls),
                                     subChain, sub);
                         } else {
+                            // inherited flows only SAME-DIMENSION through a
+                            // TEMPORAL parent (audit 13 F4/F5)
+                            java.util.List<TypedSpec> inh =
+                                    temporalStrategy(targetClassFqn) != null
+                                    && java.util.Objects.equals(
+                                            temporalStrategy(cls),
+                                            temporalStrategy(targetClassFqn))
+                                    ? hopDates : null;
                             java.util.List<TypedSpec> d = hopContextDates(
-                                    subChain, cls, hopDates);
-                            if (d != null && d.size() == 1) {
+                                    subChain, cls, inh);
+                            if (d != null && d.size() == 2
+                                    && "bitemporal".equals(temporalStrategy(cls))) {
+                                // bitemp->bitemp: both dimensions filter
+                                sub = milestonedPipeByStrategy(
+                                        milestonedPipeByStrategy(sub, d.get(0),
+                                                "processingtemporal", cls),
+                                        d.get(1), "businesstemporal", cls);
+                            } else if (d != null && d.size() == 1) {
                                 sub = milestonedPipe(sub, d.get(0), cls);
+                            } else if (d != null && d.size() == 2) {
+                                // RANGE context (root .all(d1,d2)): every
+                                // supporting alias range-filters (engine
+                                // getTemporalMilestoneTableRangeFilter) —
+                                // audit 13 F3: lift-then-skip leaked versions
+                                sub = rangeMilestonedPipe(sub, d.get(0),
+                                        d.get(1), cls);
                             }
                         }
                     }
                     return sub;
                 });
-        if (slotDates != null && slotDates.size() == 1
+        if (slotDates != null && !slotDates.isEmpty()
                 && hasMilestonedSlotTarget(t.pipeline())) {
-            // every milestoned SLOT-TARGET alias filters by the hop's date
-            // (engine every-alias rule, hop context) — single-dimension
+            // milestoned SLOT-TARGET aliases filter by the hop context —
+            // only tables supporting the context's OWN dimension (the
+            // context's dimension = the hop target class's strategy, since
+            // hopContextDates admits same-dimension flows only)
             return new Pipelines.Materialized(
-                    filterMilestonedJoinTargets(matM.pipeline(), slotDates.get(0)),
+                    filterMilestonedJoinTargets(matM.pipeline(), slotDates,
+                            temporalStrategy(targetClassFqn)),
                     matM.slotPrefixes(), matM.stripped());
         }
         return matM;
@@ -3153,37 +3237,59 @@ public final class StoreResolver {
         if (spec != null && !spec.sweep() && !spec.dates().isEmpty()) {
             return spec.dates();
         }
-        // propagated context (the PARENT hop's effective dates, or the
-        // root's at the head) flows only THROUGH a TEMPORAL class (engine
-        // clears after non-temporal hops — the NotPropogated goldens join
-        // milestoned slot tables UNFILTERED there)
-        if (spec == null && temporalStrategy(targetClassFqn) != null) {
-            if (inheritedDates != null && !inheritedDates.isEmpty()) {
+        // PROPAGATION is strictly PER-DIMENSION and only through TEMPORAL
+        // hops (audit 13: engine MilestoningDatesPropagationFunctions fills
+        // a single-date target only from the SAME stereotype; a business
+        // date must never filter processing columns, and a non-temporal
+        // intermediate CLEARS the context — the NotPropogated goldens).
+        String targetStrat = temporalStrategy(targetClassFqn);
+        if (spec == null && targetStrat != null) {
+            boolean biTarget = "bitemporal".equals(targetStrat);
+            if (inheritedDates != null && !inheritedDates.isEmpty()
+                    // bitemp targets inherit only a FULL 2-date context
+                    // (bitemp->bitemp is same-dimension by definition);
+                    // single-dimension targets inherit 1 date
+                    && (biTarget ? inheritedDates.size() == 2
+                            : inheritedDates.size() == 1)) {
+                // inherited context is dimension-stamped by construction:
+                // it flowed from a parent whose strategy the caller checked
                 return inheritedDates;
             }
-            if (!rootMilestoning.isEmpty()
-                    && !"bitemporal".equals(rootStrategy)) {
+            // ROOT fallback: HEAD hops only (no dot = directly off the
+            // root instance) — deeper hops inherit or nothing (audit 13
+            // F5: the root date leaked through non-temporal intermediates)
+            if (chainPrefix != null && !chainPrefix.contains(".")
+                    && !rootMilestoning.isEmpty()
+                    && targetStrat.equals(rootStrategy)) {
                 return rootMilestoning;
             }
         }
         return null;
     }
 
-    /** Filter every join whose RIGHT is a milestoned table scan by
-     * {@code date} (its own block's strategy — capability per table). */
-    private TypedSpec filterMilestonedJoinTargets(TypedSpec n, TypedSpec date) {
+    /**
+     * Filter joins whose RIGHT is a RAW milestoned table scan supporting
+     * the context's OWN dimension by the hop context. Audit 13: (a) only
+     * the matching dimension filters — a business date must never stamp
+     * processing columns (engine relationalElementCanSupportStrategy:
+     * unsupporting tables stay UNFILTERED); (b) only raw scans — a
+     * composite right (a sub-nav pipeline) already carries ITS hop's
+     * filter, double-stamping voided explicitly-dated sub-hops; (c) a
+     * 2-date single-dimension context RANGE-filters (root .all(d1,d2)).
+     */
+    private TypedSpec filterMilestonedJoinTargets(TypedSpec n,
+            java.util.List<TypedSpec> dates, String strategy) {
         if (n instanceof com.legend.compiler.spec.typed.TypedJoin j) {
             TypedSpec right = j.right();
-            for (String strat : java.util.List.of("businesstemporal",
-                    "processingtemporal")) {
-                if (tableHasBlock(right, strat)) {
-                    right = milestonedPipeByStrategy(right, date, strat,
-                            "nested join target");
-                    break;
-                }
+            if (right instanceof com.legend.compiler.spec.typed.TypedTableReference
+                    && strategy != null && tableHasBlock(right, strategy)) {
+                right = dates.size() == 1
+                        ? milestonedPipeByStrategy(right, dates.get(0), strategy,
+                                "nested join target")
+                        : rangeScanPipe(right, dates.get(0), dates.get(1), strategy);
             }
             return new com.legend.compiler.spec.typed.TypedJoin(
-                    filterMilestonedJoinTargets(j.left(), date), right,
+                    filterMilestonedJoinTargets(j.left(), dates, strategy), right,
                     j.kind(), j.condition(), j.prefix(), j.info());
         }
         return n;
