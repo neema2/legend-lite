@@ -108,7 +108,20 @@ class RelationalCorpusRunner {
                 }
             }
             List<String> modelOnly = new ArrayList<>(testSources.values());
-            runner.useFamily(family, familySources, modelOnly);
+            // DEEP subfamilies reference their parent family's elements
+            // (union/relation ~func bodies read union's myDB) — the engine
+            // compiles the module together. Depth-guarded: parents at the
+            // tests/ root carry alternative models (the reverted ancestor
+            // experiment), so only parents >= 3 segments deep inherit.
+            String parentKey = null;
+            Path parentDir = p.getParent();
+            if (parentDir != null && !parentDir.equals(Corpus.RELATIONAL)) {
+                String cand = Corpus.RELATIONAL.relativize(parentDir).toString();
+                if (cand.split("/").length >= 3) {
+                    parentKey = cand;
+                }
+            }
+            runner.useFamily(family, familySources, modelOnly, parentKey);
             for (Map.Entry<Path, String> e : testSources.entrySet()) {
                 runner.useFile(e.getKey().toString(), e.getValue());
                 for (Corpus.TestFn fn : Corpus.testFunctions(e.getValue())) {

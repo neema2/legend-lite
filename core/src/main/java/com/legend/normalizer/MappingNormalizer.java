@@ -1344,27 +1344,28 @@ public final class MappingNormalizer {
         for (ClassMapping cm : md.classMappings()) {
             bySetId.put(setIdOf(cm), cm);
         }
-        List<ClassMapping.Relational> memberSets = new ArrayList<>();
+        List<ClassMapping> memberSets = new ArrayList<>();
         for (String setId : u.memberSetIds()) {
             ClassMapping member = bySetId.get(setId);
-            if (!(member instanceof ClassMapping.Relational mr)) {
+            if (!(member instanceof ClassMapping.Relational)
+                    && !(member instanceof ClassMapping.RelationFunction)) {
                 throw new com.legend.error.NotImplementedException(
                         "Operation union member set '" + setId + "' of class '"
                       + u.className() + "' is " + (member == null ? "missing"
-                              : "not a Relational set") + "; mapping="
-                      + md.qualifiedName());
+                              : "not a Relational or Relation(~func) set")
+                      + "; mapping=" + md.qualifiedName());
             }
             // a member must map the operation class or a SUBCLASS — a
             // stray setId landing on an unrelated class with coincidental
             // property names would union unrelated rows (audit 8 S8)
-            if (!isSubclassOf(mr.className(), u.className(), model)) {
+            if (!isSubclassOf(member.className(), u.className(), model)) {
                 throw new com.legend.error.ModelException(
                         com.legend.error.LegendCompileException.Phase.NORMALIZE,
                         "Operation union member set '" + setId + "' maps '"
-                      + mr.className() + "', which is not '" + u.className()
+                      + member.className() + "', which is not '" + u.className()
                       + "' or a subclass; mapping=" + md.qualifiedName());
             }
-            memberSets.add(mr);
+            memberSets.add(member);
         }
         return synthMemberUnion(md, u.className(), memberSets, model);
     }
@@ -1526,12 +1527,34 @@ public final class MappingNormalizer {
 
     /** The shared-property UNION ALL over resolved member sets. */
     private static ValueSpecification synthMemberUnion(LegacyMappingDefinition md,
-            String className, List<ClassMapping.Relational> memberSets,
+            String className, List<? extends ClassMapping> memberSets,
             ModelBuilder model) {
         List<RelationalParts> parts = new ArrayList<>(memberSets.size());
-        List<ClassMapping.Relational> members = new ArrayList<>(memberSets.size());
-        for (ClassMapping.Relational mrIn : memberSets) {
-            ClassMapping.Relational mr = mrIn;
+        List<ClassMapping> members = new ArrayList<>(memberSets.size());
+        for (ClassMapping cmIn : memberSets) {
+            if (cmIn instanceof ClassMapping.RelationFunction rfm) {
+                // Relation (~func) member: the parts are the inlined
+                // relation body + its column reads — no main table, no
+                // nav lifting (scalar columns only)
+                Variable rfRow = new Variable("rf_row");
+                Map<String, KeyExpression> rfFields = new LinkedHashMap<>();
+                for (ClassMapping.RelationFunction.Col c : rfm.columns()) {
+                    if (c.local()) {
+                        continue;
+                    }
+                    ValueSpecification read = new AppliedProperty(rfRow, c.column());
+                    if (c.enumMappingId() != null) {
+                        read = translateEnumeratedSource(c.property(),
+                                c.enumMappingId(), read, md, rfm.className(), model);
+                    }
+                    rfFields.put(c.property(), new KeyExpression(read, false, false));
+                }
+                members.add(rfm);
+                parts.add(new RelationalParts(
+                        relationFunctionPipeline(rfm, model), rfRow, rfFields));
+                continue;
+            }
+            ClassMapping.Relational mr = (ClassMapping.Relational) cmIn;
             String setId = setIdOf(mr);
             if (mr.sourceUrl() != null) {
                 throw new com.legend.error.NotImplementedException(
@@ -1649,7 +1672,8 @@ public final class MappingNormalizer {
                 for (var key : en.getValue().entrySet()) {
                     ValueSpecification read = en.getKey() == ordinal
                             ? new AppliedProperty(pp.rowBind(), key.getKey())
-                            : nullOfPhysicalKind(members.get(en.getKey()),
+                            : nullOfPhysicalKind((ClassMapping.Relational)
+                                    members.get(en.getKey()),
                                     key.getKey(), md, model);
                     // toOne types both threads identically (real read vs
                     // NULL cast); lowering is erasure — the key stays NULL
@@ -1702,13 +1726,15 @@ public final class MappingNormalizer {
 
     /** Collect the member class-typed Join PMs liftable onto the union. */
     private static List<NavLift> collectNavLifts(LegacyMappingDefinition md,
-            String className, List<ClassMapping.Relational> members,
+            String className, List<ClassMapping> members,
             ModelBuilder model) {
         // property -> per-member entries, member order
         Map<String, List<int[]>> found = new LinkedHashMap<>();
         Map<String, List<PropertyMapping.Join>> joins = new LinkedHashMap<>();
         for (int i = 0; i < members.size(); i++) {
-            ClassMapping.Relational mr = members.get(i);
+            if (!(members.get(i) instanceof ClassMapping.Relational mr)) {
+                continue;   // Relation(~func) members carry no Join PMs
+            }
             ClassDefinition memberOwner = model.findClass(mr.className()).orElse(null);
             for (PropertyMapping pm : mr.propertyMappings()) {
                 if (!(pm instanceof PropertyMapping.Join j)) {
@@ -1818,7 +1844,8 @@ public final class MappingNormalizer {
                                         "Join '" + hop.joinName() + "' not found"
                                         + " in db '" + hopDb + "'; PM='" + prop
                                         + "', mapping=" + md.qualifiedName()));
-                String srcTable = members.get(memberOrd).mainTable().table();
+                String srcTable = ((ClassMapping.Relational)
+                        members.get(memberOrd)).mainTable().table();
                 String tgtTable = determineTargetTable(jd.operation(), srcTable,
                         hop.joinName(), prop, 1, md.qualifiedName());
                 if (landingTable == null) {
@@ -1881,7 +1908,7 @@ public final class MappingNormalizer {
      */
     private static void collectInboundRouteKeys(LegacyMappingDefinition md,
             ModelBuilder model, List<String> memberIds,
-            List<ClassMapping.Relational> members,
+            List<ClassMapping> members,
             Map<Integer, Map<String, String>> sink) {
         List<LegacyMappingDefinition> closure = new ArrayList<>();
         collectMappingClosure(md, model, closure, new java.util.HashSet<>());
@@ -1909,7 +1936,13 @@ public final class MappingNormalizer {
                     if (jd == null) {
                         continue;   // loud at the route's own emission
                     }
-                    String memberTable = members.get(ord).mainTable().table();
+                    if (!(members.get(ord)
+                            instanceof ClassMapping.Relational routedMember)) {
+                        continue;   // routes into Relation(~func) members
+                                    // have no physical key table (loud at
+                                    // navigation if demanded)
+                    }
+                    String memberTable = routedMember.mainTable().table();
                     java.util.Set<String> cols = new LinkedHashSet<>();
                     collectColumnsOfTable(jd.operation(), memberTable, cols);
                     for (String c : cols) {

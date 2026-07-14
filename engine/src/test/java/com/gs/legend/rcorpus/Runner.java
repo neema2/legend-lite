@@ -137,13 +137,29 @@ public final class Runner {
      */
     public void useFamily(String familyKey, List<String> setupSources,
             List<String> modelOnlySources) {
+        useFamily(familyKey, setupSources, modelOnlySources, null);
+    }
+
+    /**
+     * {@code parentFamilyKey}: a DEEP subfamily (tests/mapping/union/relation)
+     * references its parent family's elements (~func bodies read the parent
+     * db) — the engine compiles the module together. The parent's
+     * already-vetted model text and DDL prepend; the child's own definitions
+     * and seeds run after and win.
+     */
+    public void useFamily(String familyKey, List<String> setupSources,
+            List<String> modelOnlySources, String parentFamilyKey) {
         currentFamilyKey = familyKey;
         if (familyModels.containsKey(familyKey)) {
             return;
         }
         StringBuilder ext = new StringBuilder();
         List<String> sql = new ArrayList<>();
-        StringBuilder assembled = new StringBuilder(model);
+        if (parentFamilyKey != null && familyModels.containsKey(parentFamilyKey)) {
+            ext.append(familyModels.get(parentFamilyKey)).append('\n');
+            sql.addAll(familySeeds.getOrDefault(parentFamilyKey, List.of()));
+        }
+        StringBuilder assembled = new StringBuilder(model).append(ext);
         // pass 1: every family file's NON-mapping elements, deduped by
         // kind::fqn (the real engine compiles the whole module together;
         // cross-file references — embedded's BondDetail association,

@@ -99,7 +99,9 @@ public final class ClassSources {
                 new LinkedHashSet<>());
         if (binding == null) {
             throw new MappingResolutionException("class '" + classFqn
-                    + "' is not mapped in mapping '" + mappingFqn + "'", classFqn);
+                    + "' is not mapped in mapping '" + mappingFqn + "'"
+                    + ctx.mappingPoison(mappingFqn, classFqn)
+                            .map(r -> " (" + r + ")").orElse(""), classFqn);
         }
 
         List<TypedFunction> fns = ctx.findFunction(binding.functionFqn());
