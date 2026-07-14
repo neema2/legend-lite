@@ -263,12 +263,14 @@ final class Typer {
                         && prop.type() instanceof Type.ClassType pct ? pct.fqn() : null;
                 String targetStrat = targetFqn == null ? null
                         : com.legend.compiler.element.Temporal.strategyOf(ctx, targetFqn);
+                boolean arityOk = af.parameters().size() - 1 == wantDates;
                 if ("bitemporal".equals(targetStrat) && !sweep) {
-                    wantDates = 2;   // product(processingDate, businessDate)
+                    // product(processingDate, businessDate) — or the 1-date
+                    // generated form (the owner's dimension fills the other)
+                    int n2 = af.parameters().size() - 1;
+                    arityOk = n2 == 2 || n2 == 1;
                 }
-                if (targetFqn != null
-                        && af.parameters().size() - 1 == wantDates
-                        && targetStrat != null) {
+                if (targetFqn != null && arityOk && targetStrat != null) {
                     List<TypedSpec> dates = new ArrayList<>();
                     for (int i = 1; i < af.parameters().size(); i++) {
                         dates.add(synth(af.parameters().get(i), env));

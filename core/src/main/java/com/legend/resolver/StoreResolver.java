@@ -398,10 +398,11 @@ public final class StoreResolver {
         if (strategy.equals("businesstemporal")) {
             var b = ms == null ? null : ms.business();
             if (b == null) {
-                throw new MappingResolutionException("milestoned fetch of '"
-                        + classFqn + "': the main table declares no matching"
-                        + " milestoning block for the business dimension",
-                        classFqn);
+                // CAPABILITY TOLERANCE (engine relationalElementCanSupport-
+                // Strategy + testLatestIgnoredForNonMilestonedMapped
+                // goldens): a table that cannot support the strategy is
+                // silently UNFILTERED, never an error
+                return pipe;
             }
             fromCol = b.from();
             thruCol = b.thru();
@@ -411,10 +412,7 @@ public final class StoreResolver {
         } else if (strategy.equals("processingtemporal")) {
             var p = ms == null ? null : ms.processing();
             if (p == null) {
-                throw new MappingResolutionException("milestoned fetch of '"
-                        + classFqn + "': the main table declares no matching"
-                        + " milestoning block for the processing dimension",
-                        classFqn);
+                return pipe;   // capability tolerance — see above
             }
             fromCol = p.in();
             thruCol = p.out();
@@ -426,9 +424,7 @@ public final class StoreResolver {
                     + classFqn + "' is not supported yet", classFqn);
         }
         if (snapCol == null && (fromCol == null || thruCol == null)) {
-            throw new MappingResolutionException("milestoned fetch of '" + classFqn
-                    + "': the main table declares no matching milestoning block",
-                    classFqn);
+            return pipe;   // capability tolerance — see above
         }
         if (!(date instanceof com.legend.compiler.spec.typed.TypedCDate
                 || date instanceof com.legend.compiler.spec.typed.TypedCLatestDate)) {
@@ -482,7 +478,13 @@ public final class StoreResolver {
                         + "milestoned table is not supported yet", classFqn);
             }
             TypedSpec snapDate = date;
-            if (date instanceof com.legend.compiler.spec.typed.TypedCDate cd
+            boolean snapColIsDate = row.columns().stream()
+                    .filter(x -> x.name().equalsIgnoreCase(snapCol)).findFirst()
+                    .map(x -> x.type() == com.legend.compiler.element.type.Type
+                            .Primitive.STRICT_DATE)
+                    .orElse(true);
+            if (snapColIsDate
+                    && date instanceof com.legend.compiler.spec.typed.TypedCDate cd
                     && !(cd.value()
                             instanceof com.legend.values.PureDateLiteral.StrictDate)) {
                 String iso = cd.value().toEngineString();
@@ -741,9 +743,7 @@ public final class StoreResolver {
         if (strategy.equals("businesstemporal")) {
             var b = ms == null ? null : ms.business();
             if (b == null) {
-                throw new MappingResolutionException("allVersionsInRange of '"
-                        + classFqn + "': the main table declares no matching"
-                        + " milestoning block for the business dimension", classFqn);
+                return pipe;   // capability tolerance (engine gating)
             }
             fromCol = b.from();
             thruCol = b.thru();
@@ -752,9 +752,7 @@ public final class StoreResolver {
         } else if (strategy.equals("processingtemporal")) {
             var pr = ms == null ? null : ms.processing();
             if (pr == null) {
-                throw new MappingResolutionException("allVersionsInRange of '"
-                        + classFqn + "': the main table declares no matching"
-                        + " milestoning block for the processing dimension", classFqn);
+                return pipe;   // capability tolerance (engine gating)
             }
             fromCol = pr.in();
             thruCol = pr.out();
@@ -2301,16 +2299,17 @@ public final class StoreResolver {
     private void collectTemporalNodes(TypedSpec n, String userVar,
             java.util.Map<String, TemporalSpec> out) {
         if (n instanceof com.legend.compiler.spec.typed.TypedMilestonedAccess ma
-                && !ma.dates().isEmpty()
                 && !(ma.source()
                         instanceof com.legend.compiler.spec.typed.TypedVariable v0
                         && v0.name().equals(userVar))) {
-            // audit 10: a NESTED dated property function ($t.account
-            // .portfolio(%d2)) would silently take the ROOT date — specs are
-            // keyed by bare head today; loud until chain-keyed specs land
-            throw new NotImplementedException("milestoned property function '"
-                    + ma.property() + "' with an explicit date on a NESTED"
-                    + " navigation is not supported yet");
+            // audit 10: a NESTED milestoned access — dated OR sweep — would
+            // silently take the ROOT date via propagation (a nested
+            // ...AllVersions hop must be the RAW extent, engine
+            // pureToSQLQuery isAllVersions skip); specs are keyed by bare
+            // head today, so loud until chain-keyed specs land
+            throw new NotImplementedException("milestoned property access '"
+                    + ma.property() + "' on a NESTED navigation is not"
+                    + " supported yet");
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedMilestonedAccess ma
                 && ma.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
@@ -2656,6 +2655,9 @@ public final class StoreResolver {
             return pipe;
         }
         TemporalSpec spec = temporalByHead.get(head);
+        if (spec != null && spec.sweep() && spec.dates().isEmpty()) {
+            return pipe;   // propAllVersions(): the RAW extent, any dimension
+        }
         if (strat.equals("bitemporal")) {
             java.util.List<TypedSpec> dates =
                     spec != null && !spec.sweep() && spec.dates().size() == 2
@@ -2664,6 +2666,22 @@ public final class StoreResolver {
                                     && rootMilestoning.size() == 2
                                     && temporalStrategy(parent.classFqn()) != null
                                     ? rootMilestoning : null;
+            // the engine-generated 1-DATE bitemporal property: the param is
+            // the dimension the OWNER lacks; the owner's own dimension
+            // fills from $this.<date> = the propagated context
+            if (dates == null && spec != null && !spec.sweep()
+                    && spec.dates().size() == 1 && rootMilestoning.size() == 1) {
+                String parentStrat = temporalStrategy(parent.classFqn());
+                if ("businesstemporal".equals(parentStrat)
+                        && parentStrat.equals(rootStrategy)) {
+                    dates = java.util.List.of(spec.dates().get(0),
+                            rootMilestoning.get(0));
+                } else if ("processingtemporal".equals(parentStrat)
+                        && parentStrat.equals(rootStrategy)) {
+                    dates = java.util.List.of(rootMilestoning.get(0),
+                            spec.dates().get(0));
+                }
+            }
             if (dates == null) {
                 throw new MappingResolutionException("navigation '" + head
                         + "' to bi-temporal class '" + target.classFqn()
