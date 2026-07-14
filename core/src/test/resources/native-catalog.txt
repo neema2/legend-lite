@@ -135,6 +135,8 @@ meta::pure::functions::string::generation::generateGuid():meta::pure::metamodel:
 meta::pure::functions::collection::getAll<T>(class:meta::pure::metamodel::type::Class<T>[1]):T[*]
 meta::pure::functions::collection::getAll<T>(class:meta::pure::metamodel::type::Class<T>[1], date:meta::pure::metamodel::type::Date[1]):T[*]
 meta::pure::functions::collection::getAll<T>(class:meta::pure::metamodel::type::Class<T>[1], from:meta::pure::metamodel::type::Date[1], to:meta::pure::metamodel::type::Date[1]):T[*]
+meta::pure::functions::collection::getAllVersions<T>(class:meta::pure::metamodel::type::Class<T>[1]):T[*]
+meta::pure::functions::collection::getAllVersionsInRange<T>(class:meta::pure::metamodel::type::Class<T>[1], start:meta::pure::metamodel::type::Date[1], end:meta::pure::metamodel::type::Date[1]):T[*]
 meta::pure::functions::variant::navigation::get(source:meta::pure::metamodel::variant::Variant[1], key:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::variant::Variant[0..1]
 meta::pure::graphFetch::execution::graphFetch<T>(source:T[*], col:meta::pure::metamodel::relation::ColSpec<T>[1]):T[*]
 meta::pure::graphFetch::execution::graphFetch<T>(source:T[*], cols:meta::pure::metamodel::relation::ColSpecArray<T>[1]):T[*]

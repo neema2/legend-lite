@@ -833,7 +833,8 @@ public final class NameResolver {
                 RelationalOperation term = resolveRelOp(jtc.terminalColumn(), scope);
                 yield (db.equals(jtc.database()) && joins == jtc.joins()
                         && term == jtc.terminalColumn()) ? jtc
-                        : new PropertyMapping.JoinTerminalColumn(jtc.propertyName(), db, joins, term);
+                        : new PropertyMapping.JoinTerminalColumn(jtc.propertyName(),
+                                db, joins, term, jtc.enumMappingId(), jtc.enumMapped());
             }
             case PropertyMapping.Expression e -> {
                 RelationalOperation expr = resolveRelOp(e.expression(), scope);

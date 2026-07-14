@@ -13,13 +13,23 @@ import java.util.List;
  * error &mdash; compile succeeds, the back-end surfaces it at the use site
  * (engine's compile-vs-link split). The optional milestoning dates ride along.
  *
- * @param classFqn    the source class, fully qualified
- * @param milestoning the business/processing date arguments, possibly empty
- * @param info        {@code ClassType[*]}
+ * @param classFqn     the source class, fully qualified
+ * @param milestoning  the business/processing date arguments, possibly empty
+ * @param versionSweep {@code Class.allVersions()} / {@code
+ *                     allVersionsInRange(start, end)} — the VERSION-sweep
+ *                     fetch: no dates = every version row unfiltered; two
+ *                     dates = versions whose validity window overlaps the
+ *                     range (engine getTemporalMilestoneRangeFilter)
+ * @param info         {@code ClassType[*]}
  */
-public record TypedGetAll(String classFqn, List<TypedSpec> milestoning, ExprType info) implements TypedSpec {
+public record TypedGetAll(String classFqn, List<TypedSpec> milestoning,
+                          boolean versionSweep, ExprType info) implements TypedSpec {
     public TypedGetAll {
         milestoning = List.copyOf(milestoning);
+    }
+
+    public TypedGetAll(String classFqn, List<TypedSpec> milestoning, ExprType info) {
+        this(classFqn, milestoning, false, info);
     }
 
     @Override

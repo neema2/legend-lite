@@ -53,7 +53,7 @@ public sealed interface TypedSpec permits
         TypedFlatten, TypedCollectionRelation,
         TypedPivot,
         TypedSortBy,
-        TypedGetAll,
+        TypedGetAll, TypedMilestonedAccess,
         TypedFrom,
         TypedWrite,
         TypedFold,

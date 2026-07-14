@@ -164,6 +164,20 @@ final class Substitution {
                 && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
             return pathOf(c.args().get(0), userVar);
         }
+        // a MILESTONED property function ($o.product(%d)) is a property
+        // step whose temporal arguments the demand scan collects separately
+        if (n instanceof com.legend.compiler.spec.typed.TypedMilestonedAccess ma) {
+            if (ma.source() instanceof TypedVariable v && v.name().equals(userVar)) {
+                return java.util.List.of(ma.property());
+            }
+            java.util.List<String> inner = pathOf(ma.source(), userVar);
+            if (inner == null) {
+                return null;
+            }
+            java.util.List<String> out = new ArrayList<>(inner);
+            out.add(ma.property());
+            return out;
+        }
         if (!(n instanceof TypedPropertyAccess pa)) {
             return null;
         }
@@ -381,6 +395,10 @@ final class Substitution {
             case TypedVariable v -> v;
             case TypedPropertyAccess pa -> new TypedPropertyAccess(
                     rewrite(pa.source()), pa.property(), pa.info());
+            case com.legend.compiler.spec.typed.TypedMilestonedAccess ma ->
+                    new com.legend.compiler.spec.typed.TypedMilestonedAccess(
+                            rewrite(ma.source()), ma.property(),
+                            rewriteAll(ma.dates()), ma.sweep(), ma.info());
             case TypedNativeCall c -> new TypedNativeCall(c.callee(),
                     rewriteAll(c.args()), c.info());
             case TypedCollection c -> new TypedCollection(rewriteAll(c.elements()), c.info());

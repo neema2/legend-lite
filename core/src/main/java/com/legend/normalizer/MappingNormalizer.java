@@ -1842,6 +1842,10 @@ public final class MappingNormalizer {
         // "A__B") AND the lookup readers use to recover the slot name,
         // rather than re-flattening the hop list (which is lossy).
         final Map<List<String>, String> pathToSlot = new LinkedHashMap<>();
+        /** Class-typed navigate slots: property name -> MINTED alias (differs
+         * when the property name collides with a physical main-table column
+         * — the milestoningmap 'exchange' case). */
+        final Map<String, String> navSlotByProp = new LinkedHashMap<>();
         // Physical (non-class) target tables reached by MORE THAN ONE distinct
         // sub-row slot and which are NOT the main table. A bare column ref to
         // such a table (in a filter/expression/groupBy/column PM) cannot
@@ -2379,10 +2383,13 @@ public final class MappingNormalizer {
             // distinct. Class-instance hops dedup on the property name, since
             // their slot is the property, not a flattened chain.
             List<String> pathKey = emitNavigate ? null : List.copyOf(prefixPath);
+            String navAlias = emitNavigate
+                    ? mintNavSlotAlias(p, model, mainDb, mainTable, propName)
+                    : null;
             if (emitNavigate) {
-                if (p.aliasToTargetTable.containsKey(propName)) {
-                    prevTable = p.aliasToTargetTable.get(propName);
-                    prevAlias = propName;
+                if (p.aliasToTargetTable.containsKey(navAlias)) {
+                    prevTable = p.aliasToTargetTable.get(navAlias);
+                    prevAlias = navAlias;
                     continue;
                 }
             } else {
@@ -2398,7 +2405,7 @@ public final class MappingNormalizer {
             // human-readable "__"-joined path, disambiguated only if that name
             // would clash with a different slot (the structured pathKey, not
             // the name, is the identity readers resolve through slotFor).
-            String slotAlias = emitNavigate ? propName : uniqueSlotName(p, pathKey);
+            String slotAlias = emitNavigate ? navAlias : uniqueSlotName(p, pathKey);
 
             String hopDb = hop.databaseName() != null ? hop.databaseName()
                     : (chainDb != null ? chainDb : mainDb);
@@ -2493,6 +2500,38 @@ public final class MappingNormalizer {
      * free. The structured {@link Pipeline#pathToSlot} key, not this name,
      * is the dedup identity; readers recover the name via {@link #slotFor}.
      */
+    /**
+     * The navigate-slot alias for a class-typed join PM: the property name,
+     * MINTED PAST any physical main-table column of the same name (the slot
+     * pseudo-column and the physical column share one relation row — the
+     * checker rightly rejects the duplicate). Deterministic and recorded so
+     * the binding read uses the same name.
+     */
+    private static String mintNavSlotAlias(Pipeline p, ModelBuilder model,
+            String mainDb, String mainTable, String propName) {
+        String known = p.navSlotByProp.get(propName);
+        if (known != null) {
+            return known;
+        }
+        String tableName = mainTable != null && mainTable.contains(".")
+                ? mainTable.substring(mainTable.lastIndexOf('.') + 1) : mainTable;
+        boolean collides = model.findDatabase(mainDb)
+                .map(db -> db.tables().stream()
+                        .filter(t -> t.name().equalsIgnoreCase(tableName))
+                        .flatMap(t -> t.columns().stream())
+                        .anyMatch(c -> c.name().equalsIgnoreCase(propName)))
+                .orElse(false);
+        String alias = propName;
+        if (collides) {
+            alias = propName + "_nav";
+            while (p.aliasToTargetTable.containsKey(alias)) {
+                alias = alias + "_";
+            }
+        }
+        p.navSlotByProp.put(propName, alias);
+        return alias;
+    }
+
     private static String uniqueSlotName(Pipeline p, List<String> path) {
         String base = String.join("__", path);
         if (!p.aliasToTargetTable.containsKey(base)) return base;
@@ -2635,7 +2674,8 @@ public final class MappingNormalizer {
                 String targetIfMapped = classTypedTargetIfMapped(ownerClassFqn,
                         j.propertyName(), model);
                 String slot = targetIfMapped != null
-                        ? j.propertyName()
+                        ? pipeline.navSlotByProp.getOrDefault(
+                                j.propertyName(), j.propertyName())
                         : slotFor(pipeline, j.joins());
                 yield new CtorField(j.propertyName(),
                         new AppliedProperty(rowBind, slot), false);
@@ -2646,8 +2686,14 @@ public final class MappingNormalizer {
                 Map<String, ValueSpecification> scope = new LinkedHashMap<>(tableScope);
                 String terminalTable = pipeline.aliasToTargetTable.get(alias);
                 if (terminalTable != null) scope.put(terminalTable, subRow);
+                ValueSpecification read = RelOpTranslator.translate(
+                        jtc.terminalColumn(), scope, null, rowBind, pipeline.view());
                 yield new CtorField(jtc.propertyName(),
-                        RelOpTranslator.translate(jtc.terminalColumn(), scope, null, rowBind, pipeline.view()),
+                        jtc.enumMapped()
+                                ? translateEnumeratedSource(jtc.propertyName(),
+                                        jtc.enumMappingId(), read, md,
+                                        ownerClassFqn, model)
+                                : read,
                         false);
             }
             case PropertyMapping.LocalProperty lp -> {

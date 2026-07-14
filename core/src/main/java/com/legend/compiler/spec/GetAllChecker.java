@@ -27,4 +27,16 @@ final class GetAllChecker {
         }
         return new TypedGetAll(ref.fullPath(), a.args().subList(1, a.args().size()), a.out());
     }
+
+    /** {@code Class.allVersions()} / {@code allVersionsInRange(s, e)}: the
+     * VERSION-sweep fetch — same anchor node, sweep-flagged; the range
+     * dates ride in the milestoning slot. */
+    static TypedSpec checkVersions(Typer t, AppliedFunction af, Env env) {
+        Application a = t.checkGeneric(af, env);
+        if (a.args().isEmpty() || !(a.args().get(0) instanceof TypedPackageableRef ref)) {
+            throw new TypeInferenceException(af.function() + " expects a class reference");
+        }
+        return new TypedGetAll(ref.fullPath(),
+                a.args().subList(1, a.args().size()), true, a.out());
+    }
 }

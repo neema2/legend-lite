@@ -2645,14 +2645,20 @@ public final class ElementParser implements TokenStreamCursor {
         // Branch by what follows the optional [DB].
         if (peek() == TokenType.AT) {
             // Join navigation: @J1 > @J2 ( | terminalColumn )?
-            if (enumMappingId != null || anonymousEnumMapping) {
-                throw error("EnumerationMapping cannot be applied to a join property mapping");
-            }
             requirePropertyMappingDb(propName, db, "join navigation");
             List<JoinChainElement> joins = parseJoinChain(db);
             if (match(TokenType.PIPE)) {
                 RelationalOperation terminal = parseDbAtomicOperation(db);
-                return new PropertyMapping.JoinTerminalColumn(propName, db, joins, terminal);
+                // EnumerationMapping over a JOIN-reached column (engine:
+                // classificationType : EnumerationMapping m : [db]@J | T.C):
+                // the terminal read decodes through the enum mapping
+                return new PropertyMapping.JoinTerminalColumn(propName, db,
+                        joins, terminal, enumMappingId,
+                        enumMappingId != null || anonymousEnumMapping);
+            }
+            if (enumMappingId != null || anonymousEnumMapping) {
+                throw error("EnumerationMapping on a join property mapping"
+                        + " requires a terminal column (| T.C)");
             }
             return new PropertyMapping.Join(propName, db, joins);
         }

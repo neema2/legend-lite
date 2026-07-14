@@ -231,6 +231,39 @@ final class Typer {
                 return applyGeneric(new AppliedFunction(d.bodyFunctionFqn(),
                         af.parameters()), env);
             }
+            // MILESTONED property functions (real pure GENERATES these on
+            // ends targeting a temporal class): prop(date) — point access;
+            // propAllVersions() — version sweep; propAllVersionsInRange(s, e).
+            if (classFqn != null) {
+                String name = af.function();
+                String base = name;
+                boolean sweep = false;
+                int wantDates = 1;
+                if (name.endsWith("AllVersionsInRange")) {
+                    base = name.substring(0, name.length() - "AllVersionsInRange".length());
+                    sweep = true;
+                    wantDates = 2;
+                } else if (name.endsWith("AllVersions")) {
+                    base = name.substring(0, name.length() - "AllVersions".length());
+                    sweep = true;
+                    wantDates = 0;
+                }
+                var prop = ctx.findProperty(classFqn, base).orElse(null);
+                String targetFqn = prop != null
+                        && prop.type() instanceof Type.ClassType pct ? pct.fqn() : null;
+                if (targetFqn != null
+                        && af.parameters().size() - 1 == wantDates
+                        && com.legend.compiler.element.Temporal
+                                .strategyOf(ctx, targetFqn) != null) {
+                    List<TypedSpec> dates = new ArrayList<>();
+                    for (int i = 1; i < af.parameters().size(); i++) {
+                        dates.add(synth(af.parameters().get(i), env));
+                    }
+                    return new com.legend.compiler.spec.typed.TypedMilestonedAccess(
+                            recv, base, dates, sweep,
+                            new ExprType(prop.type(), prop.multiplicity()));
+                }
+            }
         }
         return applyGeneric(af, env);
     }
@@ -277,6 +310,8 @@ final class Typer {
             case SORT_BY -> SortChecker.sortBy(this, af, env, true);
             case SORT_BY_REVERSED -> SortChecker.sortBy(this, af, env, false);
             case GET_ALL -> GetAllChecker.check(this, af, env);
+            case GET_ALL_VERSIONS, GET_ALL_VERSIONS_IN_RANGE ->
+                    GetAllChecker.checkVersions(this, af, env);
             case FROM -> FromChecker.check(this, af, env);
             case WRITE -> WriteChecker.check(this, af, env);
             case FOLD -> FoldChecker.check(this, af, env);

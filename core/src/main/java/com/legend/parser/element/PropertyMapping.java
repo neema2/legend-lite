@@ -163,8 +163,16 @@ public sealed interface PropertyMapping
      */
     record JoinTerminalColumn(String propertyName, String database,
                               List<JoinChainElement> joins,
-                              RelationalOperation terminalColumn)
+                              RelationalOperation terminalColumn,
+                              String enumMappingId, boolean enumMapped)
             implements PropertyMapping {
+
+        public JoinTerminalColumn(String propertyName, String database,
+                                  List<JoinChainElement> joins,
+                                  RelationalOperation terminalColumn) {
+            this(propertyName, database, joins, terminalColumn, null, false);
+        }
+
         public JoinTerminalColumn {
             Objects.requireNonNull(propertyName, "Property name cannot be null");
             Objects.requireNonNull(database, "Database cannot be null");

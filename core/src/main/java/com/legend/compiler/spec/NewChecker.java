@@ -71,7 +71,15 @@ final class NewChecker {
             Property prop = t.model().findProperty(ni.className(), name).orElseThrow(() ->
                     new TypeInferenceException("class '" + ni.className() + "' has no property '" + name + "'"));
             TypedSpec value = t.synth(key.value(), env);
-            t.kernel().unify(prop.type(), value.info().type(), new Bindings());   // value must conform
+            try {
+                t.kernel().unify(prop.type(), value.info().type(), new Bindings());   // value must conform
+            } catch (TypeInferenceException e) {
+                String v = String.valueOf(key.value());
+                throw new TypeInferenceException("property '" + name + "' of '"
+                        + ni.className() + "': " + e.getMessage()
+                        + " (value: " + (v.length() > 400 ? v.substring(0, 400) : v)
+                        + ")");
+            }
             // Multiplicity conformance: FULL subsumption, exactly real
             // pure's NewValidator (Multiplicity.subsumes) — the declared
             // range must contain the value's range, so even [0..1] into a

@@ -495,6 +495,121 @@ public final class StoreResolver {
     }
 
     /**
+     * {@code Class.allVersionsInRange(start, end)}: versions whose validity
+     * window OVERLAPS the range — engine getTemporalMilestoneRangeFilter:
+     * inclusive-thru blocks use {@code from < end AND thru >= start}, else
+     * {@code from <= end AND thru > start}; snapshot milestoning selects
+     * {@code start <= snap AND snap <= end}. %latest is not a valid range
+     * bound (the engine asserts).
+     */
+    private TypedSpec rangeMilestonedPipe(TypedSpec pipe, TypedSpec start,
+            TypedSpec end, String classFqn) {
+        com.legend.compiler.spec.typed.TypedTableReference root = rootTable(pipe);
+        var ms = root == null ? null
+                : ctx.findTableMilestoning(root.store(), root.table()).orElse(null);
+        String strategy = temporalStrategy(classFqn);
+        if (strategy == null) {
+            throw new MappingResolutionException("allVersionsInRange of '" + classFqn
+                    + "': the class declares no temporal stereotype", classFqn);
+        }
+        String fromCol;
+        String thruCol;
+        String snapCol;
+        boolean inclusive;
+        if (strategy.equals("businesstemporal")) {
+            var b = ms == null ? null : ms.business();
+            if (b == null) {
+                throw new MappingResolutionException("allVersionsInRange of '"
+                        + classFqn + "': the main table declares no matching"
+                        + " milestoning block for the business dimension", classFqn);
+            }
+            fromCol = b.from();
+            thruCol = b.thru();
+            snapCol = b.snapshotDate();
+            inclusive = b.thruIsInclusive();
+        } else if (strategy.equals("processingtemporal")) {
+            var pr = ms == null ? null : ms.processing();
+            if (pr == null) {
+                throw new MappingResolutionException("allVersionsInRange of '"
+                        + classFqn + "': the main table declares no matching"
+                        + " milestoning block for the processing dimension", classFqn);
+            }
+            fromCol = pr.in();
+            thruCol = pr.out();
+            snapCol = pr.snapshotDate();
+            inclusive = pr.outIsInclusive();
+        } else {
+            throw new MappingResolutionException("bi-temporal allVersionsInRange"
+                    + " of '" + classFqn + "' is not supported yet", classFqn);
+        }
+        if (start instanceof com.legend.compiler.spec.typed.TypedCLatestDate
+                || end instanceof com.legend.compiler.spec.typed.TypedCLatestDate) {
+            // engine: '%latest not a valid parameter for allVersionsInRange'
+            throw new MappingResolutionException("%latest is not a valid"
+                    + " parameter for allVersionsInRange", classFqn);
+        }
+        com.legend.compiler.element.type.Type.RelationType row =
+                (com.legend.compiler.element.type.Type.RelationType) pipe.info().type();
+        String v = "ms_row";
+        com.legend.compiler.element.type.ExprType rowT =
+                new com.legend.compiler.element.type.ExprType(row,
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+        java.util.function.Function<String, TypedSpec> col = name -> {
+            com.legend.compiler.element.type.Type.Column c = row.columns().stream()
+                    .filter(x -> x.name().equalsIgnoreCase(name)).findFirst()
+                    .orElseThrow(() -> new MappingResolutionException(
+                            "milestoning column '" + name + "' is not on the"
+                                    + " pipeline row of '" + classFqn + "'", classFqn));
+            return new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                    new com.legend.compiler.spec.typed.TypedVariable(v, rowT),
+                    c.name(), new com.legend.compiler.element.type.ExprType(
+                            c.type(), c.multiplicity()));
+        };
+        com.legend.compiler.element.type.ExprType boolT =
+                new com.legend.compiler.element.type.ExprType(
+                        com.legend.compiler.element.type.Type.Primitive.BOOLEAN,
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+        TypedSpec cond;
+        if (snapCol != null) {
+            cond = cmpCall("meta::pure::functions::boolean::and",
+                    dateCmpCall("meta::pure::functions::boolean::greaterThanEqual",
+                            col.apply(snapCol), start, boolT),
+                    dateCmpCall("meta::pure::functions::boolean::lessThanEqual",
+                            col.apply(snapCol), end, boolT),
+                    boolT);
+        } else if (inclusive) {
+            cond = cmpCall("meta::pure::functions::boolean::and",
+                    dateCmpCall("meta::pure::functions::boolean::lessThan",
+                            col.apply(fromCol), end, boolT),
+                    dateCmpCall("meta::pure::functions::boolean::greaterThanEqual",
+                            col.apply(thruCol), start, boolT),
+                    boolT);
+        } else {
+            cond = cmpCall("meta::pure::functions::boolean::and",
+                    dateCmpCall("meta::pure::functions::boolean::lessThanEqual",
+                            col.apply(fromCol), end, boolT),
+                    dateCmpCall("meta::pure::functions::boolean::greaterThan",
+                            col.apply(thruCol), start, boolT),
+                    boolT);
+        }
+        TypedLambda pred = new TypedLambda(java.util.List.of(v),
+                java.util.List.of(cond),
+                new com.legend.compiler.element.type.ExprType(
+                        new com.legend.compiler.element.type.Type.FunctionType(
+                                java.util.List.of(new com.legend.compiler.element
+                                        .type.Type.Param(row,
+                                        com.legend.compiler.element.type
+                                                .Multiplicity.Bounded.ONE)),
+                                new com.legend.compiler.element.type.Type.Param(
+                                        com.legend.compiler.element.type.Type
+                                                .Primitive.BOOLEAN,
+                                        com.legend.compiler.element.type
+                                                .Multiplicity.Bounded.ONE)),
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+        return new com.legend.compiler.spec.typed.TypedFilter(pipe, pred, pipe.info());
+    }
+
+    /**
      * The class's temporal stereotype ({@code <<temporal.businesstemporal>>}
      * etc., inherited through superclasses), or {@code null} for a
      * non-temporal class. Drives which milestoning block filters the fetch
@@ -947,7 +1062,8 @@ public final class StoreResolver {
             throw new MappingResolutionException("bi-temporal class fetch of '"
                     + g.classFqn() + "' is not supported yet", g.classFqn());
         }
-        if (g.milestoning().isEmpty() && temporalStrategy(g.classFqn()) != null) {
+        if (g.milestoning().isEmpty() && !g.versionSweep()
+                && temporalStrategy(g.classFqn()) != null) {
             // engine: .all() on a temporal class REQUIRES a date argument
             // (allVersions() is the version-sweep spelling) — an unfiltered
             // extent would silently return every version as a row
@@ -956,6 +1072,12 @@ public final class StoreResolver {
                     + " (use allVersions() for the unfiltered extent)",
                     g.classFqn());
         }
+        // M3 temporal context: this fetch's dates propagate to same-strategy
+        // targets navigated through temporal parents (set per getAll; nested
+        // sibling resolutions overwrite at their own entry).
+        rootMilestoning = g.versionSweep() ? java.util.List.of() : g.milestoning();
+        rootStrategy = temporalStrategy(g.classFqn());
+        temporalByHead = java.util.Map.of();
         final Context fctx = chainContext;
         ClassSource cs = sources.get(dispatch(fctx, g.classFqn()), g.classFqn(),
                 target -> dispatch(fctx, target),
@@ -1012,6 +1134,25 @@ public final class StoreResolver {
         }
         Set<java.util.List<String>> paths = new java.util.LinkedHashSet<>(filterPaths);
         paths.addAll(projectionPaths);
+
+        // Milestoned property functions: collect each head's temporal
+        // arguments (conflicting dates for ONE head in one query are loud —
+        // engine keys separate joins by date, a roadmap refinement).
+        java.util.Map<String, TemporalSpec> specs = new java.util.LinkedHashMap<>();
+        for (TypedSpec op : ops) {
+            if (op instanceof TypedFilter f) {
+                collectTemporalSpecs(f.predicate(), specs);
+            }
+            if (op instanceof TypedSortBy sb) {
+                collectTemporalSpecs(sb.key(), specs);
+            }
+        }
+        if (tree == null) {
+            for (TypedLambda fn : terminalLambdas(top)) {
+                collectTemporalSpecs(fn, specs);
+            }
+        }
+        temporalByHead = specs;
 
         // Slot demand (heads whose bindings read join slots).
         Set<String> slotAliases = Pipelines.slotAliases(cs.pipeline());
@@ -1091,9 +1232,19 @@ public final class StoreResolver {
                 targetClass -> Pipelines.materialize(
                         sources.get(cs.mappingFqn(), targetClass).pipeline(),
                         Set.of(), targetClass).pipeline());
-        final TypedSpec materializedPipe = g.milestoning().isEmpty()
-                ? m.pipeline()
-                : milestonedPipe(m.pipeline(), g.milestoning().get(0), g.classFqn());
+        final TypedSpec materializedPipe;
+        if (g.versionSweep()) {
+            // allVersions(): the RAW extent — every version row, no filter.
+            // allVersionsInRange(s, e): versions whose validity window
+            // overlaps the range (engine getTemporalMilestoneRangeFilter).
+            materializedPipe = g.milestoning().isEmpty() ? m.pipeline()
+                    : rangeMilestonedPipe(m.pipeline(), g.milestoning().get(0),
+                            g.milestoning().get(1), g.classFqn());
+        } else {
+            materializedPipe = g.milestoning().isEmpty()
+                    ? m.pipeline()
+                    : milestonedPipe(m.pipeline(), g.milestoning().get(0), g.classFqn());
+        }
 
         // To-many association heads (1-hop, exists/isEmpty position):
         // correlated-EXISTS material — target pipeline + oriented condition,
@@ -1120,9 +1271,11 @@ public final class StoreResolver {
                     continue;
                 }
                 ClassSource t = sources.get(cs.mappingFqn(), tg.classFqn());
-                requireNonMilestonedTarget(t, head);
-                Pipelines.Materialized tMat = Pipelines.materialize(
+                Pipelines.Materialized tMat0 = Pipelines.materialize(
                         t.pipeline(), Set.of(), t.classFqn());
+                Pipelines.Materialized tMat = new Pipelines.Materialized(
+                        temporalTargetPipe(cs, t, head, tMat0.pipeline()),
+                        tMat0.slotPrefixes(), tMat0.stripped());
                 boolean navToMany = !(ctx.findProperty(cs.classFqn(), head)
                         .map(pr -> pr.multiplicity())
                         .filter(mm -> mm instanceof com.legend.compiler.element.type
@@ -1906,6 +2059,39 @@ public final class StoreResolver {
     }
 
     /** Scan entry: the lambda's BODY under its own parameter (never the lambda node). */
+    private void collectTemporalSpecs(TypedLambda lambda,
+            java.util.Map<String, TemporalSpec> out) {
+        collectTemporalSpecs(lambda.body(), lambda.parameters().get(0), out);
+    }
+
+    private void collectTemporalSpecs(java.util.List<TypedSpec> body, String userVar,
+            java.util.Map<String, TemporalSpec> out) {
+        for (TypedSpec b : body) {
+            collectTemporalNodes(b, userVar, out);
+        }
+    }
+
+    private void collectTemporalNodes(TypedSpec n, String userVar,
+            java.util.Map<String, TemporalSpec> out) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedMilestonedAccess ma
+                && ma.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
+                && v.name().equals(userVar)) {
+            TemporalSpec spec = new TemporalSpec(ma.dates(), ma.sweep());
+            TemporalSpec prior = out.putIfAbsent(ma.property(), spec);
+            if (prior != null && !prior.equals(spec)) {
+                throw new NotImplementedException("navigation '" + ma.property()
+                        + "' with two different milestoning dates in one query"
+                        + " is not supported yet");
+            }
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(userVar)) {
+            return;
+        }
+        for (TypedSpec c : n.children()) {
+            collectTemporalNodes(c, userVar, out);
+        }
+    }
+
     private static void scanLambda(TypedLambda lambda, Set<java.util.List<String>> out) {
         for (TypedSpec b : lambda.body()) {
             consumedPaths(b, lambda.parameters().get(0), out);
@@ -2117,7 +2303,6 @@ public final class StoreResolver {
         String targetClass = ((com.legend.compiler.spec.typed.TypedGetAll)
                 nav.target()).classFqn();
         ClassSource t = sources.get(cs.mappingFqn(), targetClass);
-        requireNonMilestonedTarget(t, head);
         Set<String> targetSlots = Pipelines.slotAliases(t.pipeline());
         Set<String> targetDemand = new java.util.LinkedHashSet<>();
         if (!targetSlots.isEmpty()) {
@@ -2131,9 +2316,10 @@ public final class StoreResolver {
         targetDemand = Pipelines.closeOverConditions(t.pipeline(), targetDemand);
         Pipelines.Materialized tMat = Pipelines.materialize(
                 t.pipeline(), targetDemand, t.classFqn());
-        return new AssocJoin(prefixFor(head, cs), t, tMat.pipeline(),
+        TypedSpec tPipe0 = temporalTargetPipe(cs, t, head, tMat.pipeline());
+        return new AssocJoin(prefixFor(head, cs), t, tPipe0,
                 (com.legend.compiler.element.type.Type.RelationType)
-                        tMat.pipeline().info().type(),
+                        tPipe0.info().type(),
                 nav.predicate(), tMat.slotPrefixes());
     }
 
@@ -2202,6 +2388,56 @@ public final class StoreResolver {
             }
         }
         return false;
+    }
+
+    /** The temporal arguments a milestoned property function supplied for a
+     * navigation head ({@code product(%d)} / sweep / range spellings). */
+    private record TemporalSpec(java.util.List<TypedSpec> dates, boolean sweep) {}
+
+    /** Per-getAll temporal context (M3 propagation): the root fetch's dates
+     * and strategy flow to SAME-STRATEGY targets navigated through temporal
+     * parents (engine: milestoning context does NOT propagate through
+     * non-temporal intermediates). Set at each getAll resolution entry. */
+    private java.util.Map<String, TemporalSpec> temporalByHead = java.util.Map.of();
+    private java.util.List<TypedSpec> rootMilestoning = java.util.List.of();
+    private String rootStrategy = null;
+
+    /**
+     * A temporal TARGET's pipeline filtered by its milestoning columns —
+     * explicit spec (property-function dates) wins; else the ROOT context
+     * propagates when the immediate parent is temporal and the strategies
+     * match; else LOUD (the engine compiles this to an error too).
+     */
+    private TypedSpec temporalTargetPipe(ClassSource parent, ClassSource target,
+            String head, TypedSpec pipe) {
+        String strat = temporalStrategy(target.classFqn());
+        if (strat == null) {
+            return pipe;
+        }
+        if (strat.equals("bitemporal")) {
+            throw new MappingResolutionException("navigation to bi-temporal class '"
+                    + target.classFqn() + "' is not supported yet", target.classFqn());
+        }
+        TemporalSpec spec = temporalByHead.get(head);
+        if (spec != null) {
+            if (spec.sweep() && spec.dates().isEmpty()) {
+                return pipe;   // propAllVersions(): the raw extent
+            }
+            if (spec.sweep()) {
+                return rangeMilestonedPipe(pipe, spec.dates().get(0),
+                        spec.dates().get(1), target.classFqn());
+            }
+            return milestonedPipe(pipe, spec.dates().get(0), target.classFqn());
+        }
+        if (!rootMilestoning.isEmpty() && strat.equals(rootStrategy)
+                && temporalStrategy(parent.classFqn()) != null) {
+            return milestonedPipe(pipe, rootMilestoning.get(0), target.classFqn());
+        }
+        throw new MappingResolutionException("navigation '" + head
+                + "' to temporal class '" + target.classFqn() + "' requires a"
+                + " milestoning date (property function argument, or a"
+                + " propagated temporal context through temporal parents)",
+                target.classFqn());
     }
 
     /** A demanded association navigation, ready to emit as a prefixed LEFT join. */
@@ -2304,7 +2540,6 @@ public final class StoreResolver {
         String targetClass = ((com.legend.parser.TypeExpression.NameRef)
                 end.targetClass()).name();
         ClassSource target = sources.get(cs.mappingFqn(), targetClass);
-        requireNonMilestonedTarget(target, head);
         // The TARGET's own join slots materialize on demand too: a demanded
         // leaf whose binding reads a slot ($p.firm.country where country is
         // @FirmCountry-mapped) pulls that slot's LEFT join into the target
@@ -2320,8 +2555,11 @@ public final class StoreResolver {
             }
         }
         targetDemand = Pipelines.closeOverConditions(target.pipeline(), targetDemand);
-        Pipelines.Materialized tMat = Pipelines.materialize(
+        Pipelines.Materialized tMat0 = Pipelines.materialize(
                 target.pipeline(), targetDemand, target.classFqn());
+        Pipelines.Materialized tMat = new Pipelines.Materialized(
+                temporalTargetPipe(cs, target, head, tMat0.pipeline()),
+                tMat0.slotPrefixes(), tMat0.stripped());
 
         // The predicate function: mapping's AssociationBinding for the assoc.
         var mapping = ctx.findMapping(cs.mappingFqn()).orElseThrow();

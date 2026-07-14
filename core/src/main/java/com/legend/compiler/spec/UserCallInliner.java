@@ -361,6 +361,10 @@ public final class UserCallInliner {
             // Expressions.
             case TypedPropertyAccess p -> new TypedPropertyAccess(
                     rewrite(p.source(), env), p.property(), p.info());
+            case com.legend.compiler.spec.typed.TypedMilestonedAccess ma ->
+                    new com.legend.compiler.spec.typed.TypedMilestonedAccess(
+                            rewrite(ma.source(), env), ma.property(),
+                            list(ma.dates(), env), ma.sweep(), ma.info());
             case TypedNativeCall c -> new TypedNativeCall(c.callee(),
                     list(c.args(), env), c.info());
             case TypedCollection c -> new TypedCollection(list(c.elements(), env), c.info());
