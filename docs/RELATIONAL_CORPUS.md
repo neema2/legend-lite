@@ -124,7 +124,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | executionPlan/tests | 109 | 0 | 0 | 8 | 101 |
 | functions/tests | 241 | 76 | 3 | 120 | 42 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 0 | 1 |
-| functions/tests/projection | 154 | 54 | 5 | 66 | 29 |
+| functions/tests/projection | 154 | 56 | 5 | 64 | 29 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 5 | 0 | 0 | 0 | 5 |
 | graphFetch/tests/union | 1 | 0 | 0 | 0 | 1 |
@@ -137,7 +137,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 0 | 7 |
 | postprocessor | 7 | 0 | 0 | 7 | 0 |
 | postprocessor/tests | 30 | 0 | 0 | 2 | 28 |
-| pureToSQLQuery/tests | 14 | 2 | 0 | 1 | 11 |
+| pureToSQLQuery/tests | 14 | 3 | 0 | 0 | 11 |
 | router/tests | 26 | 2 | 0 | 2 | 22 |
 | sqlDialectTranslation | 21 | 0 | 0 | 0 | 21 |
 | sqlQueryToString | 1 | 0 | 0 | 0 | 1 |
@@ -151,7 +151,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/datatype | 5 | 0 | 0 | 5 | 0 |
 | tests/injection | 3 | 0 | 0 | 3 | 0 |
 | tests/mapping | 10 | 1 | 2 | 6 | 1 |
-| tests/mapping/association | 23 | 3 | 0 | 19 | 1 |
+| tests/mapping/association | 23 | 5 | 0 | 17 | 1 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 0 | 0 | 32 | 0 |
 | tests/mapping/distinct | 18 | 14 | 0 | 4 | 0 |
 | tests/mapping/dynaJoin | 5 | 3 | 1 | 1 | 0 |
@@ -171,14 +171,14 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/selfJoin | 3 | 0 | 0 | 3 | 0 |
 | tests/mapping/sqlFunction | 72 | 57 | 0 | 3 | 12 |
 | tests/mapping/tree | 12 | 0 | 0 | 12 | 0 |
-| tests/mapping/union | 124 | 20 | 1 | 83 | 20 |
+| tests/mapping/union | 124 | 23 | 2 | 79 | 20 |
 | tests/mapping/union/relation | 15 | 0 | 0 | 13 | 2 |
 | tests/platformOperations | 4 | 0 | 0 | 4 | 0 |
 | tests/query | 83 | 53 | 2 | 21 | 7 |
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **550** | 31 | 872 | 839 |
+| **total** | 2292 | **558** | 32 | 863 | 839 |
 
 ### mapping walls (dropped at assembly)
 
@@ -303,22 +303,23 @@ runner does not yet recognize (accounted, not skipped silently).
 
 - 43x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - 39x unknown class 'TDSNull' in ^TDSNull(…)
-- 20x expected at most one value, got many ([*])
 - 19x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 18x a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - 14x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
+- 11x expected at most one value, got many ([*])
 - 10x class query under TypedMap is not resolvable yet (H2 vocabulary)
 - 10x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[function=if, parameters=[AppliedFunction[function=equal, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=active], CString[value=Y]]], LambdaFunction[parameters=[], body=[CString[value=true]]], LambdaFunction[parameters=[], body=[CString[value=false]]]]]]])
 - 9x class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
-- 9x no overload of 'meta::pure::functions::math::plus' structurally matches the argument types
 - 9x navigation through class-typed slot property 'address' is not supported yet
+- 9x association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
 - 8x [3247:0] unsupported top-level keyword: PAREN_CLOSE (')')
 - 8x relation has no column 'aID'
-- 8x association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
+- 8x association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion'
 - 7x object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
+- 7x lowering not yet implemented for TypedNativeCall
 - 7x [2547:78] expected GREATER_THAN but found PIPE ('|')
 - 7x no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
-- 7x association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion'
+- 7x in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
 - 7x association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionToUnionMapping'
 - 6x unknown function 'ytd'
 - 6x filter predicate references column 'firm_employees', unresolvable even after isolation
@@ -326,7 +327,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - 6x object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
 - 6x in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - 6x ~name_length: mapped/aggregate column specifications need an enclosing call to type against
-- 6x in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
 - 6x 'meta::relational::tests::mapping::relation::EmbeddedRelationMapping' is not a known class, mapping, runtime, connection, or database
 - 6x property 'b' of class 'meta::relational::tests::mapping::union::sqlQueryMerging::model::A' is not mapped in mapping 'meta::relational::tests::mapping::union::sqlQueryMerging::mapping::unionMapping'
 - 5x no overload of 'groupBy' matches the argument types
@@ -777,8 +777,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testIsolatioWhereNoConstaintsAndInnerJoin [functions/tests/projection]: 'meta::relational::tests::mapping::join::model::mapping::chainedJoinsInner' is not a known class, mapping, runtime, connection, or database
 - ERROR testIsolationOfFiltersWithoutAlias [functions/tests/projection]: 'meta::relational::tests::mapping::join::model::mapping::MappingWithLiteral' is not a known class, mapping, runtime, connection, or database
 - ERROR testIsolationOfFiltersWithoutAliasWithChainedJoins [functions/tests/projection]: 'meta::relational::tests::mapping::join::model::mapping::MappingWithLiteral' is not a known class, mapping, runtime, connection, or database
-- ERROR testSimpleFunctionWithToManyMap [functions/tests/projection]: no overload of 'meta::pure::functions::math::plus' structurally matches the argument types
-- ERROR testSimpleFunctionWithTwoToManyMap [functions/tests/projection]: no overload of 'meta::pure::functions::math::plus' structurally matches the argument types
 - ERROR testWeekOfYearWithZeroToOne [functions/tests/projection]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR testMonthNumberZeroToOne [functions/tests/projection]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR testYearZeroToOne [functions/tests/projection]: unknown class 'TDSNull' in ^TDSNull(…)
@@ -1107,7 +1105,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testSQLRealiasCaseSensitiveTableNames [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDb2ColumnRename [postprocessor/tests]: no execute(|...) call
 - SHAPE testPostProcessTransformJoinOp [postprocessor/tests]: no execute(|...) call
-- ERROR testToManyJoinTreeNodesForFilterAndProjectDoNotMerge [pureToSQLQuery/tests]: no overload of 'meta::pure::functions::math::plus' structurally matches the argument types
 - SHAPE testFindFunctionSequenceMultiplicity [pureToSQLQuery/tests]: no execute(|...) call
 - SHAPE tesIsToOneDataTypeFunctionExpressionSequence [pureToSQLQuery/tests]: no execute(|...) call
 - SHAPE tesIsToOneDataTypeFunctionExpressionSequenceWithQualifiers [pureToSQLQuery/tests]: no execute(|...) call
@@ -1201,13 +1198,13 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR GroupByWithMapFnColumns [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR GroupByWithIfInMap [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR simpleGroupByWithJoinStrings [tds/tests]: lowering not yet implemented for TypedNativeCall
-- ERROR simpleGroupByWithAssociationWithJoinStrings [tds/tests]: expected at most one value, got many ([*])
-- ERROR groupByAfterASortOnColumnInGroupBy [tds/tests]: expected at most one value, got many ([*])
-- ERROR groupByAfterASortOnColumnNotInGroupBy [tds/tests]: expected at most one value, got many ([*])
-- ERROR groupByAfterConcatenate [tds/tests]: expected at most one value, got many ([*])
+- ERROR simpleGroupByWithAssociationWithJoinStrings [tds/tests]: lowering not yet implemented for TypedNativeCall
+- ERROR groupByAfterASortOnColumnInGroupBy [tds/tests]: lowering not yet implemented for TypedNativeCall
+- ERROR groupByAfterASortOnColumnNotInGroupBy [tds/tests]: lowering not yet implemented for TypedNativeCall
+- ERROR groupByAfterConcatenate [tds/tests]: aggregate reducer argument of kind TypedNativeCall is not supported (literals only)
 - SHAPE testTableToTDSWithQuotedColumns [tds/tests]: no execute(|...) call
 - SHAPE testTDSGroupByPercentile [tds/tests]: unsupported statement: meta::relational::functions::asserts::assertSameSQL
-- ERROR testTDSGroupByIsDistinct [tds/tests]: expected at most one value, got many ([*])
+- ERROR testTDSGroupByIsDistinct [tds/tests]: no overload of 'meta::pure::functions::collection::isDistinct' accepts 1 argument(s)
 - SHAPE testTDSGroupByEmptyColsTerminalOperation [tds/tests]: unsupported statement: meta::relational::functions::asserts::assertSameSQL
 - SHAPE testTDSGroupByEmptyColsNonTerminalOperation [tds/tests]: unsupported statement: meta::relational::functions::asserts::assertSameSQL
 - SHAPE testGroupByWithWavgAggregation [tds/tests]: no execute(|...) call
@@ -1501,12 +1498,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testPersonToOrganisationsInlineEmbedded [tests/mapping/association]: 'associationMappingInlinedEmbedded' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testPersonToFirmAddressNestedInlineEmbedded [tests/mapping/association]: 'associationMappingInlinedEmbedded' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testPersonToFirmLocationsInlineEmbedded [tests/mapping/association]: 'associationMappingInlinedEmbedded' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testFirmToEmployees [tests/mapping/association]: in call to 'meta::pure::functions::string::toString', argument 1: expected at most one value, got many ([*])
-- ERROR testFirmToEmployeesWithDefaults [tests/mapping/association]: in call to 'meta::pure::functions::string::toString', argument 1: expected at most one value, got many ([*])
 - ERROR testFirmToEmployeesIncludes [tests/mapping/association]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::association::associationMappingWithIncludes'
 - ERROR testPersonToFirmIncludes [tests/mapping/association]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::association::associationMappingWithIncludes'
 - ERROR testProjectTwoLambdas [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
-- ERROR testGroupBy [tests/mapping/association]: expected at most one value, got many ([*])
+- ERROR testGroupBy [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
 - SHAPE testBuilderRoutingOfAggFunctionParameters [tests/mapping/association]: unsupported statement: println
 - ERROR testQuery [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
 - ERROR testFilterProject [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
@@ -1608,12 +1603,12 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testGroupByMappingProjectWithMultipleGroupBys [tests/mapping/groupBy]: class 'meta::relational::tests::mapping::groupBy::model::domain::Position' is not mapped in mapping 'meta::relational::tests::mapping::groupBy::model::mapping::testMappingWithTwoGroupBysAndFilters'
 - SHAPE testStoreSubstitution [tests/mapping/include]: no execute(|...) call
 - ERROR testAssociation [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross'
-- ERROR testGroupBy [tests/mapping/inheritance]: expected at most one value, got many ([*])
+- ERROR testGroupBy [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross'
 - ERROR testProjectAssociation [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross'
 - ERROR testProjectAssociationTdsV2 [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross'
 - ERROR testProjectTwoLambdas [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross'
 - ERROR testProjectTwoLambdas [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
-- ERROR testGroupBy [tests/mapping/inheritance]: expected at most one value, got many ([*])
+- ERROR testGroupBy [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
 - ERROR testQuery [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
 - ERROR testFilterProject [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
 - ERROR testFilterProjectBooleanInFilter [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
@@ -1635,7 +1630,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testForcedSubTypeProjectDirect [tests/mapping/inheritance]: object-space use of the instance variable '$r' other than property access is not supported yet
 - ERROR testSubTypeProjectSharedNonDirectlyRouted [tests/mapping/inheritance]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testProjectTwoLambdas [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion'
-- ERROR testGroupBy [tests/mapping/inheritance]: expected at most one value, got many ([*])
+- ERROR testGroupBy [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion'
 - ERROR testQuery [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion'
 - ERROR testFilterProject [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion'
 - ERROR testFilterProjectBooleanInFilter [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion'
@@ -1849,10 +1844,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFilteredProjectWithPostTdsOperations [tests/mapping/union]: ~Len: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testGroupBy [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::specialUnion::specialUnionMapping'
 - ERROR testSimpleQueryFrom [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMapping'
-- ERROR testProjectThroughAsso [tests/mapping/union]: no overload of 'meta::pure::functions::math::plus' structurally matches the argument types
-- ERROR testProjectThroughAssoWithAssociationMapping [tests/mapping/union]: no overload of 'meta::pure::functions::math::plus' structurally matches the argument types
+- ERROR testProjectThroughAsso [tests/mapping/union]: unknown function 'meta::relational::mapping::sql'
 - ERROR testSimpleQueryFromWithJoinInMapping [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithJoinInProperty'
-- ERROR testProjectThroughAssoWithJoinInMapping [tests/mapping/union]: no overload of 'meta::pure::functions::math::plus' structurally matches the argument types
+- ERROR testProjectThroughAssoWithJoinInMapping [tests/mapping/union]: unknown function 'meta::relational::mapping::sql'
 - ERROR testProjectThroughAssoWithMultiJoinInMapping [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithJoinSequenceInProperty'
 - ERROR testSimpleQueryFromWithEmbeddedInMapping [tests/mapping/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty'
 - ERROR testSimpleProjectionFromWithEmbeddedInMapping [tests/mapping/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedPropertyOneThroughJoin'
@@ -1902,15 +1896,13 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_EmbeddedMapping [tests/mapping/union]: object-space use of the instance variable '$p' other than property access is not supported yet
 - SHAPE testSimpleProject [tests/mapping/union]: unsupported statement: println
 - ERROR testSimpleQueryFrom [tests/mapping/union]: property 'firm' of class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMapping'
-- ERROR testProjectThroughAsso [tests/mapping/union]: no overload of 'meta::pure::functions::math::plus' structurally matches the argument types
 - ERROR testSimpleQueryFromAssociationMapping [tests/mapping/union]: property 'firm' of class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithAssociationMapping'
 - ERROR testSimpleQueryToAssociationMapping [tests/mapping/union]: property 'employees' of class 'meta::relational::tests::mapping::union::extend::Firm' has no binding in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithAssociationMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testProjectThroughAssoWithAssociationMapping [tests/mapping/union]: property 'employees' of class 'meta::relational::tests::mapping::union::extend::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithAssociationMapping'
 - ERROR testSimpleProjectWithJoinInMapping [tests/mapping/union]: class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithJoinInProperty'
 - ERROR testSimpleProjectWithJoinInMappingWithFunction [tests/mapping/union]: class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithJoinInProperty'
 - ERROR testSimpleQueryFromWithJoinInMapping [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::extend::unionMappingWithJoinInProperty' failed to normalize this class: union member set '
-- ERROR testProjectThroughAssoWithJoinInMapping [tests/mapping/union]: no overload of 'meta::pure::functions::math::plus' structurally matches the argument types
-- ERROR testProjectThroughAssoWithMultiJoinInMapping [tests/mapping/union]: no overload of 'meta::pure::functions::math::plus' structurally matches the argument types
+- FAIL testProjectThroughAssoWithMultiJoinInMapping [tests/mapping/union]: assertSameElements: expected [Anand Firm X, Scott Firm X, Taylor Firm X, Wright Firm X, Roberts Firm A], got [Scott Firm X, Anand Firm X, Taylor Firm X, Wright Firm X]
 - ERROR testSimpleQueryFromWithEmbeddedInMapping [tests/mapping/union]: property 'firm' of class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedProperty'
 - FAIL testSimpleQueryFromWithFilterInMapping [tests/mapping/union]: assertEquals: expected [Scott, Anand, Taylor, Wright], got [Scott, Anand, Roberts, Taylor, Wright]
 - ERROR testSimpleProjectionFromWithEmbeddedInMapping [tests/mapping/union]: property 'firm' of class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedPropertyOneThroughJoin'

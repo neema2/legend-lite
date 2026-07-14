@@ -192,10 +192,22 @@ final class Typer {
         }
         // $r.getString('COL') / getInteger / ... — TDSRow typed accessors
         // read the named COLUMN of the relation row (a plain property
-        // access post-desugar; a type mismatch is loud downstream)
+        // access post-desugar; a type mismatch is loud downstream). The
+        // CELL is one value whatever the column's declared multiplicity —
+        // an auto-mapped to-many path types its column [*] but projection
+        // explodes it row-wise (engine TDSRow getters return T[1]) — so a
+        // non-[1] column read conforms BY EMISSION (toOne; lowering is
+        // erasure).
         if (TDS_ROW_GETTERS.contains(af.function()) && af.parameters().size() == 2
                 && af.parameters().get(1) instanceof CString colName) {
-            return synth(new AppliedProperty(af.parameters().get(0), colName.value()), env);
+            TypedSpec cell = synth(new AppliedProperty(
+                    af.parameters().get(0), colName.value()), env);
+            if (cell.info().multiplicity() instanceof Multiplicity.Bounded b
+                    && Integer.valueOf(1).equals(b.upper()) && b.lower() == 1) {
+                return cell;
+            }
+            return synth(new AppliedFunction("toOne", List.of(
+                    new AppliedProperty(af.parameters().get(0), colName.value()))), env);
         }
         // the UNTYPED TDSRow getter $r.get('COL') — same desugar, but the
         // name collides with variant/map get: divert ONLY when the receiver
