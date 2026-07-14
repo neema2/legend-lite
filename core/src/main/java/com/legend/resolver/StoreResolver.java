@@ -1686,9 +1686,25 @@ public final class StoreResolver {
         for (var navE : Pipelines.navSteps(cs.pipeline()).entrySet()) {
             if (navE.getValue().target()
                     instanceof com.legend.compiler.spec.typed.TypedGetAll tg2) {
+                String chain = navHeadByAlias.getOrDefault(navE.getKey(),
+                        navE.getKey());
                 navPrefixToClass.put(navE.getKey() + "_", tg2.classFqn());
-                navPrefixToChain.put(navE.getKey() + "_",
-                        navHeadByAlias.getOrDefault(navE.getKey(), navE.getKey()));
+                navPrefixToChain.put(navE.getKey() + "_", chain);
+                // MID slots of a CHAINED PM (@J1 > @J2): the nav condition
+                // reads their sub-rows — a milestoned mid table filters by
+                // the SAME chain context as the target (engine stamps the
+                // intermediate table with the QP date in the ON clause)
+                for (TypedSpec b : navE.getValue().predicate().body()) {
+                    for (String slot : slotAliases) {
+                        if (Pipelines.referencesAliasOn(b,
+                                navE.getValue().predicate().parameters().get(0),
+                                Set.of(slot))) {
+                            navPrefixToClass.putIfAbsent(slot + "_",
+                                    tg2.classFqn());
+                            navPrefixToChain.putIfAbsent(slot + "_", chain);
+                        }
+                    }
+                }
             }
         }
         final TypedSpec basePipe =
