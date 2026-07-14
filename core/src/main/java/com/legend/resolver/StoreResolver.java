@@ -3011,11 +3011,15 @@ public final class StoreResolver {
                     if (temporalSub && (chainPrefix == null
                             || hopContextDates(chainPrefix + "." + tail.get(0),
                                     subCls, hopDates) == null
-                            // UNION sub-targets carry per-thread capability
-                            // filters INSIDE — a single outer point filter
-                            // mis-filters (snapshot-union propagation
-                            // goldens); loud until the per-thread form
-                            || containsConcatenate(subT.pipeline()))) {
+                            // SNAPSHOT sub-unions stay loud: the engine
+                            // mints a join PER dated-QP CALL SITE there
+                            // (filter+project occurrences fan separately —
+                            // expected 16 = our merged 8 x 2); from/thru
+                            // sub-unions merge (partiallyMilestoning golden
+                            // passes with the shared join). Per-call join
+                            // identity is its own rung.
+                            || (containsConcatenate(subT.pipeline())
+                                    && hasSnapshotScan(subT.pipeline())))) {
                         continue;
                     }
                     if (hasMilestonedSlotTarget(subT.pipeline())
@@ -3122,6 +3126,23 @@ public final class StoreResolver {
                     j.kind(), j.condition(), j.prefix(), j.info());
         }
         return n;
+    }
+
+    /** Any table scan in the pipeline carrying a SNAPSHOT milestoning block. */
+    private boolean hasSnapshotScan(TypedSpec pipeline) {
+        if (pipeline instanceof com.legend.compiler.spec.typed.TypedTableReference tr) {
+            var ms = ctx.findTableMilestoning(tr.store(), tr.table()).orElse(null);
+            return ms != null
+                    && ((ms.business() != null && ms.business().snapshotDate() != null)
+                        || (ms.processing() != null
+                                && ms.processing().snapshotDate() != null));
+        }
+        for (TypedSpec c : pipeline.children()) {
+            if (hasSnapshotScan(c)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Whether the pipeline contains a UNION (concatenate) anywhere. */
