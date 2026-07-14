@@ -3064,8 +3064,14 @@ public final class StoreResolver {
                     // below); no chain prefix or no context = stays loud.
                     boolean temporalSub = temporalStrategy(subCls) != null;
                     if (temporalSub && (chainPrefix == null
-                            || hopContextDates(chainPrefix + "." + tail.get(0),
-                                    subCls, hopDates) == null
+                            // a chain-keyed SPEC of any form (point, range
+                            // sweep) is a usable context — temporalTargetPipe
+                            // in the resolver lambda handles each; only the
+                            // spec-less no-propagation case stays loud
+                            || (temporalByHead.get(
+                                    chainPrefix + "." + tail.get(0)) == null
+                                && hopContextDates(chainPrefix + "." + tail.get(0),
+                                    subCls, hopDates) == null)
                             // SNAPSHOT sub-unions stay loud: the engine
                             // mints a join PER dated-QP CALL SITE there
                             // (filter+project occurrences fan separately —
