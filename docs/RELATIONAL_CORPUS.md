@@ -120,16 +120,16 @@ runner does not yet recognize (accounted, not skipped silently).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 0 | 0 | 87 | 5 |
 | executionPlan/tests | 109 | 0 | 0 | 8 | 101 |
-| functions/tests | 241 | 84 | 3 | 112 | 42 |
+| functions/tests | 241 | 88 | 3 | 108 | 42 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 0 | 1 |
-| functions/tests/projection | 154 | 62 | 5 | 58 | 29 |
+| functions/tests/projection | 154 | 64 | 5 | 56 | 29 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 5 | 0 | 0 | 0 | 5 |
 | graphFetch/tests/union | 1 | 0 | 0 | 0 | 1 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 47 | 0 | 0 | 0 | 47 |
-| milestoning/tests | 221 | 124 | 5 | 37 | 55 |
+| milestoning/tests | 221 | 125 | 5 | 36 | 55 |
 | modelJoins | 7 | 0 | 0 | 1 | 6 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 0 | 7 |
@@ -172,11 +172,11 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/union | 124 | 40 | 1 | 63 | 20 |
 | tests/mapping/union/relation | 15 | 11 | 0 | 2 | 2 |
 | tests/platformOperations | 4 | 0 | 0 | 4 | 0 |
-| tests/query | 83 | 54 | 2 | 20 | 7 |
+| tests/query | 83 | 55 | 2 | 19 | 7 |
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **663** | 29 | 759 | 841 |
+| **total** | 2292 | **671** | 29 | 751 | 841 |
 
 ### mapping walls (dropped at assembly)
 
@@ -304,9 +304,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - 18x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - 18x a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - 14x a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
+- 12x navigation through class-typed slot property 'address' is not supported yet
 - 11x expected at most one value, got many ([*])
 - 11x object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
-- 11x navigation through class-typed slot property 'address' is not supported yet
 - 10x class query under TypedMap is not resolvable yet (H2 vocabulary)
 - 10x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[function=if, parameters=[AppliedFunction[function=equal, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=active], CString[value=Y]]], LambdaFunction[parameters=[], body=[CString[value=true]]], LambdaFunction[parameters=[], body=[CString[value=false]]]]]]])
 - 9x class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::relational::tests::simpleRelationalMapping)
@@ -318,7 +318,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - 7x association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion' (property 'vehicles' routes to NON-root mapping set 'car1' — multi-set dispatch outside union members is a roadmap feature; the property is dropped from this synthesis; property 'roadVehicles' routes to NON-root mapping set 'car1' — multi-set dispatch outside union members is a roadmap feature; the property is dropped from this synthesis)
 - 7x a scalar query has no row scope for $_r0.personTableToOrgTreeOptimizationTable_ancestor
 - 6x unknown function 'ytd'
-- 6x filter predicate references column 'firm_employees', unresolvable even after isolation
 - 6x class meta::relational::tests::model::simple::Address has no property 'values'
 - 6x object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - 6x in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
@@ -329,6 +328,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - 5x unknown function 'columnValues'
 - 5x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
 - 5x unknown function 'conditionRightTable'
+- 5x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
 
 ### per-test outcomes (non-passing)
 
@@ -579,7 +579,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - FAIL testConcatenateFlatWithOtherProperty [functions/tests]: assertEquals: expected [1, 1, 2, 2], got [1, 2]
 - SHAPE testConcatenateWithPostFilteredGroupBy [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testConcatenateWithPreFilteredGroupBy [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testExistsToManyPropertyWithAndFilterAndLiteralConditionsDeep [functions/tests]: filter predicate references column 'employees_locations', unresolvable even after isolation
 - SHAPE testComplexOrExistsToManyProperty [functions/tests]: unsupported statement: map
 - SHAPE testDupsFilterProject [functions/tests]: unsupported statement: println
 - SHAPE testDupsFilterNoProjection [functions/tests]: unsupported statement: println
@@ -591,17 +590,14 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testWithProjectGroupByRemoveDupsTwo [functions/tests]: unsupported statement: println
 - SHAPE testNestedExistsOne [functions/tests]: unsupported statement: println
 - ERROR testNestedNotExists [functions/tests]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
-- ERROR testIsEmptyNested [functions/tests]: filter predicate references column 'employees_locations', unresolvable even after isolation
-- ERROR testIsNotEmpty [functions/tests]: a scalar query has no row scope for $_r0.employees_locations
-- ERROR testAssociationOneLevelDeep [functions/tests]: a scalar query has no row scope for $_r0.firm_employees
-- ERROR testAssociationTwoLevelDeep [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
+- ERROR testIsNotEmpty [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: subqueries in lambda expressions are not supported
+- ERROR testAssociationOneLevelDeep [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: subqueries in lambda expressions are not supported
+- ERROR testAssociationTwoLevelDeep [functions/tests]: navigation through class-typed slot property 'address' is not supported yet
 - ERROR testAssociationThreeLevelDeep [functions/tests]: multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet
 - ERROR testAssociationHandlingDups [functions/tests]: multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet
-- ERROR testAssociationWithProjectionHandlingDups [functions/tests]: filter predicate references column 'firm_employees', unresolvable even after isolation
+- ERROR testAssociationWithProjectionHandlingDups [functions/tests]: multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet
 - ERROR testNestedExistsWithExistsInAbstractProperty [functions/tests]: navigation through class-typed slot property 'firm' is not supported yet
-- ERROR testExistsWithOrCondition [functions/tests]: filter predicate references column 'firm_employees', unresolvable even after isolation
-- ERROR testExistsWithAttributesFromLeftInAndCondition [functions/tests]: filter predicate references column 'firm_employees', unresolvable even after isolation
-- ERROR testExistsWithAttributesFromLeftInOrCondition [functions/tests]: filter predicate references column 'firm_employees', unresolvable even after isolation
+- ERROR testExistsWithOrCondition [functions/tests]: multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet
 - SHAPE testFetchDbTablesMetaData [functions/tests]: no execute(|...) call
 - SHAPE testFetchDbColumnsMetaData [functions/tests]: no execute(|...) call
 - SHAPE testFetchDbSchemasMetaData [functions/tests]: no execute(|...) call
@@ -728,8 +724,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSubAggregationWithDeep [functions/tests/projection]: aggregate 'meta::pure::functions::collection::count' over the multi-hop to-many navigation employees.locations.place is not supported yet
 - FAIL testDateAggregationWithMax [functions/tests/projection]: assertSize: expected 3, got 7
 - ERROR testIsDistinctSubAggregation [functions/tests/projection]: no overload of 'meta::pure::functions::collection::isDistinct' accepts 1 argument(s)
-- ERROR testAssociationMixed [functions/tests/projection]: a scalar query has no row scope for $_r0.firm_employees
-- ERROR testAssociationMixedAdvanced [functions/tests/projection]: filter predicate references column 'firm_employees', unresolvable even after isolation
 - ERROR testAssociationToManyColumnProtocolWithDoc [functions/tests/projection]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
 - ERROR testQualifiedPropertyUsingColumnProtocol [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - SHAPE testConcatenationOfTdsQueries [functions/tests/projection]: execute() whose query argument is not a lambda
@@ -930,7 +924,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testConcatenationOfTemporalTdsQueriesWithGroupBy [milestoning/tests]: execute() whose query argument is not a lambda
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product': property 'isBrexitClassificationTypeExchange' of 'meta::relational::tests::milestoning::Product': expected Boolean, got String (value: AppliedFunction[function=if, parameters=[App
 - ERROR testDeepUnionOperationWithNonTemporalAndNonUnionRoot [milestoning/tests]: multi-hop navigation product.classification.product.id through an embedded/slot head is not supported yet
-- ERROR testMilestoningFilterPropagationThroughNestedFilter [milestoning/tests]: filter predicate references column 'orders_description', unresolvable even after isolation
 - SHAPE testMilestoningFilterPropagationWithNowInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testFilterOnView [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testCalculationOnBusinessDateInGetAll [milestoning/tests]: unknown function 'myGetAllProduct'
@@ -1853,7 +1846,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testIsEmptyForRelational_returnsTrue [tests/platformOperations]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testGroupByWithFilterFunction_noDatePath [tests/query]: unknown function 'getReportingStartDate'
 - SHAPE testDayOfWeek [tests/query]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testAssociationMixed [tests/query]: filter predicate references column 'firm_employees', unresolvable even after isolation
 - SHAPE testAssociationMixedDeep [tests/query]: unsupported statement: println
 - ERROR testTwoAssociationsToManyDeep [tests/query]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
 - ERROR testTwoAssociationsToManyDeepWithOr [tests/query]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)

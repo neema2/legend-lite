@@ -1891,6 +1891,130 @@ public final class StoreResolver {
                     m.stripped());
         }
 
+        // 2a''. CLASS-TYPED LEAF under an emptiness call — isNotEmpty(
+        // $p.a.b) where b is itself a navigation step on the CHAIN TARGET:
+        // correlated EXISTS on the exploded chain row (engine: semi-join +
+        // key null check — row-per-row identical truth value). The leaf's
+        // nav material registers under the DOTTED path; the oriented
+        // condition's parent-side reads PRE-PREFIX onto the chain's joined
+        // columns so the exists rewrite's plain var swap lands them on the
+        // row. Registered after join-key collection: these conditions read
+        // CHAIN columns, never root keys. ONLY paths actually under an
+        // emptiness call register — eager registration stamped temporal
+        // context on chains the ordinary (inheritance-aware) route owns
+        // (regressed testBiTemporalToBiTemporalDatePropagation).
+        Set<java.util.List<String>> emptinessChainPaths =
+                new java.util.LinkedHashSet<>();
+        for (TypedSpec op : ops) {
+            if (op instanceof TypedFilter f) {
+                for (TypedSpec b : f.predicate().body()) {
+                    collectEmptinessChainPaths(b,
+                            f.predicate().parameters().get(0),
+                            emptinessChainPaths);
+                }
+            }
+            if (op instanceof TypedSortBy sb) {
+                for (TypedSpec b : sb.key().body()) {
+                    collectEmptinessChainPaths(b, sb.key().parameters().get(0),
+                            emptinessChainPaths);
+                }
+            }
+        }
+        if (tree == null) {
+            for (TypedLambda fn : terminalLambdas(top)) {
+                for (TypedSpec b : fn.body()) {
+                    collectEmptinessChainPaths(b, fn.parameters().get(0),
+                            emptinessChainPaths);
+                }
+            }
+        }
+        for (java.util.List<String> path : emptinessChainPaths) {
+            if (path.size() < 2) {
+                continue;
+            }
+            String dotted = String.join(".", path);
+            Substitution.AssocSub chain = assocs.get(
+                    String.join(".", path.subList(0, path.size() - 1)));
+            if (chain == null || existsSubs.containsKey(dotted)) {
+                continue;
+            }
+            String leafName = path.get(path.size() - 1);
+            String leaf = realHead(leafName);
+            ClassSource parent = sources.get(cs.mappingFqn(),
+                    chain.targetClassFqn());
+            TypedLambda cond;
+            TypedSpec tPipe;
+            ClassSource t;
+            Map<String, String> tPrefixes;
+            TypedSpec leafBinding = parent.bindings().get(leaf);
+            if (leafBinding != null) {
+                TypedSpec inner = leafBinding;
+                if (inner instanceof TypedNativeCall c1 && c1.args().size() == 1
+                        && c1.callee().qualifiedName().equals(
+                                "meta::pure::functions::multiplicity::toOne")) {
+                    inner = c1.args().get(0);
+                }
+                var pNavSteps = Pipelines.navSteps(parent.pipeline());
+                String alias = navSlotAlias(inner, parent.rowVar(),
+                        pNavSteps.keySet());
+                var nav = alias == null ? null : pNavSteps.get(alias);
+                if (nav == null || !(nav.target()
+                        instanceof com.legend.compiler.spec.typed.TypedGetAll tg)
+                        || !sources.binds(cs.mappingFqn(), tg.classFqn())) {
+                    continue;
+                }
+                t = sources.get(cs.mappingFqn(), tg.classFqn());
+                Pipelines.Materialized tm = Pipelines.materialize(
+                        t.pipeline(), Set.of(), t.classFqn());
+                TypedSpec p0 = tm.pipeline();
+                cond = nav.predicate();
+                if (cond.parameters().size() == 2) {
+                    Set<String> tgtReads = new java.util.LinkedHashSet<>();
+                    for (TypedSpec b0 : cond.body()) {
+                        Pipelines.collectVarReads(b0,
+                                cond.parameters().get(1), tgtReads);
+                    }
+                    p0 = Pipelines.widenConcatenateForKeys(p0, tgtReads);
+                }
+                tPipe = temporalTargetPipe(parent, t, dotted,
+                        applyJoinTemporalFilters(p0, t, java.util.Map.of()));
+                tPrefixes = tm.slotPrefixes();
+                TypedLambda liftedLeafPred = syntheticHeadPreds.get(leafName);
+                if (liftedLeafPred != null) {
+                    tPipe = predFilteredPipe(tPipe, t, tPrefixes,
+                            liftedLeafPred, cs.mappingFqn());
+                }
+            } else if (ctx.findAssociationOf(parent.classFqn(), leaf)
+                    .isPresent()) {
+                AssocJoin aj = associationJoin(parent, leafName, context,
+                        true, Set.of(), dotted);
+                t = aj.target();
+                cond = aj.condition();
+                tPipe = aj.targetPipeline();
+                tPrefixes = aj.targetSlotPrefixes();
+            } else {
+                continue;
+            }
+            boolean leafToMany = !(ctx.findProperty(parent.classFqn(), leaf)
+                    .map(pr -> pr.multiplicity())
+                    .filter(mm -> mm instanceof com.legend.compiler.element.type
+                            .Multiplicity.Bounded bb
+                            && Integer.valueOf(1).equals(bb.upper()))
+                    .isPresent());
+            String pv = cond.parameters().get(0);
+            TypedSpec cbody = Pipelines.prefixColumns(
+                    cond.body().get(cond.body().size() - 1), pv,
+                    chain.prefix(), v -> v);
+            TypedLambda chainedCond = new TypedLambda(cond.parameters(),
+                    java.util.List.of(cbody), cond.info());
+            existsSubs.put(dotted, new Substitution.ExistsSub(tPipe,
+                    chainedCond, t.rowVar(), t.bindings(),
+                    (com.legend.compiler.element.type.Type.RelationType)
+                            tPipe.info().type(),
+                    t.classFqn(), Pipelines.slotAliases(t.pipeline()),
+                    tPrefixes, leafToMany));
+        }
+
         // 2b. Materialize the association joins (descriptor -> emission,
         //     first-demand order) onto the pipeline.
         TypedSpec withJoins = keyWidenedPipe;
@@ -3357,6 +3481,31 @@ public final class StoreResolver {
         // duplicate-safe under EXISTS).
         for (TypedSpec ch : n.children()) {
             collectExistsInnerLeaves(ch, userVar, head, out);
+        }
+    }
+
+    /** Multi-hop paths consumed DIRECTLY under an emptiness-family call
+     * ({@code isEmpty}/{@code isNotEmpty}/{@code exists} first arg) —
+     * the class-typed-leaf EXISTS registration keys off these. */
+    private static void collectEmptinessChainPaths(TypedSpec n, String userVar,
+            Set<java.util.List<String>> out) {
+        if (n instanceof TypedNativeCall c && !c.args().isEmpty()) {
+            String key = c.callee().signatureKey();
+            if (com.legend.builtin.Pure.nativeNamed("isEmpty", key)
+                    || com.legend.builtin.Pure.nativeNamed("isNotEmpty", key)
+                    || com.legend.builtin.Pure.nativeNamed("exists", key)) {
+                java.util.List<String> p =
+                        Substitution.pathOf(c.args().get(0), userVar);
+                if (p != null && p.size() >= 2) {
+                    out.add(p);
+                }
+            }
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(userVar)) {
+            return;   // shadowing: the substitution stops here too
+        }
+        for (TypedSpec c : n.children()) {
+            collectEmptinessChainPaths(c, userVar, out);
         }
     }
 

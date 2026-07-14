@@ -316,6 +316,16 @@ final class Substitution {
                 return rewriteExists(call, target.existsSubs().get(headPath.get(0)),
                         java.util.List.of());
             }
+            // CLASS-TYPED LEAF: isNotEmpty($p.a.b) where b is a navigation
+            // step on the chain target — the DOTTED-path material fires a
+            // correlated EXISTS on the exploded chain row (engine: semi-join
+            // + key null check)
+            if (headPath != null && headPath.size() >= 2 && isEmptinessFamily(call)
+                    && target.existsSubs().containsKey(String.join(".", headPath))) {
+                return rewriteExists(call,
+                        target.existsSubs().get(String.join(".", headPath)),
+                        java.util.List.of());
+            }
             // FILTER-WRAPPED emptiness: isEmpty/exists($p.head->filter(f)
             // [->filter(g)...], pred?) — the filters merge into the
             // correlated set (engine: filter-in-chain parks on the
