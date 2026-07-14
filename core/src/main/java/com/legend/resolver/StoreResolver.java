@@ -564,7 +564,13 @@ public final class StoreResolver {
      */
     private TypedSpec applyJoinTemporalFilters(TypedSpec n, ClassSource cs,
             Map<String, String> navPrefixToClass) {
-        if (rootMilestoning.isEmpty() || rootStrategy == null) {
+        // ROOT context absent: physical joinslot targets have nothing to
+        // filter by, but CLASS-typed navigate targets may carry EXPLICIT
+        // property-function dates (temporalByHead) — those still apply
+        // (a non-temporal root navigating $p.firm(%d) filters firm's
+        // versions; audit: the lifted union navigate joined unfiltered)
+        if ((rootMilestoning.isEmpty() || rootStrategy == null)
+                && (navPrefixToClass.isEmpty() || temporalByHead.isEmpty())) {
             return n;
         }
         return switch (n) {
@@ -595,7 +601,7 @@ public final class StoreResolver {
                                 rootMilestoning.get(1), "businesstemporal",
                                 "join target");
                     }
-                } else {
+                } else if (rootStrategy != null && !rootMilestoning.isEmpty()) {
                     // PHYSICAL joinslot target: every milestoned table alias
                     // in the query filters by the temporal context
                     filtered = tableHasBlock(right, rootStrategy)
@@ -603,6 +609,8 @@ public final class StoreResolver {
                                     rootMilestoning.get(0), rootStrategy,
                                     "join target")
                             : right;
+                } else {
+                    filtered = right;   // no root context; no head date here
                 }
                 yield new com.legend.compiler.spec.typed.TypedJoin(
                         applyJoinTemporalFilters(j.left(), cs, navPrefixToClass),

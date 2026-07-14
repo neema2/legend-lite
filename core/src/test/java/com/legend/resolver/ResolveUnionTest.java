@@ -68,7 +68,9 @@ class ResolveUnionTest {
               Table FB1 (ID INTEGER PRIMARY KEY, name VARCHAR(64), ID_1 INTEGER)
               Table FB2 (ID INTEGER PRIMARY KEY, name VARCHAR(64))
               Table PD (ID INTEGER PRIMARY KEY, lastName VARCHAR(64), FirmID INTEGER)
-              Table FD (ID INTEGER PRIMARY KEY, name VARCHAR(64))
+              Table FD (
+                milestoning( business(BUS_FROM=from_z, BUS_THRU=thru_z) )
+                ID INTEGER PRIMARY KEY, name VARCHAR(64), from_z DATE, thru_z DATE)
               Join PA1FA (PA1.FirmID = FA.ID)
               Join PA2FA (PA2.FirmID = FA.ID)
               Join PA3FA (PA3.FirmID = FA.ID)
@@ -139,8 +141,10 @@ class ResolveUnionTest {
             st.execute("INSERT INTO FB2 VALUES (5, 'RIGHT-FIRM')");
             st.execute("CREATE TABLE PD (ID INTEGER, lastName VARCHAR, FirmID INTEGER)");
             st.execute("INSERT INTO PD VALUES (1, 'D-Ann', 7)");
-            st.execute("CREATE TABLE FD (ID INTEGER, name VARCHAR)");
-            st.execute("INSERT INTO FD VALUES (7, 'FirmD-X')");
+            st.execute("CREATE TABLE FD (ID INTEGER, name VARCHAR,"
+                    + " from_z DATE, thru_z DATE)");
+            st.execute("INSERT INTO FD VALUES (7, 'FirmD-X',"
+                    + " DATE '2019-01-01', DATE '9999-12-31')");
         }
     }
 
@@ -226,16 +230,19 @@ class ResolveUnionTest {
     }
 
     @Test
-    @DisplayName("temporal union navigation stays LOUD until the lift threads dates")
-    void temporalUnionNavigationStaysLoud() {
-        // bare access dies at the date requirement; DATED access dies at
-        // the gated (un-lifted) navigation — both LOUD, never wrong rows
+    @DisplayName("temporal union navigation: bare access LOUD, dated access point-filters")
+    void temporalUnionNavigation() {
+        // bare access to a temporal target still requires a date (engine)
         MappingResolutionException bare = assertThrows(MappingResolutionException.class,
                 () -> sqlOf("|u::PersonD.all()"
                         + "->filter(p|$p.firmD.legalName == 'FirmD-X')"
                         + "->project([p|$p.lastName], ['name'])"
                         + "->from(u::MD, u::RT)"));
         assertTrue(bare.getMessage().contains("milestoning date"), bare.getMessage());
+        // DATED access stays LOUD too while the lift is temporal-gated
+        // (the ungate attempt filtered explicit dates correctly but
+        // propagated context still returned wrong rows — see the gate
+        // comment in collectNavLifts)
         MappingResolutionException dated = assertThrows(MappingResolutionException.class,
                 () -> sqlOf("|u::PersonD.all()"
                         + "->filter(p|$p.firmD(%2020-01-01).legalName == 'FirmD-X')"

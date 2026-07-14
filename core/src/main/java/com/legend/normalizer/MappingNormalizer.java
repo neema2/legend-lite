@@ -1711,10 +1711,12 @@ public final class MappingNormalizer {
                 continue;
             }
             String targetClassFqn = pnr.name();
-            // TEMPORAL GATE: the lifted navigate does not yet thread the
-            // milestoning context into its per-member conditions — lifting a
-            // temporal navigation would return unfiltered versions (wrong
-            // rows). Temporal unions keep the previous LOUD path.
+            // TEMPORAL GATE (audit 11 ungate attempt recorded): the
+            // explicit-date arm works (applyJoinTemporalFilters + pinned),
+            // but PROPAGATED context through union member threads still
+            // returns wrong rows in 6 corpus tests (testUnionQueryWith
+            // Propagation* family) — temporal unions stay LOUD until the
+            // member-thread context threading lands.
             if (isTemporalClass(className, model)
                     || isTemporalClass(targetClassFqn, model)) {
                 continue;
