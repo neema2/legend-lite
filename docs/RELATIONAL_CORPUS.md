@@ -131,7 +131,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 47 | 0 | 0 | 0 | 47 |
-| milestoning/tests | 221 | 43 | 18 | 107 | 53 |
+| milestoning/tests | 221 | 60 | 9 | 99 | 53 |
 | modelJoins | 7 | 0 | 0 | 1 | 6 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 0 | 7 |
@@ -166,7 +166,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/modelJoin | 47 | 0 | 0 | 0 | 47 |
 | tests/mapping/multigrain | 5 | 0 | 0 | 5 | 0 |
 | tests/mapping/propertyfunc | 6 | 0 | 0 | 6 | 0 |
-| tests/mapping/relation | 93 | 9 | 1 | 40 | 43 |
+| tests/mapping/relation | 93 | 10 | 1 | 39 | 43 |
 | tests/mapping/relation/aggregation | 9 | 0 | 0 | 0 | 9 |
 | tests/mapping/selfJoin | 3 | 0 | 0 | 3 | 0 |
 | tests/mapping/sqlFunction | 72 | 57 | 0 | 3 | 12 |
@@ -178,7 +178,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **508** | 42 | 903 | 839 |
+| **total** | 2292 | **526** | 33 | 894 | 839 |
 
 ### mapping walls (dropped at assembly)
 
@@ -322,7 +322,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - 10x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[function=if, parameters=[AppliedFunction[function=equal, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=active], CString[value=Y]]], LambdaFunction[parameters=[], body=[CString[value=true]]], LambdaFunction[parameters=[], body=[CString[value=false]]]]]]])
 - 9x class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - 9x navigation through class-typed slot property 'address' is not supported yet
-- 9x milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X'
 - 8x [3247:0] unsupported top-level keyword: PAREN_CLOSE (')')
 - 8x relation has no column 'aID'
 - 8x association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
@@ -341,7 +340,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - 6x in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
 - 6x 'meta::relational::tests::mapping::relation::EmbeddedRelationMapping' is not a known class, mapping, runtime, connection, or database
 - 6x property 'b' of class 'meta::relational::tests::mapping::union::sqlQueryMerging::model::A' is not mapped in mapping 'meta::relational::tests::mapping::union::sqlQueryMerging::mapping::unionMapping'
-- 6x milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y'
+- 5x no overload of 'groupBy' matches the argument types
+- 5x property 'stockProductName' of class 'meta::relational::tests::milestoning::Product' is mapped through the target's own join slots; nested navigation joins are not supported in this position yet
 
 ### per-test outcomes (non-passing)
 
@@ -965,11 +965,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testIsolationWhereLeftSideOfFilterIsEmbedded [milestoning/tests]: multi-hop navigation classification.system.name through an embedded/slot head is not supported yet
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: no execute(|...) call
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: no execute(|...) call
-- ERROR testMilestoningCriteriaAppliedToViewRoot [milestoning/tests]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::milestoning::TradePnl'
 - ERROR testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: class 'meta::relational::tests::milestoning::Trade' is not mapped in mapping 'meta::relational::tests::milestoning::milestoningmap3'
-- ERROR testMilestoningContextPropagatedFromParentViewToViewsReferencedInItsColumns [milestoning/tests]: milestoning column 'from_z' is not on the pipeline row of 'join target'
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
-- ERROR testMilestoningCriteriaAppliedToJoinFromViewRoot [milestoning/tests]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::milestoning::TradePnl'
 - ERROR testIsolationOfCaseStmtTrueFalseFilters [milestoning/tests]: navigation 'classification' with two different milestoning dates in one query is not supported yet
 - FAIL testProjectWithMilestoning [milestoning/tests]: assertEquals: expected 1, got 2
 - FAIL testMilestonedChainedJoinsWithAlias [milestoning/tests]: assertSameElements: expected [1 | 1 | Sedan | Folding Bike, 2 | 2 | SUV | Electric Bike, 3 | 3 | Hatchback | Hybrid Bike, 4 | 4 | Convertible | Road Bike, 5 | 5 | Truck | Mountain Bike], got []
@@ -978,7 +975,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testConcatenationOfTemporalTdsQueriesWithGroupBy [milestoning/tests]: execute() whose query argument is not a lambda
 - ERROR testPartiallyMilestoningUnionOperationWithNonTemporalRoot [milestoning/tests]: property 'product' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::partiallyMilestoningUnionMap'
 - ERROR testPartiallyMilestoningUnionOperationWithNonTemporalRootWithPropagation [milestoning/tests]: property 'product' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::partiallyMilestoningUnionMap'
-- ERROR testPartiallyMilestoningUnionOperationWithTemporalRootWithPropagation [milestoning/tests]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::milestoning::Product'
+- ERROR testPartiallyMilestoningUnionOperationWithTemporalRootWithPropagation [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::partiallyMilestoningUnionMap'
 - ERROR testMilestoningContextPropagationForSimplePropertyReferenceWithMultipleJoinsViaProject [milestoning/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testFilterOnMilestonedClassInProjectWithTDSFilter [milestoning/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product': property 'isBrexitClassificationTypeExchange' of 'meta::relational::tests::milestoning::Product': expected Boolean, got String (value: AppliedFunction[function=if, parameters=[App
@@ -995,9 +992,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: property 'product' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap'
 - ERROR testQueryWithPropagationOnTemporalRoot [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap'
 - ERROR testQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: property 'product' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap'
-- ERROR testUnionQueryOnTemporalRoot [milestoning/tests]: milestoning column 'snapshotDate' is not on the pipeline row of 'meta::relational::tests::milestoning::Product'
 - ERROR testUnionQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: property 'product' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningUnionMap'
-- ERROR testUnionQueryWithPropagationOnTemporalRoot [milestoning/tests]: milestoning column 'snapshotDate' is not on the pipeline row of 'meta::relational::tests::milestoning::Product'
+- ERROR testUnionQueryWithPropagationOnTemporalRoot [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningUnionMap'
 - ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: property 'product' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningUnionMap'
 - ERROR testBuisnessSnapshotRangeQueryOnProperty [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap'
 - ERROR testBuisnessSnapshotRangeQueryOnRootAndProperty [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap'
@@ -1005,16 +1001,13 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testDateTimeVariableMilestoningParam [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::Product' with a non-literal date is not supported yet
 - ERROR testDateTimeMilestoningParamPropagation [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap'
 - ERROR testDateTimeVariableMilestoningParamPropagation [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::Product' with a non-literal date is not supported yet
-- ERROR testDateTimeMilestoningParamUnion [milestoning/tests]: milestoning column 'snapshotDate' is not on the pipeline row of 'meta::relational::tests::milestoning::Product'
+- ERROR testDateTimeMilestoningParamUnion [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningUnionMap'
 - ERROR testDateTimeVariableMilestoningParamUnion [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::Product' with a non-literal date is not supported yet
 - SHAPE testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLatestIgnoredForNonMilestonedMappedBiTemporalClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testLatestIgnoredForNonMilestonedMappedClasses [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::Product': the main table declares no matching milestoning block for the business dimension
 - SHAPE testLatestIgnoredForNonMilestonedMappedBiTemporalClasses [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testLatestIgnoredForNonMilestonedMappedBiTemporalClassesWithProject [milestoning/tests]: [5:99] navigation path segment 'biTemporalProduct(%latest, %latest)' uses an unsupported path feature (only plain property segments desugar): #/Order/biTemporalProduct(%latest, %latest)/type#
-- FAIL testMilestoningColumnProjectionForRoot [milestoning/tests]: assertSameElements: expected [2015-08-15 00:00:00.0, 2015-08-26 00:00:00.0, 2015-08-26 00:00:00.0, 2015-10-16 00:00:00.0], got [2015-08-15, 2015-08-26, 2015-10-16, 2015-08-26]
-- FAIL testMilestoningColumnProjectionForEmbedded [milestoning/tests]: assertSameElements: expected [2015-08-15 00:00:00.0, 2015-08-26 00:00:00.0, 2015-08-26 00:00:00.0, 2015-10-16 00:00:00.0], got [2015-08-15, 2015-08-26, 2015-10-16, 2015-08-26]
-- FAIL testMilestoningColumnProjectionForInlineEmbedded [milestoning/tests]: assertSameElements: expected [2015-08-15 00:00:00.0, 2015-08-26 00:00:00.0, 2015-08-26 00:00:00.0, 2015-10-16 00:00:00.0], got [2015-08-15, 2015-08-26, 2015-10-16, 2015-08-26]
 - ERROR testMilestoningColumnProjectionWithNonMilestonedTable [milestoning/tests]: resolver bug: undemanded navigation 'milestoning.from' — the demand scan and the rewrite disagreed
 - ERROR testMilestoningFiltersAppliedToIntermediateMilestonedJoinTablesWhereTargetTypeIsTemporalAndTargetMainTableIsNotMilestoned [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::SystemAOrderDescription': the main table declares no matching milestoning block for the business dimension
 - ERROR testExtraColumnsAreNotAppliedToIntermediateMilestonedJoinTables [milestoning/tests]: property 'stockProductName' of class 'meta::relational::tests::milestoning::Product' is mapped through the target's own join slots; nested navigation joins are not supported in this position yet
@@ -1034,13 +1027,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMilestoningContextPropagatedThroughToLeftSideOfQualifiedPropertyFilter [milestoning/tests]: property 'stockProductName' of class 'meta::relational::tests::milestoning::Product' is mapped through the target's own join slots; nested navigation joins are not supported in this position yet
 - ERROR testMilestoningContextPropagatedFromMilestoningQualifiedPropertyWithArgToNoArgMilestonedQualifiedPropertyInProjectPath [milestoning/tests]: [4:152] navigation path segment 'classification(%2016-10-16)' uses an unsupported path feature (only plain property segments desugar): #/Product/classification(%2016-10-16)/exchange/name#
 - ERROR testCurrentMappingPropagationThroughMilestonedQualifiedPropertyWithEmbeddedLeftSideToSubsequentPropertyInProjectPath [milestoning/tests]: multi-hop navigation classification.system.name through an embedded/slot head is not supported yet
-- ERROR testDistinctUsageAtRootOfMilestonedQuery [milestoning/tests]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::milestoning::Product'
 - ERROR testInFromInclusive [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::InFromInclusiveMapping'
 - ERROR testInThruInclusive [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::InThruInclusiveMapping'
 - ERROR testOutFromInclusive [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::OutFromInclusiveMapping'
 - ERROR testOutThruInclusive [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::OutThruInclusiveMapping'
-- ERROR testInThruInclusiveUnionOutFromInclusive [milestoning/tests]: milestoning column 'in_z' is not on the pipeline row of 'meta::relational::tests::milestoning::BiTemporalProduct'
-- ERROR testOutFromInclusiveUnionInThruInclusive [milestoning/tests]: milestoning column 'in_z' is not on the pipeline row of 'meta::relational::tests::milestoning::BiTemporalProduct'
 - ERROR testInThruInclusiveUnionInThruInclusive [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::InThruInclusiveUnionInThruInclusiveMapping'
 - ERROR testOutFromInclusiveUnionOutFromInclusive [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::OutFromInclusiveUnionOutFromInclusiveMapping'
 - SHAPE testAssoWithOtherwise [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -1050,9 +1040,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: property 'processingTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMap'
 - ERROR testQueryWithPropagationOnTemporalRoot [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMap'
 - ERROR testQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: property 'processingTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMap'
-- ERROR testUnionQueryOnTemporalRoot [milestoning/tests]: milestoning column 'snapshotDate' is not on the pipeline row of 'meta::relational::tests::milestoning::ProcessingTemporalProduct'
 - ERROR testUnionQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: property 'processingTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningUnionMap'
-- ERROR testUnionQueryWithPropagationOnTemporalRoot [milestoning/tests]: milestoning column 'snapshotDate' is not on the pipeline row of 'meta::relational::tests::milestoning::ProcessingTemporalProduct'
+- ERROR testUnionQueryWithPropagationOnTemporalRoot [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningUnionMap'
 - ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: property 'processingTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningUnionMap'
 - ERROR testProcessingSnapshotRangeQueryOnProperty [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMap'
 - ERROR testProcessingSnapshotRangeQueryOnRootAndProperty [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMap'
@@ -1060,7 +1049,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testDateTimeVariableMilestoningParam [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProduct' with a non-literal date is not supported yet
 - ERROR testDateTimeMilestoningParamPropagation [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMap'
 - ERROR testDateTimeVariableMilestoningParamPropagation [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProduct' with a non-literal date is not supported yet
-- ERROR testDateTimeMilestoningParamUnion [milestoning/tests]: milestoning column 'snapshotDate' is not on the pipeline row of 'meta::relational::tests::milestoning::ProcessingTemporalProduct'
+- ERROR testDateTimeMilestoningParamUnion [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningUnionMap'
 - ERROR testDateTimeVariableMilestoningParamUnion [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProduct' with a non-literal date is not supported yet
 - ERROR testBusinessDateForAllVersions [milestoning/tests]: property 'businessDate' of class 'meta::relational::tests::milestoning::ProductSynonym' has no binding in mapping 'meta::relational::tests::milestoning::milestoningmap' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testProcessingDateForAllVersions [milestoning/tests]: property 'processingDate' of class 'meta::relational::tests::milestoning::Trader' has no binding in mapping 'meta::relational::tests::milestoning::milestoningmap' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
@@ -1071,14 +1060,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testTemporalDateForAllVersionsWithOutThruInclusive [milestoning/tests]: property 'processingDate' of class 'meta::relational::tests::milestoning::BiTemporalProduct' has no binding in mapping 'meta::relational::tests::milestoning::OutThruInclusiveMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - FAIL testBusinessDateForAllVersionsInRange [milestoning/tests]: assertSameElements: expected [2015-01-01 00:00:00.0, 2015-08-15 00:00:00.0, 2015-08-15 00:00:00.0, 2015-08-26 00:00:00.0, 2015-09-26 00:00:00.0, 2015-10-17 00:00:00.0], got [2016-01-01, 2016-01-01, 2016-01-01, 2016-01-01, 2016-01-01, 2016-01-01]
 - FAIL testProcessingDateForAllVersionsInRange [milestoning/tests]: assertSameElements: expected [2013-01-01 00:00:00.0, 2015-01-01 00:00:00.0], got [2012-01-01, 2012-01-01]
-- FAIL testBusinessTemporalRangeQueryOnRoot [milestoning/tests]: assertSameElements: expected [2015-08-15 00:00:00.0, 2015-08-26 00:00:00.0], got [2015-08-15, 2015-08-26]
-- FAIL testBusinessTemporalRangeQueryOnRootAndProperty [milestoning/tests]: assertSameElements: expected [2015-08-15 00:00:00.0, 2015-08-26 00:00:00.0], got [2015-08-26, 2015-08-15]
 - ERROR testBusinessTemporalRangeQueryOnRootAndPropertyDeep [milestoning/tests]: multi-hop navigation classification.exchange.name through an embedded/slot head is not supported yet
-- FAIL testBusinessTemporalRangeQueryOnProperty [milestoning/tests]: assertSameElements: expected [2015-08-15 00:00:00.0, 2015-08-26 00:00:00.0, 2015-10-16 00:00:00.0], got [2015-10-16, 2015-08-26, 2015-08-15]
 - ERROR testBusinessTemporalRangeQueryOnPropertyDeep [milestoning/tests]: multi-hop navigation classification.exchange.name through an embedded/slot head is not supported yet
-- FAIL testProcessingTemporalRangeQueryOnRoot [milestoning/tests]: assertSameElements: expected [1980-01-01 00:00:00.0, 1981-01-01 00:00:00.0], got [1981-01-01, 1980-01-01]
-- FAIL testProcessingTemporalRangeQueryOnProperty [milestoning/tests]: assertSameElements: expected [1980-01-01 00:00:00.0, 1981-01-01 00:00:00.0], got [1980-01-01, 1981-01-01]
-- FAIL testProcessingTemporalRangeQueryOnRootAndProperty [milestoning/tests]: assertSameElements: expected [1980-01-01 00:00:00.0, 1981-01-01 00:00:00.0], got [1980-01-01, 1981-01-01]
 - SHAPE testBusinessTemporalRangeQueryOnRootWithSubsequentCallToMilestonedQualifiedPropertyWithFunction [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testBusinessTemporalRangeQueryOnRootWithSubsequentCallToMilestonedQualifiedPropertyWithThisBusinessDate [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testHybridMilestoningUnionOperationWithNonTemporalRoot [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::hybridMilestoningUnionMap'
@@ -1829,7 +1812,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMappingWithBusinessTemporalMilestoning [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::TemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
 - ERROR testMappingWithBusinessTemporalMilestoningAllVersionsInRange [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::TemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
 - ERROR testMappingWithBiTemporalMilestoning [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::TemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testMappingWithMultipleMilestonedTables [tests/mapping/relation]: milestoning column 'IN_Z' is not on the pipeline row of 'join target'
 - ERROR testMixedTemporalMapping [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedTemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
 - ERROR testMixedTemporalMappingWithAllVersionsInRange1 [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedTemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
 - ERROR testMixedTemporalMappingWithAllVersionsInRange2 [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedTemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
@@ -1982,21 +1964,21 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testChainedUnionsWithAggregationWithAdditionalColumn [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
 - ERROR testChainedUnionsWithMultipleAggregationWithAdditionalColumn [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
 - ERROR testChainedUnionsWithMapAggregation [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
-- ERROR testUnionWithChainedJoinsAcross2SetsV1 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X'
-- ERROR testUnionWithChainedJoinsAcross3SetsV1 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X'
-- ERROR testUnionWithChainedJoinsAcross4SetsV1 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X'
-- ERROR testUnionWithChainedJoinsAcross2SetsV2 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X'
-- ERROR testUnionWithChainedJoinsAcross3SetsV2 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X'
-- ERROR testUnionWithChainedJoinsAcross4SetsV2 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X'
-- ERROR testUnionWithChainedJoinsAcross2SetsV3 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X'
-- ERROR testUnionWithChainedJoinsAcross3SetsV3 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X'
-- ERROR testUnionWithChainedJoinsAcross4SetsV3 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X'
-- ERROR testUnionWithChainedJoinsAcross2SetsV4 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y'
-- ERROR testUnionWithChainedJoinsAcross3SetsV4 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y'
-- ERROR testUnionWithChainedJoinsAcross4SetsV4 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y'
-- ERROR testUnionWithChainedJoinsAcross2SetsV5 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y'
-- ERROR testUnionWithChainedJoinsAcross3SetsV5 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y'
-- ERROR testUnionWithChainedJoinsAcross4SetsV5 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y'
+- ERROR testUnionWithChainedJoinsAcross2SetsV1 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross2SetsV1'
+- ERROR testUnionWithChainedJoinsAcross3SetsV1 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross3SetsV1'
+- ERROR testUnionWithChainedJoinsAcross4SetsV1 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross4SetsV1'
+- ERROR testUnionWithChainedJoinsAcross2SetsV2 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross2SetsV2'
+- ERROR testUnionWithChainedJoinsAcross3SetsV2 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross3SetsV2'
+- ERROR testUnionWithChainedJoinsAcross4SetsV2 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross4SetsV2'
+- ERROR testUnionWithChainedJoinsAcross2SetsV3 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross2SetsV3'
+- ERROR testUnionWithChainedJoinsAcross3SetsV3 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross3SetsV3'
+- ERROR testUnionWithChainedJoinsAcross4SetsV3 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross4SetsV3'
+- ERROR testUnionWithChainedJoinsAcross2SetsV4 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross2SetsV4'
+- ERROR testUnionWithChainedJoinsAcross3SetsV4 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross3SetsV4'
+- ERROR testUnionWithChainedJoinsAcross4SetsV4 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross4SetsV4'
+- ERROR testUnionWithChainedJoinsAcross2SetsV5 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross2SetsV5'
+- ERROR testUnionWithChainedJoinsAcross3SetsV5 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross3SetsV5'
+- ERROR testUnionWithChainedJoinsAcross4SetsV5 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross4SetsV5'
 - SHAPE testViewToViewToUnion [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testUnionedViewsToViewToUnion [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testUnionTwoRelationMappings_SimpleProject [tests/mapping/union/relation]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappings'

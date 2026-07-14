@@ -435,6 +435,23 @@ public final class StoreResolver {
             throw new MappingResolutionException("milestoned fetch of '" + classFqn
                     + "' with a non-literal date is not supported yet", classFqn);
         }
+        // VIEW-backed pipes: the view row does not carry the milestone
+        // columns — the engine filters every TABLE ALIAS, so the filter
+        // pushes down to the internal scan (whose row has them)
+        if (!pipeRowHasMilestoneCols(pipe, fromCol, thruCol, snapCol)
+                && root != null
+                && pipeRowHasMilestoneCols(root, fromCol, thruCol, snapCol)) {
+            // TOLERANT per-scan wrap: a PARTIALLY milestoned union filters
+            // only its milestoned members (engine: per-table-alias filters)
+            final TypedSpec fdate = date;
+            return replaceScan(pipe, sc -> tableHasBlock(sc, strategy)
+                    || (sc instanceof com.legend.compiler.spec.typed
+                            .TypedTableReference tr
+                        && ctx.findTableMilestoning(tr.store(), tr.table())
+                                .isPresent())
+                    ? milestonedPipeByStrategy(sc, fdate, strategy, classFqn)
+                    : sc);
+        }
         com.legend.compiler.element.type.Type.RelationType row = (com.legend.compiler.element.type.Type.RelationType) pipe.info().type();
         String v = "ms_row";
         com.legend.compiler.element.type.ExprType rowT =
@@ -595,6 +612,55 @@ public final class StoreResolver {
         }
         return strategy.equals("businesstemporal") ? ms.business() != null
                 : strategy.equals("processingtemporal") && ms.processing() != null;
+    }
+
+    /** The pipe's TOP row carries the milestone columns the block needs. */
+    private static boolean pipeRowHasMilestoneCols(TypedSpec pipe, String fromCol,
+            String thruCol, String snapCol) {
+        if (!(pipe.info().type()
+                instanceof com.legend.compiler.element.type.Type.RelationType row)) {
+            return false;
+        }
+        java.util.function.Predicate<String> has = name -> name != null
+                && row.columns().stream()
+                        .anyMatch(c -> c.name().equalsIgnoreCase(name));
+        return snapCol != null ? has.test(snapCol)
+                : has.test(fromCol) && has.test(thruCol);
+    }
+
+    /** Rebuild {@code pipe} with its deepest LEFT-spine scan wrapped. */
+    private static TypedSpec replaceScan(TypedSpec pipe,
+            java.util.function.UnaryOperator<TypedSpec> wrap) {
+        return switch (pipe) {
+            case com.legend.compiler.spec.typed.TypedTableReference t -> wrap.apply(t);
+            case TypedFilter f -> new TypedFilter(replaceScan(f.source(), wrap),
+                    f.predicate(), f.info());
+            case TypedSelect sel -> new TypedSelect(replaceScan(sel.source(), wrap),
+                    sel.columns(), sel.info());
+            case com.legend.compiler.spec.typed.TypedDistinct d ->
+                    new com.legend.compiler.spec.typed.TypedDistinct(
+                            replaceScan(d.source(), wrap), d.columns(), d.info());
+            case TypedProject pr -> new TypedProject(replaceScan(pr.source(), wrap),
+                    pr.columns(), pr.info());
+            case com.legend.compiler.spec.typed.TypedJoin j ->
+                    new com.legend.compiler.spec.typed.TypedJoin(
+                            replaceScan(j.left(), wrap), j.right(), j.kind(),
+                            j.condition(), j.prefix(), j.info());
+            case com.legend.compiler.spec.typed.TypedJoinSlot js ->
+                    new com.legend.compiler.spec.typed.TypedJoinSlot(
+                            replaceScan(js.source(), wrap), js.alias(), js.target(),
+                            js.condition(), js.info());
+            // a UNION pipeline: the temporal filter applies to EACH member
+            // (every table alias filters — engine rule, per member scan)
+            case com.legend.compiler.spec.typed.TypedConcatenate c ->
+                    new com.legend.compiler.spec.typed.TypedConcatenate(
+                            replaceScan(c.left(), wrap),
+                            replaceScan(c.right(), wrap), c.info());
+            default -> throw new MappingResolutionException(
+                    "milestone filter pushdown through "
+                            + pipe.getClass().getSimpleName()
+                            + " is not supported yet", "");
+        };
     }
 
     /**

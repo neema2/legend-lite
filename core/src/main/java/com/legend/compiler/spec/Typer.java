@@ -1006,7 +1006,11 @@ final class Typer {
                             || ct.fqn().equals("meta::pure::milestoning::ProcessingDateMilestoning"))
                             && java.util.Set.of("from", "thru", "in", "out",
                                     "snapshotDate").contains(ap.property())) {
-                        yield new ExprType(Type.Primitive.DATE,
+                        // DATE_TIME, not abstract Date: the wire keeps the
+                        // physical precision (the engine's milestone columns
+                        // read back as timestamps; the abstract-Date lattice
+                        // narrowing would truncate midnight values)
+                        yield new ExprType(Type.Primitive.DATE_TIME,
                                 com.legend.compiler.element.type.Multiplicity
                                         .Bounded.ZERO_ONE);
                     }
