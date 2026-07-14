@@ -1410,16 +1410,42 @@ public final class StoreResolver {
                 }
                 navRead = ow.args().get(1);
             }
-            String alias = navSlotAlias(navRead, cs.rowVar(), navSteps.keySet());
+            // EMBEDDED head: the path walks INTO the ^Inner ctor — the
+            // navigate-slot demand comes from the ctor's MID property expr
+            // ($p.classification.system.name where classification is
+            // embedded and system a class-typed Join sub-PM hoisted onto
+            // the owner pipeline); the AssocSub registers under the DOTTED
+            // key, which rewritePath's chain lookup already consumes.
+            int mid = 1;
+            TypedSpec drill = navRead;
+            while (true) {
+                TypedSpec inner = drill;
+                if (inner instanceof TypedNativeCall tc1 && tc1.args().size() == 1
+                        && tc1.callee().qualifiedName().equals(
+                                "meta::pure::functions::multiplicity::toOne")) {
+                    inner = tc1.args().get(0);
+                }
+                if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstance ni
+                        && mid + 1 < path.size()
+                        && ni.properties().containsKey(path.get(mid))) {
+                    drill = ni.properties().get(path.get(mid));
+                    mid++;
+                } else {
+                    drill = inner;
+                    break;
+                }
+            }
+            String alias = navSlotAlias(drill, cs.rowVar(), navSteps.keySet());
             if (alias == null) {
                 continue;
             }
+            String headKey = String.join(".", path.subList(0, mid));
             // the head's TAIL paths drive the target's OWN slot demand
             // (nested navigation: $a.b.c.pk materializes b's target WITH
             // its c slot; the leaf reads the composed prefix b_c_pk)
             navTails.computeIfAbsent(alias, k -> new ArrayList<>())
-                    .add(path.subList(1, path.size()));
-            navHeadByAlias.put(alias, path.get(0));
+                    .add(path.subList(mid, path.size()));
+            navHeadByAlias.put(alias, headKey);
             if (demandedNavs.contains(alias)) {
                 continue;
             }
