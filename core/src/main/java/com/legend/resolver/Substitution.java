@@ -353,6 +353,23 @@ final class Substitution {
                             a2.readVar() != null ? "" : a2.prefix(), n);
                 }
             }
+            // MULTI-HOP through a NAVIGATE-SLOT head ($a.b.c.pk where b is
+            // a class-typed Join PM slot and c a slot of b's target): the
+            // target materialized with its OWN demanded slots — the leaf
+            // reads the COMPOSED prefixed column (b_ + c_pk) on the joined
+            // row (engine: per-hop findPropertyMapping re-entry)
+            if (path.size() == 3 && target.assocs().containsKey(path.get(0))) {
+                AssocSub a3 = target.assocs().get(path.get(0));
+                String sp = a3.targetSlotPrefixes().get(path.get(1));
+                if (sp != null) {
+                    return milestoneColumnRead(sp + path.get(2),
+                            a3.readVar() != null ? a3.readVar()
+                                    : target.freshRowVar(),
+                            a3.readRowType() != null ? a3.readRowType()
+                                    : target.rowType(),
+                            a3.readVar() != null ? "" : a3.prefix(), n);
+                }
+            }
             // MULTI-HOP association chain ($p.dept.org.name): the demand scan
             // registered one join per hop under its chain key — the leaf reads
             // the DEEPEST hop's target with the chained prefix (dept_org_).

@@ -120,9 +120,9 @@ runner does not yet recognize (accounted, not skipped silently).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 0 | 0 | 87 | 5 |
 | executionPlan/tests | 109 | 0 | 0 | 8 | 101 |
-| functions/tests | 241 | 76 | 3 | 120 | 42 |
+| functions/tests | 241 | 78 | 3 | 118 | 42 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 0 | 1 |
-| functions/tests/projection | 154 | 56 | 5 | 64 | 29 |
+| functions/tests/projection | 154 | 61 | 5 | 59 | 29 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 5 | 0 | 0 | 0 | 5 |
 | graphFetch/tests/union | 1 | 0 | 0 | 0 | 1 |
@@ -172,11 +172,11 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/union | 124 | 40 | 1 | 63 | 20 |
 | tests/mapping/union/relation | 15 | 11 | 0 | 2 | 2 |
 | tests/platformOperations | 4 | 0 | 0 | 4 | 0 |
-| tests/query | 83 | 53 | 2 | 21 | 7 |
+| tests/query | 83 | 54 | 2 | 20 | 7 |
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **613** | 30 | 810 | 839 |
+| **total** | 2292 | **621** | 30 | 802 | 839 |
 
 ### mapping walls (dropped at assembly)
 
@@ -299,11 +299,10 @@ runner does not yet recognize (accounted, not skipped silently).
 
 ### top error buckets
 
-- 42x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- 39x unknown class 'TDSNull' in ^TDSNull(…)
-- 19x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- 43x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- 40x unknown class 'TDSNull' in ^TDSNull(…)
+- 20x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 18x a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- 14x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 13x a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
 - 11x expected at most one value, got many ([*])
 - 11x object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
@@ -323,12 +322,13 @@ runner does not yet recognize (accounted, not skipped silently).
 - 6x in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - 6x ~name_length: mapped/aggregate column specifications need an enclosing call to type against
 - 6x 'meta::relational::tests::mapping::relation::EmbeddedRelationMapping' is not a known class, mapping, runtime, connection, or database
-- 6x multi-hop navigation b.c.pk through an embedded/slot head is not supported yet
 - 5x no overload of 'groupBy' matches the argument types
+- 5x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 5x property 'stockProductName' of class 'meta::relational::tests::milestoning::Product' is mapped through the target's own join slots; nested navigation joins are not supported in this position yet
 - 5x unknown function 'columnValues'
 - 5x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
 - 5x unknown function 'conditionRightTable'
+- 5x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
 
 ### per-test outcomes (non-passing)
 
@@ -608,7 +608,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testFetchDbColumnsMetaData [functions/tests]: no execute(|...) call
 - SHAPE testFetchDbSchemasMetaData [functions/tests]: no execute(|...) call
 - SHAPE testFetchDbPrimaryKeysMetaData [functions/tests]: no execute(|...) call
-- ERROR testSelectChainOfAndOrOperators [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
+- ERROR testSelectChainOfAndOrOperators [functions/tests]: runtime 'rcorpus::Rt' has 2 mappings binding class 'meta::relational::tests::model::simple::Person' (of 2 candidates); class-query dispatch needs exactly one
 - ERROR testGreaterThanDate [functions/tests]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::rel
 - SHAPE testBuildFilterWithValueThatCanBeNull [functions/tests]: execute() whose query argument is not a lambda
 - SHAPE testBuildFilterWithValueThatCanBeNullWithIn [functions/tests]: execute() whose query argument is not a lambda
@@ -630,14 +630,12 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFromWithMapping [functions/tests]: unknown function 'withMapping'
 - ERROR testFromWithMappingAndIntermediateFuncCall [functions/tests]: unknown function 'withMapping'
 - ERROR testGetterTwice [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testDeepIn [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- ERROR testDeepContains [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testInWithOneValue [functions/tests]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary)
 - ERROR testInWithFunction [functions/tests]: unknown function 'meta::relational::tests::query::filter::in::getNames'
 - ERROR testConsistencyWithNulls [functions/tests]: class meta::relational::tests::model::simple::Address has no property 'values'
 - SHAPE testInWithinQualifiedPropertyCollectionAsLiteralList [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testDerivedWithIsEmpty [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "t0" does not have a column named "value" |  | Candidate bindings: : "else" |  | LINE 3: WHERE t0.value IS NULL |               ^
-- ERROR testIsolationOfInputToIsEmpty [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
+- ERROR testIsolationOfInputToIsEmpty [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testIsolationOfInputToIsEmptyWithForcedFiltersOnInput [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testInputNotIsolatedWhenPropertyPathIsToOne [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testIsolationOfTheSameInputInABooleanExprWhereOneSideIsEmpty [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
@@ -740,7 +738,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testAssociationMixedAdvanced [functions/tests/projection]: filter predicate references column 'firm_employees', unresolvable even after isolation
 - ERROR testAssociationToManyColumnProtocolWithDoc [functions/tests/projection]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
 - ERROR testQualifiedPropertyUsingColumnProtocol [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testAssociationToManyDeepTwo [functions/tests/projection]: multi-hop navigation employees.address.name through an embedded/slot head is not supported yet
 - SHAPE testConcatenationOfTdsQueries [functions/tests/projection]: execute() whose query argument is not a lambda
 - SHAPE testConcatenationOfTdsQueriesWithFilter [functions/tests/projection]: execute() whose query argument is not a lambda
 - SHAPE testConcatenationOfTdsQueriesWithGroupBy [functions/tests/projection]: execute() whose query argument is not a lambda
@@ -790,10 +787,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testVariableReferenceInMapWithSameNameAsThatInParentProject [functions/tests/projection]: class query under TypedLambda is not resolvable yet (H2 vocabulary)
 - ERROR testVariableReferenceInMapWithNestedFilter [functions/tests/projection]: expected at most one value, got many ([*])
 - SHAPE testVariableReferenceWithNestedFilterMultiple [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testDeepIn [functions/tests/projection]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- ERROR testDeepInWithMultipleProject [functions/tests/projection]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- ERROR testDeepContains [functions/tests/projection]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- ERROR testDeepContainsWithMultipleProject [functions/tests/projection]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testInWithOneValue [functions/tests/projection]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary)
 - SHAPE H2Test [functions/tests/projection]: no execute(|...) call
 - SHAPE testInWithDynaFunction [functions/tests/projection]: unsupported statement: println
@@ -1779,7 +1772,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testSubAggregationWithIfOnRelationMapping [tests/mapping/relation/aggregation]: no execute(|...) call
 - SHAPE testSubAggregationJoinStringsOnRelationMapping [tests/mapping/relation/aggregation]: no execute(|...) call
 - ERROR testSelfJoinPropertyMapping [tests/mapping/selfJoin]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR testSelfJoinPropertyMappingOverlap [tests/mapping/selfJoin]: multi-hop navigation parent.parent.name through an embedded/slot head is not supported yet
+- ERROR testSelfJoinPropertyMappingOverlap [tests/mapping/selfJoin]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR testSelfJoinPropertyMappingWithDynaFunction [tests/mapping/selfJoin]: multi-hop navigation parent.parent.parent.name through an embedded/slot head is not supported yet
 - SHAPE testTriminNotSybaseASE [tests/mapping/sqlFunction]: no execute(|...) call
 - ERROR testProject [tests/mapping/sqlFunction]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_aggregate(INTEGER, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_aggregate(ANY[]
@@ -1807,7 +1800,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProjectionDeeperInlined [tests/mapping/tree]: relation has no column 'name' in scalar read
 - ERROR testProjectWithFilter [tests/mapping/tree]: [3:107] navigation path segment 'orgByName('BUSINESS UNIT')' uses an unsupported path feature (only plain property segments desugar): #/Person/orgByName('BUSINESS UNIT')/name!buName#
 - ERROR testJoinIsolationDeeper_LeftOuterLeftOuterThenInner [tests/mapping/tree]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner [tests/mapping/tree]: multi-hop navigation trades.trader.firstName through an embedded/slot head is not supported yet
+- ERROR testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner [tests/mapping/tree]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testProjectWithPostTdsOperations [tests/mapping/union]: ~Len: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testFilteredProjectWithPostTdsOperations [tests/mapping/union]: ~Len: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testProjectThroughAsso [tests/mapping/union]: unknown function 'meta::relational::mapping::sql'
@@ -1837,12 +1830,12 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: relation has no column 'ID_0'
 - ERROR testUnionWithSinglePropertyMapping [tests/mapping/union]: unknown function 'meta::relational::mapping::sql'
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: no execute(|...) call
-- ERROR testSQLQueryMergingForFilters [tests/mapping/union]: multi-hop navigation b.c.pk through an embedded/slot head is not supported yet
-- ERROR testSQLQueryMergingForFiltersDeep [tests/mapping/union]: multi-hop navigation b.c.pk through an embedded/slot head is not supported yet
-- ERROR testSQLQueryMergingForProjections [tests/mapping/union]: multi-hop navigation b.c.pk through an embedded/slot head is not supported yet
-- ERROR testSQLQueryMergingForProjectionsDeep [tests/mapping/union]: multi-hop navigation b.c.pk through an embedded/slot head is not supported yet
-- ERROR testSQLQueryMergingForFiltersAndProjections [tests/mapping/union]: multi-hop navigation b.c.pk through an embedded/slot head is not supported yet
-- ERROR testSQLQueryMergingForFiltersAndProjectionsDeep [tests/mapping/union]: multi-hop navigation b.c.pk through an embedded/slot head is not supported yet
+- ERROR testSQLQueryMergingForFilters [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t18" not found! |  | LINE 1: ... t14.fk_0 = t17.fk OR t14.fk_1 = t17.fk ) AS t18 ON t11.fk_0 = t18.fk OR t11.fk_1 = t18.fk WHERE t18.pk = 11 AND t18.c_pk... |           
+- ERROR testSQLQueryMergingForFiltersDeep [tests/mapping/union]: multi-hop navigation b.c.d.pk through an embedded/slot head is not supported yet
+- ERROR testSQLQueryMergingForProjections [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t18" not found! |  | LINE 1: ... t14.fk_0 = t17.fk OR t14.fk_1 = t17.fk ) AS t18 ON t11.fk_0 = t18.fk OR t11.fk_1 = t18.fk ) AS t0) AS value |                           
+- ERROR testSQLQueryMergingForProjectionsDeep [tests/mapping/union]: multi-hop navigation b.c.d.pk through an embedded/slot head is not supported yet
+- ERROR testSQLQueryMergingForFiltersAndProjections [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t18" not found! |  | LINE 1: ... t14.fk_0 = t17.fk OR t14.fk_1 = t17.fk ) AS t18 ON t11.fk_0 = t18.fk OR t11.fk_1 = t18.fk WHERE t11.pk = 1 AND t18.pk... |              
+- ERROR testSQLQueryMergingForFiltersAndProjectionsDeep [tests/mapping/union]: multi-hop navigation b.c.d.pk through an embedded/slot head is not supported yet
 - ERROR testSQLQueryMergingForInnerJoins [tests/mapping/union]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR testSQLQueryMergingForInnerJoins2 [tests/mapping/union]: unknown class 'TDSNull' in ^TDSNull(…)
 - SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_AddressIdKey [tests/mapping/union]: unsupported statement: meta::relational::functions::asserts::assertSameSQL
@@ -1907,7 +1900,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testTwoAssociationsToManyDeep [tests/query]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
 - ERROR testTwoAssociationsToManyDeepWithOr [tests/query]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
 - ERROR testAssociationToManyWithTwoSeparateExists [tests/query]: scalar lowering not yet implemented for TypedSerializeGraph
-- ERROR testTwoAssociationsToOneDeep [tests/query]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - FAIL testWithParameterToClassNestedSelect [tests/query]: assertSize: expected 0, got 1
 - ERROR testExistsWithQualifierOnleftSide [tests/query]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testViewAll [tests/query]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Ord

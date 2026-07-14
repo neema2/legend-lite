@@ -53,7 +53,7 @@ final class Pipelines {
 
     /** Resolves a navigate step's target class to its (slot-stripped) pipeline. */
     interface TargetResolver {
-        TypedSpec pipelineFor(String targetClassFqn);
+        TypedSpec pipelineFor(String alias, String targetClassFqn);
     }
 
     /** All navigate-step aliases in {@code pipeline} (class-typed Join PMs). */
@@ -205,7 +205,7 @@ final class Pipelines {
                 }
                 String prefix = alias + "_";
                 prefixes.put(alias, prefix);
-                TypedSpec targetPipeline = targets.pipelineFor(ga.classFqn());
+                TypedSpec targetPipeline = targets.pipelineFor(alias, ga.classFqn());
                 // TARGET-SIDE join-key collection (engine L5135's other
                 // half): a distinct-narrowed target must expose the key
                 // columns this navigation binds on.

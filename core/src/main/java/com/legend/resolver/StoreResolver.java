@@ -1370,6 +1370,9 @@ public final class StoreResolver {
         var navSteps = Pipelines.navSteps(cs.pipeline());
         Set<String> demandedNavs = new java.util.LinkedHashSet<>();
         Map<String, Substitution.AssocSub> assocs = new java.util.LinkedHashMap<>();
+        Map<String, java.util.List<java.util.List<String>>> navTails =
+                new java.util.LinkedHashMap<>();
+        Map<String, String> navHeadByAlias = new java.util.LinkedHashMap<>();
         for (java.util.List<String> path : paths) {
             if (path.size() < 2) {
                 continue;
@@ -1394,14 +1397,20 @@ public final class StoreResolver {
                 navRead = ow.args().get(1);
             }
             String alias = navSlotAlias(navRead, cs.rowVar(), navSteps.keySet());
-            if (alias == null || demandedNavs.contains(alias)) {
+            if (alias == null) {
+                continue;
+            }
+            // the head's TAIL paths drive the target's OWN slot demand
+            // (nested navigation: $a.b.c.pk materializes b's target WITH
+            // its c slot; the leaf reads the composed prefix b_c_pk)
+            navTails.computeIfAbsent(alias, k -> new ArrayList<>())
+                    .add(path.subList(1, path.size()));
+            navHeadByAlias.put(alias, path.get(0));
+            if (demandedNavs.contains(alias)) {
                 continue;
             }
             demandedNavs.add(alias);
             var nav = navSteps.get(alias);
-            String targetClass = ((com.legend.compiler.spec.typed.TypedGetAll)
-                    nav.target()).classFqn();
-            ClassSource target = sources.get(cs.mappingFqn(), targetClass);
             // The nav condition may read joinslot sub-rows: demand them too.
             for (TypedSpec b : nav.predicate().body()) {
                 for (String slot : slotAliases) {
@@ -1411,12 +1420,33 @@ public final class StoreResolver {
                     }
                 }
             }
-            assocs.put(path.get(0), new Substitution.AssocSub(alias + "_",
-                    target.rowVar(), target.bindings(), target.classFqn(),
-                    Pipelines.slotAliases(target.pipeline()), Map.of(), null, null,
-                    milestoneColumnsOf(target.pipeline(), target.classFqn())));
         }
         demanded = Pipelines.closeOverConditions(cs.pipeline(), demanded);
+        // Materialize each demanded navigate TARGET with the slot demand its
+        // tail paths imply (recursively — a tail through the target's own
+        // class-typed slot materializes THAT slot's target too), then
+        // register the head's substitution material with the REAL slot
+        // prefixes (audit: Map.of() here walled every nested slot read).
+        Map<String, Pipelines.Materialized> navMats = new java.util.LinkedHashMap<>();
+        for (String alias : demandedNavs) {
+            var nav = navSteps.get(alias);
+            String targetClass = ((com.legend.compiler.spec.typed.TypedGetAll)
+                    nav.target()).classFqn();
+            navMats.put(alias, navTargetMaterialized(cs.mappingFqn(), targetClass,
+                    navTails.getOrDefault(alias, java.util.List.of())));
+        }
+        for (String alias : demandedNavs) {
+            var nav = navSteps.get(alias);
+            String targetClass = ((com.legend.compiler.spec.typed.TypedGetAll)
+                    nav.target()).classFqn();
+            ClassSource target = sources.get(cs.mappingFqn(), targetClass);
+            assocs.put(navHeadByAlias.getOrDefault(alias, alias),
+                    new Substitution.AssocSub(alias + "_",
+                    target.rowVar(), target.bindings(), target.classFqn(),
+                    Pipelines.slotAliases(target.pipeline()),
+                    navMats.get(alias).slotPrefixes(), null, null,
+                    milestoneColumnsOf(target.pipeline(), target.classFqn())));
+        }
 
         // Mapping ~distinct stays IN the pipeline (a distinct subselect —
         // the engine's own emission, its "could optimize to collapse" TODO
@@ -1428,9 +1458,11 @@ public final class StoreResolver {
         TypedSpec csPipe = cs.pipeline();
         Pipelines.Materialized m = Pipelines.materialize(
                 csPipe, demanded, demandedNavs, cs.classFqn(),
-                targetClass -> Pipelines.materialize(
-                        sources.get(cs.mappingFqn(), targetClass).pipeline(),
-                        Set.of(), targetClass).pipeline());
+                (alias, targetClass) -> navMats.containsKey(alias)
+                        ? navMats.get(alias).pipeline()
+                        : Pipelines.materialize(
+                                sources.get(cs.mappingFqn(), targetClass).pipeline(),
+                                Set.of(), targetClass).pipeline());
         Map<String, String> navPrefixToClass = new java.util.LinkedHashMap<>();
         for (var navE : Pipelines.navSteps(cs.pipeline()).entrySet()) {
             if (navE.getValue().target()
@@ -2822,6 +2854,94 @@ public final class StoreResolver {
      * property1 means the PARENT is classB, so the params REVERSE (the
      * TypedJoin condition binds (leftRow=parent, rightRow=target)).
      */
+    /**
+     * A demanded navigate TARGET, materialized with the slot demand its
+     * tail paths imply — RECURSIVELY: a tail continuing through the
+     * target's own class-typed navigate slot materializes THAT slot's
+     * target too (the engine re-enters findPropertyMapping per hop;
+     * prefixes compose mechanically: b_ + c_ + pk).
+     */
+    private Pipelines.Materialized navTargetMaterialized(String mappingFqn,
+            String targetClassFqn, java.util.List<java.util.List<String>> tails) {
+        ClassSource t = sources.get(mappingFqn, targetClassFqn);
+        // TEMPORAL GATE (same discipline as the union lift): the nested
+        // materialization does not yet thread per-hop milestoning context
+        // (engine: one context object per cursor, explicit dates override
+        // per hop, context clears after non-temporal hops) — nested slots
+        // under a temporal root/target/table leak unfiltered versions.
+        // Those paths keep their previous LOUD walls.
+        if (rootStrategy != null
+                || temporalStrategy(targetClassFqn) != null
+                || hasMilestonedSlotTarget(t.pipeline())
+                // a target ~filter changes join semantics under nested
+                // reads (engine hoists it into the outer WHERE — the
+                // isolation rule; a filtered LEFT-join subselect turns
+                // IS-NULL predicates wrong) — filtered targets keep their
+                // previous loud wall until the hoist lands
+                || containsFilter(t.pipeline())) {
+            return Pipelines.materialize(t.pipeline(), Set.of(), targetClassFqn);
+        }
+        Set<String> tSlots = Pipelines.slotAliases(t.pipeline());
+        var tNavSteps = Pipelines.navSteps(t.pipeline());
+        Set<String> tDemand = new java.util.LinkedHashSet<>();
+        Set<String> tNavs = new java.util.LinkedHashSet<>();
+        Map<String, java.util.List<java.util.List<String>>> subTails =
+                new java.util.LinkedHashMap<>();
+        for (java.util.List<String> tail : tails) {
+            if (tail.isEmpty()) {
+                continue;
+            }
+            TypedSpec b = t.bindings().get(tail.get(0));
+            if (b == null) {
+                continue;
+            }
+            collectAliasReads(b, t.rowVar(), tSlots, tDemand);
+            if (tail.size() >= 2) {
+                String subAlias = navSlotAlias(b, t.rowVar(), tNavSteps.keySet());
+                if (subAlias != null) {
+                    tNavs.add(subAlias);
+                    subTails.computeIfAbsent(subAlias, k -> new ArrayList<>())
+                            .add(tail.subList(1, tail.size()));
+                }
+            }
+        }
+        tDemand = Pipelines.closeOverConditions(t.pipeline(), tDemand);
+        return Pipelines.materialize(t.pipeline(), tDemand, tNavs,
+                targetClassFqn, (alias, cls) -> navTargetMaterialized(
+                        mappingFqn, cls,
+                        subTails.getOrDefault(alias, java.util.List.of()))
+                        .pipeline());
+    }
+
+    /** Whether the pipeline carries a mapping ~filter anywhere. */
+    private static boolean containsFilter(TypedSpec pipeline) {
+        if (pipeline instanceof TypedFilter) {
+            return true;
+        }
+        for (TypedSpec c : pipeline.children()) {
+            if (containsFilter(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Any join-slot target table in the pipeline carrying a milestoning block. */
+    private boolean hasMilestonedSlotTarget(TypedSpec pipeline) {
+        if (pipeline instanceof com.legend.compiler.spec.typed.TypedJoinSlot js
+                && js.target() instanceof
+                        com.legend.compiler.spec.typed.TypedTableReference tr
+                && ctx.findTableMilestoning(tr.store(), tr.table()).isPresent()) {
+            return true;
+        }
+        for (TypedSpec c : pipeline.children()) {
+            if (hasMilestonedSlotTarget(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private AssocJoin associationJoin(ClassSource cs, String head, Context context,
                                       boolean forExists) {
         return associationJoin(cs, head, context, forExists, Set.of());
