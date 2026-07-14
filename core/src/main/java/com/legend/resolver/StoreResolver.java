@@ -1161,10 +1161,12 @@ public final class StoreResolver {
             };
         }
         TypedGetAll g = (TypedGetAll) cur;
-        if (g.milestoning().size() > 1) {
-            throw new MappingResolutionException("bi-temporal class fetch of '"
-                    + g.classFqn() + "' is not supported yet", g.classFqn());
+        if (g.milestoning().size() > 2) {
+            throw new MappingResolutionException("class fetch of '"
+                    + g.classFqn() + "' with " + g.milestoning().size()
+                    + " milestoning arguments is not supported", g.classFqn());
         }
+
         if (g.milestoning().isEmpty() && !g.versionSweep()
                 && temporalStrategy(g.classFqn()) != null) {
             // engine: .all() on a temporal class REQUIRES a date argument
@@ -1178,7 +1180,8 @@ public final class StoreResolver {
         // M3 temporal context: this fetch's dates propagate to same-strategy
         // targets navigated through temporal parents (set per getAll; nested
         // sibling resolutions overwrite at their own entry).
-        rootMilestoning = g.versionSweep() ? java.util.List.of() : g.milestoning();
+        rootMilestoning = g.versionSweep() ? java.util.List.of()
+                : normalizeContextDates(g.milestoning());
         rootStrategy = temporalStrategy(g.classFqn());
         temporalByHead = java.util.Map.of();
         final Context fctx = chainContext;
@@ -1363,6 +1366,12 @@ public final class StoreResolver {
                     milestonedPipeByStrategy(basePipe, g.milestoning().get(0),
                             "processingtemporal", g.classFqn()),
                     g.milestoning().get(1), "businesstemporal", g.classFqn());
+        } else if (g.milestoning().size() == 2) {
+            // SINGLE-dimension class with two dates: the RANGE fetch —
+            // engine getAll(Class, start, end), same filter as
+            // allVersionsInRange
+            materializedPipe = rangeMilestonedPipe(basePipe,
+                    g.milestoning().get(0), g.milestoning().get(1), g.classFqn());
         } else {
             materializedPipe = g.milestoning().isEmpty()
                     ? basePipe
@@ -2206,7 +2215,8 @@ public final class StoreResolver {
         if (n instanceof com.legend.compiler.spec.typed.TypedMilestonedAccess ma
                 && ma.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
                 && v.name().equals(userVar)) {
-            TemporalSpec spec = new TemporalSpec(ma.dates(), ma.sweep());
+            TemporalSpec spec = new TemporalSpec(
+                    normalizeContextDates(ma.dates()), ma.sweep());
             TemporalSpec prior = out.putIfAbsent(ma.property(), spec);
             if (prior != null && !prior.equals(spec)) {
                 throw new NotImplementedException("navigation '" + ma.property()
@@ -2875,6 +2885,29 @@ public final class StoreResolver {
             }
         }
         return out;
+    }
+
+    /** A DATE argument spelled as a temporal-context read
+     * ({@code $this.businessDate} in a milestoned qualified property, or
+     * any instance's businessDate/processingDate) IS the context date —
+     * normalize to it so the literal-only filters apply. */
+    private java.util.List<TypedSpec> normalizeContextDates(java.util.List<TypedSpec> dates) {
+        java.util.List<TypedSpec> out = new ArrayList<>(dates.size());
+        for (TypedSpec d : dates) {
+            out.add(normalizeContextDate(d));
+        }
+        return out;
+    }
+
+    private TypedSpec normalizeContextDate(TypedSpec d) {
+        if (d instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                && (pa.property().equals("businessDate")
+                        || pa.property().equals("processingDate"))
+                && !rootMilestoning.isEmpty()) {
+            return rootMilestoning.size() == 2 && pa.property().equals("businessDate")
+                    ? rootMilestoning.get(1) : rootMilestoning.get(0);
+        }
+        return d;
     }
 
     /** Explicit per-head property-function dates for the substitution. */
