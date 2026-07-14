@@ -1083,7 +1083,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - FAIL testBusinessTemporalRangeQueryOnProperty [milestoning/tests]: assertSameElements: expected [2015-08-15 00:00:00.0, 2015-08-26 00:00:00.0, 2015-10-16 00:00:00.0], got [2015-08-26, 2015-08-15, 2015-10-16]
 - ERROR testBusinessTemporalRangeQueryOnPropertyDeep [milestoning/tests]: multi-hop navigation classification.exchange.name through an embedded/slot head is not supported yet
 - ERROR testProcessingTemporalRangeQueryOnRoot [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::Certification' is not supported yet
-- FAIL testProcessingTemporalRangeQueryOnProperty [milestoning/tests]: assertSameElements: expected [1980-01-01 00:00:00.0, 1981-01-01 00:00:00.0], got [1980-01-01, 1981-01-01]
+- FAIL testProcessingTemporalRangeQueryOnProperty [milestoning/tests]: assertSameElements: expected [1980-01-01 00:00:00.0, 1981-01-01 00:00:00.0], got [1981-01-01, 1980-01-01]
 - ERROR testProcessingTemporalRangeQueryOnRootAndProperty [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::Certification' is not supported yet
 - SHAPE testBusinessTemporalRangeQueryOnRootWithSubsequentCallToMilestonedQualifiedPropertyWithFunction [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testBusinessTemporalRangeQueryOnRootWithSubsequentCallToMilestonedQualifiedPropertyWithThisBusinessDate [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification

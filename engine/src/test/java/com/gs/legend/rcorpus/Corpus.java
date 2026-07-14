@@ -440,6 +440,18 @@ public final class Corpus {
 
     public record TableDef(String schema, String name, String columnsText) {
         public String createSql() {
+            return createSql(Map.of());
+        }
+
+        /**
+         * {@code seedTypeOverrides}: the RUNTIME truth. The engine executes
+         * the harness's raw {@code executeInDb('create table ...')} — where
+         * a seed statement declares a column type that differs from the
+         * store DDL (milestoning setUp declares {@code from_z DATE} but
+         * seeds {@code from_z TIMESTAMP}), the SEED type is what H2 ran
+         * with, and the wire reflects it.
+         */
+        public String createSql(Map<String, String> seedTypeOverrides) {
             StringBuilder cols = new StringBuilder();
             // split on top-level commas; strip PRIMARY KEY markers; quote names
             int depth = 0;
@@ -492,6 +504,18 @@ public final class Corpus {
                 // may literally be NAMED float (audit C1).
                 String type = col.substring(sp).strip()
                         .replaceAll("(?i)\\bFLOAT\\b", "DOUBLE");
+                String bare = name.startsWith("\"")
+                        ? name.substring(1, name.length() - 1) : name;
+                String override = seedTypeOverrides.get(bare.toLowerCase());
+                // ONLY the temporal-precision mismatch (declared DATE,
+                // seeded TIMESTAMP or vice versa) — anything wider trusts
+                // the store declaration (the seed text parse is heuristic)
+                if (override != null
+                        && type.toUpperCase().matches("DATE|TIMESTAMP")
+                        && override.toUpperCase().matches("DATE|TIMESTAMP")
+                        && !type.equalsIgnoreCase(override)) {
+                    type = override.toUpperCase();
+                }
                 if (!name.startsWith("\"")) {
                     name = '"' + name + '"';
                 }
@@ -518,6 +542,100 @@ public final class Corpus {
         }
     }
 
+    /**
+     * CREATE statements rebuilt from the harness's own
+     * {@code executeInDb('create table ...')} seeds — the RUNTIME truth
+     * the engine executed with (the declared store DDL can disagree in
+     * both type AND shape: milestoning setUp declares four different
+     * ProductTables across Database blocks; H2 held the seeded one).
+     * Keyed by lower-cased simple name; values are DuckDB-ready.
+     */
+    public static Map<String, String> seedCreateSql(String source) {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (var e : seedColumnDefs(source).entrySet()) {
+            StringBuilder cols = new StringBuilder();
+            for (var c : e.getValue().types.entrySet()) {
+                if (cols.length() > 0) {
+                    cols.append(", ");
+                }
+                cols.append('"').append(c.getKey()).append("\" ")
+                        .append(c.getValue().replaceAll("(?i)\\bFLOAT\\b", "DOUBLE"));
+            }
+            String create = "CREATE OR REPLACE TABLE " + e.getValue().qualified
+                    + " (" + cols + ")";
+            if (e.getValue().qualified.contains(".")) {
+                create = "CREATE SCHEMA IF NOT EXISTS " + e.getValue().qualified
+                        .substring(0, e.getValue().qualified.lastIndexOf('.'))
+                        + "; " + create;
+            }
+            out.put(e.getKey(), create);
+        }
+        return out;
+    }
+
+    private record SeedTable(String qualified, Map<String, String> types) {}
+
+    /** Column types from the harness's own {@code create table} seed
+     * statements, per table (lower-cased names) — the runtime truth the
+     * engine executed with. */
+    public static Map<String, Map<String, String>> seedColumnTypes(String source) {
+        Map<String, Map<String, String>> out = new LinkedHashMap<>();
+        for (var e : seedColumnDefs(source).entrySet()) {
+            Map<String, String> lower = new LinkedHashMap<>();
+            e.getValue().types.forEach((k, v) -> lower.put(k.toLowerCase(), v));
+            out.put(e.getKey(), lower);
+        }
+        return out;
+    }
+
+    private static Map<String, SeedTable> seedColumnDefs(String source) {
+        Map<String, SeedTable> out = new LinkedHashMap<>();
+        Matcher m = Pattern.compile(
+                "(?i)create table (?:if not exists )?([A-Za-z0-9_.]+)\\s*\\(([^;]*?)\\)\\s*;")
+                .matcher(source);
+        while (m.find()) {
+            String table = m.group(1);
+            String cols = m.group(2);
+            Map<String, String> types = new LinkedHashMap<>();
+            int depth = 0;
+            int start = 0;
+            List<String> parts = new ArrayList<>();
+            for (int i = 0; i < cols.length(); i++) {
+                char c = cols.charAt(i);
+                if (c == '(') {
+                    depth++;
+                } else if (c == ')') {
+                    depth--;
+                } else if (c == ',' && depth == 0) {
+                    parts.add(cols.substring(start, i));
+                    start = i + 1;
+                }
+            }
+            parts.add(cols.substring(start));
+            boolean ok = !parts.isEmpty();
+            for (String raw : parts) {
+                String col = raw.strip().replaceAll("(?i)\\s+PRIMARY\\s+KEY", "")
+                        .replaceAll("(?i)\\s+NOT\\s+NULL", "");
+                int sp = 0;
+                while (sp < col.length() && !Character.isWhitespace(col.charAt(sp))) {
+                    sp++;
+                }
+                if (sp == 0 || sp >= col.length()) {
+                    ok = false;
+                    break;
+                }
+                types.put(col.substring(0, sp), col.substring(sp).strip());
+            }
+            if (!ok) {
+                continue;   // heuristic parse — skip anything surprising
+            }
+            String simple = table.contains(".")
+                    ? table.substring(table.lastIndexOf('.') + 1) : table;
+            out.put(simple.toLowerCase(), new SeedTable(table, types));
+        }
+        return out;
+    }
+
     private static final Pattern TABLE_DEF = Pattern.compile(
             "(?m)^\\s*Table\\s+(\\w+)\\s*\\(");
     private static final Pattern SCHEMA_DEF = Pattern.compile(
@@ -529,7 +647,31 @@ public final class Corpus {
      * column text carries the store's own SQL types — the DDL the engine's
      * {@code dropAndCreateTableInDb} would generate.
      */
+    /** All defs per {@code schema.name} key — one physical table can have
+     * SEVERAL declarations across Database blocks in one file (milestoning
+     * setUp declares four ProductTables); the runner picks the one the
+     * SEEDS actually created. */
+    public static Map<String, List<TableDef>> tableDefsAll(String source) {
+        Map<String, List<TableDef>> out = new LinkedHashMap<>();
+        for (var e : tableDefsList(source)) {
+            out.computeIfAbsent(e.schema() + "." + e.name(),
+                    k -> new ArrayList<>()).add(e);
+        }
+        return out;
+    }
+
+    private static List<TableDef> tableDefsList(String source) {
+        List<TableDef> out = new ArrayList<>();
+        Map<String, TableDef> dedup = tableDefsInternal(source, out);
+        return out;
+    }
+
     public static Map<String, TableDef> tableDefs(String source) {
+        return tableDefsInternal(source, null);
+    }
+
+    private static Map<String, TableDef> tableDefsInternal(String source,
+            List<TableDef> all) {
         Map<String, TableDef> out = new LinkedHashMap<>();
         // schema regions: from 'Schema X (' to its matching close paren
         record Region(int start, int end, String name) { }
@@ -586,9 +728,12 @@ public final class Corpus {
             String schema = regions.stream()
                     .filter(r -> r.start() < pos && pos < r.end())
                     .map(Region::name).findFirst().orElse("");
+            TableDef def = new TableDef(schema, m.group(1), cols.strip());
+            if (all != null) {
+                all.add(def);
+            }
             // first definition wins (dbInc tables re-appear via includes)
-            out.putIfAbsent(schema + "." + m.group(1),
-                    new TableDef(schema, m.group(1), cols.strip()));
+            out.putIfAbsent(schema + "." + m.group(1), def);
         }
         return out;
     }
