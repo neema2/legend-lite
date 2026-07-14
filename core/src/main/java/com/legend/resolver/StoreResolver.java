@@ -2965,15 +2965,14 @@ public final class StoreResolver {
         // per hop, context clears after non-temporal hops) — nested slots
         // under a temporal root/target/table leak unfiltered versions.
         // Those paths keep their previous LOUD walls.
-        if (rootStrategy != null
-                || temporalStrategy(targetClassFqn) != null
-                || hasMilestonedSlotTarget(t.pipeline())
-                // a target ~filter changes join semantics under nested
-                // reads (engine hoists it into the outer WHERE — the
-                // isolation rule; a filtered LEFT-join subselect turns
-                // IS-NULL predicates wrong) — filtered targets keep their
-                // previous loud wall until the hoist lands
-                || containsFilter(t.pipeline())) {
+        // a target ~filter changes join semantics under nested reads
+        // (engine hoists it into the outer WHERE — isolation rule): loud.
+        // Milestoned SLOT TARGETS are filterable when the hop has a date
+        // context (chain spec or propagated root — the golden filters
+        // StockProductTable by the hop's date); without one they stay loud.
+        java.util.List<TypedSpec> hopDates =
+                hopContextDates(chainPrefix, targetClassFqn);
+        if (containsFilter(t.pipeline())) {
             return Pipelines.materialize(t.pipeline(), Set.of(), targetClassFqn);
         }
         Set<String> tSlots = Pipelines.slotAliases(t.pipeline());
@@ -3023,6 +3022,7 @@ public final class StoreResolver {
             }
         }
         tDemand = Pipelines.closeOverConditions(t.pipeline(), tDemand);
+        final java.util.List<TypedSpec> slotDates = hopDates;
         final Map<String, String> midByAlias = new java.util.LinkedHashMap<>();
         for (java.util.List<String> tail : tails) {
             if (tail.size() >= 2) {
@@ -3034,7 +3034,8 @@ public final class StoreResolver {
                 }
             }
         }
-        return Pipelines.materialize(t.pipeline(), tDemand, tNavs,
+        Pipelines.Materialized matM = Pipelines.materialize(
+                t.pipeline(), tDemand, tNavs,
                 targetClassFqn, (alias, cls) -> {
                     TypedSpec sub = navTargetMaterialized(mappingFqn, cls,
                             subTails.getOrDefault(alias, java.util.List.of()),
@@ -3049,6 +3050,55 @@ public final class StoreResolver {
                     }
                     return sub;
                 });
+        if (slotDates != null && slotDates.size() == 1
+                && hasMilestonedSlotTarget(t.pipeline())) {
+            // every milestoned SLOT-TARGET alias filters by the hop's date
+            // (engine every-alias rule, hop context) — single-dimension
+            return new Pipelines.Materialized(
+                    filterMilestonedJoinTargets(matM.pipeline(), slotDates.get(0)),
+                    matM.slotPrefixes(), matM.stripped());
+        }
+        return matM;
+    }
+
+    /** The hop's effective single-dimension date context: its chain-keyed
+     * spec (non-sweep), else the propagated root context. Null = none. */
+    private java.util.List<TypedSpec> hopContextDates(String chainPrefix,
+            String targetClassFqn) {
+        TemporalSpec spec = chainPrefix == null ? null
+                : temporalByHead.get(chainPrefix);
+        if (spec != null && !spec.sweep() && !spec.dates().isEmpty()) {
+            return spec.dates();
+        }
+        // propagated root context flows only THROUGH a TEMPORAL head class
+        // (engine clears after non-temporal hops — the NotPropogated
+        // goldens join milestoned slot tables UNFILTERED there)
+        if (spec == null && !rootMilestoning.isEmpty()
+                && !"bitemporal".equals(rootStrategy)
+                && temporalStrategy(targetClassFqn) != null) {
+            return rootMilestoning;
+        }
+        return null;
+    }
+
+    /** Filter every join whose RIGHT is a milestoned table scan by
+     * {@code date} (its own block's strategy — capability per table). */
+    private TypedSpec filterMilestonedJoinTargets(TypedSpec n, TypedSpec date) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedJoin j) {
+            TypedSpec right = j.right();
+            for (String strat : java.util.List.of("businesstemporal",
+                    "processingtemporal")) {
+                if (tableHasBlock(right, strat)) {
+                    right = milestonedPipeByStrategy(right, date, strat,
+                            "nested join target");
+                    break;
+                }
+            }
+            return new com.legend.compiler.spec.typed.TypedJoin(
+                    filterMilestonedJoinTargets(j.left(), date), right,
+                    j.kind(), j.condition(), j.prefix(), j.info());
+        }
+        return n;
     }
 
     /** Whether the sub-hop at {@code chainKey} has a usable temporal
