@@ -541,6 +541,31 @@ public final class MappingNormalizer {
      * [set1]}) is navigated by routes naming the ANCESTOR sets — the
      * corpus extends-of-union shape. {@code -1} when no member matches.
      */
+    /**
+     * Whether the property's routes need NO target-side discrimination:
+     * they cover EVERY member of the target union. The engine then joins
+     * on the MERGED (unsuffixed) target key — both threads project it, so
+     * every member matches (snapshot-union AND partially-milestoning
+     * goldens: prodFk_0 = id OR prodFk_1 = id, target side shared even
+     * with different joins per member). Partial coverage keeps the
+     * member-suffixed NULL-crossed form (un-routed members must not
+     * match — the TDSNull golden).
+     */
+    private static boolean mergedTargetRoutes(List<UnionRoute> routes,
+            ClassMapping.Union targetUnion) {
+        if (targetUnion == null) {
+            return false;
+        }
+        java.util.Set<Integer> ords = new java.util.HashSet<>();
+        for (UnionRoute r : routes) {
+            if (r.targetOrdinal() < 0 || r.join().joins().size() != 1) {
+                return false;
+            }
+            ords.add(r.targetOrdinal());
+        }
+        return ords.size() == targetUnion.memberSetIds().size();
+    }
+
     private static int memberOrdinalOf(List<String> memberIds,
             LegacyMappingDefinition md, ModelBuilder model, String setId) {
         int direct = memberIds.indexOf(setId);
@@ -1711,14 +1736,16 @@ public final class MappingNormalizer {
                 continue;
             }
             String targetClassFqn = pnr.name();
-            // TEMPORAL GATE (audit 11 ungate attempt recorded): the
-            // explicit-date arm works (applyJoinTemporalFilters + pinned),
-            // but PROPAGATED context through union member threads still
-            // returns wrong rows in 6 corpus tests (testUnionQueryWith
-            // Propagation* family) — temporal unions stay LOUD until the
-            // member-thread context threading lands.
-            if (isTemporalClass(className, model)
-                    || isTemporalClass(targetClassFqn, model)) {
+            // BITEMPORAL GATE (narrowed from the audit-11 full temporal
+            // gate): single-dimension temporal unions lift correctly
+            // (member threads filter per capability; 5 corpus families
+            // pass). BITEMPORAL unions with per-member capability mixes
+            // still over-match (hybridMilestoningUnionMap expects 12,
+            // ungated lift returns 18 — a member capability subset goes
+            // unfiltered under the two-date context) — LOUD until the
+            // per-member capability x two-date filtering lands.
+            if (isBitemporalClass(className, model)
+                    || isBitemporalClass(targetClassFqn, model)) {
                 continue;
             }
             ClassMapping.Union targetUnion = unionForClass(md, model, targetClassFqn);
@@ -1749,6 +1776,24 @@ public final class MappingNormalizer {
                                 + "; the property is not lifted",
                         (a, b) -> a + "; " + b);
                 continue;
+            }
+            // full-coverage same-join routed entries merge (see
+            // mergedTargetRoutes) — the target side stays UNSUFFIXED
+            boolean liftTargetMerged;
+            {
+                List<UnionRoute> asRoutes = new ArrayList<>();
+                boolean allRouted = true;
+                for (PropertyMapping.Join j0 : joins.get(prop)) {
+                    if (j0.targetSetId() == null || targetUnion == null) {
+                        allRouted = false;
+                        break;
+                    }
+                    int o = memberOrdinalOf(targetUnion.memberSetIds(), md,
+                            model, j0.targetSetId());
+                    asRoutes.add(new UnionRoute(o, j0));
+                }
+                liftTargetMerged = allRouted
+                        && mergedTargetRoutes(asRoutes, targetUnion);
             }
             Variable s = new Variable("s");
             Variable t = new Variable("t");
@@ -1793,6 +1838,7 @@ public final class MappingNormalizer {
                 srcKeys.computeIfAbsent(memberOrd, x -> new LinkedHashMap<>())
                         .putAll(srcOut);
                 Integer tgtOrd = j.targetSetId() != null && targetUnion != null
+                        && !liftTargetMerged
                         ? memberOrdinalOf(targetUnion.memberSetIds(), md,
                                 model, j.targetSetId())
                         : null;
@@ -1917,6 +1963,36 @@ public final class MappingNormalizer {
             default -> {
             }
         }
+    }
+
+    /** Whether the class (or a superclass) is BITEMPORAL. */
+    private static boolean isBitemporalClass(String classFqn, ModelBuilder model) {
+        return isBitemporalClass(classFqn, model, new java.util.HashSet<>());
+    }
+
+    private static boolean isBitemporalClass(String classFqn, ModelBuilder model,
+            java.util.Set<String> visited) {
+        if (!visited.add(classFqn)) {
+            return false;
+        }
+        ClassDefinition cd = model.findClass(classFqn).orElse(null);
+        if (cd == null) {
+            return false;
+        }
+        for (var st : cd.stereotypes()) {
+            if (("temporal".equals(st.profileName())
+                    || "meta::pure::profiles::temporal".equals(st.profileName()))
+                    && "bitemporal".equals(st.stereotypeName())) {
+                return true;
+            }
+        }
+        for (TypeExpression sup : cd.superClasses()) {
+            if (sup instanceof TypeExpression.NameRef nr
+                    && isBitemporalClass(nr.name(), model, visited)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Whether the class (or a superclass) carries a temporal stereotype. */
@@ -3104,6 +3180,13 @@ public final class MappingNormalizer {
                 List<UnionRoute> routes = propName == null ? null
                         : p.unionRoutes.get(propName);
                 LambdaFunction navCond = condLambda;
+                // full-coverage same-join routes MERGE: the plain condition
+                // over the shared key serves every member (no suffixing —
+                // engine snapshot-union propagation golden)
+                if (routes != null && mergedTargetRoutes(routes,
+                        unionForClass(md, model, targetClassFqn))) {
+                    routes = null;
+                }
                 if (routes != null) {
                     ValueSpecification orCond = null;
                     // suffixed name -> [base column, its route's db, its

@@ -239,15 +239,14 @@ class ResolveUnionTest {
                         + "->project([p|$p.lastName], ['name'])"
                         + "->from(u::MD, u::RT)"));
         assertTrue(bare.getMessage().contains("milestoning date"), bare.getMessage());
-        // DATED access stays LOUD too while the lift is temporal-gated
-        // (the ungate attempt filtered explicit dates correctly but
-        // propagated context still returned wrong rows — see the gate
-        // comment in collectNavLifts)
-        MappingResolutionException dated = assertThrows(MappingResolutionException.class,
-                () -> sqlOf("|u::PersonD.all()"
-                        + "->filter(p|$p.firmD(%2020-01-01).legalName == 'FirmD-X')"
-                        + "->project([p|$p.lastName], ['name'])"
-                        + "->from(u::MD, u::RT)"));
-        assertTrue(dated.getMessage().contains("is not mapped"), dated.getMessage());
+        // DATED access lifts and point-filters the navigate target
+        // (single-dimension temporal unions are ungated; only BITEMPORAL
+        // unions stay loud — the hybrid capability-mix rung)
+        String sql = sqlOf("|u::PersonD.all()"
+                + "->filter(p|$p.firmD(%2020-01-01).legalName == 'FirmD-X')"
+                + "->project([p|$p.lastName], ['name'])"
+                + "->from(u::MD, u::RT)");
+        assertTrue(sql.contains("from_z") && sql.contains("thru_z"),
+                "point filter must reach the navigate target:\n" + sql);
     }
 }
