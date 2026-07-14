@@ -159,7 +159,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 |
 | tests/mapping/inheritance | 47 | 9 | 0 | 38 | 0 |
-| tests/mapping/join | 28 | 14 | 2 | 12 | 0 |
+| tests/mapping/join | 28 | 15 | 2 | 11 | 0 |
 | tests/mapping/merge | 1 | 0 | 0 | 0 | 1 |
 | tests/mapping/modelJoin | 47 | 0 | 0 | 0 | 47 |
 | tests/mapping/multigrain | 5 | 0 | 0 | 5 | 0 |
@@ -176,7 +176,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **621** | 29 | 803 | 839 |
+| **total** | 2292 | **622** | 29 | 802 | 839 |
 
 ### mapping walls (dropped at assembly)
 
@@ -956,7 +956,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testMilestoningFilterPropagationWithNowInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testFilterOnView [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testCalculationOnBusinessDateInGetAll [milestoning/tests]: unknown function 'myGetAllProduct'
-- ERROR testNestedExists_NestedExistsWithEmbeddedMapping [milestoning/tests]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'Child_Leaf' (the demand scan and the rewrite disagreed)
+- ERROR testNestedExists_NestedExistsWithEmbeddedMapping [milestoning/tests]: multi-hop navigation children.leaves.leafValue through an embedded/slot head is not supported yet
 - ERROR testNestedExists_NestedExistsWithEmbeddedMappingInProject [milestoning/tests]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'Child_Leaf' (the demand scan and the rewrite disagreed)
 - ERROR testDerivedPropertyOnNonTemporalClassWithMilestonedChain [milestoning/tests]: milestoned property access 'leaves' on a NESTED navigation is not supported yet
 - SHAPE testGraphFetchMultiPrimitiveOnInlineChild [milestoning/tests]: assert form 'assertJsonStringsEqual/2' is not supported yet
@@ -1612,7 +1612,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFilterDeepWithJoinInMappingInMiddle [tests/mapping/join]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - FAIL testMultipleJoinsInPropertyMappingWithDatesInClass [tests/mapping/join]: assertSameElements: expected [Row1, Row2, Row3, Row1, Row2, Row3], got [Row1, Row2, Row3]
 - ERROR testMultipleJoinsInPropertyMappingWithDateInJoin [tests/mapping/join]: in function 'meta::relational::tests::mapping::join::model::mapping::advancedRelationalMapping2$class$meta::relational::tests::mapping::join::model::domain::TypeBuiltOutOfMultipleJoins': no overload of 'meta::pure::functions::boolean::lessThanEqual' structurally matches the argument types
-- ERROR testConstraintTargetingMultipleJoinsInPropertyMapping [tests/mapping/join]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'Person_PersonExtension' (the demand scan and the rewrite disagreed)
 - ERROR testChainedOuterJoinsMerge [tests/mapping/join]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR testChainedInnerJoinsMerge [tests/mapping/join]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR testChainedInnerJoinsWithFilterMerge [tests/mapping/join]: unknown class 'TDSNull' in ^TDSNull(…)

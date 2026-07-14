@@ -1557,8 +1557,17 @@ public final class StoreResolver {
                     continue;
                 }
                 ClassSource t = sources.get(cs.mappingFqn(), tg.classFqn());
+                Set<String> tSlots0 = Pipelines.slotAliases(t.pipeline());
+                Set<String> tDemand0 = new java.util.LinkedHashSet<>();
+                for (String leaf : existsInnerLeaves(ops, head)) {
+                    TypedSpec lb = t.bindings().get(leaf);
+                    if (lb != null) {
+                        collectAliasReads(lb, t.rowVar(), tSlots0, tDemand0);
+                    }
+                }
+                tDemand0 = Pipelines.closeOverConditions(t.pipeline(), tDemand0);
                 Pipelines.Materialized tMat0 = Pipelines.materialize(
-                        t.pipeline(), Set.of(), t.classFqn());
+                        t.pipeline(), tDemand0, t.classFqn());
                 // UNION target: member threads carry the key columns the
                 // navigate predicate binds on (mirrors the assoc route)
                 TypedSpec tPipe0 = tMat0.pipeline();
@@ -1585,7 +1594,8 @@ public final class StoreResolver {
                         nav.predicate(), t.rowVar(), t.bindings(),
                         (com.legend.compiler.element.type.Type.RelationType)
                                 tMat.pipeline().info().type(),
-                        t.classFqn(), Pipelines.slotAliases(t.pipeline()), navToMany));
+                        t.classFqn(), Pipelines.slotAliases(t.pipeline()),
+                        tMat0.slotPrefixes(), navToMany));
                 continue;
             }
             var assocOpt = ctx.findAssociationOf(cs.classFqn(), head);
@@ -1597,7 +1607,8 @@ public final class StoreResolver {
             // any multiplicity, incl. to-one-optional, => [NOT] EXISTS); a
             // bare head not under an emptiness call still gets the honest
             // H4 story at substitution.
-            AssocJoin aj = associationJoin(cs, head, context, true);
+            AssocJoin aj = associationJoin(cs, head, context, true,
+                    existsInnerLeaves(ops, head));
             var assocEnd = assocOpt.get().property1().propertyName().equals(head)
                     ? assocOpt.get().property1() : assocOpt.get().property2();
             boolean isToMany = !(assocEnd.multiplicity()
@@ -1606,7 +1617,8 @@ public final class StoreResolver {
             existsSubs.put(head, new Substitution.ExistsSub(aj.targetPipeline(),
                     aj.condition(), aj.target().rowVar(), aj.target().bindings(),
                     aj.targetRow(), aj.target().classFqn(),
-                    Pipelines.slotAliases(aj.target().pipeline()), isToMany));
+                    Pipelines.slotAliases(aj.target().pipeline()),
+                    aj.targetSlotPrefixes(), isToMany));
         }
 
         // Association demand: paths whose head is NOT a binding are
@@ -2884,6 +2896,53 @@ public final class StoreResolver {
      * property1 means the PARENT is classB, so the params REVERSE (the
      * TypedJoin condition binds (leftRow=parent, rightRow=target)).
      */
+    /**
+     * Leaf properties read INSIDE exists/isEmpty predicates over {@code
+     * head} anywhere in the chain's filters — the inner-lambda demand that
+     * materializes the exists target's own slot joins (N1).
+     */
+    private static Set<String> existsInnerLeaves(java.util.List<TypedSpec> ops,
+            String head) {
+        Set<String> out = new java.util.LinkedHashSet<>();
+        for (TypedSpec op : ops) {
+            if (op instanceof TypedFilter f) {
+                for (TypedSpec b : f.predicate().body()) {
+                    collectExistsInnerLeaves(b,
+                            f.predicate().parameters().get(0), head, out);
+                }
+            }
+        }
+        return out;
+    }
+
+    private static void collectExistsInnerLeaves(TypedSpec n, String userVar,
+            String head, Set<String> out) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+                && c.args().size() == 2
+                && c.args().get(1) instanceof TypedLambda lam
+                && !lam.parameters().isEmpty()) {
+            java.util.List<String> p = Substitution.pathOf(c.args().get(0), userVar);
+            if (p != null && p.size() == 1 && p.get(0).equals(head)) {
+                collectParamPathHeads(lam, lam.parameters().get(0), out);
+            }
+        }
+        for (TypedSpec ch : n.children()) {
+            collectExistsInnerLeaves(ch, userVar, head, out);
+        }
+    }
+
+    /** Heads of property paths over {@code param} in the lambda's body. */
+    private static void collectParamPathHeads(TypedSpec n, String param,
+            Set<String> out) {
+        java.util.List<String> p = Substitution.pathOf(n, param);
+        if (p != null && !p.isEmpty()) {
+            out.add(p.get(0));
+        }
+        for (TypedSpec ch : n.children()) {
+            collectParamPathHeads(ch, param, out);
+        }
+    }
+
     /**
      * A demanded navigate TARGET, materialized with the slot demand its
      * tail paths imply — RECURSIVELY: a tail continuing through the

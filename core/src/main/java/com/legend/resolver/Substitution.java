@@ -65,11 +65,24 @@ final class Substitution {
      * children is pure 0, but the LEFT join delivers NULL). */
     record AggRead(String column, boolean zeroWhenEmpty) {}
 
-    /** A to-many association head consumable under exists/isEmpty/isNotEmpty. */
+    /** A to-many association head consumable under exists/isEmpty/isNotEmpty.
+     * {@code targetSlotPrefixes}: the target's DEMANDED slots, materialized
+     * into its pipeline (inner-predicate leaves through the target's own
+     * joins — N1); un-materialized aliases stay stripped-loud. */
     record ExistsSub(TypedSpec targetPipeline, TypedLambda orientedCond,
                      String targetRowVar, Map<String, TypedSpec> targetBindings,
                      Type.RelationType targetRow, String targetClassFqn,
-                     java.util.Set<String> targetSlotAliases, boolean toMany) {}
+                     java.util.Set<String> targetSlotAliases,
+                     Map<String, String> targetSlotPrefixes, boolean toMany) {
+
+        ExistsSub(TypedSpec targetPipeline, TypedLambda orientedCond,
+                  String targetRowVar, Map<String, TypedSpec> targetBindings,
+                  Type.RelationType targetRow, String targetClassFqn,
+                  java.util.Set<String> targetSlotAliases, boolean toMany) {
+            this(targetPipeline, orientedCond, targetRowVar, targetBindings,
+                    targetRow, targetClassFqn, targetSlotAliases, Map.of(), toMany);
+        }
+    }
 
     /**
      * A demanded association head: how its leaf bindings substitute.
@@ -1092,10 +1105,14 @@ final class Substitution {
                 throw new NotImplementedException("non-lambda predicate in "
                         + call.callee().qualifiedName() + " over an association");
             }
+            java.util.Set<String> unconvertedSlots =
+                    new java.util.LinkedHashSet<>(ex.targetSlotAliases());
+            unconvertedSlots.removeAll(ex.targetSlotPrefixes().keySet());
             Substitution predSub = new Substitution(new Target(
                     predLam.parameters().get(0), tVar, ex.targetClassFqn(),
                     target.mappingFqn(), ex.targetRowVar(), ex.targetBindings(),
-                    ex.targetRow(), ex.targetSlotAliases(), Map.of(), Map.of(),
+                    ex.targetRow(), unconvertedSlots, ex.targetSlotPrefixes(),
+                    Map.of(),
                     java.util.Set.of(), Map.of(), Map.of(), null, null,
                     java.util.List.of(), Map.of(), Map.of(), true, true));
             TypedLambda inner = predSub.rewriteLambda(predLam);
