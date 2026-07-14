@@ -207,9 +207,11 @@ public final class StoreResolver {
             case com.legend.compiler.spec.typed.TypedMap m
                     when isObjectSpace(m.source())
                     && !(((com.legend.compiler.element.type.Type.FunctionType) m.mapper().info().type()).result().type()
-                            instanceof com.legend.compiler.element.type.Type.ClassType) ->
-                    resolveChain(scalarMapAsProject(m.source(), m.mapper(),
-                            m.info().multiplicity()), context);
+                            instanceof com.legend.compiler.element.type.Type.ClassType) -> {
+                com.legend.compiler.spec.typed.TypedMap m2 = liftValueMapFilter(m);
+                yield resolveChain(scalarMapAsProject(m2.source(), m2.mapper(),
+                        m2.info().multiplicity()), context);
+            }
             case com.legend.compiler.spec.typed.TypedPropertyAccess pa when isObjectSpace(pa.source())
                     && !(pa.info().type() instanceof com.legend.compiler.element.type.Type.ClassType) -> {
                 com.legend.compiler.element.type.ExprType elem =
@@ -1209,6 +1211,10 @@ public final class StoreResolver {
      * final row type. No restamp pass exists.
      */
     private TypedSpec resolveObject(TypedSpec top, Context context) {
+        // PRE-REWRITE (before the demand scan, ledger design): filtered
+        // navigations consumed as bare collections lift into SYNTHETIC
+        // 2-hop heads whose join target carries the predicate.
+        top = liftFilteredHeads(top);
         // The relation-shaping TERMINAL: project or class-source groupBy
         // (lambdas through the one funnel), or the GRAPH terminals —
         // explicit serialize (graphFetch is source-preserving; serialize's
@@ -1401,7 +1407,7 @@ public final class StoreResolver {
         Set<String> demanded = new java.util.LinkedHashSet<>();
         if (!slotAliases.isEmpty()) {
             for (java.util.List<String> path : paths) {
-                TypedSpec binding = cs.bindings().get(path.get(0));
+                TypedSpec binding = cs.bindings().get(realHead(path.get(0)));
                 if (binding != null) {
                     collectAliasReads(binding, cs.rowVar(), slotAliases, demanded);
                 }
@@ -1421,7 +1427,7 @@ public final class StoreResolver {
             if (path.size() < 2) {
                 continue;
             }
-            TypedSpec headBinding = cs.bindings().get(path.get(0));
+            TypedSpec headBinding = cs.bindings().get(realHead(path.get(0)));
             if (headBinding == null) {
                 continue;   // association heads (below)
             }
@@ -1470,11 +1476,34 @@ public final class StoreResolver {
                 continue;
             }
             String headKey = String.join(".", path.subList(0, mid));
+            // JOIN IDENTITY guard: a lifted (filtered) head and any OTHER
+            // use of the same navigate slot would share ONE materialized
+            // join — the predicate would leak into the other use.
+            String priorHead = navHeadByAlias.get(alias);
+            if (priorHead != null && !priorHead.equals(headKey)
+                    && (syntheticHeadPreds.containsKey(headKey)
+                            || syntheticHeadPreds.containsKey(priorHead))) {
+                throw new NotImplementedException("filtered and unfiltered"
+                        + " navigation of '" + realHead(path.get(0))
+                        + "' share one join slot in one query — per-use join"
+                        + " identity is not supported yet");
+            }
             // the head's TAIL paths drive the target's OWN slot demand
             // (nested navigation: $a.b.c.pk materializes b's target WITH
             // its c slot; the leaf reads the composed prefix b_c_pk)
             navTails.computeIfAbsent(alias, k -> new ArrayList<>())
                     .add(path.subList(mid, path.size()));
+            // a lifted head's predicate reads are TAILS too: they pull the
+            // target's own slots exactly like demanded leaves
+            TypedLambda liftedPred = syntheticHeadPreds.get(path.get(0));
+            if (liftedPred != null) {
+                Set<java.util.List<String>> predPaths =
+                        new java.util.LinkedHashSet<>();
+                for (TypedSpec b : liftedPred.body()) {
+                    consumedPaths(b, liftedPred.parameters().get(0), predPaths);
+                }
+                navTails.get(alias).addAll(predPaths);
+            }
             navHeadByAlias.put(alias, headKey);
             if (demandedNavs.contains(alias)) {
                 continue;
@@ -1505,6 +1534,20 @@ public final class StoreResolver {
             navMats.put(alias, navTargetMaterialized(cs.mappingFqn(), targetClass,
                     navTails.getOrDefault(alias, java.util.List.of()),
                     navHeadByAlias.getOrDefault(alias, alias), null));
+            // a LIFTED head's predicate applies INSIDE the join target
+            // (engine: the chain filter parks on the navigation's join-tree
+            // node); the composite right side carries its own filters, so
+            // the outer join-stamping never double-stamps it
+            TypedLambda liftedPred = syntheticHeadPreds.get(
+                    navHeadByAlias.getOrDefault(alias, alias));
+            if (liftedPred != null) {
+                ClassSource target = sources.get(cs.mappingFqn(), targetClass);
+                Pipelines.Materialized mat = navMats.get(alias);
+                navMats.put(alias, new Pipelines.Materialized(
+                        predFilteredPipe(mat.pipeline(), target,
+                                mat.slotPrefixes(), liftedPred, cs.mappingFqn()),
+                        mat.slotPrefixes(), mat.stripped()));
+            }
         }
         for (String alias : demandedNavs) {
             var nav = navSteps.get(alias);
@@ -1617,11 +1660,11 @@ public final class StoreResolver {
             if ((path.size() != 1 && !filterTwoHop) || existsSubs.containsKey(head)) {
                 continue;
             }
-            if (cs.bindings().containsKey(head)) {
+            if (cs.bindings().containsKey(realHead(head))) {
                 // A NAVIGATE-SLOT head (class-typed Join PM): the nav step
                 // carries the target extent + oriented (s, t) predicate —
                 // the same correlated-EXISTS material as an association end.
-                var nav = Pipelines.navSteps(cs.pipeline()).get(head);
+                var nav = Pipelines.navSteps(cs.pipeline()).get(realHead(head));
                 if (nav == null || !(nav.target()
                         instanceof com.legend.compiler.spec.typed.TypedGetAll tg)
                         // eager material only when the target class IS mapped
@@ -1634,7 +1677,16 @@ public final class StoreResolver {
                 ClassSource t = sources.get(cs.mappingFqn(), tg.classFqn());
                 Set<String> tSlots0 = Pipelines.slotAliases(t.pipeline());
                 Set<String> tDemand0 = new java.util.LinkedHashSet<>();
-                for (String leaf : existsInnerLeaves(ops, head)) {
+                Set<String> innerLeaves = new java.util.LinkedHashSet<>(
+                        existsInnerLeaves(ops, head));
+                TypedLambda liftedPred0 = syntheticHeadPreds.get(head);
+                if (liftedPred0 != null) {
+                    for (TypedSpec b : liftedPred0.body()) {
+                        collectParamPathHeads(b,
+                                liftedPred0.parameters().get(0), innerLeaves);
+                    }
+                }
+                for (String leaf : innerLeaves) {
                     TypedSpec lb = t.bindings().get(leaf);
                     if (lb != null) {
                         collectAliasReads(lb, t.rowVar(), tSlots0, tDemand0);
@@ -1654,12 +1706,16 @@ public final class StoreResolver {
                     }
                     tPipe0 = Pipelines.widenConcatenateForKeys(tPipe0, tgtReads);
                 }
+                TypedSpec tTemporal = temporalTargetPipe(cs, t, head,
+                        applyJoinTemporalFilters(tPipe0, t, java.util.Map.of()));
+                TypedLambda liftedPred = syntheticHeadPreds.get(head);
+                if (liftedPred != null) {
+                    tTemporal = predFilteredPipe(tTemporal, t,
+                            tMat0.slotPrefixes(), liftedPred, cs.mappingFqn());
+                }
                 Pipelines.Materialized tMat = new Pipelines.Materialized(
-                        temporalTargetPipe(cs, t, head,
-                                applyJoinTemporalFilters(tPipe0, t,
-                                        java.util.Map.of())),
-                        tMat0.slotPrefixes(), tMat0.stripped());
-                boolean navToMany = !(ctx.findProperty(cs.classFqn(), head)
+                        tTemporal, tMat0.slotPrefixes(), tMat0.stripped());
+                boolean navToMany = !(ctx.findProperty(cs.classFqn(), realHead(head))
                         .map(pr -> pr.multiplicity())
                         .filter(mm -> mm instanceof com.legend.compiler.element.type
                                 .Multiplicity.Bounded bb
@@ -1673,7 +1729,7 @@ public final class StoreResolver {
                         tMat0.slotPrefixes(), navToMany));
                 continue;
             }
-            var assocOpt = ctx.findAssociationOf(cs.classFqn(), head);
+            var assocOpt = ctx.findAssociationOf(cs.classFqn(), realHead(head));
             if (assocOpt.isEmpty()) {
                 continue;   // not an association — plain unmapped (loud later)
             }
@@ -1684,7 +1740,8 @@ public final class StoreResolver {
             // H4 story at substitution.
             AssocJoin aj = associationJoin(cs, head, context, true,
                     existsInnerLeaves(ops, head));
-            var assocEnd = assocOpt.get().property1().propertyName().equals(head)
+            var assocEnd = assocOpt.get().property1().propertyName()
+                    .equals(realHead(head))
                     ? assocOpt.get().property1() : assocOpt.get().property2();
             boolean isToMany = !(assocEnd.multiplicity()
                     instanceof com.legend.parser.Multiplicity.Concrete emc
@@ -1721,7 +1778,8 @@ public final class StoreResolver {
             }
         }
         for (java.util.List<String> path : paths) {
-            if (path.size() < 2 || cs.bindings().containsKey(path.get(0))) {
+            if (path.size() < 2
+                    || cs.bindings().containsKey(realHead(path.get(0)))) {
                 continue;   // 1-hop, or embedded/slot heads (substitution-side)
             }
             String head = path.get(0);
@@ -2466,6 +2524,253 @@ public final class StoreResolver {
     }
 
     /** Scan entry: the lambda's BODY under its own parameter (never the lambda node). */
+    /**
+     * PRE-REWRITE: a filtered navigation consumed as a BARE COLLECTION —
+     * {@code $o.head(%d)->filter(f).leaf} with non-scalar multiplicity —
+     * lifts into a SYNTHETIC head {@code head#fN}: a plain 2-hop chain
+     * whose association-join TARGET pipeline carries the substituted
+     * predicate (engine parity: the chain filter parks INSIDE the
+     * navigation's join-tree node; the LEFT join row-explodes and
+     * delivers NULL — TDSNull — on no surviving match). Scalar
+     * ({@code [0..1]}) bare reads stay with the correlated-scalar arm
+     * ({@code filteredNavLeafRead}) — the split is exactly complementary.
+     * The walk is BEST-EFFORT: unknown node kinds pass through unchanged,
+     * so an unlifted shape keeps today's loud not-substitutable error —
+     * never silent SQL.
+     */
+    private TypedSpec liftFilteredHeads(TypedSpec n) {
+        return liftFilteredHeads(n, true);
+    }
+
+    private TypedSpec liftFilteredHeads(TypedSpec n, boolean enabled) {
+        if (enabled
+                && n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                && pa.source() instanceof TypedFilter f
+                && f.predicate().parameters().size() == 1
+                && f.info().type()
+                        instanceof com.legend.compiler.element.type.Type.ClassType
+                && isLiftableNav(f.source())
+                && !(pa.info().multiplicity()
+                        instanceof com.legend.compiler.element.type
+                                .Multiplicity.Bounded b
+                        && Integer.valueOf(1).equals(b.upper()))) {
+            TypedSpec head = liftFilteredHeads(f.source(), true);
+            TypedSpec renamed;
+            String synth;
+            if (head instanceof com.legend.compiler.spec.typed
+                    .TypedMilestonedAccess ma) {
+                synth = ma.property() + "#f" + syntheticHeadCount++;
+                renamed = new com.legend.compiler.spec.typed.TypedMilestonedAccess(
+                        ma.source(), synth, ma.dates(), ma.sweep(), ma.info());
+            } else {
+                var hp = (com.legend.compiler.spec.typed.TypedPropertyAccess) head;
+                synth = hp.property() + "#f" + syntheticHeadCount++;
+                renamed = new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                        hp.source(), synth, hp.info());
+            }
+            syntheticHeadPreds.put(synth, f.predicate());
+            return new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                    renamed, pa.property(), pa.info());
+        }
+        return switch (n) {
+            case com.legend.compiler.spec.typed.TypedProject p ->
+                    new com.legend.compiler.spec.typed.TypedProject(
+                            liftFilteredHeads(p.source(), enabled),
+                            p.columns().stream().map(c ->
+                                    new com.legend.compiler.spec.typed.TypedFuncCol(
+                                            c.name(),
+                                            (TypedLambda) liftFilteredHeads(c.fn(),
+                                                    enabled && !valuesLambdas
+                                                            .contains(c.fn()))))
+                                    .toList(),
+                            p.info());
+            case TypedFilter f -> new TypedFilter(
+                    liftFilteredHeads(f.source(), enabled),
+                    (TypedLambda) liftFilteredHeads(f.predicate(), enabled),
+                    f.info());
+            case TypedSortBy sb -> new TypedSortBy(
+                    liftFilteredHeads(sb.source(), enabled),
+                    (TypedLambda) liftFilteredHeads(sb.key(), enabled),
+                    sb.ascending(), sb.info());
+            case TypedLimit l -> new TypedLimit(
+                    liftFilteredHeads(l.source(), enabled), l.count(), l.info());
+            case TypedDrop d -> new TypedDrop(
+                    liftFilteredHeads(d.source(), enabled), d.count(), d.info());
+            case TypedSlice sl -> new TypedSlice(
+                    liftFilteredHeads(sl.source(), enabled),
+                    sl.start(), sl.stop(), sl.info());
+            case TypedFrom fr -> new TypedFrom(
+                    liftFilteredHeads(fr.source(), enabled),
+                    fr.mapping(), fr.runtime(), fr.info());
+            case TypedLambda l -> new TypedLambda(l.parameters(),
+                    l.body().stream().map(b -> liftFilteredHeads(b, enabled))
+                            .toList(), l.info());
+            case com.legend.compiler.spec.typed.TypedNativeCall c ->
+                    new com.legend.compiler.spec.typed.TypedNativeCall(c.callee(),
+                            c.args().stream().map(a -> liftFilteredHeads(a, enabled))
+                                    .toList(), c.info());
+            case com.legend.compiler.spec.typed.TypedPropertyAccess pa ->
+                    new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                            liftFilteredHeads(pa.source(), enabled),
+                            pa.property(), pa.info());
+            case com.legend.compiler.spec.typed.TypedMilestonedAccess ma ->
+                    new com.legend.compiler.spec.typed.TypedMilestonedAccess(
+                            liftFilteredHeads(ma.source(), enabled), ma.property(),
+                            ma.dates(), ma.sweep(), ma.info());
+            // auto-map mapper bodies are VALUE flattenings (empties drop) —
+            // the TDS lift stays off inside them; unlifted shapes keep
+            // their loud error
+            case com.legend.compiler.spec.typed.TypedMap m ->
+                    new com.legend.compiler.spec.typed.TypedMap(
+                            liftFilteredHeads(m.source(), enabled),
+                            (TypedLambda) liftFilteredHeads(m.mapper(), false),
+                            m.info());
+            case com.legend.compiler.spec.typed.TypedIf i ->
+                    new com.legend.compiler.spec.typed.TypedIf(
+                            liftFilteredHeads(i.condition(), enabled),
+                            liftFilteredHeads(i.thenBranch(), enabled),
+                            i.elseBranch().map(e -> liftFilteredHeads(e, enabled)),
+                            i.info());
+            case com.legend.compiler.spec.typed.TypedCollection c ->
+                    new com.legend.compiler.spec.typed.TypedCollection(
+                            c.elements().stream().map(e ->
+                                    liftFilteredHeads(e, enabled)).toList(),
+                            c.info());
+            case com.legend.compiler.spec.typed.TypedCast c ->
+                    new com.legend.compiler.spec.typed.TypedCast(
+                            liftFilteredHeads(c.source(), enabled),
+                            c.target(), c.info());
+            default -> n;
+        };
+    }
+
+    /**
+     * VALUES-position filtered navigation (map terminal): pure flattening
+     * DROPS empties here, so the predicate parks in the OUTER where
+     * (engine golden: plain LEFT JOIN + WHERE — non-matching parents
+     * contribute nothing, never a NULL value). The head still lifts to a
+     * synthetic chain for join identity, but WITHOUT the in-target
+     * predicate; the predicate joins the chain as an injected
+     * object-space filter whose reads inline through the synthetic head.
+     */
+    private com.legend.compiler.spec.typed.TypedMap liftValueMapFilter(
+            com.legend.compiler.spec.typed.TypedMap m) {
+        TypedLambda mapper = m.mapper();
+        if (mapper.body().size() != 1
+                || !(mapper.body().get(0)
+                        instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa)
+                || !(pa.source() instanceof TypedFilter f)
+                || f.predicate().parameters().size() != 1
+                || f.predicate().body().size() != 1
+                || !(f.info().type()
+                        instanceof com.legend.compiler.element.type.Type.ClassType)
+                || !isLiftableNav(f.source())
+                || (pa.info().multiplicity()
+                        instanceof com.legend.compiler.element.type
+                                .Multiplicity.Bounded b
+                        && Integer.valueOf(1).equals(b.upper()))) {
+            return m;
+        }
+        TypedSpec renamed;
+        String synth;
+        if (f.source() instanceof com.legend.compiler.spec.typed
+                .TypedMilestonedAccess ma) {
+            synth = ma.property() + "#f" + syntheticHeadCount++;
+            renamed = new com.legend.compiler.spec.typed.TypedMilestonedAccess(
+                    ma.source(), synth, ma.dates(), ma.sweep(), ma.info());
+        } else {
+            var hp = (com.legend.compiler.spec.typed.TypedPropertyAccess) f.source();
+            synth = hp.property() + "#f" + syntheticHeadCount++;
+            renamed = new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                    hp.source(), synth, hp.info());
+        }
+        TypedLambda mapper2 = new TypedLambda(mapper.parameters(),
+                java.util.List.of(new com.legend.compiler.spec.typed
+                        .TypedPropertyAccess(renamed, pa.property(), pa.info())),
+                mapper.info());
+        TypedSpec inlined = Substitution.inlineParam(f.predicate().body().get(0),
+                f.predicate().parameters().get(0), renamed);
+        var srcParam = ((com.legend.compiler.element.type.Type.FunctionType)
+                mapper.info().type()).params().get(0);
+        TypedLambda filterLam = new TypedLambda(mapper.parameters(),
+                java.util.List.of(inlined),
+                new com.legend.compiler.element.type.ExprType(
+                        new com.legend.compiler.element.type.Type.FunctionType(
+                                java.util.List.of(srcParam),
+                                new com.legend.compiler.element.type.Type.Param(
+                                        com.legend.compiler.element.type
+                                                .Type.Primitive.BOOLEAN,
+                                        com.legend.compiler.element.type
+                                                .Multiplicity.Bounded.ONE)),
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+        valuesLambdas.add(mapper2);
+        return new com.legend.compiler.spec.typed.TypedMap(
+                new TypedFilter(m.source(), filterLam, m.source().info()),
+                mapper2, m.info());
+    }
+
+    /** The filter's source is a navigation hop whose receiver chain bottoms
+     * at a lambda variable — the shape the lift can rename. */
+    private static boolean isLiftableNav(TypedSpec n) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa) {
+            return navBottomsAtVar(pa.source());
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedMilestonedAccess ma) {
+            return navBottomsAtVar(ma.source());
+        }
+        return false;
+    }
+
+    private static boolean navBottomsAtVar(TypedSpec n) {
+        return switch (n) {
+            case com.legend.compiler.spec.typed.TypedVariable ignored -> true;
+            case com.legend.compiler.spec.typed.TypedPropertyAccess pa ->
+                    navBottomsAtVar(pa.source());
+            case com.legend.compiler.spec.typed.TypedMilestonedAccess ma ->
+                    navBottomsAtVar(ma.source());
+            case TypedFilter f -> navBottomsAtVar(f.source());
+            case com.legend.compiler.spec.typed.TypedNativeCall c
+                    when c.args().size() == 1 && c.callee().qualifiedName()
+                            .equals("meta::pure::functions::multiplicity::toOne") ->
+                    navBottomsAtVar(c.args().get(0));
+            default -> false;
+        };
+    }
+
+    /** A synthetic head's underlying property name ({@code product#f0} →
+     * {@code product}); identity for ordinary heads. */
+    private static String realHead(String head) {
+        int i = head.indexOf("#f");
+        return i < 0 ? head : head.substring(0, i);
+    }
+
+    /**
+     * A lifted head's user predicate, substituted over the TARGET's
+     * bindings (the {@code rewriteExists} cfSub pattern applied at the
+     * materialization site) and wrapped around the finished target
+     * pipeline — the join's composite right side carries the filter
+     * INSIDE (engine JTN parity), so unmatched parents keep their NULL
+     * row and the outer join-stamping never double-stamps.
+     */
+    private TypedSpec predFilteredPipe(TypedSpec tPipe, ClassSource target,
+            java.util.Map<String, String> slotPrefixes, TypedLambda pred,
+            String mappingFqn) {
+        Set<String> unconverted = new java.util.LinkedHashSet<>(
+                Pipelines.slotAliases(target.pipeline()));
+        unconverted.removeAll(slotPrefixes.keySet());
+        Substitution predSub = new Substitution(new Substitution.Target(
+                pred.parameters().get(0), target.rowVar(), target.classFqn(),
+                mappingFqn, target.rowVar(), target.bindings(),
+                (com.legend.compiler.element.type.Type.RelationType)
+                        tPipe.info().type(),
+                unconverted, slotPrefixes, java.util.Map.of(),
+                java.util.Set.of(), java.util.Map.of(), java.util.Map.of(),
+                null, null, java.util.List.of(), java.util.Map.of(),
+                java.util.Map.of(), true, true));
+        return new TypedFilter(tPipe, predSub.rewriteLambda(pred),
+                tPipe.info());
+    }
+
     private void collectTemporalSpecs(TypedLambda lambda,
             java.util.Map<String, TemporalSpec> out) {
         collectTemporalSpecs(lambda.body(), lambda.parameters().get(0), out);
@@ -2820,6 +3125,18 @@ public final class StoreResolver {
     private java.util.Map<String, TemporalSpec> temporalByHead = java.util.Map.of();
     private java.util.List<TypedSpec> rootMilestoning = java.util.List.of();
     private String rootStrategy = null;
+
+    /** Lifted filtered-navigation heads: synthetic name → the user
+     * predicate parked on the head ({@link #liftFilteredHeads}).
+     * Append-only across nested resolutions — names are counter-unique. */
+    private final java.util.Map<String, TypedLambda> syntheticHeadPreds =
+            new java.util.LinkedHashMap<>();
+    private int syntheticHeadCount = 0;
+    /** Column lambdas born from VALUES-position map terminals: pure
+     * flattening drops empties there, so the TDS lift (whose LEFT-join
+     * NULL row is the point) must NOT fire inside them. */
+    private final java.util.Set<TypedLambda> valuesLambdas =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
 
     /**
      * A temporal TARGET's pipeline filtered by its milestoning columns —
@@ -3369,13 +3686,26 @@ public final class StoreResolver {
     private AssocJoin associationJoin(ClassSource cs, String head, Context context,
                                       boolean forExists, Set<String> demandedLeaves,
                                       String chainKey) {
-        var assoc = ctx.findAssociationOf(cs.classFqn(), head).orElseThrow(() ->
-                new MappingResolutionException("property '" + head + "' of class '"
+        // A SYNTHETIC head resolves by its underlying property; its parked
+        // predicate joins the leaf demand (the pred's own reads pull the
+        // target's slots) and wraps the finished target pipeline below.
+        String real = realHead(head);
+        TypedLambda synthPred = syntheticHeadPreds.get(head);
+        if (synthPred != null) {
+            Set<String> withPredLeaves = new java.util.LinkedHashSet<>(demandedLeaves);
+            for (TypedSpec b : synthPred.body()) {
+                collectParamPathHeads(b, synthPred.parameters().get(0),
+                        withPredLeaves);
+            }
+            demandedLeaves = withPredLeaves;
+        }
+        var assoc = ctx.findAssociationOf(cs.classFqn(), real).orElseThrow(() ->
+                new MappingResolutionException("property '" + real + "' of class '"
                         + cs.classFqn() + "' is not mapped in mapping '"
                         + cs.mappingFqn() + "'", cs.classFqn()));
         // The end from the SAME association object — a separate index lookup
         // was a split-brain with findAssociationOf (audit blocker).
-        var end = assoc.property1().propertyName().equals(head)
+        var end = assoc.property1().propertyName().equals(real)
                 ? assoc.property1() : assoc.property2();
         // A CONCRETE end joins: to-one flat, to-many with ROW EXPLOSION
         // (projection semantics — engine/V1/plangen unanimous). A
@@ -3459,7 +3789,7 @@ public final class StoreResolver {
                     + "' nor target '" + targetClass + "'");
         }
         boolean reverse = cs.classFqn().equals(targetClass)
-                ? !assoc.property1().propertyName().equals(head)
+                ? !assoc.property1().propertyName().equals(real)
                 : !cs.classFqn().equals(classAFqn);
         TypedLambda oriented = cond;
         if (reverse) {
@@ -3487,6 +3817,10 @@ public final class StoreResolver {
         // milestoned tables filter by the temporal context too (every
         // milestoned table alias filters — the dead wall this replaces)
         tPipe = applyJoinTemporalFilters(tPipe, target, java.util.Map.of());
+        if (synthPred != null) {
+            tPipe = predFilteredPipe(tPipe, target, tMat.slotPrefixes(),
+                    synthPred, cs.mappingFqn());
+        }
         return new AssocJoin(prefixFor(head, cs), target, tPipe,
                 (com.legend.compiler.element.type.Type.RelationType)
                         tPipe.info().type(),

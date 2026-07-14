@@ -771,7 +771,7 @@ final class Substitution {
 
     /** Replace reads of {@code param} with {@code source} — the auto-map
      * inliner ({@code ->map(l|$l.prop)} flattens to the property path). */
-    private static TypedSpec inlineParam(TypedSpec n, String param, TypedSpec source) {
+    static TypedSpec inlineParam(TypedSpec n, String param, TypedSpec source) {
         if (n instanceof TypedVariable v && v.name().equals(param)) {
             return source;
         }
