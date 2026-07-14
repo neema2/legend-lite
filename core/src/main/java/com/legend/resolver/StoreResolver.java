@@ -474,13 +474,31 @@ public final class StoreResolver {
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
         TypedSpec cond;
         if (snapCol != null) {
-            // SNAPSHOT milestoning: the fetch date selects its snapshot rows
+            // SNAPSHOT milestoning: the fetch date selects its snapshot rows.
+            // A DATETIME param TRUNCATES to the date (engine golden:
+            // `snapshotDate = cast(truncate(ts) as date)`).
             if (date instanceof com.legend.compiler.spec.typed.TypedCLatestDate) {
                 throw new MappingResolutionException("%latest over a SNAPSHOT-"
                         + "milestoned table is not supported yet", classFqn);
             }
+            TypedSpec snapDate = date;
+            if (date instanceof com.legend.compiler.spec.typed.TypedCDate cd
+                    && !(cd.value()
+                            instanceof com.legend.values.PureDateLiteral.StrictDate)) {
+                String iso = cd.value().toEngineString();
+                if (iso.length() >= 10) {
+                    snapDate = new com.legend.compiler.spec.typed.TypedCDate(
+                            com.legend.values.PureDateLiteral.parse(
+                                    iso.substring(0, 10)),
+                            new com.legend.compiler.element.type.ExprType(
+                                    com.legend.compiler.element.type.Type
+                                            .Primitive.STRICT_DATE,
+                                    com.legend.compiler.element.type
+                                            .Multiplicity.Bounded.ONE));
+                }
+            }
             cond = cmpCall("meta::pure::functions::boolean::equal",
-                    col.apply(snapCol), date, boolT);
+                    col.apply(snapCol), snapDate, boolT);
         } else if (date instanceof com.legend.compiler.spec.typed.TypedCLatestDate) {
             if (infinity == null) {
                 // engine: getInfinityDate ASSERTS the declaration — a
