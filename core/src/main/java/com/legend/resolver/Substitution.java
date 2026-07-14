@@ -623,19 +623,18 @@ final class Substitution {
     private static TypedSpec milestoneColumnRead(String column, String rowVar,
             Type.RelationType row, String prefix, TypedSpec original) {
         String name = prefix + column;
-        Type colType = Type.Primitive.DATE;
-        Multiplicity colMult = Multiplicity.Bounded.ZERO_ONE;
         for (Type.Column c : row.columns()) {
             if (c.name().equalsIgnoreCase(name)) {
-                name = c.name();
-                colType = c.type();
-                colMult = c.multiplicity();
-                break;
+                return new TypedPropertyAccess(
+                        new TypedVariable(rowVar,
+                                new ExprType(row, Multiplicity.Bounded.ONE)),
+                        c.name(), new ExprType(c.type(), c.multiplicity()));
             }
         }
-        return new TypedPropertyAccess(
-                new TypedVariable(rowVar, new ExprType(row, Multiplicity.Bounded.ONE)),
-                name, new ExprType(colType, colMult));
+        // LOUD (audit 10): a read of a column absent from the row would
+        // surface only as a SQL binder error
+        throw new NotImplementedException("milestone column '" + name
+                + "' is not on the substitution row");
     }
 
     /** A bi-temporal context carries (processingDate, businessDate) — the

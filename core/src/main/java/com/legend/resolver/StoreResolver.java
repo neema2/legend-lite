@@ -444,11 +444,11 @@ public final class StoreResolver {
             // TOLERANT per-scan wrap: a PARTIALLY milestoned union filters
             // only its milestoned members (engine: per-table-alias filters)
             final TypedSpec fdate = date;
+            // tolerant: only members whose table declares THIS dimension's
+            // block filter (a partially milestoned union keeps its other
+            // members raw — audit 10 dropped the over-broad disjunct that
+            // admitted other-dimension tables into a throwing path)
             return replaceScan(pipe, sc -> tableHasBlock(sc, strategy)
-                    || (sc instanceof com.legend.compiler.spec.typed
-                            .TypedTableReference tr
-                        && ctx.findTableMilestoning(tr.store(), tr.table())
-                                .isPresent())
                     ? milestonedPipeByStrategy(sc, fdate, strategy, classFqn)
                     : sc);
         }
@@ -616,8 +616,40 @@ public final class StoreResolver {
             case TypedSelect sel -> new TypedSelect(
                     applyJoinTemporalFilters(sel.source(), cs, navPrefixToClass),
                     sel.columns(), sel.info());
-            default -> n;
+            case TypedProject pr -> new TypedProject(
+                    applyJoinTemporalFilters(pr.source(), cs, navPrefixToClass),
+                    pr.columns(), pr.info());
+            case com.legend.compiler.spec.typed.TypedConcatenate cc ->
+                    new com.legend.compiler.spec.typed.TypedConcatenate(
+                            applyJoinTemporalFilters(cc.left(), cs, navPrefixToClass),
+                            applyJoinTemporalFilters(cc.right(), cs, navPrefixToClass),
+                            cc.info());
+            default -> {
+                // LOUD on unrecognized shapes carrying joins (audit 10): a
+                // silently skipped milestoned join target fans out versions
+                if (containsJoinToMilestoned(n)) {
+                    throw new MappingResolutionException("temporal join-target"
+                            + " filtering through "
+                            + n.getClass().getSimpleName()
+                            + " is not supported yet", "");
+                }
+                yield n;
+            }
         };
+    }
+
+    private boolean containsJoinToMilestoned(TypedSpec n) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedJoin j
+                && (tableHasBlock(j.right(), "businesstemporal")
+                        || tableHasBlock(j.right(), "processingtemporal"))) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (containsJoinToMilestoned(c)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The pipe's root table declares a milestoning block for {@code strategy}. */
@@ -662,8 +694,11 @@ public final class StoreResolver {
                     pr.columns(), pr.info());
             case com.legend.compiler.spec.typed.TypedJoin j ->
                     new com.legend.compiler.spec.typed.TypedJoin(
-                            replaceScan(j.left(), wrap), j.right(), j.kind(),
-                            j.condition(), j.prefix(), j.info());
+                            replaceScan(j.left(), wrap),
+                            j.right() instanceof com.legend.compiler.spec.typed
+                                    .TypedTableReference rt
+                                    ? wrap.apply(rt) : j.right(),
+                            j.kind(), j.condition(), j.prefix(), j.info());
             case com.legend.compiler.spec.typed.TypedJoinSlot js ->
                     new com.legend.compiler.spec.typed.TypedJoinSlot(
                             replaceScan(js.source(), wrap), js.alias(), js.target(),
@@ -803,29 +838,7 @@ public final class StoreResolver {
      * — engine {@code milestoningCanSupportTemporalStrategy}.
      */
     private String temporalStrategy(String classFqn) {
-        java.util.ArrayDeque<String> work = new java.util.ArrayDeque<>();
-        java.util.Set<String> seen = new java.util.HashSet<>();
-        work.add(classFqn);
-        while (!work.isEmpty()) {
-            String fqn = work.poll();
-            if (!seen.add(fqn)) {
-                continue;
-            }
-            var def = ctx.findClassDefinition(fqn).orElse(null);
-            if (def != null) {
-                for (var st : def.stereotypes()) {
-                    if (("temporal".equals(st.profileName())
-                            || "meta::pure::profiles::temporal".equals(st.profileName()))
-                            && java.util.Set.of("businesstemporal",
-                                    "processingtemporal", "bitemporal")
-                                    .contains(st.stereotypeName())) {
-                        return st.stereotypeName();
-                    }
-                }
-            }
-            ctx.findClass(fqn).ifPresent(tc -> work.addAll(tc.superClassFqns()));
-        }
-        return null;
+        return com.legend.compiler.element.Temporal.strategyOf(ctx, classFqn);
     }
 
     /**
@@ -872,19 +885,6 @@ public final class StoreResolver {
      * multiply rows across its versions, so navigation to one stays loud
      * until propagation lands.
      */
-    private void requireNonMilestonedTarget(ClassSource target, String head) {
-        if (temporalStrategy(target.classFqn()) == null) {
-            return;
-        }
-        var root = rootTable(target.pipeline());
-        var ms = root == null ? null
-                : ctx.findTableMilestoning(root.store(), root.table()).orElse(null);
-        if (ms != null) {
-            throw new NotImplementedException("navigation to temporal class '"
-                    + target.classFqn() + "' via '" + head + "' is not"
-                    + " supported yet (temporal context propagation)");
-        }
-    }
 
     /**
      * Any colspec body reading its row parameter? A constant-only project
@@ -1264,6 +1264,8 @@ public final class StoreResolver {
         // M3 temporal context: this fetch's dates propagate to same-strategy
         // targets navigated through temporal parents (set per getAll; nested
         // sibling resolutions overwrite at their own entry).
+        rootMilestoning = java.util.List.of();   // audit 10: never read the
+        rootStrategy = null;                     // PREVIOUS getAll's context
         rootMilestoning = g.versionSweep() ? java.util.List.of()
                 : normalizeContextDates(g.milestoning());
         rootStrategy = temporalStrategy(g.classFqn());
@@ -1490,7 +1492,9 @@ public final class StoreResolver {
                 Pipelines.Materialized tMat0 = Pipelines.materialize(
                         t.pipeline(), Set.of(), t.classFqn());
                 Pipelines.Materialized tMat = new Pipelines.Materialized(
-                        temporalTargetPipe(cs, t, head, tMat0.pipeline()),
+                        temporalTargetPipe(cs, t, head,
+                                applyJoinTemporalFilters(tMat0.pipeline(), t,
+                                        java.util.Map.of())),
                         tMat0.slotPrefixes(), tMat0.stripped());
                 boolean navToMany = !(ctx.findProperty(cs.classFqn(), head)
                         .map(pr -> pr.multiplicity())
@@ -2297,6 +2301,18 @@ public final class StoreResolver {
     private void collectTemporalNodes(TypedSpec n, String userVar,
             java.util.Map<String, TemporalSpec> out) {
         if (n instanceof com.legend.compiler.spec.typed.TypedMilestonedAccess ma
+                && !ma.dates().isEmpty()
+                && !(ma.source()
+                        instanceof com.legend.compiler.spec.typed.TypedVariable v0
+                        && v0.name().equals(userVar))) {
+            // audit 10: a NESTED dated property function ($t.account
+            // .portfolio(%d2)) would silently take the ROOT date — specs are
+            // keyed by bare head today; loud until chain-keyed specs land
+            throw new NotImplementedException("milestoned property function '"
+                    + ma.property() + "' with an explicit date on a NESTED"
+                    + " navigation is not supported yet");
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedMilestonedAccess ma
                 && ma.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
                 && v.name().equals(userVar)) {
             TemporalSpec spec = new TemporalSpec(
@@ -2540,7 +2556,8 @@ public final class StoreResolver {
         targetDemand = Pipelines.closeOverConditions(t.pipeline(), targetDemand);
         Pipelines.Materialized tMat = Pipelines.materialize(
                 t.pipeline(), targetDemand, t.classFqn());
-        TypedSpec tPipe0 = temporalTargetPipe(cs, t, head, tMat.pipeline());
+        TypedSpec tPipe0 = temporalTargetPipe(cs, t, head,
+                applyJoinTemporalFilters(tMat.pipeline(), t, java.util.Map.of()));
         return new AssocJoin(prefixFor(head, cs), t, tPipe0,
                 (com.legend.compiler.element.type.Type.RelationType)
                         tPipe0.info().type(),
@@ -2807,7 +2824,9 @@ public final class StoreResolver {
         Pipelines.Materialized tMat0 = Pipelines.materialize(
                 target.pipeline(), targetDemand, target.classFqn());
         Pipelines.Materialized tMat = new Pipelines.Materialized(
-                temporalTargetPipe(cs, target, head, tMat0.pipeline()),
+                temporalTargetPipe(cs, target, head,
+                        applyJoinTemporalFilters(tMat0.pipeline(), target,
+                                java.util.Map.of())),
                 tMat0.slotPrefixes(), tMat0.stripped());
 
         // The predicate function: mapping's AssociationBinding for the assoc.
@@ -2873,6 +2892,10 @@ public final class StoreResolver {
             Pipelines.collectVarReads(b, oriented.parameters().get(1), tgtReads);
         }
         TypedSpec tPipe = Pipelines.widenDistinctForKeys(tMat.pipeline(), tgtReads);
+        // audit 10: the target pipeline's OWN materialized slot joins to
+        // milestoned tables filter by the temporal context too (every
+        // milestoned table alias filters — the dead wall this replaces)
+        tPipe = applyJoinTemporalFilters(tPipe, target, java.util.Map.of());
         return new AssocJoin(prefixFor(head, cs), target, tPipe,
                 (com.legend.compiler.element.type.Type.RelationType)
                         tPipe.info().type(),
@@ -2987,6 +3010,12 @@ public final class StoreResolver {
         if (d instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
                 && (pa.property().equals("businessDate")
                         || pa.property().equals("processingDate"))
+                // ONLY the GENERATED property on a temporal receiver — an
+                // ordinary user property legally named businessDate must
+                // not be rewritten (audit 10)
+                && pa.source().info().type()
+                        instanceof com.legend.compiler.element.type.Type.ClassType rc
+                && temporalStrategy(rc.fqn()) != null
                 && !rootMilestoning.isEmpty()) {
             return rootMilestoning.size() == 2 && pa.property().equals("businessDate")
                     ? rootMilestoning.get(1) : rootMilestoning.get(0);

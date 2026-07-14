@@ -954,7 +954,10 @@ final class Typer {
         // navigation — normalized to the same TypedMilestonedAccess the
         // call spelling produces, so every downstream layer sees ONE shape
         if (source.info().type() instanceof Type.ClassType ctv
-                && ap.property().endsWith("AllVersions")) {
+                && ap.property().endsWith("AllVersions")
+                // a DECLARED property of that exact name wins — never
+                // shadowed by the generated spelling (audit 10)
+                && ctx.findProperty(ctv.fqn(), ap.property()).isEmpty()) {
             String base = ap.property().substring(0,
                     ap.property().length() - "AllVersions".length());
             var bp = ctx.findProperty(ctv.fqn(), base).orElse(null);
