@@ -556,14 +556,24 @@ public final class MappingNormalizer {
         if (targetUnion == null) {
             return false;
         }
+        // Merge (single un-suffixed condition) ONLY when every route names
+        // the SAME join — then the one condition IS every entry's condition
+        // (audit 12: coverage alone dropped the second route's join
+        // entirely; J1(FK1=ID)+J2(FK2=ID) matched member 2 by the wrong
+        // key). Distinct joins keep the suffixed OR.
         java.util.Set<Integer> ords = new java.util.HashSet<>();
+        java.util.Set<String> joins = new java.util.HashSet<>();
         for (UnionRoute r : routes) {
             if (r.targetOrdinal() < 0 || r.join().joins().size() != 1) {
                 return false;
             }
             ords.add(r.targetOrdinal());
+            JoinChainElement hop = r.join().joins().get(0);
+            joins.add((hop.databaseName() != null ? hop.databaseName()
+                    : r.join().database()) + "@" + hop.joinName());
         }
-        return ords.size() == targetUnion.memberSetIds().size();
+        return ords.size() == targetUnion.memberSetIds().size()
+                && joins.size() == 1;
     }
 
     private static int memberOrdinalOf(List<String> memberIds,
@@ -1803,23 +1813,58 @@ public final class MappingNormalizer {
                         (a, b) -> a + "; " + b);
                 continue;
             }
-            // full-coverage same-join routed entries merge (see
-            // mergedTargetRoutes) — the target side stays UNSUFFIXED
+            // MERGED (un-suffixed target) lift — the engine's cross-match
+            // form, pinned by the partiallyMilestoning golden (source
+            // members o1->p1, o2->p2; both joins read target column `id`;
+            // ON prodFk_0 = id OR prodFk_1 = id; 2x2 rows asserted): fires
+            // iff routes cover EVERY target member with exactly ONE route
+            // PER SOURCE MEMBER and all entries read the SAME target
+            // columns. A source member carrying routes to MULTIPLE target
+            // members (unionToUnion: firm[f1] AND firm[f2] on each Person
+            // set) keeps the per-pair suffixed form (testUnion golden
+            // FirmID_0 = ID_0 OR FirmID_1 = ID_1 — audit 12: the merged
+            // form cross-matched colliding keys, [0..1] fan-out).
             boolean liftTargetMerged;
             {
-                List<UnionRoute> asRoutes = new ArrayList<>();
-                boolean allRouted = true;
-                for (PropertyMapping.Join j0 : joins.get(prop)) {
-                    if (j0.targetSetId() == null || targetUnion == null) {
-                        allRouted = false;
+                java.util.Set<Integer> tgtOrds = new java.util.HashSet<>();
+                java.util.Set<Integer> srcMembers = new java.util.HashSet<>();
+                java.util.Set<String> tgtColSets = new java.util.HashSet<>();
+                boolean mergeable = targetUnion != null;
+                List<int[]> ordsPre = found.get(prop);
+                List<PropertyMapping.Join> jsPre = joins.get(prop);
+                for (int k2 = 0; mergeable && k2 < jsPre.size(); k2++) {
+                    PropertyMapping.Join j0 = jsPre.get(k2);
+                    if (j0.targetSetId() == null || j0.joins().size() != 1) {
+                        mergeable = false;
                         break;
                     }
                     int o = memberOrdinalOf(targetUnion.memberSetIds(), md,
                             model, j0.targetSetId());
-                    asRoutes.add(new UnionRoute(o, j0));
+                    if (o < 0 || !srcMembers.add(ordsPre.get(k2)[0])) {
+                        mergeable = false;   // 2 routes on one source member
+                        break;
+                    }
+                    tgtOrds.add(o);
+                    JoinChainElement hop0 = j0.joins().get(0);
+                    String db0 = hop0.databaseName() != null
+                            ? hop0.databaseName() : j0.database();
+                    DatabaseDefinition.JoinDefinition jd0 =
+                            model.findJoin(db0, hop0.joinName()).orElse(null);
+                    if (jd0 == null) {
+                        mergeable = false;
+                        break;
+                    }
+                    String srcT = ((ClassMapping.Relational)
+                            members.get(ordsPre.get(k2)[0])).mainTable().table();
+                    String tgtT = determineTargetTable(jd0.operation(), srcT,
+                            hop0.joinName(), prop, 1, md.qualifiedName());
+                    java.util.Set<String> cols0 = new java.util.TreeSet<>();
+                    collectColumnsOfTable(jd0.operation(), tgtT, cols0);
+                    tgtColSets.add(String.join(",", cols0));
                 }
-                liftTargetMerged = allRouted
-                        && mergedTargetRoutes(asRoutes, targetUnion);
+                liftTargetMerged = mergeable
+                        && tgtOrds.size() == targetUnion.memberSetIds().size()
+                        && tgtColSets.size() == 1;
             }
             Variable s = new Variable("s");
             Variable t = new Variable("t");

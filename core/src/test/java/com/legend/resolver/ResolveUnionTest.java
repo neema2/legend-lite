@@ -56,6 +56,8 @@ class ResolveUnionTest {
             Class u::PersonB { lastName: String[1]; }
             Class u::FirmB { legalName: String[1]; }
             Association u::EmploymentB { firmB: u::FirmB[0..1]; employeesB: u::PersonB[*]; }
+            Class u::FirmB2 { legalName: String[1]; }
+            Association u::EmploymentB2 { firmB2: u::FirmB2[0..1]; employeesB2: u::PersonB[*]; }
             Class u::PersonD { lastName: String[1]; }
             Class <<temporal.businesstemporal>> u::FirmD { legalName: String[1]; }
             Association u::EmploymentD { firmD: u::FirmD[0..1]; employeesD: u::PersonD[*]; }
@@ -67,6 +69,9 @@ class ResolveUnionTest {
               Table PB (ID INTEGER PRIMARY KEY, lastName VARCHAR(64), FirmID INTEGER)
               Table FB1 (ID INTEGER PRIMARY KEY, name VARCHAR(64), ID_1 INTEGER)
               Table FB2 (ID INTEGER PRIMARY KEY, name VARCHAR(64))
+              Table PB2 (ID INTEGER PRIMARY KEY, lastName VARCHAR(64), FirmID INTEGER, LegacyID INTEGER)
+              Table FG1 (ID INTEGER PRIMARY KEY, name VARCHAR(64))
+              Table FG2 (ID INTEGER PRIMARY KEY, name VARCHAR(64))
               Table PD (ID INTEGER PRIMARY KEY, lastName VARCHAR(64), FirmID INTEGER)
               Table FD (
                 milestoning( business(BUS_FROM=from_z, BUS_THRU=thru_z) )
@@ -76,6 +81,8 @@ class ResolveUnionTest {
               Join PA3FA (PA3.FirmID = FA.ID)
               Join PBFB1 (PB.FirmID = FB1.ID)
               Join PBFB2 (PB.FirmID = FB2.ID)
+              Join PB2FG1 (PB2.FirmID = FG1.ID)
+              Join PB2FG2 (PB2.LegacyID = FG2.ID)
               Join PDFD (PD.FirmID = FD.ID)
             )
             Mapping u::MA (
@@ -106,6 +113,15 @@ class ResolveUnionTest {
                 lastName: PB.lastName,
                 firmB[fb2]: [u::DB]@PBFB2 }
             )
+            Mapping u::MB2 (
+              *u::FirmB2 : Operation { %s(g1, g2) }
+              u::FirmB2[g1] : Relational { ~mainTable [u::DB] FG1 legalName: FG1.name }
+              u::FirmB2[g2] : Relational { ~mainTable [u::DB] FG2 legalName: FG2.name }
+              *u::PersonB : Relational { ~mainTable [u::DB] PB2
+                lastName: PB2.lastName,
+                firmB2[g1]: [u::DB]@PB2FG1,
+                firmB2[g2]: [u::DB]@PB2FG2 }
+            )
             Mapping u::MD (
               *u::PersonD : Operation { %s(d1, d2) }
               u::PersonD[d1] : Relational { ~mainTable [u::DB] PD
@@ -115,7 +131,7 @@ class ResolveUnionTest {
               *u::FirmD : Relational { ~mainTable [u::DB] FD legalName: FD.name }
             )
             Runtime u::RT { mappings: [u::MA]; }
-            """.formatted(UNION_OP, UNION_OP, UNION_OP, UNION_OP);
+            """.formatted(UNION_OP, UNION_OP, UNION_OP, UNION_OP, UNION_OP);
 
     private static Connection conn;
 
@@ -139,6 +155,14 @@ class ResolveUnionTest {
             st.execute("INSERT INTO FB1 VALUES (99, 'WRONG-FIRM', 5)");
             st.execute("CREATE TABLE FB2 (ID INTEGER, name VARCHAR)");
             st.execute("INSERT INTO FB2 VALUES (5, 'RIGHT-FIRM')");
+            st.execute("CREATE TABLE PB2 (ID INTEGER, lastName VARCHAR,"
+                    + " FirmID INTEGER, LegacyID INTEGER)");
+            // FirmID dangles (no FG1 row 99); LegacyID matches FG2
+            st.execute("INSERT INTO PB2 VALUES (1, 'B-Scott', 99, 7)");
+            st.execute("CREATE TABLE FG1 (ID INTEGER, name VARCHAR)");
+            st.execute("INSERT INTO FG1 VALUES (7, 'WRONG-VIA-FIRMID')");
+            st.execute("CREATE TABLE FG2 (ID INTEGER, name VARCHAR)");
+            st.execute("INSERT INTO FG2 VALUES (7, 'LEGACY-FIRM')");
             st.execute("CREATE TABLE PD (ID INTEGER, lastName VARCHAR, FirmID INTEGER)");
             st.execute("INSERT INTO PD VALUES (1, 'D-Ann', 7)");
             st.execute("CREATE TABLE FD (ID INTEGER, name VARCHAR,"
@@ -227,6 +251,20 @@ class ResolveUnionTest {
                 + "->from(u::MB, u::RT)");
         assertTrue(sql.contains("ID_1"), "the routed member's suffixed key:\n" + sql);
         assertEquals(List.of("B-Scott"), exec(sql));
+    }
+
+    @Test
+    @DisplayName("route merge requires ONE JOIN: two joins on one owner keep both conditions")
+    void mergeRequiresSameJoin() throws SQLException {
+        // audit 12 F3: coverage-only merging dropped the second route's
+        // join entirely (J1(FirmID)=kept, J2(LegacyID)=vanished)
+        String sql = sqlOf("|u::PersonB.all()"
+                + "->project([p|$p.lastName, p|$p.firmB2.legalName], ['name', 'firm'])"
+                + "->from(u::MB2, u::RT)");
+        assertTrue(sql.contains("FirmID") && sql.contains("LegacyID"),
+                "both routes' key columns must survive:\n" + sql);
+        assertEquals(List.of("B-Scott|LEGACY-FIRM"), exec(sql),
+                "the LegacyID route must match (and dangling FirmID must not):\n" + sql);
     }
 
     @Test

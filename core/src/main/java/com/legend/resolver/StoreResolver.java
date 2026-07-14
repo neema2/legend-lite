@@ -1440,12 +1440,42 @@ public final class StoreResolver {
             String targetClass = ((com.legend.compiler.spec.typed.TypedGetAll)
                     nav.target()).classFqn();
             ClassSource target = sources.get(cs.mappingFqn(), targetClass);
+            // SUB-navigation material: for each 3-hop tail, the mid
+            // property's minted sub-alias, its materialized prefix, and the
+            // SUB-TARGET's binding table (leaves resolve through it —
+            // audit 12 F1). Un-materialized sub-steps (temporal/filtered
+            // gates) are absent: their reads stay loud.
+            Map<String, Substitution.SubNav> subNavs = new java.util.LinkedHashMap<>();
+            var tNavSteps = Pipelines.navSteps(target.pipeline());
+            Map<String, String> matPrefixes = navMats.get(alias).slotPrefixes();
+            for (java.util.List<String> tail
+                    : navTails.getOrDefault(alias, java.util.List.of())) {
+                if (tail.size() < 2 || subNavs.containsKey(tail.get(0))) {
+                    continue;
+                }
+                TypedSpec midBinding = target.bindings().get(tail.get(0));
+                if (midBinding == null) {
+                    continue;
+                }
+                String subAlias = navSlotAlias(midBinding, target.rowVar(),
+                        tNavSteps.keySet());
+                if (subAlias == null || !matPrefixes.containsKey(subAlias)) {
+                    continue;
+                }
+                String subCls = ((com.legend.compiler.spec.typed.TypedGetAll)
+                        tNavSteps.get(subAlias).target()).classFqn();
+                ClassSource subCs = sources.get(cs.mappingFqn(), subCls);
+                subNavs.put(tail.get(0), new Substitution.SubNav(
+                        matPrefixes.get(subAlias), subCs.rowVar(),
+                        subCs.bindings()));
+            }
             assocs.put(navHeadByAlias.getOrDefault(alias, alias),
                     new Substitution.AssocSub(alias + "_",
                     target.rowVar(), target.bindings(), target.classFqn(),
                     Pipelines.slotAliases(target.pipeline()),
                     navMats.get(alias).slotPrefixes(), null, null,
-                    milestoneColumnsOf(target.pipeline(), target.classFqn())));
+                    milestoneColumnsOf(target.pipeline(), target.classFqn()),
+                    subNavs));
         }
 
         // Mapping ~distinct stays IN the pipeline (a distinct subselect —
@@ -2899,6 +2929,19 @@ public final class StoreResolver {
             if (tail.size() >= 2) {
                 String subAlias = navSlotAlias(b, t.rowVar(), tNavSteps.keySet());
                 if (subAlias != null) {
+                    // audit 12 F2: a TEMPORAL (or gated) sub-target must NOT
+                    // materialize unfiltered under a non-temporal parent —
+                    // the recursion's own gate returns a raw pipeline but
+                    // cannot stop THIS level's join. Leave the sub-step
+                    // undemanded: the leaf read stays LOUD downstream.
+                    String subCls = ((com.legend.compiler.spec.typed.TypedGetAll)
+                            tNavSteps.get(subAlias).target()).classFqn();
+                    ClassSource subT = sources.get(mappingFqn, subCls);
+                    if (temporalStrategy(subCls) != null
+                            || hasMilestonedSlotTarget(subT.pipeline())
+                            || containsFilter(subT.pipeline())) {
+                        continue;
+                    }
                     tNavs.add(subAlias);
                     subTails.computeIfAbsent(subAlias, k -> new ArrayList<>())
                             .add(tail.subList(1, tail.size()));

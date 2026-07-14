@@ -77,18 +77,25 @@ final class Substitution {
      * reads attach — null means the chain's fresh row var (joined form);
      * an EXISTS-inner registration points them at the subquery row.
      */
+    /** A materialized SUB-navigation of an association/navigate target:
+     * the composed column prefix (relative to the target's row), the
+     * sub-target's row var and BINDING table — 3-hop leaves resolve
+     * through it (audit 12 F1: the property name is NOT a column name). */
+    record SubNav(String prefix, String rowVar, Map<String, TypedSpec> bindings) {}
+
     record AssocSub(String prefix, String targetRowVar,
                     Map<String, TypedSpec> targetBindings, String targetClassFqn,
                     java.util.Set<String> targetSlotAliases,
                     Map<String, String> targetSlotPrefixes,
                     String readVar, Type.RelationType readRowType,
-                    Map<String, String> targetMilestoneColumns) {
+                    Map<String, String> targetMilestoneColumns,
+                    Map<String, SubNav> subNavs) {
 
         AssocSub(String prefix, String targetRowVar,
                  Map<String, TypedSpec> targetBindings, String targetClassFqn,
                  java.util.Set<String> targetSlotAliases) {
             this(prefix, targetRowVar, targetBindings, targetClassFqn,
-                    targetSlotAliases, Map.of(), null, null, Map.of());
+                    targetSlotAliases, Map.of(), null, null, Map.of(), Map.of());
         }
 
         AssocSub(String prefix, String targetRowVar,
@@ -96,7 +103,8 @@ final class Substitution {
                  java.util.Set<String> targetSlotAliases,
                  Map<String, String> targetSlotPrefixes) {
             this(prefix, targetRowVar, targetBindings, targetClassFqn,
-                    targetSlotAliases, targetSlotPrefixes, null, null, Map.of());
+                    targetSlotAliases, targetSlotPrefixes, null, null, Map.of(),
+                    Map.of());
         }
 
         AssocSub(String prefix, String targetRowVar,
@@ -106,7 +114,18 @@ final class Substitution {
                  String readVar, Type.RelationType readRowType) {
             this(prefix, targetRowVar, targetBindings, targetClassFqn,
                     targetSlotAliases, targetSlotPrefixes, readVar, readRowType,
-                    Map.of());
+                    Map.of(), Map.of());
+        }
+
+        AssocSub(String prefix, String targetRowVar,
+                 Map<String, TypedSpec> targetBindings, String targetClassFqn,
+                 java.util.Set<String> targetSlotAliases,
+                 Map<String, String> targetSlotPrefixes,
+                 String readVar, Type.RelationType readRowType,
+                 Map<String, String> targetMilestoneColumns) {
+            this(prefix, targetRowVar, targetBindings, targetClassFqn,
+                    targetSlotAliases, targetSlotPrefixes, readVar, readRowType,
+                    targetMilestoneColumns, Map.of());
         }
     }
 
@@ -183,7 +202,9 @@ final class Substitution {
         // (ONE funnel: scan and substitution must not drift)
         if (n instanceof com.legend.compiler.spec.typed.TypedMap m
                 && m.mapper().parameters().size() == 1
-                && m.mapper().body().size() == 1) {
+                && m.mapper().body().size() == 1
+                && pathOf(m.mapper().body().get(0),
+                        m.mapper().parameters().get(0)) != null) {
             return pathOf(inlineParam(m.mapper().body().get(0),
                     m.mapper().parameters().get(0), m.source()), userVar);
         }
@@ -355,19 +376,44 @@ final class Substitution {
             }
             // MULTI-HOP through a NAVIGATE-SLOT head ($a.b.c.pk where b is
             // a class-typed Join PM slot and c a slot of b's target): the
-            // target materialized with its OWN demanded slots — the leaf
-            // reads the COMPOSED prefixed column (b_ + c_pk) on the joined
-            // row (engine: per-hop findPropertyMapping re-entry)
+            // leaf resolves through the SUB-TARGET'S BINDING (column
+            // renames honored — audit 12 F1: the property name is not a
+            // physical column), then reads the composed prefixed column
+            // on the joined row (engine: per-hop findPropertyMapping).
             if (path.size() == 3 && target.assocs().containsKey(path.get(0))) {
                 AssocSub a3 = target.assocs().get(path.get(0));
-                String sp = a3.targetSlotPrefixes().get(path.get(1));
-                if (sp != null) {
-                    return milestoneColumnRead(sp + path.get(2),
-                            a3.readVar() != null ? a3.readVar()
-                                    : target.freshRowVar(),
-                            a3.readRowType() != null ? a3.readRowType()
-                                    : target.rowType(),
-                            a3.readVar() != null ? "" : a3.prefix(), n);
+                SubNav sub = a3.subNavs().get(path.get(1));
+                if (sub != null) {
+                    TypedSpec leafBinding = sub.bindings().get(path.get(2));
+                    if (leafBinding == null) {
+                        throw new MappingResolutionException("property '"
+                                + path.get(2) + "' of nested navigation '"
+                                + path.get(0) + "." + path.get(1)
+                                + "' is not mapped in mapping '"
+                                + target.mappingFqn() + "'", target.classFqn());
+                    }
+                    TypedSpec inner3 = leafBinding;
+                    if (inner3 instanceof TypedNativeCall c3
+                            && c3.args().size() == 1
+                            && c3.callee().qualifiedName().equals(
+                                    "meta::pure::functions::multiplicity::toOne")) {
+                        inner3 = c3.args().get(0);
+                    }
+                    if (inner3 instanceof TypedPropertyAccess pa3
+                            && pa3.source() instanceof TypedVariable v3
+                            && v3.name().equals(sub.rowVar())) {
+                        return milestoneColumnRead(
+                                sub.prefix() + pa3.property(),
+                                a3.readVar() != null ? a3.readVar()
+                                        : target.freshRowVar(),
+                                a3.readRowType() != null ? a3.readRowType()
+                                        : target.rowType(),
+                                a3.readVar() != null ? "" : a3.prefix(), n);
+                    }
+                    throw new NotImplementedException("nested navigation leaf '"
+                            + path.get(2) + "' of '" + path.get(0) + "."
+                            + path.get(1) + "' is mapped by a non-column"
+                            + " expression — not supported yet");
                 }
             }
             // MULTI-HOP association chain ($p.dept.org.name): the demand scan
@@ -490,7 +536,12 @@ final class Substitution {
             // and substitute the flattened expression
             case com.legend.compiler.spec.typed.TypedMap m
                     when m.mapper().parameters().size() == 1
-                    && m.mapper().body().size() == 1 ->
+                    && m.mapper().body().size() == 1
+                    && pathOf(m.mapper().body().get(0),
+                            m.mapper().parameters().get(0)) != null ->
+                    // ONLY a property path over the param is the auto-map
+                    // spelling (audit 12 F4: ->map(b|1)->sum() collapsed to
+                    // the constant — non-path bodies stay at the loud wall)
                     rewrite(inlineParam(m.mapper().body().get(0),
                             m.mapper().parameters().get(0), m.source()));
             // Literals: nothing to substitute.
@@ -701,13 +752,41 @@ final class Substitution {
             case TypedCBoolean ignored -> n;
             case TypedCDate ignored -> n;
             case TypedEnumValue ignored -> n;
-            case TypedLambda l -> l.parameters().contains(param) ? l
-                    : new TypedLambda(l.parameters(), l.body().stream().map(b ->
-                            inlineParam(b, param, source)).toList(), l.info());
+            case TypedLambda l -> {
+                if (l.parameters().contains(param)) {
+                    yield l;   // shadowing: substitution stops
+                }
+                // CAPTURE guard (audit 12 F5): a nested lambda whose param
+                // collides with a free variable of the inlined source would
+                // silently capture it
+                for (String lp : l.parameters()) {
+                    if (readsVariable(source, lp)) {
+                        throw new NotImplementedException("auto-map mapper"
+                                + " nests a lambda whose parameter '" + lp
+                                + "' collides with the mapped source —"
+                                + " rename the parameter");
+                    }
+                }
+                yield new TypedLambda(l.parameters(), l.body().stream().map(b ->
+                        inlineParam(b, param, source)).toList(), l.info());
+            }
             default -> throw new NotImplementedException(
                     "auto-map mapper body node " + n.getClass().getSimpleName()
                             + " is not inlinable yet");
         };
+    }
+
+    /** Whether any {@code $var} read occurs in the subtree. */
+    private static boolean readsVariable(TypedSpec n, String var) {
+        if (n instanceof TypedVariable v && v.name().equals(var)) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (readsVariable(c, var)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** A bi-temporal context carries (processingDate, businessDate) — the
