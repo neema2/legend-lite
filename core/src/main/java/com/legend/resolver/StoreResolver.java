@@ -1489,9 +1489,20 @@ public final class StoreResolver {
                 ClassSource t = sources.get(cs.mappingFqn(), tg.classFqn());
                 Pipelines.Materialized tMat0 = Pipelines.materialize(
                         t.pipeline(), Set.of(), t.classFqn());
+                // UNION target: member threads carry the key columns the
+                // navigate predicate binds on (mirrors the assoc route)
+                TypedSpec tPipe0 = tMat0.pipeline();
+                if (nav.predicate().parameters().size() == 2) {
+                    Set<String> tgtReads = new java.util.LinkedHashSet<>();
+                    for (TypedSpec b : nav.predicate().body()) {
+                        Pipelines.collectVarReads(b,
+                                nav.predicate().parameters().get(1), tgtReads);
+                    }
+                    tPipe0 = Pipelines.widenConcatenateForKeys(tPipe0, tgtReads);
+                }
                 Pipelines.Materialized tMat = new Pipelines.Materialized(
                         temporalTargetPipe(cs, t, head,
-                                applyJoinTemporalFilters(tMat0.pipeline(), t,
+                                applyJoinTemporalFilters(tPipe0, t,
                                         java.util.Map.of())),
                         tMat0.slotPrefixes(), tMat0.stripped());
                 boolean navToMany = !(ctx.findProperty(cs.classFqn(), head)
@@ -2916,6 +2927,9 @@ public final class StoreResolver {
             Pipelines.collectVarReads(b, oriented.parameters().get(1), tgtReads);
         }
         TypedSpec tPipe = Pipelines.widenDistinctForKeys(tMat.pipeline(), tgtReads);
+        // UNION target: member threads carry the key columns the
+        // association condition binds on (engine partial-union goldens)
+        tPipe = Pipelines.widenConcatenateForKeys(tPipe, tgtReads);
         // audit 10: the target pipeline's OWN materialized slot joins to
         // milestoned tables filter by the temporal context too (every
         // milestoned table alias filters — the dead wall this replaces)

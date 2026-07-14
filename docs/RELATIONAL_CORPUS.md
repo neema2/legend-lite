@@ -171,14 +171,14 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/selfJoin | 3 | 0 | 0 | 3 | 0 |
 | tests/mapping/sqlFunction | 72 | 57 | 0 | 3 | 12 |
 | tests/mapping/tree | 12 | 0 | 0 | 12 | 0 |
-| tests/mapping/union | 124 | 15 | 1 | 88 | 20 |
+| tests/mapping/union | 124 | 20 | 1 | 83 | 20 |
 | tests/mapping/union/relation | 15 | 0 | 0 | 13 | 2 |
 | tests/platformOperations | 4 | 0 | 0 | 4 | 0 |
 | tests/query | 83 | 53 | 2 | 21 | 7 |
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **545** | 31 | 877 | 839 |
+| **total** | 2292 | **550** | 31 | 872 | 839 |
 
 ### mapping walls (dropped at assembly)
 
@@ -310,6 +310,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - 10x class query under TypedMap is not resolvable yet (H2 vocabulary)
 - 10x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[function=if, parameters=[AppliedFunction[function=equal, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=active], CString[value=Y]]], LambdaFunction[parameters=[], body=[CString[value=true]]], LambdaFunction[parameters=[], body=[CString[value=false]]]]]]])
 - 9x class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
+- 9x no overload of 'meta::pure::functions::math::plus' structurally matches the argument types
 - 9x navigation through class-typed slot property 'address' is not supported yet
 - 8x [3247:0] unsupported top-level keyword: PAREN_CLOSE (')')
 - 8x relation has no column 'aID'
@@ -330,7 +331,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - 6x property 'b' of class 'meta::relational::tests::mapping::union::sqlQueryMerging::model::A' is not mapped in mapping 'meta::relational::tests::mapping::union::sqlQueryMerging::mapping::unionMapping'
 - 5x no overload of 'groupBy' matches the argument types
 - 5x property 'stockProductName' of class 'meta::relational::tests::milestoning::Product' is mapped through the target's own join slots; nested navigation joins are not supported in this position yet
-- 5x unknown function 'columnValues'
 
 ### per-test outcomes (non-passing)
 
@@ -965,7 +965,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMilestoningContextPropagationForSimplePropertyReferenceWithMultipleJoinsViaProject [milestoning/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testFilterOnMilestonedClassInProjectWithTDSFilter [milestoning/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product': property 'isBrexitClassificationTypeExchange' of 'meta::relational::tests::milestoning::Product': expected Boolean, got String (value: AppliedFunction[function=if, parameters=[App
-- ERROR testDeepUnionOperationWithNonTemporalAndNonUnionRoot [milestoning/tests]: property 'product' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::milestoningUnionMapWithOrderNonUnion'
+- ERROR testDeepUnionOperationWithNonTemporalAndNonUnionRoot [milestoning/tests]: multi-hop navigation product.classification.product.id through an embedded/slot head is not supported yet
 - ERROR testMilestoningFilterPropagationThroughFilter [milestoning/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testMilestoningFilterPropagationThroughNestedFilter [milestoning/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - SHAPE testMilestoningFilterPropagationWithNowInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -1849,13 +1849,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFilteredProjectWithPostTdsOperations [tests/mapping/union]: ~Len: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testGroupBy [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::specialUnion::specialUnionMapping'
 - ERROR testSimpleQueryFrom [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMapping'
-- ERROR testSimpleQueryTo [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMapping'
-- ERROR testProjectThroughAsso [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMapping'
-- ERROR testSimpleQueryToAssociationMapping [tests/mapping/union]: a scalar query has no row scope for $tgtRow.FirmID
-- ERROR testProjectThroughAssoWithAssociationMapping [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t3" not found! |  | LINE 1: ... t2.lastName_s2 AS lastName FROM PersonSet2 AS t2 ) AS t3 ON t3.FirmID = t0.ID) AS value |                                                
+- ERROR testProjectThroughAsso [tests/mapping/union]: no overload of 'meta::pure::functions::math::plus' structurally matches the argument types
+- ERROR testProjectThroughAssoWithAssociationMapping [tests/mapping/union]: no overload of 'meta::pure::functions::math::plus' structurally matches the argument types
 - ERROR testSimpleQueryFromWithJoinInMapping [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithJoinInProperty'
-- ERROR testSimpleQueryToWithJoinInMapping [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithJoinInProperty'
-- ERROR testProjectThroughAssoWithJoinInMapping [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithJoinInProperty'
+- ERROR testProjectThroughAssoWithJoinInMapping [tests/mapping/union]: no overload of 'meta::pure::functions::math::plus' structurally matches the argument types
 - ERROR testProjectThroughAssoWithMultiJoinInMapping [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithJoinSequenceInProperty'
 - ERROR testSimpleQueryFromWithEmbeddedInMapping [tests/mapping/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty'
 - ERROR testSimpleProjectionFromWithEmbeddedInMapping [tests/mapping/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedPropertyOneThroughJoin'
@@ -1905,17 +1902,15 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_EmbeddedMapping [tests/mapping/union]: object-space use of the instance variable '$p' other than property access is not supported yet
 - SHAPE testSimpleProject [tests/mapping/union]: unsupported statement: println
 - ERROR testSimpleQueryFrom [tests/mapping/union]: property 'firm' of class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMapping'
-- ERROR testSimpleQueryTo [tests/mapping/union]: a scalar query has no row scope for $t.FirmID
-- ERROR testProjectThroughAsso [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t3" not found! |  | LINE 1: ... t2.lastName_s2 AS lastName FROM PersonSet2 AS t2 ) AS t3 ON t3.FirmID = t0.ID) AS value |                                                
+- ERROR testProjectThroughAsso [tests/mapping/union]: no overload of 'meta::pure::functions::math::plus' structurally matches the argument types
 - ERROR testSimpleQueryFromAssociationMapping [tests/mapping/union]: property 'firm' of class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithAssociationMapping'
 - ERROR testSimpleQueryToAssociationMapping [tests/mapping/union]: property 'employees' of class 'meta::relational::tests::mapping::union::extend::Firm' has no binding in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithAssociationMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testProjectThroughAssoWithAssociationMapping [tests/mapping/union]: property 'employees' of class 'meta::relational::tests::mapping::union::extend::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithAssociationMapping'
 - ERROR testSimpleProjectWithJoinInMapping [tests/mapping/union]: class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithJoinInProperty'
 - ERROR testSimpleProjectWithJoinInMappingWithFunction [tests/mapping/union]: class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithJoinInProperty'
 - ERROR testSimpleQueryFromWithJoinInMapping [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::extend::unionMappingWithJoinInProperty' failed to normalize this class: union member set '
-- ERROR testSimpleQueryToWithJoinInMapping [tests/mapping/union]: a scalar query has no row scope for $t.FirmID
-- ERROR testProjectThroughAssoWithJoinInMapping [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t4" not found! |  | LINE 1: ... t3.lastName_s2 AS otherNames FROM PersonSet2 AS t3 ) AS t4 ON t4.FirmID = t0.ID) AS value |                                              
-- ERROR testProjectThroughAssoWithMultiJoinInMapping [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t5" not found! |  | LINE 1: ... t4.lastName_s2 AS lastName FROM PersonSet2 AS t4 ) AS t5 ON t5.ID = t1.pid) AS value |                                                   
+- ERROR testProjectThroughAssoWithJoinInMapping [tests/mapping/union]: no overload of 'meta::pure::functions::math::plus' structurally matches the argument types
+- ERROR testProjectThroughAssoWithMultiJoinInMapping [tests/mapping/union]: no overload of 'meta::pure::functions::math::plus' structurally matches the argument types
 - ERROR testSimpleQueryFromWithEmbeddedInMapping [tests/mapping/union]: property 'firm' of class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedProperty'
 - FAIL testSimpleQueryFromWithFilterInMapping [tests/mapping/union]: assertEquals: expected [Scott, Anand, Taylor, Wright], got [Scott, Anand, Roberts, Taylor, Wright]
 - ERROR testSimpleProjectionFromWithEmbeddedInMapping [tests/mapping/union]: property 'firm' of class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedPropertyOneThroughJoin'

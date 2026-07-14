@@ -431,6 +431,71 @@ public final class MappingNormalizer {
     }
 
     /**
+     * Whether every set-qualified duplicate of {@code propName} is a
+     * single-hop {@code @Join} whose condition is structurally identical to
+     * the first's modulo table names, with the SAME column names on both
+     * sides ({@code @PersonSet1Firm(PersonSet1.FirmID = Firm.ID)} vs
+     * {@code @PersonSet2Firm(PersonSet2.FirmID = Firm.ID)}). Under that
+     * shape the duplicates collapse to one navigation of the union root:
+     * every member thread projects the key under the one shared name, so
+     * one join condition serves all members (engine's suffixed-key OR
+     * degenerates to it). Any other shape: not equivalent (caller drops
+     * the property, loud at demand).
+     */
+    private static boolean equivalentMemberJoins(ClassMapping.Relational r,
+            String propName, LegacyMappingDefinition md, ModelBuilder model) {
+        List<String> canon = new ArrayList<>();
+        for (PropertyMapping pm : r.propertyMappings()) {
+            if (!pm.propertyName().equals(propName)) {
+                continue;
+            }
+            if (!(pm instanceof PropertyMapping.Join j) || j.joins().size() != 1) {
+                return false;
+            }
+            var jd = model.findJoin(j.database(), j.joins().get(0).joinName())
+                    .orElse(null);
+            if (jd == null) {
+                return false;
+            }
+            canon.add(canonicalCondition(jd.operation(),
+                    r.mainTable() == null ? "" : r.mainTable().table()));
+        }
+        return canon.size() > 1 && canon.stream().distinct().count() == 1;
+    }
+
+    /**
+     * The condition with MEMBER-side table names erased (the owning class's
+     * main table stays literal — the anchor both members must join to the
+     * same way) — column-structure identity across member joins.
+     */
+    private static String canonicalCondition(RelationalOperation cond, String ownerTable) {
+        return switch (cond) {
+            case RelationalOperation.ColumnRef c -> "col("
+                    + (ownerTable.equals(c.table()) ? ownerTable + "." : "")
+                    + c.column() + ")";
+            case RelationalOperation.TargetColumnRef c -> "tcol(" + c.column() + ")";
+            case RelationalOperation.Literal l -> "lit(" + l.value() + ")";
+            case RelationalOperation.Comparison c -> "cmp("
+                    + canonicalCondition(c.left(), ownerTable)
+                    + " " + c.op() + " " + canonicalCondition(c.right(), ownerTable) + ")";
+            case RelationalOperation.BooleanOp b -> "bool("
+                    + canonicalCondition(b.left(), ownerTable)
+                    + " " + b.op() + " " + canonicalCondition(b.right(), ownerTable) + ")";
+            case RelationalOperation.Group g -> canonicalCondition(g.inner(), ownerTable);
+            case RelationalOperation.IsNull n ->
+                    "isNull(" + canonicalCondition(n.operand(), ownerTable) + ")";
+            case RelationalOperation.IsNotNull n ->
+                    "isNotNull(" + canonicalCondition(n.operand(), ownerTable) + ")";
+            case RelationalOperation.FunctionCall f -> "fn(" + f.name() + ","
+                    + f.args().stream().map(x -> canonicalCondition(x, ownerTable))
+                            .collect(java.util.stream.Collectors.joining(",")) + ")";
+            // any other shape canonicalizes to a UNIQUE token — never
+            // equal across members, so the caller conservatively drops
+            default -> "opaque(" + cond + ")";
+        };
+    }
+
+    /**
      * Resolve {@code extends [parentSetId]} on Relational class mappings by
      * merging the parent's property mappings into the child
      * ({@code docs/MAPPING_LEGACY_TO_FUNCTION.md} §5.2.3):
@@ -652,14 +717,19 @@ public final class MappingNormalizer {
                                                             ClassMapping cm,
                                                             ModelBuilder model) {
         if (cm instanceof ClassMapping.Relational r && !r.propertyTargetSets().isEmpty()) {
-            // prop[setId] routing: honoring only ROOT-set targets is exactly
-            // the un-routed navigation we synthesize. A NON-root or unknown
-            // target set would need multi-set union dispatch (roadmap) —
-            // the ROUTED PROPERTY drops from this synthesis (never silently
-            // navigate the root set instead) and the reason rides the class
-            // poison ledger; the class itself stays queryable, and DEMANDING
-            // the dropped property fails loudly at the no-binding error.
+            // prop[setId] routing: a ROOT-set target is the un-routed
+            // navigation we synthesize anyway. A target set that is a MEMBER
+            // of a union-rooted class also routes: the navigation targets
+            // the union root (the resolver widens union pipelines with the
+            // demanded keys), and the per-member duplicate PMs collapse to
+            // one — sound only when every duplicate's join is structurally
+            // identical modulo its member table (the shared-key form; the
+            // engine's per-member suffixed keys are the heterogeneous rung).
+            // Anything else drops from this synthesis (never silently
+            // navigate the root set instead) with the reason on the class
+            // poison ledger; DEMANDING it fails loudly at no-binding.
             java.util.Set<String> dropped = new java.util.LinkedHashSet<>();
+            java.util.Set<String> collapse = new java.util.LinkedHashSet<>();
             for (var e : r.propertyTargetSets().entrySet()) {
                 ClassMapping target = md.classMappings().stream()
                         .filter(x -> e.getValue().equals(setIdOf(x)))
@@ -669,21 +739,41 @@ public final class MappingNormalizer {
                 if (target != null && rootTarget) {
                     continue;
                 }
+                boolean unionMember = target != null && md.classMappings().stream()
+                        .anyMatch(x -> x instanceof ClassMapping.Union u
+                                && u.memberSetIds().contains(e.getValue()));
+                if (unionMember && equivalentMemberJoins(r, e.getKey(), md, model)) {
+                    collapse.add(e.getKey());
+                    continue;
+                }
                 dropped.add(e.getKey());
                 String reason = "property '" + e.getKey() + "' routes to "
                         + (target == null
                                 ? "unknown mapping set '" + e.getValue() + "'"
                                 : "NON-root mapping set '" + e.getValue() + "'")
-                        + " — multi-set union dispatch is a roadmap feature;"
-                        + " the property is dropped from this synthesis";
+                        + (unionMember
+                                ? " with per-member joins that differ beyond their"
+                                        + " member table — heterogeneous union keys"
+                                        + " are not supported yet"
+                                : " — multi-set union dispatch is a roadmap feature")
+                        + "; the property is dropped from this synthesis";
                 model.mappingPoisons.merge(
                         md.qualifiedName() + "::" + cm.className(), reason,
                         (a, b) -> a + "; " + b);
             }
-            if (!dropped.isEmpty()) {
-                List<PropertyMapping> kept = r.propertyMappings().stream()
-                        .filter(pm -> !dropped.contains(pm.propertyName()))
-                        .toList();
+            if (!dropped.isEmpty() || !collapse.isEmpty()) {
+                java.util.Set<String> seenCollapsed = new java.util.HashSet<>();
+                List<PropertyMapping> kept = new ArrayList<>();
+                for (PropertyMapping pm : r.propertyMappings()) {
+                    if (dropped.contains(pm.propertyName())) {
+                        continue;
+                    }
+                    if (collapse.contains(pm.propertyName())
+                            && !seenCollapsed.add(pm.propertyName())) {
+                        continue;   // per-member duplicates: first wins
+                    }
+                    kept.add(pm);
+                }
                 cm = new ClassMapping.Relational(r.className(), r.setId(),
                         r.extendsSetId(), r.root(), r.mainTable(), r.filter(),
                         r.distinct(), r.groupBy(), r.primaryKey(), kept,

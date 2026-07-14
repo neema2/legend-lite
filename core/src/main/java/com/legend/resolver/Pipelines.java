@@ -216,6 +216,9 @@ final class Pipelines {
                                 tgtReads);
                     }
                     targetPipeline = widenDistinctForKeys(targetPipeline, tgtReads);
+                    // UNION target: member threads carry the key columns
+                    // this navigation binds on (engine partial-union goldens)
+                    targetPipeline = widenConcatenateForKeys(targetPipeline, tgtReads);
                 }
                 // The condition speaks (parent row, target TABLE row) — the
                 // 4-arg emission; prior joinslot sub-row reads prefix.
