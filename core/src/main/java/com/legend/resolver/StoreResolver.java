@@ -1665,7 +1665,7 @@ public final class StoreResolver {
                     continue;
                 }
                 AssocJoin aj = associationJoin(parent, path.get(hop), context, false,
-                        leavesByChain.getOrDefault(chainKey, Set.of()));
+                        leavesByChain.getOrDefault(chainKey, Set.of()), chainKey);
                 if (hop > 0) {
                     // A CHAINED hop: the parent's columns live PREFIXED on the
                     // accumulated joined row — re-point the condition's LEFT
@@ -2397,27 +2397,24 @@ public final class StoreResolver {
 
     private void collectTemporalNodes(TypedSpec n, String userVar,
             java.util.Map<String, TemporalSpec> out) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedMilestonedAccess ma
-                && !(ma.source()
-                        instanceof com.legend.compiler.spec.typed.TypedVariable v0
-                        && v0.name().equals(userVar))) {
-            // audit 10: a NESTED milestoned access — dated OR sweep — would
-            // silently take the ROOT date via propagation (a nested
-            // ...AllVersions hop must be the RAW extent, engine
-            // pureToSQLQuery isAllVersions skip); specs are keyed by bare
-            // head today, so loud until chain-keyed specs land
-            throw new NotImplementedException("milestoned property access '"
-                    + ma.property() + "' on a NESTED navigation is not"
-                    + " supported yet");
-        }
-        if (n instanceof com.legend.compiler.spec.typed.TypedMilestonedAccess ma
-                && ma.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
-                && v.name().equals(userVar)) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedMilestonedAccess ma) {
+            // specs key by the FULL CHAIN prefix (engine: one milestoning
+            // context per cursor, an explicit property-function date builds
+            // a NEW context for ITS hop — MIL:846-868). A 1-hop access keys
+            // by the bare property (chain of one). Non-var-rooted accesses
+            // (inner lambdas) stay loud.
+            java.util.List<String> maPath = Substitution.pathOf(ma, userVar);
+            if (maPath == null) {
+                throw new NotImplementedException("milestoned property access '"
+                        + ma.property() + "' on a NESTED navigation is not"
+                        + " supported yet");
+            }
+            String chainKey = String.join(".", maPath);
             TemporalSpec spec = new TemporalSpec(
                     normalizeContextDates(ma.dates()), ma.sweep());
-            TemporalSpec prior = out.putIfAbsent(ma.property(), spec);
+            TemporalSpec prior = out.putIfAbsent(chainKey, spec);
             if (prior != null && !prior.equals(spec)) {
-                throw new NotImplementedException("navigation '" + ma.property()
+                throw new NotImplementedException("navigation '" + chainKey
                         + "' with two different milestoning dates in one query"
                         + " is not supported yet");
             }
@@ -3051,6 +3048,14 @@ public final class StoreResolver {
 
     private AssocJoin associationJoin(ClassSource cs, String head, Context context,
                                       boolean forExists, Set<String> demandedLeaves) {
+        return associationJoin(cs, head, context, forExists, demandedLeaves, head);
+    }
+
+    /** {@code chainKey}: the dotted path prefix this hop sits at — the
+     * temporal-spec registry key (= {@code head} for hop 0). */
+    private AssocJoin associationJoin(ClassSource cs, String head, Context context,
+                                      boolean forExists, Set<String> demandedLeaves,
+                                      String chainKey) {
         var assoc = ctx.findAssociationOf(cs.classFqn(), head).orElseThrow(() ->
                 new MappingResolutionException("property '" + head + "' of class '"
                         + cs.classFqn() + "' is not mapped in mapping '"
@@ -3089,7 +3094,7 @@ public final class StoreResolver {
         Pipelines.Materialized tMat0 = Pipelines.materialize(
                 target.pipeline(), targetDemand, target.classFqn());
         Pipelines.Materialized tMat = new Pipelines.Materialized(
-                temporalTargetPipe(cs, target, head,
+                temporalTargetPipe(cs, target, chainKey,
                         applyJoinTemporalFilters(tMat0.pipeline(), target,
                                 java.util.Map.of())),
                 tMat0.slotPrefixes(), tMat0.stripped());
