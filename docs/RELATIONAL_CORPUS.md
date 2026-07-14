@@ -129,7 +129,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 47 | 0 | 0 | 0 | 47 |
-| milestoning/tests | 221 | 125 | 5 | 36 | 55 |
+| milestoning/tests | 221 | 127 | 5 | 34 | 55 |
 | modelJoins | 7 | 0 | 0 | 1 | 6 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 0 | 7 |
@@ -176,7 +176,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **671** | 29 | 751 | 841 |
+| **total** | 2292 | **673** | 29 | 749 | 841 |
 
 ### mapping walls (dropped at assembly)
 
@@ -303,15 +303,15 @@ runner does not yet recognize (accounted, not skipped silently).
 - 20x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 18x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - 18x a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- 14x navigation through class-typed slot property 'address' is not supported yet
 - 14x a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
-- 12x navigation through class-typed slot property 'address' is not supported yet
 - 11x expected at most one value, got many ([*])
 - 11x object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
 - 10x class query under TypedMap is not resolvable yet (H2 vocabulary)
 - 10x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[function=if, parameters=[AppliedFunction[function=equal, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=active], CString[value=Y]]], LambdaFunction[parameters=[], body=[CString[value=true]]], LambdaFunction[parameters=[], body=[CString[value=false]]]]]]])
 - 9x class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::relational::tests::simpleRelationalMapping)
+- 9x lowering not yet implemented for TypedNativeCall
 - 8x [3247:0] unsupported top-level keyword: PAREN_CLOSE (')')
-- 8x lowering not yet implemented for TypedNativeCall
 - 8x relation has no column 'aID'
 - 7x [2547:78] expected GREATER_THAN but found PIPE ('|')
 - 7x no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
@@ -322,10 +322,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - 6x object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - 6x in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - 6x ~name_length: mapped/aggregate column specifications need an enclosing call to type against
+- 6x unknown function 'columnValues'
 - 6x 'meta::relational::tests::mapping::relation::EmbeddedRelationMapping' is not a known class, mapping, runtime, connection, or database
 - 5x no overload of 'groupBy' matches the argument types
 - 5x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- 5x unknown function 'columnValues'
 - 5x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
 - 5x unknown function 'conditionRightTable'
 - 5x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
@@ -900,10 +900,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testQueryOfMilestonedTypeUsingLatestWithFilterInMapping [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testMilestoningQueryWithMilestoneFilterAndDifferentDatesOnTypeWithLatestDateOnProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testNonMilestoningQueryWithLatestMilestoneFilterSimple [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testNonMilestoningQueryWithMilestoneFilterProjectUsingSamePropertyWithDifferentDates [milestoning/tests]: navigation 'product' with two different milestoning dates in one query is not supported yet
 - ERROR testMilestoningQueryWithGroupByFilterWithMilestoning [milestoning/tests]: expected at most one value, got many ([1..*])
 - ERROR testBusinessDateInjectionFromVarReference [milestoning/tests]: [5:34] expected ')' to close argument list
-- ERROR testBusinessDateInjectionFromVarReferenceWithProject [milestoning/tests]: navigation 'product' with two different milestoning dates in one query is not supported yet
+- ERROR testBusinessDateInjectionFromVarReferenceWithProject [milestoning/tests]: filter predicate references column 'orderDate', unresolvable even after isolation
 - ERROR testBusinessDateInjectionFromParentVarReferenceWithProject [milestoning/tests]: multi-hop navigation product.classification.type through an embedded/slot head is not supported yet
 - SHAPE testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testBusinessDateInjectionFromVarReferenceWithUnion [milestoning/tests]: property 'car' of class 'meta::relational::tests::milestoning::inheritance::CarDetails' is not mapped in mapping 'meta::relational::tests::milestoning::milestoningmapWithVehiclesUnion'
@@ -916,7 +915,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: no execute(|...) call
 - ERROR testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: class 'meta::relational::tests::milestoning::Trade' is not mapped in mapping 'meta::relational::tests::milestoning::milestoningmap3' (Join 'TradeTable_TradePnlViewNoRootMilestoning' navigates to a CLASS mapped over view 'tradePnlViewNoRootMilestoning'; class navigation onto view relations is a roadm
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
-- ERROR testIsolationOfCaseStmtTrueFalseFilters [milestoning/tests]: navigation 'classification' with two different milestoning dates in one query is not supported yet
+- ERROR testIsolationOfCaseStmtTrueFalseFilters [milestoning/tests]: multi-hop navigation classification.product.name through an embedded/slot head is not supported yet
 - FAIL testProjectWithMilestoning [milestoning/tests]: assertEquals: expected 1, got 2
 - FAIL testMilestonedChainedJoinsWithAlias [milestoning/tests]: assertSameElements: expected [1 | 1 | Sedan | Folding Bike, 2 | 2 | SUV | Electric Bike, 3 | 3 | Hatchback | Hybrid Bike, 4 | 4 | Convertible | Road Bike, 5 | 5 | Truck | Mountain Bike], got []
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -942,7 +941,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMilestoningContextNotPropogatedThroughNonTemporalPropertiesFromMilestonedQualifiedProperty [milestoning/tests]: multi-hop navigation product.referenceSystem.systemDescription.description through an embedded/slot head is not supported yet
 - SHAPE testLatestMilestoneDatePropogationFromTypeQueryDoesNotOverrideThatSpecifiedAsArgToMilestonedQpInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLatestMilestoneDateMappedTableDateDoesNotOverrideLatestDateFromChildPropertyInPropogation [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testMilestoneDatePropogationFromTypeQueryDoesNotOverrideThatSpecifiedAsArgToMilestonedQpInProject [milestoning/tests]: navigation 'classification' with two different milestoning dates in one query is not supported yet
 - ERROR testMilestoneDatePropogationThruExistsConditionalClause [milestoning/tests]: milestoned property access 'classification' on a NESTED navigation is not supported yet
 - ERROR testMilestoningContextIsPropogatedThroughAutoMap [milestoning/tests]: multi-hop navigation product.classification.description through an embedded/slot head is not supported yet
 - ERROR testMilestoningContextIsPropogatedThroughSubType [milestoning/tests]: class-typed property '$o.product' used as a whole value is graph output (Phase H4)
@@ -1376,16 +1374,16 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testQualifierQuery [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
 - ERROR testQualifierWithOperation [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
 - ERROR testTwoQualifiersWithOperation [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
-- ERROR testQualifierWithForkAndOrWithInline [tests/advanced]: filtered and unfiltered navigation of 'employees' share one join slot in one query — per-use join identity is not supported yet
+- ERROR testQualifierWithForkAndOrWithInline [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
 - ERROR testQualifierWithForkAndOrWithInlineWithOffset [tests/advanced]: multi-hop navigation firm.employees#f0.firstName through an embedded/slot head is not supported yet
 - ERROR testQualifierWithForkAndOrWithInlineWithOffsetExplosion [tests/advanced]: multi-hop navigation firm.employees#f0.firstName through an embedded/slot head is not supported yet
-- ERROR testQualifierWithLineAndOrWithInLine [tests/advanced]: filtered and unfiltered navigation of 'employees' share one join slot in one query — per-use join identity is not supported yet
+- ERROR testQualifierWithLineAndOrWithInLine [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
 - SHAPE testQualifierWithIsolation [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testQualifierWithIsolationXX [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testQualifierWithIsolationForced [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testQualifierWithIsolationForced2 [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testQualifierWithIsolationAndExists [tests/advanced]: lowering not yet implemented for TypedNativeCall
-- ERROR testIfIncludingQualifiers [tests/advanced]: filtered and unfiltered navigation of 'employees' share one join slot in one query — per-use join identity is not supported yet
+- ERROR testIfIncludingQualifiers [tests/advanced]: lowering not yet implemented for TypedNativeCall
 - ERROR testQualifierWithIsolationAndExistsDeep [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - SHAPE testQualifierContainingAJoinWithIsolationAndExistsDeep [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testQualifierWithIsolationAndExistsDeepWithParallelProject [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -1500,7 +1498,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - FAIL testAggregationFunctionWithEnum [tests/mapping/enumeration]: assertEquals: expected [CONTRACT, 1, CONTRACT, 1, FULL_TIME, 1], got [CONTRACT, 2, FULL_TIME, 1]
 - ERROR testProjectionWithInheritedEnum [tests/mapping/enumeration]: unknown function 'columnValues'
 - ERROR testProjectionWithEnumThroughAssociation [tests/mapping/enumeration]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
-- ERROR testProjectionWithEnumQualifierParameter [tests/mapping/enumeration]: filtered and unfiltered navigation of 'synonyms' share one join slot in one query — per-use join identity is not supported yet
+- ERROR testProjectionWithEnumQualifierParameter [tests/mapping/enumeration]: unknown function 'columnValues'
 - ERROR testFilterWithEnumQualifierParameter [tests/mapping/enumeration]: unknown function 'columnValues'
 - FAIL testProjectWithIfWhereOneSideIsEnumLiteral [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, GS_NUMBER]
 - FAIL testProjectWithIfWhereBothSidesUseTheSameEnumMapping [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, CUSIP]
@@ -1569,7 +1567,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testChainedInnerJoinsWithFilterMerge [tests/mapping/join]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR testConvertToStringH2 [tests/mapping/join]: in function 'meta::relational::tests::mapping::join::model::mapping::MappingForAccountAndTrade$class$meta::relational::tests::model::simple::Trade': property 'quantity' of 'meta::relational::tests::model::simple::Trade': expected Float, got Integer (value: AppliedFunction[function=toOne, parameters=
 - ERROR testChainedOuterJoinsWithFilterInproject [tests/mapping/join]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t3" not found! | Candidate tables: "t0" |  | LINE 4: ... AS Person_MiddleTable__MiddleTable_PersonExtension_EXTRAINFO, t3.NUMBER AS Person_MiddleTable__MiddleTable_Perso
-- ERROR testChainedOuterJoinsWithQualifierInproject [tests/mapping/join]: filtered and unfiltered navigation of 'employees' share one join slot in one query — per-use join identity is not supported yet
+- ERROR testChainedOuterJoinsWithQualifierInproject [tests/mapping/join]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t3" not found! | Candidate tables: "t0" |  | LINE 4: ... AS Person_MiddleTable__MiddleTable_PersonExtension_EXTRAINFO, t3.NUMBER AS Person_MiddleTable__MiddleTable_Perso
 - ERROR testChainedInnerJoinsWithQualifierInGroupBy [tests/mapping/join]: no overload of 'groupBy' matches the argument types
 - FAIL testSameTableNameDifferentSchema1 [tests/mapping/join]: assertEquals: expected [Peter B, John B, John B, Anthony B, Oliver B, null, null], got [Peter B, John B, John B, Anthony B, Oliver B]
 - SHAPE testDynafunctionMerge [tests/mapping/merge]: sql-only: 1 advisory golden-SQL assert(s), no row verification

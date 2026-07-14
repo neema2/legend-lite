@@ -1333,6 +1333,64 @@ public final class StoreResolver {
                         + '\u0000'
                         + (fctx.runtimeFqn() == null ? "" : context.runtimeFqn()));
 
+        // 1b. TWO-DATES-PER-HEAD (engine keys separate joins by date):
+        // when ONE chain is navigated with DIFFERENT temporal arguments,
+        // each distinct date-set beyond the first renames to a
+        // date-fingerprinted synthetic head ('product#d1') — a separate
+        // join identity carrying its own spec; realHead() keeps every
+        // model lookup transparent. Same-date accesses keep sharing one
+        // join (merge-by-identity). Runs BEFORE spec collection so the
+        // conflict throw never fires for split chains.
+        java.util.Map<String, java.util.List<com.legend.compiler.spec.typed
+                .TypedMilestonedAccess>> datedByChain =
+                new java.util.LinkedHashMap<>();
+        for (TypedSpec op : ops) {
+            if (op instanceof TypedFilter f) {
+                for (TypedSpec b : f.predicate().body()) {
+                    collectDatedNodes(b, f.predicate().parameters().get(0),
+                            datedByChain);
+                }
+            }
+            if (op instanceof TypedSortBy sb) {
+                for (TypedSpec b : sb.key().body()) {
+                    collectDatedNodes(b, sb.key().parameters().get(0),
+                            datedByChain);
+                }
+            }
+        }
+        if (top instanceof TypedProject || top instanceof TypedGroupBy) {
+            for (TypedLambda fn : terminalLambdas(top)) {
+                for (TypedSpec b : fn.body()) {
+                    collectDatedNodes(b, fn.parameters().get(0), datedByChain);
+                }
+            }
+        }
+        java.util.IdentityHashMap<TypedSpec, String> dateRenames =
+                new java.util.IdentityHashMap<>();
+        for (var chainDates : datedByChain.entrySet()) {
+            java.util.Map<TemporalSpec, String> byArgs =
+                    new java.util.LinkedHashMap<>();
+            for (var ma : chainDates.getValue()) {
+                TemporalSpec spec = new TemporalSpec(
+                        normalizeContextDates(ma.dates()), ma.sweep());
+                String name = byArgs.get(spec);
+                if (name == null) {
+                    name = byArgs.isEmpty() ? ma.property()
+                            : ma.property() + "#d" + syntheticHeadCount++;
+                    byArgs.put(spec, name);
+                }
+                if (!name.equals(ma.property())) {
+                    dateRenames.put(ma, name);
+                }
+            }
+        }
+        if (!dateRenames.isEmpty()) {
+            for (int i = 0; i < ops.size(); i++) {
+                ops.set(i, replaceDatedNodes(ops.get(i), dateRenames));
+            }
+            top = replaceDatedNodes(top, dateRenames);
+        }
+
         // 2. Demand scan over ALL the chain's user lambdas (one funnel with
         //    the substitution — they cannot drift), close over slot
         //    conditions, materialize.
@@ -1423,6 +1481,14 @@ public final class StoreResolver {
         Map<String, java.util.List<java.util.List<String>>> navTails =
                 new java.util.LinkedHashMap<>();
         Map<String, String> navHeadByAlias = new java.util.LinkedHashMap<>();
+        // SECOND identities on one physical slot (date-fingerprinted /
+        // filter-lifted synthetic heads beside the base): the slot
+        // materializes once for the FIRST identity; every other identity
+        // emits its OWN prefixed join from the same nav material (engine:
+        // joins keyed by date / per-use). headKey → slot alias, + tails.
+        Map<String, String> extraNavHeads = new java.util.LinkedHashMap<>();
+        Map<String, java.util.List<java.util.List<String>>> extraNavTails =
+                new java.util.LinkedHashMap<>();
         for (java.util.List<String> path : paths) {
             if (path.size() < 2) {
                 continue;
@@ -1476,25 +1542,10 @@ public final class StoreResolver {
                 continue;
             }
             String headKey = String.join(".", path.subList(0, mid));
-            // JOIN IDENTITY guard: a lifted (filtered) head and any OTHER
-            // use of the same navigate slot would share ONE materialized
-            // join — the predicate would leak into the other use.
-            String priorHead = navHeadByAlias.get(alias);
-            if (priorHead != null && !priorHead.equals(headKey)
-                    && (syntheticHeadPreds.containsKey(headKey)
-                            || syntheticHeadPreds.containsKey(priorHead))) {
-                throw new NotImplementedException("filtered and unfiltered"
-                        + " navigation of '" + realHead(path.get(0))
-                        + "' share one join slot in one query — per-use join"
-                        + " identity is not supported yet");
-            }
-            // the head's TAIL paths drive the target's OWN slot demand
-            // (nested navigation: $a.b.c.pk materializes b's target WITH
-            // its c slot; the leaf reads the composed prefix b_c_pk)
-            navTails.computeIfAbsent(alias, k -> new ArrayList<>())
-                    .add(path.subList(mid, path.size()));
             // a lifted head's predicate reads are TAILS too: they pull the
             // target's own slots exactly like demanded leaves
+            java.util.List<java.util.List<String>> predTails =
+                    new java.util.ArrayList<>();
             TypedLambda liftedPred = syntheticHeadPreds.get(path.get(0));
             if (liftedPred != null) {
                 Set<java.util.List<String>> predPaths =
@@ -1502,8 +1553,26 @@ public final class StoreResolver {
                 for (TypedSpec b : liftedPred.body()) {
                     consumedPaths(b, liftedPred.parameters().get(0), predPaths);
                 }
-                navTails.get(alias).addAll(predPaths);
+                predTails.addAll(predPaths);
             }
+            // JOIN IDENTITY: a SECOND head identity on one physical slot
+            // routes through its own prefixed join (below) — the slot
+            // itself materializes once for the first identity.
+            String priorHead = navHeadByAlias.get(alias);
+            if (priorHead != null && !priorHead.equals(headKey)) {
+                extraNavHeads.putIfAbsent(headKey, alias);
+                java.util.List<java.util.List<String>> et = extraNavTails
+                        .computeIfAbsent(headKey, k -> new ArrayList<>());
+                et.add(path.subList(mid, path.size()));
+                et.addAll(predTails);
+                continue;
+            }
+            // the head's TAIL paths drive the target's OWN slot demand
+            // (nested navigation: $a.b.c.pk materializes b's target WITH
+            // its c slot; the leaf reads the composed prefix b_c_pk)
+            navTails.computeIfAbsent(alias, k -> new ArrayList<>())
+                    .add(path.subList(mid, path.size()));
+            navTails.get(alias).addAll(predTails);
             navHeadByAlias.put(alias, headKey);
             if (demandedNavs.contains(alias)) {
                 continue;
@@ -1851,6 +1920,45 @@ public final class StoreResolver {
                 parent = aj.target();
                 parentPrefix = aj.prefix();
             }
+        }
+
+        // 2a-x. SECOND head identities on one physical slot: an extra
+        // prefixed join per identity, from the SAME nav material — the
+        // dotted chainPrefix keys its own temporal spec, a lifted
+        // predicate parks inside the target (the slot route's exact
+        // semantics, join identity aside).
+        for (var extra : extraNavHeads.entrySet()) {
+            String headKey = extra.getKey();
+            String alias = extra.getValue();
+            var nav = navSteps.get(alias);
+            String targetClass = ((com.legend.compiler.spec.typed.TypedGetAll)
+                    nav.target()).classFqn();
+            ClassSource target = sources.get(cs.mappingFqn(), targetClass);
+            Pipelines.Materialized mat = navTargetMaterialized(cs.mappingFqn(),
+                    targetClass,
+                    extraNavTails.getOrDefault(headKey, java.util.List.of()),
+                    headKey, null);
+            // the slot route's root stamp comes from the outer join-walk
+            // (navPrefixToChain); an extra join never passes it — stamp
+            // here, exactly the association route's emission
+            TypedSpec tPipe = temporalTargetPipe(cs, target, headKey,
+                    applyJoinTemporalFilters(mat.pipeline(), target,
+                            java.util.Map.of()));
+            TypedLambda lp = syntheticHeadPreds.get(headKey);
+            if (lp != null) {
+                tPipe = predFilteredPipe(tPipe, target, mat.slotPrefixes(),
+                        lp, cs.mappingFqn());
+            }
+            AssocJoin aj = new AssocJoin(prefixFor(headKey, cs), target, tPipe,
+                    (com.legend.compiler.element.type.Type.RelationType)
+                            tPipe.info().type(),
+                    nav.predicate(), mat.slotPrefixes());
+            assocJoins.add(aj);
+            assocs.put(headKey, new Substitution.AssocSub(aj.prefix(),
+                    target.rowVar(), target.bindings(), target.classFqn(),
+                    Pipelines.slotAliases(target.pipeline()),
+                    mat.slotPrefixes(), null, null,
+                    milestoneColumnsOf(target.pipeline(), target.classFqn())));
         }
 
         // 2a'. JOIN-KEY COLLECTION under mapping ~distinct (engine L5135):
@@ -2861,11 +2969,106 @@ public final class StoreResolver {
         };
     }
 
-    /** A synthetic head's underlying property name ({@code product#f0} →
-     * {@code product}); identity for ordinary heads. */
+    /** A synthetic head's underlying property name ({@code product#f0} /
+     * {@code product#d1} → {@code product}); identity for ordinary heads. */
     private static String realHead(String head) {
-        int i = head.indexOf("#f");
+        int i = head.indexOf('#');
         return i < 0 ? head : head.substring(0, i);
+    }
+
+    /** Apply {@code renames} (identity-keyed milestoned-access nodes →
+     * date-fingerprinted synthetic names) throughout the tree. */
+    private TypedSpec replaceDatedNodes(TypedSpec n,
+            java.util.IdentityHashMap<TypedSpec, String> renames) {
+        String newName = renames.get(n);
+        if (newName != null) {
+            var ma = (com.legend.compiler.spec.typed.TypedMilestonedAccess) n;
+            return new com.legend.compiler.spec.typed.TypedMilestonedAccess(
+                    replaceDatedNodes(ma.source(), renames), newName,
+                    ma.dates(), ma.sweep(), ma.info());
+        }
+        return rebuildChildren(n, c -> replaceDatedNodes(c, renames));
+    }
+
+    /**
+     * ONE-LEVEL generic rebuild: {@code f} applies to every child
+     * expression (lambda bodies included; lambda/column structure is
+     * preserved). Unknown node kinds pass through UNCHANGED — walkers
+     * built on this are best-effort by design (an unvisited shape keeps
+     * its loud downstream error, never silent SQL).
+     */
+    private static TypedSpec rebuildChildren(TypedSpec n,
+            java.util.function.UnaryOperator<TypedSpec> f) {
+        return switch (n) {
+            case com.legend.compiler.spec.typed.TypedProject p ->
+                    new com.legend.compiler.spec.typed.TypedProject(
+                            f.apply(p.source()),
+                            p.columns().stream().map(c ->
+                                    new com.legend.compiler.spec.typed.TypedFuncCol(
+                                            c.name(), (TypedLambda) f.apply(c.fn())))
+                                    .toList(),
+                            p.info());
+            case TypedFilter fl -> new TypedFilter(f.apply(fl.source()),
+                    (TypedLambda) f.apply(fl.predicate()), fl.info());
+            case TypedSortBy sb -> new TypedSortBy(f.apply(sb.source()),
+                    (TypedLambda) f.apply(sb.key()), sb.ascending(), sb.info());
+            case TypedLimit l -> new TypedLimit(f.apply(l.source()),
+                    l.count(), l.info());
+            case TypedDrop d -> new TypedDrop(f.apply(d.source()),
+                    d.count(), d.info());
+            case TypedSlice sl -> new TypedSlice(f.apply(sl.source()),
+                    sl.start(), sl.stop(), sl.info());
+            case TypedFrom fr -> new TypedFrom(f.apply(fr.source()),
+                    fr.mapping(), fr.runtime(), fr.info());
+            case TypedLambda l -> new TypedLambda(l.parameters(),
+                    l.body().stream().map(f).toList(), l.info());
+            case com.legend.compiler.spec.typed.TypedNativeCall c ->
+                    new com.legend.compiler.spec.typed.TypedNativeCall(c.callee(),
+                            c.args().stream().map(f).toList(), c.info());
+            case com.legend.compiler.spec.typed.TypedPropertyAccess pa ->
+                    new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                            f.apply(pa.source()), pa.property(), pa.info());
+            case com.legend.compiler.spec.typed.TypedMilestonedAccess ma ->
+                    new com.legend.compiler.spec.typed.TypedMilestonedAccess(
+                            f.apply(ma.source()), ma.property(),
+                            ma.dates(), ma.sweep(), ma.info());
+            case com.legend.compiler.spec.typed.TypedMap m ->
+                    new com.legend.compiler.spec.typed.TypedMap(
+                            f.apply(m.source()),
+                            (TypedLambda) f.apply(m.mapper()), m.info());
+            case com.legend.compiler.spec.typed.TypedIf i ->
+                    new com.legend.compiler.spec.typed.TypedIf(
+                            f.apply(i.condition()), f.apply(i.thenBranch()),
+                            i.elseBranch().map(f), i.info());
+            case com.legend.compiler.spec.typed.TypedCollection c ->
+                    new com.legend.compiler.spec.typed.TypedCollection(
+                            c.elements().stream().map(f).toList(), c.info());
+            case com.legend.compiler.spec.typed.TypedCast c ->
+                    new com.legend.compiler.spec.typed.TypedCast(
+                            f.apply(c.source()), c.target(), c.info());
+            default -> n;
+        };
+    }
+
+    /** Milestoned accesses grouped by their dotted chain (mirrors
+     * {@link #collectTemporalNodes}'s walk — anything the conflict
+     * detector would see, the date splitter sees first). */
+    private static void collectDatedNodes(TypedSpec n, String userVar,
+            java.util.Map<String, java.util.List<com.legend.compiler.spec.typed
+                    .TypedMilestonedAccess>> out) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedMilestonedAccess ma) {
+            java.util.List<String> p = Substitution.pathOf(ma, userVar);
+            if (p != null) {
+                out.computeIfAbsent(String.join(".", p),
+                        k -> new ArrayList<>()).add(ma);
+            }
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(userVar)) {
+            return;
+        }
+        for (TypedSpec c : n.children()) {
+            collectDatedNodes(c, userVar, out);
+        }
     }
 
     /**
