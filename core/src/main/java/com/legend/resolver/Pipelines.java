@@ -493,17 +493,45 @@ final class Pipelines {
         if (missing.isEmpty()) {
             return pipeline;
         }
-        return widenUnionSide(cat, missing);
+        // Flatten the left-deep concatenate: member ordinal i = the i-th
+        // thread = the engine's `<col>_<i>` key-column suffix.
+        List<TypedSpec> members = new ArrayList<>();
+        flattenConcatenate(cat, members);
+        List<TypedSpec> widened = new ArrayList<>(members.size());
+        for (int i = 0; i < members.size(); i++) {
+            widened.add(widenUnionMember(members.get(i), i, members, missing));
+        }
+        TypedSpec out = widened.get(0);
+        for (int i = 1; i < widened.size(); i++) {
+            out = new com.legend.compiler.spec.typed.TypedConcatenate(out,
+                    widened.get(i),
+                    new ExprType(out.info().type(), Multiplicity.Bounded.ONE));
+        }
+        return out;
     }
 
-    /** Append {@code missing} member-column reads to each union member. */
-    private static TypedSpec widenUnionSide(TypedSpec side, List<String> missing) {
-        if (side instanceof com.legend.compiler.spec.typed.TypedConcatenate cat) {
-            TypedSpec left = widenUnionSide(cat.left(), missing);
-            return new com.legend.compiler.spec.typed.TypedConcatenate(
-                    left, widenUnionSide(cat.right(), missing),
-                    new ExprType(left.info().type(), Multiplicity.Bounded.ONE));
+    private static void flattenConcatenate(TypedSpec n, List<TypedSpec> out) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedConcatenate cat) {
+            flattenConcatenate(cat.left(), out);
+            flattenConcatenate(cat.right(), out);
+        } else {
+            out.add(n);
         }
+    }
+
+    /**
+     * Append {@code missing} key columns to member {@code ordinal}'s
+     * projection. Two spellings:
+     * <ul>
+     *   <li>a PLAIN column name — every member reads its own physical
+     *       column (the shared-key form; a member lacking it is loud);</li>
+     *   <li>{@code <col>_<i>} — a PARTIAL-route key (engine suffix): member
+     *       {@code i} reads its physical {@code <col>}, every other member
+     *       contributes a typed NULL (un-routed threads must not match).</li>
+     * </ul>
+     */
+    private static TypedSpec widenUnionMember(TypedSpec side, int ordinal,
+            List<TypedSpec> members, List<String> missing) {
         if (!(side instanceof com.legend.compiler.spec.typed.TypedProject p)) {
             throw new com.legend.error.NotImplementedException(
                     "a navigation join over this union demands key columns "
@@ -517,18 +545,47 @@ final class Pipelines {
         List<Type.Column> outCols = new ArrayList<>(
                 ((Type.RelationType) p.info().type()).columns());
         for (String c : missing) {
-            Type.Column src = null;
-            for (Type.Column sc : srcRow.columns()) {
-                if (sc.name().equals(c)) {
-                    src = sc;
-                    break;
+            int routed = -1;
+            String base = c;
+            var m = java.util.regex.Pattern.compile("^(.*)_(\\d+)$").matcher(c);
+            if (m.matches() && columnOf(srcRow, c) == null) {
+                int i = Integer.parseInt(m.group(2));
+                if (i < members.size()
+                        && members.get(i) instanceof com.legend.compiler.spec.typed
+                                .TypedProject rp
+                        && columnOf((Type.RelationType) rp.source().info().type(),
+                                m.group(1)) != null) {
+                    routed = i;
+                    base = m.group(1);
                 }
+            }
+            Type.Column src = columnOf(srcRow, base);
+            if (routed >= 0 && routed != ordinal) {
+                // un-routed thread: typed NULL under the suffixed name
+                Type.Column onRouted = columnOf((Type.RelationType)
+                        ((com.legend.compiler.spec.typed.TypedProject)
+                                members.get(routed)).source().info().type(), base);
+                ExprType nullType = new ExprType(onRouted.type(),
+                        new Multiplicity.Bounded(0, 0));
+                var fnType = new Type.FunctionType(
+                        List.of(new Type.Param(srcRow, Multiplicity.Bounded.ONE)),
+                        new Type.Param(onRouted.type(),
+                                new Multiplicity.Bounded(0, 1)));
+                newCols.add(new com.legend.compiler.spec.typed.TypedFuncCol(c,
+                        new com.legend.compiler.spec.typed.TypedLambda(
+                                List.of("u_k"),
+                                List.of(new com.legend.compiler.spec.typed
+                                        .TypedCollection(List.of(), nullType)),
+                                new ExprType(fnType, Multiplicity.Bounded.ONE))));
+                outCols.add(new Type.Column(c, onRouted.type(),
+                        new Multiplicity.Bounded(0, 1)));
+                continue;
             }
             if (src == null) {
                 throw new com.legend.error.NotImplementedException(
                         "a navigation join over this union demands key column '"
                         + c + "', which union member rows do not all carry;"
-                        + " per-member suffixed keys are not supported yet");
+                        + " heterogeneous member keys are not supported yet");
             }
             String v = "u_k";
             ExprType colType = new ExprType(src.type(), src.multiplicity());
@@ -548,6 +605,15 @@ final class Pipelines {
         return new com.legend.compiler.spec.typed.TypedProject(p.source(), newCols,
                 new ExprType(new Type.RelationType(outCols),
                         Multiplicity.Bounded.ONE));
+    }
+
+    private static Type.Column columnOf(Type.RelationType row, String name) {
+        for (Type.Column c : row.columns()) {
+            if (c.name().equals(name)) {
+                return c;
+            }
+        }
+        return null;
     }
 
     /** Join-slot aliases whose targets are CLASS-EXTENT-free — the slots

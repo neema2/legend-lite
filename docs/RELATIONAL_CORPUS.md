@@ -131,7 +131,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 47 | 0 | 0 | 0 | 47 |
-| milestoning/tests | 221 | 67 | 7 | 94 | 53 |
+| milestoning/tests | 221 | 81 | 7 | 80 | 53 |
 | modelJoins | 7 | 0 | 0 | 1 | 6 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 0 | 7 |
@@ -171,14 +171,14 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/selfJoin | 3 | 0 | 0 | 3 | 0 |
 | tests/mapping/sqlFunction | 72 | 57 | 0 | 3 | 12 |
 | tests/mapping/tree | 12 | 0 | 0 | 12 | 0 |
-| tests/mapping/union | 124 | 23 | 2 | 79 | 20 |
+| tests/mapping/union | 124 | 24 | 2 | 78 | 20 |
 | tests/mapping/union/relation | 15 | 0 | 0 | 13 | 2 |
 | tests/platformOperations | 4 | 0 | 0 | 4 | 0 |
 | tests/query | 83 | 53 | 2 | 21 | 7 |
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **558** | 32 | 863 | 839 |
+| **total** | 2292 | **573** | 32 | 848 | 839 |
 
 ### mapping walls (dropped at assembly)
 
@@ -303,6 +303,7 @@ runner does not yet recognize (accounted, not skipped silently).
 
 - 43x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - 39x unknown class 'TDSNull' in ^TDSNull(…)
+- 22x a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
 - 19x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 18x a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - 14x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
@@ -311,15 +312,12 @@ runner does not yet recognize (accounted, not skipped silently).
 - 10x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[function=if, parameters=[AppliedFunction[function=equal, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=active], CString[value=Y]]], LambdaFunction[parameters=[], body=[CString[value=true]]], LambdaFunction[parameters=[], body=[CString[value=false]]]]]]])
 - 9x class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - 9x navigation through class-typed slot property 'address' is not supported yet
-- 9x association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
 - 8x [3247:0] unsupported top-level keyword: PAREN_CLOSE (')')
 - 8x relation has no column 'aID'
-- 8x association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion'
 - 7x object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - 7x lowering not yet implemented for TypedNativeCall
 - 7x [2547:78] expected GREATER_THAN but found PIPE ('|')
 - 7x no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
-- 7x in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
 - 7x association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionToUnionMapping'
 - 6x unknown function 'ytd'
 - 6x filter predicate references column 'firm_employees', unresolvable even after isolation
@@ -331,6 +329,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - 6x property 'b' of class 'meta::relational::tests::mapping::union::sqlQueryMerging::model::A' is not mapped in mapping 'meta::relational::tests::mapping::union::sqlQueryMerging::mapping::unionMapping'
 - 5x no overload of 'groupBy' matches the argument types
 - 5x property 'stockProductName' of class 'meta::relational::tests::milestoning::Product' is mapped through the target's own join slots; nested navigation joins are not supported in this position yet
+- 5x unknown function 'columnValues'
+- 5x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
 
 ### per-test outcomes (non-passing)
 
@@ -762,7 +762,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMostRecentDayOfWeekWithDate [functions/tests/projection]: unknown function 'mostRecentDayOfWeek'
 - ERROR testPreviousDayOfWeekWithDate [functions/tests/projection]: unknown function 'previousDayOfWeek'
 - ERROR testSimpleExists [functions/tests/projection]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
-- ERROR testExistsAsNullWithSubType [functions/tests/projection]: property 'functions' of class 'meta::relational::tests::projection::exists::MyClass' has no binding in mapping 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- ERROR testExistsAsNullWithSubType [functions/tests/projection]: in function 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes$class$meta::relational::tests::projection::exists::ClassFunction': property 'fnScope' of 'meta::relational::tests::projection::exists::ClassFunction': expected meta::relational::tests::projection::exists::FunctionSc
 - ERROR testSavedRootPropogatedCorrectlyThroughFilter [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testChainedFiltersQuery [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testChainedFiltersGet [functions/tests/projection]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
@@ -973,17 +973,12 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testNestedExists_NestedExistsWithEmbeddedMappingInProject [milestoning/tests]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'Child_Leaf' (the demand scan and the rewrite disagreed)
 - ERROR testDerivedPropertyOnNonTemporalClassWithMilestonedChain [milestoning/tests]: milestoned property access 'leaves' on a NESTED navigation is not supported yet
 - SHAPE testGraphFetchMultiPrimitiveOnInlineChild [milestoning/tests]: assert form 'assertJsonStringsEqual/2' is not supported yet
-- ERROR testQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: property 'product' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap'
-- ERROR testQueryWithPropagationOnTemporalRoot [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap'
-- ERROR testQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: property 'product' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap'
+- ERROR testQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: multi-hop navigation product.classification.description through an embedded/slot head is not supported yet
 - ERROR testUnionQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: property 'product' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningUnionMap'
 - ERROR testUnionQueryWithPropagationOnTemporalRoot [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningUnionMap'
 - ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: property 'product' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningUnionMap'
-- ERROR testBuisnessSnapshotRangeQueryOnProperty [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap'
-- ERROR testBuisnessSnapshotRangeQueryOnRootAndProperty [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap'
 - ERROR testDateTimeVariableMilestoningParam [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::Product' with a non-literal date is not supported yet
-- ERROR testDateTimeMilestoningParamPropagation [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap'
-- ERROR testDateTimeVariableMilestoningParamPropagation [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::Product' with a non-literal date is not supported yet
+- ERROR testDateTimeVariableMilestoningParamPropagation [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::ProductClassification' with a non-literal date is not supported yet
 - ERROR testDateTimeMilestoningParamUnion [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningUnionMap'
 - ERROR testDateTimeVariableMilestoningParamUnion [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::Product' with a non-literal date is not supported yet
 - SHAPE testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -1008,27 +1003,18 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMilestoningContextPropagatedThroughToLeftSideOfQualifiedPropertyFilter [milestoning/tests]: property 'stockProductName' of class 'meta::relational::tests::milestoning::Product' is mapped through the target's own join slots; nested navigation joins are not supported in this position yet
 - ERROR testMilestoningContextPropagatedFromMilestoningQualifiedPropertyWithArgToNoArgMilestonedQualifiedPropertyInProjectPath [milestoning/tests]: [4:152] navigation path segment 'classification(%2016-10-16)' uses an unsupported path feature (only plain property segments desugar): #/Product/classification(%2016-10-16)/exchange/name#
 - ERROR testCurrentMappingPropagationThroughMilestonedQualifiedPropertyWithEmbeddedLeftSideToSubsequentPropertyInProjectPath [milestoning/tests]: multi-hop navigation classification.system.name through an embedded/slot head is not supported yet
-- ERROR testInFromInclusive [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::InFromInclusiveMapping'
-- ERROR testInThruInclusive [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::InThruInclusiveMapping'
-- ERROR testOutFromInclusive [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::OutFromInclusiveMapping'
-- ERROR testOutThruInclusive [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::OutThruInclusiveMapping'
 - ERROR testInThruInclusiveUnionInThruInclusive [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::InThruInclusiveUnionInThruInclusiveMapping'
 - ERROR testOutFromInclusiveUnionOutFromInclusive [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::OutFromInclusiveUnionOutFromInclusiveMapping'
 - SHAPE testAssoWithOtherwise [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testAssoWithOtherwiseDeep [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testProcessingTemporalPropertyQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testProcessingTemporalPropertyPropagationInQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: property 'processingTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMap'
-- ERROR testQueryWithPropagationOnTemporalRoot [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMap'
-- ERROR testQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: property 'processingTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMap'
+- ERROR testQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: multi-hop navigation processingTemporalProduct.classification.description through an embedded/slot head is not supported yet
 - ERROR testUnionQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: property 'processingTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningUnionMap'
 - ERROR testUnionQueryWithPropagationOnTemporalRoot [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningUnionMap'
 - ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: property 'processingTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningUnionMap'
-- ERROR testProcessingSnapshotRangeQueryOnProperty [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMap'
-- ERROR testProcessingSnapshotRangeQueryOnRootAndProperty [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMap'
 - ERROR testDateTimeVariableMilestoningParam [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProduct' with a non-literal date is not supported yet
-- ERROR testDateTimeMilestoningParamPropagation [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMap'
-- ERROR testDateTimeVariableMilestoningParamPropagation [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProduct' with a non-literal date is not supported yet
+- ERROR testDateTimeVariableMilestoningParamPropagation [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProductClassification' with a non-literal date is not supported yet
 - ERROR testDateTimeMilestoningParamUnion [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningUnionMap'
 - ERROR testDateTimeVariableMilestoningParamUnion [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProduct' with a non-literal date is not supported yet
 - ERROR testBusinessDateForAllVersions [milestoning/tests]: property 'businessDate' of class 'meta::relational::tests::milestoning::ProductSynonym' has no binding in mapping 'meta::relational::tests::milestoning::milestoningmap' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
@@ -1500,15 +1486,15 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testPersonToFirmLocationsInlineEmbedded [tests/mapping/association]: 'associationMappingInlinedEmbedded' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testFirmToEmployeesIncludes [tests/mapping/association]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::association::associationMappingWithIncludes'
 - ERROR testPersonToFirmIncludes [tests/mapping/association]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::association::associationMappingWithIncludes'
-- ERROR testProjectTwoLambdas [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
-- ERROR testGroupBy [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
+- ERROR testProjectTwoLambdas [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
+- ERROR testGroupBy [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
 - SHAPE testBuilderRoutingOfAggFunctionParameters [tests/mapping/association]: unsupported statement: println
-- ERROR testQuery [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
-- ERROR testFilterProject [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
-- ERROR testFilterProjectBooleanInFilter [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
+- ERROR testQuery [tests/mapping/association]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::association::inheritence::childMapping' failed to normalize this class: Join 'PersonCar' not found in
+- ERROR testFilterProject [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
+- ERROR testFilterProjectBooleanInFilter [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
 - ERROR testGetAllFilterWithAssociation [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::inheritence::assocMapping$class$meta::relational::tests::model::inheritance::RoadVehicle': unknown table 'Bicycle' in database 'myDB'
-- ERROR testSubTypeFilter [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
-- ERROR testSubTypeProjectWithAssociation [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
+- ERROR testSubTypeFilter [tests/mapping/association]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::association::inheritence::childMapping' failed to normalize this class: Join 'PersonCar' not found in
+- ERROR testSubTypeProjectWithAssociation [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
 - ERROR testSubTypeProjectSharedNonDirectlyRouted [tests/mapping/association]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testSubTypeInColumnProjectionsWithInlineMappings [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Vehicle' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::ineritanceMappingWithInlineEmbeddedSets'
 - ERROR testRootQueryWithInnerJoinClassMappingTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: 'baseMappingWithInnerJoinInFilter' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
@@ -1602,44 +1588,44 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testGroupByMappingProjectWithGroupByInJoin [tests/mapping/groupBy]: class 'meta::relational::tests::mapping::groupBy::model::domain::Position' is not mapped in mapping 'meta::relational::tests::mapping::groupBy::model::mapping::testMapping'
 - ERROR testGroupByMappingProjectWithMultipleGroupBys [tests/mapping/groupBy]: class 'meta::relational::tests::mapping::groupBy::model::domain::Position' is not mapped in mapping 'meta::relational::tests::mapping::groupBy::model::mapping::testMappingWithTwoGroupBysAndFilters'
 - SHAPE testStoreSubstitution [tests/mapping/include]: no execute(|...) call
-- ERROR testAssociation [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross'
-- ERROR testGroupBy [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross'
-- ERROR testProjectAssociation [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross'
-- ERROR testProjectAssociationTdsV2 [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross'
-- ERROR testProjectTwoLambdas [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross'
-- ERROR testProjectTwoLambdas [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
-- ERROR testGroupBy [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
-- ERROR testQuery [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
-- ERROR testFilterProject [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
-- ERROR testFilterProjectBooleanInFilter [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
+- ERROR testAssociation [tests/mapping/inheritance]: a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
+- ERROR testGroupBy [tests/mapping/inheritance]: a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
+- ERROR testProjectAssociation [tests/mapping/inheritance]: a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
+- ERROR testProjectAssociationTdsV2 [tests/mapping/inheritance]: a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
+- ERROR testProjectTwoLambdas [tests/mapping/inheritance]: a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
+- ERROR testProjectTwoLambdas [tests/mapping/inheritance]: a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
+- ERROR testGroupBy [tests/mapping/inheritance]: a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
+- ERROR testQuery [tests/mapping/inheritance]: a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
+- ERROR testFilterProject [tests/mapping/inheritance]: a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
+- ERROR testFilterProjectBooleanInFilter [tests/mapping/inheritance]: a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
 - ERROR testGetAll [tests/mapping/inheritance]: no SQL type for generic Class<meta::relational::tests::model::inheritance::RoadVehicle> at the lowering boundary
 - ERROR testGetAllFilterWithAssociation [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
-- ERROR testSubTypeFilter [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
-- ERROR testSubTypeProjectWithAssociation [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
+- ERROR testSubTypeFilter [tests/mapping/inheritance]: a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
+- ERROR testSubTypeProjectWithAssociation [tests/mapping/inheritance]: a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
 - ERROR testSubTypeProjectDirect [tests/mapping/inheritance]: object-space use of the instance variable '$r' other than property access is not supported yet
-- ERROR testSubTypeProjectShared [tests/mapping/inheritance]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
+- ERROR testSubTypeProjectShared [tests/mapping/inheritance]: a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
 - ERROR testSubTypeProjectSharedNonDirectlyRouted [tests/mapping/inheritance]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testSubTypeGroupBy [tests/mapping/inheritance]: expected at most one value, got many ([*])
 - ERROR testSubTypeGroupByThroughMap [tests/mapping/inheritance]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testFilteringOnColumnsNotInProject [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
-- ERROR testEmbeddMappingInSubTypes [tests/mapping/inheritance]: property 'vehicles' of class 'meta::relational::tests::model::inheritance::Person' has no binding in mapping 'meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- ERROR testEmbeddMappingInSubTypes [tests/mapping/inheritance]: class-typed property '$f.vehicles' used as a whole value is graph output (Phase H4)
 - ERROR testMilestonedSubTyping [tests/mapping/inheritance]: 'MilestonedInheritanceMapping' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testMilestonedSubTypingWithDifferentDates [tests/mapping/inheritance]: 'MilestonedInheritanceMapping' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testProjectAssociation [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::multiJoins::inheritance'
+- ERROR testProjectAssociation [tests/mapping/inheritance]: a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
 - ERROR testSubTypeProjectDirect [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::multiJoins::inheritance'
 - ERROR testForcedSubTypeProjectDirect [tests/mapping/inheritance]: object-space use of the instance variable '$r' other than property access is not supported yet
 - ERROR testSubTypeProjectSharedNonDirectlyRouted [tests/mapping/inheritance]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testProjectTwoLambdas [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion'
-- ERROR testGroupBy [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion'
-- ERROR testQuery [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion'
-- ERROR testFilterProject [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion'
-- ERROR testFilterProjectBooleanInFilter [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion'
+- ERROR testProjectTwoLambdas [tests/mapping/inheritance]: a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
+- ERROR testGroupBy [tests/mapping/inheritance]: a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
+- ERROR testQuery [tests/mapping/inheritance]: a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
+- ERROR testFilterProject [tests/mapping/inheritance]: a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
+- ERROR testFilterProjectBooleanInFilter [tests/mapping/inheritance]: a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
 - ERROR testGetAll [tests/mapping/inheritance]: no SQL type for generic Class<meta::relational::tests::model::inheritance::RoadVehicle> at the lowering boundary
 - ERROR testGetAllFilterWithAssociation [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion'
-- ERROR testSubTypeFilter [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion'
-- ERROR testSubTypeProjectWithAssociation [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion'
+- ERROR testSubTypeFilter [tests/mapping/inheritance]: a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
+- ERROR testSubTypeProjectWithAssociation [tests/mapping/inheritance]: a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
 - ERROR testSubTypeProjectDirect [tests/mapping/inheritance]: object-space use of the instance variable '$r' other than property access is not supported yet
-- ERROR testSubTypeProjectShared [tests/mapping/inheritance]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
+- ERROR testSubTypeProjectShared [tests/mapping/inheritance]: a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
 - ERROR testSubTypeProjectSharedNonDirectlyRouted [tests/mapping/inheritance]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testProjectSubtype [tests/mapping/inheritance]: class-typed property '$t.product' used as a whole value is graph output (Phase H4)
 - ERROR testSubTypeMappingValidWhenMappedExplicitly [tests/mapping/inheritance]: unknown function '_classMappingByClass'
@@ -1884,10 +1870,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSQLQueryMergingForInnerJoins2 [tests/mapping/union]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR testSimpleQueryUnionToUnionOptimized [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::optimized::unionToUnionMappingOptimized'
 - ERROR testSimpleQueryUnionToUnionOptimizedHalf [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::optimized::unionToUnionMappingOptimizedHalf'
-- ERROR testSimpleQueryTo [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::partial::unionMapping'
-- ERROR testProject [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::partial::unionMapping'
-- ERROR testProjectShareSet [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::partial::unionMapping'
-- ERROR testProjectAutoMap [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::partial::unionMapping'
+- ERROR testProject [tests/mapping/union]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
+- ERROR testProjectShareSet [tests/mapping/union]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
+- ERROR testProjectAutoMap [tests/mapping/union]: in call to 'meta::pure::functions::string::toString', argument 1: expected at most one value, got many ([*])
 - SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_AddressIdKey [tests/mapping/union]: unsupported statement: meta::relational::functions::asserts::assertSameSQL
 - SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_FirmIdKey_Unmapped [tests/mapping/union]: unsupported statement: meta::relational::functions::asserts::assertSameSQL
 - SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_FirmIdKey_Mapped [tests/mapping/union]: unsupported statement: meta::relational::functions::asserts::assertSameSQL

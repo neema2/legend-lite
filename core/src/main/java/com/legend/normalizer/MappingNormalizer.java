@@ -431,6 +431,70 @@ public final class MappingNormalizer {
     }
 
     /**
+     * Rewrite the condition's target-side reads ({@code $t.COL}) to the
+     * member-suffixed spelling ({@code $t.COL_<ord>}), collecting
+     * physical&rarr;suffixed names. Closed vocabulary, loud default —
+     * join conditions are comparisons/boolean ops over column reads and
+     * literals; anything else is a shape this route cannot suffix yet.
+     */
+    private static ValueSpecification suffixTargetReads(ValueSpecification n,
+            Variable t, int ord, Map<String, String> out) {
+        if (n instanceof AppliedProperty ap
+                && ap.receiver() instanceof Variable v
+                && v.name().equals(t.name())) {
+            String suffixed = ap.property() + "_" + ord;
+            out.put(ap.property(), suffixed);
+            return new AppliedProperty(v, suffixed);
+        }
+        return switch (n) {
+            case AppliedFunction af -> new AppliedFunction(af.function(),
+                    af.parameters().stream().map(x ->
+                            suffixTargetReads(x, t, ord, out)).toList());
+            case AppliedProperty ap -> new AppliedProperty(
+                    suffixTargetReads(ap.receiver(), t, ord, out), ap.property());
+            case Variable v -> v;
+            case CString ignored -> n;
+            case CInteger ignored -> n;
+            case com.legend.parser.spec.CFloat ignored -> n;
+            case com.legend.parser.spec.CDecimal ignored -> n;
+            case com.legend.parser.spec.CBoolean ignored -> n;
+            case com.legend.parser.spec.CDate ignored -> n;
+            case PureCollection pc -> new PureCollection(pc.values().stream()
+                    .map(x -> suffixTargetReads(x, t, ord, out)).toList());
+            default -> throw new com.legend.error.NotImplementedException(
+                    "partial-union route join condition carries a "
+                    + n.getClass().getSimpleName()
+                    + " — not suffixable yet");
+        };
+    }
+
+    /**
+     * The ordinal of {@code setId} among the member sets of the Union
+     * operation mapping {@code prop}'s declared target class — the position
+     * of that member's thread in the synthesized left-deep concatenate
+     * (and the engine's {@code _N} key-column suffix). {@code null} when
+     * the property isn't class-typed or no local Union covers the set.
+     */
+    private static Integer unionOrdinalOf(LegacyMappingDefinition md,
+            ModelBuilder model, String ownerClassFqn, String prop, String setId) {
+        ClassDefinition owner = model.findClass(ownerClassFqn).orElse(null);
+        TypeExpression t = owner == null ? null
+                : findPropertyTypeDeep(owner, prop, model);
+        if (!(t instanceof TypeExpression.NameRef nr)
+                || model.findClass(nr.name()).isEmpty()) {
+            return null;
+        }
+        for (ClassMapping cm : md.classMappings()) {
+            if (cm instanceof ClassMapping.Union u
+                    && u.className().equals(nr.name())) {
+                int i = u.memberSetIds().indexOf(setId);
+                return i >= 0 ? i : null;
+            }
+        }
+        return null;
+    }
+
+    /**
      * Whether every set-qualified duplicate of {@code propName} is a
      * single-hop {@code @Join} whose condition is structurally identical to
      * the first's modulo table names, with the SAME column names on both
@@ -601,10 +665,18 @@ public final class MappingNormalizer {
         for (PropertyMapping pm : child.propertyMappings()) {
             merged.put(pm.propertyName(), pm);
         }
+        // prop[setId] routes do NOT inherit: the parent's set ids name the
+        // PARENT mapping's sets — a child that re-unions its own members
+        // (Person[mySet1] extends [set1]) can't resolve them, and the
+        // name-keyed merge already collapsed multi-route PMs to one, whose
+        // parent route would mis-read as a PARTIAL union route (wrong rows).
+        // The child's own routes are authoritative; inherited multi-route
+        // properties keep the merged single PM (equivalent-join shape).
         return new ClassMapping.Relational(
                 child.className(), child.setId(), child.extendsSetId(), child.root(),
                 child.mainTable(), child.filter(), child.distinct(), child.groupBy(),
-                child.primaryKey(), new ArrayList<>(merged.values()), child.sourceUrl());
+                child.primaryKey(), new ArrayList<>(merged.values()), child.sourceUrl(),
+                child.propertyTargetSets());
     }
 
     // ====================================================================
@@ -646,7 +718,8 @@ public final class MappingNormalizer {
                 rewritten.add(new ClassMapping.Relational(
                         rcm.className(), rcm.setId(), rcm.extendsSetId(), rcm.root(),
                         rcm.mainTable(), rcm.filter(), rcm.distinct(), rcm.groupBy(),
-                        rcm.primaryKey(), pms, rcm.sourceUrl()));
+                        rcm.primaryKey(), pms, rcm.sourceUrl(),
+                        rcm.propertyTargetSets()));
             } else {
                 rewritten.add(cm);
             }
@@ -730,12 +803,17 @@ public final class MappingNormalizer {
             // poison ledger; DEMANDING it fails loudly at no-binding.
             java.util.Set<String> dropped = new java.util.LinkedHashSet<>();
             java.util.Set<String> collapse = new java.util.LinkedHashSet<>();
+            Map<String, String> partial = new LinkedHashMap<>();
             for (var e : r.propertyTargetSets().entrySet()) {
                 ClassMapping target = md.classMappings().stream()
                         .filter(x -> e.getValue().equals(setIdOf(x)))
                         .findFirst().orElse(null);
+                // engine rootClassMappingByClass: the * set, or the class's
+                // SOLE set (explicit ids without * are the corpus norm)
                 boolean rootTarget = target instanceof ClassMapping.Relational tr
-                        && tr.root();
+                        && (tr.root() || md.classMappings().stream()
+                                .filter(x -> x.className().equals(tr.className()))
+                                .count() == 1);
                 if (target != null && rootTarget) {
                     continue;
                 }
@@ -744,6 +822,19 @@ public final class MappingNormalizer {
                                 && u.memberSetIds().contains(e.getValue()));
                 if (unionMember && equivalentMemberJoins(r, e.getKey(), md, model)) {
                     collapse.add(e.getKey());
+                    continue;
+                }
+                // PARTIAL route: ONE set-qualified PM to one union member —
+                // kept; the navigate emits member-suffixed key reads so only
+                // the routed member's thread matches (un-routed members read
+                // NULL; the TDSNull goldens). The route survives on the
+                // rebuilt propertyTargetSets for the emission to see.
+                if (unionMember
+                        && r.propertyMappings().stream().filter(pm ->
+                                pm.propertyName().equals(e.getKey())).count() == 1
+                        && unionOrdinalOf(md, model, r.className(),
+                                e.getKey(), e.getValue()) != null) {
+                    partial.put(e.getKey(), e.getValue());
                     continue;
                 }
                 dropped.add(e.getKey());
@@ -761,7 +852,7 @@ public final class MappingNormalizer {
                         md.qualifiedName() + "::" + cm.className(), reason,
                         (a, b) -> a + "; " + b);
             }
-            if (!dropped.isEmpty() || !collapse.isEmpty()) {
+            if (!dropped.isEmpty() || !collapse.isEmpty() || !partial.isEmpty()) {
                 java.util.Set<String> seenCollapsed = new java.util.HashSet<>();
                 List<PropertyMapping> kept = new ArrayList<>();
                 for (PropertyMapping pm : r.propertyMappings()) {
@@ -774,10 +865,12 @@ public final class MappingNormalizer {
                     }
                     kept.add(pm);
                 }
+                // only the PARTIAL routes survive on the rebuilt map — they
+                // are what the navigate emission member-suffixes
                 cm = new ClassMapping.Relational(r.className(), r.setId(),
                         r.extendsSetId(), r.root(), r.mainTable(), r.filter(),
                         r.distinct(), r.groupBy(), r.primaryKey(), kept,
-                        r.sourceUrl(), java.util.Map.of());
+                        r.sourceUrl(), partial);
             }
         }
         ValueSpecification body = switch (cm) {
@@ -1410,7 +1503,8 @@ public final class MappingNormalizer {
                 mr = new ClassMapping.Relational(mr.className(), mr.setId(),
                         mr.extendsSetId(), mr.root(), inferred, mr.filter(),
                         mr.distinct(), mr.groupBy(), mr.primaryKey(),
-                        mr.propertyMappings(), mr.sourceUrl());
+                        mr.propertyMappings(), mr.sourceUrl(),
+                        mr.propertyTargetSets());
             }
             if (model.findView(mr.mainTable().database(),
                     mr.mainTable().table()).isPresent()) {
@@ -1557,7 +1651,8 @@ public final class MappingNormalizer {
             rcm = new ClassMapping.Relational(rcm.className(), rcm.setId(),
                     rcm.extendsSetId(), rcm.root(), inferred, rcm.filter(),
                     rcm.distinct(), rcm.groupBy(), rcm.primaryKey(),
-                    rcm.propertyMappings(), rcm.sourceUrl());
+                    rcm.propertyMappings(), rcm.sourceUrl(),
+                    rcm.propertyTargetSets());
         }
         DatabaseDefinition.ViewDefinition view = model.findView(
                 rcm.mainTable().database(), rcm.mainTable().table()).orElse(null);
@@ -1786,7 +1881,7 @@ public final class MappingNormalizer {
                 rcm.className(), rcm.setId(), rcm.extendsSetId(), rcm.root(),
                 new LegacyMappingDefinition.TableReference(mainDb, physicalTable),
                 mergedFilter, mergedDistinct, mergedGroupBy, rcm.primaryKey(),
-                rewrittenPms, null);
+                rewrittenPms, null, rcm.propertyTargetSets());
         ValueSpecification body = synthTableBackedMapping(md, effective, model,
                 rcm.mainTable().table());
         // When BOTH a view filter and a mapping filter exist, the pipeline
@@ -1982,6 +2077,13 @@ public final class MappingNormalizer {
         // carries filter/distinct/groupBy — those row semantics already live
         // in the class pipeline; any OTHER non-plain view stays a wall.
         String backingView;
+        /** PARTIAL union routes: property name -> the target's union-member
+         * ORDINAL. The navigate for such a property emits its target-side
+         * key reads MEMBER-SUFFIXED ({@code FirmID_1}, the engine's own
+         * spelling) so only the routed member's thread carries the key —
+         * the other threads read NULL (partial-union golden: un-routed
+         * members must not match). */
+        final Map<String, Integer> partialUnionRouteOrdinal = new LinkedHashMap<>();
         Pipeline(ValueSpecification expr) { this.expr = expr; }
 
         /** The translator-facing view of this pipeline (seam b). */
@@ -2040,6 +2142,18 @@ public final class MappingNormalizer {
         Pipeline p = new Pipeline(new AppliedFunction("tableReference",
                 List.of(new PackageableElementPtr(mainDb), new CString(mainTable))));
         p.backingView = backingView;
+        // PARTIAL union routes surviving the pre-check ride the rebuilt
+        // propertyTargetSets: prop -> member setId. Resolve each to the
+        // member ORDINAL for the navigate emission (a root-set or
+        // non-union entry resolves to null and stays un-suffixed).
+        for (var e : rcm.propertyTargetSets().entrySet()) {
+            Integer ord = unionOrdinalOf(md, model, rcm.className(),
+                    e.getKey(), e.getValue());
+            if (ord != null && rcm.propertyMappings().stream().filter(pm ->
+                    pm.propertyName().equals(e.getKey())).count() == 1) {
+                p.partialUnionRouteOrdinal.put(e.getKey(), ord);
+            }
+        }
 
         // Pass 1: structural chain emission (Join, JoinTerminalColumn,
         // LocalProperty-wrapping-JTC). Class-typed Join PMs to mapped
@@ -2588,12 +2702,35 @@ public final class MappingNormalizer {
                 // thunk is the CLASS extent — spell the target's table row
                 // into the call so the cond lambda's T types (the same
                 // conform-by-emission cure as legacyAssocPredicate).
+                ValueSpecification targetRows = new AppliedFunction(
+                        "tableReference", List.of(
+                                new PackageableElementPtr(hopDb),
+                                new CString(targetTable)));
+                // PARTIAL union route: the target-side key reads suffix with
+                // the routed member's ordinal (engine `<col>_<i>`); only that
+                // member's thread carries the key, the others read NULL. The
+                // target-rows arg projects the suffixed schema so the cond
+                // types (conform by emission).
+                Integer unionOrd = propName == null ? null
+                        : p.partialUnionRouteOrdinal.get(propName);
+                LambdaFunction navCond = condLambda;
+                if (unionOrd != null) {
+                    Map<String, String> keyCols = new LinkedHashMap<>();
+                    ValueSpecification suffixed =
+                            suffixTargetReads(cond, t, unionOrd, keyCols);
+                    navCond = new LambdaFunction(List.of(s, t), List.of(suffixed));
+                    List<ColSpec> keySpecs = new ArrayList<>();
+                    for (var en : keyCols.entrySet()) {
+                        Variable kr = new Variable("kr");
+                        keySpecs.add(new ColSpec(en.getValue(),
+                                new LambdaFunction(List.of(kr), List.of(
+                                        new AppliedProperty(kr, en.getKey()))), null));
+                    }
+                    targetRows = new AppliedFunction("project",
+                            List.of(targetRows, new ColSpecArray(keySpecs)));
+                }
                 p.expr = new AppliedFunction("legacyNavigate",
-                        List.of(p.expr, slot,
-                                new AppliedFunction("tableReference", List.of(
-                                        new PackageableElementPtr(hopDb),
-                                        new CString(targetTable))),
-                                condLambda));
+                        List.of(p.expr, slot, targetRows, navCond));
                 p.classSlots.add(slotAlias);
             } else {
                 ValueSpecification targetRel = viewTarget != null
