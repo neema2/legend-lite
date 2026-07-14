@@ -2518,9 +2518,10 @@ public final class ElementParser implements TokenStreamCursor {
         // (currentTargetSets): the normalizer poisons the class when the
         // target id names a non-root set — silently navigating the root
         // set instead would be wrong rows.
+        String targetSetId = null;
         if (peek() == TokenType.BRACKET_OPEN) {
             advance();
-            String targetSetId = parseIdentifier();
+            targetSetId = parseIdentifier();
             if (match(TokenType.COMMA)) {
                 targetSetId = parseIdentifier();    // [source, TARGET]
             }
@@ -2528,7 +2529,9 @@ public final class ElementParser implements TokenStreamCursor {
             // prop[id]( ... ) — an EMBEDDED mapping's [id] names its OWN
             // set implementation (extends-override bookkeeping), not a
             // target-set route; recording it as one would drop the property.
-            if (currentTargetSets != null && peek() != TokenType.PAREN_OPEN) {
+            if (peek() == TokenType.PAREN_OPEN) {
+                targetSetId = null;
+            } else if (currentTargetSets != null) {
                 currentTargetSets.put(propName, targetSetId);
             }
         }
@@ -2536,7 +2539,14 @@ public final class ElementParser implements TokenStreamCursor {
             return parseEmbeddedPropertyMapping(propName, mainTable);
         }
         expect(TokenType.COLON);
-        return parsePropertyMappingBody(propName, mainTable);
+        PropertyMapping pm = parsePropertyMappingBody(propName, mainTable);
+        // the route rides the PM itself (per-duplicate fidelity — the
+        // name-keyed currentTargetSets map overwrites same-named routes)
+        if (targetSetId != null && pm instanceof PropertyMapping.Join j) {
+            pm = new PropertyMapping.Join(j.propertyName(), j.database(),
+                    j.joins(), targetSetId);
+        }
+        return pm;
     }
 
     /**

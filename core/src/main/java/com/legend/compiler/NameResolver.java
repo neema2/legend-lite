@@ -825,7 +825,8 @@ public final class NameResolver {
                 String db = resolveName(j.database(), scope);
                 List<JoinChainElement> joins = resolveJoinChain(j.joins(), scope);
                 yield (db.equals(j.database()) && joins == j.joins()) ? j
-                        : new PropertyMapping.Join(j.propertyName(), db, joins);
+                        : new PropertyMapping.Join(j.propertyName(), db, joins,
+                                j.targetSetId());
             }
             case PropertyMapping.JoinTerminalColumn jtc -> {
                 String db = resolveName(jtc.database(), scope);

@@ -133,8 +133,16 @@ public sealed interface PropertyMapping
      * @param propertyName  Pure property name
      * @param database      database the joins live in
      * @param joins         the join chain (always non-empty)
+     * @param targetSetId   the {@code prop[targetSetId]} routing of THIS
+     *                      mapping (engine: property mappings carry their own
+     *                      set routing), or {@code null} when unrouted. The
+     *                      name-keyed {@code propertyTargetSets} map cannot
+     *                      hold per-duplicate routes ({@code firm[s1]: @J1,
+     *                      firm[s2]: @J2} — put() overwrites), so union
+     *                      member dispatch reads THIS field.
      */
-    record Join(String propertyName, String database, List<JoinChainElement> joins)
+    record Join(String propertyName, String database, List<JoinChainElement> joins,
+                String targetSetId)
             implements PropertyMapping {
         public Join {
             Objects.requireNonNull(propertyName, "Property name cannot be null");
@@ -145,6 +153,11 @@ public sealed interface PropertyMapping
                         "Join property mapping must have at least one join hop");
             }
             joins = List.copyOf(joins);
+        }
+
+        /** Unrouted (no {@code [setId]}) — synthetic constructions keep this. */
+        public Join(String propertyName, String database, List<JoinChainElement> joins) {
+            this(propertyName, database, joins, null);
         }
     }
 

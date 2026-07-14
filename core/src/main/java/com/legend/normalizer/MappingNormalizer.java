@@ -1485,6 +1485,7 @@ public final class MappingNormalizer {
             String className, List<ClassMapping.Relational> memberSets,
             ModelBuilder model) {
         List<RelationalParts> parts = new ArrayList<>(memberSets.size());
+        List<ClassMapping.Relational> members = new ArrayList<>(memberSets.size());
         for (ClassMapping.Relational mrIn : memberSets) {
             ClassMapping.Relational mr = mrIn;
             String setId = mr.setId();
@@ -1512,6 +1513,7 @@ public final class MappingNormalizer {
                         "Operation union over a VIEW-backed member set is not"
                       + " supported yet; mapping=" + md.qualifiedName());
             }
+            members.add(mr);
             parts.add(synthTableBackedParts(md, mr, model, null));
         }
         // the UNION of the members' scalar property sets, first-appearance
@@ -1536,8 +1538,27 @@ public final class MappingNormalizer {
                     "Operation union members of '" + className
                   + "' map no scalar properties; mapping=" + md.qualifiedName());
         }
+        // ==== NAV LIFT (engine union model): the members' class-typed
+        // single-hop Join PMs lift to ONE legacyNavigate ON THE UNION —
+        // member i's thread carries its join keys member-suffixed
+        // (<col>_<i>, NULL in the other threads) and the navigate condition
+        // ORs the per-entry conditions (target side suffixed too when the
+        // entry routes to a union member of the TARGET class). Downstream,
+        // the union class then looks like any nav-slot class.
+        List<NavLift> lifts = collectNavLifts(md, className, members, model);
+        // ordinal -> (base column -> suffixed name): the source keys each
+        // member thread projects (its own reads; typed NULL elsewhere)
+        Map<Integer, Map<String, String>> srcKeysByOrdinal = new LinkedHashMap<>();
+        for (NavLift lf : lifts) {
+            for (var en : lf.srcKeysByOrdinal().entrySet()) {
+                srcKeysByOrdinal.computeIfAbsent(en.getKey(),
+                        k -> new LinkedHashMap<>()).putAll(en.getValue());
+            }
+        }
         ValueSpecification union = null;
+        int ordinal = -1;
         for (RelationalParts pp : parts) {
+            ordinal++;
             List<ColSpec> cols = new ArrayList<>(common.size());
             for (String prop : common) {
                 // member sets may disagree on the COLUMN kind (String col in
@@ -1569,10 +1590,36 @@ public final class MappingNormalizer {
                 cols.add(new ColSpec(prop, new LambdaFunction(
                         List.of(pp.rowBind()), List.of(value)), null));
             }
+            // lifted-navigation source keys: this thread reads its OWN key
+            // columns under their member-suffixed names; other ordinals'
+            // keys are typed NULL (nullable — no toOne wrap)
+            for (var en : srcKeysByOrdinal.entrySet()) {
+                for (var key : en.getValue().entrySet()) {
+                    ValueSpecification read = en.getKey() == ordinal
+                            ? new AppliedProperty(pp.rowBind(), key.getKey())
+                            : nullOfPhysicalKind(members.get(en.getKey()),
+                                    key.getKey(), md, model);
+                    // toOne types both threads identically (real read vs
+                    // NULL cast); lowering is erasure — the key stays NULL
+                    read = new AppliedFunction("toOne", List.of(read));
+                    cols.add(new ColSpec(key.getValue(), new LambdaFunction(
+                            List.of(pp.rowBind()), List.of(read)), null));
+                }
+            }
             ValueSpecification projected = new AppliedFunction("project",
                     List.of(pp.pipeline(), new ColSpecArray(cols)));
             union = union == null ? projected
                     : new AppliedFunction("concatenate", List.of(union, projected));
+        }
+        // the lifted navigations sit ABOVE the concatenate — one slot per
+        // property, exactly the standard nav-slot pipeline shape
+        for (NavLift lf : lifts) {
+            union = new AppliedFunction("legacyNavigate", List.of(union,
+                    new ColSpec(lf.property(), new LambdaFunction(List.of(),
+                            List.of(new AppliedFunction("getAll", List.of(
+                                    new PackageableElementPtr(lf.targetClassFqn()))))),
+                            null),
+                    lf.targetRows(), lf.condition()));
         }
         Variable row = new Variable("u_row");
         Map<String, KeyExpression> ctor = new LinkedHashMap<>();
@@ -1580,9 +1627,205 @@ public final class MappingNormalizer {
             ctor.put(prop, new KeyExpression(
                     new AppliedProperty(row, prop), false, false));
         }
+        for (NavLift lf : lifts) {
+            ctor.put(lf.property(), new KeyExpression(
+                    new AppliedProperty(row, lf.property()), false, false));
+        }
         return new AppliedFunction("map", List.of(union,
                 new LambdaFunction(List.of(row),
                         List.of(buildNewInstanceToOne(className, ctor, model)))));
+    }
+
+    /**
+     * One lifted union navigation: the property, its target class extent,
+     * the OR'd per-entry condition {@code {s,t|...}} (source reads
+     * member-suffixed; target reads suffixed per routed target member),
+     * the target-rows typing arg, and the per-ordinal source key columns
+     * each member thread must carry.
+     */
+    private record NavLift(String property, String targetClassFqn,
+            ValueSpecification targetRows, LambdaFunction condition,
+            Map<Integer, Map<String, String>> srcKeysByOrdinal) {
+    }
+
+    /** Collect the member class-typed Join PMs liftable onto the union. */
+    private static List<NavLift> collectNavLifts(LegacyMappingDefinition md,
+            String className, List<ClassMapping.Relational> members,
+            ModelBuilder model) {
+        // property -> per-member entries, member order
+        Map<String, List<int[]>> found = new LinkedHashMap<>();
+        Map<String, List<PropertyMapping.Join>> joins = new LinkedHashMap<>();
+        for (int i = 0; i < members.size(); i++) {
+            ClassMapping.Relational mr = members.get(i);
+            ClassDefinition memberOwner = model.findClass(mr.className()).orElse(null);
+            for (PropertyMapping pm : mr.propertyMappings()) {
+                if (!(pm instanceof PropertyMapping.Join j)) {
+                    continue;
+                }
+                TypeExpression pt = memberOwner == null ? null
+                        : findPropertyTypeDeep(memberOwner, pm.propertyName(), model);
+                if (!(pt instanceof TypeExpression.NameRef pnr)
+                        || model.findClass(pnr.name()).isEmpty()) {
+                    continue;   // scalar join-terminal shapes stay member-local
+                }
+                found.computeIfAbsent(pm.propertyName(), k -> new ArrayList<>())
+                        .add(new int[]{i});
+                joins.computeIfAbsent(pm.propertyName(), k -> new ArrayList<>())
+                        .add(j);
+            }
+        }
+        List<NavLift> lifts = new ArrayList<>();
+        for (String prop : found.keySet()) {
+            ClassDefinition owner = model.findClass(className).orElse(null);
+            TypeExpression pt = owner == null ? null
+                    : findPropertyTypeDeep(owner, prop, model);
+            if (!(pt instanceof TypeExpression.NameRef pnr)
+                    || !model.isMappedClass(pnr.name())) {
+                continue;
+            }
+            String targetClassFqn = pnr.name();
+            // TEMPORAL GATE: the lifted navigate does not yet thread the
+            // milestoning context into its per-member conditions — lifting a
+            // temporal navigation would return unfiltered versions (wrong
+            // rows). Temporal unions keep the previous LOUD path.
+            if (isTemporalClass(className, model)
+                    || isTemporalClass(targetClassFqn, model)) {
+                continue;
+            }
+            ClassMapping.Union targetUnion = null;
+            for (ClassMapping cm : md.classMappings()) {
+                if (cm instanceof ClassMapping.Union u
+                        && u.className().equals(targetClassFqn)) {
+                    targetUnion = u;
+                }
+            }
+            Variable s = new Variable("s");
+            Variable t = new Variable("t");
+            ValueSpecification orCond = null;
+            Map<String, String> tgtKeyCols = new LinkedHashMap<>(); // suffixed -> base
+            String landingDb = null;
+            String landingTable = null;
+            Map<Integer, Map<String, String>> srcKeys = new LinkedHashMap<>();
+            List<int[]> ords = found.get(prop);
+            List<PropertyMapping.Join> js = joins.get(prop);
+            for (int k = 0; k < js.size(); k++) {
+                int memberOrd = ords.get(k)[0];
+                PropertyMapping.Join j = js.get(k);
+                if (j.joins().size() != 1) {
+                    throw new com.legend.error.NotImplementedException(
+                            "union member navigation '" + prop + "' uses a"
+                            + " CHAINED join — per-member chained joins over"
+                            + " unions are not supported yet; mapping="
+                            + md.qualifiedName());
+                }
+                JoinChainElement hop = j.joins().get(0);
+                String hopDb = hop.databaseName() != null ? hop.databaseName()
+                        : j.database();
+                DatabaseDefinition.JoinDefinition jd =
+                        model.findJoin(hopDb, hop.joinName()).orElseThrow(() ->
+                                new com.legend.error.ModelException(
+                                        com.legend.error.LegendCompileException
+                                                .Phase.NORMALIZE,
+                                        "Join '" + hop.joinName() + "' not found"
+                                        + " in db '" + hopDb + "'; PM='" + prop
+                                        + "', mapping=" + md.qualifiedName()));
+                String srcTable = members.get(memberOrd).mainTable().table();
+                String tgtTable = determineTargetTable(jd.operation(), srcTable,
+                        hop.joinName(), prop, 1, md.qualifiedName());
+                if (landingTable == null) {
+                    landingDb = hopDb;
+                    landingTable = tgtTable;
+                }
+                Map<String, ValueSpecification> scope = new LinkedHashMap<>();
+                scope.put(srcTable, s);
+                if (!tgtTable.equals(srcTable)) {
+                    scope.put(tgtTable, t);
+                }
+                ValueSpecification cond = RelOpTranslator.translate(
+                        jd.operation(), scope, t, null,
+                        RelOpTranslator.PipelineView.NONE);
+                Map<String, String> srcOut = new LinkedHashMap<>();
+                cond = suffixTargetReads(cond, s, memberOrd, srcOut);
+                srcKeys.computeIfAbsent(memberOrd, x -> new LinkedHashMap<>())
+                        .putAll(srcOut);
+                Integer tgtOrd = j.targetSetId() != null && targetUnion != null
+                        ? targetUnion.memberSetIds().indexOf(j.targetSetId())
+                        : null;
+                if (tgtOrd != null && tgtOrd >= 0) {
+                    Map<String, String> tgtOut = new LinkedHashMap<>();
+                    cond = suffixTargetReads(cond, t, tgtOrd, tgtOut);
+                    for (var en2 : tgtOut.entrySet()) {
+                        tgtKeyCols.put(en2.getValue(), en2.getKey());
+                    }
+                }
+                orCond = orCond == null ? cond
+                        : new AppliedFunction("or", List.of(orCond, cond));
+            }
+            ValueSpecification targetRows = new AppliedFunction("tableReference",
+                    List.of(new PackageableElementPtr(landingDb),
+                            new CString(landingTable)));
+            if (!tgtKeyCols.isEmpty()) {
+                List<ColSpec> keySpecs = new ArrayList<>();
+                for (var en2 : tgtKeyCols.entrySet()) {
+                    Variable kr = new Variable("kr");
+                    keySpecs.add(new ColSpec(en2.getKey(), new LambdaFunction(
+                            List.of(kr), List.of(new AppliedProperty(kr,
+                                    en2.getValue()))), null));
+                }
+                targetRows = new AppliedFunction("project",
+                        List.of(targetRows, new ColSpecArray(keySpecs)));
+            }
+            lifts.add(new NavLift(prop, targetClassFqn, targetRows,
+                    new LambdaFunction(List.of(s, t), List.of(orCond)), srcKeys));
+        }
+        return lifts;
+    }
+
+    /** Whether the class (or a superclass) carries a temporal stereotype. */
+    private static boolean isTemporalClass(String classFqn, ModelBuilder model) {
+        ClassDefinition cd = model.findClass(classFqn).orElse(null);
+        if (cd == null) {
+            return false;
+        }
+        for (var st : cd.stereotypes()) {
+            if (("temporal".equals(st.profileName())
+                    || "meta::pure::profiles::temporal".equals(st.profileName()))
+                    && java.util.Set.of("businesstemporal", "processingtemporal",
+                            "bitemporal").contains(st.stereotypeName())) {
+                return true;
+            }
+        }
+        for (TypeExpression sup : cd.superClasses()) {
+            if (sup instanceof TypeExpression.NameRef nr
+                    && isTemporalClass(nr.name(), model)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * A typed NULL for a member thread that does not carry {@code col}:
+     * cast to the pure kind of the ROUTED member's physical column (the
+     * threads must agree on the concatenate schema).
+     */
+    private static ValueSpecification nullOfPhysicalKind(
+            ClassMapping.Relational routedMember, String col,
+            LegacyMappingDefinition md, ModelBuilder model) {
+        DatabaseDefinition.ColumnDefinition cd = findPhysicalColumn(
+                routedMember.mainTable().database(),
+                routedMember.mainTable().table(), col, model);
+        String kind = cd == null ? null : pureKindOf(cd.dataType());
+        if (kind == null) {
+            throw new com.legend.error.NotImplementedException(
+                    "union navigation key column '" + col + "' of table '"
+                    + routedMember.mainTable().table() + "' has no derivable"
+                    + " pure kind; mapping=" + md.qualifiedName());
+        }
+        return new AppliedFunction("cast", List.of(
+                new PureCollection(List.of()),
+                new com.legend.parser.spec.TypeAnnotation.Named(
+                        new TypeExpression.NameRef(kind))));
     }
 
     /**
