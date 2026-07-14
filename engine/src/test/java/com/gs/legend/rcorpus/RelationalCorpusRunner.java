@@ -97,7 +97,16 @@ class RelationalCorpusRunner {
             // ANCESTOR setup inheritance was tried and REVERTED: sibling-dir
             // models conflict (tests/ direct files carry alternative Person
             // models) — net 48 vs 64 passes. Families see only their own
-            // directory's files.
+            // directory's files — EXCEPT a parent-directory setUp.pure
+            // (dedicated setup, no tests): extends/union references the
+            // extends family's model/store, the one such file in the corpus.
+            Path parentSetup = p.getParent().resolve("setUp.pure");
+            if (!p.getParent().equals(Corpus.RELATIONAL) && Files.exists(parentSetup)) {
+                String src = Files.readString(parentSetup);
+                if (Corpus.testFunctions(src).isEmpty()) {
+                    familySources.add(0, src);
+                }
+            }
             List<String> modelOnly = new ArrayList<>(testSources.values());
             runner.useFamily(family, familySources, modelOnly);
             for (Map.Entry<Path, String> e : testSources.entrySet()) {

@@ -155,12 +155,12 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 0 | 0 | 32 | 0 |
 | tests/mapping/distinct | 18 | 14 | 0 | 4 | 0 |
 | tests/mapping/dynaJoin | 5 | 3 | 1 | 1 | 0 |
-| tests/mapping/embedded | 63 | 37 | 2 | 14 | 10 |
+| tests/mapping/embedded | 63 | 43 | 2 | 8 | 10 |
 | tests/mapping/enumeration | 26 | 9 | 4 | 10 | 3 |
 | tests/mapping/filter | 9 | 4 | 0 | 5 | 0 |
 | tests/mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 |
-| tests/mapping/inheritance | 47 | 4 | 0 | 43 | 0 |
+| tests/mapping/inheritance | 47 | 6 | 0 | 41 | 0 |
 | tests/mapping/join | 28 | 14 | 2 | 12 | 0 |
 | tests/mapping/merge | 1 | 0 | 0 | 0 | 1 |
 | tests/mapping/modelJoin | 47 | 0 | 0 | 0 | 47 |
@@ -178,7 +178,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **534** | 31 | 888 | 839 |
+| **total** | 2292 | **542** | 31 | 880 | 839 |
 
 ### mapping walls (dropped at assembly)
 
@@ -242,15 +242,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping => [2715:50] expected identifier, got PAREN_OPEN
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::TestClassMappingsWithInnerFilterJoinedByChainOfJoins => [2723:72] expected identifier, got PAREN_OPEN
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::store::TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNested => [2729:155] expected identifier, got PAREN_OPEN
-- tests/mapping/extends meta::relational::tests::mapping::extend::embeddedPropertyMapping::testMapping => [2790:9] expected integer or string inside '[...]' index, got VALID_STRING ('m3')
-- tests/mapping/extends/union meta::relational::tests::mapping::extend::union::embeddedPropertyMapping::testMapping => [2559:9] expected integer or string inside '[...]' index, got VALID_STRING ('set1m3')
-- tests/mapping/extends/union meta::relational::tests::mapping::extend::union::inlineEmbeddedPropertyMapping::testMapping => Unknown type: 'M' is not a known primitive, class, or enum
-- tests/mapping/extends/union meta::relational::tests::mapping::extend::union::propertyMapping::testMapping => [2529:1] AssociationMapping references unknown association 'AE'; mapping=meta::relational::tests::mapping::extend::union::propertyMapping::testMapping
-- tests/mapping/extends/union meta::relational::tests::mapping::extend::union::propertyMapping::UnionMappingWithExtendOverrides => Unknown type: 'B' is not a known primitive, class, or enum
+- tests/mapping/extends/union meta::relational::tests::mapping::extend::union::propertyMapping::testMapping => Join 'A2E2' references multiple non-source tables [ABC2, DEF2]; multi-table joins not supported. owner=meta::relational::tests::mapping::extend::model::A2E2, hop 1, mapping=meta::relational::tests::mapping::extend::union::propertyMapping::testMapping
 - tests/mapping/inheritance meta::relational::tests::model::inheritance::milestoned::MilestonedInheritanceMapping => [3341:4] Association mappings cannot be marked root (the leading '*' is only valid for class mappings)
-- tests/mapping/inheritance meta::relational::tests::mapping::subType::SubTypeMappingValidWhenMappedExplicitly => [3494:1] Class mapping for 'meta::relational::tests::mapping::subType::MyProduct' extends [meta_relational_tests_model_simple_Product] but no class mapping with set id 'meta_relational_tests_model_simple_Product' exists in mapping=meta::relational::tests::mapping::subType::SubTypeMappingValidWhenMappedExplicitly
-- tests/mapping/inheritance meta::relational::tests::mapping::subType::MyMapping => [3511:14] expected integer or string inside '[...]' index, got VALID_STRING ('meta_relational_tests_model_simple_Trade')
-- tests/mapping/inheritance meta::relational::tests::mapping::subType::MyMappingWithIds => [3499:13] expected integer or string inside '[...]' index, got VALID_STRING ('meta_relational_tests_mapping_subType_MyProduct')
 - tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::advanced::NestedPropertyChainMapping => association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm': $employees.address has no column binding on the Relation mapping of 'meta::relational::tests::mapping::modelJoin::domain::Person' (mapping=meta::relational::tests::mapping::modelJoin::advanced::NestedPropertyChainMapping)
 - tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::advanced::DoubleNestedModelJoinMapping => association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm': $employees.address has no column binding on the Relation mapping of 'meta::relational::tests::mapping::modelJoin::domain::Person' (mapping=meta::relational::tests::mapping::modelJoin::advanced::DoubleNestedModelJoinMapping)
 - tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::advanced::RelationalNestedPropertyChainMapping => XStore/ModelJoin association end class 'meta::relational::tests::mapping::modelJoin::domain::Person' resolves to 0 Relation(~func) set(s) in 'meta::relational::tests::mapping::modelJoin::advanced::RelationalNestedPropertyChainMapping'
@@ -290,10 +283,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - tests/mapping/relation meta::relational::tests::mapping::relation::EmbeddedWithAssociationRelationMapping => [3734:4] expected COLON but found PAREN_OPEN ('(')
 - tests/mapping/relation meta::relational::tests::mapping::relation::InlineEmbeddedWithAssociationRelationMapping => [3733:12] expected COLON but found PAREN_OPEN ('(')
 - tests/mapping/relation meta::relational::tests::mapping::relation::MixedCaseAssociationChainMapping => XStore/ModelJoin association end class 'meta::relational::tests::mapping::relation::Person' resolves to 0 Relation(~func) set(s) for set id 'person' in 'meta::relational::tests::mapping::relation::MixedCaseAssociationChainMapping'
-- tests/mapping/union meta::relational::tests::mapping::union::extend::unionMapping => [6128:1] Class mapping for 'meta::relational::tests::mapping::union::extend::Firm' extends [meta_relational_tests_model_simple_Firm] but no class mapping with set id 'meta_relational_tests_model_simple_Firm' exists in mapping=meta::relational::tests::mapping::union::extend::unionMapping
-- tests/mapping/union meta::relational::tests::mapping::union::extend::unionMappingWithJoinInProperty => [6167:1] Class mapping for 'meta::relational::tests::mapping::union::extend::Firm' extends [meta_relational_tests_model_simple_Firm] but no class mapping with set id 'meta_relational_tests_model_simple_Firm' exists in mapping=meta::relational::tests::mapping::union::extend::unionMappingWithJoinInProperty
-- tests/mapping/union meta::relational::tests::mapping::union::extend::unionMappingWithJoinSequenceInProperty => [6167:1] Class mapping for 'meta::relational::tests::mapping::union::extend::Firm' extends [meta_relational_tests_model_simple_Firm] but no class mapping with set id 'meta_relational_tests_model_simple_Firm' exists in mapping=meta::relational::tests::mapping::union::extend::unionMappingWithJoinSequenceInProperty
-- tests/mapping/union meta::relational::tests::mapping::union::extend::mappingWithColumnsWithSameNames => [6419:1] Class mapping for 'meta::relational::tests::mapping::union::extend::Application' extends [meta_relational_tests_model_simple_Application] but no class mapping with set id 'meta_relational_tests_model_simple_Application' exists in mapping=meta::relational::tests::mapping::union::extend::mappingWithColumnsWithSameNames
 - tests/mapping/union/relation meta::relational::tests::mapping::union::relation::advanced::mapping::unionOfTwoRelationMappingsWithFirm => XStore/ModelJoin association end class 'meta::relational::tests::model::simple::Person' resolves to 2 Relation(~func) set(s) in 'meta::relational::tests::mapping::union::relation::advanced::mapping::unionOfTwoRelationMappingsWithFirm'
 - tests/mapping/union/relation meta::relational::tests::mapping::union::relation::advanced::mapping::unionOfTwoRelationMappingsWithSubAggregation => XStore/ModelJoin association end class 'meta::relational::tests::model::simple::Person' resolves to 2 Relation(~func) set(s) in 'meta::relational::tests::mapping::union::relation::advanced::mapping::unionOfTwoRelationMappingsWithSubAggregation'
 - tests/mapping/union/relation meta::relational::tests::mapping::union::relation::advanced::mapping::unionOfTwoRelationMappingsWithMultiColumnSubAggregation => XStore/ModelJoin association end class 'meta::relational::tests::model::simple::Person' resolves to 2 Relation(~func) set(s) in 'meta::relational::tests::mapping::union::relation::advanced::mapping::unionOfTwoRelationMappingsWithMultiColumnSubAggregation'
@@ -308,7 +297,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - validation/tests meta::relational::validation::complex::validationComplexMapping2 => [2798:19] expected identifier, got PAREN_OPEN
 - validation/tests meta::relational::validation::tests::milestoning::MilestoneMappingWithDynaFunction => [2788:1] Class mapping for 'meta::relational::validation::tests::milestoning::Product' extends [p] but no class mapping with set id 'p' exists in mapping=meta::relational::validation::tests::milestoning::MilestoneMappingWithDynaFunction
 - validation/tests meta::relational::validation::tests::milestoning::MilestoneMapping => [2788:1] Class mapping for 'meta::relational::validation::tests::milestoning::Product' extends [p] but no class mapping with set id 'p' exists in mapping=meta::relational::validation::tests::milestoning::MilestoneMapping
-- validation/tests meta::relational::validation::tests::milestoning::MilestoneUnionMapping => [2798:21] expected integer or string inside '[...]' index, got VALID_STRING ('c1')
+- validation/tests meta::relational::validation::tests::milestoning::MilestoneUnionMapping => [2788:1] Class mapping for 'meta::relational::validation::tests::milestoning::Product' extends [p] but no class mapping with set id 'p' exists in mapping=meta::relational::validation::tests::milestoning::MilestoneUnionMapping
 
 ### top error buckets
 
@@ -328,7 +317,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - 7x object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - 7x [2547:78] expected GREATER_THAN but found PIPE ('|')
 - 7x no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
-- 7x ambiguous reference 'Product' — matches via imports: [meta::relational::tests::mapping::embedded::advanced::model::Product, meta::relational::tests::model::simple::Product]. Use a fully qualified name.
 - 7x association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion'
 - 7x association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionToUnionMapping'
 - 6x unknown function 'ytd'
@@ -342,6 +330,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - 6x property 'b' of class 'meta::relational::tests::mapping::union::sqlQueryMerging::model::A' is not mapped in mapping 'meta::relational::tests::mapping::union::sqlQueryMerging::mapping::unionMapping'
 - 5x no overload of 'groupBy' matches the argument types
 - 5x property 'stockProductName' of class 'meta::relational::tests::milestoning::Product' is mapped through the target's own join slots; nested navigation joins are not supported in this position yet
+- 5x unknown function 'columnValues'
 
 ### per-test outcomes (non-passing)
 
@@ -1575,13 +1564,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE otherwiseTestQualifierPropertyConstantExpression [tests/mapping/embedded]: no verifying assertions
 - ERROR otherwiseTestComplexExpressionWithEnumMapping [tests/mapping/embedded]: property 'type' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise2'
 - ERROR otherwiseTestEmbeddedToEmbedded [tests/mapping/embedded]: multi-hop navigation bondDetails.issuer.name through an embedded/slot head is not supported yet
-- ERROR testProjection [tests/mapping/embedded]: ambiguous reference 'Product' — matches via imports: [meta::relational::tests::mapping::embedded::advanced::model::Product, meta::relational::tests::model::simple::Product]. Use a fully qualified name.
-- ERROR testFilter [tests/mapping/embedded]: ambiguous reference 'Product' — matches via imports: [meta::relational::tests::mapping::embedded::advanced::model::Product, meta::relational::tests::model::simple::Product]. Use a fully qualified name.
-- ERROR testDenormWithComplexFilter [tests/mapping/embedded]: ambiguous reference 'Product' — matches via imports: [meta::relational::tests::mapping::embedded::advanced::model::Product, meta::relational::tests::model::simple::Product]. Use a fully qualified name.
-- ERROR testGroupBy [tests/mapping/embedded]: ambiguous reference 'Product' — matches via imports: [meta::relational::tests::mapping::embedded::advanced::model::Product, meta::relational::tests::model::simple::Product]. Use a fully qualified name.
-- ERROR testGroupByComplexAgg [tests/mapping/embedded]: ambiguous reference 'Product' — matches via imports: [meta::relational::tests::mapping::embedded::advanced::model::Product, meta::relational::tests::model::simple::Product]. Use a fully qualified name.
-- ERROR testQualifierProperty [tests/mapping/embedded]: ambiguous reference 'Product' — matches via imports: [meta::relational::tests::mapping::embedded::advanced::model::Product, meta::relational::tests::model::simple::Product]. Use a fully qualified name.
-- ERROR testInlineEmbeddedMappingWithAssociationFromRootMapping [tests/mapping/embedded]: ambiguous reference 'Product' — matches via imports: [meta::relational::tests::mapping::embedded::advanced::model::Product, meta::relational::tests::model::simple::Product]. Use a fully qualified name.
+- ERROR testInlineEmbeddedMappingWithAssociationFromRootMapping [tests/mapping/embedded]: multi-hop navigation bondDetails.bondClassification.type through an embedded/slot head is not supported yet
 - SHAPE testInlineInEmbedded [tests/mapping/embedded]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testInlineInEmbeddedGraphFetch [tests/mapping/embedded]: assert form 'assertJsonStringsEqual/2' is not supported yet
 - SHAPE testMilestonedEmbeddedGraphFetch [tests/mapping/embedded]: assert form 'assertJsonStringsEqual/2' is not supported yet
@@ -1663,10 +1646,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSubTypeProjectDirect [tests/mapping/inheritance]: object-space use of the instance variable '$r' other than property access is not supported yet
 - ERROR testSubTypeProjectShared [tests/mapping/inheritance]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - ERROR testSubTypeProjectSharedNonDirectlyRouted [tests/mapping/inheritance]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testProject [tests/mapping/inheritance]: 'MyMapping' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testProjectWithIds [tests/mapping/inheritance]: 'MyMappingWithIds' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testProjectSubtype [tests/mapping/inheritance]: 'MyMapping' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testSubTypeMappingValidWhenMappedExplicitly [tests/mapping/inheritance]: 'meta::relational::tests::mapping::subType::SubTypeMappingValidWhenMappedExplicitly' is not a known class, mapping, runtime, connection, or database
+- ERROR testProjectSubtype [tests/mapping/inheritance]: class-typed property '$t.product' used as a whole value is graph output (Phase H4)
+- ERROR testSubTypeMappingValidWhenMappedExplicitly [tests/mapping/inheritance]: unknown function '_classMappingByClass'
 - ERROR testFilterOnSimpleTypePropertyDeepWithJoinInMapping [tests/mapping/join]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testFilterOnSimpleTypePropertyDeepWithJoinInMappingNotUsed [tests/mapping/join]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testFilterDeepWithJoinInMappingInMiddle [tests/mapping/join]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
@@ -1915,10 +1896,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSimpleQueryUnionToUnionOptimizedHalf [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::optimized::unionToUnionMappingOptimizedHalf'
 - ERROR testSimpleQueryFromAssociationMappingOptimized [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t2" not found! |  | LINE 1: ... FROM PersonSet2 AS t1 ) AS t2 LEFT OUTER JOIN Firm AS t3 ON t2.FirmID = t3.ID WHERE t3.name = 'Firm A') AS value |                       
 - ERROR testSimpleQueryFromAssociationMappingOptimizedHalf [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t2" not found! |  | LINE 1: ... FROM PersonSet2 AS t1 ) AS t2 LEFT OUTER JOIN Firm AS t3 ON t2.FirmID = t3.ID WHERE t3.name = 'Firm A') AS value |                       
-- ERROR testSimpleQueryTo [tests/mapping/union]: ambiguous reference 'unionMapping' — matches via imports: [meta::relational::tests::mapping::union::partial::unionMapping, meta::relational::tests::mapping::union::unionMapping]. Use a fully qualified name.
-- ERROR testProject [tests/mapping/union]: ambiguous reference 'unionMapping' — matches via imports: [meta::relational::tests::mapping::union::partial::unionMapping, meta::relational::tests::mapping::union::unionMapping]. Use a fully qualified name.
-- ERROR testProjectShareSet [tests/mapping/union]: ambiguous reference 'unionMapping' — matches via imports: [meta::relational::tests::mapping::union::partial::unionMapping, meta::relational::tests::mapping::union::unionMapping]. Use a fully qualified name.
-- ERROR testProjectAutoMap [tests/mapping/union]: ambiguous reference 'unionMapping' — matches via imports: [meta::relational::tests::mapping::union::partial::unionMapping, meta::relational::tests::mapping::union::unionMapping]. Use a fully qualified name.
+- ERROR testSimpleQueryTo [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::partial::unionMapping'
+- ERROR testProject [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::partial::unionMapping'
+- ERROR testProjectShareSet [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::partial::unionMapping'
+- ERROR testProjectAutoMap [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::partial::unionMapping'
 - SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_AddressIdKey [tests/mapping/union]: unsupported statement: meta::relational::functions::asserts::assertSameSQL
 - SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_FirmIdKey_Unmapped [tests/mapping/union]: unsupported statement: meta::relational::functions::asserts::assertSameSQL
 - SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_FirmIdKey_Mapped [tests/mapping/union]: unsupported statement: meta::relational::functions::asserts::assertSameSQL
@@ -1926,18 +1907,18 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_MappingToRelationalOperation [tests/mapping/union]: object-space use of the instance variable '$p' other than property access is not supported yet
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_EmbeddedMapping [tests/mapping/union]: object-space use of the instance variable '$p' other than property access is not supported yet
 - SHAPE testSimpleProject [tests/mapping/union]: unsupported statement: println
-- ERROR testSimpleQueryFrom [tests/mapping/union]: 'unionMapping' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testSimpleQueryTo [tests/mapping/union]: 'unionMapping' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testProjectThroughAsso [tests/mapping/union]: 'unionMapping' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- ERROR testSimpleQueryFrom [tests/mapping/union]: property 'firm' of class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMapping'
+- ERROR testSimpleQueryTo [tests/mapping/union]: a scalar query has no row scope for $t.FirmID
+- ERROR testProjectThroughAsso [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t3" not found! |  | LINE 1: ... t2.lastName_s2 AS lastName FROM PersonSet2 AS t2 ) AS t3 ON t3.FirmID = t0.ID) AS value |                                                
 - ERROR testSimpleQueryFromAssociationMapping [tests/mapping/union]: property 'firm' of class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithAssociationMapping'
 - ERROR testSimpleQueryToAssociationMapping [tests/mapping/union]: property 'employees' of class 'meta::relational::tests::mapping::union::extend::Firm' has no binding in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithAssociationMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testProjectThroughAssoWithAssociationMapping [tests/mapping/union]: property 'employees' of class 'meta::relational::tests::mapping::union::extend::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithAssociationMapping'
-- ERROR testSimpleProjectWithJoinInMapping [tests/mapping/union]: 'unionMappingWithJoinInProperty' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testSimpleProjectWithJoinInMappingWithFunction [tests/mapping/union]: 'unionMappingWithJoinInProperty' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testSimpleQueryFromWithJoinInMapping [tests/mapping/union]: 'unionMappingWithJoinInProperty' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testSimpleQueryToWithJoinInMapping [tests/mapping/union]: 'unionMappingWithJoinInProperty' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testProjectThroughAssoWithJoinInMapping [tests/mapping/union]: 'unionMappingWithJoinInProperty' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testProjectThroughAssoWithMultiJoinInMapping [tests/mapping/union]: 'unionMappingWithJoinSequenceInProperty' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- ERROR testSimpleProjectWithJoinInMapping [tests/mapping/union]: class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithJoinInProperty'
+- ERROR testSimpleProjectWithJoinInMappingWithFunction [tests/mapping/union]: class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithJoinInProperty'
+- ERROR testSimpleQueryFromWithJoinInMapping [tests/mapping/union]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::mapping::union::extend::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::union::extend::unionMappingWithJoinInProperty' failed to normalize this class: union member set '
+- ERROR testSimpleQueryToWithJoinInMapping [tests/mapping/union]: a scalar query has no row scope for $t.FirmID
+- ERROR testProjectThroughAssoWithJoinInMapping [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t4" not found! |  | LINE 1: ... t3.lastName_s2 AS otherNames FROM PersonSet2 AS t3 ) AS t4 ON t4.FirmID = t0.ID) AS value |                                              
+- ERROR testProjectThroughAssoWithMultiJoinInMapping [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t5" not found! |  | LINE 1: ... t4.lastName_s2 AS lastName FROM PersonSet2 AS t4 ) AS t5 ON t5.ID = t1.pid) AS value |                                                   
 - ERROR testSimpleQueryFromWithEmbeddedInMapping [tests/mapping/union]: property 'firm' of class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedProperty'
 - FAIL testSimpleQueryFromWithFilterInMapping [tests/mapping/union]: assertEquals: expected [Scott, Anand, Taylor, Wright], got [Scott, Anand, Roberts, Taylor, Wright]
 - ERROR testSimpleProjectionFromWithEmbeddedInMapping [tests/mapping/union]: property 'firm' of class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedPropertyOneThroughJoin'

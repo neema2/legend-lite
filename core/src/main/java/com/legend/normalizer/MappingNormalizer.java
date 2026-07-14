@@ -419,6 +419,18 @@ public final class MappingNormalizer {
     // ====================================================================
 
     /**
+     * The set-implementation ID of a class mapping: the explicit
+     * {@code [id]}, else the class FQN with {@code ::} &rarr; {@code _}
+     * &mdash; the engine's default ({@code HelperMappingBuilder
+     * .getClassMappingId}); corpus mappings reference singleton sets by
+     * that implicit spelling ({@code extends [meta_relational_tests_model
+     * _simple_Firm]}).
+     */
+    static String setIdOf(ClassMapping cm) {
+        return cm.setId() != null ? cm.setId() : cm.className().replace("::", "_");
+    }
+
+    /**
      * Resolve {@code extends [parentSetId]} on Relational class mappings by
      * merging the parent's property mappings into the child
      * ({@code docs/MAPPING_LEGACY_TO_FUNCTION.md} §5.2.3):
@@ -443,7 +455,7 @@ public final class MappingNormalizer {
         Map<String, ClassMapping> bySetId = new HashMap<>();
         collectIncludedSetIds(md, model, bySetId, new java.util.HashSet<>());
         for (ClassMapping cm : md.classMappings()) {
-            if (cm.setId() != null) bySetId.put(cm.setId(), cm);
+            bySetId.put(setIdOf(cm), cm);
         }
         List<ClassMapping> rewritten = new ArrayList<>(md.classMappings().size());
         for (ClassMapping cm : md.classMappings()) {
@@ -480,9 +492,7 @@ public final class MappingNormalizer {
             }
             collectIncludedSetIds(included, model, bySetId, seen);
             for (ClassMapping cm : included.classMappings()) {
-                if (cm.setId() != null) {
-                    bySetId.put(cm.setId(), cm);
-                }
+                bySetId.put(setIdOf(cm), cm);
             }
         }
     }
@@ -652,7 +662,7 @@ public final class MappingNormalizer {
             java.util.Set<String> dropped = new java.util.LinkedHashSet<>();
             for (var e : r.propertyTargetSets().entrySet()) {
                 ClassMapping target = md.classMappings().stream()
-                        .filter(x -> e.getValue().equals(x.setId()))
+                        .filter(x -> e.getValue().equals(setIdOf(x)))
                         .findFirst().orElse(null);
                 boolean rootTarget = target instanceof ClassMapping.Relational tr
                         && tr.root();
@@ -950,7 +960,7 @@ public final class MappingNormalizer {
         for (ClassMapping cm : md.classMappings()) {
             if (cm instanceof ClassMapping.RelationFunction rf
                     && rf.className().equals(classFqn)
-                    && (setId == null || setId.equals(rf.setId()))) {
+                    && (setId == null || setId.equals(setIdOf(rf)))) {
                 hits.add(rf);
             }
         }
@@ -1105,9 +1115,7 @@ public final class MappingNormalizer {
         Map<String, ClassMapping> bySetId = new LinkedHashMap<>();
         collectIncludedSetIds(md, model, bySetId, new java.util.HashSet<>());
         for (ClassMapping cm : md.classMappings()) {
-            if (cm.setId() != null) {
-                bySetId.put(cm.setId(), cm);
-            }
+            bySetId.put(setIdOf(cm), cm);
         }
         List<ClassMapping.Relational> memberSets = new ArrayList<>();
         for (String setId : u.memberSetIds()) {
@@ -1161,9 +1169,7 @@ public final class MappingNormalizer {
                     Map<String, ClassMapping> bySetId = new LinkedHashMap<>();
                     collectIncludedSetIds(md, model, bySetId, new java.util.HashSet<>());
                     for (ClassMapping own : md.classMappings()) {
-                        if (own.setId() != null) {
-                            bySetId.put(own.setId(), own);
-                        }
+                        bySetId.put(setIdOf(own), own);
                     }
                     for (String setId : u2.memberSetIds()) {
                         if (bySetId.get(setId) instanceof ClassMapping.Relational mr2) {
@@ -2806,7 +2812,7 @@ public final class MappingNormalizer {
         ClassMapping.Relational referenced = null;
         for (ClassMapping cm : md.classMappings()) {
             if (cm instanceof ClassMapping.Relational rcm
-                    && Objects.equals(rcm.setId(), ie.setId())) {
+                    && Objects.equals(setIdOf(rcm), ie.setId())) {
                 referenced = rcm;
                 break;
             }

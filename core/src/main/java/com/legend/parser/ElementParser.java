@@ -2221,6 +2221,7 @@ public final class ElementParser implements TokenStreamCursor {
         if (isIdentifierToken(peek()) && "scope".equals(text())
                 && peek(1) == TokenType.PAREN_OPEN) return false;          // scope([db]...)( legacy PMs )
         if (isIdentifierToken(peek()) && peek(1) == TokenType.PAREN_OPEN) return false;  // prop( embedded )
+        if (isIdentifierToken(peek()) && peek(1) == TokenType.BRACKET_OPEN) return false;  // prop[setId]: / prop[setId](
         if (peek() == TokenType.PLUS) return false;                        // +localProp:
         return true;
     }
@@ -2524,7 +2525,10 @@ public final class ElementParser implements TokenStreamCursor {
                 targetSetId = parseIdentifier();    // [source, TARGET]
             }
             expect(TokenType.BRACKET_CLOSE);
-            if (currentTargetSets != null) {
+            // prop[id]( ... ) — an EMBEDDED mapping's [id] names its OWN
+            // set implementation (extends-override bookkeeping), not a
+            // target-set route; recording it as one would drop the property.
+            if (currentTargetSets != null && peek() != TokenType.PAREN_OPEN) {
                 currentTargetSets.put(propName, targetSetId);
             }
         }

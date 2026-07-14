@@ -963,18 +963,38 @@ public final class Corpus {
     private static final Pattern IMPORT_LINE = Pattern.compile(
             "^import\\s+((?:\\w+::)+)(\\*|\\w+)\\s*;", Pattern.MULTILINE);
 
-    /** All {@code <<test.Test>>} zero-arg Boolean functions in a corpus source. */
+    /**
+     * All {@code <<test.Test>>} zero-arg Boolean functions in a corpus source.
+     *
+     * <p>Imports are SECTION-scoped (real pure): each {@code ###X} marker
+     * opens a fresh import group and a test resolves under ITS section's
+     * imports only. File-wide collection cross-contaminated:
+     * testUnionPartial.pure section 1 imports {@code partial::*} while later
+     * mapping sections import {@code union::*} — merged, 'unionMapping' was
+     * ambiguous; the engine resolves it to {@code partial::unionMapping}.
+     */
     public static List<TestFn> testFunctions(String source) {
-        Map<String, String> typeImports = new LinkedHashMap<>();
-        List<String> wildcards = new ArrayList<>();
+        List<Integer> sectionStarts = new ArrayList<>();
+        Matcher sec = Pattern.compile("(?m)^###\\w+").matcher(source);
+        while (sec.find()) {
+            sectionStarts.add(sec.start());
+        }
+        int sections = sectionStarts.size() + 1;
+        List<Map<String, String>> typeImportsBySec = new ArrayList<>(sections);
+        List<List<String>> wildcardsBySec = new ArrayList<>(sections);
+        for (int i = 0; i < sections; i++) {
+            typeImportsBySec.add(new LinkedHashMap<>());
+            wildcardsBySec.add(new ArrayList<>());
+        }
         Matcher im = IMPORT_LINE.matcher(source);
         while (im.find()) {
+            int s = sectionOf(sectionStarts, im.start());
             String pkg = im.group(1);
             String name = im.group(2);
             if (name.equals("*")) {
-                wildcards.add(pkg.substring(0, pkg.length() - 2));
+                wildcardsBySec.get(s).add(pkg.substring(0, pkg.length() - 2));
             } else {
-                typeImports.put(name, pkg + name);
+                typeImportsBySec.get(s).put(name, pkg + name);
             }
         }
         List<TestFn> out = new ArrayList<>();
@@ -997,9 +1017,22 @@ public final class Corpus {
             // every extractor downstream (audit 8 D1 — a live regression
             // swallowed a real execute() span)
             String body = stripLineComments(source.substring(bodyStart + 1, end - 1));
-            out.add(new TestFn(m.group(2), body, typeImports, wildcards));
+            int s = sectionOf(sectionStarts, m.start());
+            out.add(new TestFn(m.group(2), body, typeImportsBySec.get(s),
+                    wildcardsBySec.get(s)));
         }
         return out;
+    }
+
+    /** Index of the {@code ###}-delimited section containing {@code pos}. */
+    private static int sectionOf(List<Integer> sectionStarts, int pos) {
+        int s = 0;
+        for (int i = 0; i < sectionStarts.size(); i++) {
+            if (sectionStarts.get(i) <= pos) {
+                s = i + 1;
+            }
+        }
+        return s;
     }
 
     /** Remove {@code // ...} line comments, respecting string literals. */
