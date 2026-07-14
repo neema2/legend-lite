@@ -1033,13 +1033,27 @@ final class Substitution {
             // worse, be wrong under an aggregation); fall through loud
             return null;
         }
-        if (!(src instanceof com.legend.compiler.spec.typed.TypedFilter f)
-                || !(f.source() instanceof TypedPropertyAccess head)
-                || !(head.source() instanceof TypedVariable hv)
-                || !hv.name().equals(target.userVar())) {
+        if (!(src instanceof com.legend.compiler.spec.typed.TypedFilter f)) {
             return null;
         }
-        ExistsSub ex = target.existsSubs().get(head.property());
+        // the head may be a plain access OR a DATED property function
+        // ($o.product(%d)->filter(..).name) — both key existsSubs by the
+        // property; the dated head's temporal filter already rides the
+        // registered exists pipeline (chain-keyed specs)
+        String headProp;
+        if (f.source() instanceof TypedPropertyAccess head
+                && head.source() instanceof TypedVariable hv
+                && hv.name().equals(target.userVar())) {
+            headProp = head.property();
+        } else if (f.source()
+                instanceof com.legend.compiler.spec.typed.TypedMilestonedAccess ma
+                && ma.source() instanceof TypedVariable mv
+                && mv.name().equals(target.userVar())) {
+            headProp = ma.property();
+        } else {
+            return null;
+        }
+        ExistsSub ex = target.existsSubs().get(headProp);
         if (ex == null) {
             return null;
         }
