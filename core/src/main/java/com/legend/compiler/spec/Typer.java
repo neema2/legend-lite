@@ -209,6 +209,26 @@ final class Typer {
             return synth(new AppliedFunction("toOne", List.of(
                     new AppliedProperty(af.parameters().get(0), colName.value()))), env);
         }
+        // engine TDSRow.get()->toString(): a NULL cell prints 'TDSNull'
+        // (tds.pure:131-133 — the engine materializes ^TDSNull() instances;
+        // our erasure emits the equivalent conditional string)
+        if (af.function().equals("toString") && af.parameters().size() == 1
+                && af.parameters().get(0) instanceof AppliedFunction g
+                && g.function().equals("get") && g.parameters().size() == 2
+                && g.parameters().get(1) instanceof CString gc) {
+            TypedSpec grecv0 = synth(g.parameters().get(0), env);
+            if (grecv0.info().type() instanceof Type.RelationType) {
+                var read = new AppliedProperty(g.parameters().get(0), gc.value());
+                return synth(new AppliedFunction("if", List.of(
+                        new AppliedFunction("isEmpty", List.of(read)),
+                        new com.legend.parser.spec.LambdaFunction(List.of(),
+                                List.of(new CString("TDSNull"))),
+                        new com.legend.parser.spec.LambdaFunction(List.of(),
+                                List.of(new AppliedFunction("toString", List.of(
+                                        new AppliedFunction("toOne",
+                                                List.of(read)))))))), env);
+            }
+        }
         // the UNTYPED TDSRow getter $r.get('COL') — same desugar, but the
         // name collides with variant/map get: divert ONLY when the receiver
         // is relation-shaped (type-aware, unlike the typed getters above).

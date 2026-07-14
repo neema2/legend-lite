@@ -178,6 +178,15 @@ final class Substitution {
                 && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
             return pathOf(c.args().get(0), userVar);
         }
+        // ->map(l|$l.prop...) is the auto-map spelling of the property
+        // path — flatten for the demand scan exactly as the rewrite does
+        // (ONE funnel: scan and substitution must not drift)
+        if (n instanceof com.legend.compiler.spec.typed.TypedMap m
+                && m.mapper().parameters().size() == 1
+                && m.mapper().body().size() == 1) {
+            return pathOf(inlineParam(m.mapper().body().get(0),
+                    m.mapper().parameters().get(0), m.source()), userVar);
+        }
         // a MILESTONED property function ($o.product(%d)) is a property
         // step whose temporal arguments the demand scan collects separately
         if (n instanceof com.legend.compiler.spec.typed.TypedMilestonedAccess ma) {
@@ -458,6 +467,15 @@ final class Substitution {
                         ? l   // shadowing: substitution stops (standard capture rule)
                         : new TypedLambda(l.parameters(), rewriteAll(l.body()), l.info());
             }
+            // ->map(l|...) over a navigation IS the auto-map spelling
+            // ($f.employees->map(l|$l.lastName) == $f.employees.lastName,
+            // the engine desugar): inline the mapper param with the source
+            // and substitute the flattened expression
+            case com.legend.compiler.spec.typed.TypedMap m
+                    when m.mapper().parameters().size() == 1
+                    && m.mapper().body().size() == 1 ->
+                    rewrite(inlineParam(m.mapper().body().get(0),
+                            m.mapper().parameters().get(0), m.source()));
             // Literals: nothing to substitute.
             case TypedCString ignored -> n;
             case TypedCInteger ignored -> n;
@@ -635,6 +653,44 @@ final class Substitution {
         // surface only as a SQL binder error
         throw new NotImplementedException("milestone column '" + name
                 + "' is not on the substitution row");
+    }
+
+    /** Replace reads of {@code param} with {@code source} — the auto-map
+     * inliner ({@code ->map(l|$l.prop)} flattens to the property path). */
+    private static TypedSpec inlineParam(TypedSpec n, String param, TypedSpec source) {
+        if (n instanceof TypedVariable v && v.name().equals(param)) {
+            return source;
+        }
+        return switch (n) {
+            case TypedVariable v -> v;
+            case TypedPropertyAccess pa -> new TypedPropertyAccess(
+                    inlineParam(pa.source(), param, source), pa.property(), pa.info());
+            case com.legend.compiler.spec.typed.TypedMilestonedAccess ma ->
+                    new com.legend.compiler.spec.typed.TypedMilestonedAccess(
+                            inlineParam(ma.source(), param, source), ma.property(),
+                            ma.dates().stream().map(d ->
+                                    inlineParam(d, param, source)).toList(),
+                            ma.sweep(), ma.info());
+            case TypedNativeCall c -> new TypedNativeCall(c.callee(),
+                    c.args().stream().map(a ->
+                            inlineParam(a, param, source)).toList(), c.info());
+            case TypedIf i -> new TypedIf(inlineParam(i.condition(), param, source),
+                    inlineParam(i.thenBranch(), param, source),
+                    i.elseBranch().map(e -> inlineParam(e, param, source)), i.info());
+            case TypedCString ignored -> n;
+            case TypedCInteger ignored -> n;
+            case TypedCFloat ignored -> n;
+            case TypedCDecimal ignored -> n;
+            case TypedCBoolean ignored -> n;
+            case TypedCDate ignored -> n;
+            case TypedEnumValue ignored -> n;
+            case TypedLambda l -> l.parameters().contains(param) ? l
+                    : new TypedLambda(l.parameters(), l.body().stream().map(b ->
+                            inlineParam(b, param, source)).toList(), l.info());
+            default -> throw new NotImplementedException(
+                    "auto-map mapper body node " + n.getClass().getSimpleName()
+                            + " is not inlinable yet");
+        };
     }
 
     /** A bi-temporal context carries (processingDate, businessDate) — the
