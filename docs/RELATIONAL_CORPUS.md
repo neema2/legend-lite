@@ -120,7 +120,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 0 | 0 | 87 | 5 |
 | executionPlan/tests | 109 | 0 | 0 | 8 | 101 |
-| functions/tests | 241 | 78 | 3 | 118 | 42 |
+| functions/tests | 241 | 80 | 3 | 116 | 42 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 0 | 1 |
 | functions/tests/projection | 154 | 62 | 5 | 58 | 29 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -129,7 +129,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 47 | 0 | 0 | 0 | 47 |
-| milestoning/tests | 221 | 117 | 5 | 44 | 55 |
+| milestoning/tests | 221 | 118 | 5 | 43 | 55 |
 | modelJoins | 7 | 0 | 0 | 1 | 6 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 0 | 7 |
@@ -145,7 +145,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | tds/tests | 265 | 104 | 1 | 102 | 58 |
 | testDataGeneration/tests | 40 | 0 | 0 | 0 | 40 |
 | tests | 39 | 0 | 0 | 0 | 39 |
-| tests/advanced | 67 | 7 | 0 | 38 | 22 |
+| tests/advanced | 67 | 8 | 0 | 37 | 22 |
 | tests/datatype | 5 | 0 | 0 | 5 | 0 |
 | tests/injection | 3 | 0 | 0 | 3 | 0 |
 | tests/mapping | 10 | 1 | 2 | 6 | 1 |
@@ -176,7 +176,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **649** | 29 | 773 | 841 |
+| **total** | 2292 | **653** | 29 | 769 | 841 |
 
 ### mapping walls (dropped at assembly)
 
@@ -299,7 +299,7 @@ runner does not yet recognize (accounted, not skipped silently).
 
 ### top error buckets
 
-- 45x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- 40x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - 40x unknown class 'TDSNull' in ^TDSNull(…)
 - 20x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 18x a bare lambda has no type outside a call position (lambdas type against their call's signature)
@@ -602,8 +602,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testExistsWithOrCondition [functions/tests]: filter predicate references column 'firm_employees', unresolvable even after isolation
 - ERROR testExistsWithAttributesFromLeftInAndCondition [functions/tests]: filter predicate references column 'firm_employees', unresolvable even after isolation
 - ERROR testExistsWithAttributesFromLeftInOrCondition [functions/tests]: filter predicate references column 'firm_employees', unresolvable even after isolation
-- ERROR testFilterFunctionExpressionWithConditionOnRightTableIsEmptyExpression [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testFilterFunctionExpressionWithAndConditionOnRightTableIsEmptyExpression [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - SHAPE testFetchDbTablesMetaData [functions/tests]: no execute(|...) call
 - SHAPE testFetchDbColumnsMetaData [functions/tests]: no execute(|...) call
 - SHAPE testFetchDbSchemasMetaData [functions/tests]: no execute(|...) call
@@ -939,7 +937,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFilterOnMilestonedClassInProjectWithTDSFilter [milestoning/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product': property 'isBrexitClassificationTypeExchange' of 'meta::relational::tests::milestoning::Product': expected Boolean, got String (value: AppliedFunction[function=if, parameters=[App
 - ERROR testDeepUnionOperationWithNonTemporalAndNonUnionRoot [milestoning/tests]: multi-hop navigation product.classification.product.id through an embedded/slot head is not supported yet
-- ERROR testMilestoningFilterPropagationThroughFilter [milestoning/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testMilestoningFilterPropagationThroughNestedFilter [milestoning/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - SHAPE testMilestoningFilterPropagationWithNowInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testFilterOnView [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -1377,7 +1374,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR filterFunctionExpressionWithConditionOnRightTableOrExpression [tests/advanced]: unknown function 'conditionRightTable'
 - ERROR filterFunctionExpressionWithOrConditionOnRightTable [tests/advanced]: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
 - ERROR filterAbstractPropertyWithConditionOnRightTableExistsExpression [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR filterFunctionExpressionWithConditionOnRightTableIsEmptyExpression [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR nestedFilterInQualifierWithOrCondition [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR projectionInvolvingOneNestedAtributeOnTriangularJoinAndOtherJoin [tests/advanced]: navigation through class-typed slot property 'locations' is not supported yet
 - SHAPE testFilterMappingWithProjectionOverlappForcedCorrelated [tests/advanced]: no execute(|...) call
@@ -1873,7 +1869,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testTwoAssociationsToManyDeepWithOr [tests/query]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
 - ERROR testAssociationToManyWithTwoSeparateExists [tests/query]: scalar lowering not yet implemented for TypedSerializeGraph
 - FAIL testWithParameterToClassNestedSelect [tests/query]: assertSize: expected 0, got 1
-- ERROR testExistsWithQualifierOnleftSide [tests/query]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testExistsWithQualifierOnleftSide [tests/query]: property 'eventDate' of class 'meta::relational::tests::model::simple::Trade' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testViewAll [tests/query]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Ord
 - SHAPE testViewWithJoinsAndDistinct [tests/query]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testDistinctOnlyIncludesTopLevelColumns [tests/query]: in function 'meta::relational::tests::TestViewWithDistinctAndJoins$class$meta::relational::tests::model::simple::Person': unknown table 'FirstNameAddress' in database 'meta::relational::tests::db'

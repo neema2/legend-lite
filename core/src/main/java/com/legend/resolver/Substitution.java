@@ -301,7 +301,28 @@ final class Substitution {
             if (headPath != null && headPath.size() == 1
                     && target.existsSubs().containsKey(headPath.get(0))
                     && isEmptinessFamily(call)) {
-                return rewriteExists(call, target.existsSubs().get(headPath.get(0)));
+                return rewriteExists(call, target.existsSubs().get(headPath.get(0)),
+                        java.util.List.of());
+            }
+            // FILTER-WRAPPED emptiness: isEmpty/exists($p.head->filter(f)
+            // [->filter(g)...], pred?) — the filters merge into the
+            // correlated set (engine: filter-in-chain parks on the
+            // navigation target)
+            if (isEmptinessFamily(call)) {
+                TypedSpec exArg = call.args().get(0);
+                java.util.List<TypedLambda> chainPreds = new ArrayList<>();
+                while (exArg instanceof com.legend.compiler.spec.typed.TypedFilter tf) {
+                    chainPreds.add(tf.predicate());
+                    exArg = tf.source();
+                }
+                if (!chainPreds.isEmpty()) {
+                    java.util.List<String> fp = pathOf(exArg, target.userVar());
+                    if (fp != null && fp.size() == 1
+                            && target.existsSubs().containsKey(fp.get(0))) {
+                        return rewriteExists(call,
+                                target.existsSubs().get(fp.get(0)), chainPreds);
+                    }
+                }
             }
         }
         // COLLECTION-position crossing under contains/in: set MEMBERSHIP —
@@ -961,6 +982,13 @@ final class Substitution {
         return n;
     }
 
+    private static java.util.Set<String> unconvertedSlotsOf(ExistsSub ex) {
+        java.util.Set<String> out =
+                new java.util.LinkedHashSet<>(ex.targetSlotAliases());
+        out.removeAll(ex.targetSlotPrefixes().keySet());
+        return out;
+    }
+
     private static boolean isEmptinessFamily(TypedNativeCall c) {
         String key = c.callee().signatureKey();
         return com.legend.builtin.Pure.nativeNamed("isEmpty", key)
@@ -1082,7 +1110,8 @@ final class Substitution {
         return projected;
     }
 
-    private TypedSpec rewriteExists(TypedNativeCall call, ExistsSub ex) {
+    private TypedSpec rewriteExists(TypedNativeCall call, ExistsSub ex,
+            java.util.List<TypedLambda> chainPreds) {
         TypedLambda cond = ex.orientedCond();   // params (parentRow, targetRow)
         String pVar = cond.parameters().get(0);
         String tVar = cond.parameters().get(1);
@@ -1098,6 +1127,29 @@ final class Substitution {
                         Multiplicity.Bounded.ONE));
         TypedSpec rel = new com.legend.compiler.spec.typed.TypedFilter(
                 ex.targetPipeline(), corr, ex.targetPipeline().info());
+        // chain filters ($p.head->filter(f)->...) merge into the correlated
+        // set: each substitutes over the target's bindings like the exists
+        // predicate, then wraps rel (outer reads re-correlate via the
+        // second pass below at the CALL level; chain preds get theirs here)
+        for (TypedLambda cf : chainPreds) {
+            Substitution cfSub = new Substitution(new Target(
+                    cf.parameters().get(0), tVar, ex.targetClassFqn(),
+                    target.mappingFqn(), ex.targetRowVar(), ex.targetBindings(),
+                    ex.targetRow(), unconvertedSlotsOf(ex), ex.targetSlotPrefixes(),
+                    Map.of(), java.util.Set.of(), Map.of(), Map.of(), null, null,
+                    java.util.List.of(), Map.of(), Map.of(), true, true));
+            TypedLambda cfInner = cfSub.rewriteLambda(cf);
+            TypedLambda cfCorr = new TypedLambda(cfInner.parameters(),
+                    cfInner.body().stream().map(this::rewrite).toList(),
+                    new ExprType(new Type.FunctionType(
+                            List.of(new Type.Param(ex.targetRow(),
+                                    Multiplicity.Bounded.ONE)),
+                            new Type.Param(Type.Primitive.BOOLEAN,
+                                    Multiplicity.Bounded.ONE)),
+                            Multiplicity.Bounded.ONE));
+            rel = new com.legend.compiler.spec.typed.TypedFilter(rel, cfCorr,
+                    rel.info());
+        }
         List<TypedSpec> newArgs = new ArrayList<>();
         newArgs.add(rel);
         if (call.args().size() == 2) {

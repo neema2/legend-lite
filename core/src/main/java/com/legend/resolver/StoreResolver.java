@@ -2956,12 +2956,27 @@ public final class StoreResolver {
     private static void collectExistsInnerLeaves(TypedSpec n, String userVar,
             String head, Set<String> out) {
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall c
-                && c.args().size() == 2
-                && c.args().get(1) instanceof TypedLambda lam
-                && !lam.parameters().isEmpty()) {
-            java.util.List<String> p = Substitution.pathOf(c.args().get(0), userVar);
+                && !c.args().isEmpty()) {
+            // unwrap ->filter(f) chains on the receiver: their lambdas
+            // demand target leaves too (filter-wrapped emptiness)
+            TypedSpec recv = c.args().get(0);
+            java.util.List<TypedLambda> chainLams = new ArrayList<>();
+            while (recv instanceof TypedFilter tf) {
+                chainLams.add(tf.predicate());
+                recv = tf.source();
+            }
+            java.util.List<String> p = Substitution.pathOf(recv, userVar);
             if (p != null && p.size() == 1 && p.get(0).equals(head)) {
-                collectParamPathHeads(lam, lam.parameters().get(0), out);
+                if (c.args().size() == 2
+                        && c.args().get(1) instanceof TypedLambda lam
+                        && !lam.parameters().isEmpty()) {
+                    collectParamPathHeads(lam, lam.parameters().get(0), out);
+                }
+                for (TypedLambda cl : chainLams) {
+                    if (!cl.parameters().isEmpty()) {
+                        collectParamPathHeads(cl, cl.parameters().get(0), out);
+                    }
+                }
             }
         }
         for (TypedSpec ch : n.children()) {
