@@ -122,14 +122,14 @@ runner does not yet recognize (accounted, not skipped silently).
 | executionPlan/tests | 109 | 0 | 0 | 8 | 101 |
 | functions/tests | 241 | 78 | 3 | 118 | 42 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 0 | 1 |
-| functions/tests/projection | 154 | 61 | 5 | 59 | 29 |
+| functions/tests/projection | 154 | 62 | 5 | 58 | 29 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 5 | 0 | 0 | 0 | 5 |
 | graphFetch/tests/union | 1 | 0 | 0 | 0 | 1 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 47 | 0 | 0 | 0 | 47 |
-| milestoning/tests | 221 | 115 | 5 | 48 | 53 |
+| milestoning/tests | 221 | 117 | 5 | 44 | 55 |
 | modelJoins | 7 | 0 | 0 | 1 | 6 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 0 | 7 |
@@ -176,7 +176,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **646** | 29 | 778 | 839 |
+| **total** | 2292 | **649** | 29 | 773 | 841 |
 
 ### mapping walls (dropped at assembly)
 
@@ -299,7 +299,7 @@ runner does not yet recognize (accounted, not skipped silently).
 
 ### top error buckets
 
-- 44x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- 45x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - 40x unknown class 'TDSNull' in ^TDSNull(…)
 - 20x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 18x a bare lambda has no type outside a call position (lambdas type against their call's signature)
@@ -316,6 +316,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - 7x [2547:78] expected GREATER_THAN but found PIPE ('|')
 - 7x no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - 7x association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion' (property 'vehicles' routes to NON-root mapping set 'car1' — multi-set dispatch outside union members is a roadmap feature; the property is dropped from this synthesis; property 'roadVehicles' routes to NON-root mapping set 'car1' — multi-set dispatch outside union members is a roadmap feature; the property is dropped from this synthesis)
+- 7x a scalar query has no row scope for $_r0.personTableToOrgTreeOptimizationTable_ancestor
 - 6x unknown function 'ytd'
 - 6x filter predicate references column 'firm_employees', unresolvable even after isolation
 - 6x class meta::relational::tests::model::simple::Address has no property 'values'
@@ -328,7 +329,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - 5x unknown function 'columnValues'
 - 5x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
 - 5x unknown function 'conditionRightTable'
-- 5x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
 
 ### per-test outcomes (non-passing)
 
@@ -793,7 +793,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testQualifierWithInThroughJoin [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::rel
 - ERROR testSimpleBoolean [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::rel
 - ERROR testSimpleDerivedThroughAssociation [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
-- ERROR testQualifierWithFilteringAndParameters [functions/tests/projection]: [2:127] navigation path segment 'synonymByType(ProductSynonymType.CUSIP)' uses an unsupported path feature (only plain property segments desugar): #/Product/synonymByType(ProductSynonymType.CUSIP)/name!cusip#
 - FAIL testTwoQualifiersUsingSameJoinWithNoUserParams [functions/tests/projection]: assertSize: expected 1, got 4
 - ERROR testQualifierInLambdaDeep [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testQualifierBeforeProject [functions/tests/projection]: class query under TypedMap is not resolvable yet (H2 vocabulary)
@@ -886,9 +885,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testTableToTdsWithOLAPGroupBy [lineage/scanRelations]: no execute(|...) call
 - SHAPE testTableToTdsWithCrossJoin [lineage/scanRelations]: no execute(|...) call
 - SHAPE testTdsJoinConcatenateAndJoin [lineage/scanRelations]: no execute(|...) call
-- ERROR testBiTemporalPropertyUsageInProjectPath [milestoning/tests]: [2:98] navigation path segment 'biTemporalProduct(%2017-6-10, %2017-6-9)' uses an unsupported path feature (only plain property segments desugar): #/Order/biTemporalProduct(%2017-6-10, %2017-6-9)/id#
 - SHAPE testMultipleBiTemporalPropertyUsageInProjectWithMilestoningInfinitySpecifiedInDB [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testMultipleBiTemporalPropertyUsageInProjectPathWithMilestoningInfinitySpecifiedInDBPlusLatestPropagation [milestoning/tests]: [2:138] navigation path segment 'biTemporalProduct(%latest, %latest)' uses an unsupported path feature (only plain property segments desugar): #/Order/biTemporalProduct(%latest, %latest)/biTemporalClassification(%latest, %latest)/type#
+- SHAPE testMultipleBiTemporalPropertyUsageInProjectPathWithMilestoningInfinitySpecifiedInDBPlusLatestPropagation [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testMultipleBiTemporalPropertyUsageInProjectWithMilestoningInfinitySpecifiedInDBPlusLatestPropagation [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPopulationOfMilestonedThisBiTemporalDatesInProject [milestoning/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
 - SHAPE testPopulationOfMilestonedThisBiTemporalDatesInProjectAgainstNonMilestonedStore [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -953,7 +951,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLatestIgnoredForNonMilestonedMappedBiTemporalClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLatestIgnoredForNonMilestonedMappedBiTemporalClasses [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testLatestIgnoredForNonMilestonedMappedBiTemporalClassesWithProject [milestoning/tests]: [5:99] navigation path segment 'biTemporalProduct(%latest, %latest)' uses an unsupported path feature (only plain property segments desugar): #/Order/biTemporalProduct(%latest, %latest)/type#
+- SHAPE testLatestIgnoredForNonMilestonedMappedBiTemporalClassesWithProject [milestoning/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
 - ERROR testMilestoningColumnProjectionWithNonMilestonedTable [milestoning/tests]: resolver bug: undemanded navigation 'milestoning.from' — the demand scan and the rewrite disagreed
 - SHAPE testLatestMilestoningFiltersPropogatedToDataTypePropertiesFromAllInProject [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testIsolationOfMilestoningFiltersUsedOnIntermediateJoinInOR [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -966,7 +964,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMilestoneDatePropogationThruExistsConditionalClause [milestoning/tests]: milestoned property access 'classification' on a NESTED navigation is not supported yet
 - ERROR testMilestoningContextIsPropogatedThroughAutoMap [milestoning/tests]: multi-hop navigation product.classification.description through an embedded/slot head is not supported yet
 - ERROR testMilestoningContextIsPropogatedThroughSubType [milestoning/tests]: class-typed property '$o.product' used as a whole value is graph output (Phase H4)
-- ERROR testMilestoningContextPropagatedFromMilestoningQualifiedPropertyWithArgToNoArgMilestonedQualifiedPropertyInProjectPath [milestoning/tests]: [4:152] navigation path segment 'classification(%2016-10-16)' uses an unsupported path feature (only plain property segments desugar): #/Product/classification(%2016-10-16)/exchange/name#
 - ERROR testInThruInclusiveUnionInThruInclusive [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::InThruInclusiveUnionInThruInclusiveMapping'
 - ERROR testOutFromInclusiveUnionOutFromInclusive [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::OutFromInclusiveUnionOutFromInclusiveMapping'
 - SHAPE testAssoWithOtherwise [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -1524,7 +1521,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - FAIL testAggregationFunctionWithEnum [tests/mapping/enumeration]: assertEquals: expected [CONTRACT, 1, CONTRACT, 1, FULL_TIME, 1], got [CONTRACT, 2, FULL_TIME, 1]
 - ERROR testProjectionWithInheritedEnum [tests/mapping/enumeration]: unknown function 'columnValues'
 - ERROR testProjectionWithEnumThroughAssociation [tests/mapping/enumeration]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
-- ERROR testProjectionWithEnumQualifierParameter [tests/mapping/enumeration]: [4:113] navigation path segment 'synonymsByType(ProductSynonymType.CUSIP)' uses an unsupported path feature (only plain property segments desugar): #/Product/synonymsByType(ProductSynonymType.CUSIP)/value!cusip#
+- ERROR testProjectionWithEnumQualifierParameter [tests/mapping/enumeration]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testFilterWithEnumQualifierParameter [tests/mapping/enumeration]: unknown function 'columnValues'
 - FAIL testProjectWithIfWhereOneSideIsEnumLiteral [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, GS_NUMBER]
 - FAIL testProjectWithIfWhereBothSidesUseTheSameEnumMapping [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, CUSIP]
@@ -1769,11 +1766,11 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testQueryNoResultWithAnd [tests/mapping/tree]: a scalar query has no row scope for $_r0.personTableToOrgTreeOptimizationTable_ancestor
 - ERROR testQueryWithOr [tests/mapping/tree]: a scalar query has no row scope for $_r0.personTableToOrgTreeOptimizationTable_ancestor
 - ERROR testFilterOnNestedQualifier [tests/mapping/tree]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testProjectMerge [tests/mapping/tree]: [2:96] navigation path segment 'orgByName('BUSINESS UNIT')' uses an unsupported path feature (only plain property segments desugar): #/Person/orgByName('BUSINESS UNIT')/name!buName#
-- ERROR testProjection [tests/mapping/tree]: [6:88] navigation path segment 'orgByName('TEAM')' uses an unsupported path feature (only plain property segments desugar): #/Person/orgByName('TEAM')/name!team#
+- ERROR testProjectMerge [tests/mapping/tree]: a scalar query has no row scope for $_r0.personTableToOrgTreeOptimizationTable_ancestor
+- ERROR testProjection [tests/mapping/tree]: a scalar query has no row scope for $_r0.personTableToOrgTreeOptimizationTable_ancestor
 - ERROR testProjectionDeeper [tests/mapping/tree]: relation has no column 'name' in scalar read
 - ERROR testProjectionDeeperInlined [tests/mapping/tree]: relation has no column 'name' in scalar read
-- ERROR testProjectWithFilter [tests/mapping/tree]: [3:107] navigation path segment 'orgByName('BUSINESS UNIT')' uses an unsupported path feature (only plain property segments desugar): #/Person/orgByName('BUSINESS UNIT')/name!buName#
+- ERROR testProjectWithFilter [tests/mapping/tree]: a scalar query has no row scope for $_r0.personTableToOrgTreeOptimizationTable_ancestor
 - ERROR testJoinIsolationDeeper_LeftOuterLeftOuterThenInner [tests/mapping/tree]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner [tests/mapping/tree]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testProjectWithPostTdsOperations [tests/mapping/union]: ~Len: mapped/aggregate column specifications need an enclosing call to type against

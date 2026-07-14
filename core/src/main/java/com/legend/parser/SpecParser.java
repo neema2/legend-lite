@@ -2110,6 +2110,23 @@ public final class SpecParser implements TokenStreamCursor {
                 alias = seg.substring(bang + 1);
                 seg = seg.substring(0, bang);
             }
+            // DATED segment prop(%d) / prop(%d1, %d2) / prop(%latest):
+            // desugars to the milestoned property-FUNCTION call the Typer
+            // already handles ($x.prop(%d)) — args re-parse as expressions
+            var dated = java.util.regex.Pattern
+                    .compile("(\\w+)\\(([^)]*)\\)").matcher(seg);
+            if (dated.matches()) {
+                List<ValueSpecification> args = new ArrayList<>();
+                args.add(body);
+                for (String arg : dated.group(2).split(",")) {
+                    args.add(SpecParser.parse("|" + arg.strip())
+                            instanceof LambdaFunction lf && lf.body().size() == 1
+                            ? lf.body().get(0)
+                            : new Variable(arg.strip()));
+                }
+                body = new AppliedFunction(dated.group(1), args);
+                continue;
+            }
             if (!seg.matches("\\w+")) {
                 throw error("navigation path segment '" + seg
                         + "' uses an unsupported path feature (only plain"
