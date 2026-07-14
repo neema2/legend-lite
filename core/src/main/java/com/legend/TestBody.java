@@ -212,6 +212,19 @@ public final class TestBody {
                     }
                     break;
                 }
+                // let tds = $r.values->at(0) over a RELATION-rooted handle:
+                // the peel bottoms at the handle VAR — the alias is the
+                // same envelope handle (so $tds->size() keeps ONE-TDS
+                // semantics, and $tds.rows reads splice as before)
+                if (raw instanceof Variable hv && handles.containsKey(hv.name())
+                        && handles.get(hv.name()).relationRooted()) {
+                    String bad = envelopeIndexError(wrappers);
+                    if (bad != null) {
+                        return new Outcome.Unsupported(bad);
+                    }
+                    handles.put(name.value(), handles.get(hv.name()));
+                    continue;
+                }
                 ValueSpecification rhs = raw instanceof AppliedFunction rex
                         && isExecuteCall(rex)
                         ? new AppliedFunction(rex.function(), substituteAll(
@@ -1001,6 +1014,16 @@ public final class TestBody {
                         + " one TDS");
             }
             return splice(h2, runtimeFqn);
+        }
+        // $tds->size() where $tds IS the peeled envelope (a relation-rooted
+        // handle): ONE TDS value — pure size of a single instance, never
+        // the row count (rows count as $tds.rows->size())
+        if (v instanceof AppliedFunction sf && sf.function().equals("size")
+                && sf.parameters().size() == 1
+                && sf.parameters().get(0) instanceof Variable sv
+                && handles.containsKey(sv.name())
+                && handles.get(sv.name()).relationRooted()) {
+            return new CInteger(1L);
         }
         return switch (v) {
             case Variable var when lets.containsKey(var.name()) -> lets.get(var.name());

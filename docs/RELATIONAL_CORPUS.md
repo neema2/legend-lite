@@ -129,7 +129,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 47 | 0 | 0 | 0 | 47 |
-| milestoning/tests | 221 | 136 | 3 | 27 | 55 |
+| milestoning/tests | 221 | 137 | 2 | 27 | 55 |
 | modelJoins | 7 | 0 | 0 | 1 | 6 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 0 | 7 |
@@ -176,7 +176,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **682** | 27 | 742 | 841 |
+| **total** | 2292 | **683** | 26 | 742 | 841 |
 
 ### mapping walls (dropped at assembly)
 
@@ -916,7 +916,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: class 'meta::relational::tests::milestoning::Trade' is not mapped in mapping 'meta::relational::tests::milestoning::milestoningmap3' (Join 'TradeTable_TradePnlViewNoRootMilestoning' navigates to a CLASS mapped over view 'tradePnlViewNoRootMilestoning'; class navigation onto view relations is a roadm
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testIsolationOfCaseStmtTrueFalseFilters [milestoning/tests]: multi-hop navigation classification.product.name through an embedded/slot head is not supported yet
-- FAIL testProjectWithMilestoning [milestoning/tests]: assertEquals: expected 1, got 2
 - FAIL testMilestonedChainedJoinsWithAlias [milestoning/tests]: assertSameElements: expected [1 | 1 | Sedan | Folding Bike, 2 | 2 | SUV | Electric Bike, 3 | 3 | Hatchback | Hybrid Bike, 4 | 4 | Convertible | Road Bike, 5 | 5 | Truck | Mountain Bike], got []
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testConcatenationOfTemporalTdsQueries [milestoning/tests]: execute() whose query argument is not a lambda
