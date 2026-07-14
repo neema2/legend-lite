@@ -1433,7 +1433,8 @@ public final class StoreResolver {
             String targetClass = ((com.legend.compiler.spec.typed.TypedGetAll)
                     nav.target()).classFqn();
             navMats.put(alias, navTargetMaterialized(cs.mappingFqn(), targetClass,
-                    navTails.getOrDefault(alias, java.util.List.of())));
+                    navTails.getOrDefault(alias, java.util.List.of()),
+                    navHeadByAlias.getOrDefault(alias, alias)));
         }
         for (String alias : demandedNavs) {
             var nav = navSteps.get(alias);
@@ -2949,6 +2950,14 @@ public final class StoreResolver {
      */
     private Pipelines.Materialized navTargetMaterialized(String mappingFqn,
             String targetClassFqn, java.util.List<java.util.List<String>> tails) {
+        return navTargetMaterialized(mappingFqn, targetClassFqn, tails, null);
+    }
+
+    /** {@code chainPrefix}: the dotted path of the HEAD this target hangs
+     * off (null at registration sites that key specs by bare head). */
+    private Pipelines.Materialized navTargetMaterialized(String mappingFqn,
+            String targetClassFqn, java.util.List<java.util.List<String>> tails,
+            String chainPrefix) {
         ClassSource t = sources.get(mappingFqn, targetClassFqn);
         // TEMPORAL GATE (same discipline as the union lift): the nested
         // materialization does not yet thread per-hop milestoning context
@@ -2993,8 +3002,17 @@ public final class StoreResolver {
                     String subCls = ((com.legend.compiler.spec.typed.TypedGetAll)
                             tNavSteps.get(subAlias).target()).classFqn();
                     ClassSource subT = sources.get(mappingFqn, subCls);
-                    if (temporalStrategy(subCls) != null
-                            || hasMilestonedSlotTarget(subT.pipeline())
+                    // TEMPORAL sub-target: liftable when its CHAIN-KEYED
+                    // spec (explicit hop date) or propagated context can
+                    // filter it (temporalTargetPipe in the resolver lambda
+                    // below); no chain prefix or no context = stays loud.
+                    boolean temporalSub = temporalStrategy(subCls) != null;
+                    if (temporalSub && (chainPrefix == null
+                            || !canFilterTemporalSub(t, subCls,
+                                    chainPrefix + "." + tail.get(0)))) {
+                        continue;
+                    }
+                    if (hasMilestonedSlotTarget(subT.pipeline())
                             || containsFilter(subT.pipeline())) {
                         continue;
                     }
@@ -3005,11 +3023,49 @@ public final class StoreResolver {
             }
         }
         tDemand = Pipelines.closeOverConditions(t.pipeline(), tDemand);
+        final Map<String, String> midByAlias = new java.util.LinkedHashMap<>();
+        for (java.util.List<String> tail : tails) {
+            if (tail.size() >= 2) {
+                TypedSpec b2 = t.bindings().get(tail.get(0));
+                String a2 = b2 == null ? null
+                        : navSlotAlias(b2, t.rowVar(), tNavSteps.keySet());
+                if (a2 != null) {
+                    midByAlias.putIfAbsent(a2, tail.get(0));
+                }
+            }
+        }
         return Pipelines.materialize(t.pipeline(), tDemand, tNavs,
-                targetClassFqn, (alias, cls) -> navTargetMaterialized(
-                        mappingFqn, cls,
-                        subTails.getOrDefault(alias, java.util.List.of()))
-                        .pipeline());
+                targetClassFqn, (alias, cls) -> {
+                    TypedSpec sub = navTargetMaterialized(mappingFqn, cls,
+                            subTails.getOrDefault(alias, java.util.List.of()),
+                            chainPrefix == null ? null
+                                    : chainPrefix + "." + midByAlias.get(alias))
+                            .pipeline();
+                    // per-hop temporal filter: the sub-hop's chain-keyed
+                    // spec or propagated context (parent = THIS target)
+                    if (temporalStrategy(cls) != null && chainPrefix != null) {
+                        sub = temporalTargetPipe(t, sources.get(mappingFqn, cls),
+                                chainPrefix + "." + midByAlias.get(alias), sub);
+                    }
+                    return sub;
+                });
+    }
+
+    /** Whether the sub-hop at {@code chainKey} has a usable temporal
+     * context: an explicit chain-keyed spec, or propagation (same
+     * single-dimension strategy through a TEMPORAL immediate parent —
+     * engine: context clears after non-temporal hops). */
+    private boolean canFilterTemporalSub(ClassSource parent, String subCls,
+            String chainKey) {
+        TemporalSpec spec = temporalByHead.get(chainKey);
+        if (spec != null) {
+            return true;
+        }
+        String subStrat = temporalStrategy(subCls);
+        return !rootMilestoning.isEmpty() && subStrat != null
+                && !"bitemporal".equals(subStrat)
+                && subStrat.equals(rootStrategy)
+                && temporalStrategy(parent.classFqn()) != null;
     }
 
     /** Whether the pipeline carries a mapping ~filter anywhere. */
