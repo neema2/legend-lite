@@ -75,15 +75,22 @@ final class ProjectChecker {
                     names.add(alias);
                     continue;
                 }
-                // legacy TDS col(fn, 'name') inside the project collection
+                // legacy TDS col(fn, 'name') inside the project collection;
+                // the lambda may be COLLECTION-wrapped: col([o|...], 'n')
                 if (v instanceof AppliedFunction colCall
                         && colCall.function().equals("col")
                         && colCall.parameters().size() == 2
-                        && colCall.parameters().get(0) instanceof LambdaFunction fn
                         && colCall.parameters().get(1) instanceof CString cname) {
-                    exprs.add(fn);
-                    names.add(cname);
-                    continue;
+                    ValueSpecification fnArg = colCall.parameters().get(0);
+                    if (fnArg instanceof PureCollection pc1
+                            && pc1.values().size() == 1) {
+                        fnArg = pc1.values().get(0);
+                    }
+                    if (fnArg instanceof LambdaFunction fn) {
+                        exprs.add(fn);
+                        names.add(cname);
+                        continue;
+                    }
                 }
                 exprs.add(v);
                 names.add(new CString(derivedColumnName(v)));
@@ -102,9 +109,20 @@ final class ProjectChecker {
 
     /** The leaf property of a navigation lambda/path names its column (engine parity). */
     private static String derivedColumnName(ValueSpecification v) {
-        if (v instanceof LambdaFunction lf && lf.body().size() == 1
-                && lf.body().get(0) instanceof AppliedProperty ap) {
-            return ap.property();
+        if (v instanceof LambdaFunction lf && lf.body().size() == 1) {
+            ValueSpecification leaf = lf.body().get(0);
+            if (leaf instanceof AppliedProperty ap) {
+                return ap.property();
+            }
+            // a MILESTONED property-function leaf (prop(%d), path-literal
+            // dated segments) names its column by the property, engine
+            // buildColumnNameOutOfPath parity
+            if (leaf instanceof AppliedFunction laf && !laf.parameters().isEmpty()
+                    && (laf.parameters().get(0) instanceof Variable
+                            || laf.parameters().get(0) instanceof AppliedProperty
+                            || laf.parameters().get(0) instanceof AppliedFunction)) {
+                return laf.function();
+            }
         }
         throw new TypeInferenceException("a name-less project column must be a"
                 + " property navigation (its leaf names the column); give"
