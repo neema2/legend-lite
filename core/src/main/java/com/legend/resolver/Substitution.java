@@ -55,6 +55,8 @@ final class Substitution {
                   Map<TypedSpec, AggRead> aggReads,
                   com.legend.compiler.element.TypedFunction isNotEmptyCallee,
                   com.legend.compiler.element.TypedFunction equalCallee,
+                  java.util.List<TypedSpec> rootTemporalDates,
+                  Map<String, java.util.List<TypedSpec>> headTemporalDates,
                   boolean filterPosition, boolean nested) {}
 
     /** An aggregated-navigation column read: {@code column} on the joined
@@ -365,6 +367,12 @@ final class Substitution {
                 }
             }
             if (binding == null) {
+                // GENERATED temporal-context property: $p.businessDate /
+                // $p.processingDate reads back the fetch's context date
+                if ((prop.equals("businessDate") || prop.equals("processingDate"))
+                        && !target.rootTemporalDates().isEmpty()) {
+                    return contextDate(target.rootTemporalDates(), prop);
+                }
                 if (target.nested()) {
                     throw new NotImplementedException("nested navigation '$"
                             + target.userVar() + "." + prop + "' inside an"
@@ -501,6 +509,16 @@ final class Substitution {
         }
         TypedSpec leafBinding = a.targetBindings().get(leaf);
         if (leafBinding == null) {
+            // GENERATED temporal-context property on the TARGET instance:
+            // the head's explicit property-function date wins, else the
+            // propagated root context date
+            if (leaf.equals("businessDate") || leaf.equals("processingDate")) {
+                java.util.List<TypedSpec> dates = target.headTemporalDates()
+                        .getOrDefault(head, target.rootTemporalDates());
+                if (!dates.isEmpty()) {
+                    return contextDate(dates, leaf);
+                }
+            }
             if (target.nested()) {
                 throw new NotImplementedException("nested navigation '" + head
                         + "." + leaf + "' inside an exists/isEmpty predicate is"
@@ -557,6 +575,13 @@ final class Substitution {
      * leaf's crossing reads rewritten onto the subquery row, everything
      * else staying correlated to the outer row.
      */
+
+    /** A bi-temporal context carries (processingDate, businessDate) — the
+     * generated property picks its own; a single date serves either. */
+    private static TypedSpec contextDate(java.util.List<TypedSpec> dates, String prop) {
+        return dates.size() == 2 && prop.equals("businessDate")
+                ? dates.get(1) : dates.get(0);
+    }
 
     /** {@code contains($p.head.leaf, v)} / {@code in(v, $p.head.leaf)}:
      * EXISTS(child WHERE assoc-corr AND leaf = v) — the correlated child
@@ -787,7 +812,8 @@ final class Substitution {
                 predLam.parameters().get(0), tVar, ex.targetClassFqn(),
                 target.mappingFqn(), ex.targetRowVar(), ex.targetBindings(),
                 ex.targetRow(), ex.targetSlotAliases(), Map.of(), Map.of(),
-                java.util.Set.of(), Map.of(), Map.of(), null, null, true, true));
+                java.util.Set.of(), Map.of(), Map.of(), null, null,
+                java.util.List.of(), Map.of(), true, true));
         TypedLambda inner = predSub.rewriteLambda(predLam);
         TypedLambda innerOuter = new TypedLambda(inner.parameters(),
                 inner.body().stream().map(this::rewrite).toList(), inner.info());
@@ -857,7 +883,8 @@ final class Substitution {
                     predLam.parameters().get(0), tVar, ex.targetClassFqn(),
                     target.mappingFqn(), ex.targetRowVar(), ex.targetBindings(),
                     ex.targetRow(), ex.targetSlotAliases(), Map.of(), Map.of(),
-                    java.util.Set.of(), Map.of(), Map.of(), null, null, true, true));
+                    java.util.Set.of(), Map.of(), Map.of(), null, null,
+                    java.util.List.of(), Map.of(), true, true));
             TypedLambda inner = predSub.rewriteLambda(predLam);
             // OUTER reads inside the predicate ($s.name == $f.legal): a
             // second pass through THIS substitution turns them into

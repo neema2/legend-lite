@@ -131,7 +131,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 47 | 0 | 0 | 0 | 47 |
-| milestoning/tests | 221 | 9 | 22 | 137 | 53 |
+| milestoning/tests | 221 | 31 | 4 | 133 | 53 |
 | modelJoins | 7 | 0 | 0 | 1 | 6 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 0 | 7 |
@@ -178,7 +178,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **469** | 45 | 939 | 839 |
+| **total** | 2292 | **491** | 27 | 935 | 839 |
 
 ### mapping walls (dropped at assembly)
 
@@ -319,8 +319,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - 20x expected at most one value, got many ([*])
 - 18x a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - 14x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- 11x bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
 - 10x class query under TypedMap is not resolvable yet (H2 vocabulary)
+- 10x bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
 - 10x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[function=if, parameters=[AppliedFunction[function=equal, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=active], CString[value=Y]]], LambdaFunction[parameters=[], body=[CString[value=true]]], LambdaFunction[parameters=[], body=[CString[value=false]]]]]]])
 - 9x class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - 9x navigation through class-typed slot property 'address' is not supported yet
@@ -328,7 +328,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - 8x relation has no column 'aID'
 - 8x association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
 - 7x object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
-- 7x unknown function 'biTemporalProduct'
 - 7x class meta::relational::tests::milestoning::Product has no property 'milestoning'
 - 7x [2547:78] expected GREATER_THAN but found PIPE ('|')
 - 7x no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
@@ -342,6 +341,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - 6x in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - 6x unbound variable '$dt'
 - 6x ~name_length: mapped/aggregate column specifications need an enclosing call to type against
+- 6x in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
 
 ### per-test outcomes (non-passing)
 
@@ -909,22 +909,21 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testTableToTdsWithCrossJoin [lineage/scanRelations]: no execute(|...) call
 - SHAPE testTdsJoinConcatenateAndJoin [lineage/scanRelations]: no execute(|...) call
 - ERROR testBiTemporalAllTypeQuery [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
-- ERROR testBiTemporalPropertyUsageInProject [milestoning/tests]: unknown function 'biTemporalProduct'
 - ERROR testBiTemporalPropertyUsageInProjectPath [milestoning/tests]: [2:98] navigation path segment 'biTemporalProduct(%2017-6-10, %2017-6-9)' uses an unsupported path feature (only plain property segments desugar): #/Order/biTemporalProduct(%2017-6-10, %2017-6-9)/id#
-- ERROR testMultipleBiTemporalPropertyUsageInProject [milestoning/tests]: unknown function 'biTemporalProduct'
-- ERROR testMultipleBiTemporalPropertyUsageInProjectWithMilestoningInfinityNotSpecifiedInDB [milestoning/tests]: unknown function 'biTemporalProduct'
+- ERROR testMultipleBiTemporalPropertyUsageInProject [milestoning/tests]: multi-hop navigation biTemporalProduct.biTemporalClassification.type through an embedded/slot head is not supported yet
+- ERROR testMultipleBiTemporalPropertyUsageInProjectWithMilestoningInfinityNotSpecifiedInDB [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::BiTemporalProduct': the main table declares no matching milestoning block for the processing dimension
 - SHAPE testMultipleBiTemporalPropertyUsageInProjectWithMilestoningInfinitySpecifiedInDB [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testMultipleBiTemporalPropertyUsageInProjectPathWithMilestoningInfinitySpecifiedInDBPlusLatestPropagation [milestoning/tests]: [2:138] navigation path segment 'biTemporalProduct(%latest, %latest)' uses an unsupported path feature (only plain property segments desugar): #/Order/biTemporalProduct(%latest, %latest)/biTemporalClassification(%latest, %latest)/type#
 - SHAPE testMultipleBiTemporalPropertyUsageInProjectWithMilestoningInfinitySpecifiedInDBPlusLatestPropagation [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPopulationOfMilestonedThisBiTemporalDatesInProject [milestoning/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
 - SHAPE testPopulationOfMilestonedThisBiTemporalDatesInProjectAgainstNonMilestonedStore [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testBiTemporalQueryMappedToSingleTemporalStore [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
-- ERROR testBiTemporalToBiTemporalDatePropagation [milestoning/tests]: unknown function 'biTemporalProduct'
+- ERROR testBiTemporalToBiTemporalDatePropagation [milestoning/tests]: multi-hop navigation biTemporalProduct.biTemporalClassification.type through an embedded/slot head is not supported yet
 - ERROR testBiTemporalToBiTemporalDatePropagationForAll [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
-- ERROR testBiTemporalToBiTemporalSingleDatePropagationForAll [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
+- ERROR testBiTemporalToBiTemporalSingleDatePropagationForAll [milestoning/tests]: unknown function 'biTemporalClassification'
 - ERROR testBiTemporalToSingleSingleTemporalDatePropagation [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
-- ERROR testBusinessToBiTemporalDatePropagation [milestoning/tests]: navigation to bi-temporal class 'meta::relational::tests::milestoning::BiTemporalProductClassification' is not supported yet
-- ERROR testProcessingToBiTemporalDatePropagation [milestoning/tests]: navigation to bi-temporal class 'meta::relational::tests::milestoning::Location' is not supported yet
+- ERROR testBusinessToBiTemporalDatePropagation [milestoning/tests]: unknown function 'biTemporalClassification'
+- ERROR testProcessingToBiTemporalDatePropagation [milestoning/tests]: unknown function 'location'
 - SHAPE testBiTemporalToBiTemporalProjectWithMilestoningInfinitySpecifiedInDB [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testBiTemporalToBiTemporalProcessingDateProjectWithMilestoningInfinitySpecifiedInDB [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testBiTemporalDateInjectionFromVarReference [milestoning/tests]: sql-only: 5 advisory golden-SQL assert(s), no row verification
@@ -934,30 +933,25 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testConstraintUsageOfThisMilestoningContext2 [milestoning/tests]: no execute(|...) call
 - SHAPE testConstraintUsageOfThisMilestoningContext2WithNonTemporalStore [milestoning/tests]: no execute(|...) call
 - SHAPE testConstraintUsageOfThisMilestoningContext3 [milestoning/tests]: no execute(|...) call
-- ERROR testPopulationOfMilestonedThisBusinessDatesInProject [milestoning/tests]: in function 'meta::relational::tests::milestoning::Product$prop$classificationTypeStr': class meta::relational::tests::milestoning::Product has no property 'businessDate'
+- ERROR testPopulationOfMilestonedThisBusinessDatesInProject [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::ProductClassification' with a non-literal date is not supported yet
 - SHAPE testMilestonedThisBusinessDateInPosition1InQualfiedPropertySequence [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testMilestonedThisBusinessDateInPosition1InQualfiedPropertySequence2 [milestoning/tests]: execute() whose query argument is not a lambda
 - SHAPE testMilestonedThisBusinessDateWithNestedDerivedProperty [milestoning/tests]: execute() whose query argument is not a lambda
-- ERROR testMilestonedThisBusinessDateWithNonThisAccessParameter [milestoning/tests]: class meta::relational::tests::milestoning::Product has no property 'businessDate'
+- ERROR testMilestonedThisBusinessDateWithNonThisAccessParameter [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::ProductClassification' with a non-literal date is not supported yet
 - SHAPE testProcessedMilestonedExchangeNameConstraint [milestoning/tests]: no execute(|...) call
 - SHAPE testMilestonedThisBusinessDateInPosition2InQualfiedPropertySequence [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testMilestonedThisBusinessDateUsedAsParameterToFunctionParametersOfMilestonedQualifiedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testMilestonedThisBusinessDateUsedAsParameterToFunctionInMilestoningQualifiedPropertyMappedToView [milestoning/tests]: no execute(|...) call
 - SHAPE testMilestonedQualifiedPropertyWithDateProvidedByFunction [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testViewChainsWithBusinessDate [milestoning/tests]: no execute(|...) call
-- ERROR testThisBusinessDateUsageInQualifiedProperty [milestoning/tests]: class meta::relational::tests::milestoning::Product has no property 'businessDate'
-- ERROR testPopulationOfLatestMilestonedDateInQuery [milestoning/tests]: class meta::relational::tests::milestoning::Product has no property 'businessDate'
-- ERROR testPopulationOfMilestonedBusinessDateWithTimeComponentInQuery [milestoning/tests]: class meta::relational::tests::milestoning::Product has no property 'businessDate'
+- ERROR testPopulationOfLatestMilestonedDateInQuery [milestoning/tests]: scalar lowering not yet implemented for TypedCLatestDate
 - ERROR testMilestoningFiltersPreservedInTdsJoinWithConcatenate [milestoning/tests]: property 'stockProductName' of class 'meta::relational::tests::milestoning::Product' is mapped through the target's own join slots; nested navigation joins are not supported in this position yet
 - SHAPE testQueryOfMilestonedTypeUsingLatestWithFilterInMapping [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningQueryWithMilestoneFilterANdDifferentDatesOnTypeAndProperty [milestoning/tests]: assertEquals: expected 1, got 8
 - SHAPE testMilestoningQueryWithMilestoneFilterAndDifferentDatesOnTypeWithLatestDateOnProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testNonMilestoningQueryWithLatestMilestoneFilterSimple [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - FAIL testNonMilestoningQueryWithMilestoneFilterOnAssociation [milestoning/tests]: assertEquals: expected 1, got 2
 - FAIL testNonMilestoningQueryWithMilestoneFilterProject [milestoning/tests]: assertEquals: expected 2,ProductName1, got [2,ProductName1, 2,ProductName2]
 - ERROR testNonMilestoningQueryWithMilestoneFilterProjectUsingSamePropertyWithDifferentDates [milestoning/tests]: navigation 'product' with two different milestoning dates in one query is not supported yet
-- FAIL testMilestoningQueryWithSimpleProjectWithMilestoneFilter [milestoning/tests]: assertEquals: expected ProductName2,STOCK DESC-V3, got [ProductName2,STOCK DESC-V1, ProductName2,STOCK DESC-V2, ProductName2,STOCK DESC-V3, ProductName2,STOCK DESC-V4, ProductName2,STOCK DESC-V1, ProductName2,STOCK DESC-V2, ProductName2,STOCK DESC-V3, ProductName2,STOCK DESC-V4]
-- FAIL testMilestoningQueryWithAggProjectWithMilestoneFilter [milestoning/tests]: assertEquals: expected ProductName2,GS-Mod-S1*GS-Mod-S2, got [ProductName2,GS-Mod-S1*GS-Mod-S2, ProductName2,GS-Mod-S1*GS-Mod-S2, ProductName2,GS-Mod-S1*GS-Mod-S2, ProductName2,GS-Mod-S1*GS-Mod-S2, ProductName2,GS-Mod-S1*GS-Mod-S2, ProductName2,GS-Mod-S1*GS-Mod-S2, ProductName2,GS-Mod-S1*GS-Mod-S2, 
 - ERROR testMilestoningQueryWithGroupByFilterWithMilestoning [milestoning/tests]: expected at most one value, got many ([1..*])
 - ERROR testBusinessDateInjectionFromVarReference [milestoning/tests]: [5:34] expected ')' to close argument list
 - ERROR testBusinessDateInjectionFromVarReferenceWithProject [milestoning/tests]: navigation 'product' with two different milestoning dates in one query is not supported yet
@@ -974,14 +968,12 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMilestoningCriteriaAppliedToSimplePropertyJoinFromTemporalClassThroughQualifiedProperty [milestoning/tests]: property 'stockProductName' of class 'meta::relational::tests::milestoning::Product' is mapped through the target's own join slots; nested navigation joins are not supported in this position yet
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - FAIL testMilestoningCriteriaAppliedToJoinsOnBusinessTemporalClassForComplexProperty [milestoning/tests]: assertEquals: expected [1,TDSNull, 2,ProductName2], got [1,ProductName, 2,ProductName1, 2,ProductName2, 2,ProductName1, 2,ProductName2]
-- FAIL testMilestoneFiltersAreNotAppliedToEmbeddedPropertiesInQualifiersTriggeringIsolationSelfJoin [milestoning/tests]: assertEquals: expected LNSE, got [LNSE, LNSE]
-- FAIL testIsolationOfIntermediateJoinsInMultiLevelPropertyJoin [milestoning/tests]: assertEquals: expected SYS1, got [SYS1, SYS1]
 - ERROR testIsolationWhereLeftSideOfFilterIsEmbedded [milestoning/tests]: multi-hop navigation classification.system.name through an embedded/slot head is not supported yet
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: no execute(|...) call
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: no execute(|...) call
 - ERROR testMilestoningCriteriaAppliedToViewRoot [milestoning/tests]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::milestoning::TradePnl'
 - ERROR testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: class 'meta::relational::tests::milestoning::Trade' is not mapped in mapping 'meta::relational::tests::milestoning::milestoningmap3'
-- ERROR testMilestoningContextPropagatedFromParentViewToViewsReferencedInItsColumns [milestoning/tests]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::milestoning::TradePnl'
+- ERROR testMilestoningContextPropagatedFromParentViewToViewsReferencedInItsColumns [milestoning/tests]: milestoning column 'from_z' is not on the pipeline row of 'join target'
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaAppliedToJoinFromViewRoot [milestoning/tests]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::milestoning::TradePnl'
 - ERROR testIsolationOfCaseStmtTrueFalseFilters [milestoning/tests]: navigation 'classification' with two different milestoning dates in one query is not supported yet
@@ -1036,34 +1028,21 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMilestoningFiltersAppliedToIntermediateMilestonedJoinTablesWhereTargetTypeIsTemporalAndTargetMainTableIsNotMilestoned [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::SystemAOrderDescription': the main table declares no matching milestoning block for the business dimension
 - ERROR testExtraColumnsAreNotAppliedToIntermediateMilestonedJoinTables [milestoning/tests]: property 'stockProductName' of class 'meta::relational::tests::milestoning::Product' is mapped through the target's own join slots; nested navigation joins are not supported in this position yet
 - ERROR testMilestoningFiltersAppliedToIntermediateMilestonedJoinTablesWhereSourceIsEmbeddedTargetTypeIsNonTemporalAndTargetMainTableIsNotMilestoned [milestoning/tests]: multi-hop navigation classification.system.name through an embedded/slot head is not supported yet
-- FAIL testMilestoningFiltersPropogatedToDataTypePropertiesFromAllInProject [milestoning/tests]: assertEquals: expected [ProductName2,STOCK, ProductName3,TDSNull], got [ProductName2,STOCK, ProductName2,STOCK, ProductName2,STOCK, ProductName2,STOCK, ProductName3,TDSNull]
 - SHAPE testLatestMilestoningFiltersPropogatedToDataTypePropertiesFromAllInProject [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningFiltersPropogatedFromAllThroughFilterToDataTypePropertiesInProject [milestoning/tests]: assertEquals: expected [ProductName2,STOCK, ProductName3,TDSNull], got [ProductName2,STOCK, ProductName2,STOCK, ProductName2,STOCK, ProductName2,STOCK, ProductName3,TDSNull]
-- FAIL testMilestoningFiltersPropogatedToDataTypePropertiesFromAllInFilter [milestoning/tests]: assertEquals: expected STOCK, got [STOCK, STOCK, STOCK, STOCK]
 - SHAPE testIsolationOfMilestoningFiltersUsedOnIntermediateJoinInOR [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningFiltersOnIntermediateInnerJoins [milestoning/tests]: assertEquals: expected [2,TDSNull, 3,TDSNull], got [2,smith, 3,TDSNull]
 - ERROR testMilestoningContextNotPropogatedThroughNonTemporalPropertiesFromAll [milestoning/tests]: class meta::relational::tests::milestoning::System has no property 'systemDescriptionAllVersions'
 - SHAPE testMilestoningContextWithLatestDateNotPropogatedThroughNonTemporalPropertiesFromAll [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testMilestoningContextNotPropogatedThroughNonTemporalPropertiesFromMilestonedQualifiedProperty [milestoning/tests]: class meta::relational::tests::milestoning::System has no property 'systemDescriptionAllVersions'
-- FAIL testMilestoneDatePropogationThruFilterIsIndenpendentOfDateManipulationWithinTheFilter [milestoning/tests]: assertEquals: expected 2,STOCK, got [2,STOCK, 2,STOCK, 2,STOCK, 2,STOCK]
-- FAIL testMilestoneDatePropogationFromTypeQueryToNoArgMilestonedQpInFilter [milestoning/tests]: assertEquals: expected 1, got 4
-- FAIL testMilestoneDatePropogationFromTypeQueryThroughFilterToNoArgMilestonedQpInProject [milestoning/tests]: assertEquals: expected STOCK, got [STOCK, STOCK, STOCK, STOCK]
-- FAIL testMilestoneDatePropogationFromTypeQueryDoesNotOverrideThatSpecifiedAsArgToMilestonedQpInFilter [milestoning/tests]: assertEquals: expected 1, got 4
 - SHAPE testLatestMilestoneDatePropogationFromTypeQueryDoesNotOverrideThatSpecifiedAsArgToMilestonedQpInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLatestMilestoneDateMappedTableDateDoesNotOverrideLatestDateFromChildPropertyInPropogation [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testMilestoneDatePropogationFromTypeQueryDoesNotOverrideThatSpecifiedAsArgToMilestonedQpInProject [milestoning/tests]: navigation 'classification' with two different milestoning dates in one query is not supported yet
-- FAIL testMilestoneDatePropogationFromTypeQueryToProjectIsNotOverridenBySamePropertyUsedInFilterWithDifferentDateArguments [milestoning/tests]: assertEquals: expected STOCK, got [STOCK, STOCK, STOCK, STOCK]
 - ERROR testMilestoneDateNotPropogatedThroughNonMilestonedType [milestoning/tests]: multi-hop navigation referenceSystem.systemDescription.description through an embedded/slot head is not supported yet
-- FAIL testMilestoneDatePropogationThruExistsIsIndenpendentOfDateManipulationWithinTheFilter [milestoning/tests]: assertEquals: expected 2,STOCK, got [2,STOCK, 2,STOCK, 2,STOCK, 2,STOCK]
-- ERROR testMilestoneDatePropogationThruExistsConditionalClause [milestoning/tests]: in function 'meta::relational::tests::milestoning::Product$prop$classificationTypeStr': class meta::relational::tests::milestoning::Product has no property 'businessDate'
+- ERROR testMilestoneDatePropogationThruExistsConditionalClause [milestoning/tests]: navigation through class-typed slot property 'classification' is not supported yet
 - ERROR testMilestoningContextIsPropogatedThroughAutoMap [milestoning/tests]: multi-hop navigation product.classification.description through an embedded/slot head is not supported yet
 - ERROR testMilestoningContextIsPropogatedThroughSubType [milestoning/tests]: class-typed property '$o.product' used as a whole value is graph output (Phase H4)
-- FAIL testMilestoningContextPropagatedThroughFilterToNoArgMilestonedQualifiedPropertyInProjectPath [milestoning/tests]: assertEquals: expected [ProductName2,STOCK DESC-V3, ProductName3,TDSNull], got [ProductName2,STOCK DESC-V1, ProductName2,STOCK DESC-V2, ProductName2,STOCK DESC-V3, ProductName2,STOCK DESC-V4, ProductName3,OPTION DESC-V1]
 - ERROR testMilestoningContextPropagatedThroughToLeftSideOfQualifiedPropertyFilter [milestoning/tests]: property 'stockProductName' of class 'meta::relational::tests::milestoning::Product' is mapped through the target's own join slots; nested navigation joins are not supported in this position yet
 - ERROR testMilestoningContextPropagatedFromMilestoningQualifiedPropertyWithArgToNoArgMilestonedQualifiedPropertyInProjectPath [milestoning/tests]: [4:152] navigation path segment 'classification(%2016-10-16)' uses an unsupported path feature (only plain property segments desugar): #/Product/classification(%2016-10-16)/exchange/name#
-- FAIL testMilestoningContextPropagatedUsingVariableInProjectPath [milestoning/tests]: assertEquals: expected [ProductName2,STOCK DESC-V3, ProductName3,TDSNull], got [ProductName2,STOCK DESC-V1, ProductName2,STOCK DESC-V2, ProductName2,STOCK DESC-V3, ProductName2,STOCK DESC-V4, ProductName3,OPTION DESC-V1]
 - ERROR testCurrentMappingPropagationThroughMilestonedQualifiedPropertyWithEmbeddedLeftSideToSubsequentPropertyInProjectPath [milestoning/tests]: multi-hop navigation classification.system.name through an embedded/slot head is not supported yet
-- FAIL testMilestoningContextPropagatedUsingVariableInProject [milestoning/tests]: assertEquals: expected [ProductName2,STOCK DESC-V3, ProductName3,TDSNull], got [ProductName2,STOCK DESC-V1, ProductName2,STOCK DESC-V2, ProductName2,STOCK DESC-V3, ProductName2,STOCK DESC-V4, ProductName3,OPTION DESC-V1]
 - ERROR testMilestoningContextPropagatedUsingConstantInProjectMoveLetInBlock [milestoning/tests]: unbound variable '$businessDate'
 - ERROR testDistinctUsageAtRootOfMilestonedQuery [milestoning/tests]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::milestoning::Product'
 - ERROR testInFromInclusive [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
@@ -1072,11 +1051,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testOutThruInclusive [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
 - ERROR testInThruInclusiveUnionOutFromInclusive [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
 - ERROR testOutFromInclusiveUnionInThruInclusive [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::BiTemporalProduct' is not supported yet
-- ERROR testInThruInclusiveUnionInThruInclusive [milestoning/tests]: unknown function 'biTemporalProduct'
-- ERROR testOutFromInclusiveUnionOutFromInclusive [milestoning/tests]: unknown function 'biTemporalProduct'
+- ERROR testInThruInclusiveUnionInThruInclusive [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::InThruInclusiveUnionInThruInclusiveMapping'
+- ERROR testOutFromInclusiveUnionOutFromInclusive [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::OutFromInclusiveUnionOutFromInclusiveMapping'
 - SHAPE testAssoWithOtherwise [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testAssoWithOtherwiseDeep [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testProcessingTemporalAllQuery [milestoning/tests]: class meta::relational::tests::milestoning::Trader has no property 'processingDate'
 - SHAPE testProcessingTemporalPropertyQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testProcessingTemporalPropertyPropagationInQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testQueryOnTemporalRoot [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
@@ -1096,13 +1074,13 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testDateTimeVariableMilestoningParamPropagation [milestoning/tests]: unbound variable '$dt'
 - ERROR testDateTimeMilestoningParamUnion [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
 - ERROR testDateTimeVariableMilestoningParamUnion [milestoning/tests]: unbound variable '$dt'
-- ERROR testBusinessDateForAllVersions [milestoning/tests]: class meta::relational::tests::milestoning::ProductSynonym has no property 'businessDate'
-- ERROR testProcessingDateForAllVersions [milestoning/tests]: class meta::relational::tests::milestoning::Trader has no property 'processingDate'
-- ERROR testBusinessSnapshotDateForAllVersions [milestoning/tests]: class meta::relational::tests::milestoning::Product has no property 'businessDate'
-- ERROR testTemporalDateForAllVersionsWithInFromInclusive [milestoning/tests]: class meta::relational::tests::milestoning::BiTemporalProduct has no property 'processingDate'
-- ERROR testTemporalDateForAllVersionsWithInThruInclusive [milestoning/tests]: class meta::relational::tests::milestoning::BiTemporalProduct has no property 'processingDate'
-- ERROR testTemporalDateForAllVersionsWithOutFromInclusive [milestoning/tests]: class meta::relational::tests::milestoning::BiTemporalProduct has no property 'processingDate'
-- ERROR testTemporalDateForAllVersionsWithOutThruInclusive [milestoning/tests]: class meta::relational::tests::milestoning::BiTemporalProduct has no property 'processingDate'
+- ERROR testBusinessDateForAllVersions [milestoning/tests]: property 'businessDate' of class 'meta::relational::tests::milestoning::ProductSynonym' has no binding in mapping 'meta::relational::tests::milestoning::milestoningmap' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- ERROR testProcessingDateForAllVersions [milestoning/tests]: property 'processingDate' of class 'meta::relational::tests::milestoning::Trader' has no binding in mapping 'meta::relational::tests::milestoning::milestoningmap' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- ERROR testBusinessSnapshotDateForAllVersions [milestoning/tests]: property 'businessDate' of class 'meta::relational::tests::milestoning::Product' has no binding in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- ERROR testTemporalDateForAllVersionsWithInFromInclusive [milestoning/tests]: property 'processingDate' of class 'meta::relational::tests::milestoning::BiTemporalProduct' has no binding in mapping 'meta::relational::tests::milestoning::InFromInclusiveMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- ERROR testTemporalDateForAllVersionsWithInThruInclusive [milestoning/tests]: property 'processingDate' of class 'meta::relational::tests::milestoning::BiTemporalProduct' has no binding in mapping 'meta::relational::tests::milestoning::InThruInclusiveMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- ERROR testTemporalDateForAllVersionsWithOutFromInclusive [milestoning/tests]: property 'processingDate' of class 'meta::relational::tests::milestoning::BiTemporalProduct' has no binding in mapping 'meta::relational::tests::milestoning::OutFromInclusiveMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- ERROR testTemporalDateForAllVersionsWithOutThruInclusive [milestoning/tests]: property 'processingDate' of class 'meta::relational::tests::milestoning::BiTemporalProduct' has no binding in mapping 'meta::relational::tests::milestoning::OutThruInclusiveMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testBusinessDateForAllVersionsInRange [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::ProductSynonym' is not supported yet
 - ERROR testProcessingDateForAllVersionsInRange [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::Trader' is not supported yet
 - ERROR testBusinessTemporalRangeQueryOnRoot [milestoning/tests]: class meta::relational::tests::milestoning::Product has no property 'milestoning'
@@ -1115,7 +1093,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProcessingTemporalRangeQueryOnRootAndProperty [milestoning/tests]: class meta::relational::tests::milestoning::Certification has no property 'milestoning'
 - SHAPE testBusinessTemporalRangeQueryOnRootWithSubsequentCallToMilestonedQualifiedPropertyWithFunction [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testBusinessTemporalRangeQueryOnRootWithSubsequentCallToMilestonedQualifiedPropertyWithThisBusinessDate [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testHybridMilestoningUnionOperationWithNonTemporalRoot [milestoning/tests]: unknown function 'biTemporalProduct'
+- ERROR testHybridMilestoningUnionOperationWithNonTemporalRoot [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::hybridMilestoningUnionMap'
 - SHAPE testPlanHybridMilestoningUnionOperationWithNonTemporalRootWithPropagation [milestoning/tests]: no execute(|...) call
 - SHAPE testPlanHybridMilestoningUnionOperationWithTemporalRootWithPropagation [milestoning/tests]: no execute(|...) call
 - ERROR testMilestoningWithUnionOnView [milestoning/tests]: unknown type 'TabularDataSet' in @TabularDataSet
@@ -1867,8 +1845,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMappingWithProcessingTemporalMilestoningAllVersionsInRange [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::TemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
 - ERROR testMappingWithBusinessTemporalMilestoning [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::TemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
 - ERROR testMappingWithBusinessTemporalMilestoningAllVersionsInRange [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::TemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testMappingWithBiTemporalMilestoning [tests/mapping/relation]: unknown function 'btFirm'
-- ERROR testMappingWithMultipleMilestonedTables [tests/mapping/relation]: milestoning column 'IN_Z' is not on the pipeline row of 'meta::relational::tests::mapping::relation::ProcessingTemporalPerson'
+- ERROR testMappingWithBiTemporalMilestoning [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::TemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
+- ERROR testMappingWithMultipleMilestonedTables [tests/mapping/relation]: milestoning column 'IN_Z' is not on the pipeline row of 'join target'
 - ERROR testMixedTemporalMapping [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedTemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
 - ERROR testMixedTemporalMappingWithAllVersionsInRange1 [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedTemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
 - ERROR testMixedTemporalMappingWithAllVersionsInRange2 [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedTemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database

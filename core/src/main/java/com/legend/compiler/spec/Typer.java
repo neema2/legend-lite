@@ -251,10 +251,14 @@ final class Typer {
                 var prop = ctx.findProperty(classFqn, base).orElse(null);
                 String targetFqn = prop != null
                         && prop.type() instanceof Type.ClassType pct ? pct.fqn() : null;
+                String targetStrat = targetFqn == null ? null
+                        : com.legend.compiler.element.Temporal.strategyOf(ctx, targetFqn);
+                if ("bitemporal".equals(targetStrat) && !sweep) {
+                    wantDates = 2;   // product(processingDate, businessDate)
+                }
                 if (targetFqn != null
                         && af.parameters().size() - 1 == wantDates
-                        && com.legend.compiler.element.Temporal
-                                .strategyOf(ctx, targetFqn) != null) {
+                        && targetStrat != null) {
                     List<TypedSpec> dates = new ArrayList<>();
                     for (int i = 1; i < af.parameters().size(); i++) {
                         dates.add(synth(af.parameters().get(i), env));
@@ -939,8 +943,28 @@ final class Typer {
         // The member is either a class property ($obj.prop) or a relation column ($row.col).
         ExprType member = switch (source.info().type()) {
             case Type.ClassType ct -> {
-                Property prop = ctx.findProperty(ct.fqn(), ap.property()).orElseThrow(() ->
-                        new TypeInferenceException("class " + ct.fqn() + " has no property '" + ap.property() + "'"));
+                Property prop = ctx.findProperty(ct.fqn(), ap.property()).orElse(null);
+                if (prop == null) {
+                    // real pure GENERATES businessDate/processingDate on
+                    // temporal classes (the instance's temporal context
+                    // date — reads back as the query's context constant)
+                    String strat = com.legend.compiler.element.Temporal
+                            .strategyOf(ctx, ct.fqn());
+                    boolean generated = strat != null
+                            && (ap.property().equals("businessDate")
+                                    && (strat.equals("businesstemporal")
+                                            || strat.equals("bitemporal"))
+                            || ap.property().equals("processingDate")
+                                    && (strat.equals("processingtemporal")
+                                            || strat.equals("bitemporal")));
+                    if (generated) {
+                        yield new ExprType(Type.Primitive.DATE,
+                                com.legend.compiler.element.type.Multiplicity
+                                        .Bounded.ONE);
+                    }
+                    throw new TypeInferenceException("class " + ct.fqn()
+                            + " has no property '" + ap.property() + "'");
+                }
                 yield new ExprType(prop.type(), prop.multiplicity());
             }
             // A PARAMETERIZED class receiver (Pair<Integer,String>.first): the
