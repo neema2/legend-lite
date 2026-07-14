@@ -2257,6 +2257,22 @@ public final class Lowerer {
                         ? SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_FLATTEN, listed)
                         : listed;
             }
+            // A COLUMN READ over a relation chain in scalar position
+            // ($tds.rows.id — the TDS getter desugar): narrow to the one
+            // column and take the single-column relation route below.
+            case com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                    when pa.source().info().type() instanceof Type.RelationType prt -> {
+                Type.RelationType.Column c = prt.columns().stream()
+                        .filter(x -> x.name().equals(pa.property())).findFirst()
+                        .orElseThrow(() -> new com.legend.error
+                                .NotImplementedException("relation has no column '"
+                                        + pa.property() + "' in scalar read"));
+                yield scalar(new TypedSelect(pa.source(),
+                        List.of(pa.property()),
+                        new com.legend.compiler.element.type.ExprType(
+                                new Type.RelationType(List.of(c)),
+                                pa.info().multiplicity())), columns);
+            }
             // A single-column RELATION consumed in SCALAR position. A
             // TO-ONE read is the correlated scalar subquery (value-position
             // filtered navigation): DuckDB raises on more than one row

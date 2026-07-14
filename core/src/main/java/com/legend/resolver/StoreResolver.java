@@ -257,6 +257,16 @@ public final class StoreResolver {
             // Relation-space wrappers over a chain that bottoms at a getAll:
             // rebuild with the resolved source. (Each wrapper keeps its own
             // info — relation-space types are stable across resolution.)
+            // a COLUMN READ over a relation-shaped chain ($tds.rows.id —
+            // the TDS getter desugar): rebuild over the resolved source
+            case com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                    when containsGetAll(pa.source())
+                    && pa.source().info().type()
+                            instanceof com.legend.compiler.element.type.Type
+                                    .RelationType ->
+                    new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                            resolveNode(pa.source(), context), pa.property(),
+                            pa.info());
             case TypedFilter f when containsGetAll(f.source()) -> new TypedFilter(
                     resolveNode(f.source(), context), f.predicate(), f.info());
             case TypedProject p when containsGetAll(p.source()) -> new TypedProject(

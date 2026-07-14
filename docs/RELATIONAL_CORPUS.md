@@ -122,7 +122,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 0 | 0 | 87 | 5 |
 | executionPlan/tests | 109 | 0 | 0 | 8 | 101 |
-| functions/tests | 241 | 76 | 2 | 121 | 42 |
+| functions/tests | 241 | 76 | 3 | 120 | 42 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 0 | 1 |
 | functions/tests/projection | 154 | 54 | 5 | 66 | 29 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -131,7 +131,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 47 | 0 | 0 | 0 | 47 |
-| milestoning/tests | 221 | 35 | 5 | 128 | 53 |
+| milestoning/tests | 221 | 37 | 12 | 119 | 53 |
 | modelJoins | 7 | 0 | 0 | 1 | 6 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 0 | 7 |
@@ -156,11 +156,11 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/distinct | 18 | 14 | 0 | 4 | 0 |
 | tests/mapping/dynaJoin | 5 | 3 | 1 | 1 | 0 |
 | tests/mapping/embedded | 63 | 37 | 2 | 14 | 10 |
-| tests/mapping/enumeration | 26 | 7 | 4 | 12 | 3 |
+| tests/mapping/enumeration | 26 | 9 | 4 | 10 | 3 |
 | tests/mapping/filter | 9 | 4 | 0 | 5 | 0 |
 | tests/mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 |
-| tests/mapping/inheritance | 47 | 3 | 0 | 44 | 0 |
+| tests/mapping/inheritance | 47 | 4 | 0 | 43 | 0 |
 | tests/mapping/join | 28 | 14 | 2 | 12 | 0 |
 | tests/mapping/merge | 1 | 0 | 0 | 0 | 1 |
 | tests/mapping/modelJoin | 47 | 0 | 0 | 0 | 47 |
@@ -178,7 +178,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **497** | 28 | 928 | 839 |
+| **total** | 2292 | **502** | 36 | 915 | 839 |
 
 ### mapping walls (dropped at assembly)
 
@@ -312,11 +312,10 @@ runner does not yet recognize (accounted, not skipped silently).
 
 ### top error buckets
 
-- 55x no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
 - 43x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- 40x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- 37x unknown class 'TDSNull' in ^TDSNull(…)
+- 39x unknown class 'TDSNull' in ^TDSNull(…)
 - 20x expected at most one value, got many ([*])
+- 19x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 18x a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - 14x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 10x class query under TypedMap is not resolvable yet (H2 vocabulary)
@@ -324,6 +323,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - 10x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[function=if, parameters=[AppliedFunction[function=equal, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=active], CString[value=Y]]], LambdaFunction[parameters=[], body=[CString[value=true]]], LambdaFunction[parameters=[], body=[CString[value=false]]]]]]])
 - 9x class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - 9x navigation through class-typed slot property 'address' is not supported yet
+- 9x milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X'
 - 8x [3247:0] unsupported top-level keyword: PAREN_CLOSE (')')
 - 8x relation has no column 'aID'
 - 8x association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
@@ -341,7 +341,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - 6x ~name_length: mapped/aggregate column specifications need an enclosing call to type against
 - 6x in function 'meta::relational::tests::mapping::association::inheritence::childMapping$class$meta::relational::tests::model::inheritance::Person': unknown table 'Person' in database 'myDB'
 - 6x 'meta::relational::tests::mapping::relation::EmbeddedRelationMapping' is not a known class, mapping, runtime, connection, or database
-- 5x no overload of 'groupBy' matches the argument types
+- 6x property 'b' of class 'meta::relational::tests::mapping::union::sqlQueryMerging::model::A' is not mapped in mapping 'meta::relational::tests::mapping::union::sqlQueryMerging::mapping::unionMapping'
 
 ### per-test outcomes (non-passing)
 
@@ -589,7 +589,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
 - ERROR testConcatenateFlat [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_concat(INTEGER, INTEGER)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY
-- ERROR testConcatenateFlatWithOtherProperty [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- FAIL testConcatenateFlatWithOtherProperty [functions/tests]: assertEquals: expected [1, 1, 2, 2], got [1, 2]
 - SHAPE testConcatenateWithPostFilteredGroupBy [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testConcatenateWithPreFilteredGroupBy [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testExistsToManyPropertyWithAndFilterAndLiteralConditionsDeep [functions/tests]: filter predicate references column 'employees_locations', unresolvable even after isolation
@@ -655,7 +655,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testInputNotIsolatedWhenPropertyPathIsToOne [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testIsolationOfTheSameInputInABooleanExprWhereOneSideIsEmpty [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - FAIL testSimpleTriangularJoinViaIsEmpty [functions/tests]: assertEquals: expected 0, got 4
-- ERROR testIsEmptyOnQualifiedPropertyFollowedByClassPropertyInput [functions/tests]: scalar lowering not yet implemented for TypedPropertyAccess
+- ERROR testIsEmptyOnQualifiedPropertyFollowedByClassPropertyInput [functions/tests]: relation has no column 'name' in scalar read
 - SHAPE testIsEmptyOnCollection [functions/tests]: no execute(|...) call
 - ERROR testFilterOnSimpleTypeProperty [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testFilterThenMapAndReturnObject [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
@@ -696,7 +696,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testUsingFunctionInMapLambdaTakingAPathParameterPartial [functions/tests]: no overload of 'subFunction6' matches 2 argument(s) of these shapes
 - ERROR testUsingFunctionInMapLambdaTakingAParameterPartial [functions/tests]: no overload of 'subFunction6' matches 2 argument(s) of these shapes
 - ERROR testFilterWithQualifiedProperty [functions/tests]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
-- ERROR testSimpleJoinStrings [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- ERROR testSimpleJoinStrings [functions/tests]: lowering not yet implemented for TypedNativeCall
 - ERROR testJoinStringsWithAssociation [functions/tests]: expected at most one value, got many ([*])
 - ERROR testUsingSameAggFunctionTwice [functions/tests]: scalar lowering not yet implemented for TypedSort
 - ERROR testUsingSameAggFunctionTwiceUsingQualifier [functions/tests]: scalar lowering not yet implemented for TypedSort
@@ -996,32 +996,31 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testNestedExists_NestedExistsWithEmbeddedMappingInProject [milestoning/tests]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'Child_Leaf' (the demand scan and the rewrite disagreed)
 - ERROR testDerivedPropertyOnNonTemporalClassWithMilestonedChain [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::ChildEntity' with a non-literal date is not supported yet
 - SHAPE testGraphFetchMultiPrimitiveOnInlineChild [milestoning/tests]: assert form 'assertJsonStringsEqual/2' is not supported yet
-- ERROR testQueryOnTemporalRoot [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testQueryWithPropagationOnTemporalRoot [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testUnionQueryOnTemporalRoot [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testUnionQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testUnionQueryWithPropagationOnTemporalRoot [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testAllVersionInRangeForBuisnessSnapshotMilestoning [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testBuisnessSnapshotRangeQueryOnProperty [milestoning/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testBuisnessSnapshotRangeQueryOnRootAndProperty [milestoning/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testDateTimeMilestoningParam [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testDateTimeVariableMilestoningParam [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testDateTimeMilestoningParamPropagation [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testDateTimeVariableMilestoningParamPropagation [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testDateTimeMilestoningParamUnion [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testDateTimeVariableMilestoningParamUnion [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
+- ERROR testQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: property 'product' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap'
+- ERROR testQueryWithPropagationOnTemporalRoot [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap'
+- ERROR testQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: property 'product' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap'
+- ERROR testUnionQueryOnTemporalRoot [milestoning/tests]: milestoning column 'snapshotDate' is not on the pipeline row of 'meta::relational::tests::milestoning::Product'
+- ERROR testUnionQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: property 'product' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningUnionMap'
+- ERROR testUnionQueryWithPropagationOnTemporalRoot [milestoning/tests]: milestoning column 'snapshotDate' is not on the pipeline row of 'meta::relational::tests::milestoning::Product'
+- ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: property 'product' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningUnionMap'
+- ERROR testAllVersionInRangeForBuisnessSnapshotMilestoning [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet
+- ERROR testBuisnessSnapshotRangeQueryOnProperty [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap'
+- ERROR testBuisnessSnapshotRangeQueryOnRootAndProperty [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet
+- FAIL testDateTimeMilestoningParam [milestoning/tests]: assertEquals: expected 2, got []
+- ERROR testDateTimeVariableMilestoningParam [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::Product' with a non-literal date is not supported yet
+- ERROR testDateTimeMilestoningParamPropagation [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap'
+- ERROR testDateTimeVariableMilestoningParamPropagation [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::Product' with a non-literal date is not supported yet
+- ERROR testDateTimeMilestoningParamUnion [milestoning/tests]: milestoning column 'snapshotDate' is not on the pipeline row of 'meta::relational::tests::milestoning::Product'
+- ERROR testDateTimeVariableMilestoningParamUnion [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::Product' with a non-literal date is not supported yet
 - SHAPE testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLatestIgnoredForNonMilestonedMappedBiTemporalClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testLatestIgnoredForNonMilestonedMappedClasses [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::Product': the main table declares no matching milestoning block for the business dimension
 - SHAPE testLatestIgnoredForNonMilestonedMappedBiTemporalClasses [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testLatestIgnoredForNonMilestonedMappedBiTemporalClassesWithProject [milestoning/tests]: [5:99] navigation path segment 'biTemporalProduct(%latest, %latest)' uses an unsupported path feature (only plain property segments desugar): #/Order/biTemporalProduct(%latest, %latest)/type#
-- ERROR testMilestoningColumnProjectionForRoot [milestoning/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testMilestoningColumnProjectionForEmbedded [milestoning/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testMilestoningColumnProjectionForInlineEmbedded [milestoning/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testMilestoningColumnProjectionWithNonMilestonedTable [milestoning/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- FAIL testMilestoningColumnProjectionForRoot [milestoning/tests]: assertSameElements: expected [2015-08-15 00:00:00.0, 2015-08-26 00:00:00.0, 2015-08-26 00:00:00.0, 2015-10-16 00:00:00.0], got [2015-08-15, 2015-08-26, 2015-10-16, 2015-08-26]
+- FAIL testMilestoningColumnProjectionForEmbedded [milestoning/tests]: assertSameElements: expected [2015-08-15 00:00:00.0, 2015-08-26 00:00:00.0, 2015-08-26 00:00:00.0, 2015-10-16 00:00:00.0], got [2015-08-15, 2015-08-26, 2015-10-16, 2015-08-26]
+- FAIL testMilestoningColumnProjectionForInlineEmbedded [milestoning/tests]: assertSameElements: expected [2015-08-15 00:00:00.0, 2015-08-26 00:00:00.0, 2015-08-26 00:00:00.0, 2015-10-16 00:00:00.0], got [2015-08-15, 2015-08-26, 2015-10-16, 2015-08-26]
+- ERROR testMilestoningColumnProjectionWithNonMilestonedTable [milestoning/tests]: resolver bug: undemanded navigation 'milestoning.from' — the demand scan and the rewrite disagreed
 - ERROR testMilestoningFiltersAppliedToIntermediateMilestonedJoinTablesWhereTargetTypeIsTemporalAndTargetMainTableIsNotMilestoned [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::SystemAOrderDescription': the main table declares no matching milestoning block for the business dimension
 - ERROR testExtraColumnsAreNotAppliedToIntermediateMilestonedJoinTables [milestoning/tests]: property 'stockProductName' of class 'meta::relational::tests::milestoning::Product' is mapped through the target's own join slots; nested navigation joins are not supported in this position yet
 - ERROR testMilestoningFiltersAppliedToIntermediateMilestonedJoinTablesWhereSourceIsEmbeddedTargetTypeIsNonTemporalAndTargetMainTableIsNotMilestoned [milestoning/tests]: multi-hop navigation classification.system.name through an embedded/slot head is not supported yet
@@ -1053,23 +1052,22 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testAssoWithOtherwiseDeep [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testProcessingTemporalPropertyQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testProcessingTemporalPropertyPropagationInQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testQueryOnTemporalRoot [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testQueryWithPropagationOnTemporalRoot [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testUnionQueryOnTemporalRoot [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testUnionQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testUnionQueryWithPropagationOnTemporalRoot [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testAllVersionInRangeForProcessingSnapshotMilestoning [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testProcessingSnapshotRangeQueryOnProperty [milestoning/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testProcessingSnapshotRangeQueryOnRootAndProperty [milestoning/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testDateTimeMilestoningParam [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testDateTimeVariableMilestoningParam [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testDateTimeMilestoningParamPropagation [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testDateTimeVariableMilestoningParamPropagation [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testDateTimeMilestoningParamUnion [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testDateTimeVariableMilestoningParamUnion [milestoning/tests]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
+- ERROR testQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: property 'processingTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMap'
+- ERROR testQueryWithPropagationOnTemporalRoot [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMap'
+- ERROR testQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: property 'processingTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMap'
+- ERROR testUnionQueryOnTemporalRoot [milestoning/tests]: milestoning column 'snapshotDate' is not on the pipeline row of 'meta::relational::tests::milestoning::ProcessingTemporalProduct'
+- ERROR testUnionQueryOnNonTemporalRootWithTemporalProperty [milestoning/tests]: property 'processingTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningUnionMap'
+- ERROR testUnionQueryWithPropagationOnTemporalRoot [milestoning/tests]: milestoning column 'snapshotDate' is not on the pipeline row of 'meta::relational::tests::milestoning::ProcessingTemporalProduct'
+- ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: property 'processingTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningUnionMap'
+- ERROR testAllVersionInRangeForProcessingSnapshotMilestoning [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not supported yet
+- ERROR testProcessingSnapshotRangeQueryOnProperty [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMap'
+- ERROR testProcessingSnapshotRangeQueryOnRootAndProperty [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not supported yet
+- FAIL testDateTimeMilestoningParam [milestoning/tests]: assertEquals: expected 2, got []
+- ERROR testDateTimeVariableMilestoningParam [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProduct' with a non-literal date is not supported yet
+- ERROR testDateTimeMilestoningParamPropagation [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMap'
+- ERROR testDateTimeVariableMilestoningParamPropagation [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProduct' with a non-literal date is not supported yet
+- ERROR testDateTimeMilestoningParamUnion [milestoning/tests]: milestoning column 'snapshotDate' is not on the pipeline row of 'meta::relational::tests::milestoning::ProcessingTemporalProduct'
+- ERROR testDateTimeVariableMilestoningParamUnion [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProduct' with a non-literal date is not supported yet
 - ERROR testBusinessDateForAllVersions [milestoning/tests]: property 'businessDate' of class 'meta::relational::tests::milestoning::ProductSynonym' has no binding in mapping 'meta::relational::tests::milestoning::milestoningmap' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testProcessingDateForAllVersions [milestoning/tests]: property 'processingDate' of class 'meta::relational::tests::milestoning::Trader' has no binding in mapping 'meta::relational::tests::milestoning::milestoningmap' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testBusinessSnapshotDateForAllVersions [milestoning/tests]: property 'businessDate' of class 'meta::relational::tests::milestoning::Product' has no binding in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
@@ -1079,14 +1077,14 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testTemporalDateForAllVersionsWithOutThruInclusive [milestoning/tests]: property 'processingDate' of class 'meta::relational::tests::milestoning::BiTemporalProduct' has no binding in mapping 'meta::relational::tests::milestoning::OutThruInclusiveMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testBusinessDateForAllVersionsInRange [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::ProductSynonym' is not supported yet
 - ERROR testProcessingDateForAllVersionsInRange [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::Trader' is not supported yet
-- ERROR testBusinessTemporalRangeQueryOnRoot [milestoning/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testBusinessTemporalRangeQueryOnRootAndProperty [milestoning/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testBusinessTemporalRangeQueryOnRootAndPropertyDeep [milestoning/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testBusinessTemporalRangeQueryOnProperty [milestoning/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testBusinessTemporalRangeQueryOnPropertyDeep [milestoning/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testProcessingTemporalRangeQueryOnRoot [milestoning/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testProcessingTemporalRangeQueryOnProperty [milestoning/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testProcessingTemporalRangeQueryOnRootAndProperty [milestoning/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- ERROR testBusinessTemporalRangeQueryOnRoot [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet
+- ERROR testBusinessTemporalRangeQueryOnRootAndProperty [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet
+- ERROR testBusinessTemporalRangeQueryOnRootAndPropertyDeep [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::Product' is not supported yet
+- FAIL testBusinessTemporalRangeQueryOnProperty [milestoning/tests]: assertSameElements: expected [2015-08-15 00:00:00.0, 2015-08-26 00:00:00.0, 2015-10-16 00:00:00.0], got [2015-08-26, 2015-08-15, 2015-10-16]
+- ERROR testBusinessTemporalRangeQueryOnPropertyDeep [milestoning/tests]: multi-hop navigation classification.exchange.name through an embedded/slot head is not supported yet
+- ERROR testProcessingTemporalRangeQueryOnRoot [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::Certification' is not supported yet
+- FAIL testProcessingTemporalRangeQueryOnProperty [milestoning/tests]: assertSameElements: expected [1980-01-01 00:00:00.0, 1981-01-01 00:00:00.0], got [1980-01-01, 1981-01-01]
+- ERROR testProcessingTemporalRangeQueryOnRootAndProperty [milestoning/tests]: bi-temporal class fetch of 'meta::relational::tests::milestoning::Certification' is not supported yet
 - SHAPE testBusinessTemporalRangeQueryOnRootWithSubsequentCallToMilestonedQualifiedPropertyWithFunction [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testBusinessTemporalRangeQueryOnRootWithSubsequentCallToMilestonedQualifiedPropertyWithThisBusinessDate [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testHybridMilestoningUnionOperationWithNonTemporalRoot [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::hybridMilestoningUnionMap'
@@ -1243,7 +1241,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR GroupByWithMapFnConstant [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR GroupByWithMapFnColumns [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR GroupByWithIfInMap [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR simpleGroupByWithJoinStrings [tds/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- ERROR simpleGroupByWithJoinStrings [tds/tests]: lowering not yet implemented for TypedNativeCall
 - ERROR simpleGroupByWithAssociationWithJoinStrings [tds/tests]: expected at most one value, got many ([*])
 - ERROR groupByAfterASortOnColumnInGroupBy [tds/tests]: expected at most one value, got many ([*])
 - ERROR groupByAfterASortOnColumnNotInGroupBy [tds/tests]: expected at most one value, got many ([*])
@@ -1630,7 +1628,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testEnumMappingsWithInclude [tests/mapping/enumeration]: no execute(|...) call
 - ERROR testProjectionWithEnum [tests/mapping/enumeration]: unknown function 'columnValues'
 - ERROR testProjectionWithEnumUsingLambda [tests/mapping/enumeration]: unknown function 'columnValues'
-- ERROR testProjectionWithEnumAndFunctionsUsingLambda [tests/mapping/enumeration]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
+- ERROR testProjectionWithEnumAndFunctionsUsingLambda [tests/mapping/enumeration]: unknown function 'id'
 - ERROR testInQueryWithEnum [tests/mapping/enumeration]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: subqueries in lambda expressions are not supported
 - FAIL testAggregationFunctionWithEnum [tests/mapping/enumeration]: assertEquals: expected [CONTRACT, 1, CONTRACT, 1, FULL_TIME, 1], got [CONTRACT, 2, FULL_TIME, 1]
 - ERROR testProjectionWithInheritedEnum [tests/mapping/enumeration]: unknown function 'columnValues'
@@ -1640,8 +1638,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - FAIL testProjectWithIfWhereOneSideIsEnumLiteral [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, GS_NUMBER]
 - FAIL testProjectWithIfWhereBothSidesUseTheSameEnumMapping [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, CUSIP]
 - FAIL testTdsProjectWithEnumToStringEqualityComparison [tests/mapping/enumeration]: assertSameElements: expected [no, yes, no], got [no, no, no]
-- ERROR testEnumValueReturnedInIfExp [tests/mapping/enumeration]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testEnumValueReturnedInIfExpNotDistinctTransformers [tests/mapping/enumeration]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR filterMappingWithJoinInFilterAndPropertyGetAll [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::model::simple::Person' reads through a join slot; join-mediated mapping filters are H3-pending
 - ERROR testFilterMappingWithJoin [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending
 - ERROR testFilterMappingWithProjectionOverlapp [tests/mapping/filter]: multi-hop navigation parent.parent.name through an embedded/slot head is not supported yet
@@ -1678,7 +1674,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSubTypeGroupBy [tests/mapping/inheritance]: expected at most one value, got many ([*])
 - ERROR testSubTypeGroupByThroughMap [tests/mapping/inheritance]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testFilteringOnColumnsNotInProject [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB'
-- ERROR testFilteringOnColumnsNotInProjectSingleChildStructure [tests/mapping/inheritance]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
 - ERROR testEmbeddMappingInSubTypes [tests/mapping/inheritance]: property 'vehicles' of class 'meta::relational::tests::model::inheritance::Person' has no binding in mapping 'meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testMilestonedSubTyping [tests/mapping/inheritance]: 'MilestonedInheritanceMapping' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testMilestonedSubTypingWithDifferentDates [tests/mapping/inheritance]: 'MilestonedInheritanceMapping' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
@@ -1893,8 +1888,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFilterOnNestedQualifier [tests/mapping/tree]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testProjectMerge [tests/mapping/tree]: [2:96] navigation path segment 'orgByName('BUSINESS UNIT')' uses an unsupported path feature (only plain property segments desugar): #/Person/orgByName('BUSINESS UNIT')/name!buName#
 - ERROR testProjection [tests/mapping/tree]: [6:88] navigation path segment 'orgByName('TEAM')' uses an unsupported path feature (only plain property segments desugar): #/Person/orgByName('TEAM')/name!team#
-- ERROR testProjectionDeeper [tests/mapping/tree]: scalar lowering not yet implemented for TypedPropertyAccess
-- ERROR testProjectionDeeperInlined [tests/mapping/tree]: scalar lowering not yet implemented for TypedPropertyAccess
+- ERROR testProjectionDeeper [tests/mapping/tree]: relation has no column 'name' in scalar read
+- ERROR testProjectionDeeperInlined [tests/mapping/tree]: relation has no column 'name' in scalar read
 - ERROR testProjectWithFilter [tests/mapping/tree]: [3:107] navigation path segment 'orgByName('BUSINESS UNIT')' uses an unsupported path feature (only plain property segments desugar): #/Person/orgByName('BUSINESS UNIT')/name!buName#
 - ERROR testJoinIsolationDeeper_LeftOuterLeftOuterThenInner [tests/mapping/tree]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner [tests/mapping/tree]: multi-hop navigation trades.trader.firstName through an embedded/slot head is not supported yet
@@ -1940,14 +1935,14 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: relation has no column 'ID_0'
 - ERROR testUnionWithSinglePropertyMapping [tests/mapping/union]: unknown function 'meta::relational::mapping::sql'
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: no execute(|...) call
-- ERROR testSQLQueryMergingForFilters [tests/mapping/union]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testSQLQueryMergingForFiltersDeep [tests/mapping/union]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testSQLQueryMergingForProjections [tests/mapping/union]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testSQLQueryMergingForProjectionsDeep [tests/mapping/union]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testSQLQueryMergingForFiltersAndProjections [tests/mapping/union]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testSQLQueryMergingForFiltersAndProjectionsDeep [tests/mapping/union]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testSQLQueryMergingForInnerJoins [tests/mapping/union]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testSQLQueryMergingForInnerJoins2 [tests/mapping/union]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
+- ERROR testSQLQueryMergingForFilters [tests/mapping/union]: property 'b' of class 'meta::relational::tests::mapping::union::sqlQueryMerging::model::A' is not mapped in mapping 'meta::relational::tests::mapping::union::sqlQueryMerging::mapping::unionMapping'
+- ERROR testSQLQueryMergingForFiltersDeep [tests/mapping/union]: property 'b' of class 'meta::relational::tests::mapping::union::sqlQueryMerging::model::A' is not mapped in mapping 'meta::relational::tests::mapping::union::sqlQueryMerging::mapping::unionMapping'
+- ERROR testSQLQueryMergingForProjections [tests/mapping/union]: property 'b' of class 'meta::relational::tests::mapping::union::sqlQueryMerging::model::A' is not mapped in mapping 'meta::relational::tests::mapping::union::sqlQueryMerging::mapping::unionMapping'
+- ERROR testSQLQueryMergingForProjectionsDeep [tests/mapping/union]: property 'b' of class 'meta::relational::tests::mapping::union::sqlQueryMerging::model::A' is not mapped in mapping 'meta::relational::tests::mapping::union::sqlQueryMerging::mapping::unionMapping'
+- ERROR testSQLQueryMergingForFiltersAndProjections [tests/mapping/union]: property 'b' of class 'meta::relational::tests::mapping::union::sqlQueryMerging::model::A' is not mapped in mapping 'meta::relational::tests::mapping::union::sqlQueryMerging::mapping::unionMapping'
+- ERROR testSQLQueryMergingForFiltersAndProjectionsDeep [tests/mapping/union]: property 'b' of class 'meta::relational::tests::mapping::union::sqlQueryMerging::model::A' is not mapped in mapping 'meta::relational::tests::mapping::union::sqlQueryMerging::mapping::unionMapping'
+- ERROR testSQLQueryMergingForInnerJoins [tests/mapping/union]: unknown class 'TDSNull' in ^TDSNull(…)
+- ERROR testSQLQueryMergingForInnerJoins2 [tests/mapping/union]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR testSimpleQueryUnionToUnionOptimized [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::optimized::unionToUnionMappingOptimized'
 - ERROR testSimpleQueryUnionToUnionOptimizedHalf [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::optimized::unionToUnionMappingOptimizedHalf'
 - ERROR testSimpleQueryFromAssociationMappingOptimized [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t2" not found! |  | LINE 1: ... FROM PersonSet2 AS t1 ) AS t2 LEFT OUTER JOIN Firm AS t3 ON t2.FirmID = t3.ID WHERE t3.name = 'Firm A') AS value |                       
@@ -1993,21 +1988,21 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testChainedUnionsWithAggregationWithAdditionalColumn [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
 - ERROR testChainedUnionsWithMultipleAggregationWithAdditionalColumn [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
 - ERROR testChainedUnionsWithMapAggregation [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
-- ERROR testUnionWithChainedJoinsAcross2SetsV1 [tests/mapping/union]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testUnionWithChainedJoinsAcross3SetsV1 [tests/mapping/union]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testUnionWithChainedJoinsAcross4SetsV1 [tests/mapping/union]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testUnionWithChainedJoinsAcross2SetsV2 [tests/mapping/union]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testUnionWithChainedJoinsAcross3SetsV2 [tests/mapping/union]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testUnionWithChainedJoinsAcross4SetsV2 [tests/mapping/union]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testUnionWithChainedJoinsAcross2SetsV3 [tests/mapping/union]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testUnionWithChainedJoinsAcross3SetsV3 [tests/mapping/union]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testUnionWithChainedJoinsAcross4SetsV3 [tests/mapping/union]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testUnionWithChainedJoinsAcross2SetsV4 [tests/mapping/union]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testUnionWithChainedJoinsAcross3SetsV4 [tests/mapping/union]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testUnionWithChainedJoinsAcross4SetsV4 [tests/mapping/union]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testUnionWithChainedJoinsAcross2SetsV5 [tests/mapping/union]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testUnionWithChainedJoinsAcross3SetsV5 [tests/mapping/union]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
-- ERROR testUnionWithChainedJoinsAcross4SetsV5 [tests/mapping/union]: no overload of 'meta::pure::functions::variant::navigation::get' structurally matches the argument types
+- ERROR testUnionWithChainedJoinsAcross2SetsV1 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X'
+- ERROR testUnionWithChainedJoinsAcross3SetsV1 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X'
+- ERROR testUnionWithChainedJoinsAcross4SetsV1 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X'
+- ERROR testUnionWithChainedJoinsAcross2SetsV2 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X'
+- ERROR testUnionWithChainedJoinsAcross3SetsV2 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X'
+- ERROR testUnionWithChainedJoinsAcross4SetsV2 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X'
+- ERROR testUnionWithChainedJoinsAcross2SetsV3 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X'
+- ERROR testUnionWithChainedJoinsAcross3SetsV3 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X'
+- ERROR testUnionWithChainedJoinsAcross4SetsV3 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::X'
+- ERROR testUnionWithChainedJoinsAcross2SetsV4 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y'
+- ERROR testUnionWithChainedJoinsAcross3SetsV4 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y'
+- ERROR testUnionWithChainedJoinsAcross4SetsV4 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y'
+- ERROR testUnionWithChainedJoinsAcross2SetsV5 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y'
+- ERROR testUnionWithChainedJoinsAcross3SetsV5 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y'
+- ERROR testUnionWithChainedJoinsAcross4SetsV5 [tests/mapping/union]: milestoning column 'from_z' is not on the pipeline row of 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y'
 - SHAPE testViewToViewToUnion [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testUnionedViewsToViewToUnion [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testUnionTwoRelationMappings_SimpleProject [tests/mapping/union/relation]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappings'

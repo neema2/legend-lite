@@ -320,6 +320,16 @@ final class Substitution {
             return rewritePath(path.get(0), path.get(1), n);
         }
         if (path != null && path.size() > 2) {
+            // EMBEDDED milestone struct: the embedded instance SHARES the
+            // owner's row — $p.embedded.milestoning.from reads the OWNER
+            // table's milestone column
+            if (path.size() == 3 && path.get(1).equals("milestoning")
+                    && embeddedPartialOf(target.bindings().get(path.get(0))) != null
+                    && target.milestoneColumns().containsKey(path.get(2))) {
+                return milestoneColumnRead(
+                        target.milestoneColumns().get(path.get(2)),
+                        target.freshRowVar(), target.rowType(), "", n);
+            }
             // TARGET milestone struct: $p.assoc.milestoning.from reads the
             // TARGET table's milestone column, prefixed on the joined row
             if (path.size() == 3 && path.get(1).equals("milestoning")
