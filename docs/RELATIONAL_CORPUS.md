@@ -171,14 +171,14 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/selfJoin | 3 | 0 | 0 | 3 | 0 |
 | tests/mapping/sqlFunction | 72 | 57 | 0 | 3 | 12 |
 | tests/mapping/tree | 12 | 0 | 0 | 12 | 0 |
-| tests/mapping/union | 124 | 12 | 1 | 91 | 20 |
+| tests/mapping/union | 124 | 15 | 1 | 88 | 20 |
 | tests/mapping/union/relation | 15 | 0 | 0 | 13 | 2 |
 | tests/platformOperations | 4 | 0 | 0 | 4 | 0 |
 | tests/query | 83 | 53 | 2 | 21 | 7 |
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **542** | 31 | 880 | 839 |
+| **total** | 2292 | **545** | 31 | 877 | 839 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1851,7 +1851,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSimpleQueryFrom [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMapping'
 - ERROR testSimpleQueryTo [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMapping'
 - ERROR testProjectThroughAsso [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMapping'
-- ERROR testSimpleQueryFromAssociationMapping [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t2" not found! |  | LINE 1: ... FROM PersonSet2 AS t1 ) AS t2 LEFT OUTER JOIN Firm AS t3 ON t2.FirmID = t3.ID WHERE t3.name = 'Firm A') AS value |                       
 - ERROR testSimpleQueryToAssociationMapping [tests/mapping/union]: a scalar query has no row scope for $tgtRow.FirmID
 - ERROR testProjectThroughAssoWithAssociationMapping [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t3" not found! |  | LINE 1: ... t2.lastName_s2 AS lastName FROM PersonSet2 AS t2 ) AS t3 ON t3.FirmID = t0.ID) AS value |                                                
 - ERROR testSimpleQueryFromWithJoinInMapping [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithJoinInProperty'
@@ -1894,8 +1893,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSQLQueryMergingForInnerJoins2 [tests/mapping/union]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR testSimpleQueryUnionToUnionOptimized [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::optimized::unionToUnionMappingOptimized'
 - ERROR testSimpleQueryUnionToUnionOptimizedHalf [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::optimized::unionToUnionMappingOptimizedHalf'
-- ERROR testSimpleQueryFromAssociationMappingOptimized [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t2" not found! |  | LINE 1: ... FROM PersonSet2 AS t1 ) AS t2 LEFT OUTER JOIN Firm AS t3 ON t2.FirmID = t3.ID WHERE t3.name = 'Firm A') AS value |                       
-- ERROR testSimpleQueryFromAssociationMappingOptimizedHalf [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t2" not found! |  | LINE 1: ... FROM PersonSet2 AS t1 ) AS t2 LEFT OUTER JOIN Firm AS t3 ON t2.FirmID = t3.ID WHERE t3.name = 'Firm A') AS value |                       
 - ERROR testSimpleQueryTo [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::partial::unionMapping'
 - ERROR testProject [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::partial::unionMapping'
 - ERROR testProjectShareSet [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::partial::unionMapping'

@@ -453,6 +453,100 @@ final class Pipelines {
                         : newCols, row));
     }
 
+    /**
+     * JOIN-KEY COLLECTION over a UNION pipeline (engine: each member thread
+     * of a union subselect carries the demanded join-key columns — the
+     * {@code FirmID_0}-family columns in the partial-union goldens; this is
+     * the shared-name form): a navigation join over a concatenate reads
+     * source key columns the member projections dropped — re-add each key
+     * to EVERY member projection, reading the member's own physical column.
+     * No concatenate in the pipeline: unchanged. A member whose row lacks
+     * the column is LOUD (the per-member suffixed/NULL-filled form is the
+     * union-to-union rung).
+     */
+    static TypedSpec widenConcatenateForKeys(TypedSpec pipeline, Set<String> cols) {
+        if (pipeline instanceof TypedFilter f) {
+            TypedSpec inner = widenConcatenateForKeys(f.source(), cols);
+            if (inner == f.source()) {
+                return pipeline;
+            }
+            return new TypedFilter(inner, f.predicate(),
+                    new ExprType(inner.info().type(), Multiplicity.Bounded.ONE));
+        }
+        if (!(pipeline instanceof com.legend.compiler.spec.typed.TypedConcatenate cat)) {
+            return pipeline;
+        }
+        Type.RelationType row = (Type.RelationType) cat.info().type();
+        Set<String> have = new LinkedHashSet<>();
+        for (Type.Column c : row.columns()) {
+            have.add(c.name());
+        }
+        List<String> missing = new ArrayList<>();
+        for (String c : cols) {
+            if (!have.contains(c)) {
+                missing.add(c);
+            }
+        }
+        if (missing.isEmpty()) {
+            return pipeline;
+        }
+        return widenUnionSide(cat, missing);
+    }
+
+    /** Append {@code missing} member-column reads to each union member. */
+    private static TypedSpec widenUnionSide(TypedSpec side, List<String> missing) {
+        if (side instanceof com.legend.compiler.spec.typed.TypedConcatenate cat) {
+            TypedSpec left = widenUnionSide(cat.left(), missing);
+            return new com.legend.compiler.spec.typed.TypedConcatenate(
+                    left, widenUnionSide(cat.right(), missing),
+                    new ExprType(left.info().type(), Multiplicity.Bounded.ONE));
+        }
+        if (!(side instanceof com.legend.compiler.spec.typed.TypedProject p)) {
+            throw new com.legend.error.NotImplementedException(
+                    "a navigation join over this union demands key columns "
+                    + missing + ", but a union member is a "
+                    + side.getClass().getSimpleName()
+                    + " — only projected members widen");
+        }
+        Type.RelationType srcRow = (Type.RelationType) p.source().info().type();
+        List<com.legend.compiler.spec.typed.TypedFuncCol> newCols =
+                new ArrayList<>(p.columns());
+        List<Type.Column> outCols = new ArrayList<>(
+                ((Type.RelationType) p.info().type()).columns());
+        for (String c : missing) {
+            Type.Column src = null;
+            for (Type.Column sc : srcRow.columns()) {
+                if (sc.name().equals(c)) {
+                    src = sc;
+                    break;
+                }
+            }
+            if (src == null) {
+                throw new com.legend.error.NotImplementedException(
+                        "a navigation join over this union demands key column '"
+                        + c + "', which union member rows do not all carry;"
+                        + " per-member suffixed keys are not supported yet");
+            }
+            String v = "u_k";
+            ExprType colType = new ExprType(src.type(), src.multiplicity());
+            var read = new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                    new com.legend.compiler.spec.typed.TypedVariable(v,
+                            new ExprType(srcRow, Multiplicity.Bounded.ONE)),
+                    src.name(), colType);
+            var fnType = new Type.FunctionType(
+                    List.of(new Type.Param(srcRow, Multiplicity.Bounded.ONE)),
+                    new Type.Param(src.type(), src.multiplicity()));
+            newCols.add(new com.legend.compiler.spec.typed.TypedFuncCol(c,
+                    new com.legend.compiler.spec.typed.TypedLambda(List.of(v),
+                            List.of(read),
+                            new ExprType(fnType, Multiplicity.Bounded.ONE))));
+            outCols.add(new Type.Column(c, src.type(), src.multiplicity()));
+        }
+        return new com.legend.compiler.spec.typed.TypedProject(p.source(), newCols,
+                new ExprType(new Type.RelationType(outCols),
+                        Multiplicity.Bounded.ONE));
+    }
+
     /** Join-slot aliases whose targets are CLASS-EXTENT-free — the slots
      * the engine's all-properties-under-distinct materialization may
      * demand (a class-typed navigation is not a property column). */

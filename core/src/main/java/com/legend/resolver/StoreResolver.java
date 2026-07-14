@@ -1646,6 +1646,12 @@ public final class StoreResolver {
         }
         TypedSpec keyWidenedPipe = joinKeyReads.isEmpty() ? materializedPipe
                 : Pipelines.widenDistinctForKeys(materializedPipe, joinKeyReads);
+        if (!joinKeyReads.isEmpty()) {
+            // UNION root: member threads carry the demanded join keys
+            // through the union projection (engine partial-union goldens)
+            keyWidenedPipe = Pipelines.widenConcatenateForKeys(
+                    keyWidenedPipe, joinKeyReads);
+        }
         if (keyWidenedPipe != materializedPipe) {
             m = new Pipelines.Materialized(keyWidenedPipe, m.slotPrefixes(),
                     m.stripped());

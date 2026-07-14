@@ -1330,22 +1330,27 @@ public final class MappingNormalizer {
             }
             parts.add(synthTableBackedParts(md, mr, model, null));
         }
-        // the SHARED scalar property set, in the first member's order
+        // the UNION of the members' scalar property sets, first-appearance
+        // order — a member that does not map a property contributes a typed
+        // NULL in its thread (engine: 'null as ...' / __SQLNULL__ columns;
+        // partial-union reads come back TDSNull, testUnionPartial goldens)
         ClassDefinition owner = model.findClass(className).orElse(null);
         List<String> common = new ArrayList<>();
-        for (String prop : parts.get(0).fields().keySet()) {
-            TypeExpression t = owner == null ? null
-                    : findPropertyTypeDeep(owner, prop, model);
-            boolean scalar = t instanceof TypeExpression.NameRef nr
-                    && model.findClass(nr.name()).isEmpty();
-            if (scalar && parts.stream().allMatch(pp -> pp.fields().containsKey(prop))) {
-                common.add(prop);
+        for (RelationalParts pp : parts) {
+            for (String prop : pp.fields().keySet()) {
+                TypeExpression t = owner == null ? null
+                        : findPropertyTypeDeep(owner, prop, model);
+                boolean scalar = t instanceof TypeExpression.NameRef nr
+                        && model.findClass(nr.name()).isEmpty();
+                if (scalar && !common.contains(prop)) {
+                    common.add(prop);
+                }
             }
         }
         if (common.isEmpty()) {
             throw new com.legend.error.NotImplementedException(
                     "Operation union members of '" + className
-                  + "' share no scalar properties; mapping=" + md.qualifiedName());
+                  + "' map no scalar properties; mapping=" + md.qualifiedName());
         }
         ValueSpecification union = null;
         for (RelationalParts pp : parts) {
@@ -1357,8 +1362,11 @@ public final class MappingNormalizer {
                 // declared property is the union's schema contract: numeric/
                 // date kinds coerce, and a declared-[1] property wraps in
                 // toOne (typing [1] on both sides; lowering is erasure)
-                ValueSpecification value = coerceToDeclaredNumeric(
-                        pp.fields().get(prop).value(), prop, className, model);
+                KeyExpression mapped = pp.fields().get(prop);
+                ValueSpecification value = mapped == null
+                        ? nullOfDeclaredType(owner, prop, model)
+                        : coerceToDeclaredNumeric(
+                                mapped.value(), prop, className, model);
                 // String is safe INSIDE the union projection: the members
                 // must agree on the declared kind, and the engine's union
                 // coerces at the SQL boundary
@@ -1391,6 +1399,24 @@ public final class MappingNormalizer {
         return new AppliedFunction("map", List.of(union,
                 new LambdaFunction(List.of(row),
                         List.of(buildNewInstanceToOne(className, ctor, model)))));
+    }
+
+    /**
+     * A typed NULL for a union thread that does not map {@code prop}:
+     * {@code []->cast(@DeclaredType)} &mdash; the empty collection carries
+     * SQL NULL through the erasure lowering, the cast types the column so
+     * the concatenate's branches agree.
+     */
+    private static ValueSpecification nullOfDeclaredType(ClassDefinition owner,
+            String prop, ModelBuilder model) {
+        TypeExpression dt = owner == null ? null
+                : findPropertyTypeDeep(owner, prop, model);
+        String castTo = dt instanceof TypeExpression.NameRef nr
+                ? nr.name() : "String";
+        return new AppliedFunction("cast", List.of(
+                new PureCollection(List.of()),
+                new com.legend.parser.spec.TypeAnnotation.Named(
+                        new TypeExpression.NameRef(castTo))));
     }
 
     /** The declared multiplicity of {@code prop} on {@code owner} (chain walk). */
