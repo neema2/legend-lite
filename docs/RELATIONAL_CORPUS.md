@@ -892,7 +892,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testMultipleBiTemporalPropertyUsageInProjectWithMilestoningInfinitySpecifiedInDBPlusLatestPropagation [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPopulationOfMilestonedThisBiTemporalDatesInProject [milestoning/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
 - SHAPE testPopulationOfMilestonedThisBiTemporalDatesInProjectAgainstNonMilestonedStore [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testBiTemporalToBiTemporalDatePropagation [milestoning/tests]: multi-hop navigation biTemporalProduct.biTemporalClassification.type through an embedded/slot head is not supported yet
 - SHAPE testBiTemporalToBiTemporalProjectWithMilestoningInfinitySpecifiedInDB [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testBiTemporalToBiTemporalProcessingDateProjectWithMilestoningInfinitySpecifiedInDB [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testBiTemporalDateInjectionFromVarReference [milestoning/tests]: sql-only: 5 advisory golden-SQL assert(s), no row verification
@@ -953,7 +952,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testNestedExists_NestedExistsWithEmbeddedMappingInProject [milestoning/tests]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'Child_Leaf' (the demand scan and the rewrite disagreed)
 - ERROR testDerivedPropertyOnNonTemporalClassWithMilestonedChain [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::ChildEntity' with a non-literal date is not supported yet
 - SHAPE testGraphFetchMultiPrimitiveOnInlineChild [milestoning/tests]: assert form 'assertJsonStringsEqual/2' is not supported yet
-- ERROR testQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: multi-hop navigation product.classification.description through an embedded/slot head is not supported yet
 - ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: multi-hop navigation product.classification.description through an embedded/slot head is not supported yet
 - ERROR testDateTimeVariableMilestoningParam [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::Product' with a non-literal date is not supported yet
 - ERROR testDateTimeVariableMilestoningParamPropagation [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::ProductClassification' with a non-literal date is not supported yet
@@ -966,6 +964,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMilestoningFiltersAppliedToIntermediateMilestonedJoinTablesWhereSourceIsEmbeddedTargetTypeIsNonTemporalAndTargetMainTableIsNotMilestoned [milestoning/tests]: multi-hop navigation classification.system.name through an embedded/slot head is not supported yet
 - SHAPE testLatestMilestoningFiltersPropogatedToDataTypePropertiesFromAllInProject [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testIsolationOfMilestoningFiltersUsedOnIntermediateJoinInOR [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- ERROR testMilestoningContextNotPropogatedThroughNonTemporalPropertiesFromAll [milestoning/tests]: multi-hop navigation referenceSystem.systemDescription.description through an embedded/slot head is not supported yet
 - SHAPE testMilestoningContextWithLatestDateNotPropogatedThroughNonTemporalPropertiesFromAll [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testMilestoningContextNotPropogatedThroughNonTemporalPropertiesFromMilestonedQualifiedProperty [milestoning/tests]: multi-hop navigation product.referenceSystem.systemDescription.description through an embedded/slot head is not supported yet
 - SHAPE testLatestMilestoneDatePropogationFromTypeQueryDoesNotOverrideThatSpecifiedAsArgToMilestonedQpInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -982,7 +981,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testAssoWithOtherwiseDeep [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testProcessingTemporalPropertyQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testProcessingTemporalPropertyPropagationInQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: multi-hop navigation processingTemporalProduct.classification.description through an embedded/slot head is not supported yet
 - ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: multi-hop navigation processingTemporalProduct.classification.description through an embedded/slot head is not supported yet
 - ERROR testDateTimeVariableMilestoningParam [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProduct' with a non-literal date is not supported yet
 - ERROR testDateTimeVariableMilestoningParamPropagation [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProductClassification' with a non-literal date is not supported yet
@@ -996,6 +994,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testTemporalDateForAllVersionsWithOutThruInclusive [milestoning/tests]: property 'processingDate' of class 'meta::relational::tests::milestoning::BiTemporalProduct' has no binding in mapping 'meta::relational::tests::milestoning::OutThruInclusiveMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - FAIL testBusinessDateForAllVersionsInRange [milestoning/tests]: assertSameElements: expected [2015-01-01 00:00:00.0, 2015-08-15 00:00:00.0, 2015-08-15 00:00:00.0, 2015-08-26 00:00:00.0, 2015-09-26 00:00:00.0, 2015-10-17 00:00:00.0], got [2016-01-01, 2016-01-01, 2016-01-01, 2016-01-01, 2016-01-01, 2016-01-01]
 - FAIL testProcessingDateForAllVersionsInRange [milestoning/tests]: assertSameElements: expected [2013-01-01 00:00:00.0, 2015-01-01 00:00:00.0], got [2012-01-01, 2012-01-01]
+- ERROR testBusinessTemporalRangeQueryOnRootAndPropertyDeep [milestoning/tests]: multi-hop navigation classification.exchange.name through an embedded/slot head is not supported yet
+- ERROR testBusinessTemporalRangeQueryOnPropertyDeep [milestoning/tests]: multi-hop navigation classification.exchange.name through an embedded/slot head is not supported yet
 - SHAPE testBusinessTemporalRangeQueryOnRootWithSubsequentCallToMilestonedQualifiedPropertyWithFunction [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testBusinessTemporalRangeQueryOnRootWithSubsequentCallToMilestonedQualifiedPropertyWithThisBusinessDate [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testHybridMilestoningUnionOperationWithNonTemporalRoot [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::hybridMilestoningUnionMap'

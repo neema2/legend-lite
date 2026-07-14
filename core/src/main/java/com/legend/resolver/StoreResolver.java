@@ -1434,7 +1434,7 @@ public final class StoreResolver {
                     nav.target()).classFqn();
             navMats.put(alias, navTargetMaterialized(cs.mappingFqn(), targetClass,
                     navTails.getOrDefault(alias, java.util.List.of()),
-                    navHeadByAlias.getOrDefault(alias, alias)));
+                    navHeadByAlias.getOrDefault(alias, alias), null));
         }
         for (String alias : demandedNavs) {
             var nav = navSteps.get(alias);
@@ -2950,14 +2950,16 @@ public final class StoreResolver {
      */
     private Pipelines.Materialized navTargetMaterialized(String mappingFqn,
             String targetClassFqn, java.util.List<java.util.List<String>> tails) {
-        return navTargetMaterialized(mappingFqn, targetClassFqn, tails, null);
+        return navTargetMaterialized(mappingFqn, targetClassFqn, tails, null, null);
     }
 
     /** {@code chainPrefix}: the dotted path of the HEAD this target hangs
-     * off (null at registration sites that key specs by bare head). */
+     * off; {@code inheritedDates}: the PARENT hop's effective context —
+     * propagation flows hop-to-hop through temporal classes (engine
+     * getMilestoningContextForQualifiedProperty), not only from the root. */
     private Pipelines.Materialized navTargetMaterialized(String mappingFqn,
             String targetClassFqn, java.util.List<java.util.List<String>> tails,
-            String chainPrefix) {
+            String chainPrefix, java.util.List<TypedSpec> inheritedDates) {
         ClassSource t = sources.get(mappingFqn, targetClassFqn);
         // TEMPORAL GATE (same discipline as the union lift): the nested
         // materialization does not yet thread per-hop milestoning context
@@ -2971,7 +2973,7 @@ public final class StoreResolver {
         // context (chain spec or propagated root — the golden filters
         // StockProductTable by the hop's date); without one they stay loud.
         java.util.List<TypedSpec> hopDates =
-                hopContextDates(chainPrefix, targetClassFqn);
+                hopContextDates(chainPrefix, targetClassFqn, inheritedDates);
         if (containsFilter(t.pipeline())) {
             return Pipelines.materialize(t.pipeline(), Set.of(), targetClassFqn);
         }
@@ -3007,8 +3009,13 @@ public final class StoreResolver {
                     // below); no chain prefix or no context = stays loud.
                     boolean temporalSub = temporalStrategy(subCls) != null;
                     if (temporalSub && (chainPrefix == null
-                            || !canFilterTemporalSub(t, subCls,
-                                    chainPrefix + "." + tail.get(0)))) {
+                            || hopContextDates(chainPrefix + "." + tail.get(0),
+                                    subCls, hopDates) == null
+                            // UNION sub-targets carry per-thread capability
+                            // filters INSIDE — a single outer point filter
+                            // mis-filters (snapshot-union propagation
+                            // goldens); loud until the per-thread form
+                            || containsConcatenate(subT.pipeline()))) {
                         continue;
                     }
                     if (hasMilestonedSlotTarget(subT.pipeline())
@@ -3040,13 +3047,24 @@ public final class StoreResolver {
                     TypedSpec sub = navTargetMaterialized(mappingFqn, cls,
                             subTails.getOrDefault(alias, java.util.List.of()),
                             chainPrefix == null ? null
-                                    : chainPrefix + "." + midByAlias.get(alias))
+                                    : chainPrefix + "." + midByAlias.get(alias),
+                            hopDates)
                             .pipeline();
                     // per-hop temporal filter: the sub-hop's chain-keyed
                     // spec or propagated context (parent = THIS target)
                     if (temporalStrategy(cls) != null && chainPrefix != null) {
-                        sub = temporalTargetPipe(t, sources.get(mappingFqn, cls),
-                                chainPrefix + "." + midByAlias.get(alias), sub);
+                        String subChain = chainPrefix + "." + midByAlias.get(alias);
+                        TemporalSpec subSpec = temporalByHead.get(subChain);
+                        if (subSpec != null) {
+                            sub = temporalTargetPipe(t, sources.get(mappingFqn, cls),
+                                    subChain, sub);
+                        } else {
+                            java.util.List<TypedSpec> d = hopContextDates(
+                                    subChain, cls, hopDates);
+                            if (d != null && d.size() == 1) {
+                                sub = milestonedPipe(sub, d.get(0), cls);
+                            }
+                        }
                     }
                     return sub;
                 });
@@ -3064,19 +3082,24 @@ public final class StoreResolver {
     /** The hop's effective single-dimension date context: its chain-keyed
      * spec (non-sweep), else the propagated root context. Null = none. */
     private java.util.List<TypedSpec> hopContextDates(String chainPrefix,
-            String targetClassFqn) {
+            String targetClassFqn, java.util.List<TypedSpec> inheritedDates) {
         TemporalSpec spec = chainPrefix == null ? null
                 : temporalByHead.get(chainPrefix);
         if (spec != null && !spec.sweep() && !spec.dates().isEmpty()) {
             return spec.dates();
         }
-        // propagated root context flows only THROUGH a TEMPORAL head class
-        // (engine clears after non-temporal hops — the NotPropogated
-        // goldens join milestoned slot tables UNFILTERED there)
-        if (spec == null && !rootMilestoning.isEmpty()
-                && !"bitemporal".equals(rootStrategy)
-                && temporalStrategy(targetClassFqn) != null) {
-            return rootMilestoning;
+        // propagated context (the PARENT hop's effective dates, or the
+        // root's at the head) flows only THROUGH a TEMPORAL class (engine
+        // clears after non-temporal hops — the NotPropogated goldens join
+        // milestoned slot tables UNFILTERED there)
+        if (spec == null && temporalStrategy(targetClassFqn) != null) {
+            if (inheritedDates != null && !inheritedDates.isEmpty()) {
+                return inheritedDates;
+            }
+            if (!rootMilestoning.isEmpty()
+                    && !"bitemporal".equals(rootStrategy)) {
+                return rootMilestoning;
+            }
         }
         return null;
     }
@@ -3101,21 +3124,17 @@ public final class StoreResolver {
         return n;
     }
 
-    /** Whether the sub-hop at {@code chainKey} has a usable temporal
-     * context: an explicit chain-keyed spec, or propagation (same
-     * single-dimension strategy through a TEMPORAL immediate parent —
-     * engine: context clears after non-temporal hops). */
-    private boolean canFilterTemporalSub(ClassSource parent, String subCls,
-            String chainKey) {
-        TemporalSpec spec = temporalByHead.get(chainKey);
-        if (spec != null) {
+    /** Whether the pipeline contains a UNION (concatenate) anywhere. */
+    private static boolean containsConcatenate(TypedSpec pipeline) {
+        if (pipeline instanceof com.legend.compiler.spec.typed.TypedConcatenate) {
             return true;
         }
-        String subStrat = temporalStrategy(subCls);
-        return !rootMilestoning.isEmpty() && subStrat != null
-                && !"bitemporal".equals(subStrat)
-                && subStrat.equals(rootStrategy)
-                && temporalStrategy(parent.classFqn()) != null;
+        for (TypedSpec c : pipeline.children()) {
+            if (containsConcatenate(c)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Whether the pipeline carries a mapping ~filter anywhere. */
