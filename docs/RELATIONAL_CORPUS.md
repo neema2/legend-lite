@@ -129,7 +129,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 47 | 0 | 0 | 0 | 47 |
-| milestoning/tests | 221 | 105 | 5 | 58 | 53 |
+| milestoning/tests | 221 | 112 | 5 | 51 | 53 |
 | modelJoins | 7 | 0 | 0 | 1 | 6 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 0 | 7 |
@@ -176,7 +176,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **636** | 29 | 788 | 839 |
+| **total** | 2292 | **643** | 29 | 781 | 839 |
 
 ### mapping walls (dropped at assembly)
 
@@ -918,7 +918,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMilestoningQueryWithGroupByFilterWithMilestoning [milestoning/tests]: expected at most one value, got many ([1..*])
 - ERROR testBusinessDateInjectionFromVarReference [milestoning/tests]: [5:34] expected ')' to close argument list
 - ERROR testBusinessDateInjectionFromVarReferenceWithProject [milestoning/tests]: navigation 'product' with two different milestoning dates in one query is not supported yet
-- ERROR testBusinessDateInjectionFromParentVarReferenceWithProject [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::Product' with a non-literal date is not supported yet
+- ERROR testBusinessDateInjectionFromParentVarReferenceWithProject [milestoning/tests]: multi-hop navigation product.classification.type through an embedded/slot head is not supported yet
 - SHAPE testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testBusinessDateInjectionFromVarReferenceWithUnion [milestoning/tests]: property 'car' of class 'meta::relational::tests::milestoning::inheritance::CarDetails' is not mapped in mapping 'meta::relational::tests::milestoning::milestoningmapWithVehiclesUnion'
 - ERROR testBusinessDatePropagationInColFunction [milestoning/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
@@ -949,12 +949,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testCalculationOnBusinessDateInGetAll [milestoning/tests]: unknown function 'myGetAllProduct'
 - ERROR testNestedExists_NestedExistsWithEmbeddedMapping [milestoning/tests]: multi-hop navigation children.leaves.leafValue through an embedded/slot head is not supported yet
 - ERROR testNestedExists_NestedExistsWithEmbeddedMappingInProject [milestoning/tests]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'Child_Leaf' (the demand scan and the rewrite disagreed)
-- ERROR testDerivedPropertyOnNonTemporalClassWithMilestonedChain [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::ChildEntity' with a non-literal date is not supported yet
 - SHAPE testGraphFetchMultiPrimitiveOnInlineChild [milestoning/tests]: assert form 'assertJsonStringsEqual/2' is not supported yet
 - ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: multi-hop navigation product.classification.description through an embedded/slot head is not supported yet
-- ERROR testDateTimeVariableMilestoningParam [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::Product' with a non-literal date is not supported yet
-- ERROR testDateTimeVariableMilestoningParamPropagation [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::ProductClassification' with a non-literal date is not supported yet
-- ERROR testDateTimeVariableMilestoningParamUnion [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::ProductClassification' with a non-literal date is not supported yet
 - SHAPE testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLatestIgnoredForNonMilestonedMappedBiTemporalClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLatestIgnoredForNonMilestonedMappedBiTemporalClasses [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -981,9 +977,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testProcessingTemporalPropertyQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testProcessingTemporalPropertyPropagationInQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: multi-hop navigation processingTemporalProduct.classification.description through an embedded/slot head is not supported yet
-- ERROR testDateTimeVariableMilestoningParam [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProduct' with a non-literal date is not supported yet
-- ERROR testDateTimeVariableMilestoningParamPropagation [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProductClassification' with a non-literal date is not supported yet
-- ERROR testDateTimeVariableMilestoningParamUnion [milestoning/tests]: milestoned fetch of 'meta::relational::tests::milestoning::ProcessingTemporalProductClassification' with a non-literal date is not supported yet
 - ERROR testBusinessDateForAllVersions [milestoning/tests]: property 'businessDate' of class 'meta::relational::tests::milestoning::ProductSynonym' has no binding in mapping 'meta::relational::tests::milestoning::milestoningmap' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testProcessingDateForAllVersions [milestoning/tests]: property 'processingDate' of class 'meta::relational::tests::milestoning::Trader' has no binding in mapping 'meta::relational::tests::milestoning::milestoningmap' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testBusinessSnapshotDateForAllVersions [milestoning/tests]: property 'businessDate' of class 'meta::relational::tests::milestoning::Product' has no binding in mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)

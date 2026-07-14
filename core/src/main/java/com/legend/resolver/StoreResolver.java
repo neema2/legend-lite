@@ -426,11 +426,9 @@ public final class StoreResolver {
         if (snapCol == null && (fromCol == null || thruCol == null)) {
             return pipe;   // capability tolerance — see above
         }
-        if (!(date instanceof com.legend.compiler.spec.typed.TypedCDate
-                || date instanceof com.legend.compiler.spec.typed.TypedCLatestDate)) {
-            throw new MappingResolutionException("milestoned fetch of '" + classFqn
-                    + "' with a non-literal date is not supported yet", classFqn);
-        }
+        // non-literal dates (let-bound vars the inliner kept, adjust()
+        // expressions) embed as scalar SQL expressions; an unresolvable
+        // variable stays loud at the lowerer ("no row scope")
         // VIEW-backed pipes: the view row does not carry the milestone
         // columns — the engine filters every TABLE ALIAS, so the filter
         // pushes down to the internal scan (whose row has them)
@@ -492,6 +490,22 @@ public final class StoreResolver {
                     snapDate = new com.legend.compiler.spec.typed.TypedCDate(
                             com.legend.values.PureDateLiteral.parse(
                                     iso.substring(0, 10)),
+                            new com.legend.compiler.element.type.ExprType(
+                                    com.legend.compiler.element.type.Type
+                                            .Primitive.STRICT_DATE,
+                                    com.legend.compiler.element.type
+                                            .Multiplicity.Bounded.ONE));
+                }
+            } else if (snapColIsDate
+                    && !(date instanceof com.legend.compiler.spec.typed.TypedCDate)) {
+                // NON-LITERAL datetime param against a DATE column: wrap in
+                // datePart (engine golden: snapshotDate = cast(truncate(ts)
+                // as date)) — a raw timestamp equality silently matches
+                // nothing
+                var dpFns = ctx.findFunction("meta::pure::functions::date::datePart");
+                if (dpFns.size() == 1) {
+                    snapDate = new TypedNativeCall(dpFns.get(0),
+                            java.util.List.of(date),
                             new com.legend.compiler.element.type.ExprType(
                                     com.legend.compiler.element.type.Type
                                             .Primitive.STRICT_DATE,
