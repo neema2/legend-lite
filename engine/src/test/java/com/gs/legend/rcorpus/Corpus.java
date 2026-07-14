@@ -339,7 +339,9 @@ public final class Corpus {
             return null;   // not a foldable string expression
         }
         return expectPart ? null
-                : out.toString().replace("\\'", "'").replace("\\\\", "\\");
+                : out.toString().replace("\\'", "'").replace("\\n", "\n")
+                        .replace("\\r", "\r").replace("\\t", "\t")
+                        .replace("\\\\", "\\");
     }
 
     private static final Pattern INSERT_COLS = Pattern.compile(

@@ -4,7 +4,7 @@ RUN-as-data over the local legend-engine checkout; row equality is the
 contract, golden SQL is advisory. SHAPE = test body/assert form the
 runner does not yet recognize (accounted, not skipped silently).
 
-## Failed seed statements (106)
+## Failed seed statements (102)
 
 - `insert into FirmTable ("firmName", "employeeId") values ('GS',19) => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into FirmTable ("firmName", "employeeId") values ('JP',20) => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
@@ -73,10 +73,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - `insert into Product ("id", "productDate", "name", "tradeId") values (1, '2014-12-01 21:00:00', 'prod 1 V1', 1) => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
 - `insert into ProductClassificationTableWithBusinessSnapshotMilestoning values('STOCK', \ 'STOCK DESC-V1', '2015-8-15') => Parser Error: syntax error at or near "\"`
 - `insert into ProductClassificationTableWithProcessingSnapshotMilestoning values('STOCK', \ 'STOCK DESC-V1', '2015-8-15') => Parser Error: syntax error at or near "\"`
-- `INSERT INTO Cars ("in_z", "out_z", "id", "description") VALUES\n('2020-01-01', '2050-01-01', 1, 'Sedan'),\n('2020-01-01', '2050-01-01', 2, 'SUV'),\n('2020-01-01', '2050-01-01', 3, 'Hatchback'),\n('2020-01-01', '2050-01-01', 4, 'Convertible'),\n('2020-01-01', '2050-01-01', 5, 'Truck'),\n('2100-01-01', '2200-01-01', 6, 'Nuclear Car') => Parser Error: syntax error at or near "\"`
-- `INSERT INTO CarDetails ("id", "time") VALUES\n(1, '2025-01-01'),\n(2, '2030-01-01'),\n(3, '2035-01-01'),\n(4, '2040-01-01'),\n(5, '2045-01-01'),\n(6, '2150-01-01') => Parser Error: syntax error at or near "\"`
-- `INSERT INTO Bicycles ("in_z", "out_z", "id", "description") VALUES\n('2020-01-01', '2050-01-01', 5, 'Mountain Bike'),\n('2020-01-01', '2050-01-01', 4, 'Road Bike'),\n('2020-01-01', '2050-01-01', 3, 'Hybrid Bike'),\n('2020-01-01', '2050-01-01', 2, 'Electric Bike'),\n('2020-01-01', '2050-01-01', 1, 'Folding Bike'),\n('2200-01-01', '2300-01-01', 6, 'Nuclear Bike') => Parser Error: syntax error at or near "\"`
-- `INSERT INTO Jets ("in_z", "out_z", "id", "description") VALUES\n('2020-01-01', '2050-01-01', 3, 'Fighter Jet'),\n('2020-01-01', '2050-01-01', 8, 'Water Jet'),\n('2020-01-01', '2050-01-01', 6, 'Hybrid Jet'),\n('2020-01-01', '2050-01-01', 4, 'Supersonic Jet'),\n('2020-01-01', '2050-01-01', 2, 'Transformer Jet') => Parser Error: syntax error at or near "\"`
 - `Drop schema schemaB if exists cascade => Parser Error: syntax error at or near "if"`
 - `create schema schemaB => Catalog Error: Schema with name "schemaB" already exists!`
 - `insert into addressTable ("id", "type", "name", "street", "comments") values (1,1,'Hoboken', null, 'A comment with a % in the middle') => Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result`
@@ -129,7 +125,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 47 | 0 | 0 | 0 | 47 |
-| milestoning/tests | 221 | 138 | 1 | 27 | 55 |
+| milestoning/tests | 221 | 139 | 0 | 27 | 55 |
 | modelJoins | 7 | 0 | 0 | 1 | 6 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 0 | 7 |
@@ -176,7 +172,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **684** | 25 | 742 | 841 |
+| **total** | 2292 | **685** | 24 | 742 | 841 |
 
 ### mapping walls (dropped at assembly)
 
@@ -915,7 +911,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: class 'meta::relational::tests::milestoning::Trade' is not mapped in mapping 'meta::relational::tests::milestoning::milestoningmap3' (Join 'TradeTable_TradePnlViewNoRootMilestoning' navigates to a CLASS mapped over view 'tradePnlViewNoRootMilestoning'; class navigation onto view relations is a roadm
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testIsolationOfCaseStmtTrueFalseFilters [milestoning/tests]: multi-hop navigation classification.product.name through an embedded/slot head is not supported yet
-- FAIL testMilestonedChainedJoinsWithAlias [milestoning/tests]: assertSameElements: expected [1 | 1 | Sedan | Folding Bike, 2 | 2 | SUV | Electric Bike, 3 | 3 | Hatchback | Hybrid Bike, 4 | 4 | Convertible | Road Bike, 5 | 5 | Truck | Mountain Bike], got []
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testConcatenationOfTemporalTdsQueries [milestoning/tests]: execute() whose query argument is not a lambda
 - SHAPE testConcatenationOfTemporalTdsQueriesWithGroupBy [milestoning/tests]: execute() whose query argument is not a lambda
