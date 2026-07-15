@@ -188,12 +188,14 @@ final class AssociationJoins {
         // predicate joins the leaf demand (the pred's own reads pull the
         // target's slots) and wraps the finished target pipeline below.
         String real = SyntheticHeads.realHead(head);
-        TypedLambda synthPred = synthetics.pred(head);
-        if (synthPred != null) {
+        List<TypedLambda> synthPreds = synthetics.allPreds(head);
+        if (!synthPreds.isEmpty()) {
             Set<String> withPredLeaves = new LinkedHashSet<>(demandedLeaves);
-            for (TypedSpec b : synthPred.body()) {
-                StoreResolver.collectParamPathHeads(b, synthPred.parameters().get(0),
-                        withPredLeaves);
+            for (TypedLambda sp : synthPreds) {
+                for (TypedSpec b : sp.body()) {
+                    StoreResolver.collectParamPathHeads(b, sp.parameters().get(0),
+                            withPredLeaves);
+                }
             }
             demandedLeaves = withPredLeaves;
         }
@@ -313,10 +315,9 @@ final class AssociationJoins {
         // milestoned tables filter by the temporal context too (every
         // milestoned table alias filters — the dead wall this replaces)
         tPipe = temporal.applyJoinTemporalFilters(tPipe, target, Map.of());
-        if (synthPred != null) {
-            tPipe = StoreResolver.predFilteredPipe(tPipe, target, tMat.slotPrefixes(),
-                    synthPred, cs.mappingFqn());
-        }
+        tPipe = synthetics.applyToPipe(head, tPipe, (p, pred) ->
+                StoreResolver.predFilteredPipe(p, target, tMat.slotPrefixes(),
+                        pred, cs.mappingFqn()));
         return new AssocJoin(prefixFor(head, cs), target, tPipe,
                 (Type.RelationType)
                         tPipe.info().type(),

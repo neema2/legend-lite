@@ -52,7 +52,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 109 | 0 | 0 | 8 | 101 |
-| functions/tests | 241 | 104 | 4 | 96 | 37 |
+| functions/tests | 241 | 105 | 4 | 95 | 37 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 0 | 1 |
 | functions/tests/projection | 154 | 69 | 5 | 53 | 27 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -108,7 +108,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **879** | 28 | 609 | 776 |
+| **total** | 2292 | **880** | 28 | 608 | 776 |
 
 ### mapping walls (dropped at assembly)
 
@@ -561,16 +561,16 @@ runner does not yet recognize (accounted, not skipped silently).
 ### top error buckets
 
 - 26x a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- 25x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- 21x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- 22x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- 20x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - 14x a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
 - 13x navigation through class-typed slot property 'address' is not supported yet
 - 12x expected at most one value, got many ([*])
 - 11x class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::relational::tests::simpleRelationalMapping)
 - 11x object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
 - 11x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[function=if, parameters=[AppliedFunction[function=equal, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=active], CString[value=Y]]], LambdaFunction[parameters=[], body=[CString[value=true]]], LambdaFunction[parameters=[], body=[CString[value=false]]]]]]])
+- 10x lowering not yet implemented for TypedNativeCall
 - 10x class query under TypedMap is not resolvable yet (H2 vocabulary)
-- 9x lowering not yet implemented for TypedNativeCall
 - 8x relation has no column 'aID'
 - 7x object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - 7x no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
@@ -580,7 +580,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - 6x in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - 6x ~name_length: mapped/aggregate column specifications need an enclosing call to type against
 - 6x unknown function 'columnValues'
-- 6x 'meta::pure::tds::TDSNull' is not a known class, mapping, runtime, connection, or database
 - 5x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 5x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
 - 5x unknown function 'conditionRightTable'
@@ -590,6 +589,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - 4x multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet
 - 4x unknown function 'uniqueValueOnly'
 - 4x unknown function 'renameColumns'
+- 4x 'associationMappingInlinedEmbedded' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 
 ### per-test outcomes (non-passing)
 
@@ -739,13 +739,12 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testConcatenateDataType [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeMerge [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
-- ERROR testConcatenateClass [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
 - ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testConcatenateClass [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testConcatenateClassMerge [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testConcatenateClassAgg [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testConcatenateClassJoin [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
+- ERROR testConcatenateClassMerge [functions/tests]: unknown function 'id'
+- ERROR testConcatenateClassAgg [functions/tests]: association 'meta::relational::tests::model::simple::ProdSynonym' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
+- ERROR testConcatenateClassJoin [functions/tests]: multi-hop navigation product.synonyms#c0.name through an embedded/slot head is not supported yet
+- ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: lowering not yet implemented for TypedNativeCall
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
 - ERROR testConcatenateFlat [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(INTEGER, INTEGER)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 1: SELECT list_concat(t0.ID, t0.ID + 18) AS Concatenated |                ^
@@ -1550,20 +1549,20 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testRootFilterQueryWithInnerJoinClassMappingTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::baseMappingWithInnerJoinInFilter' failed to normalize this class
 - ERROR testRootFilterAndProjectionQueryWithInnerJoinClassMappingFilterAndPropertyMappedWithJoinToFilterTable [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::mappingWithInnerJoinInFilter' (mapping ~filter with an explicit (INNER) join type row-explodes through to-many chains — not built yet; class=me
 - ERROR testRootFilterAndProjectionQueryWithInnerJoinClassOwnedPropertyMappingTable [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::classOwnedMappingWithInnerJoinInFilter' (mapping ~filter with an explicit (INNER) join type row-explodes through to-many chains — not built yet
-- ERROR testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::pure::tds::TDSNull' is not a known class, mapping, runtime, connection, or database
+- ERROR testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: no common supertype for (Employees:String[*]) and String
 - ERROR testDynafunctionMergeWithProjectionQueryWithInnerJoinTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::MergeAliasMappingWithInnerJoinFilter' (Join 'personSet_organization_Join' not found in db 'meta::relational::tests::mapping::classMappingFilter
-- ERROR testPropertyProjectionQueryWithInnerJoinClassOwnedPropertyMappingTable [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::pure::tds::TDSNull' is not a known class, mapping, runtime, connection, or database
-- ERROR testPropertyProjectionQueryWithInnerJoinEmbeddedMappingTable [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::pure::tds::TDSNull' is not a known class, mapping, runtime, connection, or database
+- ERROR testPropertyProjectionQueryWithInnerJoinClassOwnedPropertyMappingTable [tests/mapping/classMappingFilterWithInnerJoin]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- ERROR testPropertyProjectionQueryWithInnerJoinEmbeddedMappingTable [tests/mapping/classMappingFilterWithInnerJoin]: no common supertype for (address:String[*]) and String
 - ERROR testRootQueryWithInnerJoinClassMappingWithMilestoningTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::milestoning::Product' is not a known class, mapping, runtime, connection, or database
 - ERROR testPropertyQueryWithInnerJoinClassMappingWithMilestoningTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::milestoning::Product' is not a known class, mapping, runtime, connection, or database
 - ERROR testPropertyProjectionQueryWithInnerJoinClassMappingWithMilestoningTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::milestoning::Product' is not a known class, mapping, runtime, connection, or database
 - ERROR testSubTypeProjectionQueryWithInnerJoinClassMappingTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::inheritanceMappingWithInnerJoin' (Join 'PersonBicycle' not found in db 'meta::relational::tests::mapping::classMappingFilterWithInner
 - ERROR testSourceViewRootQueryWithInnerJoinClassMappingTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToTableMapping' failed to normalize this class: mapping 
-- ERROR testSourceViewPropertyQueryWithInnerJoinClassMappingTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::pure::tds::TDSNull' is not a known class, mapping, runtime, connection, or database
+- ERROR testSourceViewPropertyQueryWithInnerJoinClassMappingTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: no common supertype for (pnl:String[1]) and String
 - ERROR testTargetViewRootQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testTableToViewMapping' failed to normalize this class: Join 'Fi
-- ERROR testTargetViewPropertyQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::pure::tds::TDSNull' is not a known class, mapping, runtime, connection, or database
+- ERROR testTargetViewPropertyQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: no common supertype for (pnl:String[1]) and String
 - ERROR testSourceViewRootQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' failed to normalize this class: mapping ~
-- ERROR testSourceViewPropertyQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::pure::tds::TDSNull' is not a known class, mapping, runtime, connection, or database
+- ERROR testSourceViewPropertyQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: no common supertype for (pnl:String[1]) and String
 - ERROR testInnerJoinClassMappingFilterProjectingPropertyUsingFilterJoin [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::mappingWithInnerJoinInFilterEdgeCases' (mapping ~filter with an explicit (INNER) join type row-explodes through to-many chains — not built yet;
 - ERROR testInnerJoinClassMappingFilterProjectingPropertiesUsingFilterJoin [tests/mapping/classMappingFilterWithInnerJoin]: unknown type 'TabularDataSet' in @TabularDataSet
 - ERROR testInnerJoinClassMappingFilterWithFilterPresentInJoinCondition [tests/mapping/classMappingFilterWithInnerJoin]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::simple::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::mappingWithInnerJoinInFilterEdgeCases1' failed to normalize this

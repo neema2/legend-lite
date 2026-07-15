@@ -814,8 +814,7 @@ public final class StoreResolver {
             // target's own slots exactly like demanded leaves
             List<List<String>> predTails =
                     new ArrayList<>();
-            TypedLambda liftedPred = synthetics.pred(path.get(0));
-            if (liftedPred != null) {
+            for (TypedLambda liftedPred : synthetics.allPreds(path.get(0))) {
                 Set<List<String>> predPaths =
                         new LinkedHashSet<>();
                 for (TypedSpec b : liftedPred.body()) {
@@ -875,14 +874,14 @@ public final class StoreResolver {
             // (engine: the chain filter parks on the navigation's join-tree
             // node); the composite right side carries its own filters, so
             // the outer join-stamping never double-stamps it
-            TypedLambda liftedPred = synthetics.pred(
-                    navHeadByAlias.getOrDefault(alias, alias));
-            if (liftedPred != null) {
+            String liftedHead = navHeadByAlias.getOrDefault(alias, alias);
+            if (synthetics.hasPred(liftedHead)) {
                 ClassSource target = sources.get(cs.mappingFqn(), targetClass);
                 NavMaterializer.NavMat mat = navMats.get(alias);
                 navMats.put(alias, new NavMaterializer.NavMat(
-                        predFilteredPipe(mat.pipeline(), target,
-                                mat.slotPrefixes(), liftedPred, cs.mappingFqn()),
+                        synthetics.applyToPipe(liftedHead, mat.pipeline(),
+                                (p, pred) -> predFilteredPipe(p, target,
+                                        mat.slotPrefixes(), pred, cs.mappingFqn())),
                         mat.slotPrefixes(), mat.stripped(), mat.subNavs()));
             }
         }
@@ -1008,11 +1007,11 @@ public final class StoreResolver {
                 tPipe = temporal.temporalTargetPipe(parent, t, dotted,
                         temporal.applyJoinTemporalFilters(p0, t, Map.of()));
                 tPrefixes = tm.slotPrefixes();
-                TypedLambda liftedLeafPred = synthetics.pred(leafName);
-                if (liftedLeafPred != null) {
-                    tPipe = predFilteredPipe(tPipe, t, tPrefixes,
-                            liftedLeafPred, cs.mappingFqn());
-                }
+                final TypedSpec tp = tPipe;
+                final var tpx = tPrefixes;
+                final ClassSource tt = t;
+                tPipe = synthetics.applyToPipe(leafName, tp, (p, pred) ->
+                        predFilteredPipe(p, tt, tpx, pred, cs.mappingFqn()));
             } else if (ctx.findAssociationOf(parent.classFqn(), leaf)
                     .isPresent()) {
                 AssociationJoins.AssocJoin aj = assocMaterial.associationJoin(temporal, parent, leafName, context,
@@ -1365,8 +1364,7 @@ public final class StoreResolver {
                 Set<String> tDemand0 = new LinkedHashSet<>();
                 Set<String> innerLeaves = new LinkedHashSet<>(
                         existsInnerLeaves(ops, head));
-                TypedLambda liftedPred0 = synthetics.pred(head);
-                if (liftedPred0 != null) {
+                for (TypedLambda liftedPred0 : synthetics.allPreds(head)) {
                     for (TypedSpec b : liftedPred0.body()) {
                         collectParamPathHeads(b,
                                 liftedPred0.parameters().get(0), innerLeaves);
@@ -1394,11 +1392,10 @@ public final class StoreResolver {
                 }
                 TypedSpec tTemporal = temporal.temporalTargetPipe(cs, t, head,
                         temporal.applyJoinTemporalFilters(tPipe0, t, Map.of()));
-                TypedLambda liftedPred = synthetics.pred(head);
-                if (liftedPred != null) {
-                    tTemporal = predFilteredPipe(tTemporal, t,
-                            tMat0.slotPrefixes(), liftedPred, cs.mappingFqn());
-                }
+                final ClassSource ft = t;
+                tTemporal = synthetics.applyToPipe(head, tTemporal,
+                        (p, pred) -> predFilteredPipe(p, ft,
+                                tMat0.slotPrefixes(), pred, cs.mappingFqn()));
                 Pipelines.Materialized tMat = new Pipelines.Materialized(
                         tTemporal, tMat0.slotPrefixes(), tMat0.stripped());
                 boolean navToMany = !(ctx.findProperty(cs.classFqn(), SyntheticHeads.realHead(head))
@@ -1594,11 +1591,9 @@ public final class StoreResolver {
             TypedSpec tPipe = temporal.temporalTargetPipe(cs, target, headKey,
                     temporal.applyJoinTemporalFilters(mat.pipeline(), target,
                             Map.of()));
-            TypedLambda lp = synthetics.pred(headKey);
-            if (lp != null) {
-                tPipe = predFilteredPipe(tPipe, target, mat.slotPrefixes(),
-                        lp, cs.mappingFqn());
-            }
+            tPipe = synthetics.applyToPipe(headKey, tPipe, (p, pred) ->
+                    predFilteredPipe(p, target, mat.slotPrefixes(),
+                            pred, cs.mappingFqn()));
             AssociationJoins.AssocJoin aj = new AssociationJoins.AssocJoin(AssociationJoins.prefixFor(headKey, cs), target, tPipe,
                     (Type.RelationType)
                             tPipe.info().type(),
@@ -2376,7 +2371,11 @@ public final class StoreResolver {
      * a navigate-slot binding (class-typed Join PM), with to-many
      * multiplicity on the class property. */
     private boolean isToManyAssocHead(ClassSource cs, String head) {
-        boolean toMany = ctx.findProperty(cs.classFqn(), head)
+        // synthetic identities (#fN/#cN/#dN) route by their REAL property —
+        // an aggregate over a lifted head must take the grouped-subselect
+        // route, never bare-explode (wrong row counts, silent)
+        String real = SyntheticHeads.realHead(head);
+        boolean toMany = ctx.findProperty(cs.classFqn(), real)
                 .map(pr -> !(pr.multiplicity()
                         instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
                         && Integer.valueOf(1).equals(b.upper())))
@@ -2384,7 +2383,7 @@ public final class StoreResolver {
         if (!toMany) {
             return false;
         }
-        TypedSpec binding = cs.bindings().get(head);
+        TypedSpec binding = cs.bindings().get(real);
         if (binding != null) {
             var navSteps = Pipelines.navSteps(cs.pipeline());
             String alias = navSlotAlias(binding, cs.rowVar(), navSteps.keySet());
@@ -2395,7 +2394,7 @@ public final class StoreResolver {
             return nav.target() instanceof TypedGetAll tg
                     && sources.binds(cs.mappingFqn(), tg.classFqn());
         }
-        return ctx.findAssociationOf(cs.classFqn(), head).isPresent();
+        return ctx.findAssociationOf(cs.classFqn(), real).isPresent();
     }
 
     /**

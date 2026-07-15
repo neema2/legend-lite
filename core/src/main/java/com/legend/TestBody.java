@@ -1414,6 +1414,16 @@ public final class TestBody {
                     splice(toHandle(new AppliedFunction(af.function(),
                             substituteAll(af.parameters(), lets, handles, runtimeFqn))),
                             runtimeFqn);
+            // instanceOf(cell, TDSNull): the TDSNull cell IS the SQL NULL
+            // (LEFT-join miss) — the wire-exact test is isEmpty
+            case AppliedFunction af when af.function().equals("instanceOf")
+                    && af.parameters().size() == 2
+                    && af.parameters().get(1) instanceof PackageableElementPtr pep
+                    && (pep.fullPath().equals("meta::pure::tds::TDSNull")
+                            || pep.fullPath().equals("TDSNull")) ->
+                    new AppliedFunction("isEmpty", List.of(
+                            substitute(af.parameters().get(0), lets, handles,
+                                    runtimeFqn)));
             case AppliedFunction af -> new AppliedFunction(af.function(),
                     substituteAll(af.parameters(), lets, handles, runtimeFqn));
             case AppliedProperty ap3 -> new AppliedProperty(

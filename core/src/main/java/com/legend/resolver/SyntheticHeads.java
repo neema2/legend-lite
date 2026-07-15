@@ -53,7 +53,7 @@ final class SyntheticHeads {
      * the {@code #fN}/{@code #dN} convention lives in this record.
      */
     record JoinIdentity(String prop, Kind kind, int seq) {
-        enum Kind { PLAIN, FILTERED, DATED }
+        enum Kind { PLAIN, FILTERED, DATED, CONCAT }
 
         static JoinIdentity of(String head) {
             int i = head.indexOf('#');
@@ -64,6 +64,7 @@ final class SyntheticHeads {
             Kind kind = switch (k) {
                 case 'f' -> Kind.FILTERED;
                 case 'd' -> Kind.DATED;
+                case 'c' -> Kind.CONCAT;
                 default -> throw new IllegalStateException(
                         "malformed synthetic head (resolver bug): " + head);
             };
@@ -76,6 +77,7 @@ final class SyntheticHeads {
                 case PLAIN -> prop;
                 case FILTERED -> prop + "#f" + seq;
                 case DATED -> prop + "#d" + seq;
+                case CONCAT -> prop + "#c" + seq;
             };
         }
     }
@@ -90,7 +92,51 @@ final class SyntheticHeads {
     }
 
     boolean hasPred(String head) {
-        return preds.containsKey(head);
+        return preds.containsKey(head) || branchPreds.containsKey(head);
+    }
+
+    /** ALL predicates parked on a head: singleton for a {@code #fN} head,
+     * the non-null branch predicates for a {@code #cN} head, empty
+     * otherwise. Demand/tail scans iterate this — every branch's reads
+     * pull the target's slots exactly like a single lifted predicate. */
+    List<TypedLambda> allPreds(String head) {
+        TypedLambda single = preds.get(head);
+        if (single != null) {
+            return List.of(single);
+        }
+        List<TypedLambda> branches = branchPreds.get(head);
+        if (branches != null) {
+            return branches.stream().filter(java.util.Objects::nonNull).toList();
+        }
+        return List.of();
+    }
+
+    /**
+     * Apply a head's parked filter material to its finished target
+     * pipeline: a {@code #fN} head filters once; a {@code #cN} head maps
+     * each branch (a null branch predicate = the unfiltered stream) and
+     * UNION-ALLs the branch pipes (engine: concatenated navigation
+     * streams join as one union subselect). PLAIN/DATED heads pass
+     * through.
+     */
+    TypedSpec applyToPipe(String head, TypedSpec pipe,
+            java.util.function.BiFunction<TypedSpec, TypedLambda, TypedSpec> filter) {
+        TypedLambda single = preds.get(head);
+        if (single != null) {
+            return filter.apply(pipe, single);
+        }
+        List<TypedLambda> branches = branchPreds.get(head);
+        if (branches == null) {
+            return pipe;
+        }
+        TypedSpec out = null;
+        for (TypedLambda b : branches) {
+            TypedSpec member = b == null ? pipe : filter.apply(pipe, b);
+            out = out == null ? member
+                    : new com.legend.compiler.spec.typed.TypedConcatenate(
+                            out, member, member.info());
+        }
+        return out;
     }
 
     /** A fresh date-fingerprinted identity for {@code prop}. */
@@ -101,6 +147,11 @@ final class SyntheticHeads {
     /** A fresh filter-lifted identity for {@code prop}. */
     private String mintFilteredName(String prop) {
         return new JoinIdentity(prop, JoinIdentity.Kind.FILTERED, count++).encoded();
+    }
+
+    /** A fresh concatenated-stream identity for {@code prop}. */
+    private String mintConcatName(String prop) {
+        return new JoinIdentity(prop, JoinIdentity.Kind.CONCAT, count++).encoded();
     }
 
     /** Scan entry: the lambda's BODY under its own parameter (never the lambda node). */
@@ -156,6 +207,25 @@ final class SyntheticHeads {
             preds.put(synth, f.predicate());
             return new TypedPropertyAccess(
                     renamed, pa.property(), pa.info());
+        }
+        // CONCATENATED navigation streams read as a bare collection —
+        // $p.head->filter(f1).leaf spelled over concatenate(...): every
+        // branch is a (possibly filtered) navigation of the SAME head
+        // property; the union lifts into ONE synthetic head #cN whose
+        // join target is the UNION ALL of the branch pipelines (engine:
+        // one unionalias subselect, LEFT-joined, row-exploding).
+        if (enabled && n instanceof TypedPropertyAccess pa2
+                && pa2.source() instanceof TypedNativeCall cc
+                && cc.callee().qualifiedName()
+                        .equals("meta::pure::functions::collection::concatenate")
+                && cc.info().type() instanceof Type.ClassType
+                && !(pa2.info().multiplicity()
+                        instanceof Multiplicity.Bounded b2
+                        && Integer.valueOf(1).equals(b2.upper()))) {
+            TypedSpec lifted = liftConcatStreams(cc, pa2);
+            if (lifted != null) {
+                return lifted;
+            }
         }
         return switch (n) {
             case TypedProject p ->
@@ -292,6 +362,100 @@ final class SyntheticHeads {
         return new TypedMap(
                 new TypedFilter(m.source(), filterLam, m.source().info()),
                 mapper2, m.info());
+    }
+
+    /**
+     * The concat-stream lift body: flatten nested binary concatenates,
+     * require every branch to be a (filtered) navigation of ONE shared
+     * head property bottoming at the same receiver shape, mint the
+     * {@code #cN} identity and park the branch predicates in order
+     * (null = unfiltered branch). Null when any branch refuses — the
+     * caller falls through to the loud wall.
+     */
+    private TypedSpec liftConcatStreams(TypedNativeCall cc,
+            TypedPropertyAccess leafRead) {
+        List<TypedSpec> streams = new java.util.ArrayList<>();
+        flattenConcat(cc, streams);
+        String prop = null;
+        TypedSpec headNode = null;
+        List<TypedLambda> branches = new java.util.ArrayList<>(streams.size());
+        for (TypedSpec s : streams) {
+            TypedSpec nav;
+            TypedLambda pred;
+            // conform-by-emission wrappers are SQL-erased (Scalars toOne
+            // policy): a derived property declared [1] over a filtered
+            // stream arrives as toOne(filter(...)) — look through
+            while (s instanceof TypedNativeCall w
+                    && w.args().size() == 1
+                    && w.callee().qualifiedName()
+                            .equals("meta::pure::functions::multiplicity::toOne")) {
+                s = w.args().get(0);
+            }
+            if (s instanceof TypedFilter f
+                    && f.predicate().parameters().size() == 1
+                    && f.info().type() instanceof Type.ClassType
+                    && isLiftableNav(f.source())
+                    && predClosedOverParam(f.predicate())) {
+                nav = f.source();
+                pred = f.predicate();
+            } else if ((s instanceof TypedPropertyAccess
+                    || s instanceof TypedMilestonedAccess)
+                    && s.info().type() instanceof Type.ClassType
+                    && isLiftableNav(s)) {
+                nav = s;
+                pred = null;
+            } else {
+                return null;
+            }
+            String p = nav instanceof TypedMilestonedAccess ma
+                    ? ma.property() : ((TypedPropertyAccess) nav).property();
+            if (prop == null) {
+                prop = p;
+                headNode = nav;
+            } else if (!prop.equals(p)) {
+                return null;   // cross-head unions are their own rung
+            }
+            branches.add(pred);
+        }
+        if (prop == null || branches.size() < 2) {
+            return null;
+        }
+        // ONE identity per distinct stream expression: the same
+        // concatenated stream in two projection columns rides ONE join
+        // (engine merge-by-identity — two-column Merge golden expects 7
+        // rows, two joins gave 13)
+        List<Object> memoKey = List.of(prop,
+                branches.stream().map(b -> b == null ? ""
+                        : (Object) canonicalPred(b)).toList());
+        String synth = concatMemo.get(memoKey);
+        if (synth == null) {
+            synth = mintConcatName(prop);
+            concatMemo.put(memoKey, synth);
+            branchPreds.put(synth, branches);
+        }
+        TypedSpec renamed;
+        if (headNode instanceof TypedMilestonedAccess ma) {
+            renamed = new TypedMilestonedAccess(
+                    ma.source(), synth, ma.dates(), ma.sweep(), ma.info());
+        } else {
+            var hp = (TypedPropertyAccess) headNode;
+            renamed = new TypedPropertyAccess(
+                    hp.source(), synth, hp.info());
+        }
+        return new TypedPropertyAccess(
+                renamed, leafRead.property(), leafRead.info());
+    }
+
+    private static void flattenConcat(TypedSpec n, List<TypedSpec> out) {
+        if (n instanceof TypedNativeCall c
+                && c.callee().qualifiedName()
+                        .equals("meta::pure::functions::collection::concatenate")
+                && c.args().size() == 2) {
+            flattenConcat(c.args().get(0), out);
+            flattenConcat(c.args().get(1), out);
+            return;
+        }
+        out.add(n);
     }
 
     /** The predicate reads no variables beyond its own parameter and the
@@ -453,6 +617,32 @@ final class SyntheticHeads {
      * Append-only across nested resolutions — names are counter-unique. */
     private final Map<String, TypedLambda> preds =
             new LinkedHashMap<>();
+
+    /** {@code #cN} heads: synthetic name → the ORDERED branch predicates
+     * (null members = unfiltered branches). */
+    private final Map<String, List<TypedLambda>> branchPreds =
+            new LinkedHashMap<>();
+
+    /** (prop, branch predicates) → minted {@code #cN} name: the same
+     * stream expression appearing twice shares ONE join identity. */
+    private final Map<List<Object>, String> concatMemo =
+            new LinkedHashMap<>();
+
+    /** Alpha-normalized predicate for identity comparison: separate
+     * β-inlines of the same derived property differ only in the fresh
+     * parameter name — rename to a fixed one so record equality sees
+     * through it. */
+    private static TypedLambda canonicalPred(TypedLambda pred) {
+        String param = pred.parameters().get(0);
+        var ft = (Type.FunctionType) pred.info().type();
+        TypedVariable canonical = new TypedVariable("_cb",
+                new ExprType(ft.params().get(0).type(),
+                        ft.params().get(0).multiplicity()));
+        return new TypedLambda(List.of("_cb"),
+                pred.body().stream().map(b ->
+                        Substitution.inlineParam(b, param, canonical)).toList(),
+                pred.info());
+    }
 
     private int count = 0;
 

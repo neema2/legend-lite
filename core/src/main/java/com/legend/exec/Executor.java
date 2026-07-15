@@ -41,6 +41,10 @@ public final class Executor {
                                           com.legend.sql.dialect.SqlDialect dialect)
             throws SQLException {
         boolean anyRoot = PlatformTypes.isAny(rootType.type());
+        // opt-in diagnostic: every executed statement to stderr
+        if (System.getenv("LEGEND_LITE_DUMP_SQL") != null) {
+            System.err.println("[sql] " + sql);
+        }
         // prepareStatement, not createStatement: DuckDB JDBC 1.5 masks a
         // direct Statement's real error behind 'Attempting to execute an
         // unsuccessful or closed pending query result' (audit: 74 corpus
