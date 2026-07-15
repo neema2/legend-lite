@@ -6,7 +6,7 @@
  * <h2>Entry point &mdash; {@code ModelNormalizer} (Phase E)</h2>
  *
  * <p>Phase E has a single entry point,
- * {@code ModelNormalizer.normalize(ParsedModel) -> ParsedModel}, which externalizes
+ * {@code ModelNormalizer.normalize(ParsedModel) -> NormalizedModel}, which externalizes
  * <em>every</em> Pure body site into synthesized
  * {@link com.legend.parser.element.FunctionDefinition}s (owners keep signatures +
  * FQN refs). It composes the sub-slices below as chained
@@ -26,24 +26,24 @@
  * upstream pipeline carries the relation algebra (Relational source) or
  * just {@code getAll(Src)} (M2M source).
  *
- * <h2>Sub-slice E.2 &mdash; derived properties (planned)</h2>
+ * <h2>Sub-slice E.2 &mdash; derived properties</h2>
  *
  * <p>Externalize each
  * {@link com.legend.parser.element.ClassDefinition.DerivedPropertyDefinition} body
  * into a synthesized {@code <owner>$prop$<name>(this:Owner[1], <params>):T[m]}
  * function (see {@code docs/CORE_PHASE_F_TYPED_ELEMENTS_V2.md} §1.5); the class keeps
- * the derived-property signature + the function FQN. Not yet implemented.
+ * the derived-property signature + the function FQN.
  *
- * <h2>Sub-slice E.3 &mdash; constraints (planned)</h2>
+ * <h2>Sub-slice E.3 &mdash; constraints</h2>
  *
  * <p>Externalize each constraint predicate (and optional message) into
  * {@code <owner>$constraint$<name>} / {@code <owner>$constraintMsg$<name>} functions;
- * the class keeps constraint metadata + FQN refs (§1.4). Not yet implemented.
+ * the class keeps constraint metadata + FQN refs (§1.4).
  *
- * <h2>Sub-slice E.4 &mdash; service queries (planned)</h2>
+ * <h2>Sub-slice E.4 &mdash; service queries</h2>
  *
  * <p>Externalize {@code ServiceDefinition.functionBody} into a {@code <svc>$query}
- * function; the service keeps config + the function FQN. Not yet implemented.
+ * function; the service keeps config + the function FQN.
  *
  * <h2>Pipeline placement</h2>
  *

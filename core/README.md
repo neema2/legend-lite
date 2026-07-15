@@ -41,12 +41,12 @@ text                                                            [FRONTEND]
   ──▶  compiler/     ElementCompiler                             Decl → Def     (compiled model)
   ──▶  compiler/     SpecCompiler                                Spec + model → TypedSpec
                                                                 [MIDEND]
-  ──▶  resolver/     MappingResolver                             logical → physical TypedSpec
-  ──▶  sql/build/    SqlBuilder                                  TypedSpec → SQL relation tree
+  ──▶  resolver/     StoreResolver                               logical → physical TypedSpec
+  ──▶  lowering/     Lowerer (+Fold/Scalars/Aggregates/Windows)  TypedSpec → sql.SqlQuery IR
                                                                 [BACKEND]
-  ──▶  sql/dialect/  Dialect.render                              SQL relation tree → SQL string
+  ──▶  sql/dialect/  SqlDialect.render                           SqlQuery → SQL string
                                                                 [RUNTIME]
-  ──▶  executor/     PlanExecutor                                SQL string + JDBC → results
+  ──▶  exec/         Executor                                    SQL string + JDBC → ExecutionResult
 ```
 
 | # | Step | Package | Driver | Output |
@@ -55,14 +55,15 @@ text                                                            [FRONTEND]
 | A | lex | `lexer/` | `Lexer` | `Token` stream |
 | B | parse elements | `parser/` | `ElementParser` | `parser.element.PackageableElement` (`ClassDefinition`, `MappingDefinition`, …) wrapped in `ParsedModel` |
 | C | parse specs | `parser/` | `SpecParser` | `parser.spec.ValueSpecification` (`LambdaFunction`, `AppliedFunction`, `Variable`, `CString`, …) |
-| D | resolve names | `parser/` | `ImportResolver` | (same shapes, FQN-rewritten) |
+| D | resolve names | `compiler/` | `NameResolver` | (same shapes, FQN-rewritten) |
 | E | normalize model | `normalizer/` | `MappingNormalizer` | `PackageableElement` (mappings desugared into `FunctionDefinition`s) |
 | F | compile elements | `compiler/` | `ElementCompiler` | `compiler.element.TypedElement` (`TypedClass`, `TypedMapping`, …) + `ModelContext` |
 | G | compile specs | `compiler/` | `SpecCompiler` | `compiler.spec.TypedSpec` (`TypedFilter`, `TypedProject`, …) + `Dependencies` |
-| H | resolve mapping | `resolver/` | `MappingResolver` | `TypedSpec` (physical stamps applied) |
-| I | build SQL | `sql/build/` | `SqlBuilder` | `sql.Rel`, `sql.ScalarOp` (dialect-free) |
-| J | render SQL | `sql/dialect/` | `Dialect` | SQL string |
-| K | execute | `executor/` | `PlanExecutor` | result rows |
+| G½ | inline user calls | `compiler/spec/` | `UserCallInliner` | `TypedSpec` (β-inlined) |
+| H | resolve store | `resolver/` | `StoreResolver` | `TypedSpec` (class queries → relational pipelines) |
+| I | lower | `lowering/` | `Lowerer` | `sql.SqlQuery` IR (dialect-free) |
+| J | render SQL | `sql/dialect/` | `SqlDialect` (`DuckDb`, `Sqlite`) | SQL string |
+| K | execute | `exec/` | `Executor` | typed `ExecutionResult` |
 
 Wired by `com.legend.Compiler.compile(...)`.
 
@@ -188,40 +189,34 @@ core/src/main/java/com/legend/
 │       ├── SerializeChecker.java
 │       └── ...
 │
-├── resolver/                          H. logical → physical TypedSpec
-│   ├── MappingResolver.java                 driver
-│   └── rule/
-│       ├── BindRule.java                        sealed
-│       ├── InlineUserCall.java                  β-reduce TypedUserCall
-│       ├── InlineClassFetch.java                rule 1: GetAll → mapping body splice
-│       ├── BindPhysicalColumn.java              rule 2: stamp physical column
-│       ├── AssociationToJoin.java               rule 3: nav path → Join chain
-│       └── ImplicitSerialize.java               rule 4: graph-fetch envelope
+├── resolver/                          H. logical → physical TypedSpec (AS BUILT)
+│   ├── StoreResolver.java                   driver: ten-phase resolveObject +
+│   │                                        post-condition no-escape walk (rule 9)
+│   ├── ClassSource(s).java                  mapping body → binding table
+│   ├── Substitution.java                    β-substitution over bindings
+│   ├── NavMaterializer.java                 navigate targets, recursive SubNav tree
+│   ├── AssociationJoins.java                assoc ends → join material
+│   ├── GraphEmission.java                   graph-fetch tree synthesis
+│   ├── SyntheticHeads.java                  #fN/#dN join identities (JoinIdentity)
+│   ├── TemporalContext/TemporalFrame.java   milestoning context propagation
+│   └── Pipelines.java                       pipeline surgery helpers
 │
-├── sql/                               I,J. SQL backend (one umbrella)
-│   ├── Rel.java                             sealed relational root
-│   ├── ScalarOp.java                        sealed scalar root
-│   ├── (Rel variants — flat: Scan, Filter, Project, Join, Aggregate, ...)
-│   ├── (ScalarOp variants — flat: one record per native; no FunctionCall(String,args))
-│   ├── build/                               I driver + per-op build rules
-│   │   ├── SqlBuilder.java
-│   │   └── rule/
-│   │       ├── FilterBuild.java
-│   │       ├── ProjectBuild.java
-│   │       └── ...
-│   └── dialect/                             J. per-dialect rendering
-│       ├── Dialect.java                         sealed
-│       ├── DuckDbDialect.java
-│       ├── H2Dialect.java
-│       └── SqliteDialect.java
+├── lowering/                          I. TypedSpec → sql.SqlQuery IR
+│   ├── Lowerer.java                         per-node dispatch; three authorities:
+│   ├── Fold.java                            every fold-vs-isolate decision
+│   ├── Scalars.java                         natives by resolved-overload key
+│   ├── Aggregates.java + Windows.java       reducers / window functions
+│   └── PureSql.java                         Pure type → SqlType boundary
 │
-├── plan/                              final compile output
-│   ├── ExecutionPlan.java                   matches engine's name; what Compiler.compile returns
-│   ├── ResultFormat.java                    TDS / Graph / Scalar
-│   └── ExecutionMode.java                   SNAPSHOT / STREAMING
+├── sql/                               J data + rendering (STANDALONE — zero
+│   ├── SqlQuery/SqlSelect/SqlExpr...        com.legend deps outside itself)
+│   └── dialect/
+│       ├── SqlDialect.java + AnsiSqlRenderer.java
+│       ├── DuckDb.java
+│       └── Sqlite.java
 │
-└── executor/                          K. SQL string + JDBC → result rows
-    ├── PlanExecutor.java
+└── exec/                              K. SQL string + JDBC → typed results
+    ├── Executor.java
     ├── ConnectionResolver.java
     ├── Result.java
     ├── Row.java
@@ -234,7 +229,7 @@ core/src/main/java/com/legend/
 |---|---|---|
 | **Single top prefix** `com.legend.*` | `com.legend.lexer.Lexer` | Distinct from `com.gs.legend.*` (engine); makes the wall unambiguous |
 | **Folder = package**, 1:1 | folder `lexer/` ↔ package `com.legend.lexer` | One name per concept |
-| **Noun packages** | `lexer/`, `parser/`, `compiler/`, `resolver/`, `executor/` | Matches engine convention; matches Java idioms |
+| **Noun packages** | `lexer/`, `parser/`, `compiler/`, `resolver/`, `exec/` | Matches engine convention; matches Java idioms |
 | **Element / Spec symmetry, everywhere** | `parser/element/` + `parser/spec/`; `compiler/element/` + `compiler/spec/`; `ElementParser`+`SpecParser`; `ElementCompiler`+`SpecCompiler` | "Element" = packageable element. "Spec" = value specification. Same pair end-to-end, no ad-hoc `Model`/`Query` mixing |
 | **Pure data records** for every IR node | `record TypedFilter(...)` | No identity, free equality, free serialization |
 | **Sealed roots** for every variant family | `sealed interface TypedSpec permits ...` | Compile-time exhaustiveness on every dispatch site |
@@ -251,12 +246,12 @@ core/src/main/java/com/legend/
 2. **No `util/` package.** ArchUnit.
 3. **Sealed everywhere a hierarchy exists.** `PackageableElement`, `ValueSpecification`, `TypedElement`, `TypedSpec`, `Type`, `Rel`, `ScalarOp`, `Dialect`, `NativeChecker`, `BindRule`, `ConnectionSpecification`, `AuthenticationSpec`. ArchUnit (sealed-or-final assertion on listed packages).
 4. **Records for all data carriers** under `parser/element/`, `parser/spec/`, `compiler/element/`, `compiler/spec/`, `sql/`, `plan/`. ArchUnit.
-5. **No `default ->` arms** in `sql/build/`, `sql/dialect/`, `resolver/rule/`, `compiler/checker/`. Use explicit `throw new UnsupportedOperationException(...)` arms instead. javac's exhaustiveness check enforces this when sealed roots have explicit `permits`.
+5. **Sealed exhaustiveness over `default ->`** in `lowering/`, `sql/`, `resolver/`, `compiler/`. List every variant; new variants must fail compile. Sanctioned exceptions: guarded-pattern switches need a coverage default (it must THROW), and best-effort rewrite walkers may pass unknown nodes through ONLY where a downstream loud wall is guaranteed (audit 15 closed five that weren't).
 6. **No `FunctionCall(String, args)`** type. Grep test asserts no such record shape.
 7. **`F` (compile elements) MUST NOT trigger `G` (compile specs).** Function bodies stay as `ValueSpecification` inside `TypedFunction`; type-check on demand. (Engine violates this in `buildPureFunctions`; we don't carry the violation forward.)
 8. **No mutable sidecar state across passes.** Each step takes input, returns output. No `IdentityHashMap<TypedSpec, ?>` threaded across phase boundaries. Pass-local caches are fine, labelled and confined.
-9. **`TypedGetAll` and `TypedUserCall` MUST NOT survive `H` (resolver/).** Post-resolve walk asserts neither variant occurs. A post-condition test in `resolver/` enforces it.
-10. **`TypedPropertyAccess.physicalColumn` MUST be present post-resolve.** Post-condition test.
+9. **`TypedGetAll` and `TypedUserCall` MUST NOT survive `H` (resolver/).** `StoreResolver.assertNoStoreOnlyEscapees` walks every resolved statement and throws a resolver-phase error naming the construct; `StoreResolverTest` pins it. (Promised from day one; BUILT in audit 15.)
+10. **No store-only node reaches the lowerer.** `TypedJoinSlot`/store navigates hitting `lowering/` are named "resolver bug" walls (Lowerer), not generic errors. (The original `physicalColumn` field design was superseded: physical stamping happens by pipeline substitution, not node mutation.)
 11. **`compiler/element/Typed*` reference other elements by FQN string, not live ref.** Lazy loading: `superClassFqn: String`, not `superClass: TypedClass`. Inheriting AGENTS.md §5 from engine.
 12. **`sql/` is closed and pure data.** No `toSql()` method, no `Dialect` import, no `String` field encoding a SQL operation. Inheriting AGENTS.md §3a from engine.
 
@@ -264,7 +259,7 @@ core/src/main/java/com/legend/
 
 1. Read this README.
 2. Find the package in the layout above. **If your file doesn't fit any listed package, stop and discuss before inventing a new one.**
-3. Records first; classes only for services (`Lexer`, `ElementParser`, `SpecCompiler`, `MappingResolver`, ...) and per-step drivers.
+3. Records first; classes only for services (`Lexer`, `ElementParser`, `SpecCompiler`, `StoreResolver`, ...) and per-step drivers.
 4. Sealed root for any new variant family.
 5. Run `mvn -pl core test` — `ArchitectureTest` must stay green.
 
@@ -272,7 +267,7 @@ core/src/main/java/com/legend/
 
 - **Unit tests** per step in `core/src/test/java/com/legend/<step>/`.
 - **Pipeline tests** end-to-end through `Compiler.compile(...)`, asserting SQL string output for golden Pure inputs.
-- **Execution tests** end-to-end through `PlanExecutor.execute(...)`, asserting result rows against an in-memory DuckDB / SQLite.
+- **Execution tests** end-to-end through `Compiler.execute(...)`, asserting result rows against an in-memory DuckDB.
 - **Parity harness** (lives in a separate test-only Maven module that depends on BOTH `core/` and `engine/`): re-runs the existing engine + PCT suites against both back-ends. As `core/` grows, the V2 column climbs from 0% green toward parity. The harness depends on `core/`; `core/` itself never depends on the harness or on `engine/`.
 
 ## Open decisions to revisit
@@ -364,10 +359,10 @@ Constructs that exist in upstream FINOS `legend-engine` but are **not implemente
 
 - [x] Phase D: NameResolver — implemented as `parser/ImportResolver` + `ImportScope` (imports → FQN over def records; 116 tests in `ImportResolverTest`)
 - [x] Phase E: MappingNormalizer — `normalizer/MappingNormalizer` (mappings desugared into `FunctionDefinition`s; 86 tests in `MappingNormalizerTest`)
-- [ ] Phase F: ElementCompiler + compiler/element (TypedElement family) — design: `docs/CORE_PHASE_F_TYPED_ELEMENTS.md`
-- [ ] Phase G: SpecCompiler + compiler/spec (TypedSpec family) + compiler/checker
-- [ ] Phase H: MappingResolver + resolver/rule
-- [ ] Phase I: SqlBuilder + sql/ data records
-- [ ] Phase J: Dialect + sql/dialect
-- [ ] Phase K: PlanExecutor
-- [ ] Parity harness (separate test module)
+- [x] Phase F: `PureModelContext.from` + compiler/element (TypedElement family)
+- [x] Phase G: SpecCompiler + compiler/spec (TypedSpec family) + checkers (G½: UserCallInliner)
+- [x] Phase H: StoreResolver + resolver/ (see `docs/RELATIONAL_CORPUS.md` for the coverage ledger)
+- [x] Phase I: Lowerer + lowering/ + sql/ data records
+- [x] Phase J: SqlDialect (DuckDb, Sqlite) + sql/dialect
+- [x] Phase K: Executor + exec/
+- [x] Parity harness: PCT (pct module) + RelationalCorpusRunner (engine module, RUN-as-data)

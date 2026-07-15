@@ -561,31 +561,15 @@ public final class TestBody {
         return v.size() == 1 ? v.get(0) : v;
     }
 
-    /** Compile + execute ONE expression (handles already spliced in). */
+    /** Compile + execute ONE expression (handles already spliced in) —
+     * delegates to THE one back-half sequence ({@link Compiler#executeResolved}). */
     private static com.legend.exec.ExecutionResult evalSpliced(ValueSpecification expr,
             ModelContext ctx, ImportScope imports, String runtimeFqn, Connection conn)
             throws java.sql.SQLException {
         LambdaFunction wrapped = new LambdaFunction(List.of(), List.of(expr));
         ValueSpecification resolved = NameResolver.resolveQuery(wrapped, imports,
                 ctx.elementFqns());
-        SpecCompiler specs = new SpecCompiler(ctx);
-        List<TypedSpec> body = specs.typeQueryBody(resolved);
-        body = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(body);
-        body = new com.legend.resolver.StoreResolver(ctx, specs).resolve(body, runtimeFqn);
-        TypedSpec root = body.get(body.size() - 1);
-        // from() is context-only: shape AND root type must come from the
-        // same looked-through node — a resolved source may be relation-shaped
-        // (scalar map lowers to a one-column project) while the from wrapper
-        // still carries the pre-resolution scalar info.
-        while (root instanceof com.legend.compiler.spec.typed.TypedFrom fr) {
-            root = fr.source();
-        }
-        com.legend.sql.SqlQuery plan = new com.legend.lowering.Lowerer(
-                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
-                f -> ctx.findClass(f).isPresent()).lower(body);
-        com.legend.sql.dialect.SqlDialect dialect = Compiler.dialectOf(ctx, runtimeFqn);
-        return com.legend.exec.Executor.execute(dialect.render(plan), plan,
-                root.info(), com.legend.exec.ResultShape.of(root), conn, dialect);
+        return Compiler.executeResolved(resolved, ctx, runtimeFqn, conn);
     }
 
     // ===== comparison (both sides share ONE wire convention — strict) =====

@@ -10,7 +10,7 @@ MODEL TEXT ─lex/parse→ ParsedModel ─resolve→ ParsedModel(FQN) ─normali
                                                                                                    │
 QUERY TEXT ─parse→ ValueSpecification ─resolveQuery→ ValueSpecification(FQN) ─G→ TypedSpec HIR    │
                                                                                                    │
-              TypedSpec ─[H: StoreResolver, NOT BUILT]→ ─I: Lowerer+Fold→ SqlQuery ─J: DuckDb→ SQL ─K→ rows
+              TypedSpec ─G½: UserCallInliner→ ─H: StoreResolver→ TypedSpec ─I: Lowerer+Fold→ SqlQuery ─J: dialect→ SQL ─K: Executor→ rows
 ```
 
 ## Model side — `Compiler.compileModel(text)`
@@ -54,6 +54,12 @@ QUERY TEXT ─parse→ ValueSpecification ─resolveQuery→ ValueSpecification(
    compile via the whole-function memo (`compileReachable`). Dies: unknown
    tables/columns/properties, type mismatches — the bulk of all negatives.
 
+7½. **User-call inlining (G½)** — `UserCallInliner.inlineBody`: β-inlines
+   user-function calls into the query body (fresh variables, capture-safe)
+   so the resolver sees one tree. Runs between G and H at the driver
+   (`Compiler.java`). A call it cannot inline survives to H's post-condition
+   walk and dies there, loudly.
+
 ## Back half
 
 8. **Lowering (I)** — `Lowerer.lower(TypedSpec)` → `SqlQuery` IR
@@ -70,17 +76,24 @@ QUERY TEXT ─parse→ ValueSpecification ─resolveQuery→ ValueSpecification(
 9. **Render (J)** — `DuckDb.render` → SQL text. The ONLY place SQL text
    exists: quote-only-when-needed, minimal parens, clause-per-line, semantic
    names → spellings (float-forcing divide, positive mod). Unknown name throws.
-10. **Execute (K)** — NOT built in core. Tests use raw JDBC on in-memory
-    DuckDB. Missing: `ResultShape` at the plan root (TDS/GRAPH/SCALAR/
-    COLLECTION envelopes), typed `ExecutionResult`, runtime wiring — what
-    makes `Compiler.compile(model, query, runtime)` real.
+10. **Execute (K)** — `Executor.execute(sql, plan, info, shape, conn,
+    dialect)` → typed `ExecutionResult` (Scalar/Collection/Tabular/Graph by
+    `ResultShape`). Column types come from the plan's schema, never guessed
+    from JDBC metadata (pivot-generated dynamic columns excepted — and an
+    unknown SQL type there is LOUD, never String).
 
-## The hole in the middle
+## Phase H — StoreResolver (BUILT; the largest phase)
 
-**Phase H — StoreResolver — not built.** Between G and I for CLASS queries:
-`Person.all()` → mapped table; association navigation → LEFT JOIN / EXISTS;
-`navigate` lowering; `from(mapping, runtime)` binding; join ELISION
-(mapping-implied joins only — user-written joins are never elided). Until H,
-the pipeline is end-to-end for RELATION queries (`#>{db.TABLE}#`, TDS
-literals) only — deliberate sequencing: lowering landed on stable inputs
-before the resolver arc begins.
+Between G½ and I for CLASS queries: `Person.all()` → the mapping's
+synthesized relational pipeline (bindings substituted, `map` terminal =
+the binding table); association navigation → LEFT JOIN (row explosion) /
+correlated EXISTS in filter position; union operation mappings → member
+concatenation with per-member routed keys; milestoning → temporal context
+propagation + per-hop stamping (`TemporalFrame`); `from(mapping, runtime)`
+binding with driver-runtime fallback. Internal sub-passes (inside
+`StoreResolver.resolve`, invisible to the driver): `SyntheticHeads` filter
+lifts (`#fN`), `splitDatedHeads` (`#dN`), the exists/aggregate demand
+scans. POST-CONDITION (rule 9): no `TypedGetAll`/`TypedUserCall` survives —
+walked and thrown at H, pinned by `StoreResolverTest`. Unsupported shapes
+die loudly at H naming the construct; the corpus scoreboard
+(`docs/RELATIONAL_CORPUS.md`) is the coverage ledger.

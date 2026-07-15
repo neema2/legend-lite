@@ -15,14 +15,14 @@
  *   <li>{@code lexer/}      — text → tokens</li>
  *   <li>{@code parser/}     — tokens → {@code parser.element.PackageableElement} (ElementParser)</li>
  *   <li>{@code parser/}     — tokens → {@code parser.spec.ValueSpecification} (SpecParser)</li>
- *   <li>{@code parser/}     — simple name → FQN (NameResolver)</li>
+ *   <li>{@code compiler/}   — simple name → FQN (NameResolver)</li>
  *   <li>{@code normalizer/} — {@code LegacyMappingDefinition} → binding-table {@code MappingDefinition} + lifted {@code FunctionDefinition}</li>
  *   <li>{@code compiler/}   — {@code PackageableElement} → {@code compiler.element.TypedElement} (ElementCompiler)</li>
  *   <li>{@code compiler/}   — {@code ValueSpecification} → {@code compiler.spec.TypedSpec} (SpecCompiler)</li>
- *   <li>{@code resolver/}   — logical {@code TypedSpec} → physical {@code TypedSpec} (MappingResolver, rules 1-4)</li>
- *   <li>{@code sql/build/}  — {@code TypedSpec} → {@code sql.Rel} / {@code sql.ScalarOp}</li>
- *   <li>{@code sql/dialect/} — {@code Rel} → SQL string</li>
- *   <li>{@code executor/}   — SQL string + JDBC → result rows</li>
+ *   <li>{@code resolver/}   — logical {@code TypedSpec} → physical {@code TypedSpec} (StoreResolver, phase H)</li>
+ *   <li>{@code lowering/}   — {@code TypedSpec} → {@code sql.SqlQuery} (Lowerer, phase I)</li>
+ *   <li>{@code sql/dialect/} — {@code SqlQuery} → SQL string (phase J)</li>
+ *   <li>{@code exec/}       — SQL string + JDBC → typed {@code ExecutionResult} (Executor, phase K)</li>
  * </ol>
  *
  * <h2>Invariants</h2>
@@ -31,7 +31,11 @@
  * <ul>
  *   <li>Pure-data records for all IR nodes; sealed roots for all variant families.</li>
  *   <li>No {@code FunctionCall(String name, args)}; every native is its own typed record.</li>
- *   <li>No {@code default ->} arms — javac enforces sealed exhaustiveness.</li>
+ *   <li>Sealed exhaustiveness over {@code default ->}: switches over sealed
+ *       roots list every variant (javac then flags new ones). The sanctioned
+ *       exceptions: guarded-pattern switches need a coverage default (make it
+ *       THROW), and best-effort rewrite walkers may pass unknown nodes
+ *       through ONLY where a downstream loud wall is guaranteed.</li>
  *   <li>No {@code util/} package anywhere.</li>
  *   <li>F (compile elements) MUST NOT trigger G (compile specs) — function bodies stay as
  *       {@code ValueSpecification} inside {@code TypedFunction}, type-checked on demand.</li>

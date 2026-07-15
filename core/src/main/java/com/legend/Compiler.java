@@ -214,16 +214,37 @@ public final class Compiler {
             com.legend.parser.ImportScope imports, String runtimeFqn,
             java.sql.Connection connection) throws java.sql.SQLException {
         ModelContext ctx = compileModel(model);
-        SpecCompiler specs = new SpecCompiler(ctx);
-        java.util.List<TypedSpec> body = specs.typeQueryBody(
+        return executeResolved(
                 imports == null
                         ? NameResolver.resolveQuery(SpecParser.parse(query))
                         : NameResolver.resolveQuery(SpecParser.parse(query),
-                                imports, ctx.elementFqns()));
+                                imports, ctx.elementFqns()),
+                ctx, runtimeFqn, connection);
+    }
+
+    /**
+     * Phases G&frac12;&rarr;K for an already NAME-RESOLVED query AST — THE
+     * one back-half sequence. Every driver path (text queries above,
+     * TestBody's handle-splice path) comes through here; a second
+     * hand-rolled sequence is an orchestrator bug (audit 15 unified two).
+     */
+    public static com.legend.exec.ExecutionResult executeResolved(
+            com.legend.parser.spec.ValueSpecification resolved, ModelContext ctx,
+            String runtimeFqn, java.sql.Connection connection)
+            throws java.sql.SQLException {
+        SpecCompiler specs = new SpecCompiler(ctx);
+        java.util.List<TypedSpec> body = specs.typeQueryBody(resolved);
         body = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(body);   // Phase G½
         body = new com.legend.resolver.StoreResolver(ctx, specs)
                 .resolve(body, runtimeFqn);                       // Phase H
         TypedSpec root = body.get(body.size() - 1);
+        // from() is context-only: shape AND root type come from the same
+        // looked-through node — a resolved source may be relation-shaped
+        // (scalar map lowers to a one-column project) while the from
+        // wrapper still carries the pre-resolution scalar info.
+        while (root instanceof com.legend.compiler.spec.typed.TypedFrom fr) {
+            root = fr.source();
+        }
         com.legend.sql.SqlQuery plan = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent()).lower(body);
