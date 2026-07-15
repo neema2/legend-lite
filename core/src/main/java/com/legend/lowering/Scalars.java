@@ -397,6 +397,21 @@ final class Scalars {
             RULES.put(f, (n, args) -> args.get(0));
         }
 
+        // id() over an ENUM VALUE is its name — exactly the stored string
+        // in relation-land. Any other instance's identifier is an engine
+        // runtime concept with no SQL story: loud.
+        for (String f : Pure.nativeKeysAt("id")) {
+            RULES.put(f, (n, args) -> {
+                if (n.args().get(0).info().type()
+                        instanceof com.legend.compiler.element.type.Type.EnumType) {
+                    return new SqlExpr.Cast(args.get(0), SqlType.Scalar.VARCHAR);
+                }
+                throw new com.legend.error.NotImplementedException(
+                        "id() over a non-enum instance has no relation-land"
+                                + " lowering");
+            });
+        }
+
         for (String f : Pure.nativeKeysAt("adjust")) {
             RULES.put(f, (n, args) -> {
                 SqlExpr added = new SqlExpr.Call(SqlFn.ADD_INTERVAL, List.of(

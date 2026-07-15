@@ -259,6 +259,7 @@ meta::legend::lite::navigate<C,T,Z>(cl:C[*], target:meta::pure::metamodel::relat
 meta::legend::lite::navigate<T>(target:T[*], pred:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):T[*]
 meta::legend::lite::legacyNavigate<S,C,T,Z>(rel:meta::pure::metamodel::relation::Relation<S>[1], target:meta::pure::metamodel::relation::FuncColSpec<{->C[*]},Z>[1], tgtRows:meta::pure::metamodel::relation::Relation<T>[1], cond:meta::pure::metamodel::function::Function<{S[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<SUNIONZ>[1]
 meta::legend::lite::typeAsDeclared<T>(value:meta::pure::metamodel::type::Any[0..1], type:T[1]):T[0..1]
+meta::pure::functions::meta::id(instance:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[1]
 meta::legend::lite::legacyAssocPredicate<A,B,S,T>(a:A[1], b:B[1], src:meta::pure::metamodel::relation::Relation<S>[1], tgt:meta::pure::metamodel::relation::Relation<T>[1], cond:meta::pure::metamodel::function::Function<{S[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1]
 meta::pure::functions::string::length(str:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Integer[1]
 meta::pure::functions::boolean::lessThanEqual(left:meta::pure::metamodel::type::Date[0..1], right:meta::pure::metamodel::type::Date[0..1]):meta::pure::metamodel::type::Boolean[1]

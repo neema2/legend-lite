@@ -52,7 +52,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 109 | 0 | 0 | 8 | 101 |
-| functions/tests | 241 | 105 | 4 | 95 | 37 |
+| functions/tests | 241 | 106 | 5 | 93 | 37 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 0 | 1 |
 | functions/tests/projection | 154 | 69 | 5 | 53 | 27 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -86,7 +86,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/distinct | 18 | 14 | 0 | 4 | 0 |
 | tests/mapping/dynaJoin | 5 | 3 | 1 | 1 | 0 |
 | tests/mapping/embedded | 63 | 44 | 2 | 8 | 9 |
-| tests/mapping/enumeration | 26 | 9 | 4 | 10 | 3 |
+| tests/mapping/enumeration | 26 | 10 | 4 | 9 | 3 |
 | tests/mapping/filter | 9 | 4 | 0 | 5 | 0 |
 | tests/mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 |
@@ -108,7 +108,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **880** | 28 | 608 | 776 |
+| **total** | 2292 | **882** | 29 | 605 | 776 |
 
 ### mapping walls (dropped at assembly)
 
@@ -739,10 +739,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testConcatenateDataType [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeMerge [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
 - ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testConcatenateClassMerge [functions/tests]: unknown function 'id'
-- ERROR testConcatenateClassAgg [functions/tests]: association 'meta::relational::tests::model::simple::ProdSynonym' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
+- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateClassJoin [functions/tests]: multi-hop navigation product.synonyms#c0.name through an embedded/slot head is not supported yet
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: lowering not yet implemented for TypedNativeCall
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
@@ -1607,7 +1606,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testEnumMappingsWithInclude [tests/mapping/enumeration]: no execute(|...) call
 - ERROR testProjectionWithEnum [tests/mapping/enumeration]: unknown function 'columnValues'
 - ERROR testProjectionWithEnumUsingLambda [tests/mapping/enumeration]: unknown function 'columnValues'
-- ERROR testProjectionWithEnumAndFunctionsUsingLambda [tests/mapping/enumeration]: unknown function 'id'
 - ERROR testInQueryWithEnum [tests/mapping/enumeration]: Binder Error: subqueries in lambda expressions are not supported
 - FAIL testAggregationFunctionWithEnum [tests/mapping/enumeration]: assertEquals: expected [CONTRACT, 1, CONTRACT, 1, FULL_TIME, 1], got [CONTRACT, 2, FULL_TIME, 1]
 - ERROR testProjectionWithInheritedEnum [tests/mapping/enumeration]: unknown function 'columnValues'

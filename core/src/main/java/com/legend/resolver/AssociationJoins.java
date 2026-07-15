@@ -45,7 +45,10 @@ final class AssociationJoins {
      * route, or the navigate-slot route (class-typed Join PM). */
     AssocJoin aggJoinMaterial(TemporalFrame temporal, ClassSource cs, String head, StoreResolver.Context context,
                                       Set<String> leaves) {
-        TypedSpec binding = cs.bindings().get(head);
+        // synthetic identities (#fN/#cN) bind by their REAL property — the
+        // raw lookup missed the navigate-slot route and fell into the
+        // association route, which errors when the property is PM-mapped
+        TypedSpec binding = cs.bindings().get(SyntheticHeads.realHead(head));
         if (binding == null) {
             return associationJoin(temporal, cs, head, context, false, leaves);
         }
@@ -70,6 +73,11 @@ final class AssociationJoins {
                 t.pipeline(), targetDemand, t.classFqn());
         TypedSpec tPipe0 = temporal.temporalTargetPipe(cs, t, head,
                 temporal.applyJoinTemporalFilters(tMat.pipeline(), t, Map.of()));
+        // a lifted head's parked material (filter / union branches)
+        // applies to the aggregated target exactly like the plain routes
+        tPipe0 = synthetics.applyToPipe(head, tPipe0, (p, pred) ->
+                StoreResolver.predFilteredPipe(p, t, tMat.slotPrefixes(),
+                        pred, cs.mappingFqn()));
         return new AssocJoin(prefixFor(head, cs), t, tPipe0,
                 (Type.RelationType)
                         tPipe0.info().type(),
