@@ -86,6 +86,26 @@ class CompilerModuleTest {
     }
 
     @Test
+    @DisplayName("module: one signature-broken overload does not break its healthy siblings")
+    void brokenOverloadSkipped() {
+        // f(Integer) is healthy; f(Missing) has a signature referencing an
+        // unknown class. In a tolerant module the broken one is poisoned-
+        // and-kept; candidate collection must return the healthy overload
+        // (natives registered at the same FQN depend on this too).
+        String src = "function my::pkg::f(x: Integer[1]): Integer[1] { $x }\n"
+                + "function my::pkg::f(x: my::pkg::Missing[1]): Integer[1] { 1 }\n";
+        Compiler.BuiltModule built = Compiler.buildModule(
+                Compiler.parseSources(List.of(
+                        new Compiler.ModelSource("m.pure", src))).model());
+        assertEquals(1, built.context().findFunction("my::pkg::f").size());
+        // NOTE (follow-up in #53): integrity's checkFunction does not yet
+        // reject unknown PARAMETER types, so the broken overload is skipped
+        // at collection rather than enumerated in the build walls — the
+        // eager-diagnosis gap is tracked; the healthy-sibling guarantee is
+        // what this pin protects.
+    }
+
+    @Test
     @DisplayName("module: compile errors carry the source unit's name and position")
     void errorAttribution() {
         String good = "Class my::pkg::Fine { id: Integer[1]; }\n";

@@ -46,8 +46,24 @@ final class FunctionCompiler {
     List<TypedFunction> compileAll(String fqn) {
         List<Function> defs = functionsAt(fqn);
         List<TypedFunction> typed = new ArrayList<>(defs.size());
+        RuntimeException first = null;
         for (Function f : defs) {
-            typed.add(compile(f));
+            try {
+                typed.add(compile(f));
+            } catch (RuntimeException e) {
+                // POISON-NOT-DROP at the overload level: a tolerant module
+                // build keeps signature-broken functions in the model; one
+                // such overload must not break candidate collection for
+                // its healthy siblings (natives registered at the same
+                // FQN included). A STRICT build never gets here — model
+                // integrity fails first.
+                if (first == null) {
+                    first = e;
+                }
+            }
+        }
+        if (typed.isEmpty() && first != null) {
+            throw first;   // ALL overloads broken: surface the real reason
         }
         return List.copyOf(typed);
     }
