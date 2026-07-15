@@ -63,6 +63,10 @@ public final class Corpus {
         int i = 0;
         int n = source.length();
         boolean inDiagram = false;
+        boolean inDb = false;
+        boolean dbSawOpen = false;
+        boolean dbJustClosed = false;
+        int dbDepth = 0;
         while (i < n) {
             int lineEnd = source.indexOf('\n', i);
             if (lineEnd < 0) {
@@ -98,6 +102,42 @@ public final class Corpus {
                 }
                 i = end;
                 continue;
+            }
+            // QUIRK (decoded from m2m2rExecutionPlanTests.pure:284, engine
+            // master): a Database block followed by a stray lone ')' —
+            // legend-pure's section machinery tolerates it, so the file
+            // compiles in engine CI. Reproduce: drop the stray close right
+            // after a BALANCED Database element; everything else stays
+            // strict.
+            if (dbJustClosed && trimmed.equals(")")) {
+                i = lineEnd + 1;
+                continue;
+            }
+            if (!trimmed.isEmpty()) {
+                dbJustClosed = false;
+            }
+            if (!inDb && trimmed.startsWith("Database ")) {
+                inDb = true;
+                dbSawOpen = false;
+                dbDepth = 0;
+            }
+            if (inDb) {
+                for (int k = 0; k < line.length(); k++) {
+                    char c = line.charAt(k);
+                    if (c == '\'') {
+                        int e = skipString(line, k);
+                        k = e - 1;
+                    } else if (c == '(') {
+                        dbDepth++;
+                        dbSawOpen = true;
+                    } else if (c == ')') {
+                        dbDepth--;
+                    }
+                }
+                if (dbSawOpen && dbDepth <= 0) {
+                    inDb = false;
+                    dbJustClosed = true;
+                }
             }
             out.append(line).append('\n');
             i = lineEnd + 1;

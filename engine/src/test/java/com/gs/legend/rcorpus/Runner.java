@@ -165,7 +165,7 @@ public final class Runner {
             ext.append(familyModels.get(parentFamilyKey)).append('\n');
             sql.addAll(familySeeds.getOrDefault(parentFamilyKey, List.of()));
         }
-        StringBuilder assembled = new StringBuilder(model).append(ext);
+        String prefix = model + ext;
         // pass 1: every family file's NON-mapping elements, deduped by
         // kind::fqn (the real engine compiles the whole module together;
         // cross-file references — embedded's BondDetail association,
@@ -173,10 +173,10 @@ public final class Runner {
         // file A may reference classes from file B, so mappings probe
         // after ALL classes/stores across the family are present.
         List<String[]> mappings = new ArrayList<>();
+        List<String[]> baseEls = new ArrayList<>();   // {kind fqn, text}
         java.util.Set<String> seen = new java.util.HashSet<>(sharedSeen);
         familySeen.put(familyKey, seen);
         for (String src : setupSources) {
-            StringBuilder part = new StringBuilder();
             for (String[] el : splitSectioned(Corpus.modelElements(src))) {
                 if (!seen.add(el[0] + "::" + el[1])) {
                     continue;   // first definition wins
@@ -184,11 +184,10 @@ public final class Runner {
                 if (el[0].equals("Mapping")) {
                     mappings.add(el);
                 } else {
-                    part.append(el[2]).append(el[3]).append('\n');
+                    baseEls.add(new String[]{el[0] + " " + el[1],
+                            el[2] + el[3] + "\n"});
                 }
             }
-            assembled.append('\n').append(part);
-            ext.append('\n').append(part);
             var seedTypes1 = Corpus.seedColumnTypes(src);
             for (var defs : Corpus.tableDefsAll(src).values()) {
                 var seed1 = seedTypes1.get(defs.get(0).name().toLowerCase());
@@ -205,7 +204,6 @@ public final class Runner {
         // BeforePackage seeds run AFTER and win), but NOT data seeds
         List<String> preSql = new ArrayList<>();
         for (String src : modelOnlySources) {
-            StringBuilder part = new StringBuilder();
             for (String[] el : splitSectioned(Corpus.modelElements(src))) {
                 if (!seen.add(el[0] + "::" + el[1])) {
                     continue;
@@ -213,11 +211,10 @@ public final class Runner {
                 if (el[0].equals("Mapping")) {
                     mappings.add(el);
                 } else {
-                    part.append(el[2]).append(el[3]).append('\n');
+                    baseEls.add(new String[]{el[0] + " " + el[1],
+                            el[2] + el[3] + "\n"});
                 }
             }
-            assembled.append('\n').append(part);
-            ext.append('\n').append(part);
             var seedTypes2 = Corpus.seedColumnTypes(src);
             for (var defs : Corpus.tableDefsAll(src).values()) {
                 var seed2 = seedTypes2.get(defs.get(0).name().toLowerCase());
@@ -229,6 +226,39 @@ public final class Runner {
             }
         }
         sql.addAll(0, preSql);
+        // pass 1.5: the assembled BASE itself must compile — a failing base
+        // element (engine plan-metamodel classes and other platform-internal
+        // constructs) is DROPPED and walled by error-line attribution, so
+        // one exotic class no longer darkens its whole family
+        // (executionPlan: two ExecutionOption classes hid 109 tests)
+        List<int[]> ranges = new ArrayList<>();
+        StringBuilder assembled = buildBase(prefix, baseEls, ranges);
+        for (int attempt = 0; attempt < 24 && !baseEls.isEmpty(); attempt++) {
+            try {
+                com.legend.Compiler.compile(assembled.toString(), "|1", "n/a");
+                break;
+            } catch (Exception e) {
+                int line = errorLineOf(e);
+                int idx = -1;
+                for (int r = 0; r < ranges.size(); r++) {
+                    if (line >= ranges.get(r)[0] && line <= ranges.get(r)[1]) {
+                        idx = r;
+                        break;
+                    }
+                }
+                if (idx < 0) {
+                    break;   // unattributable: leave; mapping probes wall as before
+                }
+                walls.add(familyKey + " " + baseEls.get(idx)[0] + " => "
+                        + String.valueOf(e.getMessage()).split("\n")[0]);
+                baseEls.remove(idx);
+                ranges.clear();
+                assembled = buildBase(prefix, baseEls, ranges);
+            }
+        }
+        for (String[] b : baseEls) {
+            ext.append('\n').append(b[1]);
+        }
         // pass 2: probe-compile every family mapping against the full base
         for (String[] m : mappings) {
             String candidate = assembled + "\n" + m[2] + m[3];
@@ -243,6 +273,46 @@ public final class Runner {
         }
         familyModels.put(familyKey, ext.toString());
         familySeeds.put(familyKey, sql);
+    }
+
+    /** The base assembly with per-element line ranges (1-based, inclusive). */
+    private static StringBuilder buildBase(String prefix, List<String[]> els,
+            List<int[]> rangesOut) {
+        StringBuilder sb = new StringBuilder(prefix);
+        int nl = countNl(prefix);
+        for (String[] el : els) {
+            sb.append('\n');
+            nl++;
+            int start = nl + 1;
+            sb.append(el[1]);
+            nl += countNl(el[1]);
+            rangesOut.add(new int[]{start, nl + 1});
+        }
+        return sb;
+    }
+
+    private static int countNl(String s) {
+        int c = 0;
+        for (int i = 0; i < s.length(); i++) {
+            if (s.charAt(i) == '\n') {
+                c++;
+            }
+        }
+        return c;
+    }
+
+    /** The 1-based line of a compile error's {@code [line:col]} prefix, or -1. */
+    private static int errorLineOf(Throwable e) {
+        for (Throwable c = e; c != null; c = c.getCause()) {
+            String msg = c.getMessage();
+            if (msg != null) {
+                Matcher m = Pattern.compile("\\[(\\d+):\\d+\\]").matcher(msg);
+                if (m.find()) {
+                    return Integer.parseInt(m.group(1));
+                }
+            }
+        }
+        return -1;
     }
 
     /**
