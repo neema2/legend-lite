@@ -41,8 +41,12 @@ public final class Executor {
                                           com.legend.sql.dialect.SqlDialect dialect)
             throws SQLException {
         boolean anyRoot = PlatformTypes.isAny(rootType.type());
-        try (Statement st = connection.createStatement();
-             ResultSet rs = st.executeQuery(sql)) {
+        // prepareStatement, not createStatement: DuckDB JDBC 1.5 masks a
+        // direct Statement's real error behind 'Attempting to execute an
+        // unsuccessful or closed pending query result' (audit: 74 corpus
+        // errors were unreadable); prepare() surfaces the actual message
+        try (java.sql.PreparedStatement st = connection.prepareStatement(sql);
+             ResultSet rs = st.executeQuery()) {
             return switch (shape) {
                 case TABULAR -> tabular(rs, plan, rootType, dialect);
                 case SCALAR -> new ExecutionResult.Scalar(

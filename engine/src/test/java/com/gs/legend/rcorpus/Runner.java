@@ -569,8 +569,9 @@ public final class Runner {
         List<String> failedSeeds = new ArrayList<>();
         for (String sql : allSeeds) {
             for (String stmt : splitStatements(sql)) {
-                try (var st = conn.createStatement()) {
-                    st.execute(stmt);
+                // prepare(): DuckDB JDBC masks Statement.execute errors
+                try (var st = conn.prepareStatement(stmt)) {
+                    st.execute();
                 } catch (Exception e) {
                     String head = stmt.strip().split("\n")[0];
                     failedSeeds.add(head + " => "
