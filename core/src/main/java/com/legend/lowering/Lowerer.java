@@ -297,9 +297,14 @@ public final class Lowerer {
         // exactly a TypedCollection body (list_value carrier). A loose
         // declared multiplicity over a non-collection body still lowers to
         // a plain scalar column — wrapping it in UNNEST/flatten is a type
-        // error, not a flatten.
-        return ml.body().get(ml.body().size() - 1)
-                instanceof TypedCollection;
+        // error, not a flatten. Casts distribute element-wise over
+        // collections (the value stays a LIST) — look through them
+        // ($x.values->cast(@StrictDate), calendar DateRange).
+        TypedSpec last = ml.body().get(ml.body().size() - 1);
+        while (last instanceof TypedCast tc) {
+            last = tc.source();
+        }
+        return last instanceof TypedCollection;
     }
 
     private String nextAlias() {
@@ -2816,7 +2821,23 @@ public final class Lowerer {
             if (isSqlPrimitive(c.target()) && isSqlPrimitive(src)
                     && !isWidening(src, c.target())
                     && !PureSql.type(src).equals(PureSql.type(c.target()))) {
-                return new SqlExpr.Cast(value, PureSql.type(c.target()));
+                // A converting cast over a COLLECTION is ELEMENT-WISE — the
+                // scalar channel carries collections as LISTs and DuckDB has
+                // no LIST->scalar cast (calendar DateRange family: row-var
+                // .values is an ArrayLit even at bounded-1 multiplicity).
+                if (value instanceof SqlExpr.ArrayLit lit) {
+                    return new SqlExpr.ArrayLit(lit.elements().stream()
+                            .map(e -> (SqlExpr) new SqlExpr.Cast(
+                                    e, PureSql.type(c.target())))
+                            .toList());
+                }
+                return isMany(c)
+                        ? SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, value,
+                                new SqlExpr.Lambda(List.of("x"),
+                                        new SqlExpr.Cast(
+                                                new SqlExpr.Column(null, "x"),
+                                                PureSql.type(c.target()))))
+                        : new SqlExpr.Cast(value, PureSql.type(c.target()));
             }
             return value;
         }

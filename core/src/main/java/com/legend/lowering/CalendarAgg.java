@@ -194,7 +194,7 @@ final class CalendarAgg {
             }
             case "p12mtd" -> {
                 SqlExpr start = new SqlExpr.Call(SqlFn.ADD_INTERVAL, List.of(
-                        new SqlExpr.StringLit("year"),
+                        new SqlExpr.StringLit("to_years"),
                         new SqlExpr.IntLit(-1), col(e, "date")));
                 return caseOf(and(
                         SqlExpr.Call.of(SqlFn.GREATER, col(c, "date"), start),

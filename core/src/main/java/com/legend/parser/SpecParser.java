@@ -769,12 +769,16 @@ public final class SpecParser implements TokenStreamCursor {
                 throw error("malformed string literal: trailing backslash");
             }
             char esc = body.charAt(i + 1);
+            // real pure's set (M4Fragment.g4 EscSeq): [btnfr"'\\]
             switch (esc) {
                 case '\\' -> sb.append('\\');
                 case '\'' -> sb.append('\'');
+                case '"' -> sb.append('"');
                 case 'n' -> sb.append('\n');
                 case 't' -> sb.append('\t');
                 case 'r' -> sb.append('\r');
+                case 'b' -> sb.append('\b');
+                case 'f' -> sb.append('\f');
                 default -> throw error(
                         "malformed string literal: unsupported escape '\\" + esc + "'");
             }
