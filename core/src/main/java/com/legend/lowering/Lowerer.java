@@ -1334,7 +1334,7 @@ public final class Lowerer {
         Type.RelationType targetRow = targetRel;
         List<Type.Column> flat = new ArrayList<>(srcRow.columns());
         for (Type.Column c : targetRow.columns()) {
-            flat.add(new Type.Column(alias + "_" + c.name(), c.type(),
+            flat.add(new Type.Column(navFlatColumn(alias, c.name()), c.type(),
                     Multiplicity.Bounded.ZERO_ONE));
         }
         var flatInfo = new ExprType(
@@ -1343,7 +1343,18 @@ public final class Lowerer {
                 "meta::pure::functions::relation::JoinKind", "LEFT", nav.info());
         return join(new TypedJoin(nav.source(),
                 nav.target(), leftKind, nav.predicate(),
-                Optional.of(alias + "_"), flatInfo));
+                Optional.of(navSlotPrefix(alias)), flatInfo));
+    }
+
+    /** THE navigate flat-column convention ({@code slot_COL}): mint and
+     * read-side reconstruction share this one owner (audit 15 — they were
+     * spelled independently, the same drift class JoinIdentity retired). */
+    private static String navSlotPrefix(String slot) {
+        return slot + "_";
+    }
+
+    private static String navFlatColumn(String slot, String col) {
+        return navSlotPrefix(slot) + col;
     }
 
     private SqlSelect join(TypedJoin j) {
@@ -1963,7 +1974,8 @@ public final class Lowerer {
             case TypedPropertyAccess p when p.source() instanceof TypedPropertyAccess inner
                     && inner.source() instanceof TypedVariable v
                     && inner.info().type() instanceof Type.RelationType
-                    -> columns.resolve(v.name(), inner.property() + "_" + p.property());
+                    -> columns.resolve(v.name(),
+                            navFlatColumn(inner.property(), p.property()));
             // A let-bound VALUE's field ($person.firstName after
             // |let person = ^Person(…)): extract from the lowered binding —
             // there is no row scope to resolve against.
@@ -2398,7 +2410,7 @@ public final class Lowerer {
                     boolean toMany = !(rel.info().multiplicity()
                             instanceof com.legend.compiler.element.type
                                     .Multiplicity.Bounded mb1
-                            && Integer.valueOf(1).equals(mb1.upper()));
+                            && mb1.isToOne());
                     if (!toMany) {
                         yield new SqlExpr.ScalarSubquery(relation(rel));
                     }

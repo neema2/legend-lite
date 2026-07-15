@@ -2214,6 +2214,11 @@ public final class StoreResolver {
      * bare demand exactly as {@link #consumedPaths} records it (one
      * traversal — the two demand kinds cannot double-count a path).
      */
+    /** ORDERING CONTRACT (audit 15 B3): aggReads is IDENTITY-keyed on the
+     * scanned nodes — this scan must run AFTER every identity-changing
+     * rewrite (splitDatedHeads etc.) and its keys are consumed in the SAME
+     * resolveObject pass. A rewrite inserted between scan and substitution
+     * dangles the keys silently. */
     private void aggScan(TypedSpec n, String userVar, ClassSource cs,
                          Map<String, List<AggDemand>> aggOut,
                          Set<List<String>> bareOut) {

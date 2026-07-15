@@ -57,19 +57,20 @@ final class Windows {
         aggregate("STDDEV_POP", "stdDevPopulation");
     }
 
+    /** Real pure's window-frame class — overload selection is by this
+     * EXACT parameter FQN (audit 15: was a contains("_Window") key probe). */
+    private static final String WINDOW_CLASS =
+            "meta::pure::functions::relation::_Window";
+
     private static void windowOnly(String sqlName, Kind kind, String pureName) {
-        for (String key : Pure.nativeKeysAt(pureName)) {
-            if (key.contains("_Window")) {
-                FNS.put(key, new WindowFn(sqlName, kind));
-            }
+        for (String key : Pure.nativeKeysAt(pureName, WINDOW_CLASS)) {
+            FNS.put(key, new WindowFn(sqlName, kind));
         }
     }
 
     private static void aggregate(String sqlName, String pureName) {
-        for (String key : Pure.nativeKeysAt(pureName)) {
-            if (key.contains("_Window")) {
-                AGGREGATES.put(key, sqlName);
-            }
+        for (String key : Pure.nativeKeysAt(pureName, WINDOW_CLASS)) {
+            AGGREGATES.put(key, sqlName);
         }
     }
 

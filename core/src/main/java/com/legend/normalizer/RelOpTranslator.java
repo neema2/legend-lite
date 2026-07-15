@@ -148,10 +148,9 @@ final class RelOpTranslator {
                                                     PipelineView pipeline) {
         return switch (op) {
             case RelationalOperation.ColumnRef ref -> {
-                // 'default.T' and 'T' are the same table — the default-schema
-                // prefix is spelling, not identity (scope registers canonical)
-                String refTable = ref.table().startsWith("default.")
-                        ? ref.table().substring("default.".length()) : ref.table();
+                // scope registers canonical names (MappingNormalizer owns
+                // the default-schema spelling rule)
+                String refTable = MappingNormalizer.canonicalTable(ref.table());
                 ValueSpecification path = tableScope.get(refTable);
                 if (path == null && pipeline.ambiguousTables().contains(refTable)) {
                     throw ambiguousTableRef(refTable, ref.column());

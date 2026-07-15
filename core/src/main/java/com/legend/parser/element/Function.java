@@ -52,26 +52,16 @@ public sealed interface Function
         // MEMOIZED: dispatch lookups call this once per lowered node and the
         // build walks full TypeExpression trees (re-audit M5). Catalog
         // definitions are singletons, so an identity cache is exact.
-        String cached = SignatureKeys.CACHE.get(this);
-        if (cached != null) {
-            return cached;
-        }
+        // Built per call — audit 15 removed a static identity-keyed memo
+        // here: user-parsed definitions flowed through it too, so every
+        // compilation grew the map (and retained its ASTs) forever. The
+        // build is a few appends; memoize per-INSTANCE if it ever shows up
+        // in a profile, never in static state.
         StringBuilder key = new StringBuilder(qualifiedName()).append('(');
         for (var p : parameters()) {
             key.append(p.type()).append(':').append(p.multiplicity()).append(',');
         }
-        String built = key.append(')').toString();
-        SignatureKeys.CACHE.put(this, built);
-        return built;
-    }
-
-    /** Identity-keyed memo for {@link #signatureKey()} (catalog singletons). */
-    final class SignatureKeys {
-        private SignatureKeys() {
-        }
-
-        private static final java.util.Map<Function, String> CACHE =
-                java.util.Collections.synchronizedMap(new java.util.IdentityHashMap<>());
+        return key.append(')').toString();
     }
 
     /** Declared parameters, in source order. */

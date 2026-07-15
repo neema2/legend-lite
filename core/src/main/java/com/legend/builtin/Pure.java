@@ -444,6 +444,30 @@ public final class Pure {
     }
 
     /**
+     * Signature keys of the overloads at {@code name} that take a parameter
+     * whose type is the EXACT class {@code paramClassFqn} (audit 15:
+     * replaces the lowering's {@code contains("_Window")} key probe —
+     * identification is by full FQN, never substring).
+     */
+    public static List<String> nativeKeysAt(String name, String paramClassFqn) {
+        List<String> keys = new ArrayList<>();
+        for (var f : nativeFunctionsAt(name)) {
+            for (var prm : f.parameters()) {
+                String head = switch (prm.type()) {
+                    case com.legend.parser.TypeExpression.NameRef nr -> nr.name();
+                    case com.legend.parser.TypeExpression.Generic g -> g.name();
+                    default -> null;
+                };
+                if (paramClassFqn.equals(head)) {
+                    keys.add(f.signatureKey());
+                    break;
+                }
+            }
+        }
+        return keys;
+    }
+
+    /**
      * Signature keys of specific overloads the lowering must single out
      * (string CONCAT-plus; IN) — parser records stay behind this wall.
      */

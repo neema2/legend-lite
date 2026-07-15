@@ -1336,7 +1336,10 @@ public final class MappingNormalizer {
                 canonicalTable(first.table()));
     }
 
-    private static String canonicalTable(String table) {
+    /** 'default.T' and 'T' are the same table — the default-schema prefix
+     * is spelling, not identity. THE one canonicalization site (audit 15:
+     * RelOpTranslator spelled it independently). */
+    static String canonicalTable(String table) {
         return table.startsWith("default.")
                 ? table.substring("default.".length()) : table;
     }

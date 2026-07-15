@@ -647,6 +647,7 @@ final class MappingGrammarParser {
         LegacyMappingDefinition.TableReference mainTable = null;
         List<PropertyMapping> propertyMappings = new ArrayList<>();
         java.util.Map<String, String> savedTargetSets = p.currentTargetSets;
+        java.util.Map<String, String> targetSets;
         p.currentTargetSets = new java.util.LinkedHashMap<>();
 
         LegacyMappingDefinition.TableReference savedScope = p.currentMappingScope;
@@ -719,10 +720,12 @@ final class MappingGrammarParser {
             }
         } finally {
             p.currentMappingScope = savedScope;
+            // restore INSIDE the finally with the scope (audit 15: the
+            // out-of-finally restore was benign only because a throwing
+            // parse discards the parser instance)
+            targetSets = p.currentTargetSets;
+            p.currentTargetSets = savedTargetSets;
         }
-
-        java.util.Map<String, String> targetSets = p.currentTargetSets;
-        p.currentTargetSets = savedTargetSets;
         return new ClassMapping.Relational(
                 className, setId, extendsSetId, root,
                 mainTable, filter, distinct, groupBy, primaryKey, propertyMappings,

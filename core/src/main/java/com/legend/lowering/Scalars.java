@@ -3265,9 +3265,8 @@ final class Scalars {
 
     /** Whether an argument's Pure multiplicity is at most one. */
     private static boolean isToOne(TypedSpec arg) {
-        var m = arg.info().multiplicity();
-        return m instanceof Multiplicity.Bounded b
-                && Integer.valueOf(1).equals(b.upper());
+        return arg.info().multiplicity() instanceof Multiplicity.Bounded b
+                && b.isToOne();
     }
 
     /** A literal boolean argument; LOUD otherwise (never a silent default). */
