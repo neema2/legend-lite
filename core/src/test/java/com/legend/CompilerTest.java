@@ -109,6 +109,7 @@ class CompilerTest {
     @Test
     @DisplayName("compileModel rejects null model")
     void compileModelRejectsNull() {
-        assertThrows(NullPointerException.class, () -> Compiler.compileModel(null));
+        assertThrows(NullPointerException.class,
+                () -> Compiler.compileModel((String) null));
     }
 }

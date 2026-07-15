@@ -177,13 +177,25 @@ public final class NameResolver {
         for (PackageableElement el : model.elements()) {
             ImportScope own = model.elementImports().get(el.qualifiedName());
             Scope scope = own == null ? globalScope : Scope.of(own, knownFqns);
-            PackageableElement r = resolveElement(el, scope);
+            PackageableElement r;
+            try {
+                r = resolveElement(el, scope);
+            } catch (com.legend.error.ResolutionException e) {
+                // ELEMENT-ATTRIBUTED: a module compile (many sources) must
+                // know WHICH element failed to resolve — the caller's
+                // drop-and-wall works on structured identities, never on
+                // message text
+                throw new com.legend.error.ModelException(
+                        com.legend.error.LegendCompileException.Phase.RESOLVE,
+                        e.getMessage(), el.qualifiedName());
+            }
             resolved.add(r);
             changed |= r != el;
         }
         return !changed ? model
                 : new ParsedModel(resolved, model.imports(),
-                        model.source(), model.elementOffsets(), model.elementImports());
+                        model.source(), model.elementOffsets(), model.elementImports(),
+                        model.elementSources());
     }
 
     /** User imports merged with the always-in-scope platform prelude. */

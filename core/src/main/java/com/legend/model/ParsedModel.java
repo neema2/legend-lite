@@ -21,7 +21,8 @@ import java.util.List;
  */
 public record ParsedModel(List<PackageableElement> elements, ImportScope imports,
                           String source, java.util.Map<String, Integer> elementOffsets,
-                          java.util.Map<String, ImportScope> elementImports) {
+                          java.util.Map<String, ImportScope> elementImports,
+                          java.util.Map<String, String> elementSources) {
 
     public ParsedModel {
         elements = elements == null ? List.of() : List.copyOf(elements);
@@ -32,6 +33,21 @@ public record ParsedModel(List<PackageableElement> elements, ImportScope imports
                 : java.util.Map.copyOf(elementOffsets);
         elementImports = elementImports == null ? java.util.Map.of()
                 : java.util.Map.copyOf(elementImports);
+        elementSources = elementSources == null ? java.util.Map.of()
+                : java.util.Map.copyOf(elementSources);
+    }
+
+    /**
+     * Single-source form ({@code elementSources} empty): every element
+     * came from {@code source}. The multi-source module compile
+     * ({@code Compiler.parseSources}) fills {@code elementSources} (element
+     * FQN &rarr; source unit name) so errors attribute to the right FILE.
+     */
+    public ParsedModel(List<PackageableElement> elements, ImportScope imports,
+                       String source, java.util.Map<String, Integer> elementOffsets,
+                       java.util.Map<String, ImportScope> elementImports) {
+        this(elements, imports, source, elementOffsets, elementImports,
+                java.util.Map.of());
     }
 
     /**

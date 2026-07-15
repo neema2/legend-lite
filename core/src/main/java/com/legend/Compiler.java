@@ -11,6 +11,7 @@ import com.legend.model.NormalizedModel;
 import com.legend.parser.ElementParser;
 import com.legend.model.ParsedModel;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -65,9 +66,7 @@ public final class Compiler {
         Objects.requireNonNull(model, "model");
         ParsedModel parsed = ElementParser.parse(model);
         try {
-            ParsedModel resolved = NameResolver.resolve(parsed);
-            NormalizedModel normalized = ModelNormalizer.normalize(resolved);
-            return PureModelContext.from(normalized);
+            return buildModel(parsed);
         } catch (com.legend.error.ModelException e) {
             // Decorate with the offending ELEMENT's [line:col] — the offsets
             // live on the original parse (resolution rebuilds ParsedModel
@@ -79,6 +78,116 @@ public final class Compiler {
             }
             throw new com.legend.error.ModelException(e.phase(),
                     com.legend.error.LegendCompileException.position(parsed.source(), off)
+                            + " " + e.getMessage(), e.element());
+        }
+    }
+
+    /** One named source unit of a multi-file model (a MODULE member). */
+    public record ModelSource(String name, String text) {
+        public ModelSource {
+            Objects.requireNonNull(name, "name");
+            Objects.requireNonNull(text, "text");
+        }
+    }
+
+    /**
+     * A parsed multi-source MODULE: the merged {@link ParsedModel} plus the
+     * duplicate elements that were dropped (first definition wins; each
+     * loser is reported as {@code kind fqn (source, kept source)} so the
+     * caller can wall it) and the per-unit texts for error decoration.
+     */
+    public record ParsedModule(ParsedModel model, List<String> duplicateElements,
+                               java.util.Map<String, String> sourceTexts) {
+        public ParsedModule {
+            duplicateElements = List.copyOf(duplicateElements);
+            sourceTexts = java.util.Map.copyOf(sourceTexts);
+        }
+    }
+
+    /**
+     * Parse each source as its OWN unit — per-file import sections, per-file
+     * positions — and merge into one model: the MODULE compile every real
+     * legend project needs (the engine compiles a repository's files
+     * together; cross-file references are normal). Imports never leak
+     * across units: each element resolves against its own section's scope,
+     * and the merged model's GLOBAL scope is empty (per-element scopes are
+     * total, so the fallback never widens).
+     */
+    public static ParsedModule parseSources(List<ModelSource> sources) {
+        Objects.requireNonNull(sources, "sources");
+        List<com.legend.model.PackageableElement> elements = new java.util.ArrayList<>();
+        java.util.Map<String, Integer> offsets = new java.util.HashMap<>();
+        java.util.Map<String, com.legend.model.ImportScope> elementImports =
+                new java.util.HashMap<>();
+        java.util.Map<String, String> elementSources = new java.util.HashMap<>();
+        java.util.Map<String, String> sourceTexts = new java.util.LinkedHashMap<>();
+        java.util.Map<String, String> seen = new java.util.HashMap<>();   // key -> source
+        List<String> duplicates = new java.util.ArrayList<>();
+        for (ModelSource src : sources) {
+            sourceTexts.put(src.name(), src.text());
+            ParsedModel unit = ElementParser.parse(src.text());
+            for (com.legend.model.PackageableElement el : unit.elements()) {
+                String key = el.getClass().getSimpleName() + "::" + el.qualifiedName();
+                String prior = seen.putIfAbsent(key, src.name());
+                if (prior != null) {
+                    // FIRST definition wins (the corpus carries alternative
+                    // models in parent directories); the drop is REPORTED,
+                    // never silent
+                    duplicates.add(key + " (" + src.name()
+                            + ", kept " + prior + ")");
+                    continue;
+                }
+                elements.add(el);
+                String fqn = el.qualifiedName();
+                Integer off = unit.elementOffsets().get(fqn);
+                if (off != null) {
+                    offsets.put(fqn, off);
+                }
+                com.legend.model.ImportScope own = unit.elementImports().get(fqn);
+                if (own != null) {
+                    elementImports.put(fqn, own);
+                }
+                elementSources.put(fqn, src.name());
+            }
+        }
+        return new ParsedModule(
+                new ParsedModel(elements, com.legend.model.ImportScope.empty(),
+                        null, offsets, elementImports, elementSources),
+                duplicates, sourceTexts);
+    }
+
+    /**
+     * The back half of {@link #compileModel(String)} over an
+     * already-parsed model: resolve names, normalize, build the context.
+     * Multi-source callers decorate errors themselves (they hold the
+     * per-unit texts).
+     */
+    public static ModelContext buildModel(ParsedModel parsed) {
+        ParsedModel resolved = NameResolver.resolve(parsed);
+        NormalizedModel normalized = ModelNormalizer.normalize(resolved);
+        return PureModelContext.from(normalized);
+    }
+
+    /**
+     * Compile a multi-source MODULE. Errors carry the offending element's
+     * SOURCE NAME and [line:col] within that source.
+     */
+    public static ModelContext compileModel(List<ModelSource> sources) {
+        ParsedModule module = parseSources(sources);
+        try {
+            return buildModel(module.model());
+        } catch (com.legend.error.ModelException e) {
+            String fqn = e.element();
+            String srcName = fqn == null ? null
+                    : module.model().elementSources().get(fqn);
+            Integer off = fqn == null ? null
+                    : module.model().elementOffsets().get(fqn);
+            if (srcName == null || off == null) {
+                throw e;
+            }
+            throw new com.legend.error.ModelException(e.phase(),
+                    srcName + " " + com.legend.error.LegendCompileException
+                            .position(module.sourceTexts().get(srcName), off)
                             + " " + e.getMessage(), e.element());
         }
     }

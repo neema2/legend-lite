@@ -170,8 +170,13 @@ class NameResolverTest {
                 .add("model::*").add("other::*").build();
         Set<String> ambig = Set.of("model::Person", "other::Person");
         var cd = simpleClass("x::Sub", List.of(nameRef("Person")), List.of());
-        assertThrows(com.legend.error.ResolutionException.class,
+        // ELEMENT-ATTRIBUTED (module compile): the resolver wraps the raw
+        // ResolutionException in a ModelException naming the element, so a
+        // multi-source drop-and-wall works on structured identities
+        var ex = assertThrows(com.legend.error.ModelException.class,
                 () -> resolveOne(cd, two, ambig));
+        assertEquals("x::Sub", ex.element());
+        assertTrue(ex.getMessage().contains("ambiguous"), ex.getMessage());
     }
 
     @Test
