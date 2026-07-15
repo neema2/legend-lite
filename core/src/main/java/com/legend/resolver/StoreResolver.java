@@ -1282,271 +1282,26 @@ public final class StoreResolver {
      * CANCELLED), THEN fold the ops back on with substitution against the
      * final row type. No restamp pass exists.
      */
-    private TypedSpec resolveObject(TypedSpec top, Context context) {
-        // PRE-REWRITE (before the demand scan, ledger design): filtered
-        // navigations consumed as bare collections lift into SYNTHETIC
-        // 2-hop heads whose join target carries the predicate.
-        top = liftFilteredHeads(top);
-        // The relation-shaping TERMINAL: project or class-source groupBy
-        // (lambdas through the one funnel), or the GRAPH terminals —
-        // explicit serialize (graphFetch is source-preserving; serialize's
-        // tree governs) and every other class-shaped root, which is the
-        // IMPLICIT serialize over the class's scalar bindings (plan §E10).
-        List<TypedGraphTree> tree = null;   // non-null => graph terminal
-        boolean implicitSerialize = false;
-        Context chainContext = context;     // an in-chain from() re-scopes
-        TypedSpec cur;
-        if (top instanceof TypedSerialize sz) {
-            tree = sz.tree();
-            cur = sz.source() instanceof TypedGraphFetch gf ? gf.source() : sz.source();
-        } else if (top instanceof TypedProject t) {
-            cur = t.source();
-        } else if (top instanceof TypedGroupBy t) {
-            cur = t.source();
-        } else {
-            implicitSerialize = true;
-            cur = top;
-        }
-        // 1. Collect the below-boundary op chain (top-down) to the getAll.
-        List<TypedSpec> ops = new ArrayList<>();
-        while (!(cur instanceof TypedGetAll)) {
-            // Normalize collection natives with relation shapes BEFORE
-            // collecting: first()/head() IS limit 1; class-space
-            // sort(key, comparator) IS sortBy with a direction.
-            if (cur instanceof TypedNativeCall nc && isClassDistinct(nc)) {
-                // instance distinct over a relational extent dedups by
-                // OBJECT IDENTITY = primary key — rows are already unique
-                cur = nc.args().get(0);
-                continue;
-            }
-            if (cur instanceof TypedNativeCall nc && isFirstLike(nc)) {
-                cur = new TypedLimit(nc.args().get(0),
-                        new TypedCInteger(1L, com.legend.compiler.element.type
-                                .ExprType.one(com.legend.compiler.element.type
-                                        .Type.Primitive.INTEGER)),
-                        nc.info());
-                continue;
-            }
-            if (cur instanceof TypedNativeCall nc && isClassToOne(nc)) {
-                cur = nc.args().get(0);
-                continue;
-            }
-            if (cur instanceof TypedNativeCall nc && isStaticAt(nc)) {
-                // at(k) over instances = the k-th row: slice(k, k+1)
-                long k = ((com.legend.compiler.spec.typed.TypedCInteger)
-                        nc.args().get(1)).value().longValue();
-                cur = new TypedSlice(nc.args().get(0),
-                        new TypedCInteger(k, com.legend.compiler.element.type
-                                .ExprType.one(com.legend.compiler.element.type
-                                        .Type.Primitive.INTEGER)),
-                        new TypedCInteger(k + 1, com.legend.compiler.element.type
-                                .ExprType.one(com.legend.compiler.element.type
-                                        .Type.Primitive.INTEGER)),
-                        nc.info());
-                continue;
-            }
-            TypedSortBy asSort = classSortOf(cur);
-            if (asSort != null) {
-                cur = asSort;
-                continue;
-            }
-            // an in-chain from() re-scopes the execution context for the
-            // rest of the walk and contributes NO op
-            if (cur instanceof TypedFrom fr) {
-                if (fr.mapping().isPresent()) {
-                    context = Context.ofMapping(fr.mapping().get().fullPath());
-                } else if (fr.runtime().isPresent()) {
-                    context = Context.ofRuntime(fr.runtime().get().fullPath());
-                }
-                cur = fr.source();
-                continue;
-            }
-            ops.add(cur);
-            cur = switch (cur) {
-                case TypedFilter f -> f.source();
-                case TypedLimit l -> l.source();
-                case TypedDrop d -> d.source();
-                case TypedSlice sl -> sl.source();
-                case TypedSortBy sb -> sb.source();
-                default -> throw new NotImplementedException("object-space operation "
-                        + cur.getClass().getSimpleName() + " is not supported yet");
-            };
-        }
-        TypedGetAll g = (TypedGetAll) cur;
-        if (g.milestoning().size() > 2) {
-            throw new MappingResolutionException("class fetch of '"
-                    + g.classFqn() + "' with " + g.milestoning().size()
-                    + " milestoning arguments is not supported", g.classFqn());
-        }
 
-        if (g.milestoning().isEmpty() && !g.versionSweep()
-                && temporalStrategy(g.classFqn()) != null) {
-            // engine: .all() on a temporal class REQUIRES a date argument
-            // (allVersions() is the version-sweep spelling) — an unfiltered
-            // extent would silently return every version as a row
-            throw new MappingResolutionException("fetch of temporal class '"
-                    + g.classFqn() + "' requires a milestoning date argument"
-                    + " (use allVersions() for the unfiltered extent)",
-                    g.classFqn());
-        }
-        // M3 temporal context: this fetch's dates propagate to same-strategy
-        // targets navigated through temporal parents (set per getAll; nested
-        // sibling resolutions overwrite at their own entry).
-        rootContext = TemporalContext.NONE;      // audit 10: never read the
-                                                 // PREVIOUS getAll's context
-        {
-            java.util.List<TypedSpec> nd = normalizeContextDates(g.milestoning());
-            String rootStrat = temporalStrategy(g.classFqn());
-            if (g.versionSweep()) {
-                // allVersions() = NONE; allVersionsInRange(s, e) = RANGE
-                rootContext = nd.size() == 2
-                        ? TemporalContext.range(rootStrat, nd.get(0), nd.get(1))
-                        : TemporalContext.NONE;
-            } else if (nd.size() == 2 && "bitemporal".equals(rootStrat)) {
-                rootContext = TemporalContext.bitemporal(nd.get(0), nd.get(1));
-            } else if (nd.size() == 2) {
-                // getAll(Class, start, end) — the allVersionsInRange spelling
-                rootContext = TemporalContext.range(rootStrat, nd.get(0),
-                        nd.get(1));
-            } else if (nd.size() == 1 && rootStrat != null) {
-                rootContext = TemporalContext.single(rootStrat, nd.get(0));
-            }
-        }
-        temporalByHead = java.util.Map.of();
-        final Context fctx = chainContext;
-        ClassSource cs = sources.get(dispatch(fctx, g.classFqn()), g.classFqn(),
-                target -> dispatch(fctx, target),
-                (fctx.explicitMapping() == null ? "" : fctx.explicitMapping())
-                        + '\u0000'
-                        + (fctx.runtimeFqn() == null ? "" : context.runtimeFqn()));
+    /** PHASE output: navigate-slot registration — the demanded slots and
+     * nav steps, their materialized targets (NavMat trees), the per-head
+     * substitution material, and the SECOND-identity extras routed to the
+     * association fold (per-use join identity). */
+    private record NavPlan(Set<String> demanded, Set<String> demandedNavs,
+            Map<String, Substitution.AssocSub> assocs,
+            Map<String, NavMat> navMats,
+            Map<String, java.util.List<java.util.List<String>>> navTails,
+            Map<String, String> navHeadByAlias,
+            Map<String, String> extraNavHeads,
+            Map<String, java.util.List<java.util.List<String>>> extraNavTails,
+            Map<String, com.legend.compiler.spec.typed.TypedNavigate> navSteps) {}
 
-        // 1b. TWO-DATES-PER-HEAD (engine keys separate joins by date):
-        // when ONE chain is navigated with DIFFERENT temporal arguments,
-        // each distinct date-set beyond the first renames to a
-        // date-fingerprinted synthetic head ('product#d1') — a separate
-        // join identity carrying its own spec; realHead() keeps every
-        // model lookup transparent. Same-date accesses keep sharing one
-        // join (merge-by-identity). Runs BEFORE spec collection so the
-        // conflict throw never fires for split chains.
-        java.util.Map<String, java.util.List<com.legend.compiler.spec.typed
-                .TypedMilestonedAccess>> datedByChain =
-                new java.util.LinkedHashMap<>();
-        for (TypedSpec op : ops) {
-            if (op instanceof TypedFilter f) {
-                for (TypedSpec b : f.predicate().body()) {
-                    collectDatedNodes(b, f.predicate().parameters().get(0),
-                            datedByChain);
-                }
-            }
-            if (op instanceof TypedSortBy sb) {
-                for (TypedSpec b : sb.key().body()) {
-                    collectDatedNodes(b, sb.key().parameters().get(0),
-                            datedByChain);
-                }
-            }
-        }
-        if (top instanceof TypedProject || top instanceof TypedGroupBy) {
-            for (TypedLambda fn : terminalLambdas(top)) {
-                for (TypedSpec b : fn.body()) {
-                    collectDatedNodes(b, fn.parameters().get(0), datedByChain);
-                }
-            }
-        }
-        java.util.IdentityHashMap<TypedSpec, String> dateRenames =
-                new java.util.IdentityHashMap<>();
-        for (var chainDates : datedByChain.entrySet()) {
-            java.util.Map<TemporalSpec, String> byArgs =
-                    new java.util.LinkedHashMap<>();
-            for (var ma : chainDates.getValue()) {
-                TemporalSpec spec = new TemporalSpec(
-                        normalizeContextDates(ma.dates()), ma.sweep());
-                String name = byArgs.get(spec);
-                if (name == null) {
-                    name = byArgs.isEmpty() ? ma.property()
-                            : ma.property() + "#d" + syntheticHeadCount++;
-                    byArgs.put(spec, name);
-                }
-                if (!name.equals(ma.property())) {
-                    dateRenames.put(ma, name);
-                }
-            }
-        }
-        if (!dateRenames.isEmpty()) {
-            for (int i = 0; i < ops.size(); i++) {
-                ops.set(i, replaceDatedNodes(ops.get(i), dateRenames));
-            }
-            top = replaceDatedNodes(top, dateRenames);
-        }
-
-        // 2. Demand scan over ALL the chain's user lambdas (one funnel with
-        //    the substitution — they cannot drift), close over slot
-        //    conditions, materialize.
-        // POSITION-AWARE demand (the positional rule table): to-many paths
-        // in PROJECTION position explode via LEFT JOIN; in FILTER position
-        // they become implicit EXISTS per boolean leaf.
-        // ENTRY RULE (learned three times now): scans enter through the
-        // lambda's BODY — entering via the lambda itself trips the shadow
-        // stop on its own parameter.
-        Set<java.util.List<String>> filterPaths = new java.util.LinkedHashSet<>();
-        Set<java.util.List<String>> projectionPaths = new java.util.LinkedHashSet<>();
-        Map<String, java.util.List<AggDemand>> aggDemands =
-                new java.util.LinkedHashMap<>();
-        for (TypedSpec op : ops) {
-            if (op instanceof TypedFilter f) {
-                for (TypedSpec b : f.predicate().body()) {
-                    memberScan(b, f.predicate().parameters().get(0), cs, filterPaths);
-                }
-            }
-            if (op instanceof TypedSortBy sb) {
-                for (TypedSpec b : sb.key().body()) {
-                    aggScan(b, sb.key().parameters().get(0), cs,
-                            aggDemands, projectionPaths);
-                }
-            }
-        }
-        if (tree == null && implicitSerialize) {
-            tree = synthesizeScalarTree(cs);
-        }
-        if (tree != null) {
-            // GRAPH terminal: tree LEAF paths feed slot demand (a leaf's
-            // binding may read a demanded join slot); class-typed children
-            // correlate — never join — and are materialized by
-            // buildGraphNode, not the demand scan.
-            for (TypedGraphTree node : tree) {
-                if (node.children().isEmpty()) {
-                    projectionPaths.add(java.util.List.of(node.property()));
-                }
-            }
-        } else {
-            for (TypedLambda fn : terminalLambdas(top)) {
-                for (TypedSpec b : fn.body()) {
-                    aggScan(b, fn.parameters().get(0), cs,
-                            aggDemands, projectionPaths);
-                }
-            }
-        }
-        Set<java.util.List<String>> paths = new java.util.LinkedHashSet<>(filterPaths);
-        paths.addAll(projectionPaths);
-
-        // Milestoned property functions: collect each head's temporal
-        // arguments (conflicting dates for ONE head in one query are loud —
-        // engine keys separate joins by date, a roadmap refinement).
-        java.util.Map<String, TemporalSpec> specs = new java.util.LinkedHashMap<>();
-        for (TypedSpec op : ops) {
-            if (op instanceof TypedFilter f) {
-                collectTemporalSpecs(f.predicate(), specs);
-            }
-            if (op instanceof TypedSortBy sb) {
-                collectTemporalSpecs(sb.key(), specs);
-            }
-        }
-        if (tree == null) {
-            for (TypedLambda fn : terminalLambdas(top)) {
-                collectTemporalSpecs(fn, specs);
-            }
-        }
-        temporalByHead = specs;
-
+    /** PHASE — slot + navigate-step demand: heads whose bindings read
+     * join slots demand them; class-typed Join PM heads materialize their
+     * targets (recursively, with per-hop temporal context) and register
+     * the head substitution material under the chain key. */
+    private NavPlan registerNavigations(ClassSource cs,
+            Set<java.util.List<String>> paths) {
         // Slot demand (heads whose bindings read join slots).
         Set<String> slotAliases = Pipelines.slotAliases(cs.pipeline());
         Set<String> demanded = new java.util.LinkedHashSet<>();
@@ -1726,381 +1481,20 @@ public final class StoreResolver {
                     subNavs));
         }
 
-        // Mapping ~distinct stays IN the pipeline (a distinct subselect —
-        // the engine's own emission, its "could optimize to collapse" TODO
-        // notwithstanding): deferring it to the projected output dedups
-        // over the PROJECTED SUBSET of columns, which changes row counts
-        // whenever the projection is not injective on the distinct tuple
-        // (corpus testDistinctMappingSimpleProjectSelectOneOfTheDistinct-
-        // Properties: name-only projection must keep BOTH 'IF 2' rows).
-        TypedSpec csPipe = cs.pipeline();
-        Pipelines.Materialized m = Pipelines.materialize(
-                csPipe, demanded, demandedNavs, cs.classFqn(),
-                (alias, targetClass) -> navMats.containsKey(alias)
-                        ? navMats.get(alias).pipeline()
-                        : Pipelines.materialize(
-                                sources.get(cs.mappingFqn(), targetClass).pipeline(),
-                                Set.of(), targetClass).pipeline());
-        Map<String, String> navPrefixToClass = new java.util.LinkedHashMap<>();
-        Map<String, String> navPrefixToChain = new java.util.LinkedHashMap<>();
-        Map<String, String> midPrefixToChain = new java.util.LinkedHashMap<>();
-        Map<String, String> midPrefixToDim = new java.util.LinkedHashMap<>();
-        for (var navE : Pipelines.navSteps(cs.pipeline()).entrySet()) {
-            if (navE.getValue().target()
-                    instanceof com.legend.compiler.spec.typed.TypedGetAll tg2) {
-                String chain = navHeadByAlias.getOrDefault(navE.getKey(),
-                        navE.getKey());
-                navPrefixToClass.put(navE.getKey() + "_", tg2.classFqn());
-                navPrefixToChain.put(navE.getKey() + "_", chain);
-                // MID slots of a CHAINED PM (@J1 > @J2): the nav condition
-                // reads their sub-rows — a milestoned mid table filters by
-                // its OWN milestoning against the CHAIN's context (engine
-                // applyMilestoningFilters stamps every milestoned join-tree
-                // node with the ambient date; the TARGET class's temporality
-                // never governs the mid table — audit 14 F1: keying mid
-                // slots by target class left them unstamped for
-                // non-temporal targets). Two chains claiming one slot with
-                // DIFFERENT specs is loud — first-writer-wins would stamp
-                // the second chain's rows with the wrong date.
-                for (TypedSpec b : navE.getValue().predicate().body()) {
-                    for (String slot : slotAliases) {
-                        if (Pipelines.referencesAliasOn(b,
-                                navE.getValue().predicate().parameters().get(0),
-                                Set.of(slot))) {
-                            String priorChain = midPrefixToChain
-                                    .putIfAbsent(slot + "_", chain);
-                            if (priorChain != null && !priorChain.equals(chain)
-                                    && !java.util.Objects.equals(
-                                            temporalByHead.get(priorChain),
-                                            temporalByHead.get(chain))) {
-                                throw new NotImplementedException(
-                                        "physical slot '" + slot + "' is shared"
-                                        + " by chains '" + priorChain + "' and '"
-                                        + chain + "' carrying different"
-                                        + " milestoning dates — per-chain mid"
-                                        + " joins are not supported yet");
-                            }
-                            midPrefixToDim.putIfAbsent(slot + "_",
-                                    temporalStrategy(tg2.classFqn()));
-                        }
-                    }
-                }
-            }
-        }
-        final TypedSpec basePipe =
-                applyJoinTemporalFilters(m.pipeline(), cs, navPrefixToClass,
-                        navPrefixToChain, midPrefixToChain, midPrefixToDim);
-        m = new Pipelines.Materialized(basePipe, m.slotPrefixes(), m.stripped());
-        final TypedSpec materializedPipe;
-        if (g.versionSweep()) {
-            // allVersions(): the RAW extent — every version row, no filter.
-            // allVersionsInRange(s, e): versions whose validity window
-            // overlaps the range (engine getTemporalMilestoneRangeFilter).
-            materializedPipe = g.milestoning().isEmpty() ? basePipe
-                    : rangeMilestonedPipe(basePipe, g.milestoning().get(0),
-                            g.milestoning().get(1), g.classFqn());
-        } else if (g.milestoning().size() == 2
-                && "bitemporal".equals(temporalStrategy(g.classFqn()))) {
-            // BI-TEMPORAL fetch: .all(processingDate, businessDate) — real
-            // pure's getAll(Class, processingDate, businessDate) signature;
-            // both dimensions filter.
-            materializedPipe = milestonedPipeByStrategy(
-                    milestonedPipeByStrategy(basePipe, g.milestoning().get(0),
-                            "processingtemporal", g.classFqn()),
-                    g.milestoning().get(1), "businesstemporal", g.classFqn());
-        } else if (g.milestoning().size() == 2) {
-            // SINGLE-dimension class with two dates: the RANGE fetch —
-            // engine getAll(Class, start, end), same filter as
-            // allVersionsInRange
-            materializedPipe = rangeMilestonedPipe(basePipe,
-                    g.milestoning().get(0), g.milestoning().get(1), g.classFqn());
-        } else {
-            materializedPipe = g.milestoning().isEmpty()
-                    ? basePipe
-                    : milestonedPipe(basePipe, g.milestoning().get(0), g.classFqn());
-        }
+        return new NavPlan(demanded, demandedNavs, assocs, navMats, navTails,
+                navHeadByAlias, extraNavHeads, extraNavTails, navSteps);
+    }
 
-        // To-many association heads (1-hop, exists/isEmpty position):
-        // correlated-EXISTS material — target pipeline + oriented condition,
-        // NO join emitted (§133's single form).
-        Map<String, Substitution.ExistsSub> existsSubs = new java.util.LinkedHashMap<>();
-        for (java.util.List<String> path : paths) {
-            String head = path.get(0);
-            boolean filterTwoHop = path.size() == 2 && filterPaths.contains(path);
-            if ((path.size() != 1 && !filterTwoHop) || existsSubs.containsKey(head)) {
-                continue;
-            }
-            if (cs.bindings().containsKey(realHead(head))) {
-                // A NAVIGATE-SLOT head (class-typed Join PM): the nav step
-                // carries the target extent + oriented (s, t) predicate —
-                // the same correlated-EXISTS material as an association end.
-                var nav = Pipelines.navSteps(cs.pipeline()).get(realHead(head));
-                if (nav == null || !(nav.target()
-                        instanceof com.legend.compiler.spec.typed.TypedGetAll tg)
-                        // eager material only when the target class IS mapped
-                        // here (an M2M chain's nav target lives upstream —
-                        // registration must not throw for a rewrite that may
-                        // never fire)
-                        || !sources.binds(cs.mappingFqn(), tg.classFqn())) {
-                    continue;
-                }
-                ClassSource t = sources.get(cs.mappingFqn(), tg.classFqn());
-                Set<String> tSlots0 = Pipelines.slotAliases(t.pipeline());
-                Set<String> tDemand0 = new java.util.LinkedHashSet<>();
-                Set<String> innerLeaves = new java.util.LinkedHashSet<>(
-                        existsInnerLeaves(ops, head));
-                TypedLambda liftedPred0 = syntheticHeadPreds.get(head);
-                if (liftedPred0 != null) {
-                    for (TypedSpec b : liftedPred0.body()) {
-                        collectParamPathHeads(b,
-                                liftedPred0.parameters().get(0), innerLeaves);
-                    }
-                }
-                for (String leaf : innerLeaves) {
-                    TypedSpec lb = t.bindings().get(leaf);
-                    if (lb != null) {
-                        collectAliasReads(lb, t.rowVar(), tSlots0, tDemand0);
-                    }
-                }
-                tDemand0 = Pipelines.closeOverConditions(t.pipeline(), tDemand0);
-                Pipelines.Materialized tMat0 = Pipelines.materialize(
-                        t.pipeline(), tDemand0, t.classFqn());
-                // UNION target: member threads carry the key columns the
-                // navigate predicate binds on (mirrors the assoc route)
-                TypedSpec tPipe0 = tMat0.pipeline();
-                if (nav.predicate().parameters().size() == 2) {
-                    Set<String> tgtReads = new java.util.LinkedHashSet<>();
-                    for (TypedSpec b : nav.predicate().body()) {
-                        Pipelines.collectVarReads(b,
-                                nav.predicate().parameters().get(1), tgtReads);
-                    }
-                    tPipe0 = Pipelines.widenConcatenateForKeys(tPipe0, tgtReads);
-                }
-                TypedSpec tTemporal = temporalTargetPipe(cs, t, head,
-                        applyJoinTemporalFilters(tPipe0, t, java.util.Map.of()));
-                TypedLambda liftedPred = syntheticHeadPreds.get(head);
-                if (liftedPred != null) {
-                    tTemporal = predFilteredPipe(tTemporal, t,
-                            tMat0.slotPrefixes(), liftedPred, cs.mappingFqn());
-                }
-                Pipelines.Materialized tMat = new Pipelines.Materialized(
-                        tTemporal, tMat0.slotPrefixes(), tMat0.stripped());
-                boolean navToMany = !(ctx.findProperty(cs.classFqn(), realHead(head))
-                        .map(pr -> pr.multiplicity())
-                        .filter(mm -> mm instanceof com.legend.compiler.element.type
-                                .Multiplicity.Bounded bb
-                                && Integer.valueOf(1).equals(bb.upper()))
-                        .isPresent());
-                existsSubs.put(head, new Substitution.ExistsSub(tMat.pipeline(),
-                        nav.predicate(), t.rowVar(), t.bindings(),
-                        (com.legend.compiler.element.type.Type.RelationType)
-                                tMat.pipeline().info().type(),
-                        t.classFqn(), Pipelines.slotAliases(t.pipeline()),
-                        tMat0.slotPrefixes(), navToMany));
-                continue;
-            }
-            var assocOpt = ctx.findAssociationOf(cs.classFqn(), realHead(head));
-            if (assocOpt.isEmpty()) {
-                continue;   // not an association — plain unmapped (loud later)
-            }
-            // ANY multiplicity: the EXISTS material is consumed only under
-            // emptiness calls (plan rule: class-typed isEmpty/isNotEmpty of
-            // any multiplicity, incl. to-one-optional, => [NOT] EXISTS); a
-            // bare head not under an emptiness call still gets the honest
-            // H4 story at substitution.
-            AssocJoin aj = associationJoin(cs, head, context, true,
-                    existsInnerLeaves(ops, head));
-            var assocEnd = assocOpt.get().property1().propertyName()
-                    .equals(realHead(head))
-                    ? assocOpt.get().property1() : assocOpt.get().property2();
-            boolean isToMany = !(assocEnd.multiplicity()
-                    instanceof com.legend.parser.Multiplicity.Concrete emc
-                    && Integer.valueOf(1).equals(emc.upperBound()));
-            // the SCALAR (slot-undemanded) pipeline serves value-position
-            // consumers (filteredNavLeafRead): other consumers' slot demand
-            // must not fan a single-row subquery out (audit 13 B3)
-            // B3 (scalar fan-out) DEFERRED: a separate slot-undemanded
-            // scalar pipeline regressed real corpus value-leaf reads
-            // (testConstraintTargetingMultipleJoinsInPropertyMapping); the
-            // engineered fan-out shape stays data-dependent-loud for now —
-            // the plumbing (scalarPipeline field) is in place for the fix.
-            existsSubs.put(head, new Substitution.ExistsSub(aj.targetPipeline(),
-                    aj.condition(), aj.target().rowVar(), aj.target().bindings(),
-                    aj.targetRow(), aj.target().classFqn(),
-                    Pipelines.slotAliases(aj.target().pipeline()),
-                    aj.targetSlotPrefixes(), isToMany));
-        }
 
-        // Association demand: paths whose head is NOT a binding are
-        // association navigations — ONE LEFT join PER HOP, chained by path
-        // prefix (plan §2.3: longer prefixes chain off shorter; dedup by
-        // chain key, so $p.dept.name and $p.dept.org.name share the dept
-        // join). Target of each hop = its class's own pipeline.
-        java.util.List<AssocJoin> assocJoins = new ArrayList<>();
-        Map<String, AssocJoin> joinsByChain = new java.util.LinkedHashMap<>();
-        // Per chain-prefix leaf demand: for [firm, country], hop 'firm'
-        // must materialize firm's OWN slots feeding 'country'.
-        Map<String, Set<String>> leavesByChain = new java.util.LinkedHashMap<>();
-        for (java.util.List<String> path : paths) {
-            for (int i = 0; i + 1 < path.size(); i++) {
-                leavesByChain.computeIfAbsent(String.join(".", path.subList(0, i + 1)),
-                        k -> new java.util.LinkedHashSet<>()).add(path.get(i + 1));
-            }
-        }
-        for (java.util.List<String> path : paths) {
-            if (path.size() < 2
-                    || cs.bindings().containsKey(realHead(path.get(0)))) {
-                continue;   // 1-hop, or embedded/slot heads (substitution-side)
-            }
-            String head = path.get(0);
-            // EVERY to-many crossing joins with ROW EXPLOSION — filter
-            // position included (engine testInNegated golden: a bare LEFT
-            // JOIN whose surviving rows DUPLICATE the parent value; the
-            // distinct-subselect semi-join is reserved for EXPLICIT
-            // exists/isEmpty calls, whose paths are 1-hop and never reach
-            // this loop). AUDIT 9: the previous filter-only EXISTS diversion
-            // was set-correct but cardinality-wrong.
-            ClassSource parent = cs;
-            String parentPrefix = "";
-            // $p.assoc.milestoning.from: the struct is a COLUMN read on the
-            // assoc target, not a further hop
-            int effectiveSize = path.size() >= 2
-                    && path.get(path.size() - 2).equals("milestoning")
-                    ? path.size() - 1 : path.size();
-            for (int hop = 0; hop + 1 < effectiveSize; hop++) {
-                String chainKey = String.join(".", path.subList(0, hop + 1));
-                AssocJoin known = joinsByChain.get(chainKey);
-                if (known != null) {
-                    parent = known.target();
-                    parentPrefix = known.prefix();
-                    continue;
-                }
-                AssocJoin aj = associationJoin(parent, path.get(hop), context, false,
-                        leavesByChain.getOrDefault(chainKey, Set.of()), chainKey);
-                if (hop > 0) {
-                    // A CHAINED hop: the parent's columns live PREFIXED on the
-                    // accumulated joined row — re-point the condition's LEFT
-                    // param reads (dept's raw $d.ID becomes dept_ID), and the
-                    // hop's own prefix extends the chain (dept_org_) with the
-                    // SAME collision guard hop 0 gets (audit: a physical
-                    // dept.org_id FK would collide with the chained prefix).
-                    String chainPrefix = chainedPrefix(
-                            parentPrefix + path.get(hop), cs, joinsByChain);
-                    final String pp2 = parentPrefix;
-                    TypedLambda cond = aj.condition();
-                    java.util.List<com.legend.compiler.element.type.Type.Column>
-                            leftCols = new ArrayList<>();
-                    for (com.legend.compiler.element.type.Type.Column c
-                            : ((com.legend.compiler.element.type.Type.RelationType)
-                                    parent.rowType()).columns()) {
-                        leftCols.add(new com.legend.compiler.element.type.Type.Column(
-                                pp2 + c.name(), c.type(), c.multiplicity()));
-                    }
-                    var leftRow = new com.legend.compiler.element.type.Type.RelationType(leftCols);
-                    String leftParam = cond.parameters().get(0);
-                    TypedSpec body = Pipelines.prefixColumns(
-                            cond.body().get(cond.body().size() - 1), leftParam, pp2,
-                            v -> new com.legend.compiler.spec.typed.TypedVariable(leftParam,
-                                    new com.legend.compiler.element.type.ExprType(leftRow,
-                                            com.legend.compiler.element.type.Multiplicity
-                                                    .Bounded.ONE)));
-                    cond = new TypedLambda(cond.parameters(), java.util.List.of(body),
-                            cond.info());
-                    aj = new AssocJoin(chainPrefix, aj.target(), aj.targetPipeline(),
-                            aj.targetRow(), cond, aj.targetSlotPrefixes());
-                }
-                assocJoins.add(aj);
-                joinsByChain.put(chainKey, aj);
-                assocs.put(chainKey, new Substitution.AssocSub(aj.prefix(),
-                        aj.target().rowVar(), aj.target().bindings(),
-                        aj.target().classFqn(),
-                        Pipelines.slotAliases(aj.target().pipeline()),
-                        aj.targetSlotPrefixes(), null, null,
-                        milestoneColumnsOf(aj.target().pipeline(),
-                                aj.target().classFqn())));
-                parent = aj.target();
-                parentPrefix = aj.prefix();
-            }
-        }
-
-        // 2a-x. SECOND head identities on one physical slot: an extra
-        // prefixed join per identity, from the SAME nav material — the
-        // dotted chainPrefix keys its own temporal spec, a lifted
-        // predicate parks inside the target (the slot route's exact
-        // semantics, join identity aside).
-        for (var extra : extraNavHeads.entrySet()) {
-            String headKey = extra.getKey();
-            String alias = extra.getValue();
-            var nav = navSteps.get(alias);
-            String targetClass = ((com.legend.compiler.spec.typed.TypedGetAll)
-                    nav.target()).classFqn();
-            ClassSource target = sources.get(cs.mappingFqn(), targetClass);
-            NavMat mat = navTargetMaterialized(cs.mappingFqn(),
-                    targetClass,
-                    extraNavTails.getOrDefault(headKey, java.util.List.of()),
-                    headKey, null);
-            // the slot route's root stamp comes from the outer join-walk
-            // (navPrefixToChain); an extra join never passes it — stamp
-            // here, exactly the association route's emission
-            TypedSpec tPipe = temporalTargetPipe(cs, target, headKey,
-                    applyJoinTemporalFilters(mat.pipeline(), target,
-                            java.util.Map.of()));
-            TypedLambda lp = syntheticHeadPreds.get(headKey);
-            if (lp != null) {
-                tPipe = predFilteredPipe(tPipe, target, mat.slotPrefixes(),
-                        lp, cs.mappingFqn());
-            }
-            AssocJoin aj = new AssocJoin(prefixFor(headKey, cs), target, tPipe,
-                    (com.legend.compiler.element.type.Type.RelationType)
-                            tPipe.info().type(),
-                    nav.predicate(), mat.slotPrefixes());
-            assocJoins.add(aj);
-            assocs.put(headKey, new Substitution.AssocSub(aj.prefix(),
-                    target.rowVar(), target.bindings(), target.classFqn(),
-                    Pipelines.slotAliases(target.pipeline()),
-                    mat.slotPrefixes(), null, null,
-                    milestoneColumnsOf(target.pipeline(), target.classFqn()),
-                    mat.subNavs()));
-        }
-
-        // 2a'. JOIN-KEY COLLECTION under mapping ~distinct (engine L5135):
-        // demanded joins' source-side key columns must survive the
-        // ~distinct narrowing select — widen it (the distinct then dedups
-        // over the widened row, exactly the engine's query-dependent
-        // distinct tuple). Aggregated-navigation materials build here so
-        // their conditions participate.
-        Map<String, AssocJoin> aggMaterials = new java.util.LinkedHashMap<>();
-        for (var entry : aggDemands.entrySet()) {
-            Set<String> leaves = new java.util.LinkedHashSet<>();
-            for (AggDemand dm : entry.getValue()) {
-                leaves.add(dm.leaf());
-            }
-            aggMaterials.put(entry.getKey(),
-                    aggJoinMaterial(cs, entry.getKey(), context, leaves));
-        }
-        Set<String> joinKeyReads = new java.util.LinkedHashSet<>();
-        for (AssocJoin aj : assocJoins) {
-            collectParamColumnReads(aj.condition(), joinKeyReads);
-        }
-        for (AssocJoin aj : aggMaterials.values()) {
-            collectParamColumnReads(aj.condition(), joinKeyReads);
-        }
-        for (Substitution.ExistsSub ex : existsSubs.values()) {
-            collectParamColumnReads(ex.orientedCond(), joinKeyReads);
-        }
-        TypedSpec keyWidenedPipe = joinKeyReads.isEmpty() ? materializedPipe
-                : Pipelines.widenDistinctForKeys(materializedPipe, joinKeyReads);
-        if (!joinKeyReads.isEmpty()) {
-            // UNION root: member threads carry the demanded join keys
-            // through the union projection (engine partial-union goldens)
-            keyWidenedPipe = Pipelines.widenConcatenateForKeys(
-                    keyWidenedPipe, joinKeyReads);
-        }
-        if (keyWidenedPipe != materializedPipe) {
-            m = new Pipelines.Materialized(keyWidenedPipe, m.slotPrefixes(),
-                    m.stripped());
-        }
-
+    /** PHASE 2a'' — CLASS-TYPED LEAF under an emptiness call:
+     * registers the DOTTED-path correlated-EXISTS material (engine:
+     * semi-join + key null check on the exploded chain row); details in
+     * the body comments. Mutates {@code existsSubs}. */
+    private void registerDottedExistsSubs(ClassSource cs,
+            List<TypedSpec> ops, TypedSpec top,
+            List<TypedGraphTree> tree, Context context,
+            Map<String, Substitution.AssocSub> assocs,
+            Map<String, Substitution.ExistsSub> existsSubs) {
         // 2a''. CLASS-TYPED LEAF under an emptiness call — isNotEmpty(
         // $p.a.b) where b is itself a navigation step on the CHAIN TARGET:
         // correlated EXISTS on the exploded chain row (engine: semi-join +
@@ -2230,6 +1624,721 @@ public final class StoreResolver {
                     t.classFqn(), Pipelines.slotAliases(t.pipeline()),
                     tPrefixes, leafToMany));
         }
+
+    }
+
+    /** PHASE — to-many/navigate heads under exists/isEmpty: the
+     * correlated-EXISTS material per head (target pipeline + oriented
+     * condition, NO join emitted; the positional rule table §133). */
+    private Map<String, Substitution.ExistsSub> registerExistsSubs(
+            ClassSource cs, Set<java.util.List<String>> paths,
+            Set<java.util.List<String>> filterPaths, List<TypedSpec> ops,
+            Context context) {
+        Map<String, Substitution.ExistsSub> existsSubs = new java.util.LinkedHashMap<>();
+        for (java.util.List<String> path : paths) {
+            String head = path.get(0);
+            boolean filterTwoHop = path.size() == 2 && filterPaths.contains(path);
+            if ((path.size() != 1 && !filterTwoHop) || existsSubs.containsKey(head)) {
+                continue;
+            }
+            if (cs.bindings().containsKey(realHead(head))) {
+                // A NAVIGATE-SLOT head (class-typed Join PM): the nav step
+                // carries the target extent + oriented (s, t) predicate —
+                // the same correlated-EXISTS material as an association end.
+                var nav = Pipelines.navSteps(cs.pipeline()).get(realHead(head));
+                if (nav == null || !(nav.target()
+                        instanceof com.legend.compiler.spec.typed.TypedGetAll tg)
+                        // eager material only when the target class IS mapped
+                        // here (an M2M chain's nav target lives upstream —
+                        // registration must not throw for a rewrite that may
+                        // never fire)
+                        || !sources.binds(cs.mappingFqn(), tg.classFqn())) {
+                    continue;
+                }
+                ClassSource t = sources.get(cs.mappingFqn(), tg.classFqn());
+                Set<String> tSlots0 = Pipelines.slotAliases(t.pipeline());
+                Set<String> tDemand0 = new java.util.LinkedHashSet<>();
+                Set<String> innerLeaves = new java.util.LinkedHashSet<>(
+                        existsInnerLeaves(ops, head));
+                TypedLambda liftedPred0 = syntheticHeadPreds.get(head);
+                if (liftedPred0 != null) {
+                    for (TypedSpec b : liftedPred0.body()) {
+                        collectParamPathHeads(b,
+                                liftedPred0.parameters().get(0), innerLeaves);
+                    }
+                }
+                for (String leaf : innerLeaves) {
+                    TypedSpec lb = t.bindings().get(leaf);
+                    if (lb != null) {
+                        collectAliasReads(lb, t.rowVar(), tSlots0, tDemand0);
+                    }
+                }
+                tDemand0 = Pipelines.closeOverConditions(t.pipeline(), tDemand0);
+                Pipelines.Materialized tMat0 = Pipelines.materialize(
+                        t.pipeline(), tDemand0, t.classFqn());
+                // UNION target: member threads carry the key columns the
+                // navigate predicate binds on (mirrors the assoc route)
+                TypedSpec tPipe0 = tMat0.pipeline();
+                if (nav.predicate().parameters().size() == 2) {
+                    Set<String> tgtReads = new java.util.LinkedHashSet<>();
+                    for (TypedSpec b : nav.predicate().body()) {
+                        Pipelines.collectVarReads(b,
+                                nav.predicate().parameters().get(1), tgtReads);
+                    }
+                    tPipe0 = Pipelines.widenConcatenateForKeys(tPipe0, tgtReads);
+                }
+                TypedSpec tTemporal = temporalTargetPipe(cs, t, head,
+                        applyJoinTemporalFilters(tPipe0, t, java.util.Map.of()));
+                TypedLambda liftedPred = syntheticHeadPreds.get(head);
+                if (liftedPred != null) {
+                    tTemporal = predFilteredPipe(tTemporal, t,
+                            tMat0.slotPrefixes(), liftedPred, cs.mappingFqn());
+                }
+                Pipelines.Materialized tMat = new Pipelines.Materialized(
+                        tTemporal, tMat0.slotPrefixes(), tMat0.stripped());
+                boolean navToMany = !(ctx.findProperty(cs.classFqn(), realHead(head))
+                        .map(pr -> pr.multiplicity())
+                        .filter(mm -> mm instanceof com.legend.compiler.element.type
+                                .Multiplicity.Bounded bb
+                                && Integer.valueOf(1).equals(bb.upper()))
+                        .isPresent());
+                existsSubs.put(head, new Substitution.ExistsSub(tMat.pipeline(),
+                        nav.predicate(), t.rowVar(), t.bindings(),
+                        (com.legend.compiler.element.type.Type.RelationType)
+                                tMat.pipeline().info().type(),
+                        t.classFqn(), Pipelines.slotAliases(t.pipeline()),
+                        tMat0.slotPrefixes(), navToMany));
+                continue;
+            }
+            var assocOpt = ctx.findAssociationOf(cs.classFqn(), realHead(head));
+            if (assocOpt.isEmpty()) {
+                continue;   // not an association — plain unmapped (loud later)
+            }
+            // ANY multiplicity: the EXISTS material is consumed only under
+            // emptiness calls (plan rule: class-typed isEmpty/isNotEmpty of
+            // any multiplicity, incl. to-one-optional, => [NOT] EXISTS); a
+            // bare head not under an emptiness call still gets the honest
+            // H4 story at substitution.
+            AssocJoin aj = associationJoin(cs, head, context, true,
+                    existsInnerLeaves(ops, head));
+            var assocEnd = assocOpt.get().property1().propertyName()
+                    .equals(realHead(head))
+                    ? assocOpt.get().property1() : assocOpt.get().property2();
+            boolean isToMany = !(assocEnd.multiplicity()
+                    instanceof com.legend.parser.Multiplicity.Concrete emc
+                    && Integer.valueOf(1).equals(emc.upperBound()));
+            // the SCALAR (slot-undemanded) pipeline serves value-position
+            // consumers (filteredNavLeafRead): other consumers' slot demand
+            // must not fan a single-row subquery out (audit 13 B3)
+            // B3 (scalar fan-out) DEFERRED: a separate slot-undemanded
+            // scalar pipeline regressed real corpus value-leaf reads
+            // (testConstraintTargetingMultipleJoinsInPropertyMapping); the
+            // engineered fan-out shape stays data-dependent-loud for now —
+            // the plumbing (scalarPipeline field) is in place for the fix.
+            existsSubs.put(head, new Substitution.ExistsSub(aj.targetPipeline(),
+                    aj.condition(), aj.target().rowVar(), aj.target().bindings(),
+                    aj.targetRow(), aj.target().classFqn(),
+                    Pipelines.slotAliases(aj.target().pipeline()),
+                    aj.targetSlotPrefixes(), isToMany));
+        }
+
+        return existsSubs;
+    }
+
+    /** PHASE output: the association-route joins (one LEFT join per
+     * hop, deduped by chain key) plus per-chain leaf demand. */
+    private record AssocPlan(java.util.List<AssocJoin> assocJoins,
+            Map<String, AssocJoin> joinsByChain,
+            Map<String, Set<String>> leavesByChain) {}
+
+    /** PHASE — association demand (paths whose head is NOT a binding):
+     * one LEFT join per hop chained by path prefix, plus the SECOND
+     * head identities on shared physical slots (2a-x: per-use extra
+     * joins from the same nav material). */
+    private AssocPlan registerAssociationJoins(ClassSource cs,
+            Set<java.util.List<String>> paths, Context context,
+            Map<String, com.legend.compiler.spec.typed.TypedNavigate> navSteps,
+            Map<String, String> extraNavHeads,
+            Map<String, java.util.List<java.util.List<String>>> extraNavTails,
+            Map<String, Substitution.AssocSub> assocs) {
+        java.util.List<AssocJoin> assocJoins = new ArrayList<>();
+        Map<String, AssocJoin> joinsByChain = new java.util.LinkedHashMap<>();
+        // Per chain-prefix leaf demand: for [firm, country], hop 'firm'
+        // must materialize firm's OWN slots feeding 'country'.
+        Map<String, Set<String>> leavesByChain = new java.util.LinkedHashMap<>();
+        for (java.util.List<String> path : paths) {
+            for (int i = 0; i + 1 < path.size(); i++) {
+                leavesByChain.computeIfAbsent(String.join(".", path.subList(0, i + 1)),
+                        k -> new java.util.LinkedHashSet<>()).add(path.get(i + 1));
+            }
+        }
+        for (java.util.List<String> path : paths) {
+            if (path.size() < 2
+                    || cs.bindings().containsKey(realHead(path.get(0)))) {
+                continue;   // 1-hop, or embedded/slot heads (substitution-side)
+            }
+            String head = path.get(0);
+            // EVERY to-many crossing joins with ROW EXPLOSION — filter
+            // position included (engine testInNegated golden: a bare LEFT
+            // JOIN whose surviving rows DUPLICATE the parent value; the
+            // distinct-subselect semi-join is reserved for EXPLICIT
+            // exists/isEmpty calls, whose paths are 1-hop and never reach
+            // this loop). AUDIT 9: the previous filter-only EXISTS diversion
+            // was set-correct but cardinality-wrong.
+            ClassSource parent = cs;
+            String parentPrefix = "";
+            // $p.assoc.milestoning.from: the struct is a COLUMN read on the
+            // assoc target, not a further hop
+            int effectiveSize = path.size() >= 2
+                    && path.get(path.size() - 2).equals("milestoning")
+                    ? path.size() - 1 : path.size();
+            for (int hop = 0; hop + 1 < effectiveSize; hop++) {
+                String chainKey = String.join(".", path.subList(0, hop + 1));
+                AssocJoin known = joinsByChain.get(chainKey);
+                if (known != null) {
+                    parent = known.target();
+                    parentPrefix = known.prefix();
+                    continue;
+                }
+                AssocJoin aj = associationJoin(parent, path.get(hop), context, false,
+                        leavesByChain.getOrDefault(chainKey, Set.of()), chainKey);
+                if (hop > 0) {
+                    // A CHAINED hop: the parent's columns live PREFIXED on the
+                    // accumulated joined row — re-point the condition's LEFT
+                    // param reads (dept's raw $d.ID becomes dept_ID), and the
+                    // hop's own prefix extends the chain (dept_org_) with the
+                    // SAME collision guard hop 0 gets (audit: a physical
+                    // dept.org_id FK would collide with the chained prefix).
+                    String chainPrefix = chainedPrefix(
+                            parentPrefix + path.get(hop), cs, joinsByChain);
+                    final String pp2 = parentPrefix;
+                    TypedLambda cond = aj.condition();
+                    java.util.List<com.legend.compiler.element.type.Type.Column>
+                            leftCols = new ArrayList<>();
+                    for (com.legend.compiler.element.type.Type.Column c
+                            : ((com.legend.compiler.element.type.Type.RelationType)
+                                    parent.rowType()).columns()) {
+                        leftCols.add(new com.legend.compiler.element.type.Type.Column(
+                                pp2 + c.name(), c.type(), c.multiplicity()));
+                    }
+                    var leftRow = new com.legend.compiler.element.type.Type.RelationType(leftCols);
+                    String leftParam = cond.parameters().get(0);
+                    TypedSpec body = Pipelines.prefixColumns(
+                            cond.body().get(cond.body().size() - 1), leftParam, pp2,
+                            v -> new com.legend.compiler.spec.typed.TypedVariable(leftParam,
+                                    new com.legend.compiler.element.type.ExprType(leftRow,
+                                            com.legend.compiler.element.type.Multiplicity
+                                                    .Bounded.ONE)));
+                    cond = new TypedLambda(cond.parameters(), java.util.List.of(body),
+                            cond.info());
+                    aj = new AssocJoin(chainPrefix, aj.target(), aj.targetPipeline(),
+                            aj.targetRow(), cond, aj.targetSlotPrefixes());
+                }
+                assocJoins.add(aj);
+                joinsByChain.put(chainKey, aj);
+                assocs.put(chainKey, new Substitution.AssocSub(aj.prefix(),
+                        aj.target().rowVar(), aj.target().bindings(),
+                        aj.target().classFqn(),
+                        Pipelines.slotAliases(aj.target().pipeline()),
+                        aj.targetSlotPrefixes(), null, null,
+                        milestoneColumnsOf(aj.target().pipeline(),
+                                aj.target().classFqn())));
+                parent = aj.target();
+                parentPrefix = aj.prefix();
+            }
+        }
+
+        // 2a-x. SECOND head identities on one physical slot: an extra
+        // prefixed join per identity, from the SAME nav material — the
+        // dotted chainPrefix keys its own temporal spec, a lifted
+        // predicate parks inside the target (the slot route's exact
+        // semantics, join identity aside).
+        for (var extra : extraNavHeads.entrySet()) {
+            String headKey = extra.getKey();
+            String alias = extra.getValue();
+            var nav = navSteps.get(alias);
+            String targetClass = ((com.legend.compiler.spec.typed.TypedGetAll)
+                    nav.target()).classFqn();
+            ClassSource target = sources.get(cs.mappingFqn(), targetClass);
+            NavMat mat = navTargetMaterialized(cs.mappingFqn(),
+                    targetClass,
+                    extraNavTails.getOrDefault(headKey, java.util.List.of()),
+                    headKey, null);
+            // the slot route's root stamp comes from the outer join-walk
+            // (navPrefixToChain); an extra join never passes it — stamp
+            // here, exactly the association route's emission
+            TypedSpec tPipe = temporalTargetPipe(cs, target, headKey,
+                    applyJoinTemporalFilters(mat.pipeline(), target,
+                            java.util.Map.of()));
+            TypedLambda lp = syntheticHeadPreds.get(headKey);
+            if (lp != null) {
+                tPipe = predFilteredPipe(tPipe, target, mat.slotPrefixes(),
+                        lp, cs.mappingFqn());
+            }
+            AssocJoin aj = new AssocJoin(prefixFor(headKey, cs), target, tPipe,
+                    (com.legend.compiler.element.type.Type.RelationType)
+                            tPipe.info().type(),
+                    nav.predicate(), mat.slotPrefixes());
+            assocJoins.add(aj);
+            assocs.put(headKey, new Substitution.AssocSub(aj.prefix(),
+                    target.rowVar(), target.bindings(), target.classFqn(),
+                    Pipelines.slotAliases(target.pipeline()),
+                    mat.slotPrefixes(), null, null,
+                    milestoneColumnsOf(target.pipeline(), target.classFqn()),
+                    mat.subNavs()));
+        }
+
+        return new AssocPlan(assocJoins, joinsByChain, leavesByChain);
+    }
+
+    /** Phase 1 output: the collected object-space chain — the (lifted)
+     * terminal, the op stack down to the getAll, the effective execution
+     * context after in-chain from() re-scoping, and the bound source.
+     * Field side-effects (rootContext, temporalByHead reset) happen in
+     * {@link #collectOpChain} — one construction site. */
+    private record OpChain(TypedSpec top, List<TypedGraphTree> tree,
+            boolean implicitSerialize, List<TypedSpec> ops, TypedGetAll getAll,
+            Context context, ClassSource cs) {}
+
+    /** PHASE 1 — collect the op chain (terminal detection, native-shape
+     * normalization, from() re-scoping), validate the fetch, construct
+     * THE root temporal context, bind the class source. */
+    private OpChain collectOpChain(TypedSpec top, Context context) {
+        // PRE-REWRITE (before the demand scan, ledger design): filtered
+        // navigations consumed as bare collections lift into SYNTHETIC
+        // 2-hop heads whose join target carries the predicate.
+        top = liftFilteredHeads(top);
+        // The relation-shaping TERMINAL: project or class-source groupBy
+        // (lambdas through the one funnel), or the GRAPH terminals —
+        // explicit serialize (graphFetch is source-preserving; serialize's
+        // tree governs) and every other class-shaped root, which is the
+        // IMPLICIT serialize over the class's scalar bindings (plan §E10).
+        List<TypedGraphTree> tree = null;   // non-null => graph terminal
+        boolean implicitSerialize = false;
+        Context chainContext = context;     // an in-chain from() re-scopes
+        TypedSpec cur;
+        if (top instanceof TypedSerialize sz) {
+            tree = sz.tree();
+            cur = sz.source() instanceof TypedGraphFetch gf ? gf.source() : sz.source();
+        } else if (top instanceof TypedProject t) {
+            cur = t.source();
+        } else if (top instanceof TypedGroupBy t) {
+            cur = t.source();
+        } else {
+            implicitSerialize = true;
+            cur = top;
+        }
+        // 1. Collect the below-boundary op chain (top-down) to the getAll.
+        List<TypedSpec> ops = new ArrayList<>();
+        while (!(cur instanceof TypedGetAll)) {
+            // Normalize collection natives with relation shapes BEFORE
+            // collecting: first()/head() IS limit 1; class-space
+            // sort(key, comparator) IS sortBy with a direction.
+            if (cur instanceof TypedNativeCall nc && isClassDistinct(nc)) {
+                // instance distinct over a relational extent dedups by
+                // OBJECT IDENTITY = primary key — rows are already unique
+                cur = nc.args().get(0);
+                continue;
+            }
+            if (cur instanceof TypedNativeCall nc && isFirstLike(nc)) {
+                cur = new TypedLimit(nc.args().get(0),
+                        new TypedCInteger(1L, com.legend.compiler.element.type
+                                .ExprType.one(com.legend.compiler.element.type
+                                        .Type.Primitive.INTEGER)),
+                        nc.info());
+                continue;
+            }
+            if (cur instanceof TypedNativeCall nc && isClassToOne(nc)) {
+                cur = nc.args().get(0);
+                continue;
+            }
+            if (cur instanceof TypedNativeCall nc && isStaticAt(nc)) {
+                // at(k) over instances = the k-th row: slice(k, k+1)
+                long k = ((com.legend.compiler.spec.typed.TypedCInteger)
+                        nc.args().get(1)).value().longValue();
+                cur = new TypedSlice(nc.args().get(0),
+                        new TypedCInteger(k, com.legend.compiler.element.type
+                                .ExprType.one(com.legend.compiler.element.type
+                                        .Type.Primitive.INTEGER)),
+                        new TypedCInteger(k + 1, com.legend.compiler.element.type
+                                .ExprType.one(com.legend.compiler.element.type
+                                        .Type.Primitive.INTEGER)),
+                        nc.info());
+                continue;
+            }
+            TypedSortBy asSort = classSortOf(cur);
+            if (asSort != null) {
+                cur = asSort;
+                continue;
+            }
+            // an in-chain from() re-scopes the execution context for the
+            // rest of the walk and contributes NO op
+            if (cur instanceof TypedFrom fr) {
+                if (fr.mapping().isPresent()) {
+                    context = Context.ofMapping(fr.mapping().get().fullPath());
+                } else if (fr.runtime().isPresent()) {
+                    context = Context.ofRuntime(fr.runtime().get().fullPath());
+                }
+                cur = fr.source();
+                continue;
+            }
+            ops.add(cur);
+            cur = switch (cur) {
+                case TypedFilter f -> f.source();
+                case TypedLimit l -> l.source();
+                case TypedDrop d -> d.source();
+                case TypedSlice sl -> sl.source();
+                case TypedSortBy sb -> sb.source();
+                default -> throw new NotImplementedException("object-space operation "
+                        + cur.getClass().getSimpleName() + " is not supported yet");
+            };
+        }
+        TypedGetAll g = (TypedGetAll) cur;
+        if (g.milestoning().size() > 2) {
+            throw new MappingResolutionException("class fetch of '"
+                    + g.classFqn() + "' with " + g.milestoning().size()
+                    + " milestoning arguments is not supported", g.classFqn());
+        }
+
+        if (g.milestoning().isEmpty() && !g.versionSweep()
+                && temporalStrategy(g.classFqn()) != null) {
+            // engine: .all() on a temporal class REQUIRES a date argument
+            // (allVersions() is the version-sweep spelling) — an unfiltered
+            // extent would silently return every version as a row
+            throw new MappingResolutionException("fetch of temporal class '"
+                    + g.classFqn() + "' requires a milestoning date argument"
+                    + " (use allVersions() for the unfiltered extent)",
+                    g.classFqn());
+        }
+        // M3 temporal context: this fetch's dates propagate to same-strategy
+        // targets navigated through temporal parents (set per getAll; nested
+        // sibling resolutions overwrite at their own entry).
+        rootContext = TemporalContext.NONE;      // audit 10: never read the
+                                                 // PREVIOUS getAll's context
+        {
+            java.util.List<TypedSpec> nd = normalizeContextDates(g.milestoning());
+            String rootStrat = temporalStrategy(g.classFqn());
+            if (g.versionSweep()) {
+                // allVersions() = NONE; allVersionsInRange(s, e) = RANGE
+                rootContext = nd.size() == 2
+                        ? TemporalContext.range(rootStrat, nd.get(0), nd.get(1))
+                        : TemporalContext.NONE;
+            } else if (nd.size() == 2 && "bitemporal".equals(rootStrat)) {
+                rootContext = TemporalContext.bitemporal(nd.get(0), nd.get(1));
+            } else if (nd.size() == 2) {
+                // getAll(Class, start, end) — the allVersionsInRange spelling
+                rootContext = TemporalContext.range(rootStrat, nd.get(0),
+                        nd.get(1));
+            } else if (nd.size() == 1 && rootStrat != null) {
+                rootContext = TemporalContext.single(rootStrat, nd.get(0));
+            }
+        }
+        temporalByHead = java.util.Map.of();
+        final Context fctx = chainContext;
+        ClassSource cs = sources.get(dispatch(fctx, g.classFqn()), g.classFqn(),
+                target -> dispatch(fctx, target),
+                (fctx.explicitMapping() == null ? "" : fctx.explicitMapping())
+                        + '\u0000'
+                        + (fctx.runtimeFqn() == null ? "" : context.runtimeFqn()));
+
+        return new OpChain(top, tree, implicitSerialize, ops, g, context, cs);
+    }
+
+    /** PHASE 1b — TWO-DATES-PER-HEAD (engine keys separate joins by
+     * date): when ONE chain is navigated with DIFFERENT temporal
+     * arguments, each distinct date-set beyond the first renames to a
+     * date-fingerprinted synthetic head ('product#d1') — a separate join
+     * identity carrying its own spec; realHead() keeps every model lookup
+     * transparent. Same-date accesses keep sharing one join
+     * (merge-by-identity). Runs BEFORE spec collection so the conflict
+     * throw never fires for split chains. Mutates {@code ops} in place;
+     * returns the (possibly rewritten) terminal. */
+    private TypedSpec splitDatedHeads(List<TypedSpec> ops, TypedSpec top) {
+        java.util.Map<String, java.util.List<com.legend.compiler.spec.typed
+                .TypedMilestonedAccess>> datedByChain =
+                new java.util.LinkedHashMap<>();
+        for (TypedSpec op : ops) {
+            if (op instanceof TypedFilter f) {
+                for (TypedSpec b : f.predicate().body()) {
+                    collectDatedNodes(b, f.predicate().parameters().get(0),
+                            datedByChain);
+                }
+            }
+            if (op instanceof TypedSortBy sb) {
+                for (TypedSpec b : sb.key().body()) {
+                    collectDatedNodes(b, sb.key().parameters().get(0),
+                            datedByChain);
+                }
+            }
+        }
+        if (top instanceof TypedProject || top instanceof TypedGroupBy) {
+            for (TypedLambda fn : terminalLambdas(top)) {
+                for (TypedSpec b : fn.body()) {
+                    collectDatedNodes(b, fn.parameters().get(0), datedByChain);
+                }
+            }
+        }
+        java.util.IdentityHashMap<TypedSpec, String> dateRenames =
+                new java.util.IdentityHashMap<>();
+        for (var chainDates : datedByChain.entrySet()) {
+            java.util.Map<TemporalSpec, String> byArgs =
+                    new java.util.LinkedHashMap<>();
+            for (var ma : chainDates.getValue()) {
+                TemporalSpec spec = new TemporalSpec(
+                        normalizeContextDates(ma.dates()), ma.sweep());
+                String name = byArgs.get(spec);
+                if (name == null) {
+                    name = byArgs.isEmpty() ? ma.property()
+                            : ma.property() + "#d" + syntheticHeadCount++;
+                    byArgs.put(spec, name);
+                }
+                if (!name.equals(ma.property())) {
+                    dateRenames.put(ma, name);
+                }
+            }
+        }
+        if (!dateRenames.isEmpty()) {
+            for (int i = 0; i < ops.size(); i++) {
+                ops.set(i, replaceDatedNodes(ops.get(i), dateRenames));
+            }
+            top = replaceDatedNodes(top, dateRenames);
+        }
+        return top;
+    }
+
+    private TypedSpec resolveObject(TypedSpec top, Context context) {
+        OpChain phase1 = collectOpChain(top, context);
+        List<TypedSpec> ops = phase1.ops();
+        top = splitDatedHeads(ops, phase1.top());
+        List<TypedGraphTree> tree = phase1.tree();
+        boolean implicitSerialize = phase1.implicitSerialize();
+        TypedGetAll g = phase1.getAll();
+        context = phase1.context();
+        ClassSource cs = phase1.cs();
+
+        // 2. Demand scan over ALL the chain's user lambdas (one funnel with
+        //    the substitution — they cannot drift), close over slot
+        //    conditions, materialize.
+        // POSITION-AWARE demand (the positional rule table): to-many paths
+        // in PROJECTION position explode via LEFT JOIN; in FILTER position
+        // they become implicit EXISTS per boolean leaf.
+        // ENTRY RULE (learned three times now): scans enter through the
+        // lambda's BODY — entering via the lambda itself trips the shadow
+        // stop on its own parameter.
+        Set<java.util.List<String>> filterPaths = new java.util.LinkedHashSet<>();
+        Set<java.util.List<String>> projectionPaths = new java.util.LinkedHashSet<>();
+        Map<String, java.util.List<AggDemand>> aggDemands =
+                new java.util.LinkedHashMap<>();
+        for (TypedSpec op : ops) {
+            if (op instanceof TypedFilter f) {
+                for (TypedSpec b : f.predicate().body()) {
+                    memberScan(b, f.predicate().parameters().get(0), cs, filterPaths);
+                }
+            }
+            if (op instanceof TypedSortBy sb) {
+                for (TypedSpec b : sb.key().body()) {
+                    aggScan(b, sb.key().parameters().get(0), cs,
+                            aggDemands, projectionPaths);
+                }
+            }
+        }
+        if (tree == null && implicitSerialize) {
+            tree = synthesizeScalarTree(cs);
+        }
+        if (tree != null) {
+            // GRAPH terminal: tree LEAF paths feed slot demand (a leaf's
+            // binding may read a demanded join slot); class-typed children
+            // correlate — never join — and are materialized by
+            // buildGraphNode, not the demand scan.
+            for (TypedGraphTree node : tree) {
+                if (node.children().isEmpty()) {
+                    projectionPaths.add(java.util.List.of(node.property()));
+                }
+            }
+        } else {
+            for (TypedLambda fn : terminalLambdas(top)) {
+                for (TypedSpec b : fn.body()) {
+                    aggScan(b, fn.parameters().get(0), cs,
+                            aggDemands, projectionPaths);
+                }
+            }
+        }
+        Set<java.util.List<String>> paths = new java.util.LinkedHashSet<>(filterPaths);
+        paths.addAll(projectionPaths);
+
+        // Milestoned property functions: collect each head's temporal
+        // arguments (conflicting dates for ONE head in one query are loud —
+        // engine keys separate joins by date, a roadmap refinement).
+        java.util.Map<String, TemporalSpec> specs = new java.util.LinkedHashMap<>();
+        for (TypedSpec op : ops) {
+            if (op instanceof TypedFilter f) {
+                collectTemporalSpecs(f.predicate(), specs);
+            }
+            if (op instanceof TypedSortBy sb) {
+                collectTemporalSpecs(sb.key(), specs);
+            }
+        }
+        if (tree == null) {
+            for (TypedLambda fn : terminalLambdas(top)) {
+                collectTemporalSpecs(fn, specs);
+            }
+        }
+        temporalByHead = specs;
+
+        NavPlan navPlan = registerNavigations(cs, paths);
+        Set<String> demanded = navPlan.demanded();
+        Set<String> demandedNavs = navPlan.demandedNavs();
+        Map<String, Substitution.AssocSub> assocs = navPlan.assocs();
+        Map<String, NavMat> navMats = navPlan.navMats();
+        Map<String, String> navHeadByAlias = navPlan.navHeadByAlias();
+        Map<String, String> extraNavHeads = navPlan.extraNavHeads();
+        Map<String, java.util.List<java.util.List<String>>> extraNavTails =
+                navPlan.extraNavTails();
+        var navSteps = navPlan.navSteps();
+
+        // Mapping ~distinct stays IN the pipeline (a distinct subselect —
+        // the engine's own emission, its "could optimize to collapse" TODO
+        // notwithstanding): deferring it to the projected output dedups
+        // over the PROJECTED SUBSET of columns, which changes row counts
+        // whenever the projection is not injective on the distinct tuple
+        // (corpus testDistinctMappingSimpleProjectSelectOneOfTheDistinct-
+        // Properties: name-only projection must keep BOTH 'IF 2' rows).
+        TypedSpec csPipe = cs.pipeline();
+        Pipelines.Materialized m = Pipelines.materialize(
+                csPipe, demanded, demandedNavs, cs.classFqn(),
+                (alias, targetClass) -> navMats.containsKey(alias)
+                        ? navMats.get(alias).pipeline()
+                        : Pipelines.materialize(
+                                sources.get(cs.mappingFqn(), targetClass).pipeline(),
+                                Set.of(), targetClass).pipeline());
+        Map<String, String> navPrefixToClass = new java.util.LinkedHashMap<>();
+        Map<String, String> navPrefixToChain = new java.util.LinkedHashMap<>();
+        Map<String, String> midPrefixToChain = new java.util.LinkedHashMap<>();
+        Map<String, String> midPrefixToDim = new java.util.LinkedHashMap<>();
+        Set<String> slotAliases = Pipelines.slotAliases(cs.pipeline());
+        for (var navE : Pipelines.navSteps(cs.pipeline()).entrySet()) {
+            if (navE.getValue().target()
+                    instanceof com.legend.compiler.spec.typed.TypedGetAll tg2) {
+                String chain = navHeadByAlias.getOrDefault(navE.getKey(),
+                        navE.getKey());
+                navPrefixToClass.put(navE.getKey() + "_", tg2.classFqn());
+                navPrefixToChain.put(navE.getKey() + "_", chain);
+                // MID slots of a CHAINED PM (@J1 > @J2): the nav condition
+                // reads their sub-rows — a milestoned mid table filters by
+                // its OWN milestoning against the CHAIN's context (engine
+                // applyMilestoningFilters stamps every milestoned join-tree
+                // node with the ambient date; the TARGET class's temporality
+                // never governs the mid table — audit 14 F1: keying mid
+                // slots by target class left them unstamped for
+                // non-temporal targets). Two chains claiming one slot with
+                // DIFFERENT specs is loud — first-writer-wins would stamp
+                // the second chain's rows with the wrong date.
+                for (TypedSpec b : navE.getValue().predicate().body()) {
+                    for (String slot : slotAliases) {
+                        if (Pipelines.referencesAliasOn(b,
+                                navE.getValue().predicate().parameters().get(0),
+                                Set.of(slot))) {
+                            String priorChain = midPrefixToChain
+                                    .putIfAbsent(slot + "_", chain);
+                            if (priorChain != null && !priorChain.equals(chain)
+                                    && !java.util.Objects.equals(
+                                            temporalByHead.get(priorChain),
+                                            temporalByHead.get(chain))) {
+                                throw new NotImplementedException(
+                                        "physical slot '" + slot + "' is shared"
+                                        + " by chains '" + priorChain + "' and '"
+                                        + chain + "' carrying different"
+                                        + " milestoning dates — per-chain mid"
+                                        + " joins are not supported yet");
+                            }
+                            midPrefixToDim.putIfAbsent(slot + "_",
+                                    temporalStrategy(tg2.classFqn()));
+                        }
+                    }
+                }
+            }
+        }
+        final TypedSpec basePipe =
+                applyJoinTemporalFilters(m.pipeline(), cs, navPrefixToClass,
+                        navPrefixToChain, midPrefixToChain, midPrefixToDim);
+        m = new Pipelines.Materialized(basePipe, m.slotPrefixes(), m.stripped());
+        final TypedSpec materializedPipe;
+        if (g.versionSweep()) {
+            // allVersions(): the RAW extent — every version row, no filter.
+            // allVersionsInRange(s, e): versions whose validity window
+            // overlaps the range (engine getTemporalMilestoneRangeFilter).
+            materializedPipe = g.milestoning().isEmpty() ? basePipe
+                    : rangeMilestonedPipe(basePipe, g.milestoning().get(0),
+                            g.milestoning().get(1), g.classFqn());
+        } else if (g.milestoning().size() == 2
+                && "bitemporal".equals(temporalStrategy(g.classFqn()))) {
+            // BI-TEMPORAL fetch: .all(processingDate, businessDate) — real
+            // pure's getAll(Class, processingDate, businessDate) signature;
+            // both dimensions filter.
+            materializedPipe = milestonedPipeByStrategy(
+                    milestonedPipeByStrategy(basePipe, g.milestoning().get(0),
+                            "processingtemporal", g.classFqn()),
+                    g.milestoning().get(1), "businesstemporal", g.classFqn());
+        } else if (g.milestoning().size() == 2) {
+            // SINGLE-dimension class with two dates: the RANGE fetch —
+            // engine getAll(Class, start, end), same filter as
+            // allVersionsInRange
+            materializedPipe = rangeMilestonedPipe(basePipe,
+                    g.milestoning().get(0), g.milestoning().get(1), g.classFqn());
+        } else {
+            materializedPipe = g.milestoning().isEmpty()
+                    ? basePipe
+                    : milestonedPipe(basePipe, g.milestoning().get(0), g.classFqn());
+        }
+
+        Map<String, Substitution.ExistsSub> existsSubs =
+                registerExistsSubs(cs, paths, filterPaths, ops, context);
+
+        AssocPlan assocPlan = registerAssociationJoins(cs, paths, context,
+                navSteps, extraNavHeads, extraNavTails, assocs);
+        java.util.List<AssocJoin> assocJoins = assocPlan.assocJoins();
+        Map<String, AssocJoin> joinsByChain = assocPlan.joinsByChain();
+
+        // 2a'. JOIN-KEY COLLECTION under mapping ~distinct (engine L5135):
+        // demanded joins' source-side key columns must survive the
+        // ~distinct narrowing select — widen it (the distinct then dedups
+        // over the widened row, exactly the engine's query-dependent
+        // distinct tuple). Aggregated-navigation materials build here so
+        // their conditions participate.
+        Map<String, AssocJoin> aggMaterials = new java.util.LinkedHashMap<>();
+        for (var entry : aggDemands.entrySet()) {
+            Set<String> leaves = new java.util.LinkedHashSet<>();
+            for (AggDemand dm : entry.getValue()) {
+                leaves.add(dm.leaf());
+            }
+            aggMaterials.put(entry.getKey(),
+                    aggJoinMaterial(cs, entry.getKey(), context, leaves));
+        }
+        Set<String> joinKeyReads = new java.util.LinkedHashSet<>();
+        for (AssocJoin aj : assocJoins) {
+            collectParamColumnReads(aj.condition(), joinKeyReads);
+        }
+        for (AssocJoin aj : aggMaterials.values()) {
+            collectParamColumnReads(aj.condition(), joinKeyReads);
+        }
+        for (Substitution.ExistsSub ex : existsSubs.values()) {
+            collectParamColumnReads(ex.orientedCond(), joinKeyReads);
+        }
+        TypedSpec keyWidenedPipe = joinKeyReads.isEmpty() ? materializedPipe
+                : Pipelines.widenDistinctForKeys(materializedPipe, joinKeyReads);
+        if (!joinKeyReads.isEmpty()) {
+            // UNION root: member threads carry the demanded join keys
+            // through the union projection (engine partial-union goldens)
+            keyWidenedPipe = Pipelines.widenConcatenateForKeys(
+                    keyWidenedPipe, joinKeyReads);
+        }
+        if (keyWidenedPipe != materializedPipe) {
+            m = new Pipelines.Materialized(keyWidenedPipe, m.slotPrefixes(),
+                    m.stripped());
+        }
+
+        registerDottedExistsSubs(cs, ops, top, tree, context, assocs,
+                existsSubs);
 
         // 2b. Materialize the association joins (descriptor -> emission,
         //     first-demand order) onto the pipeline.
