@@ -25,10 +25,49 @@ import java.util.Set;
  * identity per distinct date-set), and {@link #realHead} keeps every
  * model lookup transparent. Append-only across nested resolutions —
  * names are counter-unique; the registry is the ONE owner of the
- * '#'-suffix convention (the join-identity value type replaces the
- * string carrier next — ledger).
+ * '#'-suffix convention — {@link JoinIdentity} is the value type, the
+ * string form exists only because heads travel as property names.
  */
 final class SyntheticHeads {
+
+    /**
+     * A join identity parsed from a head name. Property names cannot
+     * contain {@code '#'} in Pure, so every suffix is ours; a malformed
+     * one is a resolver bug and throws. ALL encode/decode knowledge of
+     * the {@code #fN}/{@code #dN} convention lives in this record.
+     */
+    record JoinIdentity(String prop, Kind kind, int seq) {
+        enum Kind { PLAIN, FILTERED, DATED }
+
+        static JoinIdentity of(String head) {
+            int i = head.indexOf('#');
+            if (i < 0) {
+                return new JoinIdentity(head, Kind.PLAIN, -1);
+            }
+            char k = head.charAt(i + 1);
+            Kind kind = switch (k) {
+                case 'f' -> Kind.FILTERED;
+                case 'd' -> Kind.DATED;
+                default -> throw new IllegalStateException(
+                        "malformed synthetic head (resolver bug): " + head);
+            };
+            return new JoinIdentity(head.substring(0, i), kind,
+                    Integer.parseInt(head.substring(i + 2)));
+        }
+
+        String encoded() {
+            return switch (kind) {
+                case PLAIN -> prop;
+                case FILTERED -> prop + "#f" + seq;
+                case DATED -> prop + "#d" + seq;
+            };
+        }
+    }
+
+    /** The head names a filter-lifted chain ({@code #fN}). */
+    static boolean isFiltered(String head) {
+        return JoinIdentity.of(head).kind() == JoinIdentity.Kind.FILTERED;
+    }
 
     TypedLambda pred(String head) {
         return preds.get(head);
@@ -40,7 +79,12 @@ final class SyntheticHeads {
 
     /** A fresh date-fingerprinted identity for {@code prop}. */
     String mintDateName(String prop) {
-        return prop + "#d" + count++;
+        return new JoinIdentity(prop, JoinIdentity.Kind.DATED, count++).encoded();
+    }
+
+    /** A fresh filter-lifted identity for {@code prop}. */
+    private String mintFilteredName(String prop) {
+        return new JoinIdentity(prop, JoinIdentity.Kind.FILTERED, count++).encoded();
     }
 
     /** Scan entry: the lambda's BODY under its own parameter (never the lambda node). */
@@ -84,12 +128,12 @@ final class SyntheticHeads {
             String synth;
             if (head instanceof com.legend.compiler.spec.typed
                     .TypedMilestonedAccess ma) {
-                synth = ma.property() + "#f" + count++;
+                synth = mintFilteredName(ma.property());
                 renamed = new com.legend.compiler.spec.typed.TypedMilestonedAccess(
                         ma.source(), synth, ma.dates(), ma.sweep(), ma.info());
             } else {
                 var hp = (com.legend.compiler.spec.typed.TypedPropertyAccess) head;
-                synth = hp.property() + "#f" + count++;
+                synth = mintFilteredName(hp.property());
                 renamed = new com.legend.compiler.spec.typed.TypedPropertyAccess(
                         hp.source(), synth, hp.info());
             }
@@ -200,12 +244,12 @@ final class SyntheticHeads {
         String synth;
         if (f.source() instanceof com.legend.compiler.spec.typed
                 .TypedMilestonedAccess ma) {
-            synth = ma.property() + "#f" + count++;
+            synth = mintFilteredName(ma.property());
             renamed = new com.legend.compiler.spec.typed.TypedMilestonedAccess(
                     ma.source(), synth, ma.dates(), ma.sweep(), ma.info());
         } else {
             var hp = (com.legend.compiler.spec.typed.TypedPropertyAccess) f.source();
-            synth = hp.property() + "#f" + count++;
+            synth = mintFilteredName(hp.property());
             renamed = new com.legend.compiler.spec.typed.TypedPropertyAccess(
                     hp.source(), synth, hp.info());
         }
@@ -303,8 +347,7 @@ final class SyntheticHeads {
     /** A synthetic head's underlying property name ({@code product#f0} /
      * {@code product#d1} → {@code product}); identity for ordinary heads. */
     static String realHead(String head) {
-        int i = head.indexOf('#');
-        return i < 0 ? head : head.substring(0, i);
+        return JoinIdentity.of(head).prop();
     }
 
     /** Apply {@code renames} (identity-keyed milestoned-access nodes →

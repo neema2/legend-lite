@@ -480,7 +480,7 @@ final class Substitution {
                 // (testInNegated: NOT X OR read IS NULL)
                 java.util.List<String> crossPath = pathOf(read, target.userVar());
                 boolean filteredHead = crossPath != null
-                        && crossPath.get(0).contains("#f");
+                        && SyntheticHeads.isFiltered(crossPath.get(0));
                 return new TypedIf(
                         new TypedNativeCall(target.isNotEmptyCallee(),
                                 List.of(readInner),
