@@ -43,22 +43,121 @@ import java.util.Objects;
  */
 final class Substitution {
 
-    /** The instantiation being substituted into: fresh row var + bindings. */
-    record Target(String userVar, String freshRowVar, String classFqn,
-                  String mappingFqn, String sourceRowVar,
-                  Map<String, TypedSpec> bindings, Type.RelationType rowType,
-                  java.util.Set<String> strippedSlots,
-                  Map<String, String> slotPrefixes,
-                  Map<String, AssocSub> assocs,
-                  java.util.Set<String> assocEnds,
-                  Map<String, ExistsSub> existsSubs,
-                  Map<TypedSpec, AggRead> aggReads,
-                  com.legend.compiler.element.TypedFunction isNotEmptyCallee,
-                  com.legend.compiler.element.TypedFunction equalCallee,
-                  java.util.List<TypedSpec> rootTemporalDates,
-                  Map<String, java.util.List<TypedSpec>> headTemporalDates,
-                  Map<String, String> milestoneColumns,
-                  boolean filterPosition, boolean nested) {}
+    /** HOW READS LAND ON THE ROW: the user lambda's variable, the fresh
+     * row var replacing it, the class/mapping identity, the binding table
+     * written over {@code sourceRowVar}, the materialized row type, and
+     * the slot conversion state (stripped = loud; prefixed = converted). */
+    record RowScope(String userVar, String freshRowVar, String classFqn,
+                    String mappingFqn, String sourceRowVar,
+                    Map<String, TypedSpec> bindings, Type.RelationType rowType,
+                    java.util.Set<String> strippedSlots,
+                    Map<String, String> slotPrefixes,
+                    Map<String, String> milestoneColumns) {}
+
+    /** THE DEMAND-REGISTERED MATERIALS: association/navigate heads, the
+     * honest-error end names, the exists materials, the aggregate reads
+     * (identity-keyed), and the boolean-machinery callees. */
+    record Registries(Map<String, AssocSub> assocs,
+                      java.util.Set<String> assocEnds,
+                      Map<String, ExistsSub> existsSubs,
+                      Map<TypedSpec, AggRead> aggReads,
+                      com.legend.compiler.element.TypedFunction isNotEmptyCallee,
+                      com.legend.compiler.element.TypedFunction equalCallee) {
+
+        /** Inner substitutions (exists/pred rewrites) carry NO registries:
+         * nested navigation stays loud by construction. */
+        static final Registries NONE = new Registries(Map.of(),
+                java.util.Set.of(), Map.of(), Map.of(), null, null);
+    }
+
+    /** The temporal reads the substitution serves (generated-date
+     * properties): the root context's point dates and the per-chain
+     * property-function dates — legacy list shapes at this boundary. */
+    record TemporalView(java.util.List<TypedSpec> rootTemporalDates,
+                        Map<String, java.util.List<TypedSpec>> headTemporalDates) {
+
+        static final TemporalView NONE =
+                new TemporalView(java.util.List.of(), Map.of());
+    }
+
+    /** The instantiation being substituted into. Composed of the row
+     * scope, the registries and the temporal view; the flat accessors
+     * below keep the rewrite body reading naturally. */
+    record Target(RowScope row, Registries regs, TemporalView temporal,
+                  boolean filterPosition, boolean nested) {
+
+        String userVar() {
+            return row.userVar();
+        }
+
+        String freshRowVar() {
+            return row.freshRowVar();
+        }
+
+        String classFqn() {
+            return row.classFqn();
+        }
+
+        String mappingFqn() {
+            return row.mappingFqn();
+        }
+
+        String sourceRowVar() {
+            return row.sourceRowVar();
+        }
+
+        Map<String, TypedSpec> bindings() {
+            return row.bindings();
+        }
+
+        Type.RelationType rowType() {
+            return row.rowType();
+        }
+
+        java.util.Set<String> strippedSlots() {
+            return row.strippedSlots();
+        }
+
+        Map<String, String> slotPrefixes() {
+            return row.slotPrefixes();
+        }
+
+        Map<String, String> milestoneColumns() {
+            return row.milestoneColumns();
+        }
+
+        Map<String, AssocSub> assocs() {
+            return regs.assocs();
+        }
+
+        java.util.Set<String> assocEnds() {
+            return regs.assocEnds();
+        }
+
+        Map<String, ExistsSub> existsSubs() {
+            return regs.existsSubs();
+        }
+
+        Map<TypedSpec, AggRead> aggReads() {
+            return regs.aggReads();
+        }
+
+        com.legend.compiler.element.TypedFunction isNotEmptyCallee() {
+            return regs.isNotEmptyCallee();
+        }
+
+        com.legend.compiler.element.TypedFunction equalCallee() {
+            return regs.equalCallee();
+        }
+
+        java.util.List<TypedSpec> rootTemporalDates() {
+            return temporal.rootTemporalDates();
+        }
+
+        Map<String, java.util.List<TypedSpec>> headTemporalDates() {
+            return temporal.headTemporalDates();
+        }
+    }
 
     /** An aggregated-navigation column read: {@code column} on the joined
      * row; {@code zeroWhenEmpty} wraps count-family reads (COUNT over no
@@ -1140,11 +1239,11 @@ final class Substitution {
         //    (outer reads correlate through a second pass — same as exists)
         TypedLambda predLam = f.predicate();
         Substitution predSub = new Substitution(new Target(
-                predLam.parameters().get(0), tVar, ex.targetClassFqn(),
-                target.mappingFqn(), ex.targetRowVar(), ex.targetBindings(),
-                ex.targetRow(), ex.targetSlotAliases(), Map.of(), Map.of(),
-                java.util.Set.of(), Map.of(), Map.of(), null, null,
-                java.util.List.of(), Map.of(), Map.of(), true, true));
+                new RowScope(predLam.parameters().get(0), tVar,
+                        ex.targetClassFqn(), target.mappingFqn(),
+                        ex.targetRowVar(), ex.targetBindings(), ex.targetRow(),
+                        ex.targetSlotAliases(), Map.of(), Map.of()),
+                Registries.NONE, TemporalView.NONE, true, true));
         TypedLambda inner = predSub.rewriteLambda(predLam);
         TypedLambda innerOuter = new TypedLambda(inner.parameters(),
                 inner.body().stream().map(this::rewrite).toList(), inner.info());
@@ -1210,11 +1309,12 @@ final class Substitution {
         // second pass below at the CALL level; chain preds get theirs here)
         for (TypedLambda cf : chainPreds) {
             Substitution cfSub = new Substitution(new Target(
-                    cf.parameters().get(0), tVar, ex.targetClassFqn(),
-                    target.mappingFqn(), ex.targetRowVar(), ex.targetBindings(),
-                    ex.targetRow(), unconvertedSlotsOf(ex), ex.targetSlotPrefixes(),
-                    Map.of(), java.util.Set.of(), Map.of(), Map.of(), null, null,
-                    java.util.List.of(), Map.of(), Map.of(), true, true));
+                    new RowScope(cf.parameters().get(0), tVar,
+                            ex.targetClassFqn(), target.mappingFqn(),
+                            ex.targetRowVar(), ex.targetBindings(),
+                            ex.targetRow(), unconvertedSlotsOf(ex),
+                            ex.targetSlotPrefixes(), Map.of()),
+                    Registries.NONE, TemporalView.NONE, true, true));
             TypedLambda cfInner = cfSub.rewriteLambda(cf);
             TypedLambda cfCorr = new TypedLambda(cfInner.parameters(),
                     cfInner.body().stream().map(this::rewrite).toList(),
@@ -1238,12 +1338,12 @@ final class Substitution {
                     new java.util.LinkedHashSet<>(ex.targetSlotAliases());
             unconvertedSlots.removeAll(ex.targetSlotPrefixes().keySet());
             Substitution predSub = new Substitution(new Target(
-                    predLam.parameters().get(0), tVar, ex.targetClassFqn(),
-                    target.mappingFqn(), ex.targetRowVar(), ex.targetBindings(),
-                    ex.targetRow(), unconvertedSlots, ex.targetSlotPrefixes(),
-                    Map.of(),
-                    java.util.Set.of(), Map.of(), Map.of(), null, null,
-                    java.util.List.of(), Map.of(), Map.of(), true, true));
+                    new RowScope(predLam.parameters().get(0), tVar,
+                            ex.targetClassFqn(), target.mappingFqn(),
+                            ex.targetRowVar(), ex.targetBindings(),
+                            ex.targetRow(), unconvertedSlots,
+                            ex.targetSlotPrefixes(), Map.of()),
+                    Registries.NONE, TemporalView.NONE, true, true));
             TypedLambda inner = predSub.rewriteLambda(predLam);
             // OUTER reads inside the predicate ($s.name == $f.legal): a
             // second pass through THIS substitution turns them into

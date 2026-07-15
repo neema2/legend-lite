@@ -2525,14 +2525,14 @@ public final class StoreResolver {
                 Pipelines.slotAliases(target.pipeline()));
         unconverted.removeAll(slotPrefixes.keySet());
         Substitution predSub = new Substitution(new Substitution.Target(
-                pred.parameters().get(0), target.rowVar(), target.classFqn(),
-                mappingFqn, target.rowVar(), target.bindings(),
-                (com.legend.compiler.element.type.Type.RelationType)
-                        tPipe.info().type(),
-                unconverted, slotPrefixes, java.util.Map.of(),
-                java.util.Set.of(), java.util.Map.of(), java.util.Map.of(),
-                null, null, java.util.List.of(), java.util.Map.of(),
-                java.util.Map.of(), true, true));
+                new Substitution.RowScope(pred.parameters().get(0),
+                        target.rowVar(), target.classFqn(), mappingFqn,
+                        target.rowVar(), target.bindings(),
+                        (com.legend.compiler.element.type.Type.RelationType)
+                                tPipe.info().type(),
+                        unconverted, slotPrefixes, java.util.Map.of()),
+                Substitution.Registries.NONE, Substitution.TemporalView.NONE,
+                true, true));
         return new TypedFilter(tPipe, predSub.rewriteLambda(pred),
                 tPipe.info());
     }
@@ -3449,15 +3449,18 @@ public final class StoreResolver {
                                       boolean filterPosition,
                                       String freshRowVar, TypedLambda userLambda) {
         return new Substitution(new Substitution.Target(
-                userLambda.parameters().get(0), freshRowVar,
-                cs.classFqn(), cs.mappingFqn(), cs.rowVar(), cs.bindings(),
-                (com.legend.compiler.element.type.Type.RelationType)
-                        m.pipeline().info().type(),
-                m.stripped(), m.slotPrefixes(), assocs, assocEnds, existsSubs,
-                aggReads, isNotEmptyCallee(), equalCallee(),
-                temporal.root().legacyDates(),
-                temporal.headTemporalDates(),
-                temporal.milestoneColumnsOf(cs.pipeline(), cs.classFqn()),
+                new Substitution.RowScope(userLambda.parameters().get(0),
+                        freshRowVar, cs.classFqn(), cs.mappingFqn(),
+                        cs.rowVar(), cs.bindings(),
+                        (com.legend.compiler.element.type.Type.RelationType)
+                                m.pipeline().info().type(),
+                        m.stripped(), m.slotPrefixes(),
+                        temporal.milestoneColumnsOf(cs.pipeline(),
+                                cs.classFqn())),
+                new Substitution.Registries(assocs, assocEnds, existsSubs,
+                        aggReads, isNotEmptyCallee(), equalCallee()),
+                new Substitution.TemporalView(temporal.root().legacyDates(),
+                        temporal.headTemporalDates()),
                 filterPosition, false));
     }
 
