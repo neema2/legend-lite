@@ -98,11 +98,14 @@ class CompilerModuleTest {
                 Compiler.parseSources(List.of(
                         new Compiler.ModelSource("m.pure", src))).model());
         assertEquals(1, built.context().findFunction("my::pkg::f").size());
-        // NOTE (follow-up in #53): integrity's checkFunction does not yet
-        // reject unknown PARAMETER types, so the broken overload is skipped
-        // at collection rather than enumerated in the build walls — the
-        // eager-diagnosis gap is tracked; the healthy-sibling guarantee is
-        // what this pin protects.
+        assertTrue(built.walls().containsKey("my::pkg::f"),
+                () -> "the broken overload must be ENUMERATED: " + built.walls());
+        // and the STRICT path fails LOUDLY — the lenient skip is a
+        // tolerant-module-only semantics, never a silent strict drop
+        ModelException strict = assertThrows(ModelException.class,
+                () -> Compiler.compileModel(List.of(
+                        new Compiler.ModelSource("m.pure", src))));
+        assertTrue(strict.getMessage().contains("Missing"), strict.getMessage());
     }
 
     @Test

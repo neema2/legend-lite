@@ -127,7 +127,16 @@ public final class Compiler {
             sourceTexts.put(src.name(), src.text());
             ParsedModel unit = ElementParser.parse(src.text());
             for (com.legend.model.PackageableElement el : unit.elements()) {
-                String key = el.getClass().getSimpleName() + "::" + el.qualifiedName();
+                // FUNCTIONS overload: same FQN with different signatures is
+                // NOT a duplicate — the dedup key carries the parameter
+                // shape (dropping overloads silently lost the corpus's own
+                // executeInDb wrappers)
+                String key = el instanceof com.legend.model.FunctionDefinition fd
+                        ? "Function::" + fd.qualifiedName() + "(" + fd.parameters()
+                                .stream().map(pd -> String.valueOf(pd.type())
+                                        + String.valueOf(pd.multiplicity()))
+                                .reduce("", (x, y) -> x + "," + y) + ")"
+                        : el.getClass().getSimpleName() + "::" + el.qualifiedName();
                 String prior = seen.putIfAbsent(key, src.name());
                 if (prior != null) {
                     // FIRST definition wins (the corpus carries alternative
