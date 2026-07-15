@@ -7,34 +7,16 @@ Scope: <<test.ToFix>>/<<test.Ignore>> are excluded (engine harness
 parity) and so is <<test.ExcludeAlloy>> (legend-lite executes the
 in-process Alloy-shaped path).
 
-## Failed seed statements (45)
+## Failed seed statements (30)
 
+- `insert into FirmTable ("firmName", "employeeId") values ('GS',19) => Binder Error: Table "firmTable" does not have a column with name "firmName"`
+- `insert into FirmTable ("firmName", "employeeId") values ('JP',20) => Binder Error: Table "firmTable" does not have a column with name "firmName"`
 - `dropAndCreateTableInDb LegendCalendarSchema => no model CREATE found`
 - `dropAndCreateTableInDb CONCATENATE => no model CREATE found`
-- `insert into addressTable ("id", "type", "name", "street", "comments") values (1,1,'Hoboken', null, 'A comment with a % in the middle') => Binder Error: Table "addressTable" does not have a column with name "name"`
-- `insert into addressTable ("id", "type", "name", "street", "comments") values (2,1,'New York', null, 'A comment with a _ in the middle') => Binder Error: Table "addressTable" does not have a column with name "name"`
-- `insert into addressTable ("id", "type", "name", "street") values (3,1,'New York', null) => Binder Error: Table "addressTable" does not have a column with name "name"`
-- `insert into addressTable ("id", "type", "name", "street") values (4,1,'New York', null) => Binder Error: Table "addressTable" does not have a column with name "name"`
-- `insert into addressTable ("id", "type", "name", "street") values (5,1,'San Fransisco', null) => Binder Error: Table "addressTable" does not have a column with name "name"`
-- `insert into addressTable ("id", "type", "name", "street") values (6,1,'Hong Kong', null) => Binder Error: Table "addressTable" does not have a column with name "name"`
-- `insert into addressTable ("id", "type", "name", "street") values (7,1,'New York', null) => Binder Error: Table "addressTable" does not have a column with name "name"`
-- `insert into addressTable ("id", "type", "name", "street") values (8,1,'New York', 'West Street') => Binder Error: Table "addressTable" does not have a column with name "name"`
-- `insert into addressTable ("id", "type", "name", "street") values (9,1,'Cupertino', 'Infinite Loop') => Binder Error: Table "addressTable" does not have a column with name "name"`
-- `insert into addressTable ("id", "type", "name", "street") values (10,1,'Tokyo', null) => Binder Error: Table "addressTable" does not have a column with name "name"`
-- `insert into addressTable ("id", "type", "name", "street") values (11,1,'Mountain View', null) => Binder Error: Table "addressTable" does not have a column with name "name"`
+- `insert into testTable ("id", "value") values (1, 'Bla') => Binder Error: Table "testTable" does not have a column with name "id"`
+- `insert into testTable ("id", "value") values (2, null) => Binder Error: Table "testTable" does not have a column with name "id"`
 - `Drop schema schemaB if exists cascade => Parser Error: syntax error at or near "if"`
 - `create schema schemaB => Catalog Error: Schema with name "schemaB" already exists!`
-- `insert into addressTable ("id", "type", "name", "street", "comments") values (1,1,'Hoboken', null, 'A comment with a % in the middle') => Binder Error: Table "addressTable" does not have a column with name "type"`
-- `insert into addressTable ("id", "type", "name", "street", "comments") values (2,1,'New York', null, 'A comment with a _ in the middle') => Binder Error: Table "addressTable" does not have a column with name "type"`
-- `insert into addressTable ("id", "type", "name", "street") values (3,1,'New York', null) => Binder Error: Table "addressTable" does not have a column with name "type"`
-- `insert into addressTable ("id", "type", "name", "street") values (4,1,'New York', null) => Binder Error: Table "addressTable" does not have a column with name "type"`
-- `insert into addressTable ("id", "type", "name", "street") values (5,1,'San Fransisco', null) => Binder Error: Table "addressTable" does not have a column with name "type"`
-- `insert into addressTable ("id", "type", "name", "street") values (6,1,'Hong Kong', null) => Binder Error: Table "addressTable" does not have a column with name "type"`
-- `insert into addressTable ("id", "type", "name", "street") values (7,1,'New York', null) => Binder Error: Table "addressTable" does not have a column with name "type"`
-- `insert into addressTable ("id", "type", "name", "street") values (8,1,'New York', 'West Street') => Binder Error: Table "addressTable" does not have a column with name "type"`
-- `insert into addressTable ("id", "type", "name", "street") values (9,1,'Cupertino', 'Infinite Loop') => Binder Error: Table "addressTable" does not have a column with name "type"`
-- `insert into addressTable ("id", "type", "name", "street") values (10,1,'Tokyo', null) => Binder Error: Table "addressTable" does not have a column with name "type"`
-- `insert into addressTable ("id", "type", "name", "street") values (11,1,'Mountain View', null) => Binder Error: Table "addressTable" does not have a column with name "type"`
 - `CREATE OR REPLACE TABLE PERSON_FIRM_ADDRESS_MULTIGRAIN ("OID" INT, "DLEVEL" VARCHAR(2), "//Person" Grain => Parser Error: syntax error at or near "PERSON_FIRSTNAME"`
 - `CREATE OR REPLACE TABLE FIRM_ACCT_IF_MULTIGRAIN ("OID" INT, "DLEVEL" VARCHAR(2), "//Account" grain => Parser Error: syntax error at or near "ACCOUNT_NUM"`
 - `insert into PERSON_FIRM_ADDRESS_MULTIGRAIN ("DLEVEL", "OID", "PERSON_FIRSTNAME", "PERSON_LASTNAME", "PERSON_FIRM_OID", "PERSON_ADDRESS_OID", "PERSON_ADDRESS_LINE_1", "FIRM_LEGALNAME", "FIRM_ADDRESS_OID", "FIRM_ADDRESS_LINE_1", "ADDRESS_LINE_1", "ADDRESS_TYPE") values ('P', 1, 'Peter', 'Smith', 4, 6, '1 the street','Firm X', 9, '200 west', null, null) => Catalog Error: Table with name PERSON_FIRM_ADDRESS_MULTIGRAIN does not exist!`
@@ -54,15 +36,18 @@ in-process Alloy-shaped path).
 - `insert into FIRM_ACCT_IF_MULTIGRAIN("OID", "DLEVEL", "ACCOUNT_NUM", "IF_NUM", "IF_TYPE", "IF_PERCENT", "IF_DESCRIPTION") values(5, 'S', '7204567', 1022, 'P', 100.0, null) => Catalog Error: Table with name FIRM_ACCT_IF_MULTIGRAIN does not exist!`
 - `insert into FIRM_ACCT_IF_MULTIGRAIN("OID", "DLEVEL", "ACCOUNT_NUM", "IF_NUM", "IF_TYPE", "IF_PERCENT", "IF_DESCRIPTION") values(6, 'I', null, 1022, null, null, 'IF 1') => Catalog Error: Table with name FIRM_ACCT_IF_MULTIGRAIN does not exist!`
 - `insert into FIRM_ACCT_IF_MULTIGRAIN("OID", "DLEVEL", "ACCOUNT_NUM", "IF_NUM", "IF_TYPE", "IF_PERCENT", "IF_DESCRIPTION") values(7, 'I', null, 1023, null, null, 'IF 2') => Catalog Error: Table with name FIRM_ACCT_IF_MULTIGRAIN does not exist!`
+- `insert into tradeTable ("id", "traderId", "accountId") values (1, 1, 11) => Binder Error: Table "tradeTable" does not have a column with name "traderId"`
+- `insert into tradeTable ("id", "traderId", "accountId") values (2, 2, 11) => Binder Error: Table "tradeTable" does not have a column with name "traderId"`
+- `insert into tradeTable ("id", "traderId", "accountId") values (3, 3, 11) => Binder Error: Table "tradeTable" does not have a column with name "traderId"`
 
 | family | tests | pass | fail | error | shape |
 |---|---|---|---|---|---|
 | aggregationAware/test/rewrite | 13 | 0 | 0 | 0 | 13 |
 | aggregationAware/test/rewrite/NOP | 15 | 0 | 0 | 0 | 15 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
-| calendarAggregation/tests | 92 | 87 | 0 | 0 | 5 |
+| calendarAggregation/tests | 92 | 85 | 0 | 2 | 5 |
 | executionPlan/tests | 103 | 0 | 0 | 10 | 93 |
-| functions/tests | 251 | 111 | 3 | 103 | 34 |
+| functions/tests | 251 | 110 | 3 | 104 | 34 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 0 | 1 |
 | functions/tests/projection | 146 | 69 | 5 | 54 | 18 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -117,7 +102,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2316 | **899** | 29 | 662 | 726 |
+| **total** | 2316 | **896** | 29 | 665 | 726 |
 
 ### mapping walls (dropped at assembly)
 
@@ -3514,10 +3499,12 @@ in-process Alloy-shaped path).
 - SHAPE testRewriteTDSOperation [aggregationAware/test/rewrite/NOP]: no execute(|...) call
 - SHAPE testClassesAssociationsAndMappingFromDatabase [autogeneration/tests]: no execute(|...) call
 - SHAPE testPywaDateRange [calendarAggregation/tests]: assert form 'assertEquals/2' is not supported yet
+- ERROR testNestedAttributeCalendar [calendarAggregation/tests]: Binder Error: Table "t1" does not have a column named "employeeId" |  | Candidate bindings: : "CEOID" |  | LINE 3: LEFT OUTER JOIN FirmTable AS t1 ON t0.id = t1.employeeId |                                                    ^
 - SHAPE testDifferentCalendar [calendarAggregation/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDifferentEndDates [calendarAggregation/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDynaEndDate [calendarAggregation/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDynaInput [calendarAggregation/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- ERROR testUnionWithWtdAndPwa [calendarAggregation/tests]: Binder Error: Table "t1" does not have a column named "employeeId" |  | Candidate bindings: : "CEOID" |  | LINE 5:   LEFT OUTER JOIN FirmTable AS t1 ON t0.id = t1.employeeId |                                                      ^
 - SHAPE testPureExecutionStrategyForRelationalInstantiationExecutionNode [executionPlan/tests]: no execute(|...) call
 - SHAPE testPureExecutionStrategyForCreateAndPopulateTempTableExecutionNode [executionPlan/tests]: no execute(|...) call
 - SHAPE testFilterInWithResultSorcedFromAnExpression [executionPlan/tests]: no execute(|...) call
@@ -3625,7 +3612,7 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataType [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeMerge [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
 - ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testConcatenateClassJoin [functions/tests]: multi-hop navigation product.synonyms#c0.name through an embedded/slot head is not supported yet
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
@@ -3688,6 +3675,7 @@ in-process Alloy-shaped path).
 - ERROR testInExecutionWithTempTableAndQueryChaining [functions/tests]: object-space expression node TypedGetAll is not substitutable yet (H2 vocabulary)
 - ERROR testInExecutionWithTempTableAndQueryChainingOnIntegerColumn [functions/tests]: object-space expression node TypedGetAll is not substitutable yet (H2 vocabulary)
 - ERROR testInExecutionWithTempTableAndQueryChainingAndChainConnection [functions/tests]: object-space expression node TypedGetAll is not substitutable yet (H2 vocabulary)
+- ERROR testDerivedWithIsEmpty [functions/tests]: Binder Error: Table "t0" does not have a column named "value" |  | Candidate bindings: : "else" |  | LINE 3: WHERE t0.value IS NULL |               ^
 - ERROR testIsolationOfInputToIsEmpty [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testIsolationOfInputToIsEmptyWithForcedFiltersOnInput [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testInputNotIsolatedWhenPropertyPathIsToOne [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet

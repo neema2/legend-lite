@@ -37,16 +37,14 @@ public final class Runner {
     /** Shared-file table DDL — replayed FIRST, before ANY data. */
     private final List<String> ddlSeeds;
     /** Shared-file executeInDb data literals — replayed after ALL DDL. */
-    private final List<String> dataSeeds;
     /**
      * FQNs of every zero-arg function defined in the shared seed files:
-     * their body literals already ride {@link #dataSeeds}, so BeforePackage
+     * their body literals already ride the shared replay, so BeforePackage
      * expansion must not run them a SECOND time. Run-once emulation at
      * FUNCTION granularity — the old statement-level dedup also destroyed
      * deliberately repeated inserts feeding distinct() tests (audit A1) and
      * silently swallowed post-REPLACE refills (audit A2).
      */
-    private final java.util.Set<String> sharedSeededFns = new java.util.HashSet<>();
     /** {@code <<test.BeforePackage>>} setups collected corpus-wide. */
     private final List<Corpus.BeforePackage> beforePackages = new ArrayList<>();
     // ===== MODULE assembly (Phase B): raw sources through the real
@@ -79,13 +77,33 @@ public final class Runner {
             }
         }
         this.ddlSeeds = ddl;
-        List<String> data = new ArrayList<>();
+        // PHASE E: shared-file DATA seeds by EXECUTING the shared files'
+        // functions through the platform, in definition order — the same
+        // statement sequence the literal extraction produced. Functions
+        // WITH parameters cannot be called, but their constant literals
+        // replayed under the legacy extraction — runSetup's bound-variable
+        // gates give the identical silent-skip for the parameter-dependent
+        // ones.
         for (String src : seedSources) {
-            data.addAll(Corpus.seedSql(src));
-            sharedSeededFns.addAll(Corpus.functionBodies(src).keySet());
+            collectSetups(src);
+            com.legend.model.ParsedModel unit;
+            try {
+                unit = com.legend.parser.ElementParser.parse(src);
+            } catch (RuntimeException e) {
+                continue;
+            }
+            for (com.legend.model.PackageableElement el : unit.elements()) {
+                if (el instanceof com.legend.model.FunctionDefinition f) {
+                    sharedSetupUnits.add(new Object[]{f.qualifiedName(),
+                            f.body(), f.parameters().isEmpty()});
+                }
+            }
         }
-        this.dataSeeds = data;
     }
+
+    /** Shared-file functions, definition order — {fqn, body AST, zeroArg};
+     * executed for EVERY test (each test gets a fresh in-memory db). */
+    private final List<Object[]> sharedSetupUnits = new ArrayList<>();
 
     /** Zero-arg setup-function bodies across every scanned file. */
     private final Map<String, String> setupFnBodies = new LinkedHashMap<>();
@@ -606,7 +624,6 @@ public final class Runner {
         List<String> allSeeds = new ArrayList<>(ddlSeeds);
         allSeeds.addAll(familySeeds.getOrDefault(currentFamilyKey, List.of()));
         allSeeds.addAll(fileSeeds.getOrDefault(currentFileKey, List.of()));
-        allSeeds.addAll(dataSeeds);
         List<String> failedSeeds = new ArrayList<>();
         // resolve dropAndCreate markers (emitted IN CALL ORDER by
         // Corpus.seedSql) to the family's CREATE statements at replay
@@ -638,10 +655,25 @@ public final class Runner {
         // seeding code runs; no literal extraction. Order matches the
         // legacy replay: shared DDL, family/file DDL, shared data, then
         // per-package setups, then setups the TEST BODY calls.
-        java.util.Set<String> executed = new java.util.HashSet<>(sharedSeededFns);
+        java.util.Set<String> executed = new java.util.HashSet<>();
         com.legend.TestBody.SetupIo io = setupIo(conn, failedSeeds);
         com.legend.model.ImportScope none =
                 new com.legend.model.ImportScope(List.of(), Map.of());
+        // shared-file functions FIRST (the legacy dataSeeds position);
+        // run-once carries into the BP/test-called stages below
+        for (Object[] unit : sharedSetupUnits) {
+            String sharedFqn = (String) unit[0];
+            @SuppressWarnings("unchecked")
+            List<com.legend.model.spec.ValueSpecification> body =
+                    (List<com.legend.model.spec.ValueSpecification>) unit[1];
+            boolean zeroArg = (Boolean) unit[2];
+            if (!zeroArg || executed.add(sharedFqn)) {
+                String pkg = sharedFqn.contains("::")
+                        ? sharedFqn.substring(0, sharedFqn.lastIndexOf("::")) : "";
+                com.legend.TestBody.runSetup(ctx, body, none, "rcorpus::Rt",
+                        conn, setupFnAsts, executed, io, pkg);
+            }
+        }
         for (String[] bp : beforePackagesParsed) {
             if (fqn.startsWith(bp[0] + "::") && executed.add(bp[1])) {
                 List<com.legend.model.spec.ValueSpecification> body =
@@ -726,12 +758,18 @@ public final class Runner {
      * DDL and clobber the family shape. Re-emitting the family's own
      * CREATE here restores it right before the setup's inserts.
      */
-    /** The family CREATE statements for {@code table} (simple-name match). */
+    /** The model CREATE statements for {@code table} (simple-name match)
+     * across the FAMILY, the current test FILE, and the shared DDL — a
+     * dropAndCreateTableInDb may target a table declared in any of them. */
     private List<String> familyCreatesOf(String table) {
         List<String> out = new ArrayList<>();
         String simple = table.contains(".")
                 ? table.substring(table.lastIndexOf('.') + 1) : table;
-        for (String s : familySeeds.getOrDefault(currentFamilyKey, List.of())) {
+        List<String> searchSpace = new ArrayList<>(
+                familySeeds.getOrDefault(currentFamilyKey, List.of()));
+        searchSpace.addAll(fileSeeds.getOrDefault(currentFileKey, List.of()));
+        searchSpace.addAll(ddlSeeds);
+        for (String s : searchSpace) {
             Matcher c = Pattern.compile(
                     "(?i)^\\s*CREATE OR REPLACE TABLE\\s+([\\w.\"]+)")
                     .matcher(s);

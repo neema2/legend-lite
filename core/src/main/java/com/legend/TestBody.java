@@ -486,8 +486,12 @@ public final class TestBody {
         if (stmt instanceof AppliedFunction af) {
             String simple = simpleName(af.function());
             if (simple.startsWith("executeInDb") && !af.parameters().isEmpty()) {
-                Object sql = evalScalar(af.parameters().get(0), lets,
-                        new LinkedHashMap<>(), ctx, imports, runtimeFqn, conn);
+                if (!freeVarsBound(af.parameters().get(0), lets)) {
+                    return;   // parameter-dependent SQL: the legacy
+                              // extraction skipped these silently too
+                }
+                Object sql = setupString(af.parameters().get(0), lets, ctx,
+                        imports, runtimeFqn, conn);
                 if (sql instanceof String str) {
                     io.executeSql(str);
                 }
@@ -495,11 +499,14 @@ public final class TestBody {
             }
             if (simple.equals("dropAndCreateTableInDb")
                     && af.parameters().size() >= 2) {
+                if (!freeVarsBound(af.parameters().get(1), lets)) {
+                    return;
+                }
                 String dbFqn = af.parameters().get(0)
                         instanceof PackageableElementPtr ptr
                         ? ptr.fullPath() : null;
-                Object table = evalScalar(af.parameters().get(1), lets,
-                        new LinkedHashMap<>(), ctx, imports, runtimeFqn, conn);
+                Object table = setupString(af.parameters().get(1), lets, ctx,
+                        imports, runtimeFqn, conn);
                 if (table instanceof String t) {
                     io.dropAndCreate(dbFqn, t);
                 }
@@ -558,8 +565,8 @@ public final class TestBody {
             if (simple.startsWith("executeInDb") && !af.parameters().isEmpty()
                     && freeVarsBound(af.parameters().get(0), lets)) {
                 try {
-                    Object sql = evalScalar(af.parameters().get(0), lets,
-                            new LinkedHashMap<>(), ctx, imports, runtimeFqn, conn);
+                    Object sql = setupString(af.parameters().get(0), lets, ctx,
+                            imports, runtimeFqn, conn);
                     if (sql instanceof String str) {
                         io.executeSql(str);
                     }
@@ -572,8 +579,8 @@ public final class TestBody {
                     && af.parameters().size() >= 2
                     && freeVarsBound(af.parameters().get(1), lets)) {
                 try {
-                    Object table = evalScalar(af.parameters().get(1), lets,
-                            new LinkedHashMap<>(), ctx, imports, runtimeFqn, conn);
+                    Object table = setupString(af.parameters().get(1), lets, ctx,
+                            imports, runtimeFqn, conn);
                     String dbFqn = af.parameters().get(0)
                             instanceof PackageableElementPtr ptr
                             ? ptr.fullPath() : null;
@@ -596,6 +603,67 @@ public final class TestBody {
             pc.values().forEach(x ->
                     fallbackWalk(x, lets, ctx, imports, runtimeFqn, conn, io));
         }
+    }
+
+    /**
+     * A setup argument as a STRING: literals and let-bound
+     * literal/concat chains fold HOST-SIDE (a seed replay runs thousands
+     * of these — a pipeline round-trip per literal would dominate the
+     * sweep); anything else evaluates through the ordinary pipeline.
+     */
+    private static Object setupString(ValueSpecification v,
+            Map<String, ValueSpecification> lets, ModelContext ctx,
+            ImportScope imports, String runtimeFqn, Connection conn)
+            throws java.sql.SQLException {
+        String fast = foldString(v, lets, 0);
+        if (fast != null) {
+            return fast;
+        }
+        return evalScalar(v, lets, new LinkedHashMap<>(), ctx, imports,
+                runtimeFqn, conn);
+    }
+
+    /** Host-side fold of CString / let-ref / plus-concat chains; null when
+     * any part is not statically a string. */
+    private static String foldString(ValueSpecification v,
+            Map<String, ValueSpecification> lets, int depth) {
+        if (depth > 32) {
+            return null;
+        }
+        if (v instanceof CString c) {
+            return c.value();
+        }
+        if (v instanceof Variable var && lets.containsKey(var.name())) {
+            return foldString(lets.get(var.name()), lets, depth + 1);
+        }
+        if (v instanceof AppliedFunction af
+                && simpleName(af.function()).equals("plus")) {
+            StringBuilder sb = new StringBuilder();
+            for (ValueSpecification part : flattenPlus(af)) {
+                String piece = foldString(part, lets, depth + 1);
+                if (piece == null) {
+                    return null;
+                }
+                sb.append(piece);
+            }
+            return sb.toString();
+        }
+        return null;
+    }
+
+    private static List<ValueSpecification> flattenPlus(AppliedFunction af) {
+        List<ValueSpecification> out = new ArrayList<>();
+        for (ValueSpecification p : af.parameters()) {
+            if (p instanceof PureCollection pc) {
+                out.addAll(pc.values());
+            } else if (p instanceof AppliedFunction inner
+                    && simpleName(inner.function()).equals("plus")) {
+                out.addAll(flattenPlus(inner));
+            } else {
+                out.add(p);
+            }
+        }
+        return out;
     }
 
     /** Shared whole-segment package prefix — the legacy expansion's
