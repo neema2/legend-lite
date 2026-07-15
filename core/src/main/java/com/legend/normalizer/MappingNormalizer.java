@@ -1372,7 +1372,18 @@ public final class MappingNormalizer {
                     collectExprTables(ex.expression(), sink);
                 }
             }
-            default -> { }
+            // DELIBERATE non-contributors (audit 15: exhaustive, no default —
+            // a new PM kind must state its main-table stance here): joins
+            // and join terminals reference OTHER tables; enum expressions
+            // and inline/otherwise embeddeds carry no direct column.
+            case PropertyMapping.Join ignored -> { }
+            case PropertyMapping.JoinTerminalColumn ignored -> { }
+            case PropertyMapping.EnumeratedExpression ignored -> { }
+            case PropertyMapping.InlineEmbedded ignored -> { }
+            // NOTE the asymmetry with Embedded (which recurses): the old
+            // open default never recursed OtherwiseEmbedded — preserved
+            // as-is; changing main-table inference needs its own probe.
+            case PropertyMapping.OtherwiseEmbedded ignored -> { }
         }
     }
 
@@ -1402,7 +1413,15 @@ public final class MappingNormalizer {
                     collectExprTables(g.inner(), sink);
             case RelationalOperation.ArrayLiteral a ->
                     a.elements().forEach(e -> collectExprTables(e, sink));
-            default -> { }
+            // DELIBERATE non-contributors (audit 15: exhaustive, no default):
+            // literals/type refs carry no table; a bare/target column ref
+            // without a database qualifier cannot name one; join navigations
+            // reference OTHER tables by construction.
+            case RelationalOperation.ColumnRef ignored -> { }
+            case RelationalOperation.TargetColumnRef ignored -> { }
+            case RelationalOperation.Literal ignored -> { }
+            case RelationalOperation.TypeRef ignored -> { }
+            case RelationalOperation.JoinNavigation ignored -> { }
         }
     }
 

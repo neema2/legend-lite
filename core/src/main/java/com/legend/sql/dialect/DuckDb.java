@@ -93,7 +93,39 @@ public final class DuckDb extends AnsiSqlRenderer {
                     a.elements().stream().map(DuckDb::unqualify).toList());
             case SqlExpr.StructGet g ->
                     new SqlExpr.StructGet(unqualify(g.source()), g.field());
-            default -> e;
+            case SqlExpr.StructLit sl -> new SqlExpr.StructLit(
+                    sl.fields().stream().map(f -> new SqlExpr.StructLit.Field(
+                            f.name(), unqualify(f.value()))).toList());
+            case SqlExpr.OrderedListAgg o -> new SqlExpr.OrderedListAgg(
+                    unqualify(o.value()), unqualify(o.orderBy()));
+            case SqlExpr.JsonObject j -> new SqlExpr.JsonObject(
+                    j.kv().stream().map(DuckDb::unqualify).toList());
+            case SqlExpr.JsonArrayAgg ja ->
+                    new SqlExpr.JsonArrayAgg(unqualify(ja.value()));
+            case SqlAgg.Reducer r -> new SqlAgg.Reducer(r.fn(),
+                    r.args().stream().map(DuckDb::unqualify).toList(),
+                    r.distinct());
+            case SqlExpr.FoldCall f -> new SqlExpr.FoldCall(
+                    unqualify(f.source()), f.lambda(), unqualify(f.init()),
+                    f.accIsList(), f.homogeneous());
+            case SqlExpr.WindowCall w -> new SqlExpr.WindowCall(w.fn(),
+                    w.partitionBy().stream().map(DuckDb::unqualify).toList(),
+                    w.orderBy(), w.frame());
+            // subqueries own their aliases; lambdas bind their own params;
+            // leaves carry no qualifier (audit 15: exhaustive, no default)
+            case SqlExpr.Exists x -> x;
+            case SqlExpr.ScalarSubquery ss -> ss;
+            case SqlExpr.Lambda l -> l;
+            case SqlExpr.Star st -> st;
+            case SqlExpr.StarExcept se -> se;
+            case SqlExpr.StringLit ignored -> e;
+            case SqlExpr.IntLit ignored -> e;
+            case SqlExpr.FloatLit ignored -> e;
+            case SqlExpr.DecimalLit ignored -> e;
+            case SqlExpr.BoolLit ignored -> e;
+            case SqlExpr.NullLit ignored -> e;
+            case SqlExpr.DateLit ignored -> e;
+            case SqlExpr.TimestampLit ignored -> e;
         };
     }
 

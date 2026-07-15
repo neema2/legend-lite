@@ -356,18 +356,33 @@ public final class Executor {
         return pureOfSqlType(sqlType);
     }
 
-    /** The Pure primitive a DYNAMIC (pivot-generated) SQL column carries. */
+    /** The Pure primitive a DYNAMIC (pivot-generated) SQL column carries.
+     * Every known name is EXPLICIT — an unrecognized SQL type is a gap in
+     * this table, not a String (audit 15: the silent String default
+     * corrupted result typing invisibly). */
     private static Type pureOfSqlType(String sqlType) {
-        return switch (sqlType.toUpperCase()) {
+        String t = sqlType.toUpperCase();
+        return switch (t) {
             case "TINYINT", "SMALLINT", "INTEGER", "BIGINT", "HUGEINT" ->
                     Type.Primitive.INTEGER;
             case "FLOAT", "DOUBLE", "REAL" -> Type.Primitive.FLOAT;
             case "BOOLEAN" -> Type.Primitive.BOOLEAN;
             case "DATE" -> Type.Primitive.STRICT_DATE;
             case "TIMESTAMP" -> Type.Primitive.DATE_TIME;
-            default -> sqlType.toUpperCase().startsWith("DECIMAL")
-                    ? Type.Primitive.DECIMAL
-                    : Type.Primitive.STRING;
+            case "VARCHAR", "CHAR", "TEXT", "STRING", "BPCHAR" ->
+                    Type.Primitive.STRING;
+            default -> {
+                if (t.startsWith("DECIMAL")) {
+                    yield Type.Primitive.DECIMAL;
+                }
+                if (t.startsWith("VARCHAR") || t.startsWith("CHAR")) {
+                    yield Type.Primitive.STRING;
+                }
+                throw new IllegalStateException(
+                        "no Pure primitive mapped for SQL type '" + sqlType
+                        + "' (pivot-generated column) — add it to"
+                        + " Executor.pureOfSqlType");
+            }
         };
     }
 

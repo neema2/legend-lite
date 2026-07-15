@@ -89,4 +89,18 @@ class StoreResolverTest {
         var body = resolve("#>{s::DB.T}#->filter(x|$x.AGE > 30)", null);
         assertInstanceOf(TypedFilter.class, body.get(0));
     }
+
+    @Test
+    @DisplayName("post-condition (README rule 9): a surviving TypedGetAll is a loud resolver-phase gap")
+    void noEscapeWalkCatchesSurvivingGetAll() {
+        var info = new com.legend.compiler.element.type.ExprType(
+                new com.legend.compiler.element.type.Type.ClassType("test::C"),
+                com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY);
+        var escapee = new com.legend.compiler.spec.typed.TypedGetAll(
+                "test::C", List.of(), false, info);
+        var e = assertThrows(com.legend.error.NotImplementedException.class,
+                () -> StoreResolver.assertNoStoreOnlyEscapees(escapee));
+        assertTrue(e.getMessage().contains("test::C"), e.getMessage());
+        assertTrue(e.getMessage().contains("resolver"), e.getMessage());
+    }
 }

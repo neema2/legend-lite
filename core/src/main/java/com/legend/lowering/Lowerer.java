@@ -663,7 +663,49 @@ public final class Lowerer {
                             windowize(w.then(), partitionBy, orderBy, frame))).toList(),
                     cs.otherwise() == null ? null
                             : windowize(cs.otherwise(), partitionBy, orderBy, frame));
-            default -> e;
+            // Composite carriers: a reducer anywhere inside must window
+            // (audit 15: the open default let these render bare aggregates).
+            case SqlExpr.ArrayLit a -> new SqlExpr.ArrayLit(a.elements().stream()
+                    .map(x -> windowize(x, partitionBy, orderBy, frame)).toList());
+            case SqlExpr.StructLit s -> new SqlExpr.StructLit(s.fields().stream()
+                    .map(f -> new SqlExpr.StructLit.Field(f.name(),
+                            windowize(f.value(), partitionBy, orderBy, frame)))
+                    .toList());
+            case SqlExpr.StructGet g -> new SqlExpr.StructGet(
+                    windowize(g.source(), partitionBy, orderBy, frame), g.field());
+            case SqlExpr.JsonObject j -> new SqlExpr.JsonObject(j.kv().stream()
+                    .map(x -> windowize(x, partitionBy, orderBy, frame)).toList());
+            case SqlExpr.FoldCall f -> new SqlExpr.FoldCall(
+                    windowize(f.source(), partitionBy, orderBy, frame), f.lambda(),
+                    windowize(f.init(), partitionBy, orderBy, frame),
+                    f.accIsList(), f.homogeneous());
+            // Ordered-set / array aggregates are not expressible as OVER()
+            // window functions in this IR — bare emission would silently
+            // change grouping semantics; the shape stays loud until built.
+            case SqlExpr.OrderedListAgg ignored ->
+                    throw new com.legend.error.NotImplementedException(
+                            "ordered list aggregate in window position");
+            case SqlExpr.JsonArrayAgg ignored ->
+                    throw new com.legend.error.NotImplementedException(
+                            "json array aggregate in window position");
+            // Subqueries own their scope: a reducer inside aggregates THERE,
+            // never over this window. Already-windowed calls keep their spec.
+            case SqlExpr.Exists x -> x;
+            case SqlExpr.ScalarSubquery s -> s;
+            case SqlExpr.WindowCall w -> w;
+            case SqlExpr.Lambda l -> l;
+            // Leaves: no reducer can hide below.
+            case SqlExpr.Column ignored -> e;
+            case SqlExpr.Star ignored -> e;
+            case SqlExpr.StarExcept ignored -> e;
+            case SqlExpr.StringLit ignored -> e;
+            case SqlExpr.IntLit ignored -> e;
+            case SqlExpr.FloatLit ignored -> e;
+            case SqlExpr.DecimalLit ignored -> e;
+            case SqlExpr.BoolLit ignored -> e;
+            case SqlExpr.NullLit ignored -> e;
+            case SqlExpr.DateLit ignored -> e;
+            case SqlExpr.TimestampLit ignored -> e;
         };
     }
 
