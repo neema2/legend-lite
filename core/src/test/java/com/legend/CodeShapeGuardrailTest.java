@@ -40,7 +40,6 @@ class CodeShapeGuardrailTest {
 
     /** Known oversized FILES, pending their planned splits. */
     private static final Map<String, Integer> FILE_ALLOWLIST = Map.of(
-            "MappingNormalizer.java", 5100,           // 4974: Doors split planned
             "ElementParser.java", 3600);              // 3509: grammar sections split planned
 
     /** Mutable instance fields that are DELIBERATE: hand-rolled parser
