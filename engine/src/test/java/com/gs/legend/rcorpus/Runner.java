@@ -33,7 +33,6 @@ public final class Runner {
 
     public enum Status { PASS, FAIL, ERROR, SHAPE }
 
-    private final String model;
     private final List<String> walls = new ArrayList<>();
     /** Shared-file table DDL — replayed FIRST, before ANY data. */
     private final List<String> ddlSeeds;
@@ -50,9 +49,6 @@ public final class Runner {
     private final java.util.Set<String> sharedSeededFns = new java.util.HashSet<>();
     /** {@code <<test.BeforePackage>>} setups collected corpus-wide. */
     private final List<Corpus.BeforePackage> beforePackages = new ArrayList<>();
-    /** Element keys (kind::fqn) of the SHARED base model — dedup floor. */
-    private final java.util.Set<String> sharedSeen = new java.util.HashSet<>();
-
     // ===== MODULE assembly (Phase B): raw sources through the real
     // parser — the text-extraction path below it is being retired =====
     private final List<com.legend.Compiler.ModelSource> sharedRaw = new ArrayList<>();
@@ -70,29 +66,6 @@ public final class Runner {
             sharedRaw.add(new com.legend.Compiler.ModelSource(
                     "shared-" + i + ".pure", sharedSources.get(i)));
         }
-        StringBuilder mandatory = new StringBuilder();
-        List<String[]> mappings = new ArrayList<>();
-        for (String src : sharedSources) {
-            for (String[] el : splitSectioned(Corpus.modelElements(src))) {
-                sharedSeen.add(el[0] + "::" + el[1]);
-                if (el[0].equals("Mapping")) {
-                    mappings.add(el);
-                } else {
-                    mandatory.append(el[2]).append(el[3]).append('\n');
-                }
-            }
-        }
-        StringBuilder assembled = new StringBuilder(mandatory);
-        for (String[] m : mappings) {
-            String candidate = assembled + "\n" + m[2] + m[3];
-            try {
-                com.legend.Compiler.compile(candidate, "|1", "n/a");
-                assembled.append('\n').append(m[2]).append(m[3]);
-            } catch (Exception e) {
-                walls.add(m[1] + " => " + String.valueOf(e.getMessage()).split("\n")[0]);
-            }
-        }
-        this.model = assembled.toString();
         List<String> ddl = new ArrayList<>();
         for (String src : sharedSources) {
             var seedTypes0 = Corpus.seedColumnTypes(src);
@@ -122,14 +95,9 @@ public final class Runner {
         Corpus.functionBodies(source).forEach(setupFnBodies::putIfAbsent);
     }
 
-    /** Per-test-file model extensions (classes/mappings defined NEXT TO the tests). */
-    private final Map<String, String> fileModels = new LinkedHashMap<>();
     private final Map<String, List<String>> fileSeeds = new LinkedHashMap<>();
     private String currentFileKey = "";
-    /** Family-level extension: the family's SETUP files (no test functions). */
-    private final Map<String, String> familyModels = new LinkedHashMap<>();
     private final Map<String, List<String>> familySeeds = new LinkedHashMap<>();
-    private final Map<String, java.util.Set<String>> familySeen = new LinkedHashMap<>();
     private String currentFamilyKey = "";
 
     /**
@@ -163,7 +131,7 @@ public final class Runner {
     public void useFamily(String familyKey, List<String> setupSources,
             List<String> modelOnlySources, String parentFamilyKey) {
         currentFamilyKey = familyKey;
-        if (familyModels.containsKey(familyKey)) {
+        if (familyRaw.containsKey(familyKey)) {
             return;
         }
         List<com.legend.Compiler.ModelSource> raw = new ArrayList<>();
@@ -186,35 +154,12 @@ public final class Runner {
         for (String src : modelOnlySources) {
             Corpus.functionBodies(src).forEach(setupFnBodies::putIfAbsent);
         }
-        StringBuilder ext = new StringBuilder();
         List<String> sql = new ArrayList<>();
-        if (parentFamilyKey != null && familyModels.containsKey(parentFamilyKey)) {
-            ext.append(familyModels.get(parentFamilyKey)).append('\n');
+        if (parentFamilyKey != null) {
             sql.addAll(familySeeds.getOrDefault(parentFamilyKey, List.of()));
         }
-        String prefix = model + ext;
-        // pass 1: every family file's NON-mapping elements, deduped by
-        // kind::fqn (the real engine compiles the whole module together;
-        // cross-file references — embedded's BondDetail association,
-        // inheritance's cross-file includes — are normal). A mapping in
-        // file A may reference classes from file B, so mappings probe
-        // after ALL classes/stores across the family are present.
-        List<String[]> mappings = new ArrayList<>();
-        List<String[]> baseEls = new ArrayList<>();   // {kind fqn, text}
-        java.util.Set<String> seen = new java.util.HashSet<>(sharedSeen);
-        familySeen.put(familyKey, seen);
+        List<String> preSql = new ArrayList<>();
         for (String src : setupSources) {
-            for (String[] el : splitSectioned(Corpus.modelElements(src))) {
-                if (!seen.add(el[0] + "::" + el[1])) {
-                    continue;   // first definition wins
-                }
-                if (el[0].equals("Mapping")) {
-                    mappings.add(el);
-                } else {
-                    baseEls.add(new String[]{el[0] + " " + el[1],
-                            el[2] + el[3] + "\n"});
-                }
-            }
             var seedTypes1 = Corpus.seedColumnTypes(src);
             for (var defs : Corpus.tableDefsAll(src).values()) {
                 var seed1 = seedTypes1.get(defs.get(0).name().toLowerCase());
@@ -225,23 +170,11 @@ public final class Runner {
                 sql.add(d.createSql(seed1 == null ? java.util.Map.of() : seed1));
             }
         }
-        // pass 1b: model-only sources contribute elements AND their table
-        // DDL (empty CREATE OR REPLACE — a sibling's classes are queryable
-        // only if their tables exist; the current file's own DDL and the
-        // BeforePackage seeds run AFTER and win), but NOT data seeds
-        List<String> preSql = new ArrayList<>();
+        // sibling TEST files contribute their table DDL (empty CREATE OR
+        // REPLACE — a sibling's classes are queryable only if their tables
+        // exist; the current file's own DDL and the BeforePackage seeds run
+        // AFTER and win), but NOT data seeds
         for (String src : modelOnlySources) {
-            for (String[] el : splitSectioned(Corpus.modelElements(src))) {
-                if (!seen.add(el[0] + "::" + el[1])) {
-                    continue;
-                }
-                if (el[0].equals("Mapping")) {
-                    mappings.add(el);
-                } else {
-                    baseEls.add(new String[]{el[0] + " " + el[1],
-                            el[2] + el[3] + "\n"});
-                }
-            }
             var seedTypes2 = Corpus.seedColumnTypes(src);
             for (var defs : Corpus.tableDefsAll(src).values()) {
                 var seed2 = seedTypes2.get(defs.get(0).name().toLowerCase());
@@ -253,93 +186,7 @@ public final class Runner {
             }
         }
         sql.addAll(0, preSql);
-        // pass 1.5: the assembled BASE itself must compile — a failing base
-        // element (engine plan-metamodel classes and other platform-internal
-        // constructs) is DROPPED and walled by error-line attribution, so
-        // one exotic class no longer darkens its whole family
-        // (executionPlan: two ExecutionOption classes hid 109 tests)
-        List<int[]> ranges = new ArrayList<>();
-        StringBuilder assembled = buildBase(prefix, baseEls, ranges);
-        for (int attempt = 0; attempt < 24 && !baseEls.isEmpty(); attempt++) {
-            try {
-                com.legend.Compiler.compile(assembled.toString(), "|1", "n/a");
-                break;
-            } catch (Exception e) {
-                int line = errorLineOf(e);
-                int idx = -1;
-                for (int r = 0; r < ranges.size(); r++) {
-                    if (line >= ranges.get(r)[0] && line <= ranges.get(r)[1]) {
-                        idx = r;
-                        break;
-                    }
-                }
-                if (idx < 0) {
-                    break;   // unattributable: leave; mapping probes wall as before
-                }
-                walls.add(familyKey + " " + baseEls.get(idx)[0] + " => "
-                        + String.valueOf(e.getMessage()).split("\n")[0]);
-                baseEls.remove(idx);
-                ranges.clear();
-                assembled = buildBase(prefix, baseEls, ranges);
-            }
-        }
-        for (String[] b : baseEls) {
-            ext.append('\n').append(b[1]);
-        }
-        // pass 2: probe-compile every family mapping against the full base
-        for (String[] m : mappings) {
-            String candidate = assembled + "\n" + m[2] + m[3];
-            try {
-                com.legend.Compiler.compile(candidate, "|1", "n/a");
-                assembled.append('\n').append(m[2]).append(m[3]);
-                ext.append('\n').append(m[2]).append(m[3]);
-            } catch (Exception e) {
-                walls.add(familyKey + " " + m[1] + " => "
-                        + String.valueOf(e.getMessage()).split("\n")[0]);
-            }
-        }
-        familyModels.put(familyKey, ext.toString());
         familySeeds.put(familyKey, sql);
-    }
-
-    /** The base assembly with per-element line ranges (1-based, inclusive). */
-    private static StringBuilder buildBase(String prefix, List<String[]> els,
-            List<int[]> rangesOut) {
-        StringBuilder sb = new StringBuilder(prefix);
-        int nl = countNl(prefix);
-        for (String[] el : els) {
-            sb.append('\n');
-            nl++;
-            int start = nl + 1;
-            sb.append(el[1]);
-            nl += countNl(el[1]);
-            rangesOut.add(new int[]{start, nl + 1});
-        }
-        return sb;
-    }
-
-    private static int countNl(String s) {
-        int c = 0;
-        for (int i = 0; i < s.length(); i++) {
-            if (s.charAt(i) == '\n') {
-                c++;
-            }
-        }
-        return c;
-    }
-
-    /** The 1-based line of a compile error's {@code [line:col]} prefix, or -1. */
-    private static int errorLineOf(Throwable e) {
-        for (Throwable c = e; c != null; c = c.getCause()) {
-            String msg = c.getMessage();
-            if (msg != null) {
-                Matcher m = Pattern.compile("\\[(\\d+):\\d+\\]").matcher(msg);
-                if (m.find()) {
-                    return Integer.parseInt(m.group(1));
-                }
-            }
-        }
-        return -1;
     }
 
     /**
@@ -349,37 +196,11 @@ public final class Runner {
      */
     public void useFile(String key, String source) {
         currentFileKey = key;
-        if (fileModels.containsKey(key)) {
+        if (fileRaw.containsKey(key)) {
             return;
         }
         fileRaw.put(key, new com.legend.Compiler.ModelSource(key, source));
         Corpus.functionBodies(source).forEach(setupFnBodies::putIfAbsent);
-        StringBuilder extension = new StringBuilder();
-        List<String[]> fileMappings = new ArrayList<>();
-        java.util.Set<String> famSeen = familySeen.getOrDefault(currentFamilyKey, java.util.Set.of());
-        for (String[] el : splitSectioned(Corpus.modelElements(source))) {
-            if (famSeen.contains(el[0] + "::" + el[1])) {
-                continue;   // already carried by the family extension
-            }
-            if (el[0].equals("Mapping")) {
-                fileMappings.add(el);
-            } else {
-                extension.append(el[2]).append(el[3]).append('\n');
-            }
-        }
-        String base = model + familyModels.getOrDefault(currentFamilyKey, "");
-        StringBuilder assembled = new StringBuilder(base).append('\n').append(extension);
-        for (String[] m : fileMappings) {
-            String candidate = assembled + "\n" + m[2] + m[3];
-            try {
-                com.legend.Compiler.compile(candidate, "|1", "n/a");
-                assembled.append('\n').append(m[2]).append(m[3]);
-            } catch (Exception e) {
-                walls.add(key + " " + m[1] + " => "
-                        + String.valueOf(e.getMessage()).split("\n")[0]);
-            }
-        }
-        fileModels.put(key, assembled.substring(base.length()));
         List<String> sql = new ArrayList<>();
         var seedTypes3 = Corpus.seedColumnTypes(source);
         for (var defs : Corpus.tableDefsAll(source).values()) {
@@ -431,159 +252,223 @@ public final class Runner {
         return new ArrayList<>(seedFailures);
     }
 
-    private static final Pattern IMPORT_LINE = Pattern.compile(
-            "(?m)^import\\s+[\\w:]+(?:::\\*)?\\s*;\\s*$");
-
-    /**
-     * kind, fqn, importBlock, text quadruples of top-level elements. Each
-     * element carries ITS OWN section's imports (the parser's rule: imports
-     * open a section scoping the elements that follow; an import after
-     * elements opens a NEW section). Assembly REORDERS elements (mappings
-     * probe-append last), so every element re-emits its import block —
-     * without this, a relocated mapping resolves in whatever section
-     * precedes its new position and simple names silently misresolve
-     * (join-family Person bound NOTHING because its import block stayed
-     * behind at the original position).
-     */
-    private static List<String[]> splitSectioned(String elements) {
-        List<String[]> raw = splitTopLevel(elements);
-        List<String[]> out = new ArrayList<>(raw.size());
-        // walk import lines and element heads in text order, mirroring the
-        // parser's section logic
-        List<int[]> importSpans = new ArrayList<>();
-        Matcher im = IMPORT_LINE.matcher(elements);
-        while (im.find()) {
-            importSpans.add(new int[]{im.start(), im.end()});
-        }
-        int ii = 0;
-        StringBuilder current = new StringBuilder();
-        boolean sawElement = false;
-        for (String[] el : raw) {
-            int elStart = elements.indexOf(el[2]);
-            while (ii < importSpans.size() && importSpans.get(ii)[0] < elStart) {
-                if (sawElement) {
-                    current.setLength(0);   // import after elements: new section
-                    sawElement = false;
-                }
-                current.append(elements, importSpans.get(ii)[0], importSpans.get(ii)[1])
-                        .append('\n');
-                ii++;
-            }
-            sawElement = true;
-            out.add(new String[]{el[0], el[1], current.toString(),
-                    IMPORT_LINE.matcher(el[2]).replaceAll("")});
-        }
-        return out;
-    }
-
-    /** kind, fqn, text triples of top-level elements (brace/paren matched). */
-    private static List<String[]> splitTopLevel(String elements) {
-        List<String[]> out = new ArrayList<>();
-        Pattern head = Pattern.compile(
-                "(?m)^(Class|Association|Enum|Database|Mapping|Primitive|RelationalDatabaseConnection|Runtime|function)\\s+"
-                        + "(?:<<[^>]*>>\\s*)?(\\*?[\\w:$]+)");
-        Matcher m = head.matcher(elements);
-        List<int[]> starts = new ArrayList<>();
-        List<String[]> heads = new ArrayList<>();
-        while (m.find()) {
-            starts.add(new int[]{m.start()});
-            heads.add(new String[]{m.group(1), m.group(2)});
-        }
-        for (int i = 0; i < starts.size(); i++) {
-            int s = starts.get(i)[0];
-            int e = i + 1 < starts.size() ? starts.get(i + 1)[0] : elements.length();
-            out.add(new String[]{heads.get(i)[0], heads.get(i)[1], elements.substring(s, e)});
-        }
-        return out;
-    }
-
     // ===== per-test execution =====
 
-    private static final Pattern EXECUTE_CALL = Pattern.compile(
-            "\\bexecute\\s*\\(");
 
-    /** Is offset {@code at} inside a single-quoted string literal of {@code s}? */
-    private static boolean insideString(String s, int at) {
-        int i = 0;
-        while (i < s.length() && i <= at) {
-            if (s.charAt(i) == '\'') {
-                int end = Corpus.skipString(s, i);
-                if (at > i && at < end) {
-                    return true;
-                }
-                i = end;
+
+    // ===== Phase C: test discovery + execution from the PARSED model =====
+
+    /** One discovered {@code <<test.Test>>} function: the parsed
+     * definition (body is AST), with its section's import scope. */
+    public record ParsedTest(String fqn,
+            com.legend.model.FunctionDefinition fn,
+            com.legend.model.ImportScope imports) {}
+
+    /**
+     * Discover the runnable tests of one corpus source through the REAL
+     * parser: {@code <<test.Test>>} stereotyped functions, minus
+     * ToFix/Ignore (engine harness parity) and ExcludeAlloy (legend-lite
+     * executes the in-process Alloy-shaped path).
+     */
+    public static List<ParsedTest> discoverTests(String source) {
+        List<ParsedTest> out = new ArrayList<>();
+        com.legend.model.ParsedModel unit;
+        try {
+            unit = com.legend.parser.ElementParser.parse(source);
+        } catch (RuntimeException e) {
+            return out;   // unparseable file: walled at model-build time
+        }
+        for (com.legend.model.PackageableElement el : unit.elements()) {
+            if (!(el instanceof com.legend.model.FunctionDefinition f)) {
                 continue;
             }
-            i++;
+            boolean isTest = false;
+            boolean excluded = false;
+            for (com.legend.model.StereotypeApplication st : f.stereotypes()) {
+                String profile = st.profileName();
+                String simpleProfile = profile.substring(profile.lastIndexOf(':') + 1);
+                if (!simpleProfile.equals("test")) {
+                    continue;
+                }
+                switch (st.stereotypeName()) {
+                    case "Test" -> isTest = true;
+                    case "ToFix", "Ignore", "ExcludeAlloy" -> excluded = true;
+                    default -> { }
+                }
+            }
+            if (isTest && !excluded) {
+                out.add(new ParsedTest(f.qualifiedName(), f,
+                        unit.elementImports().get(f.qualifiedName())));
+            }
         }
-        return false;
+        return out;
     }
 
+    /** The test's import scope: its section's imports + its own package
+     * (implicit in real pure). */
+    private static com.legend.model.ImportScope importScopeOf(ParsedTest t) {
+        List<String> wildcards = new ArrayList<>();
+        Map<String, String> typeImports = new LinkedHashMap<>();
+        if (t.imports() != null) {
+            wildcards.addAll(t.imports().wildcards());
+            typeImports.putAll(t.imports().typeImports());
+        }
+        int cut = t.fqn().lastIndexOf("::");
+        if (cut > 0) {
+            wildcards.add(t.fqn().substring(0, cut));
+        }
+        return new com.legend.model.ImportScope(wildcards, typeImports);
+    }
 
+    /** Every function SIMPLE NAME the body calls (AST walk) — feeds the
+     * seed replay's setup-call detection, structurally. */
+    private static java.util.Set<String> calledSimpleNames(
+            List<com.legend.model.spec.ValueSpecification> body) {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        java.util.ArrayDeque<com.legend.model.spec.ValueSpecification> work =
+                new java.util.ArrayDeque<>(body);
+        while (!work.isEmpty()) {
+            com.legend.model.spec.ValueSpecification v = work.poll();
+            if (v instanceof com.legend.model.spec.AppliedFunction af) {
+                String fn = af.function();
+                out.add(fn.substring(fn.lastIndexOf(':') + 1));
+                work.addAll(af.parameters());
+            } else if (v instanceof com.legend.model.spec.AppliedProperty ap) {
+                work.add(ap.receiver());
+            } else if (v instanceof com.legend.model.spec.LambdaFunction lf) {
+                work.addAll(lf.body());
+            } else if (v instanceof com.legend.model.spec.PureCollection pc) {
+                work.addAll(pc.values());
+            } else if (v instanceof com.legend.model.spec.NewInstance ni) {
+                ni.properties().values().forEach(ke -> work.add(ke.value()));
+            }
+        }
+        return out;
+    }
 
-    public Outcome run(Corpus.TestFn fn) {
-        // NATIVE test-body execution: core (com.legend.TestBody) compiles
-        // and drives the WHOLE body — lets, execute() handles, assert
-        // natives — through the ordinary pipeline. The harness's remaining
-        // jobs are model assembly, the synthesized Runtime element, seed
-        // replay and scoring. The mapping refs are extracted only to build
-        // the Runtime; TestBody splices ->from(mapping, rcorpus::Rt) per
-        // execute() itself.
-        List<String> mappingRefs = executeMappingRefs(fn);
+    /** The MAPPING refs of execute()/-&gt;from() calls, AST-walked and
+     * qualified via the test's imports — they feed the synthesized
+     * Runtime's mappings and the no-execute SHAPE gate. */
+    private List<String> executeMappingRefs(ParsedTest t) {
+        List<String> out = new ArrayList<>();
+        java.util.ArrayDeque<com.legend.model.spec.ValueSpecification> work =
+                new java.util.ArrayDeque<>(t.fn().body());
+        while (!work.isEmpty()) {
+            com.legend.model.spec.ValueSpecification v = work.poll();
+            if (v instanceof com.legend.model.spec.AppliedFunction af) {
+                String simple = af.function()
+                        .substring(af.function().lastIndexOf(':') + 1);
+                boolean executeShape = simple.equals("execute")
+                        && af.parameters().size() >= 2;
+                boolean fromShape = simple.equals("from")
+                        && af.parameters().size() >= 2;
+                if (executeShape || fromShape) {
+                    if (af.parameters().get(1)
+                            instanceof com.legend.model.spec.PackageableElementPtr ptr) {
+                        String ref = qualify(ptr.fullPath(), t);
+                        if (ref.matches("[\\w:]+") && !out.contains(ref)) {
+                            out.add(ref);
+                        }
+                    }
+                }
+                work.addAll(af.parameters());
+            } else if (v instanceof com.legend.model.spec.AppliedProperty ap) {
+                work.add(ap.receiver());
+            } else if (v instanceof com.legend.model.spec.LambdaFunction lf) {
+                work.addAll(lf.body());
+            } else if (v instanceof com.legend.model.spec.PureCollection pc) {
+                work.addAll(pc.values());
+            } else if (v instanceof com.legend.model.spec.NewInstance ni) {
+                ni.properties().values().forEach(ke -> work.add(ke.value()));
+            }
+        }
+        return out;
+    }
+
+    /** Qualify a bare mapping reference via the test's imports + presence
+     * in the raw model sources. */
+    private String qualify(String name, ParsedTest t) {
+        if (name.contains("::")) {
+            return name;
+        }
+        if (t.imports() != null && t.imports().typeImports().containsKey(name)) {
+            return t.imports().typeImports().get(name);
+        }
+        StringBuilder sb = new StringBuilder();
+        sharedRaw.forEach(m -> sb.append(m.text()));
+        familyRaw.getOrDefault(currentFamilyKey, List.of())
+                .forEach(m -> sb.append(m.text()));
+        com.legend.Compiler.ModelSource f = fileRaw.get(currentFileKey);
+        if (f != null) {
+            sb.append(f.text());
+        }
+        String scope = sb.toString();
+        List<String> pkgs = new ArrayList<>();
+        if (t.imports() != null) {
+            pkgs.addAll(t.imports().wildcards());
+        }
+        int cut = t.fqn().lastIndexOf("::");
+        if (cut > 0) {
+            pkgs.add(t.fqn().substring(0, cut));
+        }
+        for (String pkg : pkgs) {
+            String candidate = pkg + "::" + name;
+            if (scope.contains(candidate)) {
+                return candidate;
+            }
+        }
+        return name;
+    }
+
+    /** Run one PARSED test through the pipeline. */
+    public Outcome run(ParsedTest t) {
+        List<String> mappingRefs = executeMappingRefs(t);
         if (mappingRefs.isEmpty()) {
-            return new Outcome(fn.fqn(), Status.SHAPE, "no execute(|...) call");
+            return new Outcome(t.fqn(), Status.SHAPE, "no execute(|...) call");
         }
         try {
-            // MODULE path: shared + parent + family + file RAW sources
-            // through the real parser; poison-not-drop walls (a broken
-            // element fails only what actually USES it)
-            com.legend.compiler.element.ModelContext ctx = moduleContextFor(mappingRefs);
+            com.legend.compiler.element.ModelContext ctx =
+                    moduleContextFor(mappingRefs);
             try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
                 try (var st = conn.createStatement()) {
                     st.execute("SET TimeZone='UTC'");
                 }
-                List<String> failedSeeds = replaySeeds(fn, conn);
+                List<String> failedSeeds = replaySeeds(t.fqn(),
+                        calledSimpleNames(t.fn().body()), conn);
                 seedFailures.addAll(failedSeeds);
                 com.legend.TestBody.Outcome o = com.legend.TestBody.run(
-                        ctx, fn.body(), importScopeOf(fn), "rcorpus::Rt", conn,
-                        !failedSeeds.isEmpty(), harnessSetupNames());
-                return switch (o) {
-                    case com.legend.TestBody.Outcome.Unsupported u ->
-                            new Outcome(fn.fqn(), Status.SHAPE, u.reason());
-                    case com.legend.TestBody.Outcome.Ran r -> {
-                        if (!r.failures().isEmpty()) {
-                            yield new Outcome(fn.fqn(), Status.FAIL,
-                                    r.failures().get(0));
-                        }
-                        if (r.verified() == 0 && r.advisory() > 0) {
-                            yield new Outcome(fn.fqn(), Status.SHAPE,
-                                    "sql-only: " + r.advisory()
-                                            + " advisory golden-SQL assert(s),"
-                                            + " no row verification");
-                        }
-                        if (r.verified() == 0) {
-                            yield new Outcome(fn.fqn(), Status.SHAPE,
-                                    "no verifying assertions");
-                        }
-                        yield new Outcome(fn.fqn(), Status.PASS,
-                                r.verified() + " assert(s)");
-                    }
-                };
+                        ctx, t.fn().body(), importScopeOf(t), "rcorpus::Rt",
+                        conn, !failedSeeds.isEmpty(), harnessSetupNames());
+                return score(t.fqn(), o);
             }
         } catch (Exception e) {
-            // flatten, don't truncate — poison reasons ride on later lines
-            return new Outcome(fn.fqn(), Status.ERROR,
+            return new Outcome(t.fqn(), Status.ERROR,
                     String.valueOf(e.getMessage()).replace("\n", " | "));
         }
     }
 
-    /** Compiled-model cache: one context per assembled model text. */
-    private final Map<String, com.legend.compiler.element.ModelContext> ctxCache =
-            new LinkedHashMap<>();
-
-    private com.legend.compiler.element.ModelContext contextFor(String fullModel) {
-        return ctxCache.computeIfAbsent(fullModel, com.legend.Compiler::compileModel);
+    private static Outcome score(String fqn, com.legend.TestBody.Outcome o) {
+        return switch (o) {
+            case com.legend.TestBody.Outcome.Unsupported u ->
+                    new Outcome(fqn, Status.SHAPE, u.reason());
+            case com.legend.TestBody.Outcome.Ran r -> {
+                if (!r.failures().isEmpty()) {
+                    yield new Outcome(fqn, Status.FAIL, r.failures().get(0));
+                }
+                if (r.verified() == 0 && r.advisory() > 0) {
+                    yield new Outcome(fqn, Status.SHAPE,
+                            "sql-only: " + r.advisory()
+                                    + " advisory golden-SQL assert(s),"
+                                    + " no row verification");
+                }
+                if (r.verified() == 0) {
+                    yield new Outcome(fqn, Status.SHAPE, "no verifying assertions");
+                }
+                yield new Outcome(fqn, Status.PASS, r.verified() + " assert(s)");
+            }
+        };
     }
+
 
     /**
      * MODULE-assembled context (Phase B): the shared + parent + family +
@@ -672,51 +557,16 @@ public final class Runner {
         return out;
     }
 
-    /** The MAPPING argument of every execute() call in the body, qualified. */
-    private List<String> executeMappingRefs(Corpus.TestFn fn) {
-        List<String> out = new ArrayList<>();
-        Matcher m = EXECUTE_CALL.matcher(fn.body());
-        while (m.find()) {
-            if (insideString(fn.body(), m.start())) {
-                continue;
-            }
-            int argStart = fn.body().indexOf('(', m.start());
-            int argEnd = matchParen(fn.body(), argStart);
-            if (argEnd < 0) {
-                continue;
-            }
-            List<String> args = splitArgs(fn.body().substring(argStart + 1, argEnd));
-            if (args.size() < 2) {
-                continue;
-            }
-            String ref = qualify(args.get(1).strip(), fn);
-            if (ref.matches("[\\w:]+") && !out.contains(ref)) {
-                out.add(ref);
-            }
-        }
-        // brace-lambda spellings put the mapping IN the query
-        // (execute({|Q->from(M, $rt)}, ^Mapping(name=''), ...)) — collect
-        // in-query from() mappings too
-        Matcher fm = Pattern.compile("->\\s*from\\(\\s*([\\w:]+)")
-                .matcher(fn.body());
-        while (fm.find()) {
-            String ref = qualify(fm.group(1), fn);
-            if (ref.matches("[\\w:]+") && !out.contains(ref)) {
-                out.add(ref);
-            }
-        }
-        return out;
-    }
-
     /** Seed replay: ALL DDL first, then data (audit A2), one statement per execute. */
-    private List<String> replaySeeds(Corpus.TestFn fn, Connection conn) {
+    private List<String> replaySeeds(String fqn,
+            java.util.Set<String> calledNames, Connection conn) {
         List<String> allSeeds = new ArrayList<>(ddlSeeds);
         allSeeds.addAll(familySeeds.getOrDefault(currentFamilyKey, List.of()));
         allSeeds.addAll(fileSeeds.getOrDefault(currentFileKey, List.of()));
         allSeeds.addAll(dataSeeds);
         java.util.Set<String> expanded = new java.util.HashSet<>(sharedSeededFns);
         for (Corpus.BeforePackage bp : beforePackages) {
-            if (fn.fqn().startsWith(bp.pkg() + "::")) {
+            if (fqn.startsWith(bp.pkg() + "::")) {
                 boolean includeBody = expanded.add(bp.fqn());
                 allSeeds.addAll(Corpus.expandSeeds(bp.body(), bp.pkg(),
                         setupFnBodies, expanded, includeBody));
@@ -740,10 +590,10 @@ public final class Runner {
                     ? en.getKey().substring(0, en.getKey().lastIndexOf("::"))
                     : "";
             boolean inScope = fnPkg.isEmpty()
-                    || fn.fqn().startsWith(fnPkg + "::");
-            if (inScope && Pattern.compile(
-                    "(?<![\\w$])" + Pattern.quote(simple) + "\\s*\\(")
-                    .matcher(fn.body()).find()) {
+                    || fqn.startsWith(fnPkg + "::");
+            // STRUCTURAL call detection (Phase C): the AST walk's collected
+            // simple names replace the token-boundary text probe
+            if (inScope && calledNames.contains(simple)) {
                 boolean includeBody = expanded.add(en.getKey());
                 String pkg = en.getKey().contains("::")
                         ? en.getKey().substring(0, en.getKey().lastIndexOf("::"))
@@ -842,37 +692,8 @@ public final class Runner {
 
 
 
-    /** Synthesized runtime binding EVERY database (stores pick what they need). */
-    private String runtimeBlock(String modelText, List<String> mappingFqns) {
-        String mappingFqn = String.join(", ", mappingFqns);
-        StringBuilder conns = new StringBuilder();
-        Matcher m = Pattern.compile("(?m)^Database\\s+([\\w:]+)").matcher(modelText);
-        java.util.Set<String> dbs = new java.util.LinkedHashSet<>();
-        while (m.find()) {
-            dbs.add(m.group(1));
-        }
-        for (String db : dbs) {
-            if (conns.length() > 0) {
-                conns.append(", ");
-            }
-            conns.append(db).append(": [ c: rcorpus::Conn ]");
-        }
-        return "\nRelationalDatabaseConnection rcorpus::Conn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }\n"
-                + "Runtime rcorpus::Rt { mappings: [ " + mappingFqn + " ]; connections: [ " + conns + " ] }\n";
-    }
-
     // ===== assertion evaluation =====
 
-
-    /** The test file's import sections + the test's own package (implicit). */
-    private static com.legend.model.ImportScope importScopeOf(Corpus.TestFn fn) {
-        List<String> wildcards = new ArrayList<>(fn.wildcardImports());
-        int cut = fn.fqn().lastIndexOf("::");
-        if (cut > 0) {
-            wildcards.add(fn.fqn().substring(0, cut));
-        }
-        return new com.legend.model.ImportScope(wildcards, fn.imports());
-    }
 
 
 
@@ -968,35 +789,6 @@ public final class Runner {
     }
 
     // ===== name qualification (imports) =====
-
-    /** Qualify a bare element reference via the test file's imports + the model. */
-    private String qualify(String name, Corpus.TestFn fn) {
-        if (name.contains("::")) {
-            return name;
-        }
-        if (fn.imports() != null && fn.imports().containsKey(name)) {
-            return fn.imports().get(name);
-        }
-        String scope = model + familyModels.getOrDefault(currentFamilyKey, "")
-                + fileModels.getOrDefault(currentFileKey, "");
-        for (String pkg : packagesInScope(fn)) {
-            String candidate = pkg + "::" + name;
-            if (scope.contains(candidate)) {
-                return candidate;
-            }
-        }
-        return name;
-    }
-
-    /** The file's wildcard imports PLUS the test's own package (implicit in real pure). */
-    private static List<String> packagesInScope(Corpus.TestFn fn) {
-        List<String> pkgs = new ArrayList<>(fn.wildcardImports());
-        int cut = fn.fqn().lastIndexOf("::");
-        if (cut > 0) {
-            pkgs.add(fn.fqn().substring(0, cut));
-        }
-        return pkgs;
-    }
 
 
 

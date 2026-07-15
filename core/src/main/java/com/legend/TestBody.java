@@ -178,8 +178,23 @@ public final class TestBody {
             String runtimeFqn, Connection conn, boolean emptinessUnverifiable,
             java.util.Set<String> harnessSetupCalls)
             throws java.sql.SQLException {
+        return run(ctx, SpecParser.parseCodeBlock(body), imports, runtimeFqn,
+                conn, emptinessUnverifiable, harnessSetupCalls);
+    }
+
+    /**
+     * AST entry (Phase C): the test body arrives ALREADY PARSED — the
+     * harness discovers test functions from the parsed model, so their
+     * statement lists come straight off the FunctionDefinition, no
+     * re-parse of extracted text.
+     */
+    public static Outcome run(ModelContext ctx,
+            java.util.List<ValueSpecification> statements, ImportScope imports,
+            String runtimeFqn, Connection conn, boolean emptinessUnverifiable,
+            java.util.Set<String> harnessSetupCalls)
+            throws java.sql.SQLException {
         java.util.ArrayDeque<ValueSpecification> work =
-                new java.util.ArrayDeque<>(SpecParser.parseCodeBlock(body));
+                new java.util.ArrayDeque<>(statements);
         Map<String, ValueSpecification> lets = new LinkedHashMap<>();
         Map<String, ExecHandle> handles = new LinkedHashMap<>();
         int verified = 0;

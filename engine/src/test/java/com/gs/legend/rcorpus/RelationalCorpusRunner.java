@@ -151,8 +151,10 @@ class RelationalCorpusRunner {
             runner.useFamily(family, familySources, modelOnly, parentKey);
             for (Map.Entry<Path, String> e : testSources.entrySet()) {
                 runner.useFile(e.getKey().toString(), e.getValue());
-                for (Corpus.TestFn fn : Corpus.testFunctions(e.getValue())) {
-                    outcomes.add(runner.run(fn));
+                // Phase C: discovery through the REAL parser — stereotyped
+                // functions off the parsed unit, body as AST
+                for (Runner.ParsedTest t : Runner.discoverTests(e.getValue())) {
+                    outcomes.add(runner.run(t));
                 }
             }
             if (!outcomes.isEmpty()) {
