@@ -165,14 +165,14 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/selfJoin | 3 | 0 | 0 | 3 | 0 |
 | tests/mapping/sqlFunction | 72 | 57 | 0 | 3 | 12 |
 | tests/mapping/tree | 12 | 0 | 0 | 12 | 0 |
-| tests/mapping/union | 124 | 43 | 1 | 60 | 20 |
+| tests/mapping/union | 124 | 46 | 1 | 57 | 20 |
 | tests/mapping/union/relation | 15 | 11 | 0 | 2 | 2 |
 | tests/platformOperations | 4 | 0 | 0 | 4 | 0 |
 | tests/query | 83 | 55 | 2 | 19 | 7 |
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **693** | 24 | 734 | 841 |
+| **total** | 2292 | **696** | 24 | 731 | 841 |
 
 ### mapping walls (dropped at assembly)
 
@@ -901,7 +901,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testBusinessDateInjectionFromVarReferenceWithProject [milestoning/tests]: filter predicate references column 'orderDate', unresolvable even after isolation
 - ERROR testBusinessDateInjectionFromParentVarReferenceWithProject [milestoning/tests]: filter predicate references column 'orderDate', unresolvable even after isolation
 - SHAPE testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testBusinessDateInjectionFromVarReferenceWithUnion [milestoning/tests]: property 'car' of class 'meta::relational::tests::milestoning::inheritance::CarDetails' is not mapped in mapping 'meta::relational::tests::milestoning::milestoningmapWithVehiclesUnion'
+- ERROR testBusinessDateInjectionFromVarReferenceWithUnion [milestoning/tests]: filter predicate references column 'time', unresolvable even after isolation
 - SHAPE testBusinessDatePropagationInColFunction_asQueryParam [milestoning/tests]: no execute(|...) call
 - ERROR testBusinessDatePropagationInColFunctionWithDoc [milestoning/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
 - SHAPE testExecutionPlanForQueryWithVariableRundateWithinLambda [milestoning/tests]: no execute(|...) call
@@ -1796,12 +1796,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testChainedUnionsWithAggregationWithAdditionalColumn [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
 - ERROR testChainedUnionsWithMultipleAggregationWithAdditionalColumn [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
 - ERROR testChainedUnionsWithMapAggregation [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
-- ERROR testUnionWithChainedJoinsAcross2SetsV2 [tests/mapping/union]: multi-hop navigation y.z.pk through an embedded/slot head is not supported yet
-- ERROR testUnionWithChainedJoinsAcross3SetsV2 [tests/mapping/union]: multi-hop navigation y.z.pk through an embedded/slot head is not supported yet
-- ERROR testUnionWithChainedJoinsAcross4SetsV2 [tests/mapping/union]: multi-hop navigation y.z.pk through an embedded/slot head is not supported yet
-- ERROR testUnionWithChainedJoinsAcross2SetsV3 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross2SetsV3' (union navigation 'y' uses route '[y0]' that is not a member of 
-- ERROR testUnionWithChainedJoinsAcross3SetsV3 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross3SetsV3' (union navigation 'y' uses route '[y0]' that is not a member of 
-- ERROR testUnionWithChainedJoinsAcross4SetsV3 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross4SetsV3' (union navigation 'y' uses route '[y0]' that is not a member of 
+- ERROR testUnionWithChainedJoinsAcross2SetsV3 [tests/mapping/union]: multi-hop navigation y.z.pk through an embedded/slot head is not supported yet
+- ERROR testUnionWithChainedJoinsAcross3SetsV3 [tests/mapping/union]: multi-hop navigation y.z.pk through an embedded/slot head is not supported yet
+- ERROR testUnionWithChainedJoinsAcross4SetsV3 [tests/mapping/union]: multi-hop navigation y.z.pk through an embedded/slot head is not supported yet
 - ERROR testUnionWithChainedJoinsAcross2SetsV4 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross2SetsV4'
 - ERROR testUnionWithChainedJoinsAcross3SetsV4 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross3SetsV4'
 - ERROR testUnionWithChainedJoinsAcross4SetsV4 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross4SetsV4'

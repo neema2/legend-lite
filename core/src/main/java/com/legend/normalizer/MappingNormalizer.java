@@ -1946,6 +1946,17 @@ public final class MappingNormalizer {
                 if (j0.targetSetId() != null && (targetUnion == null
                         || memberOrdinalOf(targetUnion.memberSetIds(), md,
                                 model, j0.targetSetId()) < 0)) {
+                    // a route naming the target's ROOT/SOLE set is the
+                    // UN-routed navigation (engine rootClassMappingByClass;
+                    // multipleChainedJoins V2: z[y1, z0] into single-set Z)
+                    ClassMapping set = findSetById(md, model, j0.targetSetId());
+                    boolean rootOrSole = set instanceof ClassMapping.Relational tr
+                            && (tr.root() || md.classMappings().stream()
+                                    .filter(x -> x.className().equals(tr.className()))
+                                    .count() <= 1);
+                    if (rootOrSole) {
+                        continue;
+                    }
                     skipReason = "route '[" + j0.targetSetId() + "]' that is"
                             + " not a member of the target class's union";
                     break;
