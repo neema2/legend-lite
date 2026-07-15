@@ -338,10 +338,31 @@ public final class Corpus {
             }
             return null;   // not a foldable string expression
         }
-        return expectPart ? null
-                : out.toString().replace("\\'", "'").replace("\\n", "\n")
-                        .replace("\\r", "\r").replace("\\t", "\t")
-                        .replace("\\\\", "\\");
+        return expectPart ? null : unescapePureString(out.toString());
+    }
+
+    /** Pure string-literal escapes, decoded LEFT-TO-RIGHT (a replace chain
+     * mis-decodes {@code \\n} — escaped backslash then literal n — into a
+     * newline: the earlier replace consumes the second backslash). */
+    private static String unescapePureString(String s) {
+        StringBuilder out = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c != '\\' || i + 1 == s.length()) {
+                out.append(c);
+                continue;
+            }
+            char e = s.charAt(++i);
+            switch (e) {
+                case 'n' -> out.append('\n');
+                case 'r' -> out.append('\r');
+                case 't' -> out.append('\t');
+                case '\'' -> out.append('\'');
+                case '\\' -> out.append('\\');
+                default -> out.append('\\').append(e);
+            }
+        }
+        return out.toString();
     }
 
     private static final Pattern INSERT_COLS = Pattern.compile(

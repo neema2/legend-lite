@@ -592,6 +592,15 @@ public final class StoreResolver {
     private TypedSpec applyJoinTemporalFilters(TypedSpec n, ClassSource cs,
             Map<String, String> navPrefixToClass,
             Map<String, String> navPrefixToChain) {
+        return applyJoinTemporalFilters(n, cs, navPrefixToClass,
+                navPrefixToChain, Map.of(), Map.of());
+    }
+
+    private TypedSpec applyJoinTemporalFilters(TypedSpec n, ClassSource cs,
+            Map<String, String> navPrefixToClass,
+            Map<String, String> navPrefixToChain,
+            Map<String, String> midPrefixToChain,
+            Map<String, String> midPrefixToDim) {
         // ROOT context absent: physical joinslot targets have nothing to
         // filter by, but CLASS-typed navigate targets may carry EXPLICIT
         // property-function dates (temporalByHead) — those still apply
@@ -606,8 +615,43 @@ public final class StoreResolver {
                 TypedSpec right = j.right();
                 String navClass = j.prefix()
                         .map(navPrefixToClass::get).orElse(null);
+                String midChain = j.prefix()
+                        .map(midPrefixToChain::get).orElse(null);
                 TypedSpec filtered;
-                if (navClass != null) {
+                if (midChain != null) {
+                    // MID table of a chained PM: its OWN milestoning
+                    // filters by the chain's context — the chain SPEC
+                    // (dimension = the spec's target-class strategy) wins;
+                    // else the root context, exactly the physical-slot
+                    // rule this replaces (audit 14 F1: target-class
+                    // governance left spec-less mids unstamped).
+                    TemporalSpec midSpec = temporalByHead.get(midChain);
+                    String specDim = midPrefixToDim.get(j.prefix().get());
+                    filtered = right;
+                    if (midSpec != null && midSpec.dates().size() == 1
+                            && !midSpec.sweep() && specDim != null
+                            && tableHasBlock(filtered, specDim)) {
+                        filtered = milestonedPipeByStrategy(filtered,
+                                midSpec.dates().get(0), specDim, "join target");
+                    } else if ("bitemporal".equals(rootStrategy)
+                            && rootMilestoning.size() == 2) {
+                        if (tableHasBlock(filtered, "processingtemporal")) {
+                            filtered = milestonedPipeByStrategy(filtered,
+                                    rootMilestoning.get(0), "processingtemporal",
+                                    "join target");
+                        }
+                        if (tableHasBlock(filtered, "businesstemporal")) {
+                            filtered = milestonedPipeByStrategy(filtered,
+                                    rootMilestoning.get(1), "businesstemporal",
+                                    "join target");
+                        }
+                    } else if (rootStrategy != null && !rootMilestoning.isEmpty()
+                            && tableHasBlock(filtered, rootStrategy)) {
+                        filtered = milestonedPipeByStrategy(filtered,
+                                rootMilestoning.get(0), rootStrategy,
+                                "join target");
+                    }
+                } else if (navClass != null) {
                     // CLASS-typed navigate target: governed by the TARGET
                     // CLASS's temporality (a non-temporal class mapped to a
                     // temporal table gets NO filter — corpus
@@ -647,26 +691,26 @@ public final class StoreResolver {
                     filtered = right;   // no root context; no head date here
                 }
                 yield new com.legend.compiler.spec.typed.TypedJoin(
-                        applyJoinTemporalFilters(j.left(), cs, navPrefixToClass, navPrefixToChain),
+                        applyJoinTemporalFilters(j.left(), cs, navPrefixToClass, navPrefixToChain, midPrefixToChain, midPrefixToDim),
                         filtered, j.kind(), j.condition(), j.prefix(), j.info());
             }
             case TypedFilter f -> new TypedFilter(
-                    applyJoinTemporalFilters(f.source(), cs, navPrefixToClass, navPrefixToChain),
+                    applyJoinTemporalFilters(f.source(), cs, navPrefixToClass, navPrefixToChain, midPrefixToChain, midPrefixToDim),
                     f.predicate(), f.info());
             case com.legend.compiler.spec.typed.TypedDistinct d ->
                     new com.legend.compiler.spec.typed.TypedDistinct(
-                            applyJoinTemporalFilters(d.source(), cs, navPrefixToClass, navPrefixToChain),
+                            applyJoinTemporalFilters(d.source(), cs, navPrefixToClass, navPrefixToChain, midPrefixToChain, midPrefixToDim),
                             d.columns(), d.info());
             case TypedSelect sel -> new TypedSelect(
-                    applyJoinTemporalFilters(sel.source(), cs, navPrefixToClass, navPrefixToChain),
+                    applyJoinTemporalFilters(sel.source(), cs, navPrefixToClass, navPrefixToChain, midPrefixToChain, midPrefixToDim),
                     sel.columns(), sel.info());
             case TypedProject pr -> new TypedProject(
-                    applyJoinTemporalFilters(pr.source(), cs, navPrefixToClass, navPrefixToChain),
+                    applyJoinTemporalFilters(pr.source(), cs, navPrefixToClass, navPrefixToChain, midPrefixToChain, midPrefixToDim),
                     pr.columns(), pr.info());
             case com.legend.compiler.spec.typed.TypedConcatenate cc ->
                     new com.legend.compiler.spec.typed.TypedConcatenate(
-                            applyJoinTemporalFilters(cc.left(), cs, navPrefixToClass, navPrefixToChain),
-                            applyJoinTemporalFilters(cc.right(), cs, navPrefixToClass, navPrefixToChain),
+                            applyJoinTemporalFilters(cc.left(), cs, navPrefixToClass, navPrefixToChain, midPrefixToChain, midPrefixToDim),
+                            applyJoinTemporalFilters(cc.right(), cs, navPrefixToClass, navPrefixToChain, midPrefixToChain, midPrefixToDim),
                             cc.info());
             default -> {
                 // LOUD on unrecognized shapes carrying joins (audit 10): a
@@ -1683,6 +1727,8 @@ public final class StoreResolver {
                                 Set.of(), targetClass).pipeline());
         Map<String, String> navPrefixToClass = new java.util.LinkedHashMap<>();
         Map<String, String> navPrefixToChain = new java.util.LinkedHashMap<>();
+        Map<String, String> midPrefixToChain = new java.util.LinkedHashMap<>();
+        Map<String, String> midPrefixToDim = new java.util.LinkedHashMap<>();
         for (var navE : Pipelines.navSteps(cs.pipeline()).entrySet()) {
             if (navE.getValue().target()
                     instanceof com.legend.compiler.spec.typed.TypedGetAll tg2) {
@@ -1692,16 +1738,34 @@ public final class StoreResolver {
                 navPrefixToChain.put(navE.getKey() + "_", chain);
                 // MID slots of a CHAINED PM (@J1 > @J2): the nav condition
                 // reads their sub-rows — a milestoned mid table filters by
-                // the SAME chain context as the target (engine stamps the
-                // intermediate table with the QP date in the ON clause)
+                // its OWN milestoning against the CHAIN's context (engine
+                // applyMilestoningFilters stamps every milestoned join-tree
+                // node with the ambient date; the TARGET class's temporality
+                // never governs the mid table — audit 14 F1: keying mid
+                // slots by target class left them unstamped for
+                // non-temporal targets). Two chains claiming one slot with
+                // DIFFERENT specs is loud — first-writer-wins would stamp
+                // the second chain's rows with the wrong date.
                 for (TypedSpec b : navE.getValue().predicate().body()) {
                     for (String slot : slotAliases) {
                         if (Pipelines.referencesAliasOn(b,
                                 navE.getValue().predicate().parameters().get(0),
                                 Set.of(slot))) {
-                            navPrefixToClass.putIfAbsent(slot + "_",
-                                    tg2.classFqn());
-                            navPrefixToChain.putIfAbsent(slot + "_", chain);
+                            String priorChain = midPrefixToChain
+                                    .putIfAbsent(slot + "_", chain);
+                            if (priorChain != null && !priorChain.equals(chain)
+                                    && !java.util.Objects.equals(
+                                            temporalByHead.get(priorChain),
+                                            temporalByHead.get(chain))) {
+                                throw new NotImplementedException(
+                                        "physical slot '" + slot + "' is shared"
+                                        + " by chains '" + priorChain + "' and '"
+                                        + chain + "' carrying different"
+                                        + " milestoning dates — per-chain mid"
+                                        + " joins are not supported yet");
+                            }
+                            midPrefixToDim.putIfAbsent(slot + "_",
+                                    temporalStrategy(tg2.classFqn()));
                         }
                     }
                 }
@@ -1709,7 +1773,7 @@ public final class StoreResolver {
         }
         final TypedSpec basePipe =
                 applyJoinTemporalFilters(m.pipeline(), cs, navPrefixToClass,
-                        navPrefixToChain);
+                        navPrefixToChain, midPrefixToChain, midPrefixToDim);
         m = new Pipelines.Materialized(basePipe, m.slotPrefixes(), m.stripped());
         final TypedSpec materializedPipe;
         if (g.versionSweep()) {
@@ -2130,6 +2194,12 @@ public final class StoreResolver {
                             .Multiplicity.Bounded bb
                             && Integer.valueOf(1).equals(bb.upper()))
                     .isPresent());
+            if (chain.readVar() != null) {
+                throw new IllegalStateException("resolver bug: dotted-path"
+                        + " EXISTS registration over a read-var AssocSub —"
+                        + " the chain prefix pre-prefixing assumes joined-row"
+                        + " reads (audit 14 B-F7)");
+            }
             String pv = cond.parameters().get(0);
             TypedSpec cbody = Pipelines.prefixColumns(
                     cond.body().get(cond.body().size() - 1), pv,
@@ -2463,16 +2533,21 @@ public final class StoreResolver {
     private TypedSpec generatedDateLeaf(ClassSource cs, String prop,
             com.legend.compiler.element.type.Type.RelationType rowType,
             String rowVar) {
-        if (!prop.equals("businessDate") && !prop.equals("processingDate")) {
+        if ((!prop.equals("businessDate") && !prop.equals("processingDate"))
+                || temporalStrategy(cs.classFqn()) == null) {
             return null;
+        }
+        // the point-fetch CONSTANT needs no milestone columns — a temporal
+        // class on a capability-tolerance (non-milestoned) table still has
+        // a well-defined context date (audit 14 B-F8: the column check
+        // walled it needlessly)
+        if (!rootSweep && !rootMilestoning.isEmpty()) {
+            return rootMilestoning.size() == 2 && prop.equals("businessDate")
+                    ? rootMilestoning.get(1) : rootMilestoning.get(0);
         }
         Map<String, String> mc = milestoneColumnsOf(cs.pipeline(), cs.classFqn());
         if (mc.isEmpty()) {
             return null;
-        }
-        if (!rootSweep && !rootMilestoning.isEmpty()) {
-            return rootMilestoning.size() == 2 && prop.equals("businessDate")
-                    ? rootMilestoning.get(1) : rootMilestoning.get(0);
         }
         String col = mc.get(prop.equals("processingDate")
                 ? "genProcessingDate" : "genBusinessDate");
@@ -2876,6 +2951,11 @@ public final class StoreResolver {
                 && f.info().type()
                         instanceof com.legend.compiler.element.type.Type.ClassType
                 && isLiftableNav(f.source())
+                // the predicate must be CLOSED over its own parameter: an
+                // outer-variable read has no correlation pass on this route
+                // and a column-name collision would silently self-correlate
+                // (audit 14 B-F1) — unlifted shapes keep their loud wall
+                && predClosedOverParam(f.predicate())
                 && !(pa.info().multiplicity()
                         instanceof com.legend.compiler.element.type
                                 .Multiplicity.Bounded b
@@ -3035,6 +3115,44 @@ public final class StoreResolver {
                 mapper2, m.info());
     }
 
+    /** The predicate reads no variables beyond its own parameter and the
+     * parameters of lambdas nested WITHIN it (conservative: any other
+     * variable name refuses the lift — over-refusing stays loud). */
+    private static boolean predClosedOverParam(TypedLambda pred) {
+        Set<String> bound = new java.util.LinkedHashSet<>(pred.parameters());
+        collectLambdaParamNames(pred.body(), bound);
+        return pred.body().stream().allMatch(b -> readsOnly(b, bound));
+    }
+
+    private static void collectLambdaParamNames(java.util.List<TypedSpec> body,
+            Set<String> out) {
+        for (TypedSpec b : body) {
+            collectLambdaParamNames(b, out);
+        }
+    }
+
+    private static void collectLambdaParamNames(TypedSpec n, Set<String> out) {
+        if (n instanceof TypedLambda l) {
+            out.addAll(l.parameters());
+        }
+        for (TypedSpec c : n.children()) {
+            collectLambdaParamNames(c, out);
+        }
+    }
+
+    private static boolean readsOnly(TypedSpec n, Set<String> allowed) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedVariable v
+                && !allowed.contains(v.name())) {
+            return false;
+        }
+        for (TypedSpec c : n.children()) {
+            if (!readsOnly(c, allowed)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /** The filter's source is a navigation hop whose receiver chain bottoms
      * at a lambda variable — the shape the lift can rename. */
     private static boolean isLiftableNav(TypedSpec n) {
@@ -3104,6 +3222,14 @@ public final class StoreResolver {
                             p.info());
             case TypedFilter fl -> new TypedFilter(f.apply(fl.source()),
                     (TypedLambda) f.apply(fl.predicate()), fl.info());
+            case TypedGroupBy gb -> new TypedGroupBy(f.apply(gb.source()),
+                    gb.keys().stream().map(k -> new TypedGroupBy.GroupKey(
+                            k.column(), k.fn().map(fn -> (TypedLambda) f.apply(fn))))
+                            .toList(),
+                    gb.aggs().stream().map(a -> new TypedAggCol(a.name(),
+                            (TypedLambda) f.apply(a.map()), a.reduce()))
+                            .toList(),
+                    gb.info());
             case TypedSortBy sb -> new TypedSortBy(f.apply(sb.source()),
                     (TypedLambda) f.apply(sb.key()), sb.ascending(), sb.info());
             case TypedLimit l -> new TypedLimit(f.apply(l.source()),
@@ -4375,7 +4501,8 @@ public final class StoreResolver {
             if (pr.snapshotDate() != null) {
                 out.putIfAbsent("snapshotDate", pr.snapshotDate());
             }
-            String gen = pr.outIsInclusive() ? pr.out() : pr.in();
+            String gen = pr.snapshotDate() != null ? pr.snapshotDate()
+                    : pr.outIsInclusive() ? pr.out() : pr.in();
             if (gen != null) {
                 out.put("genProcessingDate", gen);
             }

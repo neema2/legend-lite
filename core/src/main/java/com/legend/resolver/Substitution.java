@@ -388,13 +388,22 @@ final class Substitution {
                 TypedSpec readInner = rewrite(read);
                 TypedSpec notInner = new TypedNativeCall(lc.callee(),
                         rewriteAll(lc.args()), lc.info());
+                // a FILTER-LIFTED head ('#f' synthetic): the engine parks
+                // the chain filter in the outer WHERE — a parent with NO
+                // MATCHING child FAILS the enclosing filter (audit 14 pin:
+                // testChainedFiltersQuery golden conjoins LASTNAME='Smith');
+                // plain chains keep the engine's ANY-semantics pass-through
+                // (testInNegated: NOT X OR read IS NULL)
+                java.util.List<String> crossPath = pathOf(read, target.userVar());
+                boolean filteredHead = crossPath != null
+                        && crossPath.get(0).contains("#f");
                 return new TypedIf(
                         new TypedNativeCall(target.isNotEmptyCallee(),
                                 List.of(readInner),
                                 new ExprType(Type.Primitive.BOOLEAN,
                                         Multiplicity.Bounded.ONE)),
                         notInner,
-                        java.util.Optional.of(new TypedCBoolean(true,
+                        java.util.Optional.of(new TypedCBoolean(!filteredHead,
                                 new ExprType(Type.Primitive.BOOLEAN,
                                         Multiplicity.Bounded.ONE))),
                         new ExprType(Type.Primitive.BOOLEAN,

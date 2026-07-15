@@ -169,6 +169,95 @@ class ResolveTemporalContextTest {
                         + " TIMESTAMP '2020-01-01', TIMESTAMP '9999-12-31')"));
     }
 
+    /** Business-temporal root, NON-temporal target, milestoned MID table
+     * in a chained PM — audit 14 F1: the mid table's OWN milestoning
+     * filters by the ambient context regardless of the target class. */
+    private static final String MID_MODEL = """
+            Class <<temporal.businesstemporal>> m::Acct { id: Integer[1]; ref: m::Ref[0..1]; }
+            Class m::Ref { rname: String[1]; }
+            Database m::DB (
+              Table AcctT (
+                milestoning( business(BUS_FROM=from_z, BUS_THRU=thru_z) )
+                ID INTEGER PRIMARY KEY, MID INTEGER, from_z DATE, thru_z DATE )
+              Table MidT (
+                milestoning( business(BUS_FROM=from_z, BUS_THRU=thru_z) )
+                ID INTEGER PRIMARY KEY, RID INTEGER, from_z DATE, thru_z DATE )
+              Table RefT ( ID INTEGER PRIMARY KEY, rname VARCHAR(64) )
+              Join AM (AcctT.MID = MidT.ID)
+              Join MR (MidT.RID = RefT.ID)
+            )
+            Mapping m::M (
+              *m::Acct : Relational { ~mainTable [m::DB] AcctT
+                id: AcctT.ID, ref: @AM > @MR }
+              *m::Ref : Relational { ~mainTable [m::DB] RefT
+                rname: RefT.rname }
+            )
+            Runtime m::RT { mappings: [m::M]; }
+            """;
+
+    @Test
+    @DisplayName("a milestoned MID table stamps by the ambient context even when the target class is non-temporal")
+    void midTableStampsUnderNonTemporalTarget() throws SQLException {
+        String sql = sqlOf(MID_MODEL, "|m::Acct.all(%2015-06-06)"
+                + "->project([a|$a.ref.rname], ['r'])->from(m::M, m::RT)");
+        // the mid table has TWO versions of the same link — an unstamped
+        // mid join returns one output row per version (audit 14 F1)
+        assertEquals(List.of("RefName"), exec(sql,
+                "CREATE TABLE AcctT (ID INTEGER, MID INTEGER, from_z DATE, thru_z DATE)",
+                "CREATE TABLE MidT (ID INTEGER, RID INTEGER, from_z DATE, thru_z DATE)",
+                "CREATE TABLE RefT (ID INTEGER, rname VARCHAR)",
+                "INSERT INTO AcctT VALUES (1, 10, DATE '2015-01-01', DATE '9999-12-31')",
+                "INSERT INTO MidT VALUES (10, 100, DATE '2015-01-01', DATE '9999-12-31')",
+                "INSERT INTO MidT VALUES (10, 100, DATE '2014-01-01', DATE '2015-01-01')",
+                "INSERT INTO RefT VALUES (100, 'RefName')"),
+                "one row per account, never per mid version:\n" + sql);
+    }
+
+    /** Non-temporal association chain for the filter-position lift pin. */
+    private static final String FIRM_MODEL = """
+            Class f::Firm { legal: String[1]; }
+            Class f::Person { firstName: String[1]; lastName: String[1]; }
+            Association f::Employment { employer: f::Firm[0..1]; employees: f::Person[*]; }
+            Database f::DB (
+              Table FirmT ( ID INTEGER PRIMARY KEY, LEGAL VARCHAR(64) )
+              Table PersonT ( ID INTEGER PRIMARY KEY, FIRST VARCHAR(64), LAST VARCHAR(64), FIRMID INTEGER )
+              Join FP (FirmT.ID = PersonT.FIRMID)
+            )
+            Mapping f::M (
+              *f::Firm : Relational { ~mainTable [f::DB] FirmT
+                legal: FirmT.LEGAL }
+              *f::Person : Relational { ~mainTable [f::DB] PersonT
+                firstName: PersonT.FIRST, lastName: PersonT.LAST }
+              f::Employment : Relational { AssociationMapping (
+                employer: [f::DB]@FP, employees: [f::DB]@FP ) }
+            )
+            Runtime f::RT { mappings: [f::M]; }
+            """;
+
+    @Test
+    @DisplayName("a lifted chain filter under != excludes parents with no matching child")
+    void liftedFilterUnderNotEqualExcludesUnmatchedParents() throws SQLException {
+        // audit 14 F2: engine parks the outermost chain filter in the outer
+        // WHERE for filter position; our in-join placement is row-identical
+        // ONLY while not(equal) lowers strict-3VL (no IS NULL disjunct).
+        // This pin freezes the OBSERVABLE contract so either half changing
+        // alone fails loudly: a firm with employees but NO Smith must be
+        // EXCLUDED (its filtered read is NULL, and NULL != 'John' passes
+        // nothing), and the matched-but-equal firm is excluded too.
+        String sql = sqlOf(FIRM_MODEL, "|f::Firm.all()"
+                + "->filter(f|$f.employees->filter(e|$e.lastName == 'Smith')"
+                + ".firstName != 'John')"
+                + "->project([f|$f.legal], ['l'])->from(f::M, f::RT)");
+        assertEquals(List.of("Z Corp"), exec(sql,
+                "CREATE TABLE FirmT (ID INTEGER, LEGAL VARCHAR)",
+                "CREATE TABLE PersonT (ID INTEGER, FIRST VARCHAR, LAST VARCHAR, FIRMID INTEGER)",
+                "INSERT INTO FirmT VALUES (1, 'X Corp'), (2, 'Y Corp'), (3, 'Z Corp')",
+                "INSERT INTO PersonT VALUES (1, 'John', 'Smith', 1)",
+                "INSERT INTO PersonT VALUES (2, 'Bob', 'Jones', 2)",
+                "INSERT INTO PersonT VALUES (3, 'Anna', 'Smith', 3)"),
+                "only the firm with a non-John Smith survives:\n" + sql);
+    }
+
     @Test
     @DisplayName("a name-less non-property function column stays LOUD")
     void namelessFunctionColumnStaysLoud() {
