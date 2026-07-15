@@ -515,6 +515,13 @@ final class UnionSynthesis {
                     if (c.local()) {
                         continue;
                     }
+                    if (c.column() == null) {
+                        throw new com.legend.error.NotImplementedException(
+                                "union member '" + rfm.className() + "': relation"
+                                        + " column mapping for property '"
+                                        + c.property() + "' has no source column"
+                                        + " (unrecognized binding shape)");
+                    }
                     ValueSpecification read = new AppliedProperty(rfRow, c.column());
                     if (c.enumMappingId() != null) {
                         read = MappingNormalizer.translateEnumeratedSource(c.property(),

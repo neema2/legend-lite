@@ -47,6 +47,14 @@ public final class PureModelContext implements ModelContext {
     private final Map<String, List<TypedFunction>> functionCache = new HashMap<>();
 
     public PureModelContext(ModelBuilder model) {
+        this(model, null);
+    }
+
+    /** TOLERANT integrity (module compile): a non-null {@code wallSink}
+     * collects EVERY failing element in one pass; the caller drops them
+     * and rebuilds — the strict form throws on the first. */
+    public PureModelContext(ModelBuilder model,
+            java.util.Map<String, String> wallSink) {
         this.model = Objects.requireNonNull(model, "model");
         this.classifier = new TypeClassifier(model);
         this.functions = new FunctionCompiler(model, classifier);
@@ -54,7 +62,7 @@ public final class PureModelContext implements ModelContext {
         // F.a + F.b: THE eager reference-safety pass — every reference every
         // element makes (types, realizers, mapping bindings, association ends)
         // is checked once, whole-model, before this context exists.
-        ModelIntegrity.check(model, classifier, this.functions);
+        ModelIntegrity.check(model, classifier, this.functions, wallSink);
     }
 
     /**
@@ -64,6 +72,12 @@ public final class PureModelContext implements ModelContext {
      * an un-normalized {@code ParsedModel} cannot reach element compilation.
      */
     public static PureModelContext from(com.legend.model.NormalizedModel normalized) {
+        return from(normalized, null);
+    }
+
+    /** {@link #from} with a tolerant integrity wall sink (module compile). */
+    public static PureModelContext from(com.legend.model.NormalizedModel normalized,
+            java.util.Map<String, String> wallSink) {
         // THE Phase-E -> Phase-F gate: element compilation demands a
         // normalized model AT THE SIGNATURE LEVEL. (ModelBuilder itself is
         // phase-agnostic indexing and must not depend on the normalizer —
@@ -73,7 +87,7 @@ public final class PureModelContext implements ModelContext {
         // Phase-E poisons must survive into the queryable context — the
         // 0-binder error's "failed to normalize" reasons read them here
         mb.mappingPoisons.putAll(normalized.mappingPoisons());
-        return new PureModelContext(mb);
+        return new PureModelContext(mb, wallSink);
     }
 
     @Override

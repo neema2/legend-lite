@@ -64,11 +64,27 @@ import java.util.Objects;
  */
 public record AppliedFunction(
         String function,
-        List<ValueSpecification> parameters) implements ValueSpecification {
+        List<ValueSpecification> parameters,
+        List<String> candidateFqns) implements ValueSpecification {
 
     public AppliedFunction {
         Objects.requireNonNull(function, "function");
         Objects.requireNonNull(parameters, "parameters");
         parameters = List.copyOf(parameters);
+        candidateFqns = candidateFqns == null ? List.of()
+                : List.copyOf(candidateFqns);
+    }
+
+    /**
+     * The common form: no import-ambiguity candidates. {@code candidateFqns}
+     * is filled ONLY by the name resolver when a SIMPLE call name matches
+     * several imported packages — real pure merges same-named functions
+     * from every imported package into ONE overload set and picks by
+     * signature, so the resolver carries the candidate FQNs and the Typer
+     * unions their overloads (types stay single-referent: an ambiguous
+     * TYPE reference is still an error).
+     */
+    public AppliedFunction(String function, List<ValueSpecification> parameters) {
+        this(function, parameters, List.of());
     }
 }

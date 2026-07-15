@@ -168,6 +168,67 @@ public final class Compiler {
         return PureModelContext.from(normalized);
     }
 
+    /** A module built TOLERANTLY: the context over every element that
+     * compiles, plus the walls (element FQN => first error line) for every
+     * element that does not — the engine-parity behavior for compiling a
+     * repository (compile what compiles, report the rest). */
+    public record BuiltModule(ModelContext context,
+                              java.util.Map<String, String> walls) {
+        public BuiltModule {
+            walls = java.util.Collections.unmodifiableMap(
+                    new java.util.LinkedHashMap<>(walls));
+        }
+    }
+
+    /**
+     * Tolerant module build: per-element resolve/normalize failures are
+     * WALLED and excluded in batched passes; downstream integrity failures
+     * (dependents of walled elements) drop one per round until fixpoint.
+     * Unattributed failures still throw — a genuine bug must fail the
+     * build, never silently wall an element away.
+     */
+    public static BuiltModule buildModule(ParsedModel parsed) {
+        java.util.Map<String, String> walls = new java.util.LinkedHashMap<>();
+        java.util.Set<String> dropped = new java.util.HashSet<>();
+        for (int round = 0; round < 64; round++) {
+            List<com.legend.model.PackageableElement> els = parsed.elements().stream()
+                    .filter(e -> !dropped.contains(e.qualifiedName())).toList();
+            ParsedModel m = new ParsedModel(els, parsed.imports(), parsed.source(),
+                    parsed.elementOffsets(), parsed.elementImports(),
+                    parsed.elementSources());
+            java.util.Map<String, String> roundWalls = new java.util.LinkedHashMap<>();
+            try {
+                ParsedModel resolved = NameResolver.resolve(m, roundWalls);
+                NormalizedModel normalized =
+                        ModelNormalizer.normalize(resolved, roundWalls);
+                // integrity runs TOLERANT too — dependents of walled
+                // elements batch-collect instead of one-per-round; the
+                // context from a round with ANY walls is discarded (its
+                // caches may hold half-checked elements)
+                PureModelContext ctx =
+                        PureModelContext.from(normalized, roundWalls);
+                if (roundWalls.isEmpty()) {
+                    return new BuiltModule(ctx, walls);
+                }
+            } catch (com.legend.error.ModelException e) {
+                if (e.element() == null || dropped.contains(e.element())) {
+                    throw e;
+                }
+                roundWalls.put(e.element(),
+                        String.valueOf(e.getMessage()).split("\n")[0]);
+            }
+            if (roundWalls.isEmpty()) {
+                throw new IllegalStateException(
+                        "module build made no progress (resolver bug)");
+            }
+            walls.putAll(roundWalls);
+            dropped.addAll(roundWalls.keySet());
+        }
+        throw new IllegalStateException(
+                "module build did not converge in 64 rounds; walls so far: "
+                        + walls.size());
+    }
+
     /**
      * Compile a multi-source MODULE. Errors carry the offending element's
      * SOURCE NAME and [line:col] within that source.

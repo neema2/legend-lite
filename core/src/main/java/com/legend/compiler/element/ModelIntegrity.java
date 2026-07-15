@@ -30,23 +30,37 @@ final class ModelIntegrity {
     }
 
     static void check(ModelBuilder model, TypeClassifier classifier, FunctionCompiler functions) {
+        check(model, classifier, functions, null);
+    }
+
+    /** TOLERANT variant (module compile): a non-null {@code wallSink}
+     * collects EVERY failing element's first error line in one pass instead
+     * of throwing on the first — the caller drops them and re-runs. */
+    static void check(ModelBuilder model, TypeClassifier classifier,
+            FunctionCompiler functions, java.util.Map<String, String> wallSink) {
         model.classes().forEach(cd -> withElement(cd.qualifiedName(),
-                () -> checkClass(cd, classifier, functions)));
+                () -> checkClass(cd, classifier, functions), wallSink));
         model.functions().forEach(f -> withElement(f.qualifiedName(),
-                () -> checkFunction(f, classifier)));
+                () -> checkFunction(f, classifier), wallSink));
         model.associations().forEach(a -> withElement(a.qualifiedName(), () -> {
             classifier.classify(a.property1().targetClass(), List.of());
             classifier.classify(a.property2().targetClass(), List.of());
-        }));
+        }, wallSink));
         model.mappings().forEach(md -> withElement(md.qualifiedName(),
-                () -> checkMapping(md, model, classifier, functions)));
+                () -> checkMapping(md, model, classifier, functions), wallSink));
     }
 
     /** Attach the element FQN to escaping ModelExceptions (positions wave). */
-    private static void withElement(String elementFqn, Runnable work) {
+    private static void withElement(String elementFqn, Runnable work,
+            java.util.Map<String, String> wallSink) {
         try {
             work.run();
         } catch (com.legend.error.ModelException e) {
+            if (wallSink != null) {
+                wallSink.put(e.element() != null ? e.element() : elementFqn,
+                        String.valueOf(e.getMessage()).split("\n")[0]);
+                return;
+            }
             if (e.element() != null) {
                 throw e;
             }

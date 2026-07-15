@@ -96,6 +96,14 @@ public final class ModelNormalizer {
      * is a {@link NormalizedModel}, which this method does not accept.
      */
     public static NormalizedModel normalize(ParsedModel parsed) {
+        return normalize(parsed, null);
+    }
+
+    /** TOLERANT variant (module compile): plumbs the wall sink to the
+     * mapping normalizer — failing mappings are walled and excluded in
+     * one pass instead of throwing on the first. */
+    public static NormalizedModel normalize(ParsedModel parsed,
+            java.util.Map<String, String> wallSink) {
         Objects.requireNonNull(parsed, "parsed");
         // E.0 — association QUALIFIED properties adopt into the class that
         // owns them (the end OPPOSITE the one the property returns — real
@@ -115,7 +123,7 @@ public final class ModelNormalizer {
         ModelBuilder model = ModelBuilder.from(parsed);
         // E.1 rewrites MappingDefinitions (extends flattening, multi-hop
         // association injection) and lifts the mapping functions.
-        NormalizedModel normalized = MappingNormalizer.normalize(parsed, model);
+        NormalizedModel normalized = MappingNormalizer.normalize(parsed, model, wallSink);
         // per-class poisons recorded during mapping synthesis ride the
         // normalized model into Phase F (StoreResolver's 0-binder reasons)
         normalized = new NormalizedModel(normalized.elements(), normalized.imports(),

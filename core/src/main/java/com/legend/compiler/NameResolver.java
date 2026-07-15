@@ -153,12 +153,24 @@ public final class NameResolver {
      * bootstrap data.
      */
     public static ParsedModel resolve(ParsedModel parsed) {
+        return resolve(parsed, (java.util.Map<String, String>) null);
+    }
+
+    /**
+     * TOLERANT variant (module compile): a non-null {@code wallSink}
+     * collects per-element resolution failures (element FQN &rarr; first
+     * error line) and EXCLUDES those elements from the output instead of
+     * throwing — one pass walls them all. Null = strict (throw on first).
+     */
+    public static ParsedModel resolve(ParsedModel parsed,
+            java.util.Map<String, String> wallSink) {
         Objects.requireNonNull(parsed, "parsed");
         java.util.Map<String, ImportScope> perElement = new java.util.HashMap<>();
         parsed.elementImports().forEach((fqn, sc) -> perElement.put(fqn, withPrelude(sc)));
         ParsedModel scoped = new ParsedModel(parsed.elements(), withPrelude(parsed.imports()),
-                parsed.source(), parsed.elementOffsets(), perElement);
-        return resolve(scoped, knownFqns(parsed.elements()));
+                parsed.source(), parsed.elementOffsets(), perElement,
+                parsed.elementSources());
+        return resolve(scoped, knownFqns(parsed.elements()), wallSink);
     }
 
     /**
@@ -168,6 +180,12 @@ public final class NameResolver {
      * prelude-aware {@link #resolve(ParsedModel)} is the usual entry).
      */
     public static ParsedModel resolve(ParsedModel model, Set<String> knownFqns) {
+        return resolve(model, knownFqns, null);
+    }
+
+    /** {@link #resolve(ParsedModel, Set)} with an optional tolerant wall sink. */
+    public static ParsedModel resolve(ParsedModel model, Set<String> knownFqns,
+            java.util.Map<String, String> wallSink) {
         Scope globalScope = Scope.of(model.imports(), knownFqns);
         // SECTION-scoped resolution (real pure): each element resolves in
         // ITS OWN section's imports when recorded; the union scope is the
@@ -185,6 +203,12 @@ public final class NameResolver {
                 // know WHICH element failed to resolve — the caller's
                 // drop-and-wall works on structured identities, never on
                 // message text
+                if (wallSink != null) {
+                    wallSink.put(el.qualifiedName(),
+                            String.valueOf(e.getMessage()).split("\n")[0]);
+                    changed = true;   // the element is EXCLUDED
+                    continue;
+                }
                 throw new com.legend.error.ModelException(
                         com.legend.error.LegendCompileException.Phase.RESOLVE,
                         e.getMessage(), el.qualifiedName());
@@ -378,26 +402,39 @@ public final class NameResolver {
 
     /** Core lookup. Private; callers go through {@link #resolveType} etc. */
     private static String resolveName(String name, Scope scope) {
-        if (name == null || name.isEmpty()) return name;
-        // Type-parameter shadowing: a NameRef matching an in-scope type
-        // parameter (e.g. T inside Class Foo<T>) is a parameter
-        // reference, not a Pure FQN. Skip import resolution.
-        if (scope.typeParams().contains(name)) return name;
-        if (name.contains("::")) return name;
-        Map<String, String> typeImports = scope.imports().typeImports();
-        if (typeImports.containsKey(name)) return typeImports.get(name);
-        List<String> matches = new ArrayList<>(0);
-        for (String pkg : scope.imports().wildcards()) {
-            String candidate = pkg + "::" + name;
-            if (scope.knownFqns().contains(candidate)) matches.add(candidate);
-        }
-        if (matches.size() == 1) return matches.get(0);
+        List<String> matches = resolveNameMulti(name, scope);
         if (matches.size() > 1) {
             throw new com.legend.error.ResolutionException(
                     "ambiguous reference '" + name + "' \u2014 matches via imports: "
                     + matches + ". Use a fully qualified name.");
         }
-        return name;
+        return matches.get(0);
+    }
+
+    /**
+     * The multi-referent core: 1 element = resolved (or the name itself
+     * when nothing matched — FQNs, type params, unimported names); N
+     * elements = several imported packages define the name. TYPE positions
+     * error on N (real pure); FUNCTION-CALL positions carry all N as
+     * overload candidates and the Typer picks by signature (real pure's
+     * function matching collects across imports).
+     */
+    private static List<String> resolveNameMulti(String name, Scope scope) {
+        if (name == null || name.isEmpty()) return java.util.Collections.singletonList(name);
+        // Type-parameter shadowing: a NameRef matching an in-scope type
+        // parameter (e.g. T inside Class Foo<T>) is a parameter
+        // reference, not a Pure FQN. Skip import resolution.
+        if (scope.typeParams().contains(name)) return List.of(name);
+        if (name.contains("::")) return List.of(name);
+        Map<String, String> typeImports = scope.imports().typeImports();
+        if (typeImports.containsKey(name)) return List.of(typeImports.get(name));
+        List<String> matches = new ArrayList<>(0);
+        for (String pkg : scope.imports().wildcards()) {
+            String candidate = pkg + "::" + name;
+            if (scope.knownFqns().contains(candidate)) matches.add(candidate);
+        }
+        if (matches.isEmpty()) return List.of(name);
+        return matches;
     }
 
     // =================================================================
@@ -1179,10 +1216,19 @@ public final class NameResolver {
                 yield r.equals(ev.fullPath()) ? ev : new EnumValue(r, ev.value());
             }
             case AppliedFunction af -> {
-                String fn = normalizePlatformFunction(resolveName(af.function(), scope));
+                List<String> matches = resolveNameMulti(af.function(), scope);
+                // CALL position: several imported packages defining the name
+                // is NOT an error — the candidates travel on the node and
+                // the Typer unions their overloads (real pure's function
+                // matching collects across imports; signature picks)
+                String fn = matches.size() == 1
+                        ? normalizePlatformFunction(matches.get(0))
+                        : af.function();
+                List<String> candidates = matches.size() > 1 ? matches : List.of();
                 List<ValueSpecification> params = resolveVsList(af.parameters(), scope);
-                yield (fn.equals(af.function()) && params == af.parameters()) ? af
-                        : new AppliedFunction(fn, params);
+                yield (fn.equals(af.function()) && params == af.parameters()
+                        && candidates.isEmpty()) ? af
+                        : new AppliedFunction(fn, params, candidates);
             }
             case AppliedProperty ap -> {
                 ValueSpecification receiver = resolveVs(ap.receiver(), scope);

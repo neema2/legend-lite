@@ -154,6 +154,14 @@ public final class MappingNormalizer {
      * and every caller — prod and test — exercises this single code path.
      */
     public static NormalizedModel normalize(ParsedModel parsed, ModelBuilder model) {
+        return normalize(parsed, model, null);
+    }
+
+    /** TOLERANT variant (module compile): a non-null {@code wallSink}
+     * collects per-mapping normalization walls (element FQN &rarr; first
+     * error line) and EXCLUDES those mappings instead of throwing. */
+    public static NormalizedModel normalize(ParsedModel parsed, ModelBuilder model,
+            java.util.Map<String, String> wallSink) {
         Objects.requireNonNull(parsed, "parsed");
         Objects.requireNonNull(model, "model");
         List<PackageableElement> out = new ArrayList<>(parsed.elements().size());
@@ -168,13 +176,30 @@ public final class MappingNormalizer {
                         model.findLegacyMapping(md.qualifiedName()).orElse(md);
                 // Rewrite legacy surface -> canonical binding table; the legacy
                 // record does NOT flow past Phase E (CLEAN_SHEET_INVERSION §1.5).
-                out.add(withElement(md.qualifiedName(),
-                        () -> normalizeMapping(latest, model, lifted)));
+                try {
+                    out.add(withElement(md.qualifiedName(),
+                            () -> normalizeMapping(latest, model, lifted)));
+                } catch (ModelException e) {
+                    if (wallSink == null || e.element() == null) {
+                        throw e;
+                    }
+                    wallSink.put(e.element(),
+                            String.valueOf(e.getMessage()).split("\n")[0]);
+                }
             } else if (el instanceof MappingDefinition canonical) {
                 // Clean-sheet (Door 1/3) mapping: function-ref bindings pass
                 // through; inline expression bindings (Door 3) are lambda-lifted
                 // here (CLEAN_SHEET_INVERSION §5.3), so no Inline survives Phase E.
-                out.add(liftInlineBindings(canonical, model, lifted));
+                try {
+                    out.add(withElement(canonical.qualifiedName(),
+                            () -> liftInlineBindings(canonical, model, lifted)));
+                } catch (ModelException e) {
+                    if (wallSink == null || e.element() == null) {
+                        throw e;
+                    }
+                    wallSink.put(e.element(),
+                            String.valueOf(e.getMessage()).split("\n")[0]);
+                }
             } else {
                 out.add(el);
             }
@@ -208,6 +233,15 @@ public final class MappingNormalizer {
                 throw e;
             }
             throw new ModelException(e.phase(), e.getMessage(), elementFqn);
+        } catch (com.legend.error.NotImplementedException
+                | com.legend.error.MappingResolutionException e) {
+            // DELIBERATE walls get element attribution too — a module
+            // compile's drop-and-wall needs the identity. Genuine bugs
+            // (NPE, ISE) stay RAW: they must fail the build, never
+            // silently wall an element away.
+            throw new ModelException(
+                    com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                    e.getMessage(), elementFqn);
         }
     }
 
