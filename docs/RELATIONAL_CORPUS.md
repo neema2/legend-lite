@@ -125,7 +125,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 47 | 0 | 0 | 0 | 47 |
-| milestoning/tests | 221 | 141 | 0 | 25 | 55 |
+| milestoning/tests | 221 | 143 | 0 | 23 | 55 |
 | modelJoins | 7 | 0 | 0 | 1 | 6 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 0 | 7 |
@@ -172,7 +172,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **687** | 24 | 740 | 841 |
+| **total** | 2292 | **689** | 24 | 738 | 841 |
 
 ### mapping walls (dropped at assembly)
 
@@ -295,7 +295,7 @@ runner does not yet recognize (accounted, not skipped silently).
 
 ### top error buckets
 
-- 40x unknown class 'TDSNull' in ^TDSNull(…)
+- 41x unknown class 'TDSNull' in ^TDSNull(…)
 - 21x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - 20x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 18x a bare lambda has no type outside a call position (lambdas type against their call's signature)
@@ -914,7 +914,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testConcatenationOfTemporalTdsQueries [milestoning/tests]: execute() whose query argument is not a lambda
 - SHAPE testConcatenationOfTemporalTdsQueriesWithGroupBy [milestoning/tests]: execute() whose query argument is not a lambda
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product': property 'isBrexitClassificationTypeExchange' of 'meta::relational::tests::milestoning::Product': expected Boolean, got String (value: AppliedFunction[function=if, parameters=[App
-- ERROR testDeepUnionOperationWithNonTemporalAndNonUnionRoot [milestoning/tests]: multi-hop navigation product.classification.product.id through an embedded/slot head is not supported yet
 - SHAPE testMilestoningFilterPropagationWithNowInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testFilterOnView [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testCalculationOnBusinessDateInGetAll [milestoning/tests]: unknown function 'myGetAllProduct'
@@ -930,7 +929,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testLatestMilestoningFiltersPropogatedToDataTypePropertiesFromAllInProject [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testIsolationOfMilestoningFiltersUsedOnIntermediateJoinInOR [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testMilestoningContextWithLatestDateNotPropogatedThroughNonTemporalPropertiesFromAll [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testMilestoningContextNotPropogatedThroughNonTemporalPropertiesFromMilestonedQualifiedProperty [milestoning/tests]: multi-hop navigation product.referenceSystem.systemDescription.description through an embedded/slot head is not supported yet
 - SHAPE testLatestMilestoneDatePropogationFromTypeQueryDoesNotOverrideThatSpecifiedAsArgToMilestonedQpInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLatestMilestoneDateMappedTableDateDoesNotOverrideLatestDateFromChildPropertyInPropogation [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testMilestoneDatePropogationThruExistsConditionalClause [milestoning/tests]: milestoned property access 'classification' on a NESTED navigation is not supported yet
@@ -1704,7 +1702,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testSubAggregationJoinStringsOnRelationMapping [tests/mapping/relation/aggregation]: no execute(|...) call
 - ERROR testSelfJoinPropertyMapping [tests/mapping/selfJoin]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR testSelfJoinPropertyMappingOverlap [tests/mapping/selfJoin]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR testSelfJoinPropertyMappingWithDynaFunction [tests/mapping/selfJoin]: multi-hop navigation parent.parent.parent.name through an embedded/slot head is not supported yet
+- ERROR testSelfJoinPropertyMappingWithDynaFunction [tests/mapping/selfJoin]: unknown class 'TDSNull' in ^TDSNull(…)
 - SHAPE testTriminNotSybaseASE [tests/mapping/sqlFunction]: no execute(|...) call
 - ERROR testProject [tests/mapping/sqlFunction]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_aggregate(INTEGER, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_aggregate(ANY[]
 - ERROR testProject [tests/mapping/sqlFunction]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: No function matches the given name and argument types 'list_aggregate(INTEGER, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_aggregate(ANY[]
@@ -1762,11 +1760,11 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testUnionWithSinglePropertyMapping [tests/mapping/union]: unknown function 'meta::relational::mapping::sql'
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: no execute(|...) call
 - ERROR testSQLQueryMergingForFilters [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t18" not found! |  | LINE 1: ... t14.fk_0 = t17.fk OR t14.fk_1 = t17.fk ) AS t18 ON t11.fk_0 = t18.fk OR t11.fk_1 = t18.fk WHERE t18.pk = 11 AND t18.c_pk... |           
-- ERROR testSQLQueryMergingForFiltersDeep [tests/mapping/union]: multi-hop navigation b.c.d.pk through an embedded/slot head is not supported yet
+- ERROR testSQLQueryMergingForFiltersDeep [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t21" not found! |  | LINE 1: ... t17.fk_0 = t20.fk OR t17.fk_1 = t20.fk ) AS t21 ON t14.fk_0 = t21.fk OR t14.fk_1 = t21.fk ) AS t22 ON t11.fk_0 = t22.fk... |            
 - ERROR testSQLQueryMergingForProjections [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t18" not found! |  | LINE 1: ... t14.fk_0 = t17.fk OR t14.fk_1 = t17.fk ) AS t18 ON t11.fk_0 = t18.fk OR t11.fk_1 = t18.fk ) AS t0) AS value |                           
-- ERROR testSQLQueryMergingForProjectionsDeep [tests/mapping/union]: multi-hop navigation b.c.d.pk through an embedded/slot head is not supported yet
+- ERROR testSQLQueryMergingForProjectionsDeep [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t21" not found! |  | LINE 1: ... t17.fk_0 = t20.fk OR t17.fk_1 = t20.fk ) AS t21 ON t14.fk_0 = t21.fk OR t14.fk_1 = t21.fk ) AS t22 ON t11.fk_0 = t22.fk... |            
 - ERROR testSQLQueryMergingForFiltersAndProjections [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t18" not found! |  | LINE 1: ... t14.fk_0 = t17.fk OR t14.fk_1 = t17.fk ) AS t18 ON t11.fk_0 = t18.fk OR t11.fk_1 = t18.fk WHERE t11.pk = 1 AND t18.pk... |              
-- ERROR testSQLQueryMergingForFiltersAndProjectionsDeep [tests/mapping/union]: multi-hop navigation b.c.d.pk through an embedded/slot head is not supported yet
+- ERROR testSQLQueryMergingForFiltersAndProjectionsDeep [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Referenced table "t21" not found! |  | LINE 1: ... t17.fk_0 = t20.fk OR t17.fk_1 = t20.fk ) AS t21 ON t14.fk_0 = t21.fk OR t14.fk_1 = t21.fk ) AS t22 ON t11.fk_0 = t22.fk... |            
 - ERROR testSQLQueryMergingForInnerJoins [tests/mapping/union]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR testSQLQueryMergingForInnerJoins2 [tests/mapping/union]: unknown class 'TDSNull' in ^TDSNull(…)
 - SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_AddressIdKey [tests/mapping/union]: unsupported statement: meta::relational::functions::asserts::assertSameSQL

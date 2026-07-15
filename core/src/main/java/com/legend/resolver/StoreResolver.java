@@ -1644,7 +1644,7 @@ public final class StoreResolver {
         // class-typed slot materializes THAT slot's target too), then
         // register the head's substitution material with the REAL slot
         // prefixes (audit: Map.of() here walled every nested slot read).
-        Map<String, Pipelines.Materialized> navMats = new java.util.LinkedHashMap<>();
+        Map<String, NavMat> navMats = new java.util.LinkedHashMap<>();
         for (String alias : demandedNavs) {
             var nav = navSteps.get(alias);
             String targetClass = ((com.legend.compiler.spec.typed.TypedGetAll)
@@ -1660,11 +1660,11 @@ public final class StoreResolver {
                     navHeadByAlias.getOrDefault(alias, alias));
             if (liftedPred != null) {
                 ClassSource target = sources.get(cs.mappingFqn(), targetClass);
-                Pipelines.Materialized mat = navMats.get(alias);
-                navMats.put(alias, new Pipelines.Materialized(
+                NavMat mat = navMats.get(alias);
+                navMats.put(alias, new NavMat(
                         predFilteredPipe(mat.pipeline(), target,
                                 mat.slotPrefixes(), liftedPred, cs.mappingFqn()),
-                        mat.slotPrefixes(), mat.stripped()));
+                        mat.slotPrefixes(), mat.stripped(), mat.subNavs()));
             }
         }
         for (String alias : demandedNavs) {
@@ -1677,10 +1677,8 @@ public final class StoreResolver {
             // SUB-TARGET's binding table (leaves resolve through it —
             // audit 12 F1). Un-materialized sub-steps (temporal/filtered
             // gates) are absent: their reads stay loud.
-            Map<String, Substitution.SubNav> subNavs = buildSubNavs(
-                    cs.mappingFqn(), target,
-                    navTails.getOrDefault(alias, java.util.List.of()),
-                    navMats.get(alias).slotPrefixes());
+            Map<String, Substitution.SubNav> subNavs =
+                    navMats.get(alias).subNavs();
             assocs.put(navHeadByAlias.getOrDefault(alias, alias),
                     new Substitution.AssocSub(alias + "_",
                     target.rowVar(), target.bindings(), target.classFqn(),
@@ -1999,7 +1997,7 @@ public final class StoreResolver {
             String targetClass = ((com.legend.compiler.spec.typed.TypedGetAll)
                     nav.target()).classFqn();
             ClassSource target = sources.get(cs.mappingFqn(), targetClass);
-            Pipelines.Materialized mat = navTargetMaterialized(cs.mappingFqn(),
+            NavMat mat = navTargetMaterialized(cs.mappingFqn(),
                     targetClass,
                     extraNavTails.getOrDefault(headKey, java.util.List.of()),
                     headKey, null);
@@ -2024,10 +2022,7 @@ public final class StoreResolver {
                     Pipelines.slotAliases(target.pipeline()),
                     mat.slotPrefixes(), null, null,
                     milestoneColumnsOf(target.pipeline(), target.classFqn()),
-                    buildSubNavs(cs.mappingFqn(), target,
-                            extraNavTails.getOrDefault(headKey,
-                                    java.util.List.of()),
-                            mat.slotPrefixes())));
+                    mat.subNavs()));
         }
 
         // 2a'. JOIN-KEY COLLECTION under mapping ~distinct (engine L5135):
@@ -3099,40 +3094,6 @@ public final class StoreResolver {
                 mapper2, m.info());
     }
 
-    /** SUB-navigation material for a demanded head's 3-hop tails: the mid
-     * property's minted sub-alias, its materialized prefix, and the
-     * SUB-TARGET's binding table (leaves resolve through it — audit 12
-     * F1). Un-materialized sub-steps (temporal/filtered gates) are
-     * absent: their reads stay loud. */
-    private Map<String, Substitution.SubNav> buildSubNavs(String mappingFqn,
-            ClassSource target,
-            java.util.List<java.util.List<String>> tails,
-            Map<String, String> matPrefixes) {
-        Map<String, Substitution.SubNav> subNavs = new java.util.LinkedHashMap<>();
-        var tNavSteps = Pipelines.navSteps(target.pipeline());
-        for (java.util.List<String> tail : tails) {
-            if (tail.size() < 2 || subNavs.containsKey(tail.get(0))) {
-                continue;
-            }
-            TypedSpec midBinding = target.bindings().get(tail.get(0));
-            if (midBinding == null) {
-                continue;
-            }
-            String subAlias = navSlotAlias(midBinding, target.rowVar(),
-                    tNavSteps.keySet());
-            if (subAlias == null || !matPrefixes.containsKey(subAlias)) {
-                continue;
-            }
-            String subCls = ((com.legend.compiler.spec.typed.TypedGetAll)
-                    tNavSteps.get(subAlias).target()).classFqn();
-            ClassSource subCs = sources.get(mappingFqn, subCls);
-            subNavs.put(tail.get(0), new Substitution.SubNav(
-                    matPrefixes.get(subAlias), subCs.rowVar(),
-                    subCs.bindings()));
-        }
-        return subNavs;
-    }
-
     /** The predicate reads no variables beyond its own parameter and the
      * parameters of lambdas nested WITHIN it (conservative: any other
      * variable name refuses the lift — over-refusing stays loud). */
@@ -3973,7 +3934,15 @@ public final class StoreResolver {
      * target too (the engine re-enters findPropertyMapping per hop;
      * prefixes compose mechanically: b_ + c_ + pk).
      */
-    private Pipelines.Materialized navTargetMaterialized(String mappingFqn,
+    /** A demanded navigate target's material: the pipeline + slot prefixes
+     * (as {@link Pipelines.Materialized}) PLUS the recursive SUB-navigation
+     * tree the substitution walks — prefixes composed relative to THIS
+     * target's row at every depth (hop-agnostic by construction). */
+    record NavMat(TypedSpec pipeline, Map<String, String> slotPrefixes,
+                  Set<String> stripped,
+                  Map<String, Substitution.SubNav> subNavs) {}
+
+    private NavMat navTargetMaterialized(String mappingFqn,
             String targetClassFqn, java.util.List<java.util.List<String>> tails) {
         return navTargetMaterialized(mappingFqn, targetClassFqn, tails, null, null);
     }
@@ -3982,7 +3951,7 @@ public final class StoreResolver {
      * off; {@code inheritedDates}: the PARENT hop's effective context —
      * propagation flows hop-to-hop through temporal classes (engine
      * getMilestoningContextForQualifiedProperty), not only from the root. */
-    private Pipelines.Materialized navTargetMaterialized(String mappingFqn,
+    private NavMat navTargetMaterialized(String mappingFqn,
             String targetClassFqn, java.util.List<java.util.List<String>> tails,
             String chainPrefix, java.util.List<TypedSpec> inheritedDates) {
         ClassSource t = sources.get(mappingFqn, targetClassFqn);
@@ -4000,7 +3969,10 @@ public final class StoreResolver {
         java.util.List<TypedSpec> hopDates =
                 hopContextDates(chainPrefix, targetClassFqn, inheritedDates);
         if (containsFilter(t.pipeline())) {
-            return Pipelines.materialize(t.pipeline(), Set.of(), targetClassFqn);
+            Pipelines.Materialized raw = Pipelines.materialize(
+                    t.pipeline(), Set.of(), targetClassFqn);
+            return new NavMat(raw.pipeline(), raw.slotPrefixes(),
+                    raw.stripped(), Map.of());
         }
         Set<String> tSlots = Pipelines.slotAliases(t.pipeline());
         var tNavSteps = Pipelines.navSteps(t.pipeline());
@@ -4089,15 +4061,19 @@ public final class StoreResolver {
                 }
             }
         }
+        final Map<String, NavMat> subMats = new java.util.LinkedHashMap<>();
+        final Map<String, String> subClsByAlias = new java.util.LinkedHashMap<>();
         Pipelines.Materialized matM = Pipelines.materialize(
                 t.pipeline(), tDemand, tNavs,
                 targetClassFqn, (alias, cls) -> {
-                    TypedSpec sub = navTargetMaterialized(mappingFqn, cls,
+                    NavMat subMat = navTargetMaterialized(mappingFqn, cls,
                             subTails.getOrDefault(alias, java.util.List.of()),
                             chainPrefix == null ? null
                                     : chainPrefix + "." + midByAlias.get(alias),
-                            hopDates)
-                            .pipeline();
+                            hopDates);
+                    subMats.put(alias, subMat);
+                    subClsByAlias.put(alias, cls);
+                    TypedSpec sub = subMat.pipeline();
                     // per-hop temporal filter: the sub-hop's chain-keyed
                     // spec or propagated context (parent = THIS target)
                     if (temporalStrategy(cls) != null && chainPrefix != null) {
@@ -4138,18 +4114,50 @@ public final class StoreResolver {
                     }
                     return sub;
                 });
+        Map<String, Substitution.SubNav> subTree = new java.util.LinkedHashMap<>();
+        for (var sm : subMats.entrySet()) {
+            String prop = midByAlias.get(sm.getKey());
+            String p = matM.slotPrefixes().get(sm.getKey());
+            if (prop == null || p == null) {
+                continue;
+            }
+            ClassSource subCs = sources.get(mappingFqn,
+                    subClsByAlias.get(sm.getKey()));
+            subTree.put(prop, new Substitution.SubNav(p, subCs.rowVar(),
+                    subCs.bindings(),
+                    composeSubNavPrefixes(p, sm.getValue().subNavs())));
+        }
         if (slotDates != null && !slotDates.isEmpty()
                 && hasMilestonedSlotTarget(t.pipeline())) {
             // milestoned SLOT-TARGET aliases filter by the hop context —
             // only tables supporting the context's OWN dimension (the
             // context's dimension = the hop target class's strategy, since
             // hopContextDates admits same-dimension flows only)
-            return new Pipelines.Materialized(
+            return new NavMat(
                     filterMilestonedJoinTargets(matM.pipeline(), slotDates,
                             temporalStrategy(targetClassFqn)),
-                    matM.slotPrefixes(), matM.stripped());
+                    matM.slotPrefixes(), matM.stripped(), subTree);
         }
-        return matM;
+        return new NavMat(matM.pipeline(), matM.slotPrefixes(),
+                matM.stripped(), subTree);
+    }
+
+    /** Re-root a child's SUB-navigation tree onto the parent row: every
+     * prefix (relative to the child's row) gains the child's own join
+     * prefix, recursively — composition is mechanical (b_ + c_ + pk). */
+    private static Map<String, Substitution.SubNav> composeSubNavPrefixes(
+            String p, Map<String, Substitution.SubNav> kids) {
+        if (kids.isEmpty()) {
+            return kids;
+        }
+        Map<String, Substitution.SubNav> out = new java.util.LinkedHashMap<>();
+        for (var e : kids.entrySet()) {
+            Substitution.SubNav k = e.getValue();
+            out.put(e.getKey(), new Substitution.SubNav(p + k.prefix(),
+                    k.rowVar(), k.bindings(),
+                    composeSubNavPrefixes(p, k.children())));
+        }
+        return out;
     }
 
     /** The hop's effective single-dimension date context: its chain-keyed

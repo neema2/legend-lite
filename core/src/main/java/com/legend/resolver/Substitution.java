@@ -103,10 +103,18 @@ final class Substitution {
      * an EXISTS-inner registration points them at the subquery row.
      */
     /** A materialized SUB-navigation of an association/navigate target:
-     * the composed column prefix (relative to the target's row), the
-     * sub-target's row var and BINDING table — 3-hop leaves resolve
-     * through it (audit 12 F1: the property name is NOT a column name). */
-    record SubNav(String prefix, String rowVar, Map<String, TypedSpec> bindings) {}
+     * the composed column prefix (relative to the OWNING target's row),
+     * the sub-target's row var and BINDING table — multi-hop leaves
+     * resolve through it (audit 12 F1: the property name is NOT a column
+     * name). {@code children}: the NEXT level, self-similar — the walk is
+     * hop-agnostic (the per-hop-count arms were the recurring bug seam). */
+    record SubNav(String prefix, String rowVar, Map<String, TypedSpec> bindings,
+                  Map<String, SubNav> children) {
+
+        SubNav(String prefix, String rowVar, Map<String, TypedSpec> bindings) {
+            this(prefix, rowVar, bindings, Map.of());
+        }
+    }
 
     record AssocSub(String prefix, String targetRowVar,
                     Map<String, TypedSpec> targetBindings, String targetClassFqn,
@@ -439,21 +447,30 @@ final class Substitution {
                             a2.readVar() != null ? "" : a2.prefix(), n);
                 }
             }
-            // MULTI-HOP through a NAVIGATE-SLOT head ($a.b.c.pk where b is
-            // a class-typed Join PM slot and c a slot of b's target): the
-            // leaf resolves through the SUB-TARGET'S BINDING (column
-            // renames honored — audit 12 F1: the property name is not a
-            // physical column), then reads the composed prefixed column
-            // on the joined row (engine: per-hop findPropertyMapping).
-            if (path.size() == 3 && target.assocs().containsKey(path.get(0))) {
+            // MULTI-HOP through a NAVIGATE-SLOT head ($a.b...z.pk where b
+            // is a class-typed Join PM slot and each further hop a slot of
+            // the previous target): the leaf resolves through the DEEPEST
+            // SUB-TARGET'S BINDING (column renames honored — audit 12 F1:
+            // the property name is not a physical column), read as the
+            // COMPOSED prefixed column on the joined row (engine: per-hop
+            // findPropertyMapping). The walk is hop-agnostic — the SubNav
+            // tree carries prefixes composed per level.
+            if (target.assocs().containsKey(path.get(0))) {
                 AssocSub a3 = target.assocs().get(path.get(0));
                 SubNav sub = a3.subNavs().get(path.get(1));
+                int hop = 2;
+                while (sub != null && hop + 1 < path.size()) {
+                    sub = sub.children().get(path.get(hop));
+                    hop++;
+                }
                 if (sub != null) {
-                    TypedSpec leafBinding = sub.bindings().get(path.get(2));
+                    String leaf = path.get(path.size() - 1);
+                    String hops = String.join(".",
+                            path.subList(0, path.size() - 1));
+                    TypedSpec leafBinding = sub.bindings().get(leaf);
                     if (leafBinding == null) {
                         throw new MappingResolutionException("property '"
-                                + path.get(2) + "' of nested navigation '"
-                                + path.get(0) + "." + path.get(1)
+                                + leaf + "' of nested navigation '" + hops
                                 + "' is not mapped in mapping '"
                                 + target.mappingFqn() + "'", target.classFqn());
                     }
@@ -476,9 +493,8 @@ final class Substitution {
                                 a3.readVar() != null ? "" : a3.prefix(), n);
                     }
                     throw new NotImplementedException("nested navigation leaf '"
-                            + path.get(2) + "' of '" + path.get(0) + "."
-                            + path.get(1) + "' is mapped by a non-column"
-                            + " expression — not supported yet");
+                            + leaf + "' of '" + hops + "' is mapped by a"
+                            + " non-column expression — not supported yet");
                 }
             }
             // MULTI-HOP association chain ($p.dept.org.name): the demand scan
