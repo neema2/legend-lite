@@ -466,8 +466,18 @@ public interface TokenStreamCursor {
         while (match(TokenType.COMMA)) {
             args.add(parseTypeArgument());
         }
+        // MULTIPLICITY type parameters (real M3: Result<T|m>,
+        // Result<TabularDataSet|1>): '|' separates the type arguments
+        // from the multiplicity arguments
+        List<String> multArgs = new ArrayList<>();
+        if (match(TokenType.PIPE)) {
+            multArgs.add(parseMultiplicityArgumentText());
+            while (match(TokenType.COMMA)) {
+                multArgs.add(parseMultiplicityArgumentText());
+            }
+        }
         expect(TokenType.GREATER_THAN);
-        return new TypeExpression.Generic(name, args);
+        return new TypeExpression.Generic(name, args, multArgs);
     }
 
     /**
@@ -509,6 +519,45 @@ public interface TokenStreamCursor {
      * {@code [N..*]}, {@code [*]}, or {@code [identifier]} (parameter
      * reference). Opening {@code '['} has not yet been consumed.
      */
+    /**
+     * One multiplicity argument inside a generic application's
+     * {@code |}-section ({@code Result<T|m>} / {@code Result<TDS|1>} /
+     * {@code Result<X|0..1>}) — the UNBRACKETED multiplicity spelling,
+     * kept as text (the argument names or fixes a multiplicity
+     * parameter; nothing downstream computes with it yet).
+     */
+    default String parseMultiplicityArgumentText() {
+        TokenType t = peek();
+        if (t == TokenType.STAR) {
+            advance();
+            return "*";
+        }
+        if (t == TokenType.INTEGER) {
+            String lower = text();
+            advance();
+            if (match(TokenType.DOT_DOT)) {
+                if (match(TokenType.STAR)) {
+                    return lower + "..*";
+                }
+                if (peek() == TokenType.INTEGER) {
+                    String upper = text();
+                    advance();
+                    return lower + ".." + upper;
+                }
+                throw error("expected integer or '*' after '..' in a"
+                        + " multiplicity argument");
+            }
+            return lower;
+        }
+        if (isIdentifierToken(t)) {
+            String name = text();
+            advance();
+            return name;
+        }
+        throw error("expected a multiplicity argument (n, n..m, *, or a"
+                + " multiplicity parameter), got " + t);
+    }
+
     default Multiplicity parseMultiplicity() {
         expect(TokenType.BRACKET_OPEN);
         Multiplicity result;

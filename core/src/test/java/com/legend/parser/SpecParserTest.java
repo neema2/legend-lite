@@ -129,14 +129,19 @@ final class SpecParserTest {
     }
 
     @Test
-    void stringLiteralUnknownEscapeRejected() {
-        // \z is not in the supported escape set; we must fail loudly
-        // rather than emit it verbatim (which would silently diverge
-        // from engine semantics).
+    void stringLiteralUnknownEscapeDropsBackslash() {
+        // real pure's StringEscape.UNESCAPE_PURE ends with {"\\", ""} —
+        // an UNRECOGNIZED escape drops the backslash and keeps the char
+        // (the corpus's '\ ' seed literal depends on it). Pin the decoded
+        // engine semantics, not a stricter invention.
+        ValueSpecification v = SpecParser.parse("'a\\zb'");
+        assertEquals("azb", ((CString) v).value());
+        // octal/unicode escapes stay LOUD (drop-backslash would corrupt
+        // them silently; unimplemented until a corpus file demands them)
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("'a\\zb'"));
-        assertTrue(ex.getMessage().contains("unsupported escape"),
-                () -> "want unsupported-escape error, got: " + ex.getMessage());
+                () -> SpecParser.parse("'a\\u0041b'"));
+        assertTrue(ex.getMessage().contains("octal/unicode"),
+                () -> "want octal/unicode-escape error, got: " + ex.getMessage());
     }
 
     // ----- booleans ----------------------------------------------------
@@ -1750,10 +1755,11 @@ final class SpecParserTest {
         // pass; the explicit error path is the right behaviour.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("{p: Pair<Integer | $p}"));
-        // After flipping to structured TypeExpression, the inner
-        // parseTypeArgument call hits EOF inside <...> and the
-        // shared helper reports the expected closing GREATER_THAN.
-        assertTrue(ex.getMessage().contains("GREATER_THAN"),
+        // With multiplicity type parameters supported (Pair<T|m>), the
+        // '|' legally OPENS the multiplicity-argument section and '$p'
+        // rejects there — still a loud error, never a silent truncation
+        // of the type name.
+        assertTrue(ex.getMessage().contains("multiplicity argument"),
                 () -> "want unterminated-type-args error, got: " + ex.getMessage());
     }
 

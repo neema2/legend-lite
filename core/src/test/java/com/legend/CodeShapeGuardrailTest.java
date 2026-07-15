@@ -53,6 +53,10 @@ class CodeShapeGuardrailTest {
             "ElementParser.pos", "ElementParser.currentMappingScope",
             "ElementParser.currentTargetSets", "ElementParser.currentScopeBlock",
             "SpecParser.pos",
+            // ';'-ambiguity context for unbraced lambda code blocks: inside
+            // call args/collections a ';' is unambiguously the lambda's —
+            // a cursor-adjacent depth, same lifecycle as pos
+            "SpecParser.boundedDepth",
             // per-resolution frames + counters
             "StoreResolver.freshVarCounter", "StoreResolver.temporal",
             "SyntheticHeads.count", "Lowerer.tdsCounter", "Lowerer.aliasCounter",

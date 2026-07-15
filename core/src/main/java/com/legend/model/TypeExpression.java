@@ -75,12 +75,20 @@ public sealed interface TypeExpression {
      *  it is stored flat rather than wrapped in a {@link NameRef} so
      *  that resolving the head and resolving the arguments are obvious
      *  separate steps in any walk. */
-    record Generic(String name, List<TypeExpression> arguments)
+    record Generic(String name, List<TypeExpression> arguments,
+            List<String> multiplicityArguments)
             implements TypeExpression {
         public Generic {
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(arguments, "arguments");
+            Objects.requireNonNull(multiplicityArguments, "multiplicityArguments");
             arguments = List.copyOf(arguments);
+            multiplicityArguments = List.copyOf(multiplicityArguments);
+        }
+
+        /** The common no-multiplicity-parameters form. */
+        public Generic(String name, List<TypeExpression> arguments) {
+            this(name, arguments, List.of());
         }
     }
 

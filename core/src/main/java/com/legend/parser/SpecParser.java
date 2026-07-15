@@ -769,7 +769,12 @@ public final class SpecParser implements TokenStreamCursor {
                 throw error("malformed string literal: trailing backslash");
             }
             char esc = body.charAt(i + 1);
-            // real pure's set (M4Fragment.g4 EscSeq): [btnfr"'\\]
+            // real pure's set (M4Fragment.g4 EscSeq): [btnfr"'\\]; an
+            // UNRECOGNIZED escape drops the backslash and keeps the char
+            // (legend-pure StringEscape.UNESCAPE_PURE's terminal {"\\",""}
+            // rule — the corpus's '\ ' seed literal depends on it). Octal
+            // and \\uXXXX escapes stay loud until a corpus file demands
+            // them (drop-backslash would corrupt them silently).
             switch (esc) {
                 case '\\' -> sb.append('\\');
                 case '\'' -> sb.append('\'');
@@ -779,8 +784,10 @@ public final class SpecParser implements TokenStreamCursor {
                 case 'r' -> sb.append('\r');
                 case 'b' -> sb.append('\b');
                 case 'f' -> sb.append('\f');
-                default -> throw error(
-                        "malformed string literal: unsupported escape '\\" + esc + "'");
+                case 'u', '0', '1', '2', '3', '4', '5', '6', '7' ->
+                        throw error("malformed string literal: octal/unicode"
+                                + " escape '\\" + esc + "' is not supported yet");
+                default -> sb.append(esc);
             }
             i += 2;
         }
@@ -880,6 +887,15 @@ public final class SpecParser implements TokenStreamCursor {
      */
     private PureCollection parseCollection() {
         pos++; // consume '['
+        boundedDepth++;
+        try {
+            return parseCollectionBody();
+        } finally {
+            boundedDepth--;
+        }
+    }
+
+    private PureCollection parseCollectionBody() {
         List<ValueSpecification> values = new ArrayList<>();
         if (!atEnd() && peek() == TokenType.BRACKET_CLOSE) {
             pos++;
@@ -1197,6 +1213,15 @@ public final class SpecParser implements TokenStreamCursor {
      */
     private List<ValueSpecification> parseArgList() {
         pos++; // consume '('
+        boundedDepth++;
+        try {
+            return parseArgListBody();
+        } finally {
+            boundedDepth--;
+        }
+    }
+
+    private List<ValueSpecification> parseArgListBody() {
         List<ValueSpecification> args = new ArrayList<>();
         if (!atEnd() && peek() == TokenType.PAREN_CLOSE) {
             pos++;
@@ -1439,6 +1464,18 @@ public final class SpecParser implements TokenStreamCursor {
             pos++; // consume ','
             args.add(parseType());
         }
+        // MULTIPLICITY type parameters (real M3: cast(@Property<Nil,Any|*>),
+        // ^Result<TabularDataSet|1>(...)): parsed and discarded here — the
+        // ^/cast head keeps only the raw type today, exactly like the
+        // type-argument list itself once the head resolves
+        if (!atEnd() && peek() == TokenType.PIPE) {
+            pos++;
+            parseMultiplicityArgumentText();
+            while (!atEnd() && peek() == TokenType.COMMA) {
+                pos++;
+                parseMultiplicityArgumentText();
+            }
+        }
         expect(TokenType.GREATER_THAN, "expected '>' to close type arguments");
         return args;
     }
@@ -1529,10 +1566,44 @@ public final class SpecParser implements TokenStreamCursor {
     private LambdaFunction parseSingleParamLambda() {
         Variable param = parseLambdaParam();
         expect(TokenType.PIPE, "expected '|' after shorthand lambda parameter");
-        ValueSpecification body = parseCombinedExpression();
-        return new LambdaFunction(
-                List.of(param),
-                List.of(body));
+        // The body is a CODE BLOCK per real Pure (lambdaPipe: PIPE
+        // codeBlock), parsed as a DETERMINISTIC subset of ANTLR's
+        // backtracking resolution of the grammar's ambiguity:
+        //   - a body STARTING with 'let' commits to multi-statement —
+        //     every statement requires its trailing ';' and the block
+        //     runs to a closing token (corpus:
+        //     filter(p | let n = ...; $n->at(0);))
+        //   - an expression body stays single-statement; a ';'
+        //     IMMEDIATELY followed by a closer is the codeBlock's own
+        //     optional END_LINE (corpus: [d: Database[*]| f($d);]);
+        //     any other ';' belongs to the ENCLOSING statement sequence
+        //     ($x->map(e|$e+1); let b = ... must not swallow the let)
+        List<ValueSpecification> body = new java.util.ArrayList<>();
+        boolean letStart = !atEnd() && peek() == TokenType.LET;
+        body.add(parseProgramLine());
+        if (!atEnd() && peek() == TokenType.SEMI_COLON) {
+            if (boundedDepth > 0 || letStart) {
+                // BOUNDED context (call args / collection): no outer
+                // statement can own a ';' here, so the greedy codeBlock
+                // read is unambiguous. STATEMENT context: only a body
+                // that STARTS with 'let' commits (the outer sequence owns
+                // an expression body's ';').
+                pos++; // the first statement's ';'
+                while (!atEnd() && !isLambdaBodyTerminator(peek())) {
+                    body.add(parseProgramLine());
+                    if (atEnd() || peek() != TokenType.SEMI_COLON) {
+                        throw error("expected ';' after statement in a"
+                                + " multi-statement lambda body (real Pure"
+                                + " requires it)");
+                    }
+                    pos++; // the REQUIRED trailing ';'
+                }
+            } else if (pos + 1 < tokens.count()
+                    && isLambdaBodyTerminator(tokens.type(pos + 1))) {
+                pos++; // the codeBlock's own trailing END_LINE
+            }
+        }
+        return new LambdaFunction(List.of(param), body);
     }
 
     // -------------------------------------------------------------------
@@ -1673,6 +1744,11 @@ public final class SpecParser implements TokenStreamCursor {
         }
         return new LambdaFunction(List.of(), body);
     }
+
+    /** Depth of contexts where a ';' cannot belong to an enclosing
+     * statement (call argument lists, collection literals) — inside them
+     * the unbraced-lambda codeBlock reads greedily, matching real Pure. */
+    private int boundedDepth = 0;
 
     private static boolean isLambdaBodyTerminator(TokenType t) {
         return t == TokenType.PAREN_CLOSE || t == TokenType.COMMA
