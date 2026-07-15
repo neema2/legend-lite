@@ -1,17 +1,17 @@
 package com.legend.normalizer;
 
-import com.legend.parser.NormalizedModel;
+import com.legend.model.NormalizedModel;
 import com.legend.compiler.ModelBuilder;
 import com.legend.compiler.NameResolver;
 import com.legend.parser.ElementParser;
-import com.legend.parser.Multiplicity;
-import com.legend.parser.TypeExpression;
-import com.legend.parser.element.ClassDefinition;
-import com.legend.parser.element.FunctionDefinition;
-import com.legend.parser.element.PackageableElement;
-import com.legend.parser.element.SynthHat;
-import com.legend.parser.element.ServiceDefinition;
-import com.legend.parser.spec.LambdaFunction;
+import com.legend.model.Multiplicity;
+import com.legend.model.TypeExpression;
+import com.legend.model.ClassDefinition;
+import com.legend.model.FunctionDefinition;
+import com.legend.model.PackageableElement;
+import com.legend.model.SynthHat;
+import com.legend.model.ServiceDefinition;
+import com.legend.model.spec.LambdaFunction;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -242,7 +242,7 @@ class ModelNormalizerTest {
         assertEquals(1, fn.parameters().size());
         assertEquals("this", fn.parameters().get(0).name(),
                 "constraint is a predicate of `this`");
-        assertTrue(((com.legend.parser.TypeExpression.NameRef) fn.returnType()).name()
+        assertTrue(((com.legend.model.TypeExpression.NameRef) fn.returnType()).name()
                         .endsWith("::Boolean"),
                 "return type is the Boolean primitive FQN so Phase F can classify it");
         assertEquals(Multiplicity.Concrete.PURE_ONE, fn.returnMultiplicity());
@@ -391,7 +391,7 @@ class ModelNormalizerTest {
               + "Service my::S { pattern: '/x'; "
               + "  execution: Single { query: |model::Person.all(); mapping: my::M; runtime: my::R; } }");
 
-        ModelBuilder mb = ModelBuilder.from(new com.legend.parser.ParsedModel(m.elements(), m.imports()));
+        ModelBuilder mb = ModelBuilder.from(new com.legend.model.ParsedModel(m.elements(), m.imports()));
         assertEquals(1, mb.findFunction("model::Person$prop$next").size(),
                 "derived-property fn reachable through findFunction");
         assertEquals(1, mb.findFunction("model::Person$constraint$adult").size(),

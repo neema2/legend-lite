@@ -9,7 +9,7 @@ import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedPivot;
 import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.parser.spec.AppliedFunction;
+import com.legend.model.spec.AppliedFunction;
 
 import java.util.ArrayList;
 import java.util.List;

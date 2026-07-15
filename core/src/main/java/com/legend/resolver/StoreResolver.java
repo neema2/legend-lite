@@ -49,7 +49,7 @@ import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.error.MappingResolutionException;
 import com.legend.error.NotImplementedException;
-import com.legend.parser.element.RuntimeDefinition;
+import com.legend.model.RuntimeDefinition;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;

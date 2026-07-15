@@ -8,7 +8,7 @@
  * <p>Phase E has a single entry point,
  * {@code ModelNormalizer.normalize(ParsedModel) -> NormalizedModel}, which externalizes
  * <em>every</em> Pure body site into synthesized
- * {@link com.legend.parser.element.FunctionDefinition}s (owners keep signatures +
+ * {@link com.legend.model.FunctionDefinition}s (owners keep signatures +
  * FQN refs). It composes the sub-slices below as chained
  * {@code ParsedModel -> ParsedModel} transforms: the three simpler body sites inline,
  * delegating the complex legacy-mapping desugaring to
@@ -17,9 +17,9 @@
  *
  * <h2>Sub-slice E.1 &mdash; {@link com.legend.normalizer.MappingNormalizer}</h2>
  *
- * <p>For each {@link com.legend.parser.element.ClassMapping} inside every
- * {@link com.legend.parser.element.LegacyMappingDefinition} in the parsed model,
- * synthesize one Layer-2 {@link com.legend.parser.element.FunctionDefinition}
+ * <p>For each {@link com.legend.model.ClassMapping} inside every
+ * {@link com.legend.model.LegacyMappingDefinition} in the parsed model,
+ * synthesize one Layer-2 {@link com.legend.model.FunctionDefinition}
  * returning {@code TargetClass[*]}. The synth function's body is a Pure
  * pipeline that ends in {@code map(<bind> | ^Target(prop=expr, ...))} &mdash;
  * the {@code ^Target(...)} terminus carries the property bindings, the
@@ -29,7 +29,7 @@
  * <h2>Sub-slice E.2 &mdash; derived properties</h2>
  *
  * <p>Externalize each
- * {@link com.legend.parser.element.ClassDefinition.DerivedPropertyDefinition} body
+ * {@link com.legend.model.ClassDefinition.DerivedPropertyDefinition} body
  * into a synthesized {@code <owner>$prop$<name>(this:Owner[1], <params>):T[m]}
  * function (see {@code docs/CORE_PHASE_F_TYPED_ELEMENTS_V2.md} §1.5); the class keeps
  * the derived-property signature + the function FQN.

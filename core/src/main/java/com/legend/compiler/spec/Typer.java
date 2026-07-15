@@ -33,29 +33,29 @@ import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedTypeRef;
 import com.legend.compiler.spec.typed.TypedUserCall;
 import com.legend.compiler.spec.typed.TypedVariable;
-import com.legend.parser.spec.AppliedFunction;
-import com.legend.parser.spec.AppliedProperty;
-import com.legend.parser.TypeExpression;
-import com.legend.parser.spec.CBoolean;
-import com.legend.parser.spec.CDate;
-import com.legend.parser.spec.CLatestDate;
-import com.legend.parser.spec.CTime;
-import com.legend.parser.spec.CDecimal;
-import com.legend.parser.spec.CFloat;
-import com.legend.parser.spec.CInteger;
-import com.legend.parser.spec.CString;
-import com.legend.parser.spec.ColSpec;
-import com.legend.parser.spec.ColSpecArray;
-import com.legend.parser.spec.EnumValue;
-import com.legend.parser.spec.LambdaFunction;
-import com.legend.parser.spec.NewInstance;
-import com.legend.parser.spec.NewInstanceCast;
-import com.legend.parser.spec.PackageableElementPtr;
-import com.legend.parser.spec.PureCollection;
+import com.legend.model.spec.AppliedFunction;
+import com.legend.model.spec.AppliedProperty;
+import com.legend.model.TypeExpression;
+import com.legend.model.spec.CBoolean;
+import com.legend.model.spec.CDate;
+import com.legend.model.spec.CLatestDate;
+import com.legend.model.spec.CTime;
+import com.legend.model.spec.CDecimal;
+import com.legend.model.spec.CFloat;
+import com.legend.model.spec.CInteger;
+import com.legend.model.spec.CString;
+import com.legend.model.spec.ColSpec;
+import com.legend.model.spec.ColSpecArray;
+import com.legend.model.spec.EnumValue;
+import com.legend.model.spec.LambdaFunction;
+import com.legend.model.spec.NewInstance;
+import com.legend.model.spec.NewInstanceCast;
+import com.legend.model.spec.PackageableElementPtr;
+import com.legend.model.spec.PureCollection;
 import com.legend.values.PureDateLiteral;
-import com.legend.parser.spec.TypeAnnotation;
-import com.legend.parser.spec.ValueSpecification;
-import com.legend.parser.spec.Variable;
+import com.legend.model.spec.TypeAnnotation;
+import com.legend.model.spec.ValueSpecification;
+import com.legend.model.spec.Variable;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -221,9 +221,9 @@ final class Typer {
                 var read = new AppliedProperty(g.parameters().get(0), gc.value());
                 return synth(new AppliedFunction("if", List.of(
                         new AppliedFunction("isEmpty", List.of(read)),
-                        new com.legend.parser.spec.LambdaFunction(List.of(),
+                        new com.legend.model.spec.LambdaFunction(List.of(),
                                 List.of(new CString("TDSNull"))),
-                        new com.legend.parser.spec.LambdaFunction(List.of(),
+                        new com.legend.model.spec.LambdaFunction(List.of(),
                                 List.of(new AppliedFunction("toString", List.of(
                                         new AppliedFunction("toOne",
                                                 List.of(read)))))))), env);
@@ -259,7 +259,7 @@ final class Typer {
                         .toList();
                 AppliedFunction select = new AppliedFunction("select",
                         List.of(af.parameters().get(0),
-                                new com.legend.parser.spec.ColSpecArray(specs)));
+                                new com.legend.model.spec.ColSpecArray(specs)));
                 return synth(af.function().equals("restrictDistinct")
                         ? new AppliedFunction("distinct", List.of(select)) : select, env);
             }
@@ -354,7 +354,7 @@ final class Typer {
             case NEW -> {
                 if (af.parameters().size() == 2
                         && af.parameters().get(1) instanceof NewInstance ni) {
-                    yield af.parameters().get(0) instanceof com.legend.parser.spec.Variable
+                    yield af.parameters().get(0) instanceof com.legend.model.spec.Variable
                             ? NewChecker.checkCopy(this, af.parameters().get(0), ni, env)
                             : NewChecker.check(this, ni, env);
                 }
@@ -591,7 +591,7 @@ final class Typer {
                         && g.arguments().get(0) instanceof Type.FunctionType);
     }
 
-    private static boolean genericRawIs(Type t, com.legend.parser.element.ClassDefinition def) {
+    private static boolean genericRawIs(Type t, com.legend.model.ClassDefinition def) {
         return t instanceof Type.GenericType g && g.rawFqn().equals(def.qualifiedName());
     }
 

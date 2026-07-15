@@ -1,6 +1,6 @@
 /**
  * The Element Compiler (Phase F) typed model &mdash; the compiled, type-checked
- * counterpart of the parser's {@link com.legend.parser.element} AST. Mirrors the
+ * counterpart of the parser's {@link com.legend.model} AST. Mirrors the
  * engine's {@code m3} metamodel.
  *
  * <h2>Contents</h2>

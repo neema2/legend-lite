@@ -7,10 +7,10 @@ import com.legend.compiler.spec.typed.TypedGraphFetch;
 import com.legend.compiler.spec.typed.TypedGraphTree;
 import com.legend.compiler.spec.typed.TypedSerialize;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.parser.spec.AppliedFunction;
-import com.legend.parser.spec.ColSpec;
-import com.legend.parser.spec.ColSpecArray;
-import com.legend.parser.spec.ValueSpecification;
+import com.legend.model.spec.AppliedFunction;
+import com.legend.model.spec.ColSpec;
+import com.legend.model.spec.ColSpecArray;
+import com.legend.model.spec.ValueSpecification;
 
 import java.util.ArrayList;
 import java.util.List;

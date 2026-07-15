@@ -2,48 +2,51 @@
 
 package com.legend.parser;
 
+import com.legend.model.Multiplicity;
+import com.legend.model.TypeExpression;
+
 import com.legend.lexer.Lexer;
 import com.legend.lexer.TokenStream;
 import com.legend.lexer.TokenType;
-import com.legend.parser.element.AssociationDefinition;
-import com.legend.parser.element.AssociationDefinition.AssociationEndDefinition;
-import com.legend.parser.element.AssociationMapping;
-import com.legend.parser.element.AssociationPropertyMapping;
-import com.legend.parser.element.AuthenticationSpec;
-import com.legend.parser.element.ClassDefinition;
-import com.legend.parser.element.ClassDefinition.ConstraintDefinition;
-import com.legend.parser.element.ClassDefinition.DerivedPropertyDefinition;
-import com.legend.parser.element.ClassDefinition.ParameterDefinition;
-import com.legend.parser.element.ConnectionDefinition;
-import com.legend.parser.element.ConnectionSpecification;
-import com.legend.parser.element.DatabaseDefinition;
-import com.legend.parser.element.EnumDefinition;
-import com.legend.parser.element.EnumerationMapping;
-import com.legend.parser.element.ClassMapping;
-import com.legend.parser.element.FilterMapping;
-import com.legend.parser.element.FilterPointer;
-import com.legend.parser.element.FunctionDefinition;
-import com.legend.parser.element.NativeFunctionDefinition;
-import com.legend.parser.element.LegacyMappingDefinition;
-import com.legend.parser.element.MappingDefinition;
-import com.legend.parser.element.Realization;
-import com.legend.parser.element.MappingInclude;
-import com.legend.parser.element.PropertyMapping;
-import com.legend.parser.spec.PackageableElementPtr;
-import com.legend.parser.element.JsonModelConnection;
-import com.legend.parser.element.PackageableElement;
-import com.legend.parser.element.ComparisonOp;
-import com.legend.parser.element.RelationalDataType;
-import com.legend.parser.element.JoinChainElement;
-import com.legend.parser.element.JoinType;
-import com.legend.parser.element.LogicalOp;
-import com.legend.parser.element.ProfileDefinition;
-import com.legend.parser.element.RelationalOperation;
-import com.legend.parser.element.RuntimeDefinition;
-import com.legend.parser.element.ServiceDefinition;
-import com.legend.parser.element.StereotypeApplication;
-import com.legend.parser.element.TaggedValue;
-import com.legend.parser.spec.ValueSpecification;
+import com.legend.model.AssociationDefinition;
+import com.legend.model.AssociationDefinition.AssociationEndDefinition;
+import com.legend.model.AssociationMapping;
+import com.legend.model.AssociationPropertyMapping;
+import com.legend.model.AuthenticationSpec;
+import com.legend.model.ClassDefinition;
+import com.legend.model.ClassDefinition.ConstraintDefinition;
+import com.legend.model.ClassDefinition.DerivedPropertyDefinition;
+import com.legend.model.ClassDefinition.ParameterDefinition;
+import com.legend.model.ConnectionDefinition;
+import com.legend.model.ConnectionSpecification;
+import com.legend.model.DatabaseDefinition;
+import com.legend.model.EnumDefinition;
+import com.legend.model.EnumerationMapping;
+import com.legend.model.ClassMapping;
+import com.legend.model.FilterMapping;
+import com.legend.model.FilterPointer;
+import com.legend.model.FunctionDefinition;
+import com.legend.model.NativeFunctionDefinition;
+import com.legend.model.LegacyMappingDefinition;
+import com.legend.model.MappingDefinition;
+import com.legend.model.Realization;
+import com.legend.model.MappingInclude;
+import com.legend.model.PropertyMapping;
+import com.legend.model.spec.PackageableElementPtr;
+import com.legend.model.JsonModelConnection;
+import com.legend.model.PackageableElement;
+import com.legend.model.ComparisonOp;
+import com.legend.model.RelationalDataType;
+import com.legend.model.JoinChainElement;
+import com.legend.model.JoinType;
+import com.legend.model.LogicalOp;
+import com.legend.model.ProfileDefinition;
+import com.legend.model.RelationalOperation;
+import com.legend.model.RuntimeDefinition;
+import com.legend.model.ServiceDefinition;
+import com.legend.model.StereotypeApplication;
+import com.legend.model.TaggedValue;
+import com.legend.model.spec.ValueSpecification;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -398,7 +401,7 @@ final class MappingGrammarParser {
                     }
                     p.advance();
                 }
-                List<com.legend.parser.spec.ValueSpecification> exprs =
+                List<com.legend.model.spec.ValueSpecification> exprs =
                         SpecParser.parseCodeBlock(p.tokens.slice(exprStart, p.pos));
                 if (exprs.size() != 1) {
                     throw p.error("XStore property '" + prop + "' must be a single"
@@ -419,10 +422,10 @@ final class MappingGrammarParser {
             p.expect(TokenType.BRACE_OPEN);
             int lamStart = p.pos;
             skipBalancedBlock();    // the {params | cond} lambda block
-            List<com.legend.parser.spec.ValueSpecification> lam =
+            List<com.legend.model.spec.ValueSpecification> lam =
                     SpecParser.parseCodeBlock(p.tokens.slice(lamStart, p.pos));
             if (lam.size() != 1
-                    || !(lam.get(0) instanceof com.legend.parser.spec.LambdaFunction lf)) {
+                    || !(lam.get(0) instanceof com.legend.model.spec.LambdaFunction lf)) {
                 throw p.error("ModelJoin body for '" + elementPath
                         + "' must be a single typed lambda");
             }

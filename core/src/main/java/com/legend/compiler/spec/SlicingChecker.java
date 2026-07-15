@@ -4,7 +4,7 @@ import com.legend.compiler.spec.typed.TypedDrop;
 import com.legend.compiler.spec.typed.TypedLimit;
 import com.legend.compiler.spec.typed.TypedSlice;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.parser.spec.AppliedFunction;
+import com.legend.model.spec.AppliedFunction;
 
 /**
  * The slicing family (engine {@code SlicingChecker}): {@code limit}/{@code take}

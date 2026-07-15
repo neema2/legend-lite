@@ -17,9 +17,9 @@ import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedUserCall;
 import com.legend.compiler.spec.typed.TypedVariable;
-import com.legend.parser.NormalizedModel;
+import com.legend.model.NormalizedModel;
 import com.legend.parser.ElementParser;
-import com.legend.parser.ParsedModel;
+import com.legend.model.ParsedModel;
 import com.legend.parser.SpecParser;
 import org.junit.jupiter.api.Test;
 

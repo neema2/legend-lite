@@ -6,8 +6,8 @@ import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedTds;
-import com.legend.parser.spec.AppliedFunction;
-import com.legend.parser.spec.CString;
+import com.legend.model.spec.AppliedFunction;
+import com.legend.model.spec.CString;
 
 import java.util.ArrayList;
 import java.util.List;

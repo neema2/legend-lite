@@ -2,7 +2,7 @@ package com.legend.compiler.spec;
 
 import com.legend.compiler.spec.typed.TypedFilter;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.parser.spec.AppliedFunction;
+import com.legend.model.spec.AppliedFunction;
 
 /**
  * {@code filter} (engine {@code FilterChecker}) &mdash; checked generically (a

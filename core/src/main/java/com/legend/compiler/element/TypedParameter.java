@@ -7,7 +7,7 @@ import java.util.Objects;
 
 /**
  * A named, typed parameter &mdash; the classified counterpart of
- * {@link com.legend.parser.element.FunctionDefinition.ParameterDefinition}.
+ * {@link com.legend.model.FunctionDefinition.ParameterDefinition}.
  * Used by {@link TypedFunction} and {@link Property.Derived}.
  *
  * @param name         parameter name

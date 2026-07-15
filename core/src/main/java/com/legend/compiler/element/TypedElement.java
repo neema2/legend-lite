@@ -2,7 +2,7 @@ package com.legend.compiler.element;
 
 /**
  * Sealed marker for a compiled (Phase F) packageable element &mdash; the typed
- * counterpart of {@link com.legend.parser.element.PackageableElement}.
+ * counterpart of {@link com.legend.model.PackageableElement}.
  *
  * <p>One {@code Typed*} record per element kind, mirroring the engine's
  * {@code m3} model. All variants are <strong>pure data</strong>: immutable,

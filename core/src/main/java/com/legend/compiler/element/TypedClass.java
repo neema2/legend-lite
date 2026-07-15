@@ -5,7 +5,7 @@ import java.util.Objects;
 
 /**
  * A compiled Pure {@code Class} (Phase F) &mdash; the typed counterpart of
- * {@link com.legend.parser.element.ClassDefinition}. Pure data; superclasses
+ * {@link com.legend.model.ClassDefinition}. Pure data; superclasses
  * are <strong>FQN strings</strong> (never live refs), so structural walks go
  * through {@code ModelContext.findClass} and cross-project lazy loading works
  * transparently (doc §5; AGENTS.md invariant 5).

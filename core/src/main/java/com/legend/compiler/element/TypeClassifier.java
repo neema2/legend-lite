@@ -4,9 +4,9 @@ import com.legend.builtin.Pure;
 import com.legend.compiler.ModelBuilder;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
-import com.legend.parser.TypeExpression;
-import com.legend.parser.element.ClassDefinition;
-import com.legend.parser.element.EnumDefinition;
+import com.legend.model.TypeExpression;
+import com.legend.model.ClassDefinition;
+import com.legend.model.EnumDefinition;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -127,7 +127,7 @@ final class TypeClassifier {
         };
     }
 
-    static Multiplicity multiplicity(com.legend.parser.Multiplicity m) {
+    static Multiplicity multiplicity(com.legend.model.Multiplicity m) {
         return Multiplicity.from(m);
     }
 

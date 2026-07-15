@@ -7,7 +7,7 @@ import com.legend.compiler.element.TypedParameter;
 import com.legend.compiler.spec.typed.TypedLet;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedUserCall;
-import com.legend.parser.spec.ValueSpecification;
+import com.legend.model.spec.ValueSpecification;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -183,7 +183,7 @@ public final class SpecCompiler {
      * statement.
      */
     public List<TypedSpec> typeQueryBody(ValueSpecification query) {
-        if (query instanceof com.legend.parser.spec.LambdaFunction lf
+        if (query instanceof com.legend.model.spec.LambdaFunction lf
                 && lf.parameters().isEmpty()) {
             Env scope = Env.empty();
             List<TypedSpec> body = new ArrayList<>();

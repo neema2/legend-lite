@@ -58,17 +58,17 @@ public final class PureModelContext implements ModelContext {
     }
 
     /**
-     * Build from a Phase-E {@link com.legend.parser.NormalizedModel}. The
+     * Build from a Phase-E {@link com.legend.model.NormalizedModel}. The
      * parameter type is the phase gate ({@code docs/CLEAN_SHEET_INVERSION.md}
      * &sect;4): Phase F demands a normalized model at the signature level, so
      * an un-normalized {@code ParsedModel} cannot reach element compilation.
      */
-    public static PureModelContext from(com.legend.parser.NormalizedModel normalized) {
+    public static PureModelContext from(com.legend.model.NormalizedModel normalized) {
         // THE Phase-E -> Phase-F gate: element compilation demands a
         // normalized model AT THE SIGNATURE LEVEL. (ModelBuilder itself is
         // phase-agnostic indexing and must not depend on the normalizer —
         // that was the compiler<->normalizer package cycle.)
-        ModelBuilder mb = ModelBuilder.from(new com.legend.parser.ParsedModel(
+        ModelBuilder mb = ModelBuilder.from(new com.legend.model.ParsedModel(
                 normalized.elements(), normalized.imports()));
         // Phase-E poisons must survive into the queryable context — the
         // 0-binder error's "failed to normalize" reasons read them here
@@ -96,7 +96,7 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
-    public Optional<com.legend.parser.element.ClassDefinition>
+    public Optional<com.legend.model.ClassDefinition>
             findClassDefinition(String fqn) {
         return classifier.classDef(fqn);
     }
@@ -169,7 +169,7 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
-    public java.util.Optional<com.legend.parser.element.MappingDefinition> findMapping(String fqn) {
+    public java.util.Optional<com.legend.model.MappingDefinition> findMapping(String fqn) {
         Objects.requireNonNull(fqn, "fqn");
         return model.findMapping(fqn);
     }
@@ -180,25 +180,25 @@ public final class PureModelContext implements ModelContext {
                 model.mappingPoisons.get(mappingFqn + "::" + classFqn));
     }
 
-    public java.util.Optional<com.legend.parser.element.RuntimeDefinition> findRuntime(String fqn) {
+    public java.util.Optional<com.legend.model.RuntimeDefinition> findRuntime(String fqn) {
         Objects.requireNonNull(fqn, "fqn");
         return model.findRuntime(fqn);
     }
 
     @Override
-    public java.util.Optional<com.legend.parser.element.ConnectionDefinition> findConnection(String fqn) {
+    public java.util.Optional<com.legend.model.ConnectionDefinition> findConnection(String fqn) {
         Objects.requireNonNull(fqn, "fqn");
         return model.findConnection(fqn);
     }
 
     @Override
-    public java.util.Optional<com.legend.parser.element.AssociationDefinition> findAssociationOf(
+    public java.util.Optional<com.legend.model.AssociationDefinition> findAssociationOf(
             String ownerClassFqn, String propName) {
         return model.findAssociationOf(ownerClassFqn, propName);
     }
 
     @Override
-    public java.util.Optional<com.legend.parser.element.AssociationDefinition.AssociationEndDefinition>
+    public java.util.Optional<com.legend.model.AssociationDefinition.AssociationEndDefinition>
             findAssociationEnd(String ownerClassFqn, String propName) {
         return model.findAssociationEnd(ownerClassFqn, propName);
     }
@@ -222,17 +222,17 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
-    public Optional<com.legend.parser.element.DatabaseDefinition.TableDefinition.Milestoning>
+    public Optional<com.legend.model.DatabaseDefinition.TableDefinition.Milestoning>
             findTableMilestoning(String dbFqn, String name) {
         return model.findDatabase(dbFqn)
                 .flatMap(db -> milestoningWithIncludes(db, name, new java.util.HashSet<>()));
     }
 
-    private Optional<com.legend.parser.element.DatabaseDefinition.TableDefinition.Milestoning>
-            milestoningWithIncludes(com.legend.parser.element.DatabaseDefinition db,
+    private Optional<com.legend.model.DatabaseDefinition.TableDefinition.Milestoning>
+            milestoningWithIncludes(com.legend.model.DatabaseDefinition db,
                     String name, java.util.Set<String> seen) {
         var own = StoreCompiler.findTableDef(db, name)
-                .map(com.legend.parser.element.DatabaseDefinition.TableDefinition::milestoning);
+                .map(com.legend.model.DatabaseDefinition.TableDefinition::milestoning);
         if (own.isPresent() && own.get() != null) {
             return Optional.of(own.get());
         }
@@ -251,7 +251,7 @@ public final class PureModelContext implements ModelContext {
 
     /** Own tables first, then each {@code include}d database, depth-first (cycle-safe). */
     private Optional<Type.RelationType> resolveTableWithIncludes(
-            com.legend.parser.element.DatabaseDefinition db, String name,
+            com.legend.model.DatabaseDefinition db, String name,
             java.util.Set<String> seen) {
         Optional<Type.RelationType> own = StoreCompiler.resolveTable(db, name);
         if (own.isPresent()) {

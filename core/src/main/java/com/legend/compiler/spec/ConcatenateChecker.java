@@ -2,7 +2,7 @@ package com.legend.compiler.spec;
 
 import com.legend.compiler.spec.typed.TypedConcatenate;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.parser.spec.AppliedFunction;
+import com.legend.model.spec.AppliedFunction;
 
 /**
  * Relation {@code concatenate} (engine {@code ConcatenateChecker}, SQL

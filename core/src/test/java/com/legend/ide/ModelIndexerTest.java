@@ -5,7 +5,7 @@ import com.legend.lexer.TokenStream;
 import com.legend.parser.ElementKind;
 import com.legend.parser.ElementParser;
 import com.legend.parser.ParseException;
-import com.legend.parser.ParsedModel;
+import com.legend.model.ParsedModel;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -356,18 +356,18 @@ final class ModelIndexerTest {
         );
     }
 
-    private static String fqnOf(com.legend.parser.element.PackageableElement e) {
+    private static String fqnOf(com.legend.model.PackageableElement e) {
         return switch (e) {
-            case com.legend.parser.element.ClassDefinition c -> c.qualifiedName();
-            case com.legend.parser.element.AssociationDefinition a -> a.qualifiedName();
-            case com.legend.parser.element.EnumDefinition en -> en.qualifiedName();
-            case com.legend.parser.element.ProfileDefinition p -> p.qualifiedName();
-            case com.legend.parser.element.FunctionDefinition f -> f.qualifiedName();
-            case com.legend.parser.element.ServiceDefinition s -> s.qualifiedName();
-            case com.legend.parser.element.RuntimeDefinition r -> r.qualifiedName();
-            case com.legend.parser.element.ConnectionDefinition co -> co.qualifiedName();
-            case com.legend.parser.element.DatabaseDefinition d -> d.qualifiedName();
-            case com.legend.parser.element.LegacyMappingDefinition m -> m.qualifiedName();
+            case com.legend.model.ClassDefinition c -> c.qualifiedName();
+            case com.legend.model.AssociationDefinition a -> a.qualifiedName();
+            case com.legend.model.EnumDefinition en -> en.qualifiedName();
+            case com.legend.model.ProfileDefinition p -> p.qualifiedName();
+            case com.legend.model.FunctionDefinition f -> f.qualifiedName();
+            case com.legend.model.ServiceDefinition s -> s.qualifiedName();
+            case com.legend.model.RuntimeDefinition r -> r.qualifiedName();
+            case com.legend.model.ConnectionDefinition co -> co.qualifiedName();
+            case com.legend.model.DatabaseDefinition d -> d.qualifiedName();
+            case com.legend.model.LegacyMappingDefinition m -> m.qualifiedName();
             default -> throw new AssertionError("unknown element kind: " + e.getClass());
         };
     }
@@ -419,16 +419,16 @@ final class ModelIndexerTest {
                 .map(e -> {
                     // Each element record has its own FQN accessor; cover all.
                     return switch (e) {
-                        case com.legend.parser.element.ClassDefinition c -> c.qualifiedName();
-                        case com.legend.parser.element.AssociationDefinition a -> a.qualifiedName();
-                        case com.legend.parser.element.EnumDefinition en -> en.qualifiedName();
-                        case com.legend.parser.element.ProfileDefinition p -> p.qualifiedName();
-                        case com.legend.parser.element.FunctionDefinition f -> f.qualifiedName();
-                        case com.legend.parser.element.ServiceDefinition s -> s.qualifiedName();
-                        case com.legend.parser.element.RuntimeDefinition r -> r.qualifiedName();
-                        case com.legend.parser.element.ConnectionDefinition co -> co.qualifiedName();
-                        case com.legend.parser.element.DatabaseDefinition d -> d.qualifiedName();
-                        case com.legend.parser.element.LegacyMappingDefinition m -> m.qualifiedName();
+                        case com.legend.model.ClassDefinition c -> c.qualifiedName();
+                        case com.legend.model.AssociationDefinition a -> a.qualifiedName();
+                        case com.legend.model.EnumDefinition en -> en.qualifiedName();
+                        case com.legend.model.ProfileDefinition p -> p.qualifiedName();
+                        case com.legend.model.FunctionDefinition f -> f.qualifiedName();
+                        case com.legend.model.ServiceDefinition s -> s.qualifiedName();
+                        case com.legend.model.RuntimeDefinition r -> r.qualifiedName();
+                        case com.legend.model.ConnectionDefinition co -> co.qualifiedName();
+                        case com.legend.model.DatabaseDefinition d -> d.qualifiedName();
+                        case com.legend.model.LegacyMappingDefinition m -> m.qualifiedName();
                         default -> throw new AssertionError("unknown element: " + e.getClass());
                     };
                 })

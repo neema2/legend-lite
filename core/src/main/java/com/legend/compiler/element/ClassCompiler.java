@@ -1,9 +1,9 @@
 package com.legend.compiler.element;
 
 import com.legend.compiler.SynthFqn;
-import com.legend.parser.TypeExpression;
-import com.legend.parser.element.ClassDefinition;
-import com.legend.parser.element.Realization;
+import com.legend.model.TypeExpression;
+import com.legend.model.ClassDefinition;
+import com.legend.model.Realization;
 
 import java.util.ArrayList;
 import java.util.List;

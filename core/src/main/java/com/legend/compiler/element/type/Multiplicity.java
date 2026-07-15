@@ -4,7 +4,7 @@ import java.util.Objects;
 
 /**
  * Typed-layer multiplicity &mdash; the kinded counterpart of
- * {@link com.legend.parser.Multiplicity}, used inside the compiled
+ * {@link com.legend.model.Multiplicity}, used inside the compiled
  * {@link Type} hierarchy (Phase F output). Lives in {@code type/} so the
  * typed model never leaks the parser AST.
  *
@@ -52,10 +52,10 @@ public sealed interface Multiplicity permits Multiplicity.Bounded, Multiplicity.
      * parser&rarr;type-model conversion point (shared by element compilation and
      * type-annotation resolution).
      */
-    static Multiplicity from(com.legend.parser.Multiplicity m) {
+    static Multiplicity from(com.legend.model.Multiplicity m) {
         return switch (m) {
-            case com.legend.parser.Multiplicity.Concrete c -> new Bounded(c.lowerBound(), c.upperBound());
-            case com.legend.parser.Multiplicity.Parameter p -> new Var(p.name());
+            case com.legend.model.Multiplicity.Concrete c -> new Bounded(c.lowerBound(), c.upperBound());
+            case com.legend.model.Multiplicity.Parameter p -> new Var(p.name());
         };
     }
 

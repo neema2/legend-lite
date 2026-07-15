@@ -3,7 +3,7 @@ package com.legend.compiler.spec;
 import com.legend.compiler.spec.typed.TypedFrom;
 import com.legend.compiler.spec.typed.TypedPackageableRef;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.parser.spec.AppliedFunction;
+import com.legend.model.spec.AppliedFunction;
 
 import java.util.ArrayList;
 import java.util.List;

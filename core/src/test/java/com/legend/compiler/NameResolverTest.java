@@ -1,60 +1,60 @@
 package com.legend.compiler;
 
-import com.legend.parser.ImportScope;
-import com.legend.parser.Multiplicity;
-import com.legend.parser.ParsedModel;
-import com.legend.parser.TypeExpression;
-import com.legend.parser.element.AssociationDefinition;
-import com.legend.parser.element.AssociationDefinition.AssociationEndDefinition;
-import com.legend.parser.element.AssociationMapping;
-import com.legend.parser.element.ClassDefinition;
-import com.legend.parser.element.ClassDefinition.ConstraintDefinition;
-import com.legend.parser.element.ClassDefinition.DerivedPropertyDefinition;
-import com.legend.parser.element.ClassDefinition.PropertyDefinition;
-import com.legend.parser.element.ClassMapping;
-import com.legend.parser.element.AuthenticationSpec;
-import com.legend.parser.element.ConnectionDefinition;
-import com.legend.parser.element.ConnectionSpecification;
-import com.legend.parser.element.DatabaseDefinition;
-import com.legend.parser.element.DatabaseDefinition.FilterDefinition;
-import com.legend.parser.element.DatabaseDefinition.JoinDefinition;
-import com.legend.parser.element.FunctionDefinition;
-import com.legend.parser.element.JoinChainElement;
-import com.legend.parser.element.JoinType;
-import com.legend.parser.element.LegacyMappingDefinition;
-import com.legend.parser.element.MappingDefinition;
-import com.legend.parser.element.MappingInclude;
-import com.legend.parser.element.LegacyMappingDefinition.TableReference;
-import com.legend.parser.element.NativeFunctionDefinition;
-import com.legend.parser.element.PackageableElement;
-import com.legend.parser.element.PropertyMapping;
-import com.legend.parser.element.RelationalOperation;
-import com.legend.parser.element.RuntimeDefinition;
-import com.legend.parser.element.ServiceDefinition;
-import com.legend.parser.element.StereotypeApplication;
-import com.legend.parser.element.TaggedValue;
-import com.legend.parser.element.EnumDefinition;
-import com.legend.parser.element.EnumerationMapping;
-import com.legend.parser.element.EnumerationMapping.EnumValueMapping;
-import com.legend.parser.element.EnumerationMapping.SourceValue;
-import com.legend.parser.element.ProfileDefinition;
-import com.legend.parser.spec.AppliedFunction;
-import com.legend.parser.spec.AppliedProperty;
-import com.legend.parser.spec.CInteger;
-import com.legend.parser.spec.CString;
-import com.legend.parser.spec.ColSpec;
-import com.legend.parser.spec.ColSpecArray;
-import com.legend.parser.spec.EnumValue;
-import com.legend.parser.spec.KeyExpression;
-import com.legend.parser.spec.LambdaFunction;
-import com.legend.parser.spec.NewInstance;
-import com.legend.parser.spec.PackageableElementPtr;
-import com.legend.parser.spec.PureCollection;
-import com.legend.parser.spec.TypeAnnotation;
-import com.legend.parser.spec.ValueSpecification;
-import com.legend.parser.spec.Variable;
-import com.legend.parser.element.FilterMapping;
-import com.legend.parser.element.FilterPointer;
+import com.legend.model.ImportScope;
+import com.legend.model.Multiplicity;
+import com.legend.model.ParsedModel;
+import com.legend.model.TypeExpression;
+import com.legend.model.AssociationDefinition;
+import com.legend.model.AssociationDefinition.AssociationEndDefinition;
+import com.legend.model.AssociationMapping;
+import com.legend.model.ClassDefinition;
+import com.legend.model.ClassDefinition.ConstraintDefinition;
+import com.legend.model.ClassDefinition.DerivedPropertyDefinition;
+import com.legend.model.ClassDefinition.PropertyDefinition;
+import com.legend.model.ClassMapping;
+import com.legend.model.AuthenticationSpec;
+import com.legend.model.ConnectionDefinition;
+import com.legend.model.ConnectionSpecification;
+import com.legend.model.DatabaseDefinition;
+import com.legend.model.DatabaseDefinition.FilterDefinition;
+import com.legend.model.DatabaseDefinition.JoinDefinition;
+import com.legend.model.FunctionDefinition;
+import com.legend.model.JoinChainElement;
+import com.legend.model.JoinType;
+import com.legend.model.LegacyMappingDefinition;
+import com.legend.model.MappingDefinition;
+import com.legend.model.MappingInclude;
+import com.legend.model.LegacyMappingDefinition.TableReference;
+import com.legend.model.NativeFunctionDefinition;
+import com.legend.model.PackageableElement;
+import com.legend.model.PropertyMapping;
+import com.legend.model.RelationalOperation;
+import com.legend.model.RuntimeDefinition;
+import com.legend.model.ServiceDefinition;
+import com.legend.model.StereotypeApplication;
+import com.legend.model.TaggedValue;
+import com.legend.model.EnumDefinition;
+import com.legend.model.EnumerationMapping;
+import com.legend.model.EnumerationMapping.EnumValueMapping;
+import com.legend.model.EnumerationMapping.SourceValue;
+import com.legend.model.ProfileDefinition;
+import com.legend.model.spec.AppliedFunction;
+import com.legend.model.spec.AppliedProperty;
+import com.legend.model.spec.CInteger;
+import com.legend.model.spec.CString;
+import com.legend.model.spec.ColSpec;
+import com.legend.model.spec.ColSpecArray;
+import com.legend.model.spec.EnumValue;
+import com.legend.model.spec.KeyExpression;
+import com.legend.model.spec.LambdaFunction;
+import com.legend.model.spec.NewInstance;
+import com.legend.model.spec.PackageableElementPtr;
+import com.legend.model.spec.PureCollection;
+import com.legend.model.spec.TypeAnnotation;
+import com.legend.model.spec.ValueSpecification;
+import com.legend.model.spec.Variable;
+import com.legend.model.FilterMapping;
+import com.legend.model.FilterPointer;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -72,7 +72,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * (wildcard / specific / FQN / ambiguity), reference-equality
  * preservation, and the structural walkers for every
  * {@link PackageableElement} kind, every
- * {@link com.legend.parser.spec.ValueSpecification} variant, and the
+ * {@link com.legend.model.spec.ValueSpecification} variant, and the
  * shared {@link TypeExpression}, {@link RelationalOperation},
  * {@link PropertyMapping} hierarchies.
  */
@@ -509,7 +509,7 @@ class NameResolverTest {
         // A simple join: A.id = B.fk
         var cmp = new RelationalOperation.Comparison(
                 new RelationalOperation.ColumnRef("DB", "A", "id"),
-                com.legend.parser.element.ComparisonOp.EQ,
+                com.legend.model.ComparisonOp.EQ,
                 new RelationalOperation.ColumnRef("DB", "B", "fk"));
         var join = new JoinDefinition("AB", cmp);
         var db = new DatabaseDefinition("store::Main",
@@ -1007,7 +1007,7 @@ class NameResolverTest {
         var op = new RelationalOperation.BooleanOp(
                 new RelationalOperation.IsNotNull(
                         new RelationalOperation.ColumnRef("DB", "T", "a")),
-                com.legend.parser.element.LogicalOp.AND,
+                com.legend.model.LogicalOp.AND,
                 new RelationalOperation.IsNotNull(
                         new RelationalOperation.ColumnRef("DB", "T", "b")));
         var r = (RelationalOperation.BooleanOp) resolveDbFilter(op, WILDCARD_STORE);
@@ -1017,7 +1017,7 @@ class NameResolverTest {
         assertEquals("store::DB",
                 ((RelationalOperation.ColumnRef)
                         ((RelationalOperation.IsNotNull) r.right()).operand()).databaseName());
-        assertSame(com.legend.parser.element.LogicalOp.AND, r.op());
+        assertSame(com.legend.model.LogicalOp.AND, r.op());
     }
 
     @Test

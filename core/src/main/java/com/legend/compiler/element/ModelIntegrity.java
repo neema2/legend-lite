@@ -2,10 +2,10 @@ package com.legend.compiler.element;
 
 import com.legend.compiler.ModelBuilder;
 import com.legend.compiler.SynthFqn;
-import com.legend.parser.element.ClassDefinition;
-import com.legend.parser.element.Function;
-import com.legend.parser.element.MappingDefinition;
-import com.legend.parser.element.Realization;
+import com.legend.model.ClassDefinition;
+import com.legend.model.Function;
+import com.legend.model.MappingDefinition;
+import com.legend.model.Realization;
 
 import java.util.List;
 

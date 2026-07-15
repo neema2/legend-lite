@@ -5,9 +5,9 @@ import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedIf;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.parser.spec.AppliedFunction;
-import com.legend.parser.spec.LambdaFunction;
-import com.legend.parser.spec.ValueSpecification;
+import com.legend.model.spec.AppliedFunction;
+import com.legend.model.spec.LambdaFunction;
+import com.legend.model.spec.ValueSpecification;
 
 import java.util.List;
 import java.util.Optional;
@@ -35,7 +35,7 @@ final class IfChecker {
         // FOLDS the pairs into nested if()s; the emission here is that
         // fold, thunks β-reduced (the TypedMatch precedent).
         if (args.size() == 2
-                && args.get(0) instanceof com.legend.parser.spec.PureCollection pairs) {
+                && args.get(0) instanceof com.legend.model.spec.PureCollection pairs) {
             return multiIf(t, pairs, args.get(1), env);
         }
         // A BARE pair is the one-element condList (real if.pure overload
@@ -45,7 +45,7 @@ final class IfChecker {
                 && (pf.function().equals("pair")
                         || pf.function().equals("meta::pure::functions::collection::pair"))
                 && pf.parameters().size() == 2) {
-            return multiIf(t, new com.legend.parser.spec.PureCollection(
+            return multiIf(t, new com.legend.model.spec.PureCollection(
                     List.of(args.get(0))), args.get(1), env);
         }
         TypedSpec cond = t.synth(args.get(0), env);
@@ -82,7 +82,7 @@ final class IfChecker {
      * the chain nests right — if(c1, v1, if(c2, v2, last)). Validated against
      * the registered condList signature's shape (two args, pair collection).
      */
-    private static TypedIf multiIf(Typer t, com.legend.parser.spec.PureCollection pairs,
+    private static TypedIf multiIf(Typer t, com.legend.model.spec.PureCollection pairs,
             ValueSpecification last, Env env) {
         TypedSpec chain = thunkBody(t, last, env);
         Type result = chain.info().type();

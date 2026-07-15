@@ -2,8 +2,8 @@
 
 package com.legend.normalizer;
 
-import com.legend.parser.element.JoinChainElement;
-import com.legend.parser.spec.ValueSpecification;
+import com.legend.model.JoinChainElement;
+import com.legend.model.spec.ValueSpecification;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;

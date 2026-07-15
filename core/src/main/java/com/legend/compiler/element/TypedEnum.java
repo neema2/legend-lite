@@ -5,7 +5,7 @@ import java.util.Objects;
 
 /**
  * A compiled Pure {@code Enum} (Phase F) &mdash; the typed counterpart of
- * {@link com.legend.parser.element.EnumDefinition}. Pure data.
+ * {@link com.legend.model.EnumDefinition}. Pure data.
  *
  * <p>Structurally identical to its parser source (an enum is just a name plus
  * an ordered set of value names); it exists as its own {@code Typed*} record to

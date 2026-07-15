@@ -1,16 +1,16 @@
 package com.legend.ide;
 
 import com.legend.parser.ElementParser;
-import com.legend.parser.ImportScope;
+import com.legend.model.ImportScope;
 import com.legend.parser.ParseException;
-import com.legend.parser.ParsedModel;
-import com.legend.parser.element.ClassDefinition;
-import com.legend.parser.element.FunctionDefinition;
-import com.legend.parser.element.LegacyMappingDefinition;
-import com.legend.parser.element.PackageableElement;
-import com.legend.parser.spec.AppliedFunction;
-import com.legend.parser.spec.AppliedProperty;
-import com.legend.parser.spec.Variable;
+import com.legend.model.ParsedModel;
+import com.legend.model.ClassDefinition;
+import com.legend.model.FunctionDefinition;
+import com.legend.model.LegacyMappingDefinition;
+import com.legend.model.PackageableElement;
+import com.legend.model.spec.AppliedFunction;
+import com.legend.model.spec.AppliedProperty;
+import com.legend.model.spec.Variable;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

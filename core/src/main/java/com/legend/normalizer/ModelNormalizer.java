@@ -5,23 +5,23 @@ import com.legend.compiler.ModelBuilder;
 import com.legend.compiler.SynthFqn;
 import com.legend.error.LegendCompileException;
 import com.legend.error.ModelException;
-import com.legend.parser.Multiplicity;
-import com.legend.parser.NormalizedModel;
-import com.legend.parser.ParsedModel;
-import com.legend.parser.TypeExpression;
-import com.legend.parser.element.AssociationDefinition;
-import com.legend.parser.element.ClassDefinition.ConstraintDefinition;
-import com.legend.parser.element.ClassDefinition.DerivedPropertyDefinition;
-import com.legend.parser.element.ClassDefinition;
-import com.legend.parser.element.FunctionDefinition;
-import com.legend.parser.element.PackageableElement;
-import com.legend.parser.element.Realization;
-import com.legend.parser.element.ServiceDefinition;
-import com.legend.parser.element.SynthHat;
-import com.legend.parser.spec.LambdaFunction;
-import com.legend.parser.spec.PackageableElementPtr;
-import com.legend.parser.spec.ValueSpecification;
-import com.legend.parser.spec.Variable;
+import com.legend.model.Multiplicity;
+import com.legend.model.NormalizedModel;
+import com.legend.model.ParsedModel;
+import com.legend.model.TypeExpression;
+import com.legend.model.AssociationDefinition;
+import com.legend.model.ClassDefinition.ConstraintDefinition;
+import com.legend.model.ClassDefinition.DerivedPropertyDefinition;
+import com.legend.model.ClassDefinition;
+import com.legend.model.FunctionDefinition;
+import com.legend.model.PackageableElement;
+import com.legend.model.Realization;
+import com.legend.model.ServiceDefinition;
+import com.legend.model.SynthHat;
+import com.legend.model.spec.LambdaFunction;
+import com.legend.model.spec.PackageableElementPtr;
+import com.legend.model.spec.ValueSpecification;
+import com.legend.model.spec.Variable;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -31,7 +31,7 @@ import java.util.Objects;
  * Phase E entry point &mdash; post-parse, post-name-resolution model
  * normalization. For <em>every</em> Pure body site (mapping transform, derived
  * property, constraint, service query) it lifts the body into an ordinary
- * top-level {@link com.legend.parser.element.FunctionDefinition} appended to
+ * top-level {@link com.legend.model.FunctionDefinition} appended to
  * the {@link NormalizedModel} element list, tagged with
  * {@code synthesizedFrom} provenance.
  *

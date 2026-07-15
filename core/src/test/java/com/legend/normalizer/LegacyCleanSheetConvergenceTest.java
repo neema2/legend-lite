@@ -1,11 +1,11 @@
 package com.legend.normalizer;
 
-import com.legend.parser.NormalizedModel;
+import com.legend.model.NormalizedModel;
 import com.legend.compiler.NameResolver;
 import com.legend.parser.ElementParser;
-import com.legend.parser.element.FunctionDefinition;
-import com.legend.parser.element.MappingDefinition;
-import com.legend.parser.element.PackageableElement;
+import com.legend.model.FunctionDefinition;
+import com.legend.model.MappingDefinition;
+import com.legend.model.PackageableElement;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

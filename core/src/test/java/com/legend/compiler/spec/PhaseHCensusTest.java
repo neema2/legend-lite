@@ -5,8 +5,8 @@ import com.legend.compiler.NameResolver;
 import com.legend.compiler.element.PureModelContext;
 import com.legend.normalizer.ModelNormalizer;
 import com.legend.parser.ElementParser;
-import com.legend.parser.NormalizedModel;
-import com.legend.parser.ParsedModel;
+import com.legend.model.NormalizedModel;
+import com.legend.model.ParsedModel;
 
 import org.junit.jupiter.api.Test;
 

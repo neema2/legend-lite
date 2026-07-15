@@ -2,15 +2,15 @@ package com.legend.compiler.spec;
 
 import com.legend.compiler.spec.typed.TypedProject;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.parser.spec.AppliedFunction;
-import com.legend.parser.spec.AppliedProperty;
-import com.legend.parser.spec.CString;
-import com.legend.parser.spec.ColSpec;
-import com.legend.parser.spec.ColSpecArray;
-import com.legend.parser.spec.LambdaFunction;
-import com.legend.parser.spec.PureCollection;
-import com.legend.parser.spec.ValueSpecification;
-import com.legend.parser.spec.Variable;
+import com.legend.model.spec.AppliedFunction;
+import com.legend.model.spec.AppliedProperty;
+import com.legend.model.spec.CString;
+import com.legend.model.spec.ColSpec;
+import com.legend.model.spec.ColSpecArray;
+import com.legend.model.spec.LambdaFunction;
+import com.legend.model.spec.PureCollection;
+import com.legend.model.spec.ValueSpecification;
+import com.legend.model.spec.Variable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -125,8 +125,8 @@ final class ProjectChecker {
                             || laf.parameters().get(0) instanceof AppliedProperty
                             || laf.parameters().get(0) instanceof AppliedFunction)
                     && laf.parameters().subList(1, laf.parameters().size()).stream()
-                            .allMatch(a -> a instanceof com.legend.parser.spec.CDate
-                                    || a instanceof com.legend.parser.spec.CLatestDate
+                            .allMatch(a -> a instanceof com.legend.model.spec.CDate
+                                    || a instanceof com.legend.model.spec.CLatestDate
                                     || a instanceof Variable)) {
                 return laf.function();
             }

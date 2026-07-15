@@ -7,10 +7,10 @@ import com.legend.compiler.spec.typed.FoldStrategy;
 import com.legend.compiler.spec.typed.TypedFold;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.parser.spec.AppliedFunction;
-import com.legend.parser.spec.LambdaFunction;
-import com.legend.parser.spec.ValueSpecification;
-import com.legend.parser.spec.Variable;
+import com.legend.model.spec.AppliedFunction;
+import com.legend.model.spec.LambdaFunction;
+import com.legend.model.spec.ValueSpecification;
+import com.legend.model.spec.Variable;
 
 import java.util.List;
 

@@ -1,73 +1,78 @@
 package com.legend.parser;
 
-import com.legend.parser.element.AssociationDefinition;
-import com.legend.parser.element.AssociationDefinition.AssociationEndDefinition;
-import com.legend.parser.element.AuthenticationSpec;
-import com.legend.parser.element.ClassDefinition;
-import com.legend.parser.element.ClassDefinition.ConstraintDefinition;
-import com.legend.parser.element.ClassDefinition.DerivedPropertyDefinition;
-import com.legend.parser.element.ClassDefinition.ParameterDefinition;
-import com.legend.parser.element.ClassDefinition.PropertyDefinition;
-import com.legend.parser.element.ConnectionDefinition;
-import com.legend.parser.element.ConnectionSpecification;
-import com.legend.parser.element.DatabaseDefinition;
-import com.legend.parser.element.DatabaseDefinition.ColumnDefinition;
-import com.legend.parser.element.DatabaseDefinition.FilterDefinition;
-import com.legend.parser.element.DatabaseDefinition.JoinDefinition;
-import com.legend.parser.element.DatabaseDefinition.SchemaDefinition;
-import com.legend.parser.element.DatabaseDefinition.TableDefinition;
-import com.legend.parser.element.DatabaseDefinition.ViewDefinition;
-import com.legend.parser.element.EnumDefinition;
-import com.legend.parser.element.EnumerationMapping;
-import com.legend.parser.element.AssociationMapping;
-import com.legend.parser.element.AssociationPropertyMapping;
-import com.legend.parser.element.ClassMapping;
-import com.legend.parser.element.FilterMapping;
-import com.legend.parser.element.FilterPointer;
-import com.legend.parser.element.FunctionDefinition;
-import com.legend.parser.element.NativeFunctionDefinition;
-import com.legend.parser.element.JoinChainElement;
-import com.legend.parser.element.LegacyMappingDefinition;
-import com.legend.parser.element.MappingDefinition;
-import com.legend.parser.element.Realization;
-import com.legend.parser.element.PropertyMapping;
-import com.legend.parser.element.JsonModelConnection;
-import com.legend.parser.element.PackageableElement;
-import com.legend.parser.element.RelationalOperation;
-import com.legend.parser.element.ComparisonOp;
-import com.legend.parser.element.RelationalDataType;
-import com.legend.parser.element.LogicalOp;
-import com.legend.parser.element.RelationalOperation.BooleanOp;
-import com.legend.parser.element.RelationalOperation.ColumnRef;
-import com.legend.parser.element.RelationalOperation.Comparison;
-import com.legend.parser.element.RelationalOperation.FunctionCall;
-import com.legend.parser.element.RelationalOperation.Literal;
-import com.legend.parser.element.ProfileDefinition;
-import com.legend.parser.element.RuntimeDefinition;
-import com.legend.parser.element.ServiceDefinition;
-import com.legend.parser.element.StereotypeApplication;
-import com.legend.parser.element.TaggedValue;
-import com.legend.parser.TypeExpression.FunctionType;
-import com.legend.parser.TypeExpression.NameRef;
-import com.legend.parser.TypeExpression.Op;
-import com.legend.parser.spec.AppliedFunction;
-import com.legend.parser.spec.AppliedProperty;
-import com.legend.parser.spec.CInteger;
-import com.legend.parser.spec.CString;
-import com.legend.parser.spec.PackageableElementPtr;
-import com.legend.parser.spec.Variable;
+import com.legend.model.Multiplicity;
+import com.legend.model.TypeExpression;
+import com.legend.model.ParsedModel;
+import com.legend.model.ImportScope;
+
+import com.legend.model.AssociationDefinition;
+import com.legend.model.AssociationDefinition.AssociationEndDefinition;
+import com.legend.model.AuthenticationSpec;
+import com.legend.model.ClassDefinition;
+import com.legend.model.ClassDefinition.ConstraintDefinition;
+import com.legend.model.ClassDefinition.DerivedPropertyDefinition;
+import com.legend.model.ClassDefinition.ParameterDefinition;
+import com.legend.model.ClassDefinition.PropertyDefinition;
+import com.legend.model.ConnectionDefinition;
+import com.legend.model.ConnectionSpecification;
+import com.legend.model.DatabaseDefinition;
+import com.legend.model.DatabaseDefinition.ColumnDefinition;
+import com.legend.model.DatabaseDefinition.FilterDefinition;
+import com.legend.model.DatabaseDefinition.JoinDefinition;
+import com.legend.model.DatabaseDefinition.SchemaDefinition;
+import com.legend.model.DatabaseDefinition.TableDefinition;
+import com.legend.model.DatabaseDefinition.ViewDefinition;
+import com.legend.model.EnumDefinition;
+import com.legend.model.EnumerationMapping;
+import com.legend.model.AssociationMapping;
+import com.legend.model.AssociationPropertyMapping;
+import com.legend.model.ClassMapping;
+import com.legend.model.FilterMapping;
+import com.legend.model.FilterPointer;
+import com.legend.model.FunctionDefinition;
+import com.legend.model.NativeFunctionDefinition;
+import com.legend.model.JoinChainElement;
+import com.legend.model.LegacyMappingDefinition;
+import com.legend.model.MappingDefinition;
+import com.legend.model.Realization;
+import com.legend.model.PropertyMapping;
+import com.legend.model.JsonModelConnection;
+import com.legend.model.PackageableElement;
+import com.legend.model.RelationalOperation;
+import com.legend.model.ComparisonOp;
+import com.legend.model.RelationalDataType;
+import com.legend.model.LogicalOp;
+import com.legend.model.RelationalOperation.BooleanOp;
+import com.legend.model.RelationalOperation.ColumnRef;
+import com.legend.model.RelationalOperation.Comparison;
+import com.legend.model.RelationalOperation.FunctionCall;
+import com.legend.model.RelationalOperation.Literal;
+import com.legend.model.ProfileDefinition;
+import com.legend.model.RuntimeDefinition;
+import com.legend.model.ServiceDefinition;
+import com.legend.model.StereotypeApplication;
+import com.legend.model.TaggedValue;
+import com.legend.model.TypeExpression.FunctionType;
+import com.legend.model.TypeExpression.NameRef;
+import com.legend.model.TypeExpression.Op;
+import com.legend.model.spec.AppliedFunction;
+import com.legend.model.spec.AppliedProperty;
+import com.legend.model.spec.CInteger;
+import com.legend.model.spec.CString;
+import com.legend.model.spec.PackageableElementPtr;
+import com.legend.model.spec.Variable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
 
-import static com.legend.parser.TypeExpressionFixtures.col;
-import static com.legend.parser.TypeExpressionFixtures.nr;
-import static com.legend.parser.TypeExpressionFixtures.rel;
-import static com.legend.parser.TypeExpressionFixtures.sa;
-import static com.legend.parser.TypeExpressionFixtures.tg;
-import static com.legend.parser.TypeExpressionFixtures.tp;
+import static com.legend.model.TypeExpressionFixtures.col;
+import static com.legend.model.TypeExpressionFixtures.nr;
+import static com.legend.model.TypeExpressionFixtures.rel;
+import static com.legend.model.TypeExpressionFixtures.sa;
+import static com.legend.model.TypeExpressionFixtures.tg;
+import static com.legend.model.TypeExpressionFixtures.tp;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -582,7 +587,7 @@ final class ElementParserTest {
                 "Class P { fullName() { my::funcs::fullName }: String[1]; }");
         DerivedPropertyDefinition d = c.derivedProperties().get(0);
         assertEquals("fullName", d.name());
-        var ref = assertInstanceOf(com.legend.parser.element.Realization.Ref.class, d.realization(),
+        var ref = assertInstanceOf(com.legend.model.Realization.Ref.class, d.realization(),
                 "a bare-FQN body binds to a function (not an inline expression)");
         assertEquals("my::funcs::fullName", ref.functionFqn());
         // The inline accessor is invalid for a ref binding.
@@ -594,7 +599,7 @@ final class ElementParserTest {
     void derivedProperty_inlineBody_isInlineRealization() {
         ClassDefinition c = parseOneClass(
                 "Class P { fullName() { $this.a + $this.b }: String[1]; }");
-        assertInstanceOf(com.legend.parser.element.Realization.Inline.class,
+        assertInstanceOf(com.legend.model.Realization.Inline.class,
                 c.derivedProperties().get(0).realization());
     }
 
@@ -605,7 +610,7 @@ final class ElementParserTest {
                 "Class P [adult: my::funcs::isAdult] { age: Integer[1]; }");
         var con = c.constraints().get(0);
         assertEquals("adult", con.name());
-        var ref = assertInstanceOf(com.legend.parser.element.Realization.Ref.class, con.realization());
+        var ref = assertInstanceOf(com.legend.model.Realization.Ref.class, con.realization());
         assertEquals("my::funcs::isAdult", ref.functionFqn());
         assertThrows(IllegalStateException.class, con::expression);
     }
@@ -1247,10 +1252,10 @@ final class ElementParserTest {
         ParsedModel m = ElementParser.parse(
                 "native function my::n(x: Integer[1]): Integer[1];\n"
                         + "function my::u(x: Integer[1]): Integer[1] { $x }");
-        com.legend.parser.element.Function n =
-                assertInstanceOf(com.legend.parser.element.Function.class, m.elements().get(0));
-        com.legend.parser.element.Function u =
-                assertInstanceOf(com.legend.parser.element.Function.class, m.elements().get(1));
+        com.legend.model.Function n =
+                assertInstanceOf(com.legend.model.Function.class, m.elements().get(0));
+        com.legend.model.Function u =
+                assertInstanceOf(com.legend.model.Function.class, m.elements().get(1));
         assertEquals("my::n", n.qualifiedName());
         assertEquals("my::u", u.qualifiedName());
         assertEquals(nr("Integer"), n.returnType());
@@ -1899,8 +1904,8 @@ final class ElementParserTest {
     // FIRST tests that feed clean-sheet syntax to the parser, not legacy DSL.
     // ===============================================================
 
-    private static com.legend.parser.element.MappingDefinition canonicalMapping(String src) {
-        return (com.legend.parser.element.MappingDefinition)
+    private static com.legend.model.MappingDefinition canonicalMapping(String src) {
+        return (com.legend.model.MappingDefinition)
                 ElementParser.parse(src).elements().get(0);
     }
 
@@ -1914,7 +1919,7 @@ final class ElementParserTest {
         assertEquals(1, md.classBindings().size());
         var b = md.classBindings().get(0);
         assertEquals("acme::Person", b.classFqn());
-        assertEquals(com.legend.parser.element.MappingDefinition.Kind.RELATIONAL, b.kind());
+        assertEquals(com.legend.model.MappingDefinition.Kind.RELATIONAL, b.kind());
         assertTrue(b.root());
         assertNull(b.setId());
         assertNull(b.extendsSetId());
@@ -1929,7 +1934,7 @@ final class ElementParserTest {
               + ")");
         var b = md.classBindings().get(0);
         assertEquals("acme::StaffMember", b.classFqn());
-        assertEquals(com.legend.parser.element.MappingDefinition.Kind.PURE, b.kind());
+        assertEquals(com.legend.model.MappingDefinition.Kind.PURE, b.kind());
         assertFalse(b.root(), "no leading * => not root");
         assertEquals("acme::funcs::staffMapping", b.functionFqn());
     }
@@ -1970,7 +1975,7 @@ final class ElementParserTest {
               + ")");
         assertEquals(java.util.List.of("acme::Person", "acme::Firm"),
                 md.classBindings().stream()
-                        .map(com.legend.parser.element.MappingDefinition.ClassBinding::classFqn)
+                        .map(com.legend.model.MappingDefinition.ClassBinding::classFqn)
                         .toList());
         assertTrue(md.classBindings().get(0).root());
         assertFalse(md.classBindings().get(1).root());
@@ -2390,8 +2395,8 @@ final class ElementParserTest {
         var parsed = ElementParser.parse(
                 "RelationalDatabaseConnection store::C { store: db::DB; type: DuckDB; "
                 + "specification: LocalH2 { url: 'jdbc:duckdb:' }; auth: NoAuth { }; }");
-        var conn = (com.legend.parser.element.ConnectionDefinition) parsed.elements().get(0);
-        var spec = (com.legend.parser.element.ConnectionSpecification.LocalH2)
+        var conn = (com.legend.model.ConnectionDefinition) parsed.elements().get(0);
+        var spec = (com.legend.model.ConnectionSpecification.LocalH2)
                 conn.specification();
         assertEquals("jdbc:duckdb:", spec.url());
     }

@@ -4,7 +4,7 @@
 package com.legend;
 
 import com.legend.compiler.element.ModelContext;
-import com.legend.parser.ImportScope;
+import com.legend.model.ImportScope;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;

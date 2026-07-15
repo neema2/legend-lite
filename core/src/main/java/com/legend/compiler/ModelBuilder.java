@@ -1,27 +1,27 @@
 package com.legend.compiler;
 
-import com.legend.parser.ImportScope;
-import com.legend.parser.ParsedModel;
-import com.legend.parser.TypeExpression;
-import com.legend.parser.element.AssociationDefinition;
-import com.legend.parser.element.ClassDefinition;
-import com.legend.parser.element.ClassMapping;
-import com.legend.parser.element.ConnectionDefinition;
-import com.legend.parser.element.DatabaseDefinition;
-import com.legend.parser.element.DatabaseDefinition.FilterDefinition;
-import com.legend.parser.element.DatabaseDefinition.JoinDefinition;
-import com.legend.parser.element.DatabaseDefinition.ViewDefinition;
-import com.legend.parser.element.EnumDefinition;
-import com.legend.parser.element.Function;
-import com.legend.parser.element.FunctionDefinition;
-import com.legend.parser.element.JsonModelConnection;
-import com.legend.parser.element.LegacyMappingDefinition;
-import com.legend.parser.element.MappingDefinition;
-import com.legend.parser.element.NativeFunctionDefinition;
-import com.legend.parser.element.PackageableElement;
-import com.legend.parser.element.ProfileDefinition;
-import com.legend.parser.element.RuntimeDefinition;
-import com.legend.parser.element.ServiceDefinition;
+import com.legend.model.ImportScope;
+import com.legend.model.ParsedModel;
+import com.legend.model.TypeExpression;
+import com.legend.model.AssociationDefinition;
+import com.legend.model.ClassDefinition;
+import com.legend.model.ClassMapping;
+import com.legend.model.ConnectionDefinition;
+import com.legend.model.DatabaseDefinition;
+import com.legend.model.DatabaseDefinition.FilterDefinition;
+import com.legend.model.DatabaseDefinition.JoinDefinition;
+import com.legend.model.DatabaseDefinition.ViewDefinition;
+import com.legend.model.EnumDefinition;
+import com.legend.model.Function;
+import com.legend.model.FunctionDefinition;
+import com.legend.model.JsonModelConnection;
+import com.legend.model.LegacyMappingDefinition;
+import com.legend.model.MappingDefinition;
+import com.legend.model.NativeFunctionDefinition;
+import com.legend.model.PackageableElement;
+import com.legend.model.ProfileDefinition;
+import com.legend.model.RuntimeDefinition;
+import com.legend.model.ServiceDefinition;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -218,7 +218,7 @@ public final class ModelBuilder {
         for (PackageableElement el : model.elements()) {
             switch (el) {
                 case ClassDefinition cd -> putAtId(mb.classes, mb.intern(cd.qualifiedName()), cd);
-                case com.legend.parser.element.PrimitiveExtensionDefinition pe ->
+                case com.legend.model.PrimitiveExtensionDefinition pe ->
                         mb.primitiveExtensions.put(pe.qualifiedName(), pe.baseTypeName());
                 case AssociationDefinition ad -> putAtId(mb.associations, mb.intern(ad.qualifiedName()), ad);
                 case EnumDefinition ed -> putAtId(mb.enums, mb.intern(ed.qualifiedName()), ed);

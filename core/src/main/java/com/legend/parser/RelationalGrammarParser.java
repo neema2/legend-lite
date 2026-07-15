@@ -5,45 +5,45 @@ package com.legend.parser;
 import com.legend.lexer.Lexer;
 import com.legend.lexer.TokenStream;
 import com.legend.lexer.TokenType;
-import com.legend.parser.element.AssociationDefinition;
-import com.legend.parser.element.AssociationDefinition.AssociationEndDefinition;
-import com.legend.parser.element.AssociationMapping;
-import com.legend.parser.element.AssociationPropertyMapping;
-import com.legend.parser.element.AuthenticationSpec;
-import com.legend.parser.element.ClassDefinition;
-import com.legend.parser.element.ClassDefinition.ConstraintDefinition;
-import com.legend.parser.element.ClassDefinition.DerivedPropertyDefinition;
-import com.legend.parser.element.ClassDefinition.ParameterDefinition;
-import com.legend.parser.element.ConnectionDefinition;
-import com.legend.parser.element.ConnectionSpecification;
-import com.legend.parser.element.DatabaseDefinition;
-import com.legend.parser.element.EnumDefinition;
-import com.legend.parser.element.EnumerationMapping;
-import com.legend.parser.element.ClassMapping;
-import com.legend.parser.element.FilterMapping;
-import com.legend.parser.element.FilterPointer;
-import com.legend.parser.element.FunctionDefinition;
-import com.legend.parser.element.NativeFunctionDefinition;
-import com.legend.parser.element.LegacyMappingDefinition;
-import com.legend.parser.element.MappingDefinition;
-import com.legend.parser.element.Realization;
-import com.legend.parser.element.MappingInclude;
-import com.legend.parser.element.PropertyMapping;
-import com.legend.parser.spec.PackageableElementPtr;
-import com.legend.parser.element.JsonModelConnection;
-import com.legend.parser.element.PackageableElement;
-import com.legend.parser.element.ComparisonOp;
-import com.legend.parser.element.RelationalDataType;
-import com.legend.parser.element.JoinChainElement;
-import com.legend.parser.element.JoinType;
-import com.legend.parser.element.LogicalOp;
-import com.legend.parser.element.ProfileDefinition;
-import com.legend.parser.element.RelationalOperation;
-import com.legend.parser.element.RuntimeDefinition;
-import com.legend.parser.element.ServiceDefinition;
-import com.legend.parser.element.StereotypeApplication;
-import com.legend.parser.element.TaggedValue;
-import com.legend.parser.spec.ValueSpecification;
+import com.legend.model.AssociationDefinition;
+import com.legend.model.AssociationDefinition.AssociationEndDefinition;
+import com.legend.model.AssociationMapping;
+import com.legend.model.AssociationPropertyMapping;
+import com.legend.model.AuthenticationSpec;
+import com.legend.model.ClassDefinition;
+import com.legend.model.ClassDefinition.ConstraintDefinition;
+import com.legend.model.ClassDefinition.DerivedPropertyDefinition;
+import com.legend.model.ClassDefinition.ParameterDefinition;
+import com.legend.model.ConnectionDefinition;
+import com.legend.model.ConnectionSpecification;
+import com.legend.model.DatabaseDefinition;
+import com.legend.model.EnumDefinition;
+import com.legend.model.EnumerationMapping;
+import com.legend.model.ClassMapping;
+import com.legend.model.FilterMapping;
+import com.legend.model.FilterPointer;
+import com.legend.model.FunctionDefinition;
+import com.legend.model.NativeFunctionDefinition;
+import com.legend.model.LegacyMappingDefinition;
+import com.legend.model.MappingDefinition;
+import com.legend.model.Realization;
+import com.legend.model.MappingInclude;
+import com.legend.model.PropertyMapping;
+import com.legend.model.spec.PackageableElementPtr;
+import com.legend.model.JsonModelConnection;
+import com.legend.model.PackageableElement;
+import com.legend.model.ComparisonOp;
+import com.legend.model.RelationalDataType;
+import com.legend.model.JoinChainElement;
+import com.legend.model.JoinType;
+import com.legend.model.LogicalOp;
+import com.legend.model.ProfileDefinition;
+import com.legend.model.RelationalOperation;
+import com.legend.model.RuntimeDefinition;
+import com.legend.model.ServiceDefinition;
+import com.legend.model.StereotypeApplication;
+import com.legend.model.TaggedValue;
+import com.legend.model.spec.ValueSpecification;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -607,7 +607,7 @@ final class RelationalGrammarParser {
                     || next == TokenType.TEST_NOT_EQUAL || next == TokenType.LESS_THAN
                     || next == TokenType.GREATER_THAN || next == TokenType.LESS_OR_EQUAL
                     || next == TokenType.GREATER_OR_EQUAL || next == TokenType.NOT_EQUAL) {
-                ComparisonOp op = ComparisonOp.fromToken(next);
+                ComparisonOp op = comparisonOpOf(next);
                 p.advance();
                 RelationalOperation right = parseDbAtomicOperation(dbScope);
                 expr = new RelationalOperation.Comparison(expr, op, right);
@@ -771,4 +771,21 @@ final class RelationalGrammarParser {
         return p.parseIdentifier();
     }
 
+    /**
+     * Map a lexer token to its canonical comparison op — parse-time
+     * knowledge, homed with the grammar (audit 15: this switch was the
+     * model records' single lexer dependency).
+     */
+    private static ComparisonOp comparisonOpOf(TokenType t) {
+        return switch (t) {
+            case EQUAL, TEST_EQUAL              -> ComparisonOp.EQ;
+            case TEST_NOT_EQUAL, NOT_EQUAL      -> ComparisonOp.NEQ;
+            case LESS_THAN                      -> ComparisonOp.LT;
+            case LESS_OR_EQUAL                  -> ComparisonOp.LTE;
+            case GREATER_THAN                   -> ComparisonOp.GT;
+            case GREATER_OR_EQUAL               -> ComparisonOp.GTE;
+            default -> throw new IllegalArgumentException(
+                    "not a comparison token: " + t);
+        };
+    }
 }

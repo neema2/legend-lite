@@ -1,4 +1,4 @@
-package com.legend.parser.spec;
+package com.legend.model.spec;
 
 import com.legend.values.PureDateLiteral;
 import org.junit.jupiter.api.Test;

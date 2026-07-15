@@ -1,19 +1,19 @@
 package com.legend.builtin;
 
-import com.legend.parser.element.ClassDefinition;
-import com.legend.parser.element.EnumDefinition;
-import com.legend.parser.element.FunctionDefinition.ParameterDefinition;
-import com.legend.parser.Multiplicity;
-import com.legend.parser.element.NativeFunctionDefinition;
-import com.legend.parser.TypeExpression;
-import com.legend.parser.TypeExpression.Column;
-import com.legend.parser.TypeExpression.FunctionType;
-import com.legend.parser.TypeExpression.Generic;
-import com.legend.parser.TypeExpression.NameRef;
-import com.legend.parser.TypeExpression.Op;
-import com.legend.parser.TypeExpression.RelationType;
-import com.legend.parser.TypeExpression.SchemaAlgebra;
-import com.legend.parser.TypeExpression.TypedParameter;
+import com.legend.model.ClassDefinition;
+import com.legend.model.EnumDefinition;
+import com.legend.model.FunctionDefinition.ParameterDefinition;
+import com.legend.model.Multiplicity;
+import com.legend.model.NativeFunctionDefinition;
+import com.legend.model.TypeExpression;
+import com.legend.model.TypeExpression.Column;
+import com.legend.model.TypeExpression.FunctionType;
+import com.legend.model.TypeExpression.Generic;
+import com.legend.model.TypeExpression.NameRef;
+import com.legend.model.TypeExpression.Op;
+import com.legend.model.TypeExpression.RelationType;
+import com.legend.model.TypeExpression.SchemaAlgebra;
+import com.legend.model.TypeExpression.TypedParameter;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
@@ -21,12 +21,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static com.legend.parser.TypeExpressionFixtures.col;
-import static com.legend.parser.TypeExpressionFixtures.nr;
-import static com.legend.parser.TypeExpressionFixtures.rel;
-import static com.legend.parser.TypeExpressionFixtures.sa;
-import static com.legend.parser.TypeExpressionFixtures.tg;
-import static com.legend.parser.TypeExpressionFixtures.tp;
+import static com.legend.model.TypeExpressionFixtures.col;
+import static com.legend.model.TypeExpressionFixtures.nr;
+import static com.legend.model.TypeExpressionFixtures.rel;
+import static com.legend.model.TypeExpressionFixtures.sa;
+import static com.legend.model.TypeExpressionFixtures.tg;
+import static com.legend.model.TypeExpressionFixtures.tp;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -87,20 +87,20 @@ class NativeFunctionTest {
                 .append(d.returnMultiplicity()).toString();
     }
 
-    private static String renderType(com.legend.parser.TypeExpression t) {
+    private static String renderType(com.legend.model.TypeExpression t) {
         return switch (t) {
-            case com.legend.parser.TypeExpression.NameRef n -> n.name();
-            case com.legend.parser.TypeExpression.Generic g -> g.name() + "<"
+            case com.legend.model.TypeExpression.NameRef n -> n.name();
+            case com.legend.model.TypeExpression.Generic g -> g.name() + "<"
                     + String.join(",", g.arguments().stream()
                             .map(NativeFunctionTest::renderType).toList()) + ">";
-            case com.legend.parser.TypeExpression.FunctionType f -> "{"
+            case com.legend.model.TypeExpression.FunctionType f -> "{"
                     + String.join(",", f.parameters().stream()
                             .map(pp -> renderType(pp.type()) + pp.multiplicity()).toList())
                     + "->" + renderType(f.result().type()) + f.result().multiplicity() + "}";
-            case com.legend.parser.TypeExpression.RelationType r -> "("
+            case com.legend.model.TypeExpression.RelationType r -> "("
                     + String.join(",", r.columns().stream()
                             .map(c -> c.name() + ":" + renderType(c.type())).toList()) + ")";
-            case com.legend.parser.TypeExpression.SchemaAlgebra a ->
+            case com.legend.model.TypeExpression.SchemaAlgebra a ->
                     renderType(a.left()) + a.op() + renderType(a.right());
         };
     }

@@ -4,7 +4,7 @@ import com.legend.compiler.element.TypedFunction;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.parser.spec.AppliedFunction;
+import com.legend.model.spec.AppliedFunction;
 
 import java.util.ArrayList;
 import java.util.List;

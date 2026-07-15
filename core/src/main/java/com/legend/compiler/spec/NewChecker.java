@@ -6,7 +6,7 @@ import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedNewInstance;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.parser.spec.NewInstance;
+import com.legend.model.spec.NewInstance;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -26,7 +26,7 @@ final class NewChecker {
      * VARIABLE's static type; each override validates against its declared
      * property exactly like construction.
      */
-    static TypedSpec checkCopy(Typer t, com.legend.parser.spec.ValueSpecification receiver,
+    static TypedSpec checkCopy(Typer t, com.legend.model.spec.ValueSpecification receiver,
                                NewInstance ni, Env env) {
         TypedSpec source = t.synth(receiver, env);
         Type st = source.info().type();

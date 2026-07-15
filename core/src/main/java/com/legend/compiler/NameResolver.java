@@ -1,71 +1,71 @@
 package com.legend.compiler;
 
 import com.legend.builtin.Pure;
-import com.legend.parser.ImportScope;
-import com.legend.parser.ParsedModel;
-import com.legend.parser.TypeExpression;
-import com.legend.parser.element.AssociationDefinition;
-import com.legend.parser.element.AssociationDefinition.AssociationEndDefinition;
-import com.legend.parser.element.AssociationMapping;
-import com.legend.parser.element.AssociationPropertyMapping;
-import com.legend.parser.element.ClassDefinition;
-import com.legend.parser.element.ClassDefinition.ConstraintDefinition;
-import com.legend.parser.element.ClassDefinition.DerivedPropertyDefinition;
-import com.legend.parser.element.ClassDefinition.ParameterDefinition;
-import com.legend.parser.element.ClassDefinition.PropertyDefinition;
-import com.legend.parser.element.ClassMapping;
-import com.legend.parser.element.ConnectionDefinition;
-import com.legend.parser.element.DatabaseDefinition;
-import com.legend.parser.element.DatabaseDefinition.FilterDefinition;
-import com.legend.parser.element.DatabaseDefinition.JoinDefinition;
-import com.legend.parser.element.DatabaseDefinition.SchemaDefinition;
-import com.legend.parser.element.DatabaseDefinition.ViewDefinition;
-import com.legend.parser.element.DatabaseDefinition.ViewDefinition.ViewColumnMapping;
-import com.legend.parser.element.FilterMapping;
-import com.legend.parser.element.FilterPointer;
-import com.legend.parser.element.FunctionDefinition;
-import com.legend.parser.element.JoinChainElement;
-import com.legend.parser.element.LegacyMappingDefinition;
-import com.legend.parser.element.MappingDefinition;
-import com.legend.parser.element.Realization;
-import com.legend.parser.element.MappingInclude;
-import com.legend.parser.element.MappingInclude.StoreSubstitution;
-import com.legend.parser.element.LegacyMappingDefinition.TableReference;
-import com.legend.parser.element.EnumDefinition;
-import com.legend.parser.element.EnumerationMapping;
-import com.legend.parser.element.EnumerationMapping.EnumValueMapping;
-import com.legend.parser.element.EnumerationMapping.SourceValue;
-import com.legend.parser.element.NativeFunctionDefinition;
-import com.legend.parser.element.PackageableElement;
-import com.legend.parser.element.ProfileDefinition;
-import com.legend.parser.element.PropertyMapping;
-import com.legend.parser.element.RelationalOperation;
-import com.legend.parser.element.RuntimeDefinition;
-import com.legend.parser.element.ServiceDefinition;
-import com.legend.parser.element.StereotypeApplication;
-import com.legend.parser.element.TaggedValue;
-import com.legend.parser.spec.AppliedFunction;
-import com.legend.parser.spec.AppliedProperty;
-import com.legend.parser.spec.CBoolean;
-import com.legend.parser.spec.CDate;
-import com.legend.parser.spec.CDecimal;
-import com.legend.parser.spec.CFloat;
-import com.legend.parser.spec.CInteger;
-import com.legend.parser.spec.CLatestDate;
-import com.legend.parser.spec.CString;
-import com.legend.parser.spec.CTime;
-import com.legend.parser.spec.ColSpec;
-import com.legend.parser.spec.ColSpecArray;
-import com.legend.parser.spec.EnumValue;
-import com.legend.parser.spec.KeyExpression;
-import com.legend.parser.spec.LambdaFunction;
-import com.legend.parser.spec.NewInstance;
-import com.legend.parser.spec.NewInstanceCast;
-import com.legend.parser.spec.PackageableElementPtr;
-import com.legend.parser.spec.PureCollection;
-import com.legend.parser.spec.TypeAnnotation;
-import com.legend.parser.spec.ValueSpecification;
-import com.legend.parser.spec.Variable;
+import com.legend.model.ImportScope;
+import com.legend.model.ParsedModel;
+import com.legend.model.TypeExpression;
+import com.legend.model.AssociationDefinition;
+import com.legend.model.AssociationDefinition.AssociationEndDefinition;
+import com.legend.model.AssociationMapping;
+import com.legend.model.AssociationPropertyMapping;
+import com.legend.model.ClassDefinition;
+import com.legend.model.ClassDefinition.ConstraintDefinition;
+import com.legend.model.ClassDefinition.DerivedPropertyDefinition;
+import com.legend.model.ClassDefinition.ParameterDefinition;
+import com.legend.model.ClassDefinition.PropertyDefinition;
+import com.legend.model.ClassMapping;
+import com.legend.model.ConnectionDefinition;
+import com.legend.model.DatabaseDefinition;
+import com.legend.model.DatabaseDefinition.FilterDefinition;
+import com.legend.model.DatabaseDefinition.JoinDefinition;
+import com.legend.model.DatabaseDefinition.SchemaDefinition;
+import com.legend.model.DatabaseDefinition.ViewDefinition;
+import com.legend.model.DatabaseDefinition.ViewDefinition.ViewColumnMapping;
+import com.legend.model.FilterMapping;
+import com.legend.model.FilterPointer;
+import com.legend.model.FunctionDefinition;
+import com.legend.model.JoinChainElement;
+import com.legend.model.LegacyMappingDefinition;
+import com.legend.model.MappingDefinition;
+import com.legend.model.Realization;
+import com.legend.model.MappingInclude;
+import com.legend.model.MappingInclude.StoreSubstitution;
+import com.legend.model.LegacyMappingDefinition.TableReference;
+import com.legend.model.EnumDefinition;
+import com.legend.model.EnumerationMapping;
+import com.legend.model.EnumerationMapping.EnumValueMapping;
+import com.legend.model.EnumerationMapping.SourceValue;
+import com.legend.model.NativeFunctionDefinition;
+import com.legend.model.PackageableElement;
+import com.legend.model.ProfileDefinition;
+import com.legend.model.PropertyMapping;
+import com.legend.model.RelationalOperation;
+import com.legend.model.RuntimeDefinition;
+import com.legend.model.ServiceDefinition;
+import com.legend.model.StereotypeApplication;
+import com.legend.model.TaggedValue;
+import com.legend.model.spec.AppliedFunction;
+import com.legend.model.spec.AppliedProperty;
+import com.legend.model.spec.CBoolean;
+import com.legend.model.spec.CDate;
+import com.legend.model.spec.CDecimal;
+import com.legend.model.spec.CFloat;
+import com.legend.model.spec.CInteger;
+import com.legend.model.spec.CLatestDate;
+import com.legend.model.spec.CString;
+import com.legend.model.spec.CTime;
+import com.legend.model.spec.ColSpec;
+import com.legend.model.spec.ColSpecArray;
+import com.legend.model.spec.EnumValue;
+import com.legend.model.spec.KeyExpression;
+import com.legend.model.spec.LambdaFunction;
+import com.legend.model.spec.NewInstance;
+import com.legend.model.spec.NewInstanceCast;
+import com.legend.model.spec.PackageableElementPtr;
+import com.legend.model.spec.PureCollection;
+import com.legend.model.spec.TypeAnnotation;
+import com.legend.model.spec.ValueSpecification;
+import com.legend.model.spec.Variable;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -218,12 +218,12 @@ public final class NameResolver {
     private static PackageableElement resolveElement(
             PackageableElement element, Scope scope) {
         return switch (element) {
-            case com.legend.parser.element.PrimitiveExtensionDefinition pe -> {
+            case com.legend.model.PrimitiveExtensionDefinition pe -> {
                 // base primitives (String, Integer...) pass through resolveName
                 // unchanged; an extension-of-extension base resolves via imports
                 String base = resolveName(pe.baseTypeName(), scope);
                 yield base.equals(pe.baseTypeName()) ? pe
-                        : new com.legend.parser.element.PrimitiveExtensionDefinition(
+                        : new com.legend.model.PrimitiveExtensionDefinition(
                                 pe.qualifiedName(), base);
             }
             case ClassDefinition cd -> resolveClass(cd, scope);
@@ -766,7 +766,7 @@ public final class NameResolver {
                 ValueSpecification lam = resolveVs(mj.lambda(), scope);
                 yield name.equals(mj.associationName()) && lam == mj.lambda()
                         ? mj : new AssociationMapping.ModelJoin(name,
-                                (com.legend.parser.spec.LambdaFunction) lam);
+                                (com.legend.model.spec.LambdaFunction) lam);
             }
             case AssociationMapping.Cross x -> {
                 String name = resolveName(x.associationName(), scope);

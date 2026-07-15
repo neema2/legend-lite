@@ -20,9 +20,9 @@
 package com.legend.builtin;
 
 import com.legend.parser.ElementParser;
-import com.legend.parser.element.ClassDefinition;
-import com.legend.parser.element.EnumDefinition;
-import com.legend.parser.element.NativeFunctionDefinition;
+import com.legend.model.ClassDefinition;
+import com.legend.model.EnumDefinition;
+import com.legend.model.NativeFunctionDefinition;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -454,8 +454,8 @@ public final class Pure {
         for (var f : nativeFunctionsAt(name)) {
             for (var prm : f.parameters()) {
                 String head = switch (prm.type()) {
-                    case com.legend.parser.TypeExpression.NameRef nr -> nr.name();
-                    case com.legend.parser.TypeExpression.Generic g -> g.name();
+                    case com.legend.model.TypeExpression.NameRef nr -> nr.name();
+                    case com.legend.model.TypeExpression.Generic g -> g.name();
                     default -> null;
                 };
                 if (paramClassFqn.equals(head)) {

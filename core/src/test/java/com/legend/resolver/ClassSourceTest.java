@@ -9,9 +9,9 @@ import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.error.MappingResolutionException;
 import com.legend.normalizer.ModelNormalizer;
 import com.legend.parser.ElementParser;
-import com.legend.parser.NormalizedModel;
-import com.legend.parser.element.MappingDefinition;
-import com.legend.parser.element.PackageableElement;
+import com.legend.model.NormalizedModel;
+import com.legend.model.MappingDefinition;
+import com.legend.model.PackageableElement;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

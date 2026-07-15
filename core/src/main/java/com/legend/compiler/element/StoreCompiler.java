@@ -3,8 +3,8 @@ package com.legend.compiler.element;
 import com.legend.builtin.Pure;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
-import com.legend.parser.element.DatabaseDefinition;
-import com.legend.parser.element.RelationalDataType;
+import com.legend.model.DatabaseDefinition;
+import com.legend.model.RelationalDataType;
 
 import java.util.ArrayList;
 import java.util.List;

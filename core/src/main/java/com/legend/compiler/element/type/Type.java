@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
  * (never live element refs), so it serializes to {@code .legend} unchanged
  * (core/README invariant 11).
  *
- * <h2>Relationship to {@link com.legend.parser.TypeExpression}</h2>
+ * <h2>Relationship to {@link com.legend.model.TypeExpression}</h2>
  *
  * <p>{@code TypeExpression} is the <em>pre-classification</em> parser AST
  * (bare/FQN name heads). {@code Type} is what {@code ElementCompiler} produces
@@ -90,7 +90,7 @@ public sealed interface Type permits
         private final String qualifiedName;
         private final Family family;
 
-        Primitive(com.legend.parser.element.ClassDefinition source, Family family) {
+        Primitive(com.legend.model.ClassDefinition source, Family family) {
             this.qualifiedName = source.qualifiedName();
             this.family = family;
         }

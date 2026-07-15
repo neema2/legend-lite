@@ -3,9 +3,9 @@ package com.legend.compiler.spec;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.spec.typed.TypedLet;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.parser.spec.AppliedFunction;
-import com.legend.parser.spec.CString;
-import com.legend.parser.spec.ValueSpecification;
+import com.legend.model.spec.AppliedFunction;
+import com.legend.model.spec.CString;
+import com.legend.model.spec.ValueSpecification;
 
 import java.util.List;
 

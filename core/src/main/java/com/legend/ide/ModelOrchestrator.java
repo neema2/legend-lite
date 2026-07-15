@@ -3,9 +3,9 @@ package com.legend.ide;
 import com.legend.lexer.Lexer;
 import com.legend.lexer.TokenStream;
 import com.legend.parser.ElementParser;
-import com.legend.parser.ImportScope;
-import com.legend.parser.ParsedModel;
-import com.legend.parser.element.PackageableElement;
+import com.legend.model.ImportScope;
+import com.legend.model.ParsedModel;
+import com.legend.model.PackageableElement;
 
 import java.util.ArrayList;
 import java.util.Collection;

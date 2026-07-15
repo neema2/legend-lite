@@ -4,8 +4,8 @@
  * <p>Drivers in this package:
  * <ul>
  *   <li>{@link com.legend.parser.ElementParser} (B): tokens &rarr;
- *       {@link com.legend.parser.element.PackageableElement} sequence wrapped in
- *       {@link com.legend.parser.ParsedModel}.</li>
+ *       {@link com.legend.model.PackageableElement} sequence wrapped in
+ *       {@link com.legend.model.ParsedModel}.</li>
  *   <li>{@code SpecParser} (C): tokens &rarr;
  *       {@code parser.spec.ValueSpecification}.</li>
  *   <li>{@code NameResolver} (D, in {@code compiler/}): simple names &rarr; FQNs over both
@@ -19,8 +19,8 @@
  * </pre>
  *
  * <h2>Records</h2>
- * Parsed records live in {@link com.legend.parser.element} (declarations)
- * and {@code com.legend.parser.spec} (value specifications). Class names
+ * Parsed records live in {@link com.legend.model} (declarations)
+ * and {@code com.legend.model.spec} (value specifications). Class names
  * mirror engine's {@code com.gs.legend.model.def} / {@code com.gs.legend.ast}
  * verbatim for parity testing.
  *

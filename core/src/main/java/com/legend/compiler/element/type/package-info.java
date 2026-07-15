@@ -1,6 +1,6 @@
 /**
  * The typed type system (Phase F) &mdash; the kinded, post-classification
- * counterpart of the parser's {@link com.legend.parser.TypeExpression}.
+ * counterpart of the parser's {@link com.legend.model.TypeExpression}.
  * Mirrors {@code engine.m3.Type} / {@code m3.Multiplicity}. Pure-data,
  * acyclic, FQN-strings-only, so it serializes to {@code .legend} unchanged
  * (core/README invariant 11).

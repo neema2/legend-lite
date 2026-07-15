@@ -5,11 +5,11 @@ import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedMatch;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.parser.spec.AppliedFunction;
-import com.legend.parser.spec.LambdaFunction;
-import com.legend.parser.spec.PureCollection;
-import com.legend.parser.spec.ValueSpecification;
-import com.legend.parser.spec.Variable;
+import com.legend.model.spec.AppliedFunction;
+import com.legend.model.spec.LambdaFunction;
+import com.legend.model.spec.PureCollection;
+import com.legend.model.spec.ValueSpecification;
+import com.legend.model.spec.Variable;
 
 import java.util.List;
 import java.util.Optional;

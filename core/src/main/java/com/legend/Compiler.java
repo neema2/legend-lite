@@ -7,9 +7,9 @@ import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.normalizer.ModelNormalizer;
 import com.legend.parser.SpecParser;
-import com.legend.parser.NormalizedModel;
+import com.legend.model.NormalizedModel;
 import com.legend.parser.ElementParser;
-import com.legend.parser.ParsedModel;
+import com.legend.model.ParsedModel;
 
 import java.util.Objects;
 
@@ -143,7 +143,7 @@ public final class Compiler {
         // connection bindings are an unordered map, and first-match-wins
         // was nondeterministic AND skipped later unsupported types (audit).
         var types = new java.util.TreeMap<String,
-                com.legend.parser.element.ConnectionDefinition.DatabaseType>();
+                com.legend.model.ConnectionDefinition.DatabaseType>();
         for (String connFqn : new java.util.TreeSet<>(
                 rt.get().connectionBindings().values())) {
             var conn = ctx.findConnection(connFqn);
@@ -211,7 +211,7 @@ public final class Compiler {
      * scope is the sectionless-query behavior.
      */
     public static com.legend.exec.ExecutionResult execute(String model, String query,
-            com.legend.parser.ImportScope imports, String runtimeFqn,
+            com.legend.model.ImportScope imports, String runtimeFqn,
             java.sql.Connection connection) throws java.sql.SQLException {
         ModelContext ctx = compileModel(model);
         return executeResolved(
@@ -229,7 +229,7 @@ public final class Compiler {
      * hand-rolled sequence is an orchestrator bug (audit 15 unified two).
      */
     public static com.legend.exec.ExecutionResult executeResolved(
-            com.legend.parser.spec.ValueSpecification resolved, ModelContext ctx,
+            com.legend.model.spec.ValueSpecification resolved, ModelContext ctx,
             String runtimeFqn, java.sql.Connection connection)
             throws java.sql.SQLException {
         SpecCompiler specs = new SpecCompiler(ctx);

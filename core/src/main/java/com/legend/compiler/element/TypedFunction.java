@@ -2,7 +2,7 @@ package com.legend.compiler.element;
 
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
-import com.legend.parser.spec.ValueSpecification;
+import com.legend.model.spec.ValueSpecification;
 
 import java.util.List;
 import java.util.Objects;
@@ -10,9 +10,9 @@ import java.util.Optional;
 
 /**
  * A compiled function (Phase F) &mdash; the typed counterpart of
- * {@link com.legend.parser.element.Function} (both
- * {@link com.legend.parser.element.FunctionDefinition} and
- * {@link com.legend.parser.element.NativeFunctionDefinition}). It is the
+ * {@link com.legend.model.Function} (both
+ * {@link com.legend.model.FunctionDefinition} and
+ * {@link com.legend.model.NativeFunctionDefinition}). It is the
  * <strong>single body substrate</strong>: every Pure body site (derived
  * properties, constraints, service queries, mapping transforms) is externalized
  * (Phase E) into one of these, so no other {@code Typed*} record carries a body
@@ -57,7 +57,7 @@ public record TypedFunction(
         Multiplicity returnMultiplicity,
         Optional<List<ValueSpecification>> body,
         boolean isNative,
-        com.legend.parser.element.Function definition) implements TypedElement {
+        com.legend.model.Function definition) implements TypedElement {
 
     /** The stable overload identity (see {@code Function.signatureKey}). */
     public String signatureKey() {

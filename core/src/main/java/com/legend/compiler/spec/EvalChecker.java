@@ -7,12 +7,12 @@ import com.legend.compiler.spec.typed.TypedEval;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedVariable;
-import com.legend.parser.spec.AppliedFunction;
-import com.legend.parser.spec.AppliedProperty;
-import com.legend.parser.spec.ColSpec;
-import com.legend.parser.spec.LambdaFunction;
-import com.legend.parser.spec.PackageableElementPtr;
-import com.legend.parser.spec.ValueSpecification;
+import com.legend.model.spec.AppliedFunction;
+import com.legend.model.spec.AppliedProperty;
+import com.legend.model.spec.ColSpec;
+import com.legend.model.spec.LambdaFunction;
+import com.legend.model.spec.PackageableElementPtr;
+import com.legend.model.spec.ValueSpecification;
 
 import java.util.ArrayList;
 import java.util.List;

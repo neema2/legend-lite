@@ -2,7 +2,7 @@ package com.legend.compiler.spec;
 
 import com.legend.compiler.spec.typed.TypedMap;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.parser.spec.AppliedFunction;
+import com.legend.model.spec.AppliedFunction;
 
 /**
  * {@code map} (engine {@code MapChecker}) &mdash; checked generically (the

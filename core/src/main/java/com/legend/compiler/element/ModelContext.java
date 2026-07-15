@@ -44,7 +44,7 @@ public interface ModelContext {
      * resolver needs the temporal stereotype to pick a milestoning
      * dimension.
      */
-    default Optional<com.legend.parser.element.ClassDefinition>
+    default Optional<com.legend.model.ClassDefinition>
             findClassDefinition(String fqn) {
         return Optional.empty();
     }
@@ -67,7 +67,7 @@ public interface ModelContext {
      * {@code ClassBinding}s name the realizing functions whose typed bodies
      * the resolver inlines.
      */
-    Optional<com.legend.parser.element.MappingDefinition> findMapping(String fqn);
+    Optional<com.legend.model.MappingDefinition> findMapping(String fqn);
 
     /**
      * The association whose end {@code propName} injects onto
@@ -75,10 +75,10 @@ public interface ModelContext {
      * resolver's navigation dispatch (association FQN &rarr; the mapping's
      * AssociationBinding; the end carries target class + multiplicity).
      */
-    Optional<com.legend.parser.element.AssociationDefinition> findAssociationOf(
+    Optional<com.legend.model.AssociationDefinition> findAssociationOf(
             String ownerClassFqn, String propName);
 
-    Optional<com.legend.parser.element.AssociationDefinition.AssociationEndDefinition>
+    Optional<com.legend.model.AssociationDefinition.AssociationEndDefinition>
             findAssociationEnd(String ownerClassFqn, String propName);
 
     /**
@@ -86,7 +86,7 @@ public interface ModelContext {
      * mapping when a class query names a runtime (explicitly via
      * {@code ->from(...)} or through the driver's execution context).
      */
-    Optional<com.legend.parser.element.RuntimeDefinition> findRuntime(String fqn);
+    Optional<com.legend.model.RuntimeDefinition> findRuntime(String fqn);
 
     /** Normalization-failure reason for {@code mapping::class}, when its class mapping was poisoned. */
     default Optional<String> mappingPoison(String mappingFqn, String classFqn) {
@@ -98,7 +98,7 @@ public interface ModelContext {
      * {@code DatabaseType} that selects the SQL dialect a runtime's queries
      * render in.
      */
-    Optional<com.legend.parser.element.ConnectionDefinition> findConnection(String fqn);
+    Optional<com.legend.model.ConnectionDefinition> findConnection(String fqn);
 
     /**
      * Classify an FQN into a kinded {@link Type}: <strong>primitive &rarr; class
@@ -130,7 +130,7 @@ public interface ModelContext {
     Optional<Type.RelationType> findTable(String dbFqn, String name);
 
     /** The table's temporal columns, when it declares a milestoning block. */
-    default Optional<com.legend.parser.element.DatabaseDefinition.TableDefinition.Milestoning>
+    default Optional<com.legend.model.DatabaseDefinition.TableDefinition.Milestoning>
             findTableMilestoning(String dbFqn, String name) {
         return Optional.empty();
     }

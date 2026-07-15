@@ -1,5 +1,7 @@
 package com.legend;
 
+import com.legend.model.TypeExpression;
+
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
@@ -175,22 +177,51 @@ final class ArchitectureTest {
     }
 
     /**
-     * The resolver consumes the NORMALIZED MODEL (today homed in
-     * parser.element — the com.legend.model move is the roadmap) and the
-     * typed HIR; it must never touch parse machinery: the untyped AST,
-     * the lexer, grammar cursors, or parser-top types (TypeExpression,
-     * parser.Multiplicity — audit 15 removed the last four call sites).
+     * THE PRIZE RULE (audit 15 slice E): model-element records moved from
+     * parser.element to {@code com.legend.model}, so every
+     * post-normalization phase is FULLY parser-free — the model arrives
+     * via the ModelContext facade as {@code com.legend.model} records and
+     * nothing after the normalizer can see grammar machinery. The
+     * resolver additionally never sees the untyped AST (model.spec).
      */
     @Test
-    void resolverNeverSeesParseMachinery() {
+    void postNormalizationPhasesAreParserFree() {
+        noClasses()
+            .that().resideInAnyPackage(
+                    "com.legend.resolver", "com.legend.lowering",
+                    "com.legend.exec", "com.legend.compiler.spec.typed")
+            .should().dependOnClassesThat().resideInAnyPackage(
+                    "com.legend.parser..", "com.legend.lexer..",
+                    "com.legend.normalizer..", "com.legend.ide..")
+            .as("Invariant 6c: post-normalization phases never see the parser"
+              + " — the model lives in com.legend.model")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    @Test
+    void resolverNeverSeesTheUntypedAst() {
         noClasses()
             .that().resideInAPackage("com.legend.resolver")
-            .should().dependOnClassesThat().resideInAnyPackage(
-                    "com.legend.parser.spec..", "com.legend.lexer..",
-                    "com.legend.normalizer..", "com.legend.ide..")
-            .orShould().dependOnClassesThat().resideInAPackage("com.legend.parser")
-            .as("Invariant 6c: the resolver is parse-machinery-free — model"
-              + " records (parser.element) arrive via the ModelContext facade")
+            .should().dependOnClassesThat().resideInAPackage("com.legend.model.spec..")
+            .as("Invariant 6c': the resolver consumes model RECORDS and the"
+              + " typed HIR — never the untyped value-spec AST")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * The model is DATA: element records + the untyped value-spec AST
+     * (model.spec — the normalizer synthesizes bodies as model content).
+     * It sits below every phase and may reach only the value vocabulary.
+     */
+    @Test
+    void modelIsPureData() {
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes()
+            .that().resideInAnyPackage("com.legend.model..")
+            .should().onlyDependOnClassesThat().resideInAnyPackage(
+                    "com.legend.model..", "com.legend.values",
+                    "com.legend.error", "java..")
+            .as("Invariant 6j: com.legend.model depends only on values/error"
+              + " and the JDK — producers and consumers both sit above it")
             .check(CORE_PROD_CLASSES);
     }
 

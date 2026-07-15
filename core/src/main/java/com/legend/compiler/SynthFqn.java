@@ -1,6 +1,6 @@
 package com.legend.compiler;
 
-import com.legend.parser.element.SynthHat;
+import com.legend.model.SynthHat;
 
 /**
  * The single source of truth for synthesized-function FQN conventions &mdash;
