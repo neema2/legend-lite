@@ -2,10 +2,13 @@
 
 package com.legend.normalizer;
 
-import com.legend.parser.NormalizedModel;
 import com.legend.compiler.ModelBuilder;
 import com.legend.compiler.SynthFqn;
+import com.legend.error.LegendCompileException;
+import com.legend.error.ModelException;
+import com.legend.error.NotImplementedException;
 import com.legend.parser.Multiplicity;
+import com.legend.parser.NormalizedModel;
 import com.legend.parser.ParsedModel;
 import com.legend.parser.TypeExpression;
 import com.legend.parser.element.AssociationDefinition;
@@ -15,20 +18,21 @@ import com.legend.parser.element.ClassDefinition;
 import com.legend.parser.element.ClassMapping;
 import com.legend.parser.element.ComparisonOp;
 import com.legend.parser.element.DatabaseDefinition;
-import com.legend.parser.element.RelationalDataType;
 import com.legend.parser.element.EnumerationMapping;
 import com.legend.parser.element.FilterMapping;
 import com.legend.parser.element.FilterPointer;
 import com.legend.parser.element.FunctionDefinition;
 import com.legend.parser.element.JoinChainElement;
-import com.legend.parser.element.LogicalOp;
 import com.legend.parser.element.LegacyMappingDefinition;
+import com.legend.parser.element.LogicalOp;
 import com.legend.parser.element.MappingDefinition;
-import com.legend.parser.element.Realization;
+import com.legend.parser.element.MappingInclude;
 import com.legend.parser.element.PackageableElement;
 import com.legend.parser.element.PropertyMapping;
-import com.legend.parser.element.SynthHat;
+import com.legend.parser.element.Realization;
+import com.legend.parser.element.RelationalDataType;
 import com.legend.parser.element.RelationalOperation;
+import com.legend.parser.element.SynthHat;
 import com.legend.parser.spec.AppliedFunction;
 import com.legend.parser.spec.AppliedProperty;
 import com.legend.parser.spec.CBoolean;
@@ -47,6 +51,7 @@ import com.legend.parser.spec.PureCollection;
 import com.legend.parser.spec.TypeAnnotation;
 import com.legend.parser.spec.ValueSpecification;
 import com.legend.parser.spec.Variable;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -57,7 +62,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-
+import java.util.TreeSet;
 /**
  * Union/inheritance operation-mapping synthesis: member-set concatenation, route classification, nav lifts and inbound route keys. Split from MappingNormalizer (the Doors split).
  */
@@ -79,7 +84,7 @@ final class UnionSynthesis {
                 return u;
             }
         }
-        for (com.legend.parser.element.MappingInclude inc : md.includes()) {
+        for (MappingInclude inc : md.includes()) {
             LegacyMappingDefinition inner =
                     model.findLegacyMapping(inc.mappingPath()).orElse(null);
             if (inner != null) {
@@ -133,8 +138,8 @@ final class UnionSynthesis {
         // (audit 12: coverage alone dropped the second route's join
         // entirely; J1(FK1=ID)+J2(FK2=ID) matched member 2 by the wrong
         // key). Distinct joins keep the suffixed OR.
-        java.util.Set<Integer> ords = new java.util.HashSet<>();
-        java.util.Set<String> joins = new java.util.HashSet<>();
+        Set<Integer> ords = new HashSet<>();
+        Set<String> joins = new HashSet<>();
         for (UnionRoute r : routes) {
             if (r.targetOrdinal() < 0 || r.join().joins().size() != 1) {
                 return false;
@@ -156,7 +161,7 @@ final class UnionSynthesis {
         }
         for (int i = 0; i < memberIds.size(); i++) {
             ClassMapping m = MappingNormalizer.findSetById(md, model, memberIds.get(i));
-            java.util.Set<String> seen = new java.util.HashSet<>();
+            Set<String> seen = new HashSet<>();
             while (m instanceof ClassMapping.Relational r
                     && r.extendsSetId() != null && seen.add(r.extendsSetId())) {
                 if (r.extendsSetId().equals(setId)) {
@@ -271,7 +276,7 @@ final class UnionSynthesis {
                                                 ClassMapping.Union u,
                                                 ModelBuilder model) {
         if (u.memberSetIds().isEmpty()) {
-            throw new com.legend.error.NotImplementedException(
+            throw new NotImplementedException(
                     "Operation union with no member sets; class="
                   + u.className() + ", mapping=" + md.qualifiedName());
         }
@@ -280,7 +285,7 @@ final class UnionSynthesis {
         // inheritance hierarchy) — the shared-property projection over the
         // operation class is the semantics either way
         Map<String, ClassMapping> bySetId = new LinkedHashMap<>();
-        MappingNormalizer.collectIncludedSetIds(md, model, bySetId, new java.util.HashSet<>());
+        MappingNormalizer.collectIncludedSetIds(md, model, bySetId, new HashSet<>());
         for (ClassMapping cm : md.classMappings()) {
             bySetId.put(MappingNormalizer.setIdOf(cm), cm);
         }
@@ -289,7 +294,7 @@ final class UnionSynthesis {
             ClassMapping member = bySetId.get(setId);
             if (!(member instanceof ClassMapping.Relational)
                     && !(member instanceof ClassMapping.RelationFunction)) {
-                throw new com.legend.error.NotImplementedException(
+                throw new NotImplementedException(
                         "Operation union member set '" + setId + "' of class '"
                       + u.className() + "' is " + (member == null ? "missing"
                               : "not a Relational or Relation(~func) set")
@@ -299,8 +304,8 @@ final class UnionSynthesis {
             // stray setId landing on an unrelated class with coincidental
             // property names would union unrelated rows (audit 8 S8)
             if (!isSubclassOf(member.className(), u.className(), model)) {
-                throw new com.legend.error.ModelException(
-                        com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                throw new ModelException(
+                        LegendCompileException.Phase.NORMALIZE,
                         "Operation union member set '" + setId + "' maps '"
                       + member.className() + "', which is not '" + u.className()
                       + "' or a subclass; mapping=" + md.qualifiedName());
@@ -355,7 +360,7 @@ final class UnionSynthesis {
         // sets never join; only the leaf-most mapped set per leaf
         // contributes (audit 8 S3 — the every-subclass-set collection
         // returned extra and duplicated rows).
-        java.util.LinkedHashSet<ClassMapping> chosen = new java.util.LinkedHashSet<>();
+        LinkedHashSet<ClassMapping> chosen = new LinkedHashSet<>();
         collectInheritanceMembers(md, ih.className(), model, chosen);
         List<ClassMapping.Relational> members = new ArrayList<>();
         for (ClassMapping cm : chosen) {
@@ -363,7 +368,7 @@ final class UnionSynthesis {
                 case ClassMapping.Relational mr -> members.add(mr);
                 case ClassMapping.Union u2 -> {
                     Map<String, ClassMapping> bySetId = new LinkedHashMap<>();
-                    MappingNormalizer.collectIncludedSetIds(md, model, bySetId, new java.util.HashSet<>());
+                    MappingNormalizer.collectIncludedSetIds(md, model, bySetId, new HashSet<>());
                     for (ClassMapping own : md.classMappings()) {
                         bySetId.put(MappingNormalizer.setIdOf(own), own);
                     }
@@ -371,14 +376,14 @@ final class UnionSynthesis {
                         if (bySetId.get(setId) instanceof ClassMapping.Relational mr2) {
                             members.add(mr2);
                         } else {
-                            throw new com.legend.error.NotImplementedException(
+                            throw new NotImplementedException(
                                     "inheritance member union set '" + setId
                                     + "' is not a Relational set; mapping="
                                     + md.qualifiedName());
                         }
                     }
                 }
-                default -> throw new com.legend.error.NotImplementedException(
+                default -> throw new NotImplementedException(
                         "inheritance Operation member for '" + cm.className()
                         + "' is a " + cm.getClass().getSimpleName()
                         + " mapping — not supported yet; mapping="
@@ -386,7 +391,7 @@ final class UnionSynthesis {
             }
         }
         if (members.isEmpty()) {
-            throw new com.legend.error.NotImplementedException(
+            throw new NotImplementedException(
                     "inheritance Operation for '" + ih.className()
                     + "' finds no mapped subclass sets; mapping="
                     + md.qualifiedName());
@@ -399,10 +404,10 @@ final class UnionSynthesis {
 
     /** The engine's leaf-most-root member selection for an inheritance op. */
     static void collectInheritanceMembers(LegacyMappingDefinition md,
-            String base, ModelBuilder model, java.util.Set<ClassMapping> chosen) {
+            String base, ModelBuilder model, Set<ClassMapping> chosen) {
         // ROOT class mapping per class, includes first (own definitions win)
         Map<String, ClassMapping> rootByClass = new LinkedHashMap<>();
-        collectRootClassMappings(md, model, rootByClass, new java.util.HashSet<>());
+        collectRootClassMappings(md, model, rootByClass, new HashSet<>());
         // strict specializations of base, and their leaves
         List<String> subs = new ArrayList<>();
         model.classes().forEach(cd -> {
@@ -417,8 +422,8 @@ final class UnionSynthesis {
                 .toList();
         for (String leaf : leaves) {
             // nearest mapped ancestor at or above the leaf, STRICTLY below base
-            java.util.ArrayDeque<String> level = new java.util.ArrayDeque<>();
-            java.util.Set<String> seen = new java.util.HashSet<>();
+            ArrayDeque<String> level = new ArrayDeque<>();
+            Set<String> seen = new HashSet<>();
             level.add(leaf);
             outer:
             while (!level.isEmpty()) {
@@ -452,8 +457,8 @@ final class UnionSynthesis {
 
     /** ROOT set per class across this mapping + its includes (own wins). */
     static void collectRootClassMappings(LegacyMappingDefinition md,
-            ModelBuilder model, Map<String, ClassMapping> out, java.util.Set<String> seen) {
-        for (com.legend.parser.element.MappingInclude inc : md.includes()) {
+            ModelBuilder model, Map<String, ClassMapping> out, Set<String> seen) {
+        for (MappingInclude inc : md.includes()) {
             if (seen.add(inc.mappingPath())) {
                 LegacyMappingDefinition included =
                         model.findLegacyMapping(inc.mappingPath()).orElse(null);
@@ -525,14 +530,14 @@ final class UnionSynthesis {
             ClassMapping.Relational mr = (ClassMapping.Relational) cmIn;
             String setId = MappingNormalizer.setIdOf(mr);
             if (mr.sourceUrl() != null) {
-                throw new com.legend.error.NotImplementedException(
+                throw new NotImplementedException(
                         "Operation union over a JSON-source member set is not"
                       + " supported yet; mapping=" + md.qualifiedName());
             }
             if (mr.mainTable() == null) {
                 LegacyMappingDefinition.TableReference inferred = MappingNormalizer.inferMainTable(mr);
                 if (inferred == null) {
-                    throw new com.legend.error.NotImplementedException(
+                    throw new NotImplementedException(
                             "union member set '" + setId + "' has no inferable"
                           + " main table; mapping=" + md.qualifiedName());
                 }
@@ -544,7 +549,7 @@ final class UnionSynthesis {
             }
             if (model.findView(mr.mainTable().database(),
                     mr.mainTable().table()).isPresent()) {
-                throw new com.legend.error.NotImplementedException(
+                throw new NotImplementedException(
                         "Operation union over a VIEW-backed member set is not"
                       + " supported yet; mapping=" + md.qualifiedName());
             }
@@ -569,7 +574,7 @@ final class UnionSynthesis {
             }
         }
         if (common.isEmpty()) {
-            throw new com.legend.error.NotImplementedException(
+            throw new NotImplementedException(
                     "Operation union members of '" + className
                   + "' map no scalar properties; mapping=" + md.qualifiedName());
         }
@@ -628,7 +633,7 @@ final class UnionSynthesis {
                 if (dt instanceof TypeExpression.NameRef dn
                         && ("String".equals(MappingNormalizer.simpleTypeName(dn.name())))) {
                     value = new AppliedFunction("cast", List.of(value,
-                            new com.legend.parser.spec.TypeAnnotation.Named(
+                            new TypeAnnotation.Named(
                                     new TypeExpression.NameRef("String"))));
                 }
                 // every member column aligns to [1] (toOne types both sides
@@ -686,7 +691,7 @@ final class UnionSynthesis {
                             String kind = cd == null ? null
                                     : MappingNormalizer.pureKindOf(cd.dataType());
                             if (kind == null) {
-                                throw new com.legend.error.NotImplementedException(
+                                throw new NotImplementedException(
                                         "chained union key column '" + key.getKey()
                                         + "' has no derivable pure kind on table '"
                                         + ch.keyTable() + "'; mapping="
@@ -694,7 +699,7 @@ final class UnionSynthesis {
                             }
                             read = new AppliedFunction("cast", List.of(
                                     new PureCollection(List.of()),
-                                    new com.legend.parser.spec.TypeAnnotation.Named(
+                                    new TypeAnnotation.Named(
                                             new TypeExpression.NameRef(kind))));
                         }
                         read = new AppliedFunction("toOne", List.of(read));
@@ -760,8 +765,8 @@ final class UnionSynthesis {
                     ? midHop.databaseName() : j.database();
             DatabaseDefinition.JoinDefinition mjd =
                     model.findJoin(midDb, midHop.joinName()).orElseThrow(() ->
-                            new com.legend.error.ModelException(
-                                    com.legend.error.LegendCompileException
+                            new ModelException(
+                                    LegendCompileException
                                             .Phase.NORMALIZE,
                                     "Join '" + midHop.joinName() + "' not"
                                     + " found in db '" + midDb + "'; PM='"
@@ -904,9 +909,9 @@ final class UnionSynthesis {
             // form cross-matched colliding keys, [0..1] fan-out).
             boolean liftTargetMerged;
             {
-                java.util.Set<Integer> tgtOrds = new java.util.HashSet<>();
-                java.util.Set<Integer> srcMembers = new java.util.HashSet<>();
-                java.util.Set<String> tgtColSets = new java.util.HashSet<>();
+                Set<Integer> tgtOrds = new HashSet<>();
+                Set<Integer> srcMembers = new HashSet<>();
+                Set<String> tgtColSets = new HashSet<>();
                 boolean mergeable = targetUnion != null;
                 List<int[]> ordsPre = found.get(prop);
                 List<PropertyMapping.Join> jsPre = joins.get(prop);
@@ -936,7 +941,7 @@ final class UnionSynthesis {
                             members.get(ordsPre.get(k2)[0])).mainTable().table();
                     String tgtT = MappingNormalizer.determineTargetTable(jd0.operation(), srcT,
                             hop0.joinName(), prop, 1, md.qualifiedName());
-                    java.util.Set<String> cols0 = new java.util.TreeSet<>();
+                    Set<String> cols0 = new TreeSet<>();
                     MappingNormalizer.collectColumnsOfTable(jd0.operation(), tgtT, cols0);
                     tgtColSets.add(String.join(",", cols0));
                 }
@@ -973,8 +978,8 @@ final class UnionSynthesis {
                         : j.database();
                 DatabaseDefinition.JoinDefinition jd =
                         model.findJoin(hopDb, hop.joinName()).orElseThrow(() ->
-                                new com.legend.error.ModelException(
-                                        com.legend.error.LegendCompileException
+                                new ModelException(
+                                        LegendCompileException
                                                 .Phase.NORMALIZE,
                                         "Join '" + hop.joinName() + "' not found"
                                         + " in db '" + hopDb + "'; PM='" + prop
@@ -1053,7 +1058,7 @@ final class UnionSynthesis {
             List<ClassMapping> members,
             Map<Integer, Map<String, String>> sink) {
         List<LegacyMappingDefinition> closure = new ArrayList<>();
-        MappingNormalizer.collectMappingClosure(md, model, closure, new java.util.HashSet<>());
+        MappingNormalizer.collectMappingClosure(md, model, closure, new HashSet<>());
         for (LegacyMappingDefinition m : closure) {
             for (ClassMapping cm : m.classMappings()) {
                 if (!(cm instanceof ClassMapping.Relational rcm)) {
@@ -1085,7 +1090,7 @@ final class UnionSynthesis {
                                     // navigation if demanded)
                     }
                     String memberTable = routedMember.mainTable().table();
-                    java.util.Set<String> cols = new LinkedHashSet<>();
+                    Set<String> cols = new LinkedHashSet<>();
                     MappingNormalizer.collectColumnsOfTable(jd.operation(), memberTable, cols);
                     for (String c : cols) {
                         sink.computeIfAbsent(ord, k -> new LinkedHashMap<>())
@@ -1124,7 +1129,7 @@ final class UnionSynthesis {
                         continue;   // loud at the route's own emission
                     }
                     String memberTable = routedMember.mainTable().table();
-                    java.util.Set<String> cols = new LinkedHashSet<>();
+                    Set<String> cols = new LinkedHashSet<>();
                     MappingNormalizer.collectColumnsOfTable(jd.operation(), memberTable, cols);
                     for (String c : cols) {
                         sink.computeIfAbsent(ord, k -> new LinkedHashMap<>())

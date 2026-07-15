@@ -3,13 +3,15 @@
 
 package com.legend.resolver;
 
+import com.legend.compiler.spec.typed.TypedGetAll;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
-
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 /**
  * Demanded NAVIGATE-TARGET materialization — recursive, hop-agnostic:
  * a tail continuing through the target's own class-typed slot
@@ -43,7 +45,7 @@ final class NavMaterializer {
                   Map<String, Substitution.SubNav> subNavs) {}
 
     NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
-            String targetClassFqn, java.util.List<java.util.List<String>> tails) {
+            String targetClassFqn, List<List<String>> tails) {
         return navTargetMaterialized(temporal, mappingFqn, targetClassFqn, tails,
                 null, TemporalContext.NONE);
     }
@@ -53,7 +55,7 @@ final class NavMaterializer {
      * propagation flows hop-to-hop through temporal classes (engine
      * getMilestoningContextForQualifiedProperty), not only from the root. */
     NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
-            String targetClassFqn, java.util.List<java.util.List<String>> tails,
+            String targetClassFqn, List<List<String>> tails,
             String chainPrefix, TemporalContext inherited) {
         ClassSource t = sources.get(mappingFqn, targetClassFqn);
         // TEMPORAL GATE (same discipline as the union lift): the nested
@@ -77,11 +79,11 @@ final class NavMaterializer {
         }
         Set<String> tSlots = Pipelines.slotAliases(t.pipeline());
         var tNavSteps = Pipelines.navSteps(t.pipeline());
-        Set<String> tDemand = new java.util.LinkedHashSet<>();
-        Set<String> tNavs = new java.util.LinkedHashSet<>();
-        Map<String, java.util.List<java.util.List<String>>> subTails =
-                new java.util.LinkedHashMap<>();
-        for (java.util.List<String> tail : tails) {
+        Set<String> tDemand = new LinkedHashSet<>();
+        Set<String> tNavs = new LinkedHashSet<>();
+        Map<String, List<List<String>>> subTails =
+                new LinkedHashMap<>();
+        for (List<String> tail : tails) {
             if (tail.isEmpty()) {
                 continue;
             }
@@ -98,7 +100,7 @@ final class NavMaterializer {
                     // the recursion's own gate returns a raw pipeline but
                     // cannot stop THIS level's join. Leave the sub-step
                     // undemanded: the leaf read stays LOUD downstream.
-                    String subCls = ((com.legend.compiler.spec.typed.TypedGetAll)
+                    String subCls = ((TypedGetAll)
                             tNavSteps.get(subAlias).target()).classFqn();
                     ClassSource subT = sources.get(mappingFqn, subCls);
                     // TEMPORAL sub-target: liftable when its CHAIN-KEYED
@@ -151,8 +153,8 @@ final class NavMaterializer {
         }
         tDemand = Pipelines.closeOverConditions(t.pipeline(), tDemand);
         final TemporalContext slotCtx = hopCtx;
-        final Map<String, String> midByAlias = new java.util.LinkedHashMap<>();
-        for (java.util.List<String> tail : tails) {
+        final Map<String, String> midByAlias = new LinkedHashMap<>();
+        for (List<String> tail : tails) {
             if (tail.size() >= 2) {
                 TypedSpec b2 = t.bindings().get(tail.get(0));
                 String a2 = b2 == null ? null
@@ -162,13 +164,13 @@ final class NavMaterializer {
                 }
             }
         }
-        final Map<String, NavMat> subMats = new java.util.LinkedHashMap<>();
-        final Map<String, String> subClsByAlias = new java.util.LinkedHashMap<>();
+        final Map<String, NavMat> subMats = new LinkedHashMap<>();
+        final Map<String, String> subClsByAlias = new LinkedHashMap<>();
         Pipelines.Materialized matM = Pipelines.materialize(
                 t.pipeline(), tDemand, tNavs,
                 targetClassFqn, (alias, cls) -> {
                     NavMat subMat = navTargetMaterialized(temporal, mappingFqn, cls,
-                            subTails.getOrDefault(alias, java.util.List.of()),
+                            subTails.getOrDefault(alias, List.of()),
                             chainPrefix == null ? null
                                     : chainPrefix + "." + midByAlias.get(alias),
                             hopCtx);
@@ -195,7 +197,7 @@ final class NavMaterializer {
                     }
                     return sub;
                 });
-        Map<String, Substitution.SubNav> subTree = new java.util.LinkedHashMap<>();
+        Map<String, Substitution.SubNav> subTree = new LinkedHashMap<>();
         for (var sm : subMats.entrySet()) {
             String prop = midByAlias.get(sm.getKey());
             String p = matM.slotPrefixes().get(sm.getKey());
@@ -228,7 +230,7 @@ final class NavMaterializer {
         if (kids.isEmpty()) {
             return kids;
         }
-        Map<String, Substitution.SubNav> out = new java.util.LinkedHashMap<>();
+        Map<String, Substitution.SubNav> out = new LinkedHashMap<>();
         for (var e : kids.entrySet()) {
             Substitution.SubNav k = e.getValue();
             out.put(e.getKey(), new Substitution.SubNav(p + k.prefix(),

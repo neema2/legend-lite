@@ -1,36 +1,68 @@
 package com.legend.lowering;
 
+import com.legend.builtin.Pure;
+import com.legend.compiler.element.type.ExprType;
+import com.legend.compiler.element.type.Multiplicity;
+import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
+import com.legend.compiler.spec.typed.FoldStrategy;
+import com.legend.compiler.spec.typed.TypedAggCol;
+import com.legend.compiler.spec.typed.TypedAggregate;
+import com.legend.compiler.spec.typed.TypedAsOfJoin;
 import com.legend.compiler.spec.typed.TypedCBoolean;
+import com.legend.compiler.spec.typed.TypedCDate;
+import com.legend.compiler.spec.typed.TypedCDecimal;
 import com.legend.compiler.spec.typed.TypedCFloat;
 import com.legend.compiler.spec.typed.TypedCInteger;
 import com.legend.compiler.spec.typed.TypedCString;
-import com.legend.compiler.spec.typed.TypedAggCol;
-import com.legend.compiler.spec.typed.TypedAggregate;
+import com.legend.compiler.spec.typed.TypedCast;
+import com.legend.compiler.spec.typed.TypedColSpec;
 import com.legend.compiler.spec.typed.TypedCollection;
+import com.legend.compiler.spec.typed.TypedCollectionRelation;
 import com.legend.compiler.spec.typed.TypedConcatenate;
+import com.legend.compiler.spec.typed.TypedCopyInstance;
 import com.legend.compiler.spec.typed.TypedDistinct;
+import com.legend.compiler.spec.typed.TypedDrop;
+import com.legend.compiler.spec.typed.TypedEnumValue;
 import com.legend.compiler.spec.typed.TypedExtend;
 import com.legend.compiler.spec.typed.TypedExtendAgg;
 import com.legend.compiler.spec.typed.TypedExtendWindow;
+import com.legend.compiler.spec.typed.TypedFilter;
+import com.legend.compiler.spec.typed.TypedFlatten;
+import com.legend.compiler.spec.typed.TypedFold;
+import com.legend.compiler.spec.typed.TypedFrom;
 import com.legend.compiler.spec.typed.TypedFuncCol;
 import com.legend.compiler.spec.typed.TypedGroupBy;
-import com.legend.compiler.spec.typed.TypedDrop;
-import com.legend.compiler.spec.typed.TypedFilter;
+import com.legend.compiler.spec.typed.TypedIf;
+import com.legend.compiler.spec.typed.TypedJoin;
+import com.legend.compiler.spec.typed.TypedJoinSlot;
 import com.legend.compiler.spec.typed.TypedLambda;
+import com.legend.compiler.spec.typed.TypedLet;
 import com.legend.compiler.spec.typed.TypedLimit;
+import com.legend.compiler.spec.typed.TypedMap;
 import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedNavigate;
+import com.legend.compiler.spec.typed.TypedNewInstance;
 import com.legend.compiler.spec.typed.TypedOver;
+import com.legend.compiler.spec.typed.TypedPackageableRef;
+import com.legend.compiler.spec.typed.TypedPivot;
 import com.legend.compiler.spec.typed.TypedProject;
 import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedRename;
 import com.legend.compiler.spec.typed.TypedSelect;
+import com.legend.compiler.spec.typed.TypedSerializeGraph;
 import com.legend.compiler.spec.typed.TypedSlice;
 import com.legend.compiler.spec.typed.TypedSort;
+import com.legend.compiler.spec.typed.TypedSortBy;
+import com.legend.compiler.spec.typed.TypedSourceUrl;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedTableReference;
 import com.legend.compiler.spec.typed.TypedTds;
 import com.legend.compiler.spec.typed.TypedVariable;
+import com.legend.compiler.spec.typed.TypedWrite;
+import com.legend.error.LegendCompileException;
+import com.legend.error.ModelException;
+import com.legend.error.NotImplementedException;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
@@ -38,12 +70,23 @@ import com.legend.sql.SqlFn;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
+import com.legend.sql.SqlType;
 import com.legend.sql.SqlUnion;
-
+import com.legend.values.PureDateLiteral;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
-
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 /**
  * Phase I &mdash; relation-pipeline lowering (M2 scope: table/TDS sources +
  * filter/select/rename/sort/slicing/distinct; mappings and class sources are
@@ -62,41 +105,41 @@ public final class Lowerer {
      * when no model rides along (unit tests over pure-relational queries);
      * class values then keep hitting the loud walls.
      */
-    private final java.util.function.Function<Type,
-            java.util.Optional<java.util.List<Type.Column>>> classLayout;
+    private final Function<Type,
+            Optional<List<Type.Column>>> classLayout;
 
     /** Whether a class FQN exists in the driving model (layoutless-LUB detection). */
-    private final java.util.function.Predicate<String> classExists;
+    private final Predicate<String> classExists;
 
     public Lowerer() {
-        this(t -> java.util.Optional.empty(), f -> false);
+        this(t -> Optional.empty(), f -> false);
     }
 
-    public Lowerer(java.util.function.Function<Type,
-            java.util.Optional<java.util.List<Type.Column>>> classLayout,
-                   java.util.function.Predicate<String> classExists) {
+    public Lowerer(Function<Type,
+            Optional<List<Type.Column>>> classLayout,
+                   Predicate<String> classExists) {
         this.classLayout = classLayout;
         this.classExists = classExists;
     }
 
     /** SQL type of a value, seeing through class layouts (structs) before {@link PureSql}. */
-    private com.legend.sql.SqlType sqlTypeOf(Type t) {
+    private SqlType sqlTypeOf(Type t) {
         // Platform CARRIER types own their SQL shape (List = bare array,
         // Pair = struct, Map = MAP) — List's declared `values` property is
         // its pure-side surface, never a struct layout at the SQL boundary.
-        if (com.legend.compiler.element.type.PlatformTypes.isListCarrier(t)
-                || com.legend.compiler.element.type.PlatformTypes.isPairCarrier(t)
-                || com.legend.compiler.element.type.PlatformTypes.isMapCarrier(t)) {
+        if (PlatformTypes.isListCarrier(t)
+                || PlatformTypes.isPairCarrier(t)
+                || PlatformTypes.isMapCarrier(t)) {
             return PureSql.type(t);
         }
         return classLayout.apply(t)
-                .<com.legend.sql.SqlType>map(cols -> new com.legend.sql.SqlType.Struct(
+                .<SqlType>map(cols -> new SqlType.Struct(
                         cols.stream().map(c -> {
-                            com.legend.sql.SqlType ft = sqlTypeOf(c.type());
+                            SqlType ft = sqlTypeOf(c.type());
                             boolean many = c.multiplicity() instanceof
-                                    com.legend.compiler.element.type.Multiplicity.Bounded b && b.isMany();
-                            return new com.legend.sql.SqlType.Struct.Field(c.name(),
-                                    many ? new com.legend.sql.SqlType.Array(ft) : ft);
+                                    Multiplicity.Bounded b && b.isMany();
+                            return new SqlType.Struct.Field(c.name(),
+                                    many ? new SqlType.Array(ft) : ft);
                         }).toList()))
                 .orElseGet(() -> {
                     // A MODEL class with no layoutable properties reaching a
@@ -105,11 +148,11 @@ public final class Lowerer {
                     // variant JSON, like Any. Non-model classes keep
                     // PureSql's loud wall.
                     if (t instanceof Type.ClassType ct
-                            && !com.legend.compiler.element.type.PlatformTypes.isVariant(ct)
-                            && !com.legend.compiler.element.type.PlatformTypes.isNil(ct)
-                            && !com.legend.compiler.element.type.PlatformTypes.isAny(ct)
+                            && !PlatformTypes.isVariant(ct)
+                            && !PlatformTypes.isNil(ct)
+                            && !PlatformTypes.isAny(ct)
                             && classExists.test(ct.fqn())) {
-                        return com.legend.sql.SqlType.Scalar.JSON;
+                        return SqlType.Scalar.JSON;
                     }
                     return PureSql.type(t);
                 });
@@ -120,20 +163,20 @@ public final class Lowerer {
      * lowered INSIDE a lambda (a correlated subquery), the outer lambda's
      * resolver is pushed here so the inner predicate can reference outer rows.
      */
-    private final java.util.ArrayDeque<ColumnResolver>
-            enclosing = new java.util.ArrayDeque<>();
+    private final ArrayDeque<ColumnResolver>
+            enclosing = new ArrayDeque<>();
 
     /** Query-level let bindings ({@code |let a = ...; ...$a...}), lowered once. */
-    private final java.util.Map<String, SqlExpr> letBindings = new java.util.HashMap<>();
+    private final Map<String, SqlExpr> letBindings = new HashMap<>();
 
     /**
      * Lower a typed QUERY BODY: leading {@code let} statements bind their
      * lowered values into query scope (substitution — the lean output has no
      * trace of the lets); the final statement is the query.
      */
-    public SqlQuery lower(List<com.legend.compiler.spec.typed.TypedSpec> body) {
+    public SqlQuery lower(List<TypedSpec> body) {
         for (int i = 0; i < body.size() - 1; i++) {
-            if (!(body.get(i) instanceof com.legend.compiler.spec.typed.TypedLet let)) {
+            if (!(body.get(i) instanceof TypedLet let)) {
                 throw new IllegalStateException(
                         "only let statements may precede the query expression");
             }
@@ -150,12 +193,12 @@ public final class Lowerer {
         // from() is execution-context metadata, fully consumed by Phase H —
         // the SQL is its source's. (Relation-typed from-roots take the
         // relation() arm below; a GRAPH-typed root needs the unwrap here.)
-        if (spec instanceof com.legend.compiler.spec.typed.TypedFrom from) {
+        if (spec instanceof TypedFrom from) {
             return lower(from.source());
         }
         // The resolved GRAPH envelope keeps its CLASS-typed info (the
         // result-shape contract) but lowers as a relation.
-        if (spec instanceof com.legend.compiler.spec.typed.TypedSerializeGraph g) {
+        if (spec instanceof TypedSerializeGraph g) {
             return serializeGraph(g);
         }
         // A terminal concatenate is a BARE set operation — no wrapping SELECT *.
@@ -170,31 +213,31 @@ public final class Lowerer {
         // Executor's COLLECTION shape reads N rows × 1 column). A
         // COLLECTION-VALUED mapper ($r.values — the row's cells) FLATTENS
         // per pure map semantics: project the cell array, then UNNEST.
-        if (spec instanceof com.legend.compiler.spec.typed.TypedMap m
+        if (spec instanceof TypedMap m
                 && m.source().info().type() instanceof Type.RelationType
-                && m.mapper() instanceof com.legend.compiler.spec.typed.TypedLambda ml
+                && m.mapper() instanceof TypedLambda ml
                 && !(ml.info().type() instanceof Type.FunctionType ft
                         && ft.result().type() instanceof Type.RelationType)) {
             boolean collectionMapper = isCollectionMapper(ml);
-            com.legend.compiler.element.type.Multiplicity colMult =
+            Multiplicity colMult =
                     ml.info().type() instanceof Type.FunctionType fnT
                             ? fnT.result().multiplicity()
-                            : com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE;
-            SqlSelect proj = relation(new com.legend.compiler.spec.typed.TypedProject(
+                            : Multiplicity.Bounded.ZERO_ONE;
+            SqlSelect proj = relation(new TypedProject(
                     m.source(),
-                    List.of(new com.legend.compiler.spec.typed.TypedFuncCol("value", ml)),
-                    new com.legend.compiler.element.type.ExprType(
+                    List.of(new TypedFuncCol("value", ml)),
+                    new ExprType(
                             new Type.RelationType(List.of(
                                     new Type.RelationType.Column("value",
                                             spec.info().type(), colMult))),
-                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE)));
+                            Multiplicity.Bounded.ONE)));
             if (!collectionMapper) {
                 return proj;
             }
             String sub = nextAlias();
             return SqlSelect.starOf(new SqlSource.Subselect(proj, sub))
                     .withProjections(List.of(new SqlSelect.Projection(
-                                    SqlExpr.Call.of(com.legend.sql.SqlFn.UNNEST,
+                                    SqlExpr.Call.of(SqlFn.UNNEST,
                                             new SqlExpr.Column(sub, "value")),
                                     "value")),
                             List.of(new OutputCol("value",
@@ -215,7 +258,7 @@ public final class Lowerer {
         // COLLECTION roots explode to N rows (the result-shape contract:
         // Executor reads a collection as N rows x 1 column).
         if (isMany(spec)) {
-            e = SqlExpr.Call.of(com.legend.sql.SqlFn.UNNEST, e);
+            e = SqlExpr.Call.of(SqlFn.UNNEST, e);
         }
         return new SqlSelect(
                 List.of(new SqlSelect.Projection(e, "value")), false, null,
@@ -231,12 +274,12 @@ public final class Lowerer {
      */
     /** Every element is a property read off the SAME row variable — the
      * Typer's TDSRow cells synthesis, the one shape that prints TDSNull. */
-    private static boolean isRowCells(com.legend.compiler.spec.typed.TypedCollection tc) {
+    private static boolean isRowCells(TypedCollection tc) {
         String var = null;
         for (TypedSpec e : tc.elements()) {
-            if (!(e instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+            if (!(e instanceof TypedPropertyAccess pa
                     && pa.source()
-                            instanceof com.legend.compiler.spec.typed.TypedVariable v)) {
+                            instanceof TypedVariable v)) {
                 return false;
             }
             if (var == null) {
@@ -249,14 +292,14 @@ public final class Lowerer {
     }
 
     private static boolean isCollectionMapper(
-            com.legend.compiler.spec.typed.TypedLambda ml) {
+            TypedLambda ml) {
         // Collection mapper iff the lowered value is a SQL LIST, which is
         // exactly a TypedCollection body (list_value carrier). A loose
         // declared multiplicity over a non-collection body still lowers to
         // a plain scalar column — wrapping it in UNNEST/flatten is a type
         // error, not a flatten.
         return ml.body().get(ml.body().size() - 1)
-                instanceof com.legend.compiler.spec.typed.TypedCollection;
+                instanceof TypedCollection;
     }
 
     private String nextAlias() {
@@ -270,36 +313,36 @@ public final class Lowerer {
     private SqlSelect relation(TypedSpec spec) {
         // POSITIONAL reads over a relation: at(n) IS slice(n, n+1);
         // first()/head() IS limit 1 — row selection, not value extraction
-        if (spec instanceof com.legend.compiler.spec.typed.TypedNativeCall pc
+        if (spec instanceof TypedNativeCall pc
                 && !pc.args().isEmpty()
                 && pc.args().get(0).info().type() instanceof Type.RelationType) {
             String fqn = pc.callee().qualifiedName();
             if (fqn.equals("meta::pure::functions::collection::at")
                     && pc.args().size() == 2
-                    && pc.args().get(1) instanceof com.legend.compiler.spec.typed.TypedCInteger n) {
-                var one = com.legend.compiler.element.type.ExprType.one(
+                    && pc.args().get(1) instanceof TypedCInteger n) {
+                var one = ExprType.one(
                         Type.Primitive.INTEGER);
-                return relation(new com.legend.compiler.spec.typed.TypedSlice(
+                return relation(new TypedSlice(
                         pc.args().get(0),
-                        new com.legend.compiler.spec.typed.TypedCInteger(
+                        new TypedCInteger(
                                 n.value().longValue(), one),
-                        new com.legend.compiler.spec.typed.TypedCInteger(
+                        new TypedCInteger(
                                 n.value().longValue() + 1, one),
                         pc.args().get(0).info()));
             }
             if ((fqn.equals("meta::pure::functions::collection::first")
                     || fqn.equals("meta::pure::functions::collection::head"))
                     && pc.args().size() == 1) {
-                var one = com.legend.compiler.element.type.ExprType.one(
+                var one = ExprType.one(
                         Type.Primitive.INTEGER);
-                return relation(new com.legend.compiler.spec.typed.TypedLimit(
+                return relation(new TypedLimit(
                         pc.args().get(0),
-                        new com.legend.compiler.spec.typed.TypedCInteger(1L, one),
+                        new TypedCInteger(1L, one),
                         pc.args().get(0).info()));
             }
         }
         return switch (spec) {
-            case com.legend.compiler.spec.typed.TypedSourceUrl su -> SqlSelect.starOf(
+            case TypedSourceUrl su -> SqlSelect.starOf(
                     new SqlSource.SourceUrl(su.url(), nextAlias(), outputsOf(su.info())));
             case TypedTableReference t -> SqlSelect.starOf(
                     new SqlSource.Table(t.table(), nextAlias(), outputsOf(t.info())));
@@ -351,11 +394,11 @@ public final class Lowerer {
             }
             // relation::variant::flatten(collection, ~col): the collection
             // UNNESTs as the single column (real flatten.pure semantics).
-            case com.legend.compiler.spec.typed.TypedCollectionRelation cr -> {
+            case TypedCollectionRelation cr -> {
                 // Inside lateral(...) the collection may read the OUTER row
                 // (the enclosing-resolver channel); otherwise it must be
                 // self-contained.
-                var outerScopes = java.util.List.copyOf(enclosing);
+                var outerScopes = List.copyOf(enclosing);
                 SqlExpr value = scalar(cr.value(), (v, name) -> {
                     for (var outer : outerScopes) {
                         if (attempt(() -> outer.resolve(v, name))
@@ -369,18 +412,18 @@ public final class Lowerer {
                 Type elem = ((Type.RelationType) cr.info().type())
                         .columns().get(0).type();
                 SqlExpr list = elem instanceof Type.ClassType
-                        ? SqlExpr.Call.of(com.legend.sql.SqlFn.VARIANT_ELEMENTS, value)
+                        ? SqlExpr.Call.of(SqlFn.VARIANT_ELEMENTS, value)
                         : value;
                 // A VARIANT ELEMENT column keeps JSON elements; the list may
                 // itself be a variant (fromJson(...)->toMany(@Variant)).
                 if (cr.value().info().type() instanceof Type.ClassType vc
-                        && com.legend.compiler.element.type.PlatformTypes.isVariant(vc)
+                        && PlatformTypes.isVariant(vc)
                         && !(elem instanceof Type.ClassType)) {
-                    list = SqlExpr.Call.of(com.legend.sql.SqlFn.VARIANT_ELEMENTS, value);
+                    list = SqlExpr.Call.of(SqlFn.VARIANT_ELEMENTS, value);
                 }
                 yield SqlSelect.starOf(new SqlSource.Subselect(
-                        new com.legend.sql.SqlSelect(List.of(new SqlSelect.Projection(
-                                        SqlExpr.Call.of(com.legend.sql.SqlFn.UNNEST, list),
+                        new SqlSelect(List.of(new SqlSelect.Projection(
+                                        SqlExpr.Call.of(SqlFn.UNNEST, list),
                                         cr.column())),
                                 false, null, null, List.of(), null, null, List.of(),
                                 null, null, outputsOf(cr.info())),
@@ -390,7 +433,7 @@ public final class Lowerer {
             case TypedRename r -> rename(r);
 
             case TypedSort s -> sort(s);
-            case com.legend.compiler.spec.typed.TypedSortBy sb -> sortBy(sb);
+            case TypedSortBy sb -> sortBy(sb);
 
             case TypedLimit l -> {
                 SqlSelect src = relation(l.source());
@@ -419,7 +462,7 @@ public final class Lowerer {
             }
 
             case TypedGroupBy g -> groupBy(g);
-            case com.legend.compiler.spec.typed.TypedNavigate nav -> navigate(nav);
+            case TypedNavigate nav -> navigate(nav);
 
             case TypedAggregate a -> aggregate(a);
 
@@ -440,35 +483,35 @@ public final class Lowerer {
 
             case TypedExtendWindow w -> extendWindow(w);
 
-            case com.legend.compiler.spec.typed.TypedJoin j -> join(j);
+            case TypedJoin j -> join(j);
 
-            case com.legend.compiler.spec.typed.TypedAsOfJoin aj -> asOfJoin(aj);
+            case TypedAsOfJoin aj -> asOfJoin(aj);
 
             case TypedExtendAgg ea -> extendAgg(ea);
 
             // from(mapping, runtime): execution-context metadata — a Phase-H
             // concern; the relation flows through unchanged.
-            case com.legend.compiler.spec.typed.TypedFrom fr -> relation(fr.source());
+            case TypedFrom fr -> relation(fr.source());
 
             // cast(@Relation<(…)>): when EVERY target column exists in the
             // source, the cast is a real projection — surviving columns only,
             // each SQL-CAST where its type changed (String->Integer). Target
             // names ABSENT from the source are the pivot idiom's dynamic
             // columns — those stay type-only (zero SQL footprint).
-            case com.legend.compiler.spec.typed.TypedCast c
+            case TypedCast c
                     when c.source().info().type() instanceof Type.RelationType srcRow
                     && c.info().type() instanceof Type.RelationType tgtRow ->
                     relationCast(c, srcRow, tgtRow);
 
-            case com.legend.compiler.spec.typed.TypedFlatten fl -> flatten(fl);
+            case TypedFlatten fl -> flatten(fl);
 
-            case com.legend.compiler.spec.typed.TypedPivot pv -> pivot(pv);
+            case TypedPivot pv -> pivot(pv);
 
             // STORE-ONLY nodes: reaching the lowerer is not a missing rule —
             // it means the Phase H resolver failed to rewrite them away. Say
             // so, instead of the frontier default's misdiagnosis.
-            case com.legend.compiler.spec.typed.TypedJoinSlot js ->
-                    throw new com.legend.error.NotImplementedException(
+            case TypedJoinSlot js ->
+                    throw new NotImplementedException(
                             "TypedJoinSlot (pipeline slot join '" + js.alias()
                           + "') escaped Phase H store resolution — a resolver gap,"
                           + " not a missing lowering rule");
@@ -476,19 +519,19 @@ public final class Lowerer {
             // SANCTIONED frontier default (root package-info invariant is
             // scoped to hiding-prone switches): the not-yet-lowered TypedSpec
             // variants churn every milestone; each throws LOUD and NAMED.
-            default -> throw new com.legend.error.NotImplementedException("lowering not yet implemented for "
+            default -> throw new NotImplementedException("lowering not yet implemented for "
                     + spec.getClass().getSimpleName());
         };
     }
 
     /** Nested concatenates flatten into ONE multi-branch union. */
     private SqlUnion union(TypedConcatenate c) {
-        List<com.legend.sql.SqlQuery> branches = new ArrayList<>();
+        List<SqlQuery> branches = new ArrayList<>();
         collectBranches(c, branches);
         return new SqlUnion(branches, true, outputsOf(c.info()));
     }
 
-    private void collectBranches(TypedSpec spec, List<com.legend.sql.SqlQuery> out) {
+    private void collectBranches(TypedSpec spec, List<SqlQuery> out) {
         if (spec instanceof TypedConcatenate c) {
             collectBranches(c.left(), out);
             collectBranches(c.right(), out);
@@ -532,7 +575,7 @@ public final class Lowerer {
      * {@code arrayWrap} node aggregates the objects into one JSON-array
      * {@code result} value.
      */
-    private SqlSelect serializeGraph(com.legend.compiler.spec.typed.TypedSerializeGraph g) {
+    private SqlSelect serializeGraph(TypedSerializeGraph g) {
         SqlSelect src = relation(g.source());
         // json_group_array is an AGGREGATE and the envelope REPLACES the
         // projection list — the groupBy folding constraints are exactly right.
@@ -630,7 +673,7 @@ public final class Lowerer {
         // AROUND the SQL aggregate: unwrap, lower the inner reducer, re-wrap
         // by the cast policy (widening/same-type is the assertion no-op —
         // the PCT shapes are Integer->Integer).
-        if (reduceBody instanceof com.legend.compiler.spec.typed.TypedCast rc
+        if (reduceBody instanceof TypedCast rc
                 && rc.source() instanceof TypedNativeCall) {
             SqlExpr inner = aggValue(base, new TypedAggCol(a.name(), a.map(),
                     new TypedLambda(a.reduce().parameters(),
@@ -666,16 +709,16 @@ public final class Lowerer {
         // collection params; anything ELSE is unsupported and must be LOUD.
         List<SqlExpr> extra = new ArrayList<>();
         List<Boolean> flags = new ArrayList<>();
-        com.legend.compiler.spec.typed.TypedCast valueCast = null;
+        TypedCast valueCast = null;
         for (TypedSpec argSpec : call.args()) {
-            if (argSpec instanceof com.legend.compiler.spec.typed.TypedCBoolean b) {
+            if (argSpec instanceof TypedCBoolean b) {
                 flags.add(b.value());
-            } else if (argSpec instanceof com.legend.compiler.spec.typed.TypedCString
+            } else if (argSpec instanceof TypedCString
                     || argSpec instanceof TypedCInteger
-                    || argSpec instanceof com.legend.compiler.spec.typed.TypedCFloat
-                    || argSpec instanceof com.legend.compiler.spec.typed.TypedCDecimal) {
+                    || argSpec instanceof TypedCFloat
+                    || argSpec instanceof TypedCDecimal) {
                 extra.add(scalar(argSpec, (v, name) -> resolveOrThrow(base, name)));
-            } else if (argSpec instanceof com.legend.compiler.spec.typed.TypedCast vc
+            } else if (argSpec instanceof TypedCast vc
                     && vc.source() instanceof TypedVariable) {
                 // $x->cast(@T)->plus(): the grouped VALUES cast before
                 // reducing — a value-cast on the aggregated expression.
@@ -751,13 +794,13 @@ public final class Lowerer {
             // shift by 2^63 exactly (PLUS Long.MIN_VALUE — a MAX_VALUE
             // shift left hash 2^64-1 mapping to 2^63, one past BIGINT)
             return new SqlExpr.Cast(
-                    SqlExpr.Call.of(com.legend.sql.SqlFn.PLUS,
+                    SqlExpr.Call.of(SqlFn.PLUS,
                             new SqlExpr.Cast(
-                                    SqlExpr.Call.of(com.legend.sql.SqlFn.HASH,
+                                    SqlExpr.Call.of(SqlFn.HASH,
                                             new SqlAgg.Reducer("LIST", List.of(value), false)),
-                                    com.legend.sql.SqlType.Scalar.HUGEINT),
+                                    SqlType.Scalar.HUGEINT),
                             new SqlExpr.IntLit(Long.MIN_VALUE)),
-                    com.legend.sql.SqlType.Scalar.BIGINT);
+                    SqlType.Scalar.BIGINT);
         }
         // joinStrings(prefix, sep, suffix): STRING_AGG takes only the
         // separator — prefix/suffix concatenate AROUND the aggregate
@@ -772,16 +815,16 @@ public final class Lowerer {
         // DESC-sorted values (SQL-standard PERCENTILE_DISC ... ORDER BY
         // DESC semantics — no direct DuckDB reducer).
         if ("__QDISC_DESC__".equals(fn)) {
-            return SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_GET,
-                    SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_SORT_DESC,
+            return SqlExpr.Call.of(SqlFn.LIST_GET,
+                    SqlExpr.Call.of(SqlFn.LIST_SORT_DESC,
                             new SqlAgg.Reducer("LIST", List.of(value), false)),
                     new SqlExpr.Cast(
-                            SqlExpr.Call.of(com.legend.sql.SqlFn.CEILING,
-                                    SqlExpr.Call.of(com.legend.sql.SqlFn.TIMES,
+                            SqlExpr.Call.of(SqlFn.CEILING,
+                                    SqlExpr.Call.of(SqlFn.TIMES,
                                             extra.get(0),
                                             new SqlAgg.Reducer("COUNT",
                                                     List.of(value), false))),
-                            com.legend.sql.SqlType.Scalar.BIGINT));
+                            SqlType.Scalar.BIGINT));
         }
         List<SqlExpr> args = new ArrayList<>();
         args.add(value);
@@ -796,14 +839,14 @@ public final class Lowerer {
      */
     /** extend(~cols): existing projections stay, computed columns APPEND. */
     private SqlSelect extend(SqlSelect src, List<TypedFuncCol> columns,
-                             com.legend.compiler.element.type.ExprType info) {
+                             ExprType info) {
         SqlSelect base = Fold.extendFolds(src) ? src : isolate(src);
         return computedColumns(base, columns, info, true);
     }
 
     /** project(~cols): the computed columns REPLACE the projection list. */
     private SqlSelect project(SqlSelect src, List<TypedFuncCol> columns,
-                              com.legend.compiler.element.type.ExprType info) {
+                              ExprType info) {
         SqlSelect base = Fold.projectionFolds(src) ? src : isolate(src);
         return computedColumns(base, columns, info, false);
     }
@@ -813,7 +856,7 @@ public final class Lowerer {
      * an unfoldable ref, then loud (isolation is idempotent for resolution).
      */
     private SqlSelect computedColumns(SqlSelect base, List<TypedFuncCol> columns,
-                                      com.legend.compiler.element.type.ExprType info,
+                                      ExprType info,
                                       boolean keepExisting) {
         SqlSelect attempt1 = tryComputedColumns(base, columns, info, keepExisting);
         if (attempt1 != null) {
@@ -831,7 +874,7 @@ public final class Lowerer {
 
     /** One pass; null when any column's refs would not fold against {@code base}. */
     private SqlSelect tryComputedColumns(SqlSelect base, List<TypedFuncCol> columns,
-                                         com.legend.compiler.element.type.ExprType info,
+                                         ExprType info,
                                          boolean keepExisting) {
         List<SqlSelect.Projection> ps = new ArrayList<>();
         if (keepExisting) {
@@ -916,7 +959,7 @@ public final class Lowerer {
 
     /** Resolve refs via projections, noting whether any substituted a window call. */
     private WindowPredicate tryWindowPredicate(SqlSelect select, TypedLambda lambda) {
-        var saw = new java.util.concurrent.atomic.AtomicBoolean();
+        var saw = new AtomicBoolean();
         return switch (attempt(() -> scalar(last(lambda), (v, name) -> {
             SqlExpr resolved = projectionExprOrThrow(select, name);
             if (resolved instanceof SqlExpr.WindowCall) {
@@ -963,7 +1006,7 @@ public final class Lowerer {
         // deque includes this resolver itself once inner scopes run — any
         // correlated miss then recurses forever (audit: StackOverflow where
         // the contract promises a loud UnfoldableRef).
-        var outers = java.util.List.copyOf(enclosing);
+        var outers = List.copyOf(enclosing);
         return (var, name) -> {
             boolean own = var == null || var.equals(ownVar);
             if (own && attempt(() -> resolveOrThrow(select, name))
@@ -1009,7 +1052,7 @@ public final class Lowerer {
      * to plain columns of the subselect. Loud when isolation cannot cure it.
      */
     private SqlSelect foldOrIsolate(SqlSelect base, String op,
-            java.util.function.Function<SqlSelect, SqlSelect> build) {
+            Function<SqlSelect, SqlSelect> build) {
         try {
             return build.apply(base);
         } catch (UnfoldableRef first) {
@@ -1024,7 +1067,7 @@ public final class Lowerer {
     }
 
     /** The EXPRESSION-LEVEL {@link UnfoldableRef} catch site: run the attempt, name the outcome. */
-    private Resolution attempt(java.util.function.Supplier<SqlExpr> attemptFn) {
+    private Resolution attempt(Supplier<SqlExpr> attemptFn) {
         try {
             return new Resolution.Resolved(attemptFn.get());
         } catch (UnfoldableRef e) {
@@ -1054,14 +1097,14 @@ public final class Lowerer {
     /** select(~cols) / distinct(~cols): narrow the projection list. */
     /** select(~cols): narrow the projection list. */
     private SqlSelect narrowTo(SqlSelect src, List<String> columns,
-                               com.legend.compiler.element.type.ExprType info) {
+                               ExprType info) {
         SqlSelect base = Fold.projectionFolds(src) ? src : isolate(src);
         return projectColumns(base, columns, info);
     }
 
     /** distinct(~cols): narrow AND dedup (distinct has its own fold policy). */
     private SqlSelect distinctNarrowTo(SqlSelect src, List<String> columns,
-                                       com.legend.compiler.element.type.ExprType info) {
+                                       ExprType info) {
         SqlSelect base = Fold.projectionFolds(src) ? src : isolate(src);
         if (!Fold.distinctNarrowFolds(base, columns)) {
             base = isolate(base);
@@ -1075,7 +1118,7 @@ public final class Lowerer {
      * clean attempts, no index-reset restarts.
      */
     private SqlSelect projectColumns(SqlSelect base, List<String> columns,
-                                     com.legend.compiler.element.type.ExprType info) {
+                                     ExprType info) {
         List<SqlSelect.Projection> ps = tryProjectAll(base, columns);
         if (ps == null) {
             base = isolate(base);
@@ -1122,7 +1165,7 @@ public final class Lowerer {
         SqlSelect base = Fold.projectionFolds(src) ? src : isolate(src);
         Type.RelationType outSchema = (Type.RelationType) r.info().type();
         // Each output column reverse-maps to the source column it renames.
-        java.util.function.Function<String, String> sourceOf = out -> {
+        Function<String, String> sourceOf = out -> {
             for (TypedRename.ColRename cr : r.renames()) {
                 if (cr.to().equals(out)) {
                     return cr.from();
@@ -1173,7 +1216,7 @@ public final class Lowerer {
      * per-row lambda). Fold.sortFolds decides extend-vs-isolate, same as
      * sort; the key expression resolves against the base select's row.
      */
-    private SqlSelect sortBy(com.legend.compiler.spec.typed.TypedSortBy sb) {
+    private SqlSelect sortBy(TypedSortBy sb) {
         SqlSelect src = relation(sb.source());
         SqlSelect base = Fold.sortFolds(src) ? src : isolate(src);
         // One isolate retry on an unfoldable key ref (a computed projection
@@ -1237,8 +1280,8 @@ public final class Lowerer {
      * reads ({@code $r.alias.COL}) flatten in the scalar path. Class-extent
      * navigates are STORE material and never reach the lowerer.
      */
-    private SqlSelect navigate(com.legend.compiler.spec.typed.TypedNavigate nav) {
-        if (nav.form() != com.legend.compiler.spec.typed.TypedNavigate.Form.PRE_MAP
+    private SqlSelect navigate(TypedNavigate nav) {
+        if (nav.form() != TypedNavigate.Form.PRE_MAP
                 || !(nav.target().info().type() instanceof Type.RelationType targetRel)
                 || nav.alias().isEmpty()) {
             throw new IllegalStateException("store-only navigate (class-extent"
@@ -1250,18 +1293,18 @@ public final class Lowerer {
         List<Type.Column> flat = new ArrayList<>(srcRow.columns());
         for (Type.Column c : targetRow.columns()) {
             flat.add(new Type.Column(alias + "_" + c.name(), c.type(),
-                    com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE));
+                    Multiplicity.Bounded.ZERO_ONE));
         }
-        var flatInfo = new com.legend.compiler.element.type.ExprType(
+        var flatInfo = new ExprType(
                 new Type.RelationType(flat), nav.info().multiplicity());
-        var leftKind = new com.legend.compiler.spec.typed.TypedEnumValue(
+        var leftKind = new TypedEnumValue(
                 "meta::pure::functions::relation::JoinKind", "LEFT", nav.info());
-        return join(new com.legend.compiler.spec.typed.TypedJoin(nav.source(),
+        return join(new TypedJoin(nav.source(),
                 nav.target(), leftKind, nav.predicate(),
-                java.util.Optional.of(alias + "_"), flatInfo));
+                Optional.of(alias + "_"), flatInfo));
     }
 
-    private SqlSelect join(com.legend.compiler.spec.typed.TypedJoin j) {
+    private SqlSelect join(TypedJoin j) {
         SqlSelect leftSel = relation(j.left());
         // A RENAME-ONLY select (star + plain column renames, no clauses —
         // what a PREFIXED join produces) can HOST further joins flat: its
@@ -1295,14 +1338,14 @@ public final class Lowerer {
     }
 
     /** asOfJoin: DuckDB ASOF LEFT JOIN; ON = optional keys AND the match inequality. */
-    private SqlSelect asOfJoin(com.legend.compiler.spec.typed.TypedAsOfJoin aj) {
+    private SqlSelect asOfJoin(TypedAsOfJoin aj) {
         SqlSource left = asLeftJoinSide(relation(aj.left()));
         SqlSource right = asRightSide(relation(aj.right()));
         SqlExpr on = sideCondition(aj.match(), left, right);
         if (aj.condition().isPresent()) {
             on = SqlExpr.Call.of(SqlFn.AND, sideCondition(aj.condition().get(), left, right), on);
         }
-        java.util.Set<String> leftNames = new java.util.HashSet<>();
+        Set<String> leftNames = new HashSet<>();
         schemaOf(aj.left()).columns().forEach(c -> leftNames.add(c.name()));
         return joined(new SqlSource.Join(left, right, SqlSource.Join.Kind.ASOF_LEFT, on),
                 aj.prefix(), aj.right(), aj.info(), null, leftNames::contains);
@@ -1313,21 +1356,21 @@ public final class Lowerer {
      * guarantees), or left star + explicitly re-aliased right columns when a
      * prefix renames EVERY right column.
      */
-    private SqlSelect joined(SqlSource.Join source, java.util.Optional<String> prefix,
-                             TypedSpec rightNode, com.legend.compiler.element.type.ExprType info) {
+    private SqlSelect joined(SqlSource.Join source, Optional<String> prefix,
+                             TypedSpec rightNode, ExprType info) {
         return joined(source, prefix, rightNode, info, null, name -> true);
     }
 
-    private SqlSelect joined(SqlSource.Join source, java.util.Optional<String> prefix,
-                             TypedSpec rightNode, com.legend.compiler.element.type.ExprType info,
+    private SqlSelect joined(SqlSource.Join source, Optional<String> prefix,
+                             TypedSpec rightNode, ExprType info,
                              List<SqlSelect.Projection> leftCarry) {
         return joined(source, prefix, rightNode, info, leftCarry, name -> true);
     }
 
-    private SqlSelect joined(SqlSource.Join source, java.util.Optional<String> prefix,
-                             TypedSpec rightNode, com.legend.compiler.element.type.ExprType info,
+    private SqlSelect joined(SqlSource.Join source, Optional<String> prefix,
+                             TypedSpec rightNode, ExprType info,
                              List<SqlSelect.Projection> leftCarry,
-                             java.util.function.Predicate<String> renameWhen) {
+                             Predicate<String> renameWhen) {
         SqlSelect out = SqlSelect.starOf(source);
         if (prefix.isEmpty()) {
             return out.withProjections(List.of(), outputsOf(info));
@@ -1341,7 +1384,7 @@ public final class Lowerer {
             // unprefixed columns (audit blocker). Enumerate the left
             // tree's columns explicitly (names are disjoint by the
             // Phase-G join invariant).
-            for (com.legend.sql.OutputCol c : leftTree.outputs()) {
+            for (OutputCol c : leftTree.outputs()) {
                 ps.add(new SqlSelect.Projection(
                         Fold.sourceColumn(leftTree, c.name()), null));
             }
@@ -1459,7 +1502,7 @@ public final class Lowerer {
         return foldOrIsolate(base, "extend window", b -> {
             Over over = lowerOver(b, w.window());
             List<SqlSelect.Projection> ps = new ArrayList<>(starProjections(b));
-            for (com.legend.compiler.spec.typed.TypedFuncCol c : w.columns()) {
+            for (TypedFuncCol c : w.columns()) {
                 SqlExpr e = windowScalar(last(c.fn()), b, over);
                 ps.add(new SqlSelect.Projection(e, c.name()));
             }
@@ -1526,9 +1569,9 @@ public final class Lowerer {
         // unbounded mixes): each bounded side pairs an Integer with its
         // DurationUnit — RANGE BETWEEN INTERVAL n UNIT PRECEDING/FOLLOWING.
         {
-            java.util.List<TypedSpec> as = call.args();
+            List<TypedSpec> as = call.args();
             boolean interval = as.stream().anyMatch(a ->
-                    a instanceof com.legend.compiler.spec.typed.TypedEnumValue ev
+                    a instanceof TypedEnumValue ev
                             && ev.enumFqn().equals("meta::pure::functions::date::DurationUnit"));
             if (interval) {
                 SqlExpr.WindowCall.Frame.Bound from;
@@ -1550,7 +1593,7 @@ public final class Lowerer {
                         SqlExpr.WindowCall.Frame.Kind.RANGE, from, to);
             }
         }
-        boolean rows = com.legend.builtin.Pure.nativeNamed("rows", call.callee().signatureKey());
+        boolean rows = Pure.nativeNamed("rows", call.callee().signatureKey());
         // LITERAL bounds validate here: a start beyond the end (2 FOLLOWING
         // .. 1 FOLLOWING; 1 FOLLOWING .. 1 PRECEDING) is a COMPILE error,
         // never bad SQL (PCT: invalid window frame boundary).
@@ -1558,8 +1601,8 @@ public final class Lowerer {
         Number to = numericBound(call.args().get(1));
         if (from != null && to != null && from.doubleValue() > to.doubleValue()) {
             // Real rows()/_range() assert text verbatim (PCT message parity).
-            throw new com.legend.error.ModelException(
-                    com.legend.error.LegendCompileException.Phase.LOWER,
+            throw new ModelException(
+                    LegendCompileException.Phase.LOWER,
                     "Invalid window frame boundary - lower bound of window frame"
                             + " cannot be greater than the upper bound!");
         }
@@ -1571,7 +1614,7 @@ public final class Lowerer {
     private SqlExpr.WindowCall.Frame.Bound bound(TypedSpec arg, boolean fromSide) {
         // A negative literal arrives as unary minus AROUND the number — unwrap.
         if (arg instanceof TypedNativeCall neg
-                && com.legend.builtin.Pure.nativeNamed("minus", neg.callee().signatureKey())
+                && Pure.nativeNamed("minus", neg.callee().signatureKey())
                 && neg.args().size() == 1 && numericBound(neg.args().get(0)) != null) {
             return new SqlExpr.WindowCall.Frame.Bound.Preceding(numericBound(neg.args().get(0)));
         }
@@ -1587,7 +1630,7 @@ public final class Lowerer {
             return new SqlExpr.WindowCall.Frame.Bound.CurrentRow();
         }
         if (arg instanceof TypedNativeCall call
-                && com.legend.builtin.Pure.nativeNamed("unbounded", call.callee().signatureKey())) {
+                && Pure.nativeNamed("unbounded", call.callee().signatureKey())) {
             return fromSide ? new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding()
                     : new SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing();
         }
@@ -1603,8 +1646,8 @@ public final class Lowerer {
      * observable.
      */
     private static boolean containsStoreTable(TypedSpec n) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedTableReference
-                || n instanceof com.legend.compiler.spec.typed.TypedPackageableRef) {
+        if (n instanceof TypedTableReference
+                || n instanceof TypedPackageableRef) {
             return true;
         }
         for (TypedSpec child : n.children()) {
@@ -1617,14 +1660,14 @@ public final class Lowerer {
 
     private static boolean isUnboundedCall(TypedSpec arg) {
         return arg instanceof TypedNativeCall c
-                && com.legend.builtin.Pure.nativeNamed("unbounded", c.callee().signatureKey());
+                && Pure.nativeNamed("unbounded", c.callee().signatureKey());
     }
 
     /** One INTERVAL frame side: signed Integer + DurationUnit literal. */
     private SqlExpr.WindowCall.Frame.Bound intervalBound(TypedSpec amount, TypedSpec unit,
             boolean fromSide) {
         Number n = numericBound(amount);
-        if (n == null || !(unit instanceof com.legend.compiler.spec.typed.TypedEnumValue ev)) {
+        if (n == null || !(unit instanceof TypedEnumValue ev)) {
             throw new IllegalStateException("interval frame bound needs a literal"
                     + " Integer and a DurationUnit literal");
         }
@@ -1642,7 +1685,7 @@ public final class Lowerer {
     private static Number numericBound(TypedSpec arg) {
         // A negative literal arrives as unary minus AROUND the number.
         if (arg instanceof TypedNativeCall neg
-                && com.legend.builtin.Pure.nativeNamed("minus", neg.callee().signatureKey())
+                && Pure.nativeNamed("minus", neg.callee().signatureKey())
                 && neg.args().size() == 1) {
             Number inner = numericBound(neg.args().get(0));
             return inner == null ? null : -inner.doubleValue();
@@ -1650,7 +1693,7 @@ public final class Lowerer {
         return switch (arg) {
             case TypedCInteger c -> c.value().longValue();
             case TypedCFloat c -> c.value();
-            case com.legend.compiler.spec.typed.TypedCDecimal c -> c.value();
+            case TypedCDecimal c -> c.value();
             default -> null;
         };
     }
@@ -1706,7 +1749,7 @@ public final class Lowerer {
                             .equals("meta::pure::functions::math::zScore")
                     && call.args().size() == 4
                     && call.args().get(3)
-                            instanceof com.legend.compiler.spec.typed.TypedColSpec zcs -> {
+                            instanceof TypedColSpec zcs -> {
                 SqlExpr col = resolveOrThrow(base, zcs.name());
                 SqlExpr avg = new SqlExpr.WindowCall(
                         new SqlAgg.Reducer("AVG", List.of(col), false),
@@ -1714,16 +1757,16 @@ public final class Lowerer {
                 SqlExpr std = new SqlExpr.WindowCall(
                         new SqlAgg.Reducer("STDDEV_POP", List.of(col), false),
                         over.partitionBy(), over.orderBy(), over.frame());
-                return SqlExpr.Call.of(com.legend.sql.SqlFn.DIVIDE,
-                        SqlExpr.Call.of(com.legend.sql.SqlFn.MINUS, col, avg),
-                        SqlExpr.Call.of(com.legend.sql.SqlFn.GREATEST, std,
+                return SqlExpr.Call.of(SqlFn.DIVIDE,
+                        SqlExpr.Call.of(SqlFn.MINUS, col, avg),
+                        SqlExpr.Call.of(SqlFn.GREATEST, std,
                                 new SqlExpr.DecimalLit(
                                         new java.math.BigDecimal("0.0000000001"))));
             }
             // Real pure's 4-arg colToAgg window aggregates: average(p,w,r,~col).
             case TypedNativeCall call when Windows.aggregate(call.callee()) != null -> {
                 TypedSpec colArg = call.args().get(call.args().size() - 1);
-                if (!(colArg instanceof com.legend.compiler.spec.typed.TypedColSpec cs)) {
+                if (!(colArg instanceof TypedColSpec cs)) {
                     throw new IllegalStateException(
                             "window aggregate colToAgg must be a ~column colspec");
                 }
@@ -1759,12 +1802,12 @@ public final class Lowerer {
                 return new SqlExpr.Lambda(l.parameters(), windowScalar(last(l), base, over));
             }
             // Casts keep the channel too (window bodies end in ->cast(@Date)).
-            case com.legend.compiler.spec.typed.TypedCast c -> {
+            case TypedCast c -> {
                 return cast(c, windowScalar(c.source(), base, over));
             }
             // if(cond, |then, |else) in a window body: CASE WHEN whose arms
             // stay on the window channel (lead/lag accesses inside branches).
-            case com.legend.compiler.spec.typed.TypedIf i -> {
+            case TypedIf i -> {
                 return new SqlExpr.Case(
                         List.of(new SqlExpr.Case.When(
                                 windowScalar(i.condition(), base, over),
@@ -1808,30 +1851,30 @@ public final class Lowerer {
             case TypedCString c -> new SqlExpr.StringLit(c.value());
             case TypedCBoolean c -> new SqlExpr.BoolLit(c.value());
             case TypedCFloat c -> new SqlExpr.FloatLit(c.value());
-            case com.legend.compiler.spec.typed.TypedCDecimal c ->
+            case TypedCDecimal c ->
                     new SqlExpr.DecimalLit(c.value());
             // Date literals: full dates/timestamps render typed; PARTIAL
             // dates (year / year-month) compare as STRINGS in SQL (master's
             // pinned semantics) — represented as string literals here.
-            case com.legend.compiler.spec.typed.TypedCDate d -> switch (d.value()) {
-                case com.legend.values.PureDateLiteral.StrictDate sd ->
+            case TypedCDate d -> switch (d.value()) {
+                case PureDateLiteral.StrictDate sd ->
                         new SqlExpr.DateLit(sd.toEngineString());
-                case com.legend.values.PureDateLiteral.Year y ->
+                case PureDateLiteral.Year y ->
                         new SqlExpr.StringLit(y.toEngineString());
-                case com.legend.values.PureDateLiteral.YearMonth ym ->
+                case PureDateLiteral.YearMonth ym ->
                         new SqlExpr.StringLit(ym.toEngineString());
                 // Every time-bearing precision is a TIMESTAMP — exhaustive,
                 // so a new precision variant demands a decision here.
                 // HOUR/MINUTE-precision literals PAD to the full timestamp
                 // shape SQL demands (%2015-04-15T17 is 17:00:00); second-level
                 // precision is already full.
-                case com.legend.values.PureDateLiteral.DateWithHour h ->
+                case PureDateLiteral.DateWithHour h ->
                         new SqlExpr.TimestampLit(h.toEngineString() + ":00:00");
-                case com.legend.values.PureDateLiteral.DateWithMinute mi ->
+                case PureDateLiteral.DateWithMinute mi ->
                         new SqlExpr.TimestampLit(mi.toEngineString() + ":00");
-                case com.legend.values.PureDateLiteral.DateWithSecond se ->
+                case PureDateLiteral.DateWithSecond se ->
                         new SqlExpr.TimestampLit(se.toEngineString());
-                case com.legend.values.PureDateLiteral.DateWithSubsecond su ->
+                case PureDateLiteral.DateWithSubsecond su ->
                         new SqlExpr.TimestampLit(su.toEngineString());
             };
             // The EMPTY collection [] (Nil[0]) in scalar position IS SQL
@@ -1844,19 +1887,19 @@ public final class Lowerer {
             // one SQL carrier that keeps per-element runtime kinds (a raw
             // mixed array cannot even type).
             case TypedCollection c when c.info().type() instanceof Type.ClassType ct
-                    && !com.legend.compiler.element.type.PlatformTypes.isVariant(ct)
-                    && !com.legend.compiler.element.type.PlatformTypes.isNil(ct)
+                    && !PlatformTypes.isVariant(ct)
+                    && !PlatformTypes.isNil(ct)
                     && classLayout.apply(ct).isEmpty() ->
                     new SqlExpr.ArrayLit(c.elements().stream()
                             .map(e -> (SqlExpr) SqlExpr.Call.of(
-                                    com.legend.sql.SqlFn.TO_VARIANT, scalar(e, columns)))
+                                    SqlFn.TO_VARIANT, scalar(e, columns)))
                             .toList());
             case TypedCollection c -> {
                 // HETEROGENEOUS Pair elements (Pair<String,String> with
                 // Pair<String,Integer>: LUB Pair<String,Any>): every element
                 // CASTS to the LUB's struct shape or the array cannot type
                 if (c.info().type() instanceof Type.GenericType lubG
-                        && com.legend.compiler.element.type.PlatformTypes
+                        && PlatformTypes
                                 .isPairCarrier(lubG)) {
                     boolean uniform = c.elements().stream()
                             .allMatch(e -> e.info().type().equals(c.info().type()));
@@ -1895,35 +1938,35 @@ public final class Lowerer {
             // every hop is a JSON field extraction; only the LEAF materializes
             // (real PCT testToClassAndAccessNestedProperty pins multi-hop).
             case TypedPropertyAccess p when variantCastBase(p) != null -> {
-                java.util.ArrayDeque<String> path = new java.util.ArrayDeque<>();
+                ArrayDeque<String> path = new ArrayDeque<>();
                 TypedSpec cur = p;
                 while (cur instanceof TypedPropertyAccess pa) {
                     path.addFirst(pa.property());
                     cur = pa.source();
                 }
-                var vc = (com.legend.compiler.spec.typed.TypedCast) cur;
+                var vc = (TypedCast) cur;
                 SqlExpr e = scalar(vc.source(), columns);
                 for (String seg : path) {
-                    e = SqlExpr.Call.of(com.legend.sql.SqlFn.VARIANT_GET, e,
+                    e = SqlExpr.Call.of(SqlFn.VARIANT_GET, e,
                             new SqlExpr.StringLit(seg));
                 }
                 Type leaf = p.info().type();
                 if (leaf instanceof Type.ClassType lc
-                        && !com.legend.compiler.element.type.PlatformTypes.isVariant(lc)
-                        && !com.legend.compiler.element.type.PlatformTypes.isAny(lc)) {
+                        && !PlatformTypes.isVariant(lc)
+                        && !PlatformTypes.isAny(lc)) {
                     // a class-typed LEAF is the unsupported-column case —
                     // real relation runtime's verbatim rejection
-                    throw new com.legend.error.ModelException(
-                            com.legend.error.LegendCompileException.Phase.LOWER,
+                    throw new ModelException(
+                            LegendCompileException.Phase.LOWER,
                             "The type " + lc.fqn() + " is not supported yet!");
                 }
                 yield p.info().multiplicity().isMany()
                         ? new SqlExpr.Cast(e,
-                                new com.legend.sql.SqlType.Array(PureSql.type(leaf)))
+                                new SqlType.Array(PureSql.type(leaf)))
                         : new SqlExpr.Cast(e, PureSql.type(leaf));
             }
             case TypedPropertyAccess p when p.source()
-                        instanceof com.legend.compiler.spec.typed.TypedNewInstance ni -> {
+                        instanceof TypedNewInstance ni -> {
                 TypedSpec v = ni.properties().get(p.property());
                 // The MODEL declares the field; an unset optional is NULL.
                 yield v == null ? new SqlExpr.NullLit() : scalar(v, columns);
@@ -1941,13 +1984,13 @@ public final class Lowerer {
             // MAPS the extraction; a to-one source extracts directly.
             // List.values over the bare-list carrier is the IDENTITY.
             case TypedPropertyAccess p when "values".equals(p.property())
-                    && com.legend.compiler.element.type.PlatformTypes
+                    && PlatformTypes
                             .isListCarrier(p.source().info().type()) ->
                     scalar(p.source(), columns);
             case TypedPropertyAccess p when classLayout.apply(p.source().info().type()).isPresent()
                     && isMany(p.source()) -> {
                 String elem = "_pa" + aliasCounter++;
-                yield SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_TRANSFORM,
+                yield SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
                         scalar(p.source(), columns),
                         new SqlExpr.Lambda(List.of(elem),
                                 new SqlExpr.StructGet(
@@ -1962,21 +2005,21 @@ public final class Lowerer {
             // ^$existing(prop=value, …): the copy is the source's canonical
             // struct with the overridden fields replaced — pure layout
             // rebuild, no new SQL shapes.
-            case com.legend.compiler.spec.typed.TypedCopyInstance cp -> {
+            case TypedCopyInstance cp -> {
                 // the List CARRIER is a bare array, not its layout struct —
                 // a values override replaces it wholesale; other platform
                 // carriers reject loudly rather than emit the wrong shape
-                if (com.legend.compiler.element.type.PlatformTypes
+                if (PlatformTypes
                         .isListCarrier(cp.info().type())
                         || cp.classFqn().equals(
-                                com.legend.compiler.element.type.PlatformTypes.LIST)) {
+                                PlatformTypes.LIST)) {
                     TypedSpec ov = cp.overrides().get("values");
                     yield ov == null ? scalar(cp.source(), columns)
                             : asList(scalar(ov, columns), isMany(ov));
                 }
-                if (com.legend.compiler.element.type.PlatformTypes
+                if (PlatformTypes
                         .isMapCarrier(cp.info().type())) {
-                    throw new com.legend.error.NotImplementedException(
+                    throw new NotImplementedException(
                             "^$var(…) copy of the Map carrier is not lowered");
                 }
                 var layout = classLayout.apply(cp.info().type()).orElseThrow(() ->
@@ -1988,18 +2031,18 @@ public final class Lowerer {
                     SqlExpr v = ov != null ? scalar(ov, columns)
                             : new SqlExpr.StructGet(src, c.name());
                     if (ov != null && c.multiplicity() instanceof
-                            com.legend.compiler.element.type.Multiplicity.Bounded b
+                            Multiplicity.Bounded b
                             && b.isMany()) {
                         v = asList(v, isMany(ov));
                     }
                     return new SqlExpr.StructLit.Field(c.name(), v);
                 }).toList());
             }
-            case com.legend.compiler.spec.typed.TypedNewInstance n -> {
+            case TypedNewInstance n -> {
                 // ^List(values=[...]): the List CARRIER is the bare SQL list
                 // (the same carrier list() produces — one carrier per type).
                 if (n.classFqn().equals(
-                        com.legend.compiler.element.type.PlatformTypes.LIST)) {
+                        PlatformTypes.LIST)) {
                     TypedSpec values = n.properties().get("values");
                     yield values == null
                             ? new SqlExpr.ArrayLit(List.of())
@@ -2008,7 +2051,7 @@ public final class Lowerer {
                 // ^Pair(first=..., second=...): the Pair STRUCT carrier —
                 // its layout IS first/second (the platform declaration)
                 if (n.classFqn().equals(
-                        com.legend.compiler.element.type.PlatformTypes.PAIR)) {
+                        PlatformTypes.PAIR)) {
                     yield new SqlExpr.StructLit(List.of(
                             new SqlExpr.StructLit.Field("first",
                                     scalar(n.properties().get("first"), columns)),
@@ -2030,7 +2073,7 @@ public final class Lowerer {
                     // when it doesn't lower to a literal array (audit:
                     // structural-only check double-wrapped it).
                     if (c.multiplicity() instanceof
-                            com.legend.compiler.element.type.Multiplicity.Bounded b
+                            Multiplicity.Bounded b
                             && b.isMany()) {
                         v = asList(v, value != null && isMany(value));
                     }
@@ -2058,7 +2101,7 @@ public final class Lowerer {
             case TypedNativeCall n when n.args().size() >= 1
                     && n.args().get(0).info().type() instanceof Type.RelationType
                     && relationPredicate(n) != null -> {
-                var predicate = java.util.Objects.requireNonNull(relationPredicate(n));
+                var predicate = Objects.requireNonNull(relationPredicate(n));
                 enclosing.push(columns);
                 try {
                     yield predicate.lower(this, n);
@@ -2066,30 +2109,30 @@ public final class Lowerer {
                     enclosing.pop();
                 }
             }
-            case com.legend.compiler.spec.typed.TypedFold f -> fold(f, columns);
+            case TypedFold f -> fold(f, columns);
 
             // map over a COLLECTION value -> listTransform (relation map is H).
-            case com.legend.compiler.spec.typed.TypedMap m
+            case TypedMap m
                     when !(m.source().info().type() instanceof Type.RelationType) ->
-                    SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_TRANSFORM,
+                    SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
                             scalar(m.source(), columns), scalar(m.mapper(), columns));
 
             // Variant navigation: get(v, key) -> JSON access. The MAP
             // overload of the same bare name lowers through its own rule.
             case TypedNativeCall n when isFamily(n, "get")
-                    && !com.legend.compiler.element.type.PlatformTypes
+                    && !PlatformTypes
                             .isMapCarrier(n.args().get(0).info().type()) ->
-                    SqlExpr.Call.of(com.legend.sql.SqlFn.VARIANT_GET,
+                    SqlExpr.Call.of(SqlFn.VARIANT_GET,
                             scalar(n.args().get(0), columns), scalar(n.args().get(1), columns));
 
-            case com.legend.compiler.spec.typed.TypedCast c -> cast(c, columns);
+            case TypedCast c -> cast(c, columns);
 
             // if(cond, {|then}, {|else}) — scalar position: CASE WHEN.
             // If-chains (the mapping enum decode emission) render as NESTED
             // CASE expressions in the otherwise slot — correct; single-CASE
             // flattening is a cosmetic peephole if ever demanded.
-            case com.legend.compiler.spec.typed.TypedIf i -> new SqlExpr.Case(
-                    java.util.List.of(new SqlExpr.Case.When(
+            case TypedIf i -> new SqlExpr.Case(
+                    List.of(new SqlExpr.Case.When(
                             scalar(i.condition(), columns),
                             scalar(thunkBody(i.thenBranch()), columns))),
                     i.elseBranch().map(e -> scalar(thunkBody(e), columns))
@@ -2101,7 +2144,7 @@ public final class Lowerer {
             // equality (enum vs string / different enums) is guarded in the
             // equality arm below — silently-true 'NYC'=='NYC' across types
             // was an audit finding.
-            case com.legend.compiler.spec.typed.TypedEnumValue e -> new SqlExpr.StringLit(e.value());
+            case TypedEnumValue e -> new SqlExpr.StringLit(e.value());
 
             default -> scalarRelationalArms(spec, columns);
         };
@@ -2129,14 +2172,14 @@ public final class Lowerer {
             // encodings ([1,2,3]->filter/slice/drop/take over a value, not a
             // table). Relation-typed sources take the relation() arms.
             case TypedFilter f when !(f.source().info().type() instanceof Type.RelationType) ->
-                    SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_FILTER,
+                    SqlExpr.Call.of(SqlFn.LIST_FILTER,
                             scalar(f.source(), columns), scalar(f.predicate(), columns));
             // slice(start, stop): 0-based exclusive-stop -> 1-based inclusive
             // array_slice; a NEGATIVE start clamps to the list head (PCT).
             case TypedSlice s when !(s.source().info().type() instanceof Type.RelationType) -> {
                 SqlExpr lo = clamp0(scalar(s.start(), columns));
                 SqlExpr hi = clamp0(scalar(s.stop(), columns));
-                SqlExpr sliced = SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_SLICE,
+                SqlExpr sliced = SqlExpr.Call.of(SqlFn.LIST_SLICE,
                         scalar(s.source(), columns), onePlus(lo),
                         // STOP clamps too: DuckDB reads a negative bound
                         // FROM THE END (slice(l,0,-1) returned the whole
@@ -2144,36 +2187,36 @@ public final class Lowerer {
                         hi);
                 // inverted bounds RAISE real pure's message, in the database
                 yield new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                        SqlExpr.Call.of(com.legend.sql.SqlFn.GREATER, lo, hi),
-                        SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
-                                SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
-                                        SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
-                                                SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
+                        SqlExpr.Call.of(SqlFn.GREATER, lo, hi),
+                        SqlExpr.Call.of(SqlFn.ERROR,
+                                SqlExpr.Call.of(SqlFn.CONCAT,
+                                        SqlExpr.Call.of(SqlFn.CONCAT,
+                                                SqlExpr.Call.of(SqlFn.CONCAT,
                                                         new SqlExpr.StringLit("The low bound ("),
-                                                        new SqlExpr.Cast(lo, com.legend.sql.SqlType.Scalar.VARCHAR)),
+                                                        new SqlExpr.Cast(lo, SqlType.Scalar.VARCHAR)),
                                                 new SqlExpr.StringLit(") can't be higher than the high bound (")),
-                                        SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
-                                                new SqlExpr.Cast(hi, com.legend.sql.SqlType.Scalar.VARCHAR),
+                                        SqlExpr.Call.of(SqlFn.CONCAT,
+                                                new SqlExpr.Cast(hi, SqlType.Scalar.VARCHAR),
                                                 new SqlExpr.StringLit(") in a slice operation")))))),
                         sliced);
             }
             // drop(n): the suffix from n+1; negative n drops nothing (PCT).
             case TypedDrop d when !(d.source().info().type() instanceof Type.RelationType) -> {
                 SqlExpr src = scalar(d.source(), columns);
-                yield SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_SLICE, src,
+                yield SqlExpr.Call.of(SqlFn.LIST_SLICE, src,
                         onePlus(clamp0(scalar(d.count(), columns))),
-                        SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_LENGTH, src));
+                        SqlExpr.Call.of(SqlFn.LIST_LENGTH, src));
             }
             // take(n): the prefix; negative n takes nothing (PCT) — the clamp
             // matters because DuckDB reads a negative bound FROM THE END.
             case TypedLimit t when !(t.source().info().type() instanceof Type.RelationType) ->
-                    SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_SLICE,
+                    SqlExpr.Call.of(SqlFn.LIST_SLICE,
                             scalar(t.source(), columns), new SqlExpr.IntLit(1),
                             clamp0(scalar(t.count(), columns)));
             // A let in EXPRESSION position (a callee shape the statement
             // folder didn't reach): bind and yield the value — the let IS
             // its value.
-            case com.legend.compiler.spec.typed.TypedLet l -> {
+            case TypedLet l -> {
                 SqlExpr v = scalar(l.value(), columns);
                 letBindings.put(l.name(), v);
                 yield v;
@@ -2189,13 +2232,13 @@ public final class Lowerer {
                     when (isFamily(n, "makeString") || isFamily(n, "joinStrings"))
                     && !n.args().isEmpty()
                     && n.args().get(0)
-                            instanceof com.legend.compiler.spec.typed.TypedCollection tc
+                            instanceof TypedCollection tc
                     && isRowCells(tc) -> {
                 List<SqlExpr> elems = new ArrayList<>(tc.elements().size());
                 for (TypedSpec e : tc.elements()) {
-                    elems.add(SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE,
+                    elems.add(SqlExpr.Call.of(SqlFn.COALESCE,
                             new SqlExpr.Cast(scalar(e, columns),
-                                    com.legend.sql.SqlType.Scalar.VARCHAR),
+                                    SqlType.Scalar.VARCHAR),
                             new SqlExpr.StringLit("TDSNull")));
                 }
                 List<SqlExpr> args = new ArrayList<>();
@@ -2212,11 +2255,11 @@ public final class Lowerer {
             // physical table — the write is vacuous and only the count is
             // observable; a REAL store destination stays loud until the
             // insert path exists.
-            case com.legend.compiler.spec.typed.TypedWrite w -> {
+            case TypedWrite w -> {
                 boolean accessor = w.destination().isEmpty()
                         || !containsStoreTable(w.destination().get());
                 if (!accessor) {
-                    throw new com.legend.error.NotImplementedException(
+                    throw new NotImplementedException(
                             "TypedWrite to a store destination is not yet implemented");
                 }
                 SqlSelect src = relation(w.source());
@@ -2224,61 +2267,61 @@ public final class Lowerer {
                                 new SqlSource.Subselect(src, nextAlias()))
                         .withProjections(List.of(new SqlSelect.Projection(
                                         new SqlAgg.Reducer("COUNT", List.of(), false), null)),
-                                List.of(new com.legend.sql.OutputCol("count",
-                                        com.legend.sql.SqlType.Scalar.BIGINT, false)));
+                                List.of(new OutputCol("count",
+                                        SqlType.Scalar.BIGINT, false)));
                 yield new SqlExpr.ScalarSubquery(count);
             }
             // A CLASS REFERENCE in scalar position carries its SIMPLE name
             // (PCT: STR_Person->toString() == 'STR_Person').
-            case com.legend.compiler.spec.typed.TypedPackageableRef ref -> {
+            case TypedPackageableRef ref -> {
                 String fqn = ref.fullPath();
                 int idx = fqn.lastIndexOf("::");
                 yield new SqlExpr.StringLit(idx < 0 ? fqn : fqn.substring(idx + 2));
             }
             // from() in scalar position: execution-context metadata only —
             // the value is its source's
-            case com.legend.compiler.spec.typed.TypedFrom fr2 ->
+            case TypedFrom fr2 ->
                     scalar(fr2.source(), columns);
             // relation->map(row|scalar) consumed as a VALUE COLLECTION
             // (makeString/joinStrings tails): aggregate the projected
             // column to a LIST value via a scalar subquery
-            case com.legend.compiler.spec.typed.TypedMap m2
+            case TypedMap m2
                     when m2.source().info().type() instanceof Type.RelationType
-                    && m2.mapper() instanceof com.legend.compiler.spec.typed.TypedLambda ml2
+                    && m2.mapper() instanceof TypedLambda ml2
                     && !(ml2.info().type() instanceof Type.FunctionType ft2
                             && ft2.result().type() instanceof Type.RelationType) -> {
-                com.legend.compiler.element.type.Multiplicity colMult2 =
+                Multiplicity colMult2 =
                         ml2.info().type() instanceof Type.FunctionType fnT2
                                 ? fnT2.result().multiplicity()
-                                : com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE;
-                SqlSelect proj = relation(new com.legend.compiler.spec.typed.TypedProject(
+                                : Multiplicity.Bounded.ZERO_ONE;
+                SqlSelect proj = relation(new TypedProject(
                         m2.source(),
-                        List.of(new com.legend.compiler.spec.typed.TypedFuncCol("value", ml2)),
-                        new com.legend.compiler.element.type.ExprType(
+                        List.of(new TypedFuncCol("value", ml2)),
+                        new ExprType(
                                 new Type.RelationType(List.of(
                                         new Type.RelationType.Column("value",
                                                 m2.info().type(), colMult2))),
-                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE)));
+                                Multiplicity.Bounded.ONE)));
                 String sub = nextAlias();
                 SqlSelect agg = SqlSelect.starOf(new SqlSource.Subselect(proj, sub))
                         .withProjections(List.of(new SqlSelect.Projection(
                                         new SqlAgg.Reducer("LIST", List.of(
                                                 new SqlExpr.Column(sub, "value")), false),
                                         null)),
-                                List.of(new com.legend.sql.OutputCol("value",
-                                        com.legend.sql.SqlType.Scalar.VARCHAR, true)));
+                                List.of(new OutputCol("value",
+                                        SqlType.Scalar.VARCHAR, true)));
                 SqlExpr listed = new SqlExpr.ScalarSubquery(agg);
                 // pure map FLATTENS collection-valued mappers ($r.values):
                 // the list-of-cell-arrays flattens one level
                 boolean collMapper = isCollectionMapper(ml2);
                 yield collMapper
-                        ? SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_FLATTEN, listed)
+                        ? SqlExpr.Call.of(SqlFn.LIST_FLATTEN, listed)
                         : listed;
             }
             // A COLUMN READ over a relation chain in scalar position
             // ($tds.rows.id — the TDS getter desugar): narrow to the one
             // column and take the single-column relation route below.
-            case com.legend.compiler.spec.typed.TypedPropertyAccess pa
+            case TypedPropertyAccess pa
                     when pa.source().info().type() instanceof Type.RelationType prt -> {
                 Type.RelationType.Column c = prt.columns().stream()
                         .filter(x -> x.name().equals(pa.property())).findFirst()
@@ -2287,7 +2330,7 @@ public final class Lowerer {
                                         + pa.property() + "' in scalar read"));
                 yield scalar(new TypedSelect(pa.source(),
                         List.of(pa.property()),
-                        new com.legend.compiler.element.type.ExprType(
+                        new ExprType(
                                 new Type.RelationType(List.of(c)),
                                 pa.info().multiplicity())), columns);
             }
@@ -2300,7 +2343,7 @@ public final class Lowerer {
             // subquery would raise on the second row. The OUTER row
             // resolver rides the enclosing channel either way.
             case TypedSpec rel when rel.info().type()
-                    instanceof com.legend.compiler.element.type.Type.RelationType rt
+                    instanceof Type.RelationType rt
                     && rt.columns().size() == 1 -> {
                 enclosing.push((v, name) -> {
                     SqlExpr r = columns.resolve(v, name);
@@ -2326,8 +2369,8 @@ public final class Lowerer {
                                                     new SqlExpr.Column(sub, col)),
                                                     false),
                                             null)),
-                                    List.of(new com.legend.sql.OutputCol(col,
-                                            com.legend.sql.SqlType.Scalar.VARCHAR,
+                                    List.of(new OutputCol(col,
+                                            SqlType.Scalar.VARCHAR,
                                             true)));
                     yield new SqlExpr.ScalarSubquery(agg);
                 } finally {
@@ -2335,7 +2378,7 @@ public final class Lowerer {
                 }
             }
             // SANCTIONED frontier default — see relation() above.
-            default -> throw new com.legend.error.NotImplementedException("scalar lowering not yet implemented for "
+            default -> throw new NotImplementedException("scalar lowering not yet implemented for "
                     + spec.getClass().getSimpleName());
         };
     }
@@ -2344,14 +2387,14 @@ public final class Lowerer {
     private static SqlExpr clamp0(SqlExpr e) {
         return e instanceof SqlExpr.IntLit i
                 ? new SqlExpr.IntLit(Math.max(0, i.value()))
-                : SqlExpr.Call.of(com.legend.sql.SqlFn.GREATEST, e, new SqlExpr.IntLit(0));
+                : SqlExpr.Call.of(SqlFn.GREATEST, e, new SqlExpr.IntLit(0));
     }
 
     /** 0-based → 1-based shift, constant-folded for literals. */
     private static SqlExpr onePlus(SqlExpr e) {
         return e instanceof SqlExpr.IntLit i
                 ? new SqlExpr.IntLit(i.value() + 1)
-                : SqlExpr.Call.of(com.legend.sql.SqlFn.PLUS, e, new SqlExpr.IntLit(1));
+                : SqlExpr.Call.of(SqlFn.PLUS, e, new SqlExpr.IntLit(1));
     }
 
     /** A value in LIST position: singleton-wrap unless it is already a list (or NULL = empty). */
@@ -2362,11 +2405,11 @@ public final class Lowerer {
 
     /** An instance literal in relation position: {@code ^X(…)} or a collection of them. */
     private static boolean isInstanceLiteral(TypedSpec source) {
-        return source instanceof com.legend.compiler.spec.typed.TypedNewInstance
+        return source instanceof TypedNewInstance
                 || (source instanceof TypedCollection c
                         && !c.elements().isEmpty()
                         && c.elements().stream().allMatch(e ->
-                                e instanceof com.legend.compiler.spec.typed.TypedNewInstance));
+                                e instanceof TypedNewInstance));
     }
 
     /**
@@ -2378,12 +2421,12 @@ public final class Lowerer {
      * CROSS-multiply (real pure's project semantics over instances).
      */
     private SqlSelect projectOverInstances(TypedProject p) {
-        List<com.legend.compiler.spec.typed.TypedNewInstance> instances =
+        List<TypedNewInstance> instances =
                 p.source() instanceof TypedCollection c
                         ? c.elements().stream()
-                                .map(e -> (com.legend.compiler.spec.typed.TypedNewInstance) e)
+                                .map(e -> (TypedNewInstance) e)
                                 .toList()
-                        : List.of((com.legend.compiler.spec.typed.TypedNewInstance) p.source());
+                        : List.of((TypedNewInstance) p.source());
         List<OutputCol> outputs = outputsOf(p.info());
         List<SqlQuery> branches = new ArrayList<>(instances.size());
         for (var inst : instances) {
@@ -2393,17 +2436,17 @@ public final class Lowerer {
             return (SqlSelect) branches.get(0);
         }
         return SqlSelect.starOf(new SqlSource.Subselect(
-                new com.legend.sql.SqlUnion(branches, true, outputs), nextAlias()));
+                new SqlUnion(branches, true, outputs), nextAlias()));
     }
 
-    private SqlSelect instanceSelect(com.legend.compiler.spec.typed.TypedNewInstance inst,
+    private SqlSelect instanceSelect(TypedNewInstance inst,
                                      List<TypedFuncCol> columns, List<OutputCol> outputs) {
         SqlSource src = null;
         // ONE unnest per to-many PATH PREFIX (the NavPath-registry rule):
         // two colspecs over $x.addresses iterate the SAME collection — real
         // pure yields (city, zip) pairs, never their cross product. Only
         // INDEPENDENT collections cross-multiply.
-        java.util.Map<String, String> unnestByPrefix = new java.util.LinkedHashMap<>();
+        Map<String, String> unnestByPrefix = new LinkedHashMap<>();
         List<SqlSelect.Projection> ps = new ArrayList<>(columns.size());
         for (TypedFuncCol col : columns) {
             List<String> path = pathOf(col);
@@ -2416,7 +2459,7 @@ public final class Lowerer {
                 // silent list-in-a-cell).
                 TypedSpec bodyLast = last(col.fn());
                 if (bodyLast.info().multiplicity().isMany()) {
-                    throw new com.legend.error.NotImplementedException(
+                    throw new NotImplementedException(
                             "instance-literal project: computed column '" + col.name()
                                     + "' is collection-valued — only bare to-many"
                                     + " property paths explode");
@@ -2438,8 +2481,8 @@ public final class Lowerer {
             TypedSpec cur = inst;
             SqlExpr value = null;
             for (int i = 0; i < path.size(); i++) {
-                if (!(cur instanceof com.legend.compiler.spec.typed.TypedNewInstance ni)) {
-                    throw new com.legend.error.NotImplementedException(
+                if (!(cur instanceof TypedNewInstance ni)) {
+                    throw new NotImplementedException(
                             "instance-literal project: '" + col.name()
                                     + "' navigates through a non-instance value");
                 }
@@ -2462,11 +2505,11 @@ public final class Lowerer {
                                         .map(e -> scalar(e, noScope())).toList());
                         SqlSelect unnest = new SqlSelect(
                                 List.of(new SqlSelect.Projection(
-                                        SqlExpr.Call.of(com.legend.sql.SqlFn.UNNEST, array),
+                                        SqlExpr.Call.of(SqlFn.UNNEST, array),
                                         "elem")),
                                 false, null, null, List.of(), null, null, List.of(), null, null,
                                 List.of(new OutputCol("elem",
-                                        com.legend.sql.SqlType.Scalar.VARCHAR, true)));
+                                        SqlType.Scalar.VARCHAR, true)));
                         SqlSource right = new SqlSource.Subselect(unnest, alias);
                         src = src == null
                                 ? anchorJoin(right)
@@ -2486,7 +2529,7 @@ public final class Lowerer {
                     cur = v;
                 }
             }
-            ps.add(new SqlSelect.Projection(java.util.Objects.requireNonNull(value), col.name()));
+            ps.add(new SqlSelect.Projection(Objects.requireNonNull(value), col.name()));
         }
         return new SqlSelect(ps, false, src, null, List.of(), null, null,
                 List.of(), null, null, outputs);
@@ -2496,7 +2539,7 @@ public final class Lowerer {
     private SqlSource anchorJoin(SqlSource right) {
         SqlSource anchor = new SqlSource.Values(
                 List.of(List.of(new SqlExpr.IntLit(1))), List.of("_anchor"), nextAlias(),
-                List.of(new OutputCol("_anchor", com.legend.sql.SqlType.Scalar.BIGINT, false)));
+                List.of(new OutputCol("_anchor", SqlType.Scalar.BIGINT, false)));
         return new SqlSource.Join(anchor, right,
                 SqlSource.Join.Kind.LEFT_LATERAL, new SqlExpr.BoolLit(true));
     }
@@ -2504,7 +2547,7 @@ public final class Lowerer {
     /** A colspec body as a bare property path rooted at the lambda parameter; null = computed. */
     private static List<String> pathOf(TypedFuncCol col) {
         String param = col.fn().parameters().get(0);
-        java.util.ArrayDeque<String> path = new java.util.ArrayDeque<>();
+        ArrayDeque<String> path = new ArrayDeque<>();
         TypedSpec cur = col.fn().body().get(col.fn().body().size() - 1);
         while (cur instanceof TypedPropertyAccess pa) {
             path.addFirst(pa.property());
@@ -2521,16 +2564,16 @@ public final class Lowerer {
      * ({@code to(@C).a.b} — every {@code source()} hop a property access),
      * or null when the chain roots elsewhere.
      */
-    private static com.legend.compiler.spec.typed.TypedCast variantCastBase(TypedSpec spec) {
+    private static TypedCast variantCastBase(TypedSpec spec) {
         TypedSpec cur = spec;
         while (cur instanceof TypedPropertyAccess pa) {
             cur = pa.source();
         }
-        if (cur instanceof com.legend.compiler.spec.typed.TypedCast vc
+        if (cur instanceof TypedCast vc
                 && vc.source().info().type() instanceof Type.ClassType vsrc
-                && com.legend.compiler.element.type.PlatformTypes.isVariant(vsrc)
+                && PlatformTypes.isVariant(vsrc)
                 && vc.target() instanceof Type.ClassType vtgt
-                && !com.legend.compiler.element.type.PlatformTypes.isVariant(vtgt)) {
+                && !PlatformTypes.isVariant(vtgt)) {
             return vc;
         }
         return null;
@@ -2539,17 +2582,17 @@ public final class Lowerer {
     /** Rebuild a pair struct with fields COERCED to the LUB's slots (Any -> variant). */
     private static SqlExpr pairToLub(SqlExpr pair, Type own, Type.GenericType lub) {
         String[] names = {"first", "second"};
-        java.util.List<SqlExpr.StructLit.Field> fields = new java.util.ArrayList<>(2);
+        List<SqlExpr.StructLit.Field> fields = new ArrayList<>(2);
         for (int i = 0; i < 2; i++) {
             SqlExpr f = new SqlExpr.StructGet(pair, names[i]);
             Type lubArg = lub.arguments().get(i);
             Type ownArg = own instanceof Type.GenericType og && og.arguments().size() == 2
                     ? og.arguments().get(i) : null;
             if (lubArg instanceof Type.ClassType lc
-                    && com.legend.compiler.element.type.PlatformTypes.isAny(lc)
+                    && PlatformTypes.isAny(lc)
                     && (ownArg == null || !(ownArg instanceof Type.ClassType oc
-                            && com.legend.compiler.element.type.PlatformTypes.isAny(oc)))) {
-                f = SqlExpr.Call.of(com.legend.sql.SqlFn.TO_VARIANT, f);
+                            && PlatformTypes.isAny(oc)))) {
+                f = SqlExpr.Call.of(SqlFn.TO_VARIANT, f);
             }
             fields.add(new SqlExpr.StructLit.Field(names[i], f));
         }
@@ -2570,7 +2613,7 @@ public final class Lowerer {
      * (multi-column key synthesis is a later slice); aggregates via the same
      * reduce-overload dispatch as groupBy.
      */
-    private SqlSelect pivot(com.legend.compiler.spec.typed.TypedPivot pv) {
+    private SqlSelect pivot(TypedPivot pv) {
         SqlSelect src = relation(pv.source());
         SqlSource inner = asRightSide(src);
         List<SqlExpr> on;
@@ -2585,7 +2628,7 @@ public final class Lowerer {
             SqlExpr key = null;
             for (String c : pv.pivotColumns()) {
                 SqlExpr col = new SqlExpr.Cast(Fold.sourceColumn(inner, c),
-                        com.legend.sql.SqlType.Scalar.VARCHAR);
+                        SqlType.Scalar.VARCHAR);
                 key = key == null ? col
                         : SqlExpr.Call.of(SqlFn.CONCAT,
                                 SqlExpr.Call.of(SqlFn.CONCAT, key,
@@ -2593,14 +2636,14 @@ public final class Lowerer {
                                                 .Type.RelationType.PIVOT_SEPARATOR)),
                                 col);
             }
-            List<com.legend.sql.OutputCol> keyedOutputs = new ArrayList<>();
-            for (com.legend.sql.OutputCol oc : inner.outputs()) {
+            List<OutputCol> keyedOutputs = new ArrayList<>();
+            for (OutputCol oc : inner.outputs()) {
                 if (!pv.pivotColumns().contains(oc.name())) {
                     keyedOutputs.add(oc);
                 }
             }
-            keyedOutputs.add(new com.legend.sql.OutputCol(keyName,
-                    com.legend.sql.SqlType.Scalar.VARCHAR, false));
+            keyedOutputs.add(new OutputCol(keyName,
+                    SqlType.Scalar.VARCHAR, false));
             SqlSelect keyed = SqlSelect.starOf(inner).withProjections(
                     List.of(new SqlSelect.Projection(
                                     new SqlExpr.StarExcept(inner.alias(), pv.pivotColumns()), null),
@@ -2634,14 +2677,14 @@ public final class Lowerer {
      * COMPUTED projections, so the fold policy isolates them naturally.
      * A Variant column casts to JSON[] first; a typed list unnests directly.
      */
-    private SqlSelect flatten(com.legend.compiler.spec.typed.TypedFlatten fl) {
+    private SqlSelect flatten(TypedFlatten fl) {
         SqlSelect src = relation(fl.source());
         SqlSelect base = Fold.extendFolds(src) ? src : isolate(src);
         return foldOrIsolate(base, "flatten", b -> buildFlatten(b, fl));
     }
 
     private SqlSelect buildFlatten(SqlSelect base,
-            com.legend.compiler.spec.typed.TypedFlatten fl) {
+            TypedFlatten fl) {
         Type.RelationType schema = schemaOf(fl.source());
         List<SqlSelect.Projection> ps = new ArrayList<>();
         for (Type.Column c : schema.columns()) {
@@ -2671,15 +2714,15 @@ public final class Lowerer {
      *   <li>Non-variant source: multiplicity/type erasure — identity.</li>
      * </ul>
      */
-    private SqlExpr cast(com.legend.compiler.spec.typed.TypedCast c,
+    private SqlExpr cast(TypedCast c,
                          ColumnResolver columns) {
         return cast(c, scalar(c.source(), columns));
     }
 
     /** The cast policy over an ALREADY-LOWERED source (scalar or window channel). */
-    private SqlExpr cast(com.legend.compiler.spec.typed.TypedCast c, SqlExpr value) {
+    private SqlExpr cast(TypedCast c, SqlExpr value) {
         boolean variantSource = c.source().info().type()
-                instanceof Type.ClassType ct && com.legend.compiler.element.type.PlatformTypes.isVariant(ct);
+                instanceof Type.ClassType ct && PlatformTypes.isVariant(ct);
         if (!variantSource) {
             // A CONVERTING primitive cast (String->@Integer) must reach SQL —
             // returning the value bare left VARCHAR in arithmetic (audit:
@@ -2701,26 +2744,26 @@ public final class Lowerer {
         boolean many = isMany(c);
         if (many) {
             boolean variantTarget = c.target() instanceof Type.ClassType t
-                    && com.legend.compiler.element.type.PlatformTypes.isVariant(t);
+                    && PlatformTypes.isVariant(t);
             return variantTarget
-                    ? SqlExpr.Call.of(com.legend.sql.SqlFn.VARIANT_ELEMENTS, value)
+                    ? SqlExpr.Call.of(SqlFn.VARIANT_ELEMENTS, value)
                     // A to-many cast targets an ARRAY of the element type —
                     // expressed in the TYPE (SqlType.Array). JSON null stays
                     // SQL NULL (real relation-land pins toVariant(NULL) =
                     // 'null' vs toVariant([]) = '[]'); the list CONSUMERS
                     // (contains/isEmpty/joinStrings) are null-safe instead.
                     : new SqlExpr.Cast(value,
-                            new com.legend.sql.SqlType.Array(PureSql.type(c.target())));
+                            new SqlType.Array(PureSql.type(c.target())));
         }
         if (c.target() instanceof Type.ClassType tc
-                && !com.legend.compiler.element.type.PlatformTypes.isVariant(tc)
-                && !com.legend.compiler.element.type.PlatformTypes.isAny(tc)) {
+                && !PlatformTypes.isVariant(tc)
+                && !PlatformTypes.isAny(tc)) {
             // to(@ModelClass) MATERIALIZED as a value: the real relation
             // runtime rejects class-typed columns — message verbatim
             // (property reads through the cast never come here; the
             // extraction arm in scalar() fields them).
-            throw new com.legend.error.ModelException(
-                    com.legend.error.LegendCompileException.Phase.LOWER,
+            throw new ModelException(
+                    LegendCompileException.Phase.LOWER,
                     "The type " + tc.fqn() + " is not supported yet!");
         }
         // The dialect may render this cast through its text-extraction idiom
@@ -2767,9 +2810,9 @@ public final class Lowerer {
      * them (SQL-CAST where the type changed); any absent name means the
      * pivot idiom's dynamic columns — type-only pass-through.
      */
-    private SqlSelect relationCast(com.legend.compiler.spec.typed.TypedCast c,
+    private SqlSelect relationCast(TypedCast c,
                                    Type.RelationType srcRow, Type.RelationType tgtRow) {
-        java.util.Map<String, Type.Column> src = new java.util.LinkedHashMap<>();
+        Map<String, Type.Column> src = new LinkedHashMap<>();
         for (Type.Column col : srcRow.columns()) {
             src.put(col.name(), col);
         }
@@ -2805,9 +2848,9 @@ public final class Lowerer {
     }
 
     /** One pass; null when any target column would not fold against {@code base}. */
-    private SqlSelect tryRelationCast(SqlSelect base, java.util.Map<String, Type.Column> src,
+    private SqlSelect tryRelationCast(SqlSelect base, Map<String, Type.Column> src,
                                       Type.RelationType tgtRow,
-                                      com.legend.compiler.spec.typed.TypedCast c) {
+                                      TypedCast c) {
         List<SqlSelect.Projection> ps = new ArrayList<>(tgtRow.columns().size());
         for (Type.Column tc : tgtRow.columns()) {
             switch (attempt(() -> resolveOrThrow(base, tc.name()))) {
@@ -2845,7 +2888,7 @@ public final class Lowerer {
      * MapReduce pre-transforms; {@code accIsList} rides for the dialect's
      * encoding decisions). NOTHING here knows how any backend folds.
      */
-    private SqlExpr fold(com.legend.compiler.spec.typed.TypedFold f,
+    private SqlExpr fold(TypedFold f,
                          ColumnResolver columns) {
         SqlExpr source = scalar(f.source(), columns);
         SqlExpr init = scalar(f.init(), columns);
@@ -2855,16 +2898,16 @@ public final class Lowerer {
             // singleton list. Already-list-shaped values ([9] lowers to an
             // ArrayLit despite mult [1]) and NULL (the []-born empty, which
             // DuckDB list_concat treats as []) pass through.
-            case com.legend.compiler.spec.typed.FoldStrategy.Concatenation c ->
+            case FoldStrategy.Concatenation c ->
                     new SqlExpr.Call(SqlFn.LIST_CONCAT,
                             List.of(asList(init, isMany(f.init())),
                                     asList(source, isMany(f.source()))));
-            case com.legend.compiler.spec.typed.FoldStrategy.SameType st ->
+            case FoldStrategy.SameType st ->
                     new SqlExpr.FoldCall(source,
                             new SqlExpr.Lambda(ps,
                                     scalar(last(f.reducer()), lambdaResolver(ps, columns))),
                             init, isMany(f.init()), true);
-            case com.legend.compiler.spec.typed.FoldStrategy.MapReduce mr -> {
+            case FoldStrategy.MapReduce mr -> {
                 String elem = ps.get(0);
                 SqlExpr.Lambda transform = new SqlExpr.Lambda(List.of(elem),
                         scalar(mr.transform(), lambdaResolver(List.of(elem), columns)));
@@ -2877,7 +2920,7 @@ public final class Lowerer {
                                         List.of(mr.accParam(), mr.freshParam()), columns))),
                         init, isMany(f.init()), true);
             }
-            case com.legend.compiler.spec.typed.FoldStrategy.CollectionBuild cb ->
+            case FoldStrategy.CollectionBuild cb ->
                     new SqlExpr.FoldCall(source,
                             new SqlExpr.Lambda(ps,
                                     scalar(last(f.reducer()), lambdaResolver(ps, columns))),
@@ -2901,7 +2944,7 @@ public final class Lowerer {
      * shapes would be silently wrong ('X' == OtherEnum.X) or DB type
      * errors (enum vs Integer).
      */
-    private static boolean enumTypeMismatch(List<com.legend.compiler.spec.typed.TypedSpec> args) {
+    private static boolean enumTypeMismatch(List<TypedSpec> args) {
         if (args.size() != 2) {
             return false;
         }
@@ -2918,9 +2961,9 @@ public final class Lowerer {
             // operand may hold this very enum at run time ([E.X, 1]->first()
             // == E.X is true in real pure); a static FALSE would be silently
             // wrong. Those fall through to the SQL name comparison.
-            if (com.legend.compiler.element.type.PlatformTypes.isAny(other)
-                    || com.legend.compiler.element.type.PlatformTypes.isNil(other)
-                    || com.legend.compiler.element.type.PlatformTypes.isVariant(other)) {
+            if (PlatformTypes.isAny(other)
+                    || PlatformTypes.isNil(other)
+                    || PlatformTypes.isVariant(other)) {
                 return false;
             }
             return !(other instanceof Type.Primitive prim
@@ -2933,7 +2976,7 @@ public final class Lowerer {
         // signatureKey membership — the LAST parser-node dispatch the re-audit
         // found dodging the parser-free wall (ArchUnit cannot see a dependency
         // reached through definition()'s return type + contains(Object)).
-        return com.legend.builtin.Pure.nativeNamed(pureName, n.callee().signatureKey());
+        return Pure.nativeNamed(pureName, n.callee().signatureKey());
     }
 
     private static RelationPredicate relationPredicate(TypedNativeCall n) {
@@ -3004,9 +3047,9 @@ public final class Lowerer {
 
     /** Close the current select into a subselect and open a fresh star select over it. */
     /** An if-branch is a 0-param SINGLE-expression thunk; its body is the value. */
-    private static com.legend.compiler.spec.typed.TypedSpec thunkBody(
-            com.legend.compiler.spec.typed.TypedSpec branch) {
-        if (branch instanceof com.legend.compiler.spec.typed.TypedLambda l) {
+    private static TypedSpec thunkBody(
+            TypedSpec branch) {
+        if (branch instanceof TypedLambda l) {
             if (l.body().size() != 1) {
                 throw new IllegalStateException("if-branch thunk has "
                         + l.body().size() + " statements; a last-statement pick"
@@ -3029,7 +3072,7 @@ public final class Lowerer {
         if (spec instanceof TypedCInteger c) {
             return c.value().longValue();
         }
-        throw new com.legend.error.NotImplementedException(
+        throw new NotImplementedException(
                 "dynamic slicing bounds are not lowered yet (literal expected), got "
                         + spec.getClass().getSimpleName());
     }
@@ -3038,7 +3081,7 @@ public final class Lowerer {
         return (Type.RelationType) spec.info().type();
     }
 
-    private List<OutputCol> outputsOf(com.legend.compiler.element.type.ExprType info) {
+    private List<OutputCol> outputsOf(ExprType info) {
         if (!(info.type() instanceof Type.RelationType rt)) {
             return List.of();
         }

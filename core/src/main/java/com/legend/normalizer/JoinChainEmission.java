@@ -2,10 +2,13 @@
 
 package com.legend.normalizer;
 
-import com.legend.parser.NormalizedModel;
 import com.legend.compiler.ModelBuilder;
 import com.legend.compiler.SynthFqn;
+import com.legend.error.LegendCompileException;
+import com.legend.error.ModelException;
+import com.legend.error.NotImplementedException;
 import com.legend.parser.Multiplicity;
+import com.legend.parser.NormalizedModel;
 import com.legend.parser.ParsedModel;
 import com.legend.parser.TypeExpression;
 import com.legend.parser.element.AssociationDefinition;
@@ -15,20 +18,20 @@ import com.legend.parser.element.ClassDefinition;
 import com.legend.parser.element.ClassMapping;
 import com.legend.parser.element.ComparisonOp;
 import com.legend.parser.element.DatabaseDefinition;
-import com.legend.parser.element.RelationalDataType;
 import com.legend.parser.element.EnumerationMapping;
 import com.legend.parser.element.FilterMapping;
 import com.legend.parser.element.FilterPointer;
 import com.legend.parser.element.FunctionDefinition;
 import com.legend.parser.element.JoinChainElement;
-import com.legend.parser.element.LogicalOp;
 import com.legend.parser.element.LegacyMappingDefinition;
+import com.legend.parser.element.LogicalOp;
 import com.legend.parser.element.MappingDefinition;
-import com.legend.parser.element.Realization;
 import com.legend.parser.element.PackageableElement;
 import com.legend.parser.element.PropertyMapping;
-import com.legend.parser.element.SynthHat;
+import com.legend.parser.element.Realization;
+import com.legend.parser.element.RelationalDataType;
 import com.legend.parser.element.RelationalOperation;
+import com.legend.parser.element.SynthHat;
 import com.legend.parser.spec.AppliedFunction;
 import com.legend.parser.spec.AppliedProperty;
 import com.legend.parser.spec.CBoolean;
@@ -57,7 +60,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-
 /**
  * Join-chain hop emission (Pass 1 structural, Pass 2 nested JoinNav): slot minting, path dedup, chain walking. Split from MappingNormalizer (the Doors split).
  */
@@ -98,7 +100,7 @@ final class JoinChainEmission {
                                 && p.aliasToTargetTable.containsKey(j.propertyName())
                                 && classTypedTargetIfMapped(nr.name(),
                                         j.propertyName(), model) != null) {
-                            throw new com.legend.error.NotImplementedException(
+                            throw new NotImplementedException(
                                     "Embedded sub-PM '" + j.propertyName()
                                   + "' collides with an existing pipeline slot"
                                   + " of the same name; distinct same-named"
@@ -128,7 +130,7 @@ final class JoinChainEmission {
                                                 String mainTable, Variable rowBind,
                                                 ModelBuilder model, LegacyMappingDefinition md) {
         if (!(oe.fallback() instanceof PropertyMapping.Join joinFallback)) {
-            throw new com.legend.error.NotImplementedException(
+            throw new NotImplementedException(
                     "OtherwiseEmbedded PM '" + oe.propertyName() + "' fallback kind "
                   + oe.fallback().getClass().getSimpleName()
                   + " not supported (Join only). Mapping=" + md.qualifiedName());
@@ -136,13 +138,13 @@ final class JoinChainEmission {
         ClassDefinition owner = model.findClass(ownerClassFqn).orElseThrow();
         TypeExpression propType = MappingNormalizer.findPropertyTypeDeep(owner, oe.propertyName(), model);
         if (!(propType instanceof TypeExpression.NameRef nr)) {
-            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "OtherwiseEmbedded PM '" + oe.propertyName()
                   + "' has non-class property type; mapping=" + md.qualifiedName());
         }
         String targetClassFqn = nr.name();
         if (!model.isMappedClass(targetClassFqn)) {
-            throw new com.legend.error.NotImplementedException(
+            throw new NotImplementedException(
                     "OtherwiseEmbedded PM '" + oe.propertyName() + "' target class '"
                   + targetClassFqn + "' is not mapped; mapping=" + md.qualifiedName());
         }
@@ -217,7 +219,7 @@ final class JoinChainEmission {
             String hopDb = hop.databaseName() != null ? hop.databaseName()
                     : (chainDb != null ? chainDb : mainDb);
             DatabaseDefinition.JoinDefinition jd = model.findJoin(hopDb, hop.joinName())
-                    .orElseThrow(() -> new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+                    .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE, 
                             "Join '" + hop.joinName() + "' not found in db '"
                           + hopDb + "'; PM='" + propName + "', mapping="
                           + md.qualifiedName()));
@@ -247,7 +249,7 @@ final class JoinChainEmission {
             if (viewTarget == null) {
                 MappingNormalizer.requireNonViewTarget(targetTable, hopDb, hop.joinName(), model, md);
             } else if (emitNavigate) {
-                throw new com.legend.error.NotImplementedException(
+                throw new NotImplementedException(
                         "Join '" + hop.joinName() + "' navigates to a CLASS"
                       + " mapped over view '" + viewTarget + "'; class"
                       + " navigation onto view relations is a roadmap"
@@ -303,8 +305,8 @@ final class JoinChainEmission {
                                 ? rHop.databaseName() : route.join().database();
                         DatabaseDefinition.JoinDefinition rJd =
                                 model.findJoin(rDb, rHop.joinName()).orElseThrow(() ->
-                                        new com.legend.error.ModelException(
-                                                com.legend.error.LegendCompileException
+                                        new ModelException(
+                                                LegendCompileException
                                                         .Phase.NORMALIZE,
                                                 "Join '" + rHop.joinName()
                                                 + "' not found in db '" + rDb
@@ -350,7 +352,7 @@ final class JoinChainEmission {
                                             en.getValue()[2], base, model);
                             String kind = cd == null ? null : MappingNormalizer.pureKindOf(cd.dataType());
                             if (kind == null) {
-                                throw new com.legend.error.NotImplementedException(
+                                throw new NotImplementedException(
                                         "routed union key column '" + base
                                         + "' has no derivable pure kind on table '"
                                         + en.getValue()[2] + "'; mapping="
@@ -358,7 +360,7 @@ final class JoinChainEmission {
                             }
                             read = new AppliedFunction("cast", List.of(
                                     new PureCollection(List.of()),
-                                    new com.legend.parser.spec.TypeAnnotation.Named(
+                                    new TypeAnnotation.Named(
                                             new TypeExpression.NameRef(kind))));
                         }
                         keySpecs.add(new ColSpec(en.getKey(),

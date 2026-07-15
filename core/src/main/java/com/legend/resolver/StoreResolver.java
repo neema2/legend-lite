@@ -1,32 +1,44 @@
 package com.legend.resolver;
 
+import com.legend.builtin.Pure;
 import com.legend.compiler.element.ModelContext;
+import com.legend.compiler.element.TypedFunction;
+import com.legend.compiler.element.type.ExprType;
+import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedAggCol;
 import com.legend.compiler.spec.typed.TypedAggregate;
-import com.legend.compiler.spec.typed.TypedConcatenate;
-import com.legend.compiler.spec.typed.TypedDistinct;
-import com.legend.compiler.spec.typed.TypedDrop;
-import com.legend.compiler.spec.typed.TypedExtend;
 import com.legend.compiler.spec.typed.TypedCBoolean;
 import com.legend.compiler.spec.typed.TypedCFloat;
 import com.legend.compiler.spec.typed.TypedCInteger;
 import com.legend.compiler.spec.typed.TypedCString;
+import com.legend.compiler.spec.typed.TypedCast;
+import com.legend.compiler.spec.typed.TypedConcatenate;
+import com.legend.compiler.spec.typed.TypedDistinct;
+import com.legend.compiler.spec.typed.TypedDrop;
+import com.legend.compiler.spec.typed.TypedEnumValue;
+import com.legend.compiler.spec.typed.TypedExtend;
 import com.legend.compiler.spec.typed.TypedExtendAgg;
 import com.legend.compiler.spec.typed.TypedExtendWindow;
-import com.legend.compiler.spec.typed.TypedIf;
-import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedFilter;
 import com.legend.compiler.spec.typed.TypedFrom;
 import com.legend.compiler.spec.typed.TypedFuncCol;
 import com.legend.compiler.spec.typed.TypedGetAll;
-import com.legend.compiler.spec.typed.TypedGroupBy;
-import com.legend.compiler.spec.typed.TypedLambda;
-import com.legend.compiler.spec.typed.TypedLimit;
-import com.legend.compiler.spec.typed.TypedProject;
-import com.legend.compiler.spec.typed.TypedRename;
 import com.legend.compiler.spec.typed.TypedGraphFetch;
 import com.legend.compiler.spec.typed.TypedGraphTree;
+import com.legend.compiler.spec.typed.TypedGroupBy;
+import com.legend.compiler.spec.typed.TypedIf;
+import com.legend.compiler.spec.typed.TypedJoin;
+import com.legend.compiler.spec.typed.TypedLambda;
+import com.legend.compiler.spec.typed.TypedLimit;
+import com.legend.compiler.spec.typed.TypedMap;
+import com.legend.compiler.spec.typed.TypedMilestonedAccess;
+import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedNavigate;
+import com.legend.compiler.spec.typed.TypedNewInstance;
+import com.legend.compiler.spec.typed.TypedProject;
+import com.legend.compiler.spec.typed.TypedPropertyAccess;
+import com.legend.compiler.spec.typed.TypedRename;
 import com.legend.compiler.spec.typed.TypedSelect;
 import com.legend.compiler.spec.typed.TypedSerialize;
 import com.legend.compiler.spec.typed.TypedSerializeGraph;
@@ -38,13 +50,17 @@ import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.error.MappingResolutionException;
 import com.legend.error.NotImplementedException;
 import com.legend.parser.element.RuntimeDefinition;
-
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
-
+import java.util.function.Function;
 /**
  * Phase H &mdash; the pure {@code TypedSpec -> TypedSpec} rewriter replacing
  * object-space class queries with relation pipelines resolved against the
@@ -85,7 +101,7 @@ public final class StoreResolver {
         // pre-resolution consumers (lift walkers, resolveNode shape checks)
         // see NO context, exactly the old fields' initial values
         this.temporal = new TemporalFrame(ctx, sources, TemporalContext.NONE,
-                java.util.Map.of());
+                Map.of());
         this.navMaterializer = new NavMaterializer(sources);
         this.assocMaterial = new AssociationJoins(ctx, sources, specs,
                 synthetics);
@@ -179,78 +195,78 @@ public final class StoreResolver {
             // size()/count() over a class extent = the ROW COUNT of the
             // resolved pipeline: project ONE constant column (no slot
             // demand — engine emits select count(*)) and count the relation.
-            case com.legend.compiler.spec.typed.TypedNativeCall nc
+            case TypedNativeCall nc
                     when nc.args().size() == 1 && isObjectSpace(nc.args().get(0))
                     && (nc.callee().qualifiedName().equals(
                                     "meta::pure::functions::collection::size")
                             || nc.callee().qualifiedName().equals(
                                     "meta::pure::functions::collection::count")) -> {
-                com.legend.compiler.element.type.Type intType =
-                        com.legend.compiler.element.type.Type.Primitive.INTEGER;
-                com.legend.compiler.element.type.ExprType oneInt =
-                        new com.legend.compiler.element.type.ExprType(intType,
+                Type intType =
+                        Type.Primitive.INTEGER;
+                ExprType oneInt =
+                        new ExprType(intType,
                                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
-                com.legend.compiler.element.type.ExprType rowParam =
-                        new com.legend.compiler.element.type.ExprType(
+                ExprType rowParam =
+                        new ExprType(
                                 nc.args().get(0).info().type(),
                                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
-                TypedLambda one = new TypedLambda(java.util.List.of("p"),
-                        java.util.List.of(new com.legend.compiler.spec.typed.TypedCInteger(1L, oneInt)),
-                        new com.legend.compiler.element.type.ExprType(
-                                new com.legend.compiler.element.type.Type.FunctionType(
-                                        java.util.List.of(new com.legend.compiler.element.type.Type.Param(
+                TypedLambda one = new TypedLambda(List.of("p"),
+                        List.of(new TypedCInteger(1L, oneInt)),
+                        new ExprType(
+                                new Type.FunctionType(
+                                        List.of(new Type.Param(
                                                 rowParam.type(), rowParam.multiplicity())),
-                                        new com.legend.compiler.element.type.Type.Param(
+                                        new Type.Param(
                                                 intType,
                                                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
                                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
-                com.legend.compiler.element.type.Type.RelationType relType =
-                        new com.legend.compiler.element.type.Type.RelationType(java.util.List.of(
-                                new com.legend.compiler.element.type.Type.Column(
+                Type.RelationType relType =
+                        new Type.RelationType(List.of(
+                                new Type.Column(
                                         "c", intType,
                                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE)));
                 TypedProject proj = new TypedProject(nc.args().get(0),
-                        java.util.List.of(new com.legend.compiler.spec.typed.TypedFuncCol("c", one)),
-                        new com.legend.compiler.element.type.ExprType(relType,
+                        List.of(new TypedFuncCol("c", one)),
+                        new ExprType(relType,
                                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
                 TypedSpec rel = resolveChain(proj, context);
                 var relSize = ctx.findFunction("meta::pure::functions::relation::size")
                         .stream().findFirst().orElseThrow(() -> new IllegalStateException(
                                 "relation size overload missing from the catalog"));
-                yield new com.legend.compiler.spec.typed.TypedNativeCall(relSize,
-                        java.util.List.of(rel), nc.info());
+                yield new TypedNativeCall(relSize,
+                        List.of(rel), nc.info());
             }
             // ->map(p|$p.scalarExpr) over instances IS the single-column
             // projection (the map-terminal invariant); Person.all().prop is
             // its property-access spelling (to-many paths explode via the
             // projection funnel's positional rules).
-            case com.legend.compiler.spec.typed.TypedMap m
+            case TypedMap m
                     when isObjectSpace(m.source())
-                    && !(((com.legend.compiler.element.type.Type.FunctionType) m.mapper().info().type()).result().type()
-                            instanceof com.legend.compiler.element.type.Type.ClassType) -> {
-                com.legend.compiler.spec.typed.TypedMap m2 = synthetics.liftValueMapFilter(m);
+                    && !(((Type.FunctionType) m.mapper().info().type()).result().type()
+                            instanceof Type.ClassType) -> {
+                TypedMap m2 = synthetics.liftValueMapFilter(m);
                 yield resolveChain(scalarMapAsProject(m2.source(), m2.mapper(),
                         m2.info().multiplicity()), context);
             }
-            case com.legend.compiler.spec.typed.TypedPropertyAccess pa when isObjectSpace(pa.source())
-                    && !(pa.info().type() instanceof com.legend.compiler.element.type.Type.ClassType) -> {
-                com.legend.compiler.element.type.ExprType elem =
-                        new com.legend.compiler.element.type.ExprType(pa.info().type(),
+            case TypedPropertyAccess pa when isObjectSpace(pa.source())
+                    && !(pa.info().type() instanceof Type.ClassType) -> {
+                ExprType elem =
+                        new ExprType(pa.info().type(),
                                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
                 String v = "p";
-                TypedLambda fn = new TypedLambda(java.util.List.of(v),
-                        java.util.List.of(new com.legend.compiler.spec.typed.TypedPropertyAccess(
-                                new com.legend.compiler.spec.typed.TypedVariable(v,
-                                        new com.legend.compiler.element.type.ExprType(
+                TypedLambda fn = new TypedLambda(List.of(v),
+                        List.of(new TypedPropertyAccess(
+                                new TypedVariable(v,
+                                        new ExprType(
                                                 sourceClassType(pa.source()),
                                                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
                                 pa.property(), elem)),
-                        new com.legend.compiler.element.type.ExprType(
-                                new com.legend.compiler.element.type.Type.FunctionType(
-                                        java.util.List.of(new com.legend.compiler.element.type.Type.Param(
+                        new ExprType(
+                                new Type.FunctionType(
+                                        List.of(new Type.Param(
                                                 sourceClassType(pa.source()),
                                                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
-                                        new com.legend.compiler.element.type.Type.Param(pa.info().type(),
+                                        new Type.Param(pa.info().type(),
                                                 pa.info().multiplicity())),
                                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
                 yield resolveChain(scalarMapAsProject(pa.source(), fn,
@@ -281,12 +297,12 @@ public final class StoreResolver {
             // info — relation-space types are stable across resolution.)
             // a COLUMN READ over a relation-shaped chain ($tds.rows.id —
             // the TDS getter desugar): rebuild over the resolved source
-            case com.legend.compiler.spec.typed.TypedPropertyAccess pa
+            case TypedPropertyAccess pa
                     when containsGetAll(pa.source())
                     && pa.source().info().type()
-                            instanceof com.legend.compiler.element.type.Type
+                            instanceof Type
                                     .RelationType ->
-                    new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                    new TypedPropertyAccess(
                             resolveNode(pa.source(), context), pa.property(),
                             pa.info());
             case TypedFilter f when containsGetAll(f.source()) -> new TypedFilter(
@@ -295,11 +311,11 @@ public final class StoreResolver {
                     resolveNode(p.source(), context), p.columns(), p.info());
             case TypedSort s when containsGetAll(s.source()) -> new TypedSort(
                     resolveNode(s.source(), context), s.keys(), s.info());
-            case com.legend.compiler.spec.typed.TypedCast c
+            case TypedCast c
                     when containsGetAll(c.source())
-                    && c.info().type() instanceof com.legend.compiler.element.type.Type
+                    && c.info().type() instanceof Type
                             .RelationType ->
-                    new com.legend.compiler.spec.typed.TypedCast(
+                    new TypedCast(
                             resolveNode(c.source(), context), c.target(), c.info());
             case TypedSortBy sb when containsGetAll(sb.source()) -> new TypedSortBy(
                     resolveNode(sb.source(), context), sb.key(), sb.ascending(), sb.info());
@@ -330,32 +346,32 @@ public final class StoreResolver {
             case TypedConcatenate c when containsGetAll(c) -> new TypedConcatenate(
                     resolveNode(c.left(), context), resolveNode(c.right(), context),
                     c.info());
-            case com.legend.compiler.spec.typed.TypedNavigate nav
+            case TypedNavigate nav
                     when containsGetAll(nav.source())
                     && nav.target().info().type()
-                            instanceof com.legend.compiler.element.type.Type.RelationType ->
-                    new com.legend.compiler.spec.typed.TypedNavigate(
+                            instanceof Type.RelationType ->
+                    new TypedNavigate(
                             resolveNode(nav.source(), context), nav.alias(),
                             nav.target(), nav.predicate(), nav.form(), nav.info());
-            case com.legend.compiler.spec.typed.TypedJoin j when containsGetAll(j) ->
-                    new com.legend.compiler.spec.typed.TypedJoin(
+            case TypedJoin j when containsGetAll(j) ->
+                    new TypedJoin(
                             resolveNode(j.left(), context), resolveNode(j.right(), context),
                             j.kind(), j.condition(), j.prefix(), j.info());
             // map over RELATION rows above a class chain (the object-space
             // map arm matched earlier; this is the relation-space wrapper)
-            case com.legend.compiler.spec.typed.TypedMap m
+            case TypedMap m
                     when containsGetAll(m.source())
                     && m.source().info().type()
-                            instanceof com.legend.compiler.element.type.Type.RelationType ->
-                    new com.legend.compiler.spec.typed.TypedMap(
+                            instanceof Type.RelationType ->
+                    new TypedMap(
                             resolveNode(m.source(), context), m.mapper(), m.info());
             // scalar/relation NATIVES over chains bottoming at a getAll
             // (size()/equal()/isEmpty() tails of assert expressions): the
             // object-space native arms matched earlier; here every arg
             // resolves structurally
-            case com.legend.compiler.spec.typed.TypedNativeCall nc
+            case TypedNativeCall nc
                     when containsGetAll(nc) ->
-                    new com.legend.compiler.spec.typed.TypedNativeCall(nc.callee(),
+                    new TypedNativeCall(nc.callee(),
                             nc.args().stream().map(a2 -> resolveNode(a2, context))
                                     .toList(), nc.info());
             default -> {
@@ -371,7 +387,7 @@ public final class StoreResolver {
 
     /** An op whose source chain is still in OBJECT space (class-typed). */
     /** Collection distinct/removeDuplicates over instances (no comparator). */
-    private static boolean isClassDistinct(com.legend.compiler.spec.typed.TypedNativeCall c) {
+    private static boolean isClassDistinct(TypedNativeCall c) {
         return c.args().size() == 1
                 && (c.callee().qualifiedName().equals(
                                 "meta::pure::functions::collection::distinct")
@@ -411,7 +427,7 @@ public final class StoreResolver {
 
     /** {@code $var} read anywhere beneath {@code n}; shadowing lambdas stop the walk. */
     private static boolean readsVar(TypedSpec n, String var) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedVariable v
+        if (n instanceof TypedVariable v
                 && v.name().equals(var)) {
             return true;
         }
@@ -426,11 +442,10 @@ public final class StoreResolver {
         return false;
     }
 
-
     /** The element CLASS of an object-space chain (for synthetic lambdas). */
-    private static com.legend.compiler.element.type.Type sourceClassType(TypedSpec chain) {
-        com.legend.compiler.element.type.Type t = chain.info().type();
-        if (!(t instanceof com.legend.compiler.element.type.Type.ClassType)) {
+    private static Type sourceClassType(TypedSpec chain) {
+        Type t = chain.info().type();
+        if (!(t instanceof Type.ClassType)) {
             throw new IllegalStateException("resolver bug: object-space chain typed "
                     + t.typeName());
         }
@@ -450,23 +465,23 @@ public final class StoreResolver {
     private static TypedProject scalarMapAsProject(TypedSpec source, TypedLambda mapper,
             com.legend.compiler.element.type.Multiplicity valueMult) {
         TypedSpec body = mapper.body().get(mapper.body().size() - 1);
-        String name = body instanceof com.legend.compiler.spec.typed.TypedPropertyAccess bpa
+        String name = body instanceof TypedPropertyAccess bpa
                 ? bpa.property() : "value";
-        com.legend.compiler.element.type.Type.Param result =
-                ((com.legend.compiler.element.type.Type.FunctionType) mapper.info().type()).result();
-        com.legend.compiler.element.type.Type.RelationType row =
-                new com.legend.compiler.element.type.Type.RelationType(java.util.List.of(
-                        new com.legend.compiler.element.type.Type.Column(
+        Type.Param result =
+                ((Type.FunctionType) mapper.info().type()).result();
+        Type.RelationType row =
+                new Type.RelationType(List.of(
+                        new Type.Column(
                                 name, result.type(), result.multiplicity())));
         return new TypedProject(source,
-                java.util.List.of(new com.legend.compiler.spec.typed.TypedFuncCol(name, mapper)),
-                new com.legend.compiler.element.type.ExprType(row, valueMult));
+                List.of(new TypedFuncCol(name, mapper)),
+                new ExprType(row, valueMult));
     }
 
     private static boolean isObjectSpace(TypedSpec source) {
         return switch (source) {
             case TypedGetAll ignored -> true;
-            case com.legend.compiler.spec.typed.TypedFrom fr ->
+            case TypedFrom fr ->
                     isObjectSpace(fr.source());
             case TypedFilter f -> isObjectSpace(f.source());
             case TypedLimit l -> isObjectSpace(l.source());
@@ -493,7 +508,7 @@ public final class StoreResolver {
                 && "meta::pure::functions::collection::at"
                         .equals(c.callee().qualifiedName())
                 && c.args().get(1)
-                        instanceof com.legend.compiler.spec.typed.TypedCInteger;
+                        instanceof TypedCInteger;
     }
 
     /** {@code toOne(instances)}: multiplicity coercion over a class
@@ -655,23 +670,23 @@ public final class StoreResolver {
     private record NavPlan(Set<String> demanded, Set<String> demandedNavs,
             Map<String, Substitution.AssocSub> assocs,
             Map<String, NavMaterializer.NavMat> navMats,
-            Map<String, java.util.List<java.util.List<String>>> navTails,
+            Map<String, List<List<String>>> navTails,
             Map<String, String> navHeadByAlias,
             Map<String, String> extraNavHeads,
-            Map<String, java.util.List<java.util.List<String>>> extraNavTails,
-            Map<String, com.legend.compiler.spec.typed.TypedNavigate> navSteps) {}
+            Map<String, List<List<String>>> extraNavTails,
+            Map<String, TypedNavigate> navSteps) {}
 
     /** PHASE — slot + navigate-step demand: heads whose bindings read
      * join slots demand them; class-typed Join PM heads materialize their
      * targets (recursively, with per-hop temporal context) and register
      * the head substitution material under the chain key. */
     private NavPlan registerNavigations(ClassSource cs,
-            Set<java.util.List<String>> paths) {
+            Set<List<String>> paths) {
         // Slot demand (heads whose bindings read join slots).
         Set<String> slotAliases = Pipelines.slotAliases(cs.pipeline());
-        Set<String> demanded = new java.util.LinkedHashSet<>();
+        Set<String> demanded = new LinkedHashSet<>();
         if (!slotAliases.isEmpty()) {
-            for (java.util.List<String> path : paths) {
+            for (List<String> path : paths) {
                 TypedSpec binding = cs.bindings().get(SyntheticHeads.realHead(path.get(0)));
                 if (binding != null) {
                     collectAliasReads(binding, cs.rowVar(), slotAliases, demanded);
@@ -683,20 +698,20 @@ public final class StoreResolver {
         // head binding reads a navigate slot ($row.alias, class-typed)
         // demands that step; its target joins as the class's own pipeline.
         var navSteps = Pipelines.navSteps(cs.pipeline());
-        Set<String> demandedNavs = new java.util.LinkedHashSet<>();
-        Map<String, Substitution.AssocSub> assocs = new java.util.LinkedHashMap<>();
-        Map<String, java.util.List<java.util.List<String>>> navTails =
-                new java.util.LinkedHashMap<>();
-        Map<String, String> navHeadByAlias = new java.util.LinkedHashMap<>();
+        Set<String> demandedNavs = new LinkedHashSet<>();
+        Map<String, Substitution.AssocSub> assocs = new LinkedHashMap<>();
+        Map<String, List<List<String>>> navTails =
+                new LinkedHashMap<>();
+        Map<String, String> navHeadByAlias = new LinkedHashMap<>();
         // SECOND identities on one physical slot (date-fingerprinted /
         // filter-lifted synthetic heads beside the base): the slot
         // materializes once for the FIRST identity; every other identity
         // emits its OWN prefixed join from the same nav material (engine:
         // joins keyed by date / per-use). headKey → slot alias, + tails.
-        Map<String, String> extraNavHeads = new java.util.LinkedHashMap<>();
-        Map<String, java.util.List<java.util.List<String>>> extraNavTails =
-                new java.util.LinkedHashMap<>();
-        for (java.util.List<String> path : paths) {
+        Map<String, String> extraNavHeads = new LinkedHashMap<>();
+        Map<String, List<List<String>>> extraNavTails =
+                new LinkedHashMap<>();
+        for (List<String> path : paths) {
             if (path.size() < 2) {
                 continue;
             }
@@ -712,7 +727,7 @@ public final class StoreResolver {
             TypedSpec navRead = headBinding;
             var ow = Substitution.otherwiseOf(headBinding);
             if (ow != null) {
-                var partial = (com.legend.compiler.spec.typed.TypedNewInstance)
+                var partial = (TypedNewInstance)
                         ow.args().get(0);
                 if (partial.properties().containsKey(path.get(1))) {
                     continue;   // embedded leaf: parent-alias read, no join
@@ -734,7 +749,7 @@ public final class StoreResolver {
                                 "meta::pure::functions::multiplicity::toOne")) {
                     inner = tc1.args().get(0);
                 }
-                if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstance ni
+                if (inner instanceof TypedNewInstance ni
                         && mid + 1 < path.size()
                         && ni.properties().containsKey(path.get(mid))) {
                     drill = ni.properties().get(path.get(mid));
@@ -751,12 +766,12 @@ public final class StoreResolver {
             String headKey = String.join(".", path.subList(0, mid));
             // a lifted head's predicate reads are TAILS too: they pull the
             // target's own slots exactly like demanded leaves
-            java.util.List<java.util.List<String>> predTails =
-                    new java.util.ArrayList<>();
+            List<List<String>> predTails =
+                    new ArrayList<>();
             TypedLambda liftedPred = synthetics.pred(path.get(0));
             if (liftedPred != null) {
-                Set<java.util.List<String>> predPaths =
-                        new java.util.LinkedHashSet<>();
+                Set<List<String>> predPaths =
+                        new LinkedHashSet<>();
                 for (TypedSpec b : liftedPred.body()) {
                     consumedPaths(b, liftedPred.parameters().get(0), predPaths);
                 }
@@ -768,7 +783,7 @@ public final class StoreResolver {
             String priorHead = navHeadByAlias.get(alias);
             if (priorHead != null && !priorHead.equals(headKey)) {
                 extraNavHeads.putIfAbsent(headKey, alias);
-                java.util.List<java.util.List<String>> et = extraNavTails
+                List<List<String>> et = extraNavTails
                         .computeIfAbsent(headKey, k -> new ArrayList<>());
                 et.add(path.subList(mid, path.size()));
                 et.addAll(predTails);
@@ -802,13 +817,13 @@ public final class StoreResolver {
         // class-typed slot materializes THAT slot's target too), then
         // register the head's substitution material with the REAL slot
         // prefixes (audit: Map.of() here walled every nested slot read).
-        Map<String, NavMaterializer.NavMat> navMats = new java.util.LinkedHashMap<>();
+        Map<String, NavMaterializer.NavMat> navMats = new LinkedHashMap<>();
         for (String alias : demandedNavs) {
             var nav = navSteps.get(alias);
-            String targetClass = ((com.legend.compiler.spec.typed.TypedGetAll)
+            String targetClass = ((TypedGetAll)
                     nav.target()).classFqn();
             navMats.put(alias, navMaterializer.navTargetMaterialized(temporal, cs.mappingFqn(), targetClass,
-                    navTails.getOrDefault(alias, java.util.List.of()),
+                    navTails.getOrDefault(alias, List.of()),
                     navHeadByAlias.getOrDefault(alias, alias), null));
             // a LIFTED head's predicate applies INSIDE the join target
             // (engine: the chain filter parks on the navigation's join-tree
@@ -827,7 +842,7 @@ public final class StoreResolver {
         }
         for (String alias : demandedNavs) {
             var nav = navSteps.get(alias);
-            String targetClass = ((com.legend.compiler.spec.typed.TypedGetAll)
+            String targetClass = ((TypedGetAll)
                     nav.target()).classFqn();
             ClassSource target = sources.get(cs.mappingFqn(), targetClass);
             // SUB-navigation material: for each 3-hop tail, the mid
@@ -850,7 +865,6 @@ public final class StoreResolver {
                 navHeadByAlias, extraNavHeads, extraNavTails, navSteps);
     }
 
-
     /** PHASE 2a'' — CLASS-TYPED LEAF under an emptiness call:
      * registers the DOTTED-path correlated-EXISTS material (engine:
      * semi-join + key null check on the exploded chain row); details in
@@ -872,8 +886,8 @@ public final class StoreResolver {
         // emptiness call register — eager registration stamped temporal
         // context on chains the ordinary (inheritance-aware) route owns
         // (regressed testBiTemporalToBiTemporalDatePropagation).
-        Set<java.util.List<String>> emptinessChainPaths =
-                new java.util.LinkedHashSet<>();
+        Set<List<String>> emptinessChainPaths =
+                new LinkedHashSet<>();
         for (TypedSpec op : ops) {
             if (op instanceof TypedFilter f) {
                 for (TypedSpec b : f.predicate().body()) {
@@ -897,7 +911,7 @@ public final class StoreResolver {
                 }
             }
         }
-        for (java.util.List<String> path : emptinessChainPaths) {
+        for (List<String> path : emptinessChainPaths) {
             if (path.size() < 2) {
                 continue;
             }
@@ -928,7 +942,7 @@ public final class StoreResolver {
                         pNavSteps.keySet());
                 var nav = alias == null ? null : pNavSteps.get(alias);
                 if (nav == null || !(nav.target()
-                        instanceof com.legend.compiler.spec.typed.TypedGetAll tg)
+                        instanceof TypedGetAll tg)
                         || !sources.binds(cs.mappingFqn(), tg.classFqn())) {
                     continue;
                 }
@@ -938,7 +952,7 @@ public final class StoreResolver {
                 TypedSpec p0 = tm.pipeline();
                 cond = nav.predicate();
                 if (cond.parameters().size() == 2) {
-                    Set<String> tgtReads = new java.util.LinkedHashSet<>();
+                    Set<String> tgtReads = new LinkedHashSet<>();
                     for (TypedSpec b0 : cond.body()) {
                         Pipelines.collectVarReads(b0,
                                 cond.parameters().get(1), tgtReads);
@@ -946,7 +960,7 @@ public final class StoreResolver {
                     p0 = Pipelines.widenConcatenateForKeys(p0, tgtReads);
                 }
                 tPipe = temporal.temporalTargetPipe(parent, t, dotted,
-                        temporal.applyJoinTemporalFilters(p0, t, java.util.Map.of()));
+                        temporal.applyJoinTemporalFilters(p0, t, Map.of()));
                 tPrefixes = tm.slotPrefixes();
                 TypedLambda liftedLeafPred = synthetics.pred(leafName);
                 if (liftedLeafPred != null) {
@@ -981,10 +995,10 @@ public final class StoreResolver {
                     cond.body().get(cond.body().size() - 1), pv,
                     chain.prefix(), v -> v);
             TypedLambda chainedCond = new TypedLambda(cond.parameters(),
-                    java.util.List.of(cbody), cond.info());
+                    List.of(cbody), cond.info());
             existsSubs.put(dotted, new Substitution.ExistsSub(tPipe,
                     chainedCond, t.rowVar(), t.bindings(),
-                    (com.legend.compiler.element.type.Type.RelationType)
+                    (Type.RelationType)
                             tPipe.info().type(),
                     t.classFqn(), Pipelines.slotAliases(t.pipeline()),
                     tPrefixes, leafToMany));
@@ -1015,14 +1029,14 @@ public final class StoreResolver {
                         : Pipelines.materialize(
                                 sources.get(cs.mappingFqn(), targetClass).pipeline(),
                                 Set.of(), targetClass).pipeline());
-        Map<String, String> navPrefixToClass = new java.util.LinkedHashMap<>();
-        Map<String, String> navPrefixToChain = new java.util.LinkedHashMap<>();
-        Map<String, String> midPrefixToChain = new java.util.LinkedHashMap<>();
-        Map<String, String> midPrefixToDim = new java.util.LinkedHashMap<>();
+        Map<String, String> navPrefixToClass = new LinkedHashMap<>();
+        Map<String, String> navPrefixToChain = new LinkedHashMap<>();
+        Map<String, String> midPrefixToChain = new LinkedHashMap<>();
+        Map<String, String> midPrefixToDim = new LinkedHashMap<>();
         Set<String> slotAliases = Pipelines.slotAliases(cs.pipeline());
         for (var navE : Pipelines.navSteps(cs.pipeline()).entrySet()) {
             if (navE.getValue().target()
-                    instanceof com.legend.compiler.spec.typed.TypedGetAll tg2) {
+                    instanceof TypedGetAll tg2) {
                 String chain = navHeadByAlias.getOrDefault(navE.getKey(),
                         navE.getKey());
                 navPrefixToClass.put(navE.getKey() + "_", tg2.classFqn());
@@ -1045,7 +1059,7 @@ public final class StoreResolver {
                             String priorChain = midPrefixToChain
                                     .putIfAbsent(slot + "_", chain);
                             if (priorChain != null && !priorChain.equals(chain)
-                                    && !java.util.Objects.equals(
+                                    && !Objects.equals(
                                             temporal.spec(priorChain),
                                             temporal.spec(chain))) {
                                 throw new NotImplementedException(
@@ -1098,40 +1112,39 @@ public final class StoreResolver {
         return new RootPipe(m, materializedPipe);
     }
 
-
     /** PHASE 2b-ii output: the pipeline with association joins folded
      * (descriptor -> emission, first-demand order) plus the aggregated-
      * navigation materials the fold and substitution both consume. */
     private record JoinedPipe(Pipelines.Materialized m,
-            java.util.List<AssociationJoins.AssocJoin> aggAssocJoins,
+            List<AssociationJoins.AssocJoin> aggAssocJoins,
             Map<TypedSpec, Substitution.AggRead> aggReads) {}
 
     /** PHASE 2b-ii — fold the association joins and the aggregated-
      * navigation grouped subselects onto the materialized pipeline. */
     private JoinedPipe foldAssociationJoins(ClassSource cs,
             Pipelines.Materialized m, TypedSpec keyWidenedPipe,
-            java.util.List<AssociationJoins.AssocJoin> assocJoins,
+            List<AssociationJoins.AssocJoin> assocJoins,
             Map<String, AssociationJoins.AssocJoin> aggMaterials,
-            Map<String, java.util.List<AggDemand>> aggDemands) {
+            Map<String, List<AggDemand>> aggDemands) {
         // 2b. Materialize the association joins (descriptor -> emission,
         //     first-demand order) onto the pipeline.
         TypedSpec withJoins = keyWidenedPipe;
         for (AssociationJoins.AssocJoin aj : assocJoins) {
-            com.legend.compiler.element.type.Type.RelationType leftRow =
-                    (com.legend.compiler.element.type.Type.RelationType)
+            Type.RelationType leftRow =
+                    (Type.RelationType)
                             withJoins.info().type();
-            java.util.List<com.legend.compiler.element.type.Type.Column> cols =
+            List<Type.Column> cols =
                     new ArrayList<>(leftRow.columns());
-            for (com.legend.compiler.element.type.Type.Column c
+            for (Type.Column c
                     : aj.targetRow().columns()) {
-                cols.add(new com.legend.compiler.element.type.Type.Column(
+                cols.add(new Type.Column(
                         aj.prefix() + c.name(), c.type(), c.multiplicity()));
             }
-            withJoins = new com.legend.compiler.spec.typed.TypedJoin(withJoins,
+            withJoins = new TypedJoin(withJoins,
                     aj.targetPipeline(), leftKind(), aj.condition(),
-                    java.util.Optional.of(aj.prefix()),
-                    new com.legend.compiler.element.type.ExprType(
-                            new com.legend.compiler.element.type.Type.RelationType(cols),
+                    Optional.of(aj.prefix()),
+                    new ExprType(
+                            new Type.RelationType(cols),
                             com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
         }
         // 2c. AGGREGATED navigations (the engine's subAggregation shape):
@@ -1141,21 +1154,21 @@ public final class StoreResolver {
         // aggregate column per demand. Each aggregate node then reads its
         // column off the joined row; no row explosion reaches the
         // projection, and the aggregate itself runs IN the database.
-        java.util.Map<TypedSpec, Substitution.AggRead> aggReads =
-                new java.util.IdentityHashMap<>();
-        java.util.List<AssociationJoins.AssocJoin> aggAssocJoins = new ArrayList<>();
+        Map<TypedSpec, Substitution.AggRead> aggReads =
+                new IdentityHashMap<>();
+        List<AssociationJoins.AssocJoin> aggAssocJoins = new ArrayList<>();
         for (var entry : aggDemands.entrySet()) {
             String head = entry.getKey();
-            Set<String> leaves = new java.util.LinkedHashSet<>();
+            Set<String> leaves = new LinkedHashSet<>();
             for (AggDemand d : entry.getValue()) {
                 leaves.add(d.leaf());
             }
             AssociationJoins.AssocJoin aj = aggMaterials.get(head);
             aggAssocJoins.add(aj);
-            java.util.List<String> keyCols = targetEquiKeys(aj.condition(), head);
-            java.util.List<com.legend.compiler.spec.typed.TypedGroupBy.GroupKey>
+            List<String> keyCols = targetEquiKeys(aj.condition(), head);
+            List<TypedGroupBy.GroupKey>
                     keys = new ArrayList<>();
-            java.util.List<com.legend.compiler.element.type.Type.Column>
+            List<Type.Column>
                     subCols = new ArrayList<>();
             for (String k : keyCols) {
                 var col = aj.targetRow().columns().stream()
@@ -1163,14 +1176,14 @@ public final class StoreResolver {
                         .orElseThrow(() -> new IllegalStateException(
                                 "resolver bug: equi-key column '" + k
                                         + "' missing from the target row"));
-                keys.add(new com.legend.compiler.spec.typed.TypedGroupBy.GroupKey(
-                        k, java.util.Optional.empty()));
+                keys.add(new TypedGroupBy.GroupKey(
+                        k, Optional.empty()));
                 subCols.add(col);
             }
-            java.util.List<com.legend.compiler.spec.typed.TypedAggCol> aggs =
+            List<TypedAggCol> aggs =
                     new ArrayList<>();
             int ord = 0;
-            var targetRowType = new com.legend.compiler.element.type.ExprType(
+            var targetRowType = new ExprType(
                     aj.targetRow(), com.legend.compiler.element.type.Multiplicity
                             .Bounded.ONE);
             for (AggDemand d : entry.getValue()) {
@@ -1184,23 +1197,23 @@ public final class StoreResolver {
                 }
                 String alias = "agg_" + ord++;
                 TypedLambda map = new TypedLambda(
-                        java.util.List.of(aj.target().rowVar()),
-                        java.util.List.of(leafBinding),
-                        new com.legend.compiler.element.type.ExprType(
-                                new com.legend.compiler.element.type.Type.FunctionType(
-                                        java.util.List.of(new com.legend.compiler
+                        List.of(aj.target().rowVar()),
+                        List.of(leafBinding),
+                        new ExprType(
+                                new Type.FunctionType(
+                                        List.of(new com.legend.compiler
                                                 .element.type.Type.Param(aj.targetRow(),
                                                 com.legend.compiler.element.type
                                                         .Multiplicity.Bounded.ONE)),
-                                        new com.legend.compiler.element.type.Type.Param(
+                                        new Type.Param(
                                                 leafBinding.info().type(),
                                                 leafBinding.info().multiplicity())),
                                 com.legend.compiler.element.type.Multiplicity
                                         .Bounded.ONE));
                 String yv = "_y";
-                java.util.List<TypedSpec> reduceArgs = new ArrayList<>();
-                reduceArgs.add(new com.legend.compiler.spec.typed.TypedVariable(yv,
-                        new com.legend.compiler.element.type.ExprType(
+                List<TypedSpec> reduceArgs = new ArrayList<>();
+                reduceArgs.add(new TypedVariable(yv,
+                        new ExprType(
                                 leafBinding.info().type(),
                                 com.legend.compiler.element.type.Multiplicity
                                         .Bounded.ZERO_MANY)));
@@ -1218,48 +1231,48 @@ public final class StoreResolver {
                 TypedSpec reduceCall = new com.legend.compiler.spec.typed
                         .TypedNativeCall(d.node().callee(), reduceArgs,
                         d.node().info());
-                TypedLambda reduce = new TypedLambda(java.util.List.of(yv),
-                        java.util.List.of(reduceCall),
-                        new com.legend.compiler.element.type.ExprType(
-                                new com.legend.compiler.element.type.Type.FunctionType(
-                                        java.util.List.of(new com.legend.compiler
+                TypedLambda reduce = new TypedLambda(List.of(yv),
+                        List.of(reduceCall),
+                        new ExprType(
+                                new Type.FunctionType(
+                                        List.of(new com.legend.compiler
                                                 .element.type.Type.Param(
                                                 leafBinding.info().type(),
                                                 com.legend.compiler.element.type
                                                         .Multiplicity.Bounded.ZERO_MANY)),
-                                        new com.legend.compiler.element.type.Type.Param(
+                                        new Type.Param(
                                                 d.node().info().type(),
                                                 d.node().info().multiplicity())),
                                 com.legend.compiler.element.type.Multiplicity
                                         .Bounded.ONE));
-                aggs.add(new com.legend.compiler.spec.typed.TypedAggCol(alias,
+                aggs.add(new TypedAggCol(alias,
                         map, reduce));
-                subCols.add(new com.legend.compiler.element.type.Type.RelationType
+                subCols.add(new Type.RelationType
                         .Column(alias, d.node().info().type(),
                         com.legend.compiler.element.type.Multiplicity
                                 .Bounded.ZERO_ONE));
             }
-            var subRow = new com.legend.compiler.element.type.Type.RelationType(subCols);
-            TypedSpec sub = new com.legend.compiler.spec.typed.TypedGroupBy(
+            var subRow = new Type.RelationType(subCols);
+            TypedSpec sub = new TypedGroupBy(
                     aj.targetPipeline(), keys, aggs,
-                    new com.legend.compiler.element.type.ExprType(subRow,
+                    new ExprType(subRow,
                             com.legend.compiler.element.type.Multiplicity
                                     .Bounded.ONE));
             String prefix = AssociationJoins.prefixFor(head + "_agg", cs);
-            com.legend.compiler.element.type.Type.RelationType leftRow =
-                    (com.legend.compiler.element.type.Type.RelationType)
+            Type.RelationType leftRow =
+                    (Type.RelationType)
                             withJoins.info().type();
-            java.util.List<com.legend.compiler.element.type.Type.Column>
+            List<Type.Column>
                     cols = new ArrayList<>(leftRow.columns());
             for (var c : subRow.columns()) {
-                cols.add(new com.legend.compiler.element.type.Type.RelationType
+                cols.add(new Type.RelationType
                         .Column(prefix + c.name(), c.type(), c.multiplicity()));
             }
-            withJoins = new com.legend.compiler.spec.typed.TypedJoin(withJoins,
+            withJoins = new TypedJoin(withJoins,
                     sub, leftKind(), aj.condition(),
-                    java.util.Optional.of(prefix),
-                    new com.legend.compiler.element.type.ExprType(
-                            new com.legend.compiler.element.type.Type.RelationType(cols),
+                    Optional.of(prefix),
+                    new ExprType(
+                            new Type.RelationType(cols),
                             com.legend.compiler.element.type.Multiplicity
                                     .Bounded.ONE));
             ord = 0;
@@ -1277,11 +1290,11 @@ public final class StoreResolver {
      * correlated-EXISTS material per head (target pipeline + oriented
      * condition, NO join emitted; the positional rule table §133). */
     private Map<String, Substitution.ExistsSub> registerExistsSubs(
-            ClassSource cs, Set<java.util.List<String>> paths,
-            Set<java.util.List<String>> filterPaths, List<TypedSpec> ops,
+            ClassSource cs, Set<List<String>> paths,
+            Set<List<String>> filterPaths, List<TypedSpec> ops,
             Context context) {
-        Map<String, Substitution.ExistsSub> existsSubs = new java.util.LinkedHashMap<>();
-        for (java.util.List<String> path : paths) {
+        Map<String, Substitution.ExistsSub> existsSubs = new LinkedHashMap<>();
+        for (List<String> path : paths) {
             String head = path.get(0);
             boolean filterTwoHop = path.size() == 2 && filterPaths.contains(path);
             if ((path.size() != 1 && !filterTwoHop) || existsSubs.containsKey(head)) {
@@ -1293,7 +1306,7 @@ public final class StoreResolver {
                 // the same correlated-EXISTS material as an association end.
                 var nav = Pipelines.navSteps(cs.pipeline()).get(SyntheticHeads.realHead(head));
                 if (nav == null || !(nav.target()
-                        instanceof com.legend.compiler.spec.typed.TypedGetAll tg)
+                        instanceof TypedGetAll tg)
                         // eager material only when the target class IS mapped
                         // here (an M2M chain's nav target lives upstream —
                         // registration must not throw for a rewrite that may
@@ -1303,8 +1316,8 @@ public final class StoreResolver {
                 }
                 ClassSource t = sources.get(cs.mappingFqn(), tg.classFqn());
                 Set<String> tSlots0 = Pipelines.slotAliases(t.pipeline());
-                Set<String> tDemand0 = new java.util.LinkedHashSet<>();
-                Set<String> innerLeaves = new java.util.LinkedHashSet<>(
+                Set<String> tDemand0 = new LinkedHashSet<>();
+                Set<String> innerLeaves = new LinkedHashSet<>(
                         existsInnerLeaves(ops, head));
                 TypedLambda liftedPred0 = synthetics.pred(head);
                 if (liftedPred0 != null) {
@@ -1326,7 +1339,7 @@ public final class StoreResolver {
                 // navigate predicate binds on (mirrors the assoc route)
                 TypedSpec tPipe0 = tMat0.pipeline();
                 if (nav.predicate().parameters().size() == 2) {
-                    Set<String> tgtReads = new java.util.LinkedHashSet<>();
+                    Set<String> tgtReads = new LinkedHashSet<>();
                     for (TypedSpec b : nav.predicate().body()) {
                         Pipelines.collectVarReads(b,
                                 nav.predicate().parameters().get(1), tgtReads);
@@ -1334,7 +1347,7 @@ public final class StoreResolver {
                     tPipe0 = Pipelines.widenConcatenateForKeys(tPipe0, tgtReads);
                 }
                 TypedSpec tTemporal = temporal.temporalTargetPipe(cs, t, head,
-                        temporal.applyJoinTemporalFilters(tPipe0, t, java.util.Map.of()));
+                        temporal.applyJoinTemporalFilters(tPipe0, t, Map.of()));
                 TypedLambda liftedPred = synthetics.pred(head);
                 if (liftedPred != null) {
                     tTemporal = predFilteredPipe(tTemporal, t,
@@ -1350,7 +1363,7 @@ public final class StoreResolver {
                         .isPresent());
                 existsSubs.put(head, new Substitution.ExistsSub(tMat.pipeline(),
                         nav.predicate(), t.rowVar(), t.bindings(),
-                        (com.legend.compiler.element.type.Type.RelationType)
+                        (Type.RelationType)
                                 tMat.pipeline().info().type(),
                         t.classFqn(), Pipelines.slotAliases(t.pipeline()),
                         tMat0.slotPrefixes(), navToMany));
@@ -1393,7 +1406,7 @@ public final class StoreResolver {
 
     /** PHASE output: the association-route joins (one LEFT join per
      * hop, deduped by chain key) plus per-chain leaf demand. */
-    private record AssocPlan(java.util.List<AssociationJoins.AssocJoin> assocJoins,
+    private record AssocPlan(List<AssociationJoins.AssocJoin> assocJoins,
             Map<String, AssociationJoins.AssocJoin> joinsByChain,
             Map<String, Set<String>> leavesByChain) {}
 
@@ -1402,23 +1415,23 @@ public final class StoreResolver {
      * head identities on shared physical slots (2a-x: per-use extra
      * joins from the same nav material). */
     private AssocPlan registerAssociationJoins(ClassSource cs,
-            Set<java.util.List<String>> paths, Context context,
-            Map<String, com.legend.compiler.spec.typed.TypedNavigate> navSteps,
+            Set<List<String>> paths, Context context,
+            Map<String, TypedNavigate> navSteps,
             Map<String, String> extraNavHeads,
-            Map<String, java.util.List<java.util.List<String>>> extraNavTails,
+            Map<String, List<List<String>>> extraNavTails,
             Map<String, Substitution.AssocSub> assocs) {
-        java.util.List<AssociationJoins.AssocJoin> assocJoins = new ArrayList<>();
-        Map<String, AssociationJoins.AssocJoin> joinsByChain = new java.util.LinkedHashMap<>();
+        List<AssociationJoins.AssocJoin> assocJoins = new ArrayList<>();
+        Map<String, AssociationJoins.AssocJoin> joinsByChain = new LinkedHashMap<>();
         // Per chain-prefix leaf demand: for [firm, country], hop 'firm'
         // must materialize firm's OWN slots feeding 'country'.
-        Map<String, Set<String>> leavesByChain = new java.util.LinkedHashMap<>();
-        for (java.util.List<String> path : paths) {
+        Map<String, Set<String>> leavesByChain = new LinkedHashMap<>();
+        for (List<String> path : paths) {
             for (int i = 0; i + 1 < path.size(); i++) {
                 leavesByChain.computeIfAbsent(String.join(".", path.subList(0, i + 1)),
-                        k -> new java.util.LinkedHashSet<>()).add(path.get(i + 1));
+                        k -> new LinkedHashSet<>()).add(path.get(i + 1));
             }
         }
-        for (java.util.List<String> path : paths) {
+        for (List<String> path : paths) {
             if (path.size() < 2
                     || cs.bindings().containsKey(SyntheticHeads.realHead(path.get(0)))) {
                 continue;   // 1-hop, or embedded/slot heads (substitution-side)
@@ -1459,23 +1472,23 @@ public final class StoreResolver {
                             parentPrefix + path.get(hop), cs, joinsByChain);
                     final String pp2 = parentPrefix;
                     TypedLambda cond = aj.condition();
-                    java.util.List<com.legend.compiler.element.type.Type.Column>
+                    List<Type.Column>
                             leftCols = new ArrayList<>();
-                    for (com.legend.compiler.element.type.Type.Column c
-                            : ((com.legend.compiler.element.type.Type.RelationType)
+                    for (Type.Column c
+                            : ((Type.RelationType)
                                     parent.rowType()).columns()) {
-                        leftCols.add(new com.legend.compiler.element.type.Type.Column(
+                        leftCols.add(new Type.Column(
                                 pp2 + c.name(), c.type(), c.multiplicity()));
                     }
-                    var leftRow = new com.legend.compiler.element.type.Type.RelationType(leftCols);
+                    var leftRow = new Type.RelationType(leftCols);
                     String leftParam = cond.parameters().get(0);
                     TypedSpec body = Pipelines.prefixColumns(
                             cond.body().get(cond.body().size() - 1), leftParam, pp2,
-                            v -> new com.legend.compiler.spec.typed.TypedVariable(leftParam,
-                                    new com.legend.compiler.element.type.ExprType(leftRow,
+                            v -> new TypedVariable(leftParam,
+                                    new ExprType(leftRow,
                                             com.legend.compiler.element.type.Multiplicity
                                                     .Bounded.ONE)));
-                    cond = new TypedLambda(cond.parameters(), java.util.List.of(body),
+                    cond = new TypedLambda(cond.parameters(), List.of(body),
                             cond.info());
                     aj = new AssociationJoins.AssocJoin(chainPrefix, aj.target(), aj.targetPipeline(),
                             aj.targetRow(), cond, aj.targetSlotPrefixes());
@@ -1503,26 +1516,26 @@ public final class StoreResolver {
             String headKey = extra.getKey();
             String alias = extra.getValue();
             var nav = navSteps.get(alias);
-            String targetClass = ((com.legend.compiler.spec.typed.TypedGetAll)
+            String targetClass = ((TypedGetAll)
                     nav.target()).classFqn();
             ClassSource target = sources.get(cs.mappingFqn(), targetClass);
             NavMaterializer.NavMat mat = navMaterializer.navTargetMaterialized(temporal, cs.mappingFqn(),
                     targetClass,
-                    extraNavTails.getOrDefault(headKey, java.util.List.of()),
+                    extraNavTails.getOrDefault(headKey, List.of()),
                     headKey, null);
             // the slot route's root stamp comes from the outer join-walk
             // (navPrefixToChain); an extra join never passes it — stamp
             // here, exactly the association route's emission
             TypedSpec tPipe = temporal.temporalTargetPipe(cs, target, headKey,
                     temporal.applyJoinTemporalFilters(mat.pipeline(), target,
-                            java.util.Map.of()));
+                            Map.of()));
             TypedLambda lp = synthetics.pred(headKey);
             if (lp != null) {
                 tPipe = predFilteredPipe(tPipe, target, mat.slotPrefixes(),
                         lp, cs.mappingFqn());
             }
             AssociationJoins.AssocJoin aj = new AssociationJoins.AssocJoin(AssociationJoins.prefixFor(headKey, cs), target, tPipe,
-                    (com.legend.compiler.element.type.Type.RelationType)
+                    (Type.RelationType)
                             tPipe.info().type(),
                     nav.predicate(), mat.slotPrefixes());
             assocJoins.add(aj);
@@ -1600,7 +1613,7 @@ public final class StoreResolver {
             }
             if (cur instanceof TypedNativeCall nc && isStaticAt(nc)) {
                 // at(k) over instances = the k-th row: slice(k, k+1)
-                long k = ((com.legend.compiler.spec.typed.TypedCInteger)
+                long k = ((TypedCInteger)
                         nc.args().get(1)).value().longValue();
                 cur = new TypedSlice(nc.args().get(0),
                         new TypedCInteger(k, com.legend.compiler.element.type
@@ -1662,9 +1675,9 @@ public final class StoreResolver {
         // audit 10: never read the PREVIOUS getAll's context — a fresh
         // frame per resolution entry, ONE construction site
         temporal = new TemporalFrame(ctx, sources, TemporalContext.NONE,
-                java.util.Map.of());
+                Map.of());
         {
-            java.util.List<TypedSpec> nd =
+            List<TypedSpec> nd =
                     temporal.normalizeContextDates(g.milestoning());
             String rootStrat = temporal.temporalStrategy(g.classFqn());
             TemporalContext rc = TemporalContext.NONE;
@@ -1681,7 +1694,7 @@ public final class StoreResolver {
             } else if (nd.size() == 1 && rootStrat != null) {
                 rc = TemporalContext.single(rootStrat, nd.get(0));
             }
-            temporal = new TemporalFrame(ctx, sources, rc, java.util.Map.of());
+            temporal = new TemporalFrame(ctx, sources, rc, Map.of());
         }
         final Context fctx = chainContext;
         ClassSource cs = sources.get(dispatch(fctx, g.classFqn()), g.classFqn(),
@@ -1703,9 +1716,9 @@ public final class StoreResolver {
      * throw never fires for split chains. Mutates {@code ops} in place;
      * returns the (possibly rewritten) terminal. */
     private TypedSpec splitDatedHeads(List<TypedSpec> ops, TypedSpec top) {
-        java.util.Map<String, java.util.List<com.legend.compiler.spec.typed
+        Map<String, List<com.legend.compiler.spec.typed
                 .TypedMilestonedAccess>> datedByChain =
-                new java.util.LinkedHashMap<>();
+                new LinkedHashMap<>();
         for (TypedSpec op : ops) {
             if (op instanceof TypedFilter f) {
                 for (TypedSpec b : f.predicate().body()) {
@@ -1727,11 +1740,11 @@ public final class StoreResolver {
                 }
             }
         }
-        java.util.IdentityHashMap<TypedSpec, String> dateRenames =
-                new java.util.IdentityHashMap<>();
+        IdentityHashMap<TypedSpec, String> dateRenames =
+                new IdentityHashMap<>();
         for (var chainDates : datedByChain.entrySet()) {
-            java.util.Map<TemporalFrame.TemporalSpec, String> byArgs =
-                    new java.util.LinkedHashMap<>();
+            Map<TemporalFrame.TemporalSpec, String> byArgs =
+                    new LinkedHashMap<>();
             for (var ma : chainDates.getValue()) {
                 TemporalFrame.TemporalSpec spec = new TemporalFrame.TemporalSpec(
                         temporal.normalizeContextDates(ma.dates()), ma.sweep());
@@ -1758,10 +1771,10 @@ public final class StoreResolver {
     /** Milestoned property functions: each head's temporal arguments,
      * chain-keyed (conflicting dates for one chain are loud — the date
      * split renamed genuine two-date heads before this runs). */
-    private java.util.Map<String, TemporalFrame.TemporalSpec> collectChainSpecs(
+    private Map<String, TemporalFrame.TemporalSpec> collectChainSpecs(
             List<TypedSpec> ops, TypedSpec top, List<TypedGraphTree> tree) {
-        java.util.Map<String, TemporalFrame.TemporalSpec> specs =
-                new java.util.LinkedHashMap<>();
+        Map<String, TemporalFrame.TemporalSpec> specs =
+                new LinkedHashMap<>();
         for (TypedSpec op : ops) {
             if (op instanceof TypedFilter f) {
                 temporal.collectTemporalSpecs(f.predicate(), specs);
@@ -1797,10 +1810,10 @@ public final class StoreResolver {
         // ENTRY RULE (learned three times now): scans enter through the
         // lambda's BODY — entering via the lambda itself trips the shadow
         // stop on its own parameter.
-        Set<java.util.List<String>> filterPaths = new java.util.LinkedHashSet<>();
-        Set<java.util.List<String>> projectionPaths = new java.util.LinkedHashSet<>();
-        Map<String, java.util.List<AggDemand>> aggDemands =
-                new java.util.LinkedHashMap<>();
+        Set<List<String>> filterPaths = new LinkedHashSet<>();
+        Set<List<String>> projectionPaths = new LinkedHashSet<>();
+        Map<String, List<AggDemand>> aggDemands =
+                new LinkedHashMap<>();
         for (TypedSpec op : ops) {
             if (op instanceof TypedFilter f) {
                 for (TypedSpec b : f.predicate().body()) {
@@ -1824,7 +1837,7 @@ public final class StoreResolver {
             // buildGraphNode, not the demand scan.
             for (TypedGraphTree node : tree) {
                 if (node.children().isEmpty()) {
-                    projectionPaths.add(java.util.List.of(node.property()));
+                    projectionPaths.add(List.of(node.property()));
                 }
             }
         } else {
@@ -1835,7 +1848,7 @@ public final class StoreResolver {
                 }
             }
         }
-        Set<java.util.List<String>> paths = new java.util.LinkedHashSet<>(filterPaths);
+        Set<List<String>> paths = new LinkedHashSet<>(filterPaths);
         paths.addAll(projectionPaths);
 
         temporal = temporal.withSpecs(collectChainSpecs(ops, top, tree));
@@ -1847,7 +1860,7 @@ public final class StoreResolver {
         Map<String, NavMaterializer.NavMat> navMats = navPlan.navMats();
         Map<String, String> navHeadByAlias = navPlan.navHeadByAlias();
         Map<String, String> extraNavHeads = navPlan.extraNavHeads();
-        Map<String, java.util.List<java.util.List<String>>> extraNavTails =
+        Map<String, List<List<String>>> extraNavTails =
                 navPlan.extraNavTails();
         var navSteps = navPlan.navSteps();
 
@@ -1868,7 +1881,7 @@ public final class StoreResolver {
 
         AssocPlan assocPlan = registerAssociationJoins(cs, paths, context,
                 navSteps, extraNavHeads, extraNavTails, assocs);
-        java.util.List<AssociationJoins.AssocJoin> assocJoins = assocPlan.assocJoins();
+        List<AssociationJoins.AssocJoin> assocJoins = assocPlan.assocJoins();
         Map<String, AssociationJoins.AssocJoin> joinsByChain = assocPlan.joinsByChain();
 
         // 2a'. JOIN-KEY COLLECTION under mapping ~distinct (engine L5135):
@@ -1877,9 +1890,9 @@ public final class StoreResolver {
         // over the widened row, exactly the engine's query-dependent
         // distinct tuple). Aggregated-navigation materials build here so
         // their conditions participate.
-        Map<String, AssociationJoins.AssocJoin> aggMaterials = new java.util.LinkedHashMap<>();
+        Map<String, AssociationJoins.AssocJoin> aggMaterials = new LinkedHashMap<>();
         for (var entry : aggDemands.entrySet()) {
-            Set<String> leaves = new java.util.LinkedHashSet<>();
+            Set<String> leaves = new LinkedHashSet<>();
             for (AggDemand dm : entry.getValue()) {
                 leaves.add(dm.leaf());
             }
@@ -1887,7 +1900,7 @@ public final class StoreResolver {
                     assocMaterial.aggJoinMaterial(temporal, cs, entry.getKey(),
                             context, leaves));
         }
-        Set<String> joinKeyReads = new java.util.LinkedHashSet<>();
+        Set<String> joinKeyReads = new LinkedHashSet<>();
         for (AssociationJoins.AssocJoin aj : assocJoins) {
             collectParamColumnReads(aj.condition(), joinKeyReads);
         }
@@ -1916,12 +1929,12 @@ public final class StoreResolver {
         JoinedPipe joined = foldAssociationJoins(cs, m, keyWidenedPipe,
                 assocJoins, aggMaterials, aggDemands);
         m = joined.m();
-        java.util.List<AssociationJoins.AssocJoin> aggAssocJoins = joined.aggAssocJoins();
+        List<AssociationJoins.AssocJoin> aggAssocJoins = joined.aggAssocJoins();
         Map<TypedSpec, Substitution.AggRead> aggReads = joined.aggReads();
 
         // Association-end names for honest bare-head errors (audit R3).
-        Set<String> assocEnds = new java.util.LinkedHashSet<>(assocs.keySet());
-        for (java.util.List<String> path : paths) {
+        Set<String> assocEnds = new LinkedHashSet<>(assocs.keySet());
+        for (List<String> path : paths) {
             if (!cs.bindings().containsKey(path.get(0))
                     && ctx.findAssociationOf(cs.classFqn(), path.get(0)).isPresent()) {
                 assocEnds.add(path.get(0));
@@ -1932,7 +1945,7 @@ public final class StoreResolver {
         // The fresh row var must not collide with ANY lambda parameter in
         // reach (user lambdas may legally be named _rN — audit capture
         // finding); scan and skip.
-        Set<String> paramsInReach = new java.util.LinkedHashSet<>();
+        Set<String> paramsInReach = new LinkedHashSet<>();
         for (TypedSpec op : ops) {
             collectLambdaParams(op, paramsInReach);
         }
@@ -1991,12 +2004,12 @@ public final class StoreResolver {
         final TypedSpec base = pipeline;
         final Pipelines.Materialized fm = m;
         final String fv = fresh;
-        java.util.function.Function<TypedLambda, TypedLambda> sub = fn ->
+        Function<TypedLambda, TypedLambda> sub = fn ->
                 substitution(cs, fm, assocs, assocEnds, existsSubs, aggReads, false, fv, fn)
                         .rewriteLambda(fn);
         // An agg map may be the BARE instance var (x|$x : y|$y->count()) —
         // COUNT(*)-style; it becomes the identity over the row.
-        java.util.function.Function<TypedAggCol, TypedAggCol> subAgg = a ->
+        Function<TypedAggCol, TypedAggCol> subAgg = a ->
                 new TypedAggCol(a.name(),
                         isBareUserVar(a.map())
                                 ? substitution(cs, fm, assocs, assocEnds, existsSubs,
@@ -2010,7 +2023,7 @@ public final class StoreResolver {
                     p.info());
             case TypedGroupBy gb -> new TypedGroupBy(base,
                     gb.keys().stream().map(k -> new TypedGroupBy.GroupKey(k.column(),
-                            java.util.Optional.of(sub.apply(k.fn().orElseThrow(() ->
+                            Optional.of(sub.apply(k.fn().orElseThrow(() ->
                                     new NotImplementedException("class-source groupBy"
                                             + " key '" + k.column() + "' without an"
                                             + " extraction lambda is not supported"
@@ -2038,7 +2051,7 @@ public final class StoreResolver {
     /** {@code x|$x} — the whole-instance map of a COUNT(*)-style aggregate. */
     private static boolean isBareUserVar(TypedLambda l) {
         return l.body().size() == 1
-                && l.body().get(0) instanceof com.legend.compiler.spec.typed.TypedVariable v
+                && l.body().get(0) instanceof TypedVariable v
                 && l.parameters().size() == 1
                 && v.name().equals(l.parameters().get(0));
     }
@@ -2056,13 +2069,13 @@ public final class StoreResolver {
     static String navSlotAlias(TypedSpec binding, String rowVar,
                                        Set<String> navAliases) {
         TypedSpec inner = binding;
-        if (inner instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+        if (inner instanceof TypedNativeCall c
                 && c.args().size() == 1
                 && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
             inner = c.args().get(0);
         }
-        if (inner instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
-                && pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
+        if (inner instanceof TypedPropertyAccess pa
+                && pa.source() instanceof TypedVariable v
                 && v.name().equals(rowVar)
                 && navAliases.contains(pa.property())) {
             return pa.property();
@@ -2074,10 +2087,10 @@ public final class StoreResolver {
      * {@link #collectTemporalNodes}'s walk — anything the conflict
      * detector would see, the date splitter sees first). */
     private static void collectDatedNodes(TypedSpec n, String userVar,
-            java.util.Map<String, java.util.List<com.legend.compiler.spec.typed
+            Map<String, List<com.legend.compiler.spec.typed
                     .TypedMilestonedAccess>> out) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedMilestonedAccess ma) {
-            java.util.List<String> p = Substitution.pathOf(ma, userVar);
+        if (n instanceof TypedMilestonedAccess ma) {
+            List<String> p = Substitution.pathOf(ma, userVar);
             if (p != null) {
                 out.computeIfAbsent(String.join(".", p),
                         k -> new ArrayList<>()).add(ma);
@@ -2100,25 +2113,25 @@ public final class StoreResolver {
      * row and the outer join-stamping never double-stamps.
      */
     static TypedSpec predFilteredPipe(TypedSpec tPipe, ClassSource target,
-            java.util.Map<String, String> slotPrefixes, TypedLambda pred,
+            Map<String, String> slotPrefixes, TypedLambda pred,
             String mappingFqn) {
-        Set<String> unconverted = new java.util.LinkedHashSet<>(
+        Set<String> unconverted = new LinkedHashSet<>(
                 Pipelines.slotAliases(target.pipeline()));
         unconverted.removeAll(slotPrefixes.keySet());
         Substitution predSub = new Substitution(new Substitution.Target(
                 new Substitution.RowScope(pred.parameters().get(0),
                         target.rowVar(), target.classFqn(), mappingFqn,
                         target.rowVar(), target.bindings(),
-                        (com.legend.compiler.element.type.Type.RelationType)
+                        (Type.RelationType)
                                 tPipe.info().type(),
-                        unconverted, slotPrefixes, java.util.Map.of()),
+                        unconverted, slotPrefixes, Map.of()),
                 Substitution.Registries.NONE, Substitution.TemporalView.NONE,
                 true, true));
         return new TypedFilter(tPipe, predSub.rewriteLambda(pred),
                 tPipe.info());
     }
 
-    private static void scanLambda(TypedLambda lambda, Set<java.util.List<String>> out) {
+    private static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
         for (TypedSpec b : lambda.body()) {
             consumedPaths(b, lambda.parameters().get(0), out);
         }
@@ -2126,8 +2139,8 @@ public final class StoreResolver {
 
     /** The demand half of the shared funnel: every $p.<path> read in a lambda. */
     private static void consumedPaths(TypedSpec n, String userVar,
-                                      Set<java.util.List<String>> out) {
-        java.util.List<String> path = Substitution.pathOf(n, userVar);
+                                      Set<List<String>> out) {
+        List<String> path = Substitution.pathOf(n, userVar);
         if (path != null) {
             out.add(path);
         }
@@ -2144,12 +2157,12 @@ public final class StoreResolver {
     private static final Set<String> AGG_FQNS = aggFqns();
 
     private static Set<String> aggFqns() {
-        Set<String> out = new java.util.LinkedHashSet<>();
-        for (String name : java.util.List.of("average", "mean", "sum", "max",
+        Set<String> out = new LinkedHashSet<>();
+        for (String name : List.of("average", "mean", "sum", "max",
                 "min", "joinStrings", "percentile", "median",
                 "stdDevPopulation", "stdDevSample",
                 "variancePopulation", "varianceSample", "count", "size")) {
-            for (var f : com.legend.builtin.Pure.nativeFunctionsAt(name)) {
+            for (var f : Pure.nativeFunctionsAt(name)) {
                 out.add(f.qualifiedName());
             }
         }
@@ -2157,7 +2170,7 @@ public final class StoreResolver {
     }
 
     /** COUNT over no children is pure 0 — the LEFT join delivers NULL. */
-    private static boolean isCountFamily(com.legend.compiler.spec.typed.TypedNativeCall nc) {
+    private static boolean isCountFamily(TypedNativeCall nc) {
         String q = nc.callee().qualifiedName();
         return q.equals("meta::pure::functions::collection::count")
                 || q.equals("meta::pure::functions::collection::size");
@@ -2167,7 +2180,7 @@ public final class StoreResolver {
      * position: {@code $f.employees.age->max()}. Substitutes as a column
      * read off the head's grouped-subselect join (engine subAggregation
      * shape) — the path is NOT bare-demanded, so no row explosion. */
-    private record AggDemand(com.legend.compiler.spec.typed.TypedNativeCall node,
+    private record AggDemand(TypedNativeCall node,
                              String leaf) {}
 
     /**
@@ -2177,12 +2190,12 @@ public final class StoreResolver {
      * traversal — the two demand kinds cannot double-count a path).
      */
     private void aggScan(TypedSpec n, String userVar, ClassSource cs,
-                         Map<String, java.util.List<AggDemand>> aggOut,
-                         Set<java.util.List<String>> bareOut) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                         Map<String, List<AggDemand>> aggOut,
+                         Set<List<String>> bareOut) {
+        if (n instanceof TypedNativeCall nc
                 && !nc.args().isEmpty()
                 && AGG_FQNS.contains(nc.callee().qualifiedName())) {
-            java.util.List<String> path =
+            List<String> path =
                     Substitution.pathOf(nc.args().get(0), userVar);
             if (path != null && path.size() == 2
                     && isToManyAssocHead(cs, path.get(0))) {
@@ -2210,7 +2223,7 @@ public final class StoreResolver {
                         + " containing a to-many navigation is not supported yet");
             }
         }
-        java.util.List<String> path = Substitution.pathOf(n, userVar);
+        List<String> path = Substitution.pathOf(n, userVar);
         if (path != null) {
             bareOut.add(path);
         }
@@ -2224,7 +2237,7 @@ public final class StoreResolver {
 
     /** Any {@code $p.<toManyHead>.<...>} read anywhere under {@code n}. */
     private boolean containsToManyCrossing(TypedSpec n, String userVar, ClassSource cs) {
-        java.util.List<String> path = Substitution.pathOf(n, userVar);
+        List<String> path = Substitution.pathOf(n, userVar);
         if (path != null && path.size() >= 2 && isToManyAssocHead(cs, path.get(0))) {
             return true;
         }
@@ -2247,20 +2260,20 @@ public final class StoreResolver {
      * bare demand exactly as {@link #consumedPaths}.
      */
     private void memberScan(TypedSpec n, String userVar, ClassSource cs,
-                            Set<java.util.List<String>> out) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall mc
+                            Set<List<String>> out) {
+        if (n instanceof TypedNativeCall mc
                 && mc.args().size() == 2) {
             String key = mc.callee().signatureKey();
-            boolean isContains = com.legend.builtin.Pure.nativeNamed("contains", key);
-            boolean isIn = com.legend.builtin.Pure.nativeNamed("in", key);
+            boolean isContains = Pure.nativeNamed("contains", key);
+            boolean isIn = Pure.nativeNamed("in", key);
             if (isContains || isIn) {
                 TypedSpec coll = isContains ? mc.args().get(0) : mc.args().get(1);
                 TypedSpec other = isContains ? mc.args().get(1) : mc.args().get(0);
-                java.util.List<String> cp = coll
-                        instanceof com.legend.compiler.spec.typed.TypedPropertyAccess
+                List<String> cp = coll
+                        instanceof TypedPropertyAccess
                         ? Substitution.pathOf(coll, userVar) : null;
                 if (cp != null && cp.size() == 2 && isToManyAssocHead(cs, cp.get(0))) {
-                    out.add(java.util.List.of(cp.get(0)));
+                    out.add(List.of(cp.get(0)));
                     memberScan(other, userVar, cs, out);
                     return;
                 }
@@ -2269,7 +2282,7 @@ public final class StoreResolver {
         // LOUD (audit 9): an aggregate over a to-many crossing in FILTER
         // position would join-explode and the reducer's to-one identity
         // silently eats the aggregate (max() > 30 becoming any-match).
-        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall ac
+        if (n instanceof TypedNativeCall ac
                 && !ac.args().isEmpty()
                 && AGG_FQNS.contains(ac.callee().qualifiedName())
                 && containsToManyCrossing(ac.args().get(0), userVar, cs)) {
@@ -2277,7 +2290,7 @@ public final class StoreResolver {
                     + ac.callee().qualifiedName() + "' over a to-many"
                     + " navigation in FILTER position is not supported yet");
         }
-        java.util.List<String> path = Substitution.pathOf(n, userVar);
+        List<String> path = Substitution.pathOf(n, userVar);
         if (path != null) {
             out.add(path);
         }
@@ -2309,7 +2322,7 @@ public final class StoreResolver {
                 return false;   // embedded/otherwise heads keep their routes
             }
             var nav = navSteps.get(alias);
-            return nav.target() instanceof com.legend.compiler.spec.typed.TypedGetAll tg
+            return nav.target() instanceof TypedGetAll tg
                     && sources.binds(cs.mappingFqn(), tg.classFqn());
         }
         return ctx.findAssociationOf(cs.classFqn(), head).isPresent();
@@ -2321,9 +2334,9 @@ public final class StoreResolver {
      * aggregated subselect. Any other condition shape is loud: joining a
      * grouped subselect on it could match multiple groups (fan-out).
      */
-    private static java.util.List<String> targetEquiKeys(TypedLambda cond,
+    private static List<String> targetEquiKeys(TypedLambda cond,
                                                          String head) {
-        java.util.List<String> keys = new ArrayList<>();
+        List<String> keys = new ArrayList<>();
         if (!collectEquiKeys(cond.body().get(cond.body().size() - 1),
                 cond.parameters().get(0), cond.parameters().get(1), keys)
                 || keys.isEmpty()) {
@@ -2336,8 +2349,8 @@ public final class StoreResolver {
 
     private static boolean collectEquiKeys(TypedSpec n, String srcVar,
                                            String tgtVar,
-                                           java.util.List<String> out) {
-        if (!(n instanceof com.legend.compiler.spec.typed.TypedNativeCall c)) {
+                                           List<String> out) {
+        if (!(n instanceof TypedNativeCall c)) {
             return false;
         }
         String q = c.callee().qualifiedName();
@@ -2364,13 +2377,13 @@ public final class StoreResolver {
     }
 
     private static String bareColumnOn(TypedSpec n, String var) {
-        return n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
-                && pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
+        return n instanceof TypedPropertyAccess pa
+                && pa.source() instanceof TypedVariable v
                 && v.name().equals(var) ? pa.property() : null;
     }
 
     private static boolean referencesVar(TypedSpec n, String var) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedVariable v
+        if (n instanceof TypedVariable v
                 && v.name().equals(var)) {
             return true;
         }
@@ -2386,11 +2399,11 @@ public final class StoreResolver {
      * and strategy flow to SAME-STRATEGY targets navigated through temporal
      * parents (engine: milestoning context does NOT propagate through
      * non-temporal intermediates). Set at each getAll resolution entry. */
-    private static com.legend.compiler.spec.typed.TypedEnumValue leftKind() {
+    private static TypedEnumValue leftKind() {
         String fqn = "meta::pure::functions::relation::JoinKind";
-        return new com.legend.compiler.spec.typed.TypedEnumValue(fqn, "LEFT",
-                new com.legend.compiler.element.type.ExprType(
-                        new com.legend.compiler.element.type.Type.EnumType(fqn),
+        return new TypedEnumValue(fqn, "LEFT",
+                new ExprType(
+                        new Type.EnumType(fqn),
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
     }
 
@@ -2410,9 +2423,9 @@ public final class StoreResolver {
      * head} anywhere in the chain's filters — the inner-lambda demand that
      * materializes the exists target's own slot joins (N1).
      */
-    private static Set<String> existsInnerLeaves(java.util.List<TypedSpec> ops,
+    private static Set<String> existsInnerLeaves(List<TypedSpec> ops,
             String head) {
-        Set<String> out = new java.util.LinkedHashSet<>();
+        Set<String> out = new LinkedHashSet<>();
         for (TypedSpec op : ops) {
             if (op instanceof TypedFilter f) {
                 for (TypedSpec b : f.predicate().body()) {
@@ -2426,17 +2439,17 @@ public final class StoreResolver {
 
     private static void collectExistsInnerLeaves(TypedSpec n, String userVar,
             String head, Set<String> out) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+        if (n instanceof TypedNativeCall c
                 && !c.args().isEmpty()) {
             // unwrap ->filter(f) chains on the receiver: their lambdas
             // demand target leaves too (filter-wrapped emptiness)
             TypedSpec recv = c.args().get(0);
-            java.util.List<TypedLambda> chainLams = new ArrayList<>();
+            List<TypedLambda> chainLams = new ArrayList<>();
             while (recv instanceof TypedFilter tf) {
                 chainLams.add(tf.predicate());
                 recv = tf.source();
             }
-            java.util.List<String> p = Substitution.pathOf(recv, userVar);
+            List<String> p = Substitution.pathOf(recv, userVar);
             if (p != null && p.size() == 1 && p.get(0).equals(head)) {
                 if (c.args().size() == 2
                         && c.args().get(1) instanceof TypedLambda lam
@@ -2464,13 +2477,13 @@ public final class StoreResolver {
      * ({@code isEmpty}/{@code isNotEmpty}/{@code exists} first arg) —
      * the class-typed-leaf EXISTS registration keys off these. */
     private static void collectEmptinessChainPaths(TypedSpec n, String userVar,
-            Set<java.util.List<String>> out) {
+            Set<List<String>> out) {
         if (n instanceof TypedNativeCall c && !c.args().isEmpty()) {
             String key = c.callee().signatureKey();
-            if (com.legend.builtin.Pure.nativeNamed("isEmpty", key)
-                    || com.legend.builtin.Pure.nativeNamed("isNotEmpty", key)
-                    || com.legend.builtin.Pure.nativeNamed("exists", key)) {
-                java.util.List<String> p =
+            if (Pure.nativeNamed("isEmpty", key)
+                    || Pure.nativeNamed("isNotEmpty", key)
+                    || Pure.nativeNamed("exists", key)) {
+                List<String> p =
                         Substitution.pathOf(c.args().get(0), userVar);
                 if (p != null && p.size() >= 2) {
                     out.add(p);
@@ -2488,7 +2501,7 @@ public final class StoreResolver {
     /** Heads of property paths over {@code param} in the lambda's body. */
     static void collectParamPathHeads(TypedSpec n, String param,
             Set<String> out) {
-        java.util.List<String> p = Substitution.pathOf(n, param);
+        List<String> p = Substitution.pathOf(n, param);
         if (p != null && !p.isEmpty()) {
             out.add(p.get(0));
         }
@@ -2499,7 +2512,7 @@ public final class StoreResolver {
 
     /** Whether the pipeline contains a UNION (concatenate) anywhere. */
     static boolean containsConcatenate(TypedSpec pipeline) {
-        if (pipeline instanceof com.legend.compiler.spec.typed.TypedConcatenate) {
+        if (pipeline instanceof TypedConcatenate) {
             return true;
         }
         for (TypedSpec c : pipeline.children()) {
@@ -2532,8 +2545,8 @@ public final class StoreResolver {
     }
 
     private static void collectVarColumnReads(TypedSpec n, String var, Set<String> out) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
-                && pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
+        if (n instanceof TypedPropertyAccess pa
+                && pa.source() instanceof TypedVariable v
                 && v.name().equals(var)) {
             out.add(pa.property());
         }
@@ -2545,8 +2558,8 @@ public final class StoreResolver {
     /** Slot aliases a binding expression reads ($row.alias...). */
     static void collectAliasReads(TypedSpec n, String rowVar,
                                           Set<String> slotAliases, Set<String> out) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
-                && pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
+        if (n instanceof TypedPropertyAccess pa
+                && pa.source() instanceof TypedVariable v
                 && v.name().equals(rowVar)
                 && slotAliases.contains(pa.property())) {
             out.add(pa.property());
@@ -2567,7 +2580,7 @@ public final class StoreResolver {
                 new Substitution.RowScope(userLambda.parameters().get(0),
                         freshRowVar, cs.classFqn(), cs.mappingFqn(),
                         cs.rowVar(), cs.bindings(),
-                        (com.legend.compiler.element.type.Type.RelationType)
+                        (Type.RelationType)
                                 m.pipeline().info().type(),
                         m.stripped(), m.slotPrefixes(),
                         temporal.milestoneColumnsOf(cs.pipeline(),
@@ -2580,13 +2593,13 @@ public final class StoreResolver {
     }
 
     /** Any registered equal overload — membership-crossing emission. */
-    private com.legend.compiler.element.TypedFunction equalCallee() {
+    private TypedFunction equalCallee() {
         var fns = ctx.findFunction("equal");
         return fns.isEmpty() ? null : fns.get(0);
     }
 
     /** Any registered isNotEmpty overload — the lowerer dispatches by family. */
-    private com.legend.compiler.element.TypedFunction isNotEmptyCallee() {
+    private TypedFunction isNotEmptyCallee() {
         var fns = ctx.findFunction("isNotEmpty");
         if (fns.isEmpty()) {
             throw new IllegalStateException("resolver bug: no isNotEmpty registration");
@@ -2613,8 +2626,8 @@ public final class StoreResolver {
             // mapping). A 2-binder error is ambiguity, not poisoning.
             StringBuilder why = new StringBuilder();
             if (binders.isEmpty()) {
-                java.util.Set<String> seen = new java.util.LinkedHashSet<>();
-                java.util.ArrayDeque<String> queue = new java.util.ArrayDeque<>(rt.mappings());
+                Set<String> seen = new LinkedHashSet<>();
+                ArrayDeque<String> queue = new ArrayDeque<>(rt.mappings());
                 while (!queue.isEmpty()) {
                     String m = queue.poll();
                     if (!seen.add(m)) {

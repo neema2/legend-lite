@@ -1,9 +1,9 @@
 package com.legend.lowering;
 
 import com.legend.builtin.Pure;
-
+import com.legend.compiler.element.TypedFunction;
+import java.util.HashMap;
 import java.util.Map;
-
 /**
  * Window-native dispatch: the RESOLVED overload of a window-column body
  * ({@code $p->lag($r)}, {@code rank($p, $w, $r)}) &rarr; its SQL window
@@ -19,7 +19,7 @@ final class Windows {
     record WindowFn(String sqlName, Kind kind) {
     }
 
-    private static final Map<String, WindowFn> FNS = new java.util.HashMap<>();
+    private static final Map<String, WindowFn> FNS = new HashMap<>();
 
     private Windows() {
     }
@@ -31,7 +31,7 @@ final class Windows {
     }
 
     /** SQL reducer names for the 4-arg colToAgg window aggregates. */
-    private static final Map<String, String> AGGREGATES = new java.util.HashMap<>();
+    private static final Map<String, String> AGGREGATES = new HashMap<>();
 
     static {
         family("ROW_NUMBER", Kind.RANKING, "rowNumber");
@@ -74,12 +74,12 @@ final class Windows {
     }
 
     /** The SQL reducer for a 4-arg window-aggregate callee, or null. */
-    static String aggregate(com.legend.compiler.element.TypedFunction callee) {
+    static String aggregate(TypedFunction callee) {
         return AGGREGATES.get(callee.signatureKey());
     }
 
     /** The window fn for a resolved overload, or null when it is not a window native. */
-    static WindowFn lookup(com.legend.compiler.element.TypedFunction callee) {
+    static WindowFn lookup(TypedFunction callee) {
         return FNS.get(callee.signatureKey());
     }
 }

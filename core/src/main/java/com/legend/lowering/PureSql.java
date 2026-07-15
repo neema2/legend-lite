@@ -4,7 +4,7 @@ import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 import com.legend.sql.SqlType;
-
+import java.util.List;
 /**
  * THE Pure→SQL type boundary (LEGEND_SQL_VISION.md): the one place Pure's
  * type system meets the SQL layer's. Pure Integer is 64-bit → BIGINT is
@@ -68,7 +68,7 @@ final class PureSql {
                 }
                 // Pair<U,V> travels as STRUCT(first, second); Map<U,V> as MAP.
                 if (PlatformTypes.isPairCarrier(g)) {
-                    yield new SqlType.Struct(java.util.List.of(
+                    yield new SqlType.Struct(List.of(
                             new SqlType.Struct.Field("first", type(g.arguments().get(0))),
                             new SqlType.Struct.Field("second", type(g.arguments().get(1)))));
                 }

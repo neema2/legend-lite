@@ -1,5 +1,7 @@
 package com.legend.resolver;
 
+import com.legend.builtin.Pure;
+import com.legend.compiler.element.TypedFunction;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
@@ -11,20 +13,30 @@ import com.legend.compiler.spec.typed.TypedCInteger;
 import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedEnumValue;
+import com.legend.compiler.spec.typed.TypedFilter;
+import com.legend.compiler.spec.typed.TypedFuncCol;
 import com.legend.compiler.spec.typed.TypedIf;
 import com.legend.compiler.spec.typed.TypedLambda;
+import com.legend.compiler.spec.typed.TypedLimit;
+import com.legend.compiler.spec.typed.TypedMap;
+import com.legend.compiler.spec.typed.TypedMilestonedAccess;
 import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedNewInstance;
+import com.legend.compiler.spec.typed.TypedNewInstanceCast;
+import com.legend.compiler.spec.typed.TypedProject;
 import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.error.MappingResolutionException;
 import com.legend.error.NotImplementedException;
-
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
+import java.util.Optional;
+import java.util.Set;
 /**
  * The &beta;-substitution engine: rewrites a user lambda written over CLASS
  * instances into the same expression over the mapping pipeline's ROW,
@@ -50,7 +62,7 @@ final class Substitution {
     record RowScope(String userVar, String freshRowVar, String classFqn,
                     String mappingFqn, String sourceRowVar,
                     Map<String, TypedSpec> bindings, Type.RelationType rowType,
-                    java.util.Set<String> strippedSlots,
+                    Set<String> strippedSlots,
                     Map<String, String> slotPrefixes,
                     Map<String, String> milestoneColumns) {}
 
@@ -58,26 +70,26 @@ final class Substitution {
      * honest-error end names, the exists materials, the aggregate reads
      * (identity-keyed), and the boolean-machinery callees. */
     record Registries(Map<String, AssocSub> assocs,
-                      java.util.Set<String> assocEnds,
+                      Set<String> assocEnds,
                       Map<String, ExistsSub> existsSubs,
                       Map<TypedSpec, AggRead> aggReads,
-                      com.legend.compiler.element.TypedFunction isNotEmptyCallee,
-                      com.legend.compiler.element.TypedFunction equalCallee) {
+                      TypedFunction isNotEmptyCallee,
+                      TypedFunction equalCallee) {
 
         /** Inner substitutions (exists/pred rewrites) carry NO registries:
          * nested navigation stays loud by construction. */
         static final Registries NONE = new Registries(Map.of(),
-                java.util.Set.of(), Map.of(), Map.of(), null, null);
+                Set.of(), Map.of(), Map.of(), null, null);
     }
 
     /** The temporal reads the substitution serves (generated-date
      * properties): the root context's point dates and the per-chain
      * property-function dates — legacy list shapes at this boundary. */
-    record TemporalView(java.util.List<TypedSpec> rootTemporalDates,
-                        Map<String, java.util.List<TypedSpec>> headTemporalDates) {
+    record TemporalView(List<TypedSpec> rootTemporalDates,
+                        Map<String, List<TypedSpec>> headTemporalDates) {
 
         static final TemporalView NONE =
-                new TemporalView(java.util.List.of(), Map.of());
+                new TemporalView(List.of(), Map.of());
     }
 
     /** The instantiation being substituted into. Composed of the row
@@ -114,7 +126,7 @@ final class Substitution {
             return row.rowType();
         }
 
-        java.util.Set<String> strippedSlots() {
+        Set<String> strippedSlots() {
             return row.strippedSlots();
         }
 
@@ -130,7 +142,7 @@ final class Substitution {
             return regs.assocs();
         }
 
-        java.util.Set<String> assocEnds() {
+        Set<String> assocEnds() {
             return regs.assocEnds();
         }
 
@@ -142,19 +154,19 @@ final class Substitution {
             return regs.aggReads();
         }
 
-        com.legend.compiler.element.TypedFunction isNotEmptyCallee() {
+        TypedFunction isNotEmptyCallee() {
             return regs.isNotEmptyCallee();
         }
 
-        com.legend.compiler.element.TypedFunction equalCallee() {
+        TypedFunction equalCallee() {
             return regs.equalCallee();
         }
 
-        java.util.List<TypedSpec> rootTemporalDates() {
+        List<TypedSpec> rootTemporalDates() {
             return temporal.rootTemporalDates();
         }
 
-        Map<String, java.util.List<TypedSpec>> headTemporalDates() {
+        Map<String, List<TypedSpec>> headTemporalDates() {
             return temporal.headTemporalDates();
         }
     }
@@ -171,14 +183,14 @@ final class Substitution {
     record ExistsSub(TypedSpec targetPipeline, TypedLambda orientedCond,
                      String targetRowVar, Map<String, TypedSpec> targetBindings,
                      Type.RelationType targetRow, String targetClassFqn,
-                     java.util.Set<String> targetSlotAliases,
+                     Set<String> targetSlotAliases,
                      Map<String, String> targetSlotPrefixes, boolean toMany,
                      TypedSpec scalarPipeline, Type.RelationType scalarRow) {
 
         ExistsSub(TypedSpec targetPipeline, TypedLambda orientedCond,
                   String targetRowVar, Map<String, TypedSpec> targetBindings,
                   Type.RelationType targetRow, String targetClassFqn,
-                  java.util.Set<String> targetSlotAliases, boolean toMany) {
+                  Set<String> targetSlotAliases, boolean toMany) {
             this(targetPipeline, orientedCond, targetRowVar, targetBindings,
                     targetRow, targetClassFqn, targetSlotAliases, Map.of(), toMany,
                     targetPipeline, targetRow);
@@ -187,7 +199,7 @@ final class Substitution {
         ExistsSub(TypedSpec targetPipeline, TypedLambda orientedCond,
                   String targetRowVar, Map<String, TypedSpec> targetBindings,
                   Type.RelationType targetRow, String targetClassFqn,
-                  java.util.Set<String> targetSlotAliases,
+                  Set<String> targetSlotAliases,
                   Map<String, String> targetSlotPrefixes, boolean toMany) {
             this(targetPipeline, orientedCond, targetRowVar, targetBindings,
                     targetRow, targetClassFqn, targetSlotAliases,
@@ -217,7 +229,7 @@ final class Substitution {
 
     record AssocSub(String prefix, String targetRowVar,
                     Map<String, TypedSpec> targetBindings, String targetClassFqn,
-                    java.util.Set<String> targetSlotAliases,
+                    Set<String> targetSlotAliases,
                     Map<String, String> targetSlotPrefixes,
                     String readVar, Type.RelationType readRowType,
                     Map<String, String> targetMilestoneColumns,
@@ -225,14 +237,14 @@ final class Substitution {
 
         AssocSub(String prefix, String targetRowVar,
                  Map<String, TypedSpec> targetBindings, String targetClassFqn,
-                 java.util.Set<String> targetSlotAliases) {
+                 Set<String> targetSlotAliases) {
             this(prefix, targetRowVar, targetBindings, targetClassFqn,
                     targetSlotAliases, Map.of(), null, null, Map.of(), Map.of());
         }
 
         AssocSub(String prefix, String targetRowVar,
                  Map<String, TypedSpec> targetBindings, String targetClassFqn,
-                 java.util.Set<String> targetSlotAliases,
+                 Set<String> targetSlotAliases,
                  Map<String, String> targetSlotPrefixes) {
             this(prefix, targetRowVar, targetBindings, targetClassFqn,
                     targetSlotAliases, targetSlotPrefixes, null, null, Map.of(),
@@ -241,7 +253,7 @@ final class Substitution {
 
         AssocSub(String prefix, String targetRowVar,
                  Map<String, TypedSpec> targetBindings, String targetClassFqn,
-                 java.util.Set<String> targetSlotAliases,
+                 Set<String> targetSlotAliases,
                  Map<String, String> targetSlotPrefixes,
                  String readVar, Type.RelationType readRowType) {
             this(prefix, targetRowVar, targetBindings, targetClassFqn,
@@ -251,7 +263,7 @@ final class Substitution {
 
         AssocSub(String prefix, String targetRowVar,
                  Map<String, TypedSpec> targetBindings, String targetClassFqn,
-                 java.util.Set<String> targetSlotAliases,
+                 Set<String> targetSlotAliases,
                  Map<String, String> targetSlotPrefixes,
                  String readVar, Type.RelationType readRowType,
                  Map<String, String> targetMilestoneColumns) {
@@ -311,7 +323,7 @@ final class Substitution {
      * (H3 extends this to multi-hop paths; DemandScan shares it.)
      */
     static String propertyOnUserVar(TypedSpec n, String userVar) {
-        java.util.List<String> p = pathOf(n, userVar);
+        List<String> p = pathOf(n, userVar);
         return p != null && p.size() == 1 ? p.get(0) : null;
     }
 
@@ -321,7 +333,7 @@ final class Substitution {
      * &rArr; {@code [employer, legal]}); {@code null} otherwise. DemandScan
      * and the rewrite share this single extractor.
      */
-    static java.util.List<String> pathOf(TypedSpec n, String userVar) {
+    static List<String> pathOf(TypedSpec n, String userVar) {
         // toOne() look-through: $p.employer->toOne().legal is the idiomatic
         // spelling after an optional navigation — the coercion is
         // multiplicity-only and transparent to the path (audit R3).
@@ -332,7 +344,7 @@ final class Substitution {
         // ->map(l|$l.prop...) is the auto-map spelling of the property
         // path — flatten for the demand scan exactly as the rewrite does
         // (ONE funnel: scan and substitution must not drift)
-        if (n instanceof com.legend.compiler.spec.typed.TypedMap m
+        if (n instanceof TypedMap m
                 && m.mapper().parameters().size() == 1
                 && m.mapper().body().size() == 1
                 && pathOf(m.mapper().body().get(0),
@@ -342,15 +354,15 @@ final class Substitution {
         }
         // a MILESTONED property function ($o.product(%d)) is a property
         // step whose temporal arguments the demand scan collects separately
-        if (n instanceof com.legend.compiler.spec.typed.TypedMilestonedAccess ma) {
+        if (n instanceof TypedMilestonedAccess ma) {
             if (ma.source() instanceof TypedVariable v && v.name().equals(userVar)) {
-                return java.util.List.of(ma.property());
+                return List.of(ma.property());
             }
-            java.util.List<String> inner = pathOf(ma.source(), userVar);
+            List<String> inner = pathOf(ma.source(), userVar);
             if (inner == null) {
                 return null;
             }
-            java.util.List<String> out = new ArrayList<>(inner);
+            List<String> out = new ArrayList<>(inner);
             out.add(ma.property());
             return out;
         }
@@ -358,13 +370,13 @@ final class Substitution {
             return null;
         }
         if (pa.source() instanceof TypedVariable v && v.name().equals(userVar)) {
-            return java.util.List.of(pa.property());
+            return List.of(pa.property());
         }
-        java.util.List<String> inner = pathOf(pa.source(), userVar);
+        List<String> inner = pathOf(pa.source(), userVar);
         if (inner == null) {
             return null;
         }
-        java.util.List<String> out = new ArrayList<>(inner);
+        List<String> out = new ArrayList<>(inner);
         out.add(pa.property());
         return out;
     }
@@ -375,7 +387,7 @@ final class Substitution {
      * is load-bearing. */
     private TypedSpec rewriteCallArms(TypedSpec n) {
         if (n instanceof TypedNativeCall call && !call.args().isEmpty()) {
-            java.util.List<String> headPath = pathOf(call.args().get(0), target.userVar());
+            List<String> headPath = pathOf(call.args().get(0), target.userVar());
             // exists over an EMBEDDED (same-row) head whose predicate reads
             // only embedded leaves: the predicate applies DIRECTLY over the
             // parent row's columns (engine: BOND_DETAILS like 'Bond%' — no
@@ -384,7 +396,7 @@ final class Substitution {
             // dispatch, the embedded partial owns its mapped leaves.
             if (headPath != null && headPath.size() == 1 && isEmptinessFamily(call)
                     && call.args().size() == 2
-                    && com.legend.builtin.Pure.nativeNamed("exists",
+                    && Pure.nativeNamed("exists",
                             call.callee().signatureKey())
                     && call.args().get(1) instanceof TypedLambda pl
                     && pl.parameters().size() == 1) {
@@ -398,7 +410,7 @@ final class Substitution {
                     && target.existsSubs().containsKey(headPath.get(0))
                     && isEmptinessFamily(call)) {
                 return rewriteExists(call, target.existsSubs().get(headPath.get(0)),
-                        java.util.List.of());
+                        List.of());
             }
             // CLASS-TYPED LEAF: isNotEmpty($p.a.b) where b is a navigation
             // step on the chain target — the DOTTED-path material fires a
@@ -408,7 +420,7 @@ final class Substitution {
                     && target.existsSubs().containsKey(String.join(".", headPath))) {
                 return rewriteExists(call,
                         target.existsSubs().get(String.join(".", headPath)),
-                        java.util.List.of());
+                        List.of());
             }
             // FILTER-WRAPPED emptiness: isEmpty/exists($p.head->filter(f)
             // [->filter(g)...], pred?) — the filters merge into the
@@ -416,13 +428,13 @@ final class Substitution {
             // navigation target)
             if (isEmptinessFamily(call)) {
                 TypedSpec exArg = call.args().get(0);
-                java.util.List<TypedLambda> chainPreds = new ArrayList<>();
-                while (exArg instanceof com.legend.compiler.spec.typed.TypedFilter tf) {
+                List<TypedLambda> chainPreds = new ArrayList<>();
+                while (exArg instanceof TypedFilter tf) {
                     chainPreds.add(tf.predicate());
                     exArg = tf.source();
                 }
                 if (!chainPreds.isEmpty()) {
-                    java.util.List<String> fp = pathOf(exArg, target.userVar());
+                    List<String> fp = pathOf(exArg, target.userVar());
                     if (fp != null && fp.size() == 1
                             && target.existsSubs().containsKey(fp.get(0))) {
                         return rewriteExists(call,
@@ -439,12 +451,12 @@ final class Substitution {
         if (n instanceof TypedNativeCall mc && mc.args().size() == 2
                 && target.equalCallee() != null) {
             String mkey = mc.callee().signatureKey();
-            boolean isContains = com.legend.builtin.Pure.nativeNamed("contains", mkey);
-            boolean isIn = com.legend.builtin.Pure.nativeNamed("in", mkey);
+            boolean isContains = Pure.nativeNamed("contains", mkey);
+            boolean isIn = Pure.nativeNamed("in", mkey);
             if (isContains || isIn) {
                 TypedSpec coll = isContains ? mc.args().get(0) : mc.args().get(1);
                 TypedSpec needle = isContains ? mc.args().get(1) : mc.args().get(0);
-                java.util.List<String> cp = coll
+                List<String> cp = coll
                         instanceof TypedPropertyAccess ? pathOf(coll, target.userVar()) : null;
                 if (cp != null && cp.size() == 2
                         && target.existsSubs().containsKey(cp.get(0))
@@ -463,7 +475,7 @@ final class Substitution {
         // a not are ¬∃ over the semi-join, handled by their own arm.
         if (n instanceof TypedNativeCall lc
                 && lc.info().type() == Type.Primitive.BOOLEAN
-                && com.legend.builtin.Pure.nativeNamed("not",
+                && Pure.nativeNamed("not",
                         lc.callee().signatureKey())
                 && !containsEmptinessFamily(lc)
                 && target.filterPosition()) {
@@ -478,7 +490,7 @@ final class Substitution {
                 // testChainedFiltersQuery golden conjoins LASTNAME='Smith');
                 // plain chains keep the engine's ANY-semantics pass-through
                 // (testInNegated: NOT X OR read IS NULL)
-                java.util.List<String> crossPath = pathOf(read, target.userVar());
+                List<String> crossPath = pathOf(read, target.userVar());
                 boolean filteredHead = crossPath != null
                         && SyntheticHeads.isFiltered(crossPath.get(0));
                 return new TypedIf(
@@ -487,7 +499,7 @@ final class Substitution {
                                 new ExprType(Type.Primitive.BOOLEAN,
                                         Multiplicity.Bounded.ONE)),
                         notInner,
-                        java.util.Optional.of(new TypedCBoolean(!filteredHead,
+                        Optional.of(new TypedCBoolean(!filteredHead,
                                 new ExprType(Type.Primitive.BOOLEAN,
                                         Multiplicity.Bounded.ONE))),
                         new ExprType(Type.Primitive.BOOLEAN,
@@ -500,7 +512,7 @@ final class Substitution {
     /** A MULTI-HOP path read (size > 2): milestone structs, the
      * hop-agnostic SubNav walk, chained association leaves, embedded
      * ctor drills — always resolves or throws loud. */
-    private TypedSpec rewriteMultiHop(java.util.List<String> path, TypedSpec n) {
+    private TypedSpec rewriteMultiHop(List<String> path, TypedSpec n) {
             // EMBEDDED milestone struct: the embedded instance SHARES the
             // owner's row — $p.embedded.milestoning.from reads the OWNER
             // table's milestone column
@@ -598,7 +610,7 @@ final class Substitution {
                 if (ow != null) {
                     inner = ow.args().get(0);
                 }
-                if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstance ni
+                if (inner instanceof TypedNewInstance ni
                         && ni.properties().containsKey(path.get(hop))) {
                     cur = ni.properties().get(path.get(hop));
                     hop++;
@@ -629,9 +641,9 @@ final class Substitution {
                         && c1.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
                     inner = c1.args().get(0);
                 }
-                if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstance
+                if (inner instanceof TypedNewInstance
                         || inner.info().type()
-                                instanceof com.legend.compiler.element.type.Type.ClassType) {
+                                instanceof Type.ClassType) {
                     throw new NotImplementedException("class-typed property '$"
                             + target.userVar() + "." + prop + "' used as a whole"
                             + " value is graph output (Phase H4)");
@@ -698,7 +710,7 @@ final class Substitution {
                             new ExprType(Type.Primitive.BOOLEAN,
                                     Multiplicity.Bounded.ONE)),
                     read,
-                    java.util.Optional.of(new com.legend.compiler.spec.typed
+                    Optional.of(new com.legend.compiler.spec.typed
                             .TypedCInteger(0L, new ExprType(Type.Primitive.INTEGER,
                                     Multiplicity.Bounded.ONE))),
                     n.info());
@@ -712,7 +724,7 @@ final class Substitution {
         if (callArm != null) {
             return callArm;
         }
-        java.util.List<String> path = pathOf(n, target.userVar());
+        List<String> path = pathOf(n, target.userVar());
         if (path != null && path.size() == 2) {
             return rewritePath(path.get(0), path.get(1), n);
         }
@@ -736,8 +748,8 @@ final class Substitution {
             case TypedVariable v -> v;
             case TypedPropertyAccess pa -> new TypedPropertyAccess(
                     rewrite(pa.source()), pa.property(), pa.info());
-            case com.legend.compiler.spec.typed.TypedMilestonedAccess ma ->
-                    new com.legend.compiler.spec.typed.TypedMilestonedAccess(
+            case TypedMilestonedAccess ma ->
+                    new TypedMilestonedAccess(
                             rewrite(ma.source()), ma.property(),
                             rewriteAll(ma.dates()), ma.sweep(), ma.info());
             case TypedNativeCall c -> new TypedNativeCall(c.callee(),
@@ -759,7 +771,7 @@ final class Substitution {
             // ($f.employees->map(l|$l.lastName) == $f.employees.lastName,
             // the engine desugar): inline the mapper param with the source
             // and substitute the flattened expression
-            case com.legend.compiler.spec.typed.TypedMap m
+            case TypedMap m
                     when m.mapper().parameters().size() == 1
                     && m.mapper().body().size() == 1
                     && pathOf(m.mapper().body().get(0),
@@ -807,7 +819,7 @@ final class Substitution {
                     && pa.source() instanceof TypedVariable) {
                 return assocLeaf(head, leaf);
             }
-            if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstance ctor) {
+            if (inner instanceof TypedNewInstance ctor) {
                 // EMBEDDED: the inner binding reads the PARENT row — a
                 // parent-alias column, never a join (V1 §D.4 semantics).
                 TypedSpec leafExpr = ctor.properties().get(leaf);
@@ -825,14 +837,14 @@ final class Substitution {
             // can go both ways in one query.
             TypedNativeCall ow = otherwiseOf(headBinding);
             if (ow != null) {
-                TypedSpec leafExpr = ((com.legend.compiler.spec.typed.TypedNewInstance)
+                TypedSpec leafExpr = ((TypedNewInstance)
                         ow.args().get(0)).properties().get(leaf);
                 if (leafExpr != null) {
                     return renameRowVar(leafExpr);
                 }
                 return assocLeaf(head, leaf);
             }
-            if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstanceCast) {
+            if (inner instanceof TypedNewInstanceCast) {
                 throw new NotImplementedException("navigation '$" + target.userVar()
                         + "." + head + "." + leaf + "' crosses a MODEL-TO-MODEL"
                         + " cast binding — not supported yet (H5c)");
@@ -867,7 +879,7 @@ final class Substitution {
             // the head's explicit property-function date wins, else the
             // propagated root context date
             if (leaf.equals("businessDate") || leaf.equals("processingDate")) {
-                java.util.List<TypedSpec> dates = target.headTemporalDates()
+                List<TypedSpec> dates = target.headTemporalDates()
                         .getOrDefault(head, target.rootTemporalDates());
                 if (!dates.isEmpty()) {
                     return contextDate(dates, leaf);
@@ -888,7 +900,7 @@ final class Substitution {
                 && lc.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
             leafInner = lc.args().get(0);
         }
-        if (leafInner instanceof com.legend.compiler.spec.typed.TypedNewInstance) {
+        if (leafInner instanceof TypedNewInstance) {
             throw new NotImplementedException("class-typed property '" + leaf
                     + "' of association target '" + a.targetClassFqn()
                     + "' (embedded) is not supported yet");
@@ -901,7 +913,7 @@ final class Substitution {
         // doesn't materialize target slots yet.
         if (Pipelines.referencesAliasOn(leafBinding, a.targetRowVar(),
                 a.targetSlotAliases())) {
-            java.util.Set<String> unconverted = new java.util.HashSet<>(a.targetSlotAliases());
+            Set<String> unconverted = new HashSet<>(a.targetSlotAliases());
             unconverted.removeAll(a.targetSlotPrefixes().keySet());
             if (Pipelines.referencesAliasOn(leafBinding, a.targetRowVar(), unconverted)) {
                 throw new NotImplementedException("property '" + leaf + "' of class '"
@@ -910,7 +922,7 @@ final class Substitution {
                         + " in this position yet");
             }
             leafBinding = Pipelines.rewriteRowReads(leafBinding, a.targetRowVar(),
-                    a.targetSlotPrefixes(), java.util.Set.of(),
+                    a.targetSlotPrefixes(), Set.of(),
                     v -> new TypedVariable(a.targetRowVar(), v.info()));
         }
         String readVar = a.readVar() != null ? a.readVar() : target.freshRowVar();
@@ -958,8 +970,8 @@ final class Substitution {
             case TypedVariable v -> v;
             case TypedPropertyAccess pa -> new TypedPropertyAccess(
                     inlineParam(pa.source(), param, source), pa.property(), pa.info());
-            case com.legend.compiler.spec.typed.TypedMilestonedAccess ma ->
-                    new com.legend.compiler.spec.typed.TypedMilestonedAccess(
+            case TypedMilestonedAccess ma ->
+                    new TypedMilestonedAccess(
                             inlineParam(ma.source(), param, source), ma.property(),
                             ma.dates().stream().map(d ->
                                     inlineParam(d, param, source)).toList(),
@@ -1016,7 +1028,7 @@ final class Substitution {
 
     /** A bi-temporal context carries (processingDate, businessDate) — the
      * generated property picks its own; a single date serves either. */
-    private static TypedSpec contextDate(java.util.List<TypedSpec> dates, String prop) {
+    private static TypedSpec contextDate(List<TypedSpec> dates, String prop) {
         return dates.size() == 2 && prop.equals("businessDate")
                 ? dates.get(1) : dates.get(0);
     }
@@ -1031,7 +1043,7 @@ final class Substitution {
         String pVar = cond.parameters().get(0);
         String tVar = cond.parameters().get(1);
         List<TypedSpec> corrBody = cond.body().stream().map(b ->
-                Pipelines.rewriteRowReads(b, pVar, Map.of(), java.util.Set.of(),
+                Pipelines.rewriteRowReads(b, pVar, Map.of(), Set.of(),
                         v -> new TypedVariable(target.freshRowVar(),
                                 new ExprType(target.rowType(), Multiplicity.Bounded.ONE))))
                 .toList();
@@ -1052,8 +1064,8 @@ final class Substitution {
                 new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE));
         TypedLambda memberPred = new TypedLambda(List.of(ex.targetRowVar()),
                 List.of(eq), predType);
-        TypedSpec rel = new com.legend.compiler.spec.typed.TypedFilter(
-                new com.legend.compiler.spec.typed.TypedFilter(
+        TypedSpec rel = new TypedFilter(
+                new TypedFilter(
                         ex.targetPipeline(), corr, ex.targetPipeline().info()),
                 memberPred, ex.targetPipeline().info());
         return new TypedNativeCall(target.isNotEmptyCallee(), List.of(rel),
@@ -1065,7 +1077,7 @@ final class Substitution {
      * with several crossing reads null-guards only the first — engine
      * isolation guards the read it isolates.) */
     private TypedSpec toManyCrossingRead(TypedSpec n) {
-        java.util.List<String> path = pathOf(n, target.userVar());
+        List<String> path = pathOf(n, target.userVar());
         if (path != null && path.size() == 2
                 && target.existsSubs().containsKey(path.get(0))
                 && target.existsSubs().get(path.get(0)).toMany()) {
@@ -1082,7 +1094,7 @@ final class Substitution {
 
     /** The embedded ctor of a binding: a bare {@code ^Inner(...)} (with
      * toOne look-through) or an otherwise composition's partial. */
-    private static com.legend.compiler.spec.typed.TypedNewInstance embeddedPartialOf(
+    private static TypedNewInstance embeddedPartialOf(
             TypedSpec binding) {
         if (binding == null) {
             return null;
@@ -1097,21 +1109,21 @@ final class Substitution {
         if (ow != null) {
             inner = ow.args().get(0);
         }
-        return inner instanceof com.legend.compiler.spec.typed.TypedNewInstance ni
+        return inner instanceof TypedNewInstance ni
                 ? ni : null;
     }
 
     /** Every property read on the predicate's param resolves in the partial. */
     private boolean predLeavesIn(TypedLambda pl,
-            com.legend.compiler.spec.typed.TypedNewInstance partial) {
-        java.util.Set<java.util.List<String>> paths = new java.util.LinkedHashSet<>();
+            TypedNewInstance partial) {
+        Set<List<String>> paths = new LinkedHashSet<>();
         for (TypedSpec b : pl.body()) {
             collectParamPaths(b, pl.parameters().get(0), paths);
         }
         if (paths.isEmpty()) {
             return false;
         }
-        for (java.util.List<String> path : paths) {
+        for (List<String> path : paths) {
             if (path.size() != 1 || !partial.properties().containsKey(path.get(0))) {
                 return false;
             }
@@ -1120,8 +1132,8 @@ final class Substitution {
     }
 
     private static void collectParamPaths(TypedSpec n, String var,
-            java.util.Set<java.util.List<String>> out) {
-        java.util.List<String> p = pathOf(n, var);
+            Set<List<String>> out) {
+        List<String> p = pathOf(n, var);
         if (p != null) {
             out.add(p);
         }
@@ -1137,15 +1149,15 @@ final class Substitution {
      * the embedded partial's binding expression; everything else (outer
      * reads) runs through THIS substitution. */
     private TypedSpec rewriteEmbeddedExists(TypedLambda pl,
-            com.legend.compiler.spec.typed.TypedNewInstance partial) {
+            TypedNewInstance partial) {
         TypedSpec body = substEmbeddedReads(
                 pl.body().get(pl.body().size() - 1), pl.parameters().get(0), partial);
         return rewrite(body);
     }
 
     private TypedSpec substEmbeddedReads(TypedSpec n, String var,
-            com.legend.compiler.spec.typed.TypedNewInstance partial) {
-        java.util.List<String> p = pathOf(n, var);
+            TypedNewInstance partial) {
+        List<String> p = pathOf(n, var);
         if (p != null && p.size() == 1) {
             return renameRowVar(partial.properties().get(p.get(0)));
         }
@@ -1173,18 +1185,18 @@ final class Substitution {
         return n;
     }
 
-    private static java.util.Set<String> unconvertedSlotsOf(ExistsSub ex) {
-        java.util.Set<String> out =
-                new java.util.LinkedHashSet<>(ex.targetSlotAliases());
+    private static Set<String> unconvertedSlotsOf(ExistsSub ex) {
+        Set<String> out =
+                new LinkedHashSet<>(ex.targetSlotAliases());
         out.removeAll(ex.targetSlotPrefixes().keySet());
         return out;
     }
 
     private static boolean isEmptinessFamily(TypedNativeCall c) {
         String key = c.callee().signatureKey();
-        return com.legend.builtin.Pure.nativeNamed("isEmpty", key)
-                || com.legend.builtin.Pure.nativeNamed("isNotEmpty", key)
-                || com.legend.builtin.Pure.nativeNamed("exists", key);
+        return Pure.nativeNamed("isEmpty", key)
+                || Pure.nativeNamed("isNotEmpty", key)
+                || Pure.nativeNamed("exists", key);
     }
 
     /**
@@ -1224,7 +1236,7 @@ final class Substitution {
             // worse, be wrong under an aggregation); fall through loud
             return null;
         }
-        if (!(src instanceof com.legend.compiler.spec.typed.TypedFilter f)) {
+        if (!(src instanceof TypedFilter f)) {
             return null;
         }
         // the head may be a plain access OR a DATED property function
@@ -1237,7 +1249,7 @@ final class Substitution {
                 && hv.name().equals(target.userVar())) {
             headProp = head.property();
         } else if (f.source()
-                instanceof com.legend.compiler.spec.typed.TypedMilestonedAccess ma
+                instanceof TypedMilestonedAccess ma
                 && ma.source() instanceof TypedVariable mv
                 && mv.name().equals(target.userVar())) {
             headProp = ma.property();
@@ -1253,7 +1265,7 @@ final class Substitution {
         String pVar = cond.parameters().get(0);
         String tVar = cond.parameters().get(1);
         List<TypedSpec> corrBody = cond.body().stream().map(b ->
-                Pipelines.rewriteRowReads(b, pVar, Map.of(), java.util.Set.of(),
+                Pipelines.rewriteRowReads(b, pVar, Map.of(), Set.of(),
                         v -> new TypedVariable(target.freshRowVar(),
                                 new ExprType(target.rowType(), Multiplicity.Bounded.ONE))))
                 .toList();
@@ -1265,7 +1277,7 @@ final class Substitution {
         // the SCALAR pipeline (slot-UNDEMANDED): a slot demanded by some
         // OTHER consumer (an exists site) must not fan this single-row
         // subquery out (audit 13 B3 — data-dependent "more than one row")
-        TypedSpec rel = new com.legend.compiler.spec.typed.TypedFilter(
+        TypedSpec rel = new TypedFilter(
                 ex.scalarPipeline(), corr, ex.scalarPipeline().info());
         // 2. the user predicate, substituted against the TARGET's bindings
         //    (outer reads correlate through a second pass — same as exists)
@@ -1279,7 +1291,7 @@ final class Substitution {
         TypedLambda inner = predSub.rewriteLambda(predLam);
         TypedLambda innerOuter = new TypedLambda(inner.parameters(),
                 inner.body().stream().map(this::rewrite).toList(), inner.info());
-        rel = new com.legend.compiler.spec.typed.TypedFilter(rel, innerOuter, rel.info());
+        rel = new TypedFilter(rel, innerOuter, rel.info());
         // 3. project the leaf binding
         TypedSpec leafBinding = ex.targetBindings().get(pa.property());
         if (leafBinding == null) {
@@ -1305,13 +1317,13 @@ final class Substitution {
         Type.RelationType outRow = new Type.RelationType(List.of(
                 new Type.RelationType.Column(pa.property(), leafType,
                         pa.info().multiplicity())));
-        TypedSpec projected = new com.legend.compiler.spec.typed.TypedProject(rel,
-                List.of(new com.legend.compiler.spec.typed.TypedFuncCol(
+        TypedSpec projected = new TypedProject(rel,
+                List.of(new TypedFuncCol(
                         pa.property(), leafFn)),
                 new ExprType(outRow, Multiplicity.Bounded.ONE));
         if (firstRow) {
-            projected = new com.legend.compiler.spec.typed.TypedLimit(projected,
-                    new com.legend.compiler.spec.typed.TypedCInteger(1L,
+            projected = new TypedLimit(projected,
+                    new TypedCInteger(1L,
                             ExprType.one(Type.Primitive.INTEGER)),
                     projected.info());
         }
@@ -1319,12 +1331,12 @@ final class Substitution {
     }
 
     private TypedSpec rewriteExists(TypedNativeCall call, ExistsSub ex,
-            java.util.List<TypedLambda> chainPreds) {
+            List<TypedLambda> chainPreds) {
         TypedLambda cond = ex.orientedCond();   // params (parentRow, targetRow)
         String pVar = cond.parameters().get(0);
         String tVar = cond.parameters().get(1);
         List<TypedSpec> corrBody = cond.body().stream().map(b ->
-                Pipelines.rewriteRowReads(b, pVar, Map.of(), java.util.Set.of(),
+                Pipelines.rewriteRowReads(b, pVar, Map.of(), Set.of(),
                         v -> new TypedVariable(target.freshRowVar(),
                                 new ExprType(target.rowType(), Multiplicity.Bounded.ONE))))
                 .toList();
@@ -1333,7 +1345,7 @@ final class Substitution {
                         List.of(new Type.Param(ex.targetRow(), Multiplicity.Bounded.ONE)),
                         new Type.Param(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE)),
                         Multiplicity.Bounded.ONE));
-        TypedSpec rel = new com.legend.compiler.spec.typed.TypedFilter(
+        TypedSpec rel = new TypedFilter(
                 ex.targetPipeline(), corr, ex.targetPipeline().info());
         // chain filters ($p.head->filter(f)->...) merge into the correlated
         // set: each substitutes over the target's bindings like the exists
@@ -1356,7 +1368,7 @@ final class Substitution {
                             new Type.Param(Type.Primitive.BOOLEAN,
                                     Multiplicity.Bounded.ONE)),
                             Multiplicity.Bounded.ONE));
-            rel = new com.legend.compiler.spec.typed.TypedFilter(rel, cfCorr,
+            rel = new TypedFilter(rel, cfCorr,
                     rel.info());
         }
         List<TypedSpec> newArgs = new ArrayList<>();
@@ -1366,8 +1378,8 @@ final class Substitution {
                 throw new NotImplementedException("non-lambda predicate in "
                         + call.callee().qualifiedName() + " over an association");
             }
-            java.util.Set<String> unconvertedSlots =
-                    new java.util.LinkedHashSet<>(ex.targetSlotAliases());
+            Set<String> unconvertedSlots =
+                    new LinkedHashSet<>(ex.targetSlotAliases());
             unconvertedSlots.removeAll(ex.targetSlotPrefixes().keySet());
             Substitution predSub = new Substitution(new Target(
                     new RowScope(predLam.parameters().get(0), tVar,
@@ -1400,8 +1412,8 @@ final class Substitution {
      */
     private static boolean isBooleanConnective(TypedNativeCall c) {
         String key = c.callee().signatureKey();
-        return com.legend.builtin.Pure.nativeNamed("and", key)
-                || com.legend.builtin.Pure.nativeNamed("or", key);
+        return Pure.nativeNamed("and", key)
+                || Pure.nativeNamed("or", key);
     }
 
     /**
@@ -1418,10 +1430,10 @@ final class Substitution {
             inner = c.args().get(0);
         }
         if (inner instanceof TypedNativeCall oc && oc.args().size() == 2
-                && com.legend.builtin.Pure.nativeNamed("otherwise",
+                && Pure.nativeNamed("otherwise",
                         oc.callee().signatureKey())
                 && oc.args().get(0)
-                        instanceof com.legend.compiler.spec.typed.TypedNewInstance) {
+                        instanceof TypedNewInstance) {
             return oc;
         }
         return null;

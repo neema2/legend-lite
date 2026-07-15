@@ -1,15 +1,18 @@
 package com.legend.normalizer;
 
-import com.legend.parser.NormalizedModel;
 import com.legend.builtin.Pure;
 import com.legend.compiler.ModelBuilder;
 import com.legend.compiler.SynthFqn;
+import com.legend.error.LegendCompileException;
+import com.legend.error.ModelException;
 import com.legend.parser.Multiplicity;
+import com.legend.parser.NormalizedModel;
 import com.legend.parser.ParsedModel;
 import com.legend.parser.TypeExpression;
-import com.legend.parser.element.ClassDefinition;
+import com.legend.parser.element.AssociationDefinition;
 import com.legend.parser.element.ClassDefinition.ConstraintDefinition;
 import com.legend.parser.element.ClassDefinition.DerivedPropertyDefinition;
+import com.legend.parser.element.ClassDefinition;
 import com.legend.parser.element.FunctionDefinition;
 import com.legend.parser.element.PackageableElement;
 import com.legend.parser.element.Realization;
@@ -19,12 +22,11 @@ import com.legend.parser.spec.LambdaFunction;
 import com.legend.parser.spec.PackageableElementPtr;
 import com.legend.parser.spec.ValueSpecification;
 import com.legend.parser.spec.Variable;
-
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
 /**
  * Phase E entry point &mdash; post-parse, post-name-resolution model
  * normalization. For <em>every</em> Pure body site (mapping transform, derived
@@ -132,9 +134,9 @@ public final class ModelNormalizer {
 
     private static ParsedModel adoptAssociationDerivedProperties(ParsedModel parsed) {
         Map<String, List<ClassDefinition.DerivedPropertyDefinition>> adoptions =
-                new java.util.LinkedHashMap<>();
+                new LinkedHashMap<>();
         for (PackageableElement el : parsed.elements()) {
-            if (!(el instanceof com.legend.parser.element.AssociationDefinition ad)
+            if (!(el instanceof AssociationDefinition ad)
                     || ad.derivedProperties().isEmpty()) {
                 continue;
             }
@@ -150,8 +152,8 @@ public final class ModelNormalizer {
                 String owner;
                 if (t1.equals(t2)) {
                     if (!ret.equals(t1)) {
-                        throw new com.legend.error.ModelException(
-                                com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                        throw new ModelException(
+                                LegendCompileException.Phase.NORMALIZE,
                                 "association '" + ad.qualifiedName()
                                 + "' qualified property '" + dp.name() + "' returns '" + ret
                                 + "', which is neither end of the self-association");
@@ -162,8 +164,8 @@ public final class ModelNormalizer {
                 } else if (ret.equals(t2)) {
                     owner = t1;
                 } else {
-                    throw new com.legend.error.ModelException(
-                            com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                    throw new ModelException(
+                            LegendCompileException.Phase.NORMALIZE,
                             "association '" + ad.qualifiedName()
                             + "' qualified property '" + dp.name() + "' returns '" + ret
                             + "', which does not identify a unique owning end");
@@ -193,10 +195,10 @@ public final class ModelNormalizer {
                 parsed.elementOffsets(), parsed.elementImports());
     }
 
-    private static String rawName(com.legend.parser.TypeExpression t) {
+    private static String rawName(TypeExpression t) {
         return switch (t) {
-            case com.legend.parser.TypeExpression.NameRef n -> n.name();
-            case com.legend.parser.TypeExpression.Generic g -> g.name();
+            case TypeExpression.NameRef n -> n.name();
+            case TypeExpression.Generic g -> g.name();
             default -> t.toString();
         };
     }
@@ -371,8 +373,8 @@ public final class ModelNormalizer {
         if (sd.functionBody() instanceof LambdaFunction lf) {
             for (Variable v : lf.parameters()) {
                 if (v.type() == null || v.multiplicity() == null) {
-                    throw new com.legend.error.ModelException(
-                            com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                    throw new ModelException(
+                            LegendCompileException.Phase.NORMALIZE,
                             "Service '" + sd.qualifiedName() + "' query parameter '"
                                   + v.name() + "' must be typed (name: Type[mult]) to "
                                   + "externalize into " + SynthFqn.query(sd.qualifiedName()));

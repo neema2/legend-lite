@@ -4,7 +4,7 @@
 package com.legend.resolver;
 
 import com.legend.compiler.spec.typed.TypedSpec;
-
+import java.util.List;
 /**
  * THE milestoning context &mdash; engine parity: ONE context object per
  * cursor ({@code MilestoningDatesPropagationFunctions} /
@@ -94,16 +94,16 @@ record TemporalContext(TypedSpec processing, TypedSpec business,
      * boundary keeps it this slice): bi-temporal = [processing, business],
      * single = [date], range/none = [] (a range has no point to read
      * back). */
-    java.util.List<TypedSpec> legacyDates() {
+    List<TypedSpec> legacyDates() {
         if (processing != null && business != null) {
-            return java.util.List.of(processing, business);
+            return List.of(processing, business);
         }
         if (processing != null) {
-            return java.util.List.of(processing);
+            return List.of(processing);
         }
         if (business != null) {
-            return java.util.List.of(business);
+            return List.of(business);
         }
-        return java.util.List.of();
+        return List.of();
     }
 }

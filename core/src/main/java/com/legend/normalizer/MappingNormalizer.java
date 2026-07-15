@@ -1,9 +1,12 @@
 package com.legend.normalizer;
 
-import com.legend.parser.NormalizedModel;
 import com.legend.compiler.ModelBuilder;
 import com.legend.compiler.SynthFqn;
+import com.legend.error.LegendCompileException;
+import com.legend.error.ModelException;
+import com.legend.error.NotImplementedException;
 import com.legend.parser.Multiplicity;
+import com.legend.parser.NormalizedModel;
 import com.legend.parser.ParsedModel;
 import com.legend.parser.TypeExpression;
 import com.legend.parser.element.AssociationDefinition;
@@ -13,23 +16,28 @@ import com.legend.parser.element.ClassDefinition;
 import com.legend.parser.element.ClassMapping;
 import com.legend.parser.element.ComparisonOp;
 import com.legend.parser.element.DatabaseDefinition;
-import com.legend.parser.element.RelationalDataType;
+import com.legend.parser.element.EnumDefinition;
 import com.legend.parser.element.EnumerationMapping;
 import com.legend.parser.element.FilterMapping;
 import com.legend.parser.element.FilterPointer;
+import com.legend.parser.element.Function;
 import com.legend.parser.element.FunctionDefinition;
 import com.legend.parser.element.JoinChainElement;
-import com.legend.parser.element.LogicalOp;
 import com.legend.parser.element.LegacyMappingDefinition;
+import com.legend.parser.element.LogicalOp;
 import com.legend.parser.element.MappingDefinition;
-import com.legend.parser.element.Realization;
+import com.legend.parser.element.MappingInclude;
 import com.legend.parser.element.PackageableElement;
 import com.legend.parser.element.PropertyMapping;
-import com.legend.parser.element.SynthHat;
+import com.legend.parser.element.Realization;
+import com.legend.parser.element.RelationalDataType;
 import com.legend.parser.element.RelationalOperation;
+import com.legend.parser.element.SynthHat;
 import com.legend.parser.spec.AppliedFunction;
 import com.legend.parser.spec.AppliedProperty;
 import com.legend.parser.spec.CBoolean;
+import com.legend.parser.spec.CDate;
+import com.legend.parser.spec.CDecimal;
 import com.legend.parser.spec.CFloat;
 import com.legend.parser.spec.CInteger;
 import com.legend.parser.spec.CString;
@@ -45,7 +53,6 @@ import com.legend.parser.spec.PureCollection;
 import com.legend.parser.spec.TypeAnnotation;
 import com.legend.parser.spec.ValueSpecification;
 import com.legend.parser.spec.Variable;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -56,7 +63,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-
+import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 /**
  * Legacy Mapping DSL desugarer. Translates every legacy
  * {@link LegacyMappingDefinition} into clean-sheet function form per
@@ -191,14 +200,14 @@ public final class MappingNormalizer {
      * normalization, so the driver can decorate with the element's
      * {@code [line:col]} (positions wave).
      */
-    private static <T> T withElement(String elementFqn, java.util.function.Supplier<T> work) {
+    private static <T> T withElement(String elementFqn, Supplier<T> work) {
         try {
             return work.get();
-        } catch (com.legend.error.ModelException e) {
+        } catch (ModelException e) {
             if (e.element() != null) {
                 throw e;
             }
-            throw new com.legend.error.ModelException(e.phase(), e.getMessage(), elementFqn);
+            throw new ModelException(e.phase(), e.getMessage(), elementFqn);
         }
     }
 
@@ -223,13 +232,13 @@ public final class MappingNormalizer {
         // only — .all() dispatches to the root; non-root sets await the H5
         // set-ID dispatch story (ModelBuilder's R2 already guaranteed the
         // one-root shape).
-        java.util.Map<String, Long> mappingsPerClass = new java.util.HashMap<>();
+        Map<String, Long> mappingsPerClass = new HashMap<>();
         for (ClassMapping cm : md.classMappings()) {
             mappingsPerClass.merge(cm.className(), 1L, Long::sum);
         }
         List<MappingDefinition.ClassBinding> classBindings =
                 new ArrayList<>(md.classMappings().size());
-        java.util.Set<String> unionRooted = new java.util.HashSet<>();
+        Set<String> unionRooted = new HashSet<>();
         for (ClassMapping cm : md.classMappings()) {
             if (cm instanceof ClassMapping.Union) {
                 unionRooted.add(cm.className());
@@ -252,8 +261,8 @@ public final class MappingNormalizer {
             FunctionDefinition fn;
             try {
                 fn = synthesizeClassMapping(md, cm, model);
-            } catch (com.legend.error.NotImplementedException
-                    | com.legend.error.ModelException e) {
+            } catch (NotImplementedException
+                    | ModelException e) {
                 // PER-CLASS fault isolation: one class mapping using a
                 // roadmap feature must not sink the whole mapping. The
                 // binding is withheld; fetching THIS class raises the
@@ -379,19 +388,19 @@ public final class MappingNormalizer {
                                                      String fnFqn,
                                                      ModelBuilder model) {
         if (inl.body().size() != 1 || !(inl.body().get(0) instanceof LambdaFunction lam)) {
-            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "inline association predicate for '" + ab.associationFqn()
                   + "' must be a single (source, target) -> Boolean lambda; mapping="
                   + md.qualifiedName());
         }
         if (lam.parameters().size() != 2) {
-            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "inline association predicate for '" + ab.associationFqn()
                   + "' must take exactly 2 parameters (source, target); got "
                   + lam.parameters().size() + "; mapping=" + md.qualifiedName());
         }
         AssociationDefinition ad = model.findAssociation(ab.associationFqn())
-                .orElseThrow(() -> new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+                .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE, 
                         "inline association predicate references unknown association '"
                       + ab.associationFqn() + "'; mapping=" + md.qualifiedName()));
         String classA = AssociationSynthesis.associationEndClass(ad.property1().targetClass(),
@@ -455,13 +464,13 @@ public final class MappingNormalizer {
             case Variable v -> v;
             case CString ignored -> n;
             case CInteger ignored -> n;
-            case com.legend.parser.spec.CFloat ignored -> n;
-            case com.legend.parser.spec.CDecimal ignored -> n;
-            case com.legend.parser.spec.CBoolean ignored -> n;
-            case com.legend.parser.spec.CDate ignored -> n;
+            case CFloat ignored -> n;
+            case CDecimal ignored -> n;
+            case CBoolean ignored -> n;
+            case CDate ignored -> n;
             case PureCollection pc -> new PureCollection(pc.values().stream()
                     .map(x -> suffixTargetReads(x, t, ord, out)).toList());
-            default -> throw new com.legend.error.NotImplementedException(
+            default -> throw new NotImplementedException(
                     "partial-union route join condition carries a "
                     + n.getClass().getSimpleName()
                     + " — not suffixable yet");
@@ -489,7 +498,7 @@ public final class MappingNormalizer {
             }
         }
         Map<String, ClassMapping> included = new HashMap<>();
-        collectIncludedSetIds(md, model, included, new java.util.HashSet<>());
+        collectIncludedSetIds(md, model, included, new HashSet<>());
         return included.get(setId);
     }
 
@@ -516,7 +525,7 @@ public final class MappingNormalizer {
         // own definitions win) — extends [set] across an include is the
         // union::extend corpus family's normal shape
         Map<String, ClassMapping> bySetId = new HashMap<>();
-        collectIncludedSetIds(md, model, bySetId, new java.util.HashSet<>());
+        collectIncludedSetIds(md, model, bySetId, new HashSet<>());
         for (ClassMapping cm : md.classMappings()) {
             bySetId.put(setIdOf(cm), cm);
         }
@@ -530,7 +539,7 @@ public final class MappingNormalizer {
                 // Pure (M2M) extends is not covered by §5.2.3; reject loudly
                 // rather than silently ignore the inheritance (AGENTS.md: no
                 // fallbacks).
-                throw new com.legend.error.NotImplementedException(
+                throw new NotImplementedException(
                         "Class mapping for '" + cm.className() + "' uses extends ["
                       + cm.extendsSetId() + "] on a non-Relational (Pure) mapping; "
                       + "only Relational extends is supported. Mapping="
@@ -543,8 +552,8 @@ public final class MappingNormalizer {
     /** Set-ids of {@code md}'s includes, transitively (nearer include wins). */
     static void collectIncludedSetIds(LegacyMappingDefinition md,
             ModelBuilder model, Map<String, ClassMapping> bySetId,
-            java.util.Set<String> seen) {
-        for (com.legend.parser.element.MappingInclude inc : md.includes()) {
+            Set<String> seen) {
+        for (MappingInclude inc : md.includes()) {
             if (!seen.add(inc.mappingPath())) {
                 continue;
             }
@@ -571,19 +580,19 @@ public final class MappingNormalizer {
                                                          LegacyMappingDefinition md) {
         String parentSetId = child.extendsSetId();
         if (!chain.add(parentSetId)) {
-            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "Circular 'extends' chain in mapping '" + md.qualifiedName()
                   + "': " + String.join(" -> ", chain) + " -> " + parentSetId);
         }
         ClassMapping parent = bySetId.get(parentSetId);
         if (parent == null) {
-            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "Class mapping for '" + child.className() + "' extends ["
                   + parentSetId + "] but no class mapping with set id '" + parentSetId
                   + "' exists in mapping=" + md.qualifiedName());
         }
         if (!(parent instanceof ClassMapping.Relational parentRcm)) {
-            throw new com.legend.error.NotImplementedException(
+            throw new NotImplementedException(
                     "Class mapping for '" + child.className() + "' extends ["
                   + parentSetId + "] which is not a Relational mapping; only "
                   + "Relational extends is supported. Mapping=" + md.qualifiedName());
@@ -651,7 +660,7 @@ public final class MappingNormalizer {
                                     Map<String, ClassMapping.Pure> pureByTarget,
                                     Set<String> visiting, LegacyMappingDefinition md) {
         if (!visiting.add(pcm.className())) {
-            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "Circular M2M ~src chain detected in mapping '"
                   + md.qualifiedName() + "': " + String.join(" -> ", visiting)
                   + " -> " + pcm.className());
@@ -730,11 +739,11 @@ public final class MappingNormalizer {
     static ValueSpecification relationFunctionPipeline(
             ClassMapping.RelationFunction rf, ModelBuilder model) {
         String ref = rf.funcRef();
-        List<com.legend.parser.element.Function> fns = model.findFunction(ref);
+        List<Function> fns = model.findFunction(ref);
         if (fns.isEmpty()) {
             // the MANGLED spelling f__Relation_1_ encodes the signature in
             // the name — strip the suffix and retry
-            java.util.regex.Matcher mangled = java.util.regex.Pattern
+            Matcher mangled = Pattern
                     .compile("^(.*?)__[A-Za-z0-9$]+_(?:\\d+|MANY)_$").matcher(ref);
             if (mangled.matches()) {
                 fns = model.findFunction(mangled.group(1));
@@ -742,12 +751,12 @@ public final class MappingNormalizer {
         }
         if (fns.size() != 1
                 || !(fns.get(0) instanceof FunctionDefinition fn)) {
-            throw new com.legend.error.NotImplementedException(
+            throw new NotImplementedException(
                     "Relation mapping for '" + rf.className() + "': ~func '"
                     + ref + "' resolves to " + fns.size() + " function(s)");
         }
         if (!fn.parameters().isEmpty() || fn.body().size() != 1) {
-            throw new com.legend.error.NotImplementedException(
+            throw new NotImplementedException(
                     "Relation mapping ~func '" + fn.qualifiedName()
                     + "' must be a zero-arg single-expression function");
         }
@@ -782,8 +791,8 @@ public final class MappingNormalizer {
         ClassMapping.RelationFunction rfA = relationFunctionMappingOf(md, classA, setA);
         ClassMapping.RelationFunction rfB = relationFunctionMappingOf(md, classB, setB);
         if (xs.propertyMappings2().isEmpty()) {
-            throw new com.legend.error.ModelException(
-                    com.legend.error.LegendCompileException.Phase.NORMALIZE,
+            throw new ModelException(
+                    LegendCompileException.Phase.NORMALIZE,
                     "XStore mapping for '" + xs.associationName()
                     + "' has no property lines; mapping=" + md.qualifiedName());
         }
@@ -801,8 +810,8 @@ public final class MappingNormalizer {
         for (AssociationMapping.Cross.XStoreProperty cand : xs.propertyMappings2()) {
             boolean isProp1 = cand.propertyName().equals(ad.property1().propertyName());
             if (!isProp1 && !cand.propertyName().equals(ad.property2().propertyName())) {
-                throw new com.legend.error.ModelException(
-                        com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                throw new ModelException(
+                        LegendCompileException.Phase.NORMALIZE,
                         "XStore line '" + cand.propertyName() + "' matches"
                         + " neither end of association '" + xs.associationName()
                         + "'; mapping=" + md.qualifiedName());
@@ -825,7 +834,7 @@ public final class MappingNormalizer {
         ValueSpecification cond = conds.get(0);
         for (ValueSpecification c : conds) {
             if (!c.equals(cond)) {
-                throw new com.legend.error.NotImplementedException(
+                throw new NotImplementedException(
                         "XStore association '" + xs.associationName()
                         + "' has direction-specific conditions; a single"
                         + " shared predicate is required for now (mapping="
@@ -868,7 +877,7 @@ public final class MappingNormalizer {
         ClassMapping.RelationFunction rfA = relationFunctionMappingOf(md, classA, null);
         ClassMapping.RelationFunction rfB = relationFunctionMappingOf(md, classB, null);
         if (mj.lambda().parameters().size() != 2) {
-            throw new com.legend.error.NotImplementedException(
+            throw new NotImplementedException(
                     "ModelJoin for '" + mj.associationName() + "' needs a"
                     + " 2-param lambda; got " + mj.lambda().parameters().size());
         }
@@ -897,7 +906,7 @@ public final class MappingNormalizer {
             aVar = p1.name();
             bVar = p0.name();
         } else {
-            throw new com.legend.error.NotImplementedException(
+            throw new NotImplementedException(
                     "ModelJoin for '" + mj.associationName() + "': lambda params ["
                     + p0.name() + ": " + t0 + ", " + p1.name() + ": " + t1
                     + "] pair with the association ends neither by exact type"
@@ -948,7 +957,7 @@ public final class MappingNormalizer {
             }
         }
         if (hits.size() != 1) {
-            throw new com.legend.error.NotImplementedException(
+            throw new NotImplementedException(
                     "XStore/ModelJoin association end class '" + classFqn
                     + "' resolves to " + hits.size() + " Relation(~func) set(s)"
                     + (setId != null ? " for set id '" + setId + "'" : "")
@@ -981,7 +990,7 @@ public final class MappingNormalizer {
                     return new AppliedProperty(rowByVar.get(var.name()), c.column());
                 }
             }
-            throw new com.legend.error.NotImplementedException(
+            throw new NotImplementedException(
                     "association '" + assocName + "': $" + var.name() + "."
                     + ap.property() + " has no column binding on the Relation"
                     + " mapping of '" + rf.className() + "' (mapping="
@@ -1028,7 +1037,7 @@ public final class MappingNormalizer {
             ClassDefinition tgt = model.findClass(pcm.className()).orElse(null);
             for (ClassMapping.Pure.PropertyBinding pb : pcm.propertyBindings()) {
                 if (tgt != null && findPropertyTypeDeep(tgt, pb.propertyName(), model) == null) {
-                    throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+                    throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                             "M2M PropertyBinding '" + pb.propertyName()
                           + "' is not declared on class '" + tgt.qualifiedName()
                           + "'; mapping=" + md.qualifiedName());
@@ -1053,14 +1062,14 @@ public final class MappingNormalizer {
         String innerFqn = nr.name();
         if (model.findClass(innerFqn).isEmpty()) return pb.expression();
         if (!model.isMappedClass(innerFqn)) {
-            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "M2M class-typed property '" + pb.propertyName() + "' on '"
                   + tgt.qualifiedName() + "' targets unmapped class '" + innerFqn
                   + "'; map '" + innerFqn + "' or use Embedded. Mapping="
                   + md.qualifiedName());
         }
         if (!cycleStack.add(innerFqn)) {
-            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "Cycle materializing M2M class-typed property; class "
                   + innerFqn + " recurses. Stack=" + cycleStack);
         }
@@ -1078,12 +1087,12 @@ public final class MappingNormalizer {
     /** {@code md} plus its includes, transitively. */
     static void collectMappingClosure(LegacyMappingDefinition md,
             ModelBuilder model, List<LegacyMappingDefinition> out,
-            java.util.Set<String> seen) {
+            Set<String> seen) {
         if (!seen.add(md.qualifiedName())) {
             return;
         }
         out.add(md);
-        for (com.legend.parser.element.MappingInclude inc : md.includes()) {
+        for (MappingInclude inc : md.includes()) {
             model.findLegacyMapping(inc.mappingPath())
                     .ifPresent(m -> collectMappingClosure(m, model, out, seen));
         }
@@ -1091,7 +1100,7 @@ public final class MappingNormalizer {
 
     /** Column names of {@code table} referenced anywhere in the condition. */
     static void collectColumnsOfTable(RelationalOperation cond,
-            String table, java.util.Set<String> out) {
+            String table, Set<String> out) {
         switch (cond) {
             case RelationalOperation.ColumnRef c -> {
                 if (table.equals(c.table())) {
@@ -1121,11 +1130,11 @@ public final class MappingNormalizer {
 
     /** Whether the class (or a superclass) is BITEMPORAL. */
     static boolean isBitemporalClass(String classFqn, ModelBuilder model) {
-        return isBitemporalClass(classFqn, model, new java.util.HashSet<>());
+        return isBitemporalClass(classFqn, model, new HashSet<>());
     }
 
     static boolean isBitemporalClass(String classFqn, ModelBuilder model,
-            java.util.Set<String> visited) {
+            Set<String> visited) {
         if (!visited.add(classFqn)) {
             return false;
         }
@@ -1151,11 +1160,11 @@ public final class MappingNormalizer {
 
     /** Whether the class (or a superclass) carries a temporal stereotype. */
     private static boolean isTemporalClass(String classFqn, ModelBuilder model) {
-        return isTemporalClass(classFqn, model, new java.util.HashSet<>());
+        return isTemporalClass(classFqn, model, new HashSet<>());
     }
 
     private static boolean isTemporalClass(String classFqn, ModelBuilder model,
-            java.util.Set<String> visited) {
+            Set<String> visited) {
         if (!visited.add(classFqn)) {
             return false;   // superclass cycle guard
         }
@@ -1166,7 +1175,7 @@ public final class MappingNormalizer {
         for (var st : cd.stereotypes()) {
             if (("temporal".equals(st.profileName())
                     || "meta::pure::profiles::temporal".equals(st.profileName()))
-                    && java.util.Set.of("businesstemporal", "processingtemporal",
+                    && Set.of("businesstemporal", "processingtemporal",
                             "bitemporal").contains(st.stereotypeName())) {
                 return true;
             }
@@ -1193,14 +1202,14 @@ public final class MappingNormalizer {
                 routedMember.mainTable().table(), col, model);
         String kind = cd == null ? null : pureKindOf(cd.dataType());
         if (kind == null) {
-            throw new com.legend.error.NotImplementedException(
+            throw new NotImplementedException(
                     "union navigation key column '" + col + "' of table '"
                     + routedMember.mainTable().table() + "' has no derivable"
                     + " pure kind; mapping=" + md.qualifiedName());
         }
         return new AppliedFunction("cast", List.of(
                 new PureCollection(List.of()),
-                new com.legend.parser.spec.TypeAnnotation.Named(
+                new TypeAnnotation.Named(
                         new TypeExpression.NameRef(kind))));
     }
 
@@ -1218,14 +1227,14 @@ public final class MappingNormalizer {
                 ? nr.name() : "String";
         return new AppliedFunction("cast", List.of(
                 new PureCollection(List.of()),
-                new com.legend.parser.spec.TypeAnnotation.Named(
+                new TypeAnnotation.Named(
                         new TypeExpression.NameRef(castTo))));
     }
 
     /** The declared multiplicity of {@code prop} on {@code owner} (chain walk). */
-    private static com.legend.parser.Multiplicity findPropertyDeclared(
+    private static Multiplicity findPropertyDeclared(
             ClassDefinition owner, String prop, ModelBuilder model) {
-        for (com.legend.parser.element.ClassDefinition.PropertyDefinition pd
+        for (ClassDefinition.PropertyDefinition pd
                 : owner.properties()) {
             if (pd.name().equals(prop)) {
                 return pd.multiplicity();
@@ -1235,7 +1244,7 @@ public final class MappingNormalizer {
             if (sup instanceof TypeExpression.NameRef nr) {
                 ClassDefinition sc = model.findClass(nr.name()).orElse(null);
                 if (sc != null) {
-                    com.legend.parser.Multiplicity m = findPropertyDeclared(sc, prop, model);
+                    Multiplicity m = findPropertyDeclared(sc, prop, model);
                     if (m != null) {
                         return m;
                     }
@@ -1261,7 +1270,7 @@ public final class MappingNormalizer {
             // stays a loud wall.
             LegacyMappingDefinition.TableReference inferred = inferMainTable(rcm);
             if (inferred == null) {
-                throw new com.legend.error.NotImplementedException(
+                throw new NotImplementedException(
                         "Relational mapping without ~mainTable, sourceUrl, or an"
                       + " inferable column binding; class="
                       + rcm.className() + ", mapping=" + md.qualifiedName()
@@ -1305,14 +1314,14 @@ public final class MappingNormalizer {
             }
         });
         if (dbs.size() > 1) {
-            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE,
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
                     "Inconsistent database definitions for the mapping of class '"
                   + rcm.className() + "': " + dbs);
         }
         Set<String> names = new LinkedHashSet<>();
         refs.forEach(r -> names.add(canonicalTable(r.table())));
         if (names.size() > 1) {
-            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE,
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
                     "Can't find the main table for class '" + rcm.className()
                   + "': property mappings span tables " + names
                   + ". Please specify a main table using the ~mainTable directive.");
@@ -1339,7 +1348,7 @@ public final class MappingNormalizer {
             ClassMapping.Relational rcm) {
         try {
             return inferMainTable(rcm);
-        } catch (com.legend.error.ModelException e) {
+        } catch (ModelException e) {
             return null;
         }
     }
@@ -1367,31 +1376,31 @@ public final class MappingNormalizer {
         }
     }
 
-    private static void collectExprTables(com.legend.parser.element.RelationalOperation op,
+    private static void collectExprTables(RelationalOperation op,
             List<LegacyMappingDefinition.TableReference> sink) {
-        if (op instanceof com.legend.parser.element.RelationalOperation.ColumnRef cr
+        if (op instanceof RelationalOperation.ColumnRef cr
                 && cr.databaseName() != null && !cr.databaseName().isEmpty()) {
             sink.add(new LegacyMappingDefinition.TableReference(cr.databaseName(), cr.table()));
             return;
         }
         switch (op) {
-            case com.legend.parser.element.RelationalOperation.FunctionCall fc ->
+            case RelationalOperation.FunctionCall fc ->
                     fc.args().forEach(a -> collectExprTables(a, sink));
-            case com.legend.parser.element.RelationalOperation.Comparison c -> {
+            case RelationalOperation.Comparison c -> {
                 collectExprTables(c.left(), sink);
                 collectExprTables(c.right(), sink);
             }
-            case com.legend.parser.element.RelationalOperation.BooleanOp b -> {
+            case RelationalOperation.BooleanOp b -> {
                 collectExprTables(b.left(), sink);
                 collectExprTables(b.right(), sink);
             }
-            case com.legend.parser.element.RelationalOperation.IsNull n ->
+            case RelationalOperation.IsNull n ->
                     collectExprTables(n.operand(), sink);
-            case com.legend.parser.element.RelationalOperation.IsNotNull n ->
+            case RelationalOperation.IsNotNull n ->
                     collectExprTables(n.operand(), sink);
-            case com.legend.parser.element.RelationalOperation.Group g ->
+            case RelationalOperation.Group g ->
                     collectExprTables(g.inner(), sink);
-            case com.legend.parser.element.RelationalOperation.ArrayLiteral a ->
+            case RelationalOperation.ArrayLiteral a ->
                     a.elements().forEach(e -> collectExprTables(e, sink));
             default -> { }
         }
@@ -1421,7 +1430,7 @@ public final class MappingNormalizer {
                 List.of(new CString(rcm.sourceUrl())));
         Variable rowBind = new Variable("row");
         ClassDefinition cd = model.findClass(rcm.className()).orElseThrow(() ->
-                new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, "JSON-source mapping references unknown class '"
+                new ModelException(LegendCompileException.Phase.NORMALIZE, "JSON-source mapping references unknown class '"
                         + rcm.className() + "'; mapping=" + md.qualifiedName()));
         Map<String, KeyExpression> fields = new LinkedHashMap<>();
         for (ClassDefinition.PropertyDefinition prop : cd.properties()) {
@@ -1595,7 +1604,7 @@ public final class MappingNormalizer {
             // its own filter would need the mapping-filter join chain hoisted
             // at this outer level; not wired. Refuse loudly rather than
             // silently drop the mapping filter (AGENTS.md: no fallbacks).
-            throw new com.legend.error.NotImplementedException(
+            throw new NotImplementedException(
                     "View-backed class '" + rcm.className() + "' has both a view "
                   + "filter and a JoinMediated mapping ~filter; layering a "
                   + "JoinMediated filter over a filtered view is not supported. "
@@ -1612,7 +1621,7 @@ public final class MappingNormalizer {
             case FilterPointer.Local l -> rcm.mainTable().database();
         };
         DatabaseDefinition.FilterDefinition fd = model.findFilter(dbFqn, direct.filter().name())
-                .orElseThrow(() -> new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+                .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE, 
                         "~filter '" + direct.filter().name() + "' not found in db '"
                       + dbFqn + "'; class=" + rcm.className() + ", mapping="
                       + md.qualifiedName()));
@@ -1645,12 +1654,12 @@ public final class MappingNormalizer {
             RelOpTranslator.collectTablesIn(expr, tables);
         }
         if (tables.isEmpty()) {
-            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "View '" + viewName + "': cannot infer underlying main table — no "
                   + "non-join column references found; mapping=" + md.qualifiedName());
         }
         if (tables.size() > 1) {
-            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "View '" + viewName + "' references multiple root tables " + tables
                   + "; a view must resolve to a single root table. Mapping="
                   + md.qualifiedName());
@@ -1767,7 +1776,7 @@ public final class MappingNormalizer {
         // the main table; slot-carrying distinct mappings stay the
         // H3-pending wall downstream.
         if (rcm.distinct()) {
-            java.util.Set<String> mappedCols = new LinkedHashSet<>();
+            Set<String> mappedCols = new LinkedHashSet<>();
             boolean plainColumns = p.aliasToTargetTable.isEmpty();
             for (PropertyMapping pm : rcm.propertyMappings()) {
                 plainColumns &= collectMappedColumns(pm, mappedCols);
@@ -1786,7 +1795,7 @@ public final class MappingNormalizer {
                 // materializer swaps each demanded slot for its prefixed
                 // physical columns (join-equality makes them dependent,
                 // dedup-neutral) and drops the undemanded ones.
-                List<ColSpec> cols = new java.util.ArrayList<>(mappedCols.stream()
+                List<ColSpec> cols = new ArrayList<>(mappedCols.stream()
                         .map(c -> new ColSpec(c, null, null)).toList());
                 for (String alias : p.aliasToTargetTable.keySet()) {
                     cols.add(new ColSpec(alias, null, null));
@@ -1820,7 +1829,7 @@ public final class MappingNormalizer {
      * set). False = the PM is not a plain main-table read (join/embedded) —
      * the caller skips the narrowing select.
      */
-    private static boolean collectMappedColumns(PropertyMapping pm, java.util.Set<String> sink) {
+    private static boolean collectMappedColumns(PropertyMapping pm, Set<String> sink) {
         switch (pm) {
             case PropertyMapping.Column c -> sink.add(c.column());
             case PropertyMapping.EnumeratedColumn ec -> sink.add(ec.column());
@@ -1837,27 +1846,27 @@ public final class MappingNormalizer {
         return true;
     }
 
-    private static void collectExprColumns(com.legend.parser.element.RelationalOperation op,
-            java.util.Set<String> sink) {
+    private static void collectExprColumns(RelationalOperation op,
+            Set<String> sink) {
         switch (op) {
-            case com.legend.parser.element.RelationalOperation.ColumnRef cr -> sink.add(cr.column());
-            case com.legend.parser.element.RelationalOperation.FunctionCall fc ->
+            case RelationalOperation.ColumnRef cr -> sink.add(cr.column());
+            case RelationalOperation.FunctionCall fc ->
                     fc.args().forEach(a -> collectExprColumns(a, sink));
-            case com.legend.parser.element.RelationalOperation.Comparison c -> {
+            case RelationalOperation.Comparison c -> {
                 collectExprColumns(c.left(), sink);
                 collectExprColumns(c.right(), sink);
             }
-            case com.legend.parser.element.RelationalOperation.BooleanOp b -> {
+            case RelationalOperation.BooleanOp b -> {
                 collectExprColumns(b.left(), sink);
                 collectExprColumns(b.right(), sink);
             }
-            case com.legend.parser.element.RelationalOperation.IsNull n ->
+            case RelationalOperation.IsNull n ->
                     collectExprColumns(n.operand(), sink);
-            case com.legend.parser.element.RelationalOperation.IsNotNull n ->
+            case RelationalOperation.IsNotNull n ->
                     collectExprColumns(n.operand(), sink);
-            case com.legend.parser.element.RelationalOperation.Group g ->
+            case RelationalOperation.Group g ->
                     collectExprColumns(g.inner(), sink);
-            case com.legend.parser.element.RelationalOperation.ArrayLiteral a ->
+            case RelationalOperation.ArrayLiteral a ->
                     a.elements().forEach(e -> collectExprColumns(e, sink));
             default -> { }
         }
@@ -1874,13 +1883,13 @@ public final class MappingNormalizer {
     static ValueSpecification coerceToDeclaredNumeric(ValueSpecification value,
             String propName, String ownerClassFqn, ModelBuilder model) {
         String simple = declaredPlatformKind(propName, ownerClassFqn, model);
-        if (simple == null || !java.util.Set.of("Float", "Integer", "Decimal",
+        if (simple == null || !Set.of("Float", "Integer", "Decimal",
                 "Number", "DateTime", "StrictDate", "Date").contains(simple)) {
             return value;
         }
         return new AppliedFunction("cast", List.of(value,
-                new com.legend.parser.spec.TypeAnnotation.Named(
-                        new com.legend.parser.TypeExpression.NameRef(simple))));
+                new TypeAnnotation.Named(
+                        new TypeExpression.NameRef(simple))));
     }
 
     /**
@@ -1948,8 +1957,8 @@ public final class MappingNormalizer {
             return read;
         }
         return new AppliedFunction("cast", List.of(read,
-                new com.legend.parser.spec.TypeAnnotation.Named(
-                        new com.legend.parser.TypeExpression.NameRef(declared))));
+                new TypeAnnotation.Named(
+                        new TypeExpression.NameRef(declared))));
     }
 
     /** The pure primitive kind a physical SQL type reads as, or null. */
@@ -1988,12 +1997,12 @@ public final class MappingNormalizer {
             t = t.substring(dot + 1);
         }
         return findPhysicalColumn(dbFqn, schema, t, column, model,
-                new java.util.HashSet<>());
+                new HashSet<>());
     }
 
     static DatabaseDefinition.ColumnDefinition findPhysicalColumn(
             String dbFqn, String schema, String table, String column,
-            ModelBuilder model, java.util.Set<String> seen) {
+            ModelBuilder model, Set<String> seen) {
         if (!seen.add(dbFqn)) {
             return null;
         }
@@ -2036,7 +2045,7 @@ public final class MappingNormalizer {
             // inherited property (engine parity: property lookup walks
             // generalizations).
             if (findPropertyTypeDeep(cd, pm.propertyName(), model) == null) {
-                throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+                throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                         "PropertyMapping '" + pm.propertyName() + "' references property "
                       + "not declared on class '" + rcm.className() + "'; mapping="
                       + md.qualifiedName());
@@ -2151,19 +2160,19 @@ public final class MappingNormalizer {
             ModelBuilder model, Set<String> cycleStack) {
         ClassDefinition owner = model.findClass(ownerClassFqn).orElse(null);
         if (owner == null) {
-            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "Embedded PM '" + propName + "' on '" + ownerClassFqn
                   + "' but owner class unknown; mapping=" + md.qualifiedName());
         }
         TypeExpression propType = findPropertyTypeDeep(owner, propName, model);
         if (!(propType instanceof TypeExpression.NameRef nr)) {
-            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "Embedded PM '" + propName + "' on '" + ownerClassFqn
                   + "' has non-class property type; mapping=" + md.qualifiedName());
         }
         String innerFqn = nr.name();
         if (!cycleStack.add(innerFqn)) {
-            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "Cycle materializing Embedded; class " + innerFqn
                   + " recurses via '" + propName + "' on '" + ownerClassFqn + "'");
         }
@@ -2176,7 +2185,7 @@ public final class MappingNormalizer {
                 // An UNMAPPED target class has no instance to bind: wall.
                 if (sub instanceof PropertyMapping.Join j
                         && JoinChainEmission.classTypedTargetIfMapped(innerFqn, j.propertyName(), model) == null) {
-                    throw new com.legend.error.NotImplementedException(
+                    throw new NotImplementedException(
                             "Embedded sub-PM '" + j.propertyName() + "' on '"
                           + propName + "' is a class-typed Join to an UNMAPPED"
                           + " target class — no instance to bind. Mapping="
@@ -2235,7 +2244,7 @@ public final class MappingNormalizer {
             }
         }
         if (referenced == null) {
-            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "InlineEmbedded PM '" + ie.propertyName()
                   + "' references unknown setId '" + ie.setId()
                   + "' in mapping=" + md.qualifiedName());
@@ -2276,7 +2285,7 @@ public final class MappingNormalizer {
             case FilterPointer.Local l -> mainDb;
         };
         DatabaseDefinition.FilterDefinition fd = model.findFilter(
-                dbFqn, direct.filter().name()).orElseThrow(() -> new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+                dbFqn, direct.filter().name()).orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE, 
                 "~filter '" + direct.filter().name() + "' not found in db '"
               + dbFqn + "'; class=" + rcm.className() + ", mapping="
               + md.qualifiedName()));
@@ -2300,7 +2309,7 @@ public final class MappingNormalizer {
             case FilterPointer.Local l -> jm.sourceDb();
         };
         DatabaseDefinition.FilterDefinition fd = model.findFilter(
-                dbFqn, jm.filter().name()).orElseThrow(() -> new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+                dbFqn, jm.filter().name()).orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE, 
                 "~filter '" + jm.filter().name() + "' not found in db '"
               + dbFqn + "'; class=" + rcm.className() + ", mapping="
               + md.qualifiedName()));
@@ -2348,7 +2357,7 @@ public final class MappingNormalizer {
             if (isAggregatePm(pm)) { aggPms.add(pm); continue; }
             RelationalOperation pmOp = pmAsRelationalOp(pm);
             if (pmOp == null) {
-                throw new com.legend.error.NotImplementedException(
+                throw new NotImplementedException(
                         "PropertyMapping '" + pm.getClass().getSimpleName()
                       + "' for property '" + pm.propertyName()
                       + "' is not supported under ~groupBy (only Column, Expression, "
@@ -2362,7 +2371,7 @@ public final class MappingNormalizer {
                 }
             }
             if (matchIdx < 0) {
-                throw new com.legend.error.NotImplementedException(
+                throw new NotImplementedException(
                         "PM '" + pm.propertyName() + "' is a per-row expression that is "
                       + "neither an aggregate nor a declared ~groupBy key; ~groupBy "
                       + "mappings forbid per-row formulas outside the key list. Mapping="
@@ -2385,7 +2394,7 @@ public final class MappingNormalizer {
             RelationalOperation.FunctionCall fc = (RelationalOperation.FunctionCall)
                     ((PropertyMapping.Expression) pm).expression();
             if (fc.args().size() != 1) {
-                throw new com.legend.error.NotImplementedException(
+                throw new NotImplementedException(
                         "Aggregate PM '" + pm.propertyName() + "' uses '" + fc.name()
                       + "' with " + fc.args().size() + " args; only single-argument "
                       + "aggregates lift to the two-stage AggColSpec form. Mapping="
@@ -2494,7 +2503,7 @@ public final class MappingNormalizer {
         if (first != null) {
             return first;
         }
-        throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE,
+        throw new ModelException(LegendCompileException.Phase.NORMALIZE,
                 "No ~mainTable for class '" + classFqn + "' in mapping="
               + md.qualifiedName() + " (required to synthesize AssociationMapping)");
     }
@@ -2530,14 +2539,14 @@ public final class MappingNormalizer {
     private static List<EnumerationMapping> enumerationMappingsWithIncludes(
             LegacyMappingDefinition md, ModelBuilder model) {
         List<EnumerationMapping> out = new ArrayList<>(md.enumerationMappings());
-        java.util.Set<String> seen = new java.util.HashSet<>();
+        Set<String> seen = new HashSet<>();
         collectIncludedEnumMappings(md, model, out, seen);
         return out;
     }
 
     private static void collectIncludedEnumMappings(LegacyMappingDefinition md,
-            ModelBuilder model, List<EnumerationMapping> out, java.util.Set<String> seen) {
-        for (com.legend.parser.element.MappingInclude inc : md.includes()) {
+            ModelBuilder model, List<EnumerationMapping> out, Set<String> seen) {
+        for (MappingInclude inc : md.includes()) {
             if (!seen.add(inc.mappingPath())) {
                 continue;
             }
@@ -2583,8 +2592,8 @@ public final class MappingNormalizer {
             for (EnumerationMapping cand : ems) {
                 if (cand.enumName().equals(enumFqn)) {
                     if (em != null) {
-                        throw new com.legend.error.ModelException(
-                                com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                        throw new ModelException(
+                                LegendCompileException.Phase.NORMALIZE,
                                 "enum-mapped property '" + propertyName + "' uses an"
                               + " anonymous EnumerationMapping but '" + enumFqn
                               + "' has more than one — name the mapping id; mapping="
@@ -2595,7 +2604,7 @@ public final class MappingNormalizer {
             }
         }
         if (em == null) {
-            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     enumMappingId != null
                             ? "enum-mapped property '" + propertyName + "' references unknown "
                                     + "enum mapping '" + enumMappingId + "'; mapping="
@@ -2611,13 +2620,13 @@ public final class MappingNormalizer {
         // the real engine resolves every entry against the enumeration
         // (HelperMappingBuilder.processEnumMapping); silently skipping it
         // turned typos into NULL rows in [1] slots (audit).
-        java.util.List<String> knownValues = model.findEnum(em.enumName())
-                .map(com.legend.parser.element.EnumDefinition::values).orElse(null);
+        List<String> knownValues = model.findEnum(em.enumName())
+                .map(EnumDefinition::values).orElse(null);
         for (int i = values.size() - 1; i >= 0; i--) {
             EnumerationMapping.EnumValueMapping ev = values.get(i);
             if (knownValues != null && !knownValues.contains(ev.enumValue())) {
-                throw new com.legend.error.ModelException(
-                        com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                throw new ModelException(
+                        LegendCompileException.Phase.NORMALIZE,
                         "EnumerationMapping '" + em.mappingId() + "' maps value '"
                                 + ev.enumValue() + "' which enumeration '"
                                 + em.enumName() + "' does not declare");
@@ -2632,7 +2641,7 @@ public final class MappingNormalizer {
                 } else if (sv instanceof EnumerationMapping.SourceValue.EnumRef er) {
                     srcLit = new EnumValue(er.enumPath(), er.enumValueName());
                 } else {
-                    throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, "Unhandled SourceValue: " + sv);
+                    throw new ModelException(LegendCompileException.Phase.NORMALIZE, "Unhandled SourceValue: " + sv);
                 }
                 ValueSpecification eq = new AppliedFunction("equal",
                         List.of(sourceRead, srcLit));
@@ -2640,7 +2649,7 @@ public final class MappingNormalizer {
                         : new AppliedFunction("or", List.of(disj, eq));
             }
             if (disj == null) {
-                throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+                throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                         "EnumerationMapping '" + enumMappingId + "' value '"
                       + ev.enumValue() + "' declares no source values; cannot build "
                       + "a match condition for property '" + propertyName
@@ -2714,7 +2723,7 @@ public final class MappingNormalizer {
                     // join would match rows the view excludes. EXEMPT: the
                     // class's OWN backing view (its pipeline already applies
                     // those semantics; the condition only needs the columns).
-                    throw new com.legend.error.NotImplementedException(
+                    throw new NotImplementedException(
                             "Join references view '" + cr.table() + "' with "
                           + (view.filter() != null ? "~filter" : view.distinct()
                                   ? "~distinct" : "~groupBy")
@@ -2768,7 +2777,7 @@ public final class MappingNormalizer {
         scope.put(phys, r);
         if (view.filter() != null) {
             if (!(view.filter() instanceof FilterMapping.Direct direct)) {
-                throw new com.legend.error.NotImplementedException(
+                throw new NotImplementedException(
                         "view '" + viewName + "' used as a join target has a"
                       + " join-mediated ~filter; only direct view filters"
                       + " expand as relations. mapping=" + md.qualifiedName());
@@ -2779,8 +2788,8 @@ public final class MappingNormalizer {
             };
             DatabaseDefinition.FilterDefinition fd = model.findFilter(
                     dbFqn, direct.filter().name()).orElseThrow(() ->
-                    new com.legend.error.ModelException(
-                            com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                    new ModelException(
+                            LegendCompileException.Phase.NORMALIZE,
                             "~filter '" + direct.filter().name() + "' of view '"
                           + viewName + "' not found in db '" + dbFqn
                           + "'; mapping=" + md.qualifiedName()));
@@ -2793,7 +2802,7 @@ public final class MappingNormalizer {
             List<JoinChainEmission.JoinNavSpec> navs = new ArrayList<>();
             JoinChainEmission.collectJoinNavigations(vc.expression(), navs);
             if (!navs.isEmpty()) {
-                throw new com.legend.error.NotImplementedException(
+                throw new NotImplementedException(
                         "view '" + viewName + "' used as a join target has a"
                       + " join-navigating column '" + vc.name()
                       + "'; navigating view columns are a roadmap feature."
@@ -2826,7 +2835,7 @@ public final class MappingNormalizer {
                     }
                 }
                 if (match < 0) {
-                    throw new com.legend.error.NotImplementedException(
+                    throw new NotImplementedException(
                             "view '" + viewName + "' column '" + vc.name()
                           + "' is a per-row expression that is neither an"
                           + " aggregate nor a declared ~groupBy key."
@@ -2875,7 +2884,7 @@ public final class MappingNormalizer {
     static void requireNonViewTarget(String targetTable, String db,
             String joinName, ModelBuilder model, LegacyMappingDefinition md) {
         if (model.findView(db, targetTable).isPresent()) {
-            throw new com.legend.error.NotImplementedException(
+            throw new NotImplementedException(
                     "Join '" + joinName + "' targets view '" + targetTable
                   + "'; views as JOIN TARGETS are a roadmap feature (the view"
                   + " must expand as a relation at the join hop). mapping="
@@ -2892,12 +2901,12 @@ public final class MappingNormalizer {
         tables.remove(sourceTable);
         if (tables.size() == 1) return tables.iterator().next();
         if (tables.isEmpty()) {
-            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "Join '" + joinName + "' references no table other than source '"
                   + sourceTable + "' and has no {target} marker; owner=" + ownerLabel
                   + ", hop " + hopIndex + ", mapping=" + mappingFqn);
         }
-        throw new com.legend.error.NotImplementedException(
+        throw new NotImplementedException(
                 "Join '" + joinName + "' references multiple non-source tables "
               + tables + "; multi-table joins not supported. owner=" + ownerLabel
               + ", hop " + hopIndex + ", mapping=" + mappingFqn);
@@ -2920,7 +2929,7 @@ public final class MappingNormalizer {
             case RelationalOperation.Group g                 -> containsTargetColumnRef(g.inner());
             case RelationalOperation.ArrayLiteral a          ->
                     a.elements().stream().anyMatch(MappingNormalizer::containsTargetColumnRef);
-            case RelationalOperation.JoinNavigation ignored -> throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+            case RelationalOperation.JoinNavigation ignored -> throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "JoinNavigation inside join condition");
         };
     }
@@ -3008,7 +3017,7 @@ public final class MappingNormalizer {
             if (v instanceof AppliedFunction gf && gf.function().equals("get")
                     && primitiveName != null) {
                 v = new AppliedFunction("to", List.of(v,
-                        new com.legend.parser.spec.TypeAnnotation.Named(
+                        new TypeAnnotation.Named(
                                 new TypeExpression.NameRef(primitiveName))));
             }
             boolean exempt = v instanceof AppliedFunction af

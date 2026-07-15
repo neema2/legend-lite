@@ -4,16 +4,21 @@
 package com.legend.resolver;
 
 import com.legend.compiler.element.ModelContext;
+import com.legend.compiler.element.type.ExprType;
+import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.SpecCompiler;
+import com.legend.compiler.spec.typed.TypedGetAll;
 import com.legend.compiler.spec.typed.TypedLambda;
+import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.error.MappingResolutionException;
 import com.legend.error.NotImplementedException;
-
+import com.legend.parser.TypeExpression;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 /**
  * ASSOCIATION-ROUTE join material: the demanded association end's
  * target pipeline (materialized, temporally stamped, synthetic-pred
@@ -48,11 +53,11 @@ final class AssociationJoins {
         var navSteps = Pipelines.navSteps(cs.pipeline());
         String alias = StoreResolver.navSlotAlias(binding, cs.rowVar(), navSteps.keySet());
         var nav = navSteps.get(alias);
-        String targetClass = ((com.legend.compiler.spec.typed.TypedGetAll)
+        String targetClass = ((TypedGetAll)
                 nav.target()).classFqn();
         ClassSource t = sources.get(cs.mappingFqn(), targetClass);
         Set<String> targetSlots = Pipelines.slotAliases(t.pipeline());
-        Set<String> targetDemand = new java.util.LinkedHashSet<>();
+        Set<String> targetDemand = new LinkedHashSet<>();
         if (!targetSlots.isEmpty()) {
             for (String leaf : leaves) {
                 TypedSpec b = t.bindings().get(leaf);
@@ -65,9 +70,9 @@ final class AssociationJoins {
         Pipelines.Materialized tMat = Pipelines.materialize(
                 t.pipeline(), targetDemand, t.classFqn());
         TypedSpec tPipe0 = temporal.temporalTargetPipe(cs, t, head,
-                temporal.applyJoinTemporalFilters(tMat.pipeline(), t, java.util.Map.of()));
+                temporal.applyJoinTemporalFilters(tMat.pipeline(), t, Map.of()));
         return new AssocJoin(prefixFor(head, cs), t, tPipe0,
-                (com.legend.compiler.element.type.Type.RelationType)
+                (Type.RelationType)
                         tPipe0.info().type(),
                 nav.predicate(), tMat.slotPrefixes());
     }
@@ -75,7 +80,7 @@ final class AssociationJoins {
     /** A demanded association navigation, ready to emit as a prefixed LEFT join. */
     record AssocJoin(String prefix, ClassSource target,
                              TypedSpec targetPipeline,
-                             com.legend.compiler.element.type.Type.RelationType targetRow,
+                             Type.RelationType targetRow,
                              TypedLambda condition,
                              Map<String, String> targetSlotPrefixes) {}
 
@@ -86,12 +91,12 @@ final class AssociationJoins {
      */
     static String chainedPrefix(String base, ClassSource cs,
                                         Map<String, AssocJoin> joinsByChain) {
-        Set<String> taken = new java.util.LinkedHashSet<>();
-        for (com.legend.compiler.element.type.Type.Column c : cs.rowType().columns()) {
+        Set<String> taken = new LinkedHashSet<>();
+        for (Type.Column c : cs.rowType().columns()) {
             taken.add(c.name());
         }
         for (AssocJoin aj : joinsByChain.values()) {
-            for (com.legend.compiler.element.type.Type.Column c : aj.targetRow().columns()) {
+            for (Type.Column c : aj.targetRow().columns()) {
                 taken.add(aj.prefix() + c.name());
             }
         }
@@ -105,8 +110,8 @@ final class AssociationJoins {
 
     /** Deterministic prefix with ordinal bump on collision against the parent row (plan §2.3). */
     static String prefixFor(String head, ClassSource cs) {
-        Set<String> taken = new java.util.LinkedHashSet<>();
-        for (com.legend.compiler.element.type.Type.Column c : cs.rowType().columns()) {
+        Set<String> taken = new LinkedHashSet<>();
+        for (Type.Column c : cs.rowType().columns()) {
             taken.add(c.name());
         }
         String prefix = head + "_";
@@ -147,7 +152,7 @@ final class AssociationJoins {
         String real = SyntheticHeads.realHead(head);
         TypedLambda synthPred = synthetics.pred(head);
         if (synthPred != null) {
-            Set<String> withPredLeaves = new java.util.LinkedHashSet<>(demandedLeaves);
+            Set<String> withPredLeaves = new LinkedHashSet<>(demandedLeaves);
             for (TypedSpec b : synthPred.body()) {
                 StoreResolver.collectParamPathHeads(b, synthPred.parameters().get(0),
                         withPredLeaves);
@@ -171,7 +176,7 @@ final class AssociationJoins {
                     + head + "' with non-concrete multiplicity "
                     + end.multiplicity() + " is not supported");
         }
-        String targetClass = ((com.legend.parser.TypeExpression.NameRef)
+        String targetClass = ((TypeExpression.NameRef)
                 end.targetClass()).name();
         ClassSource target = sources.get(cs.mappingFqn(), targetClass);
         // The TARGET's own join slots materialize on demand too: a demanded
@@ -179,7 +184,7 @@ final class AssociationJoins {
         // @FirmCountry-mapped) pulls that slot's LEFT join into the target
         // pipeline — nested navigation joins, the W4 slice.
         Set<String> targetSlots = Pipelines.slotAliases(target.pipeline());
-        Set<String> targetDemand = new java.util.LinkedHashSet<>();
+        Set<String> targetDemand = new LinkedHashSet<>();
         if (!targetSlots.isEmpty()) {
             for (String leaf : demandedLeaves) {
                 TypedSpec b = target.bindings().get(leaf);
@@ -194,7 +199,7 @@ final class AssociationJoins {
         Pipelines.Materialized tMat = new Pipelines.Materialized(
                 temporal.temporalTargetPipe(cs, target, chainKey,
                         temporal.applyJoinTemporalFilters(tMat0.pipeline(), target,
-                                java.util.Map.of())),
+                                Map.of())),
                 tMat0.slotPrefixes(), tMat0.stripped());
 
         // The predicate function: mapping's AssociationBinding for the assoc.
@@ -217,7 +222,7 @@ final class AssociationJoins {
         }
         var cf = specs.compile(fns.get(0));
         TypedSpec last = cf.body().get(cf.body().size() - 1);
-        if (!(last instanceof com.legend.compiler.spec.typed.TypedNativeCall call)
+        if (!(last instanceof TypedNativeCall call)
                 || !call.callee().qualifiedName().equals("meta::legend::lite::legacyAssocPredicate")
                 || call.args().size() != 5
                 || !(call.args().get(4) instanceof TypedLambda cond)) {
@@ -235,7 +240,7 @@ final class AssociationJoins {
         // navigated destination when traversing property1) on tgtRow, so
         // property1 keeps the order and property2 reverses (pinned by the
         // executing self-association fixture).
-        String classAFqn = ((com.legend.compiler.element.type.Type.ClassType)
+        String classAFqn = ((Type.ClassType)
                 fns.get(0).parameters().get(0).type()).fqn();
         if (!classAFqn.equals(cs.classFqn()) && !classAFqn.equals(targetClass)) {
             throw new IllegalStateException("resolver bug: association predicate '"
@@ -248,19 +253,19 @@ final class AssociationJoins {
                 : !cs.classFqn().equals(classAFqn);
         TypedLambda oriented = cond;
         if (reverse) {
-            var ft = (com.legend.compiler.element.type.Type.FunctionType)
+            var ft = (Type.FunctionType)
                     cond.info().type();
-            var swapped = new com.legend.compiler.element.type.Type.FunctionType(
-                    java.util.List.of(ft.params().get(1), ft.params().get(0)),
+            var swapped = new Type.FunctionType(
+                    List.of(ft.params().get(1), ft.params().get(0)),
                     ft.result());
-            oriented = new TypedLambda(java.util.List.of(cond.parameters().get(1),
+            oriented = new TypedLambda(List.of(cond.parameters().get(1),
                     cond.parameters().get(0)), cond.body(),
-                    new com.legend.compiler.element.type.ExprType(swapped,
+                    new ExprType(swapped,
                             com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
         }
         // TARGET-SIDE join-key collection: a distinct-narrowed target must
         // expose the key columns the association condition binds on.
-        Set<String> tgtReads = new java.util.LinkedHashSet<>();
+        Set<String> tgtReads = new LinkedHashSet<>();
         for (TypedSpec b : oriented.body()) {
             Pipelines.collectVarReads(b, oriented.parameters().get(1), tgtReads);
         }
@@ -271,13 +276,13 @@ final class AssociationJoins {
         // audit 10: the target pipeline's OWN materialized slot joins to
         // milestoned tables filter by the temporal context too (every
         // milestoned table alias filters — the dead wall this replaces)
-        tPipe = temporal.applyJoinTemporalFilters(tPipe, target, java.util.Map.of());
+        tPipe = temporal.applyJoinTemporalFilters(tPipe, target, Map.of());
         if (synthPred != null) {
             tPipe = StoreResolver.predFilteredPipe(tPipe, target, tMat.slotPrefixes(),
                     synthPred, cs.mappingFqn());
         }
         return new AssocJoin(prefixFor(head, cs), target, tPipe,
-                (com.legend.compiler.element.type.Type.RelationType)
+                (Type.RelationType)
                         tPipe.info().type(),
                 oriented, tMat.slotPrefixes());
     }

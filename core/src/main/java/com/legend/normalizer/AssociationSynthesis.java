@@ -2,10 +2,13 @@
 
 package com.legend.normalizer;
 
-import com.legend.parser.NormalizedModel;
 import com.legend.compiler.ModelBuilder;
 import com.legend.compiler.SynthFqn;
+import com.legend.error.LegendCompileException;
+import com.legend.error.ModelException;
+import com.legend.error.NotImplementedException;
 import com.legend.parser.Multiplicity;
+import com.legend.parser.NormalizedModel;
 import com.legend.parser.ParsedModel;
 import com.legend.parser.TypeExpression;
 import com.legend.parser.element.AssociationDefinition;
@@ -15,20 +18,21 @@ import com.legend.parser.element.ClassDefinition;
 import com.legend.parser.element.ClassMapping;
 import com.legend.parser.element.ComparisonOp;
 import com.legend.parser.element.DatabaseDefinition;
-import com.legend.parser.element.RelationalDataType;
 import com.legend.parser.element.EnumerationMapping;
 import com.legend.parser.element.FilterMapping;
 import com.legend.parser.element.FilterPointer;
 import com.legend.parser.element.FunctionDefinition;
 import com.legend.parser.element.JoinChainElement;
-import com.legend.parser.element.LogicalOp;
 import com.legend.parser.element.LegacyMappingDefinition;
+import com.legend.parser.element.LogicalOp;
 import com.legend.parser.element.MappingDefinition;
-import com.legend.parser.element.Realization;
+import com.legend.parser.element.MappingInclude;
 import com.legend.parser.element.PackageableElement;
 import com.legend.parser.element.PropertyMapping;
-import com.legend.parser.element.SynthHat;
+import com.legend.parser.element.Realization;
+import com.legend.parser.element.RelationalDataType;
 import com.legend.parser.element.RelationalOperation;
+import com.legend.parser.element.SynthHat;
 import com.legend.parser.spec.AppliedFunction;
 import com.legend.parser.spec.AppliedProperty;
 import com.legend.parser.spec.CBoolean;
@@ -57,7 +61,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-
 /**
  * Association-mapping realization: multi-hop end injection (Option A), per-pair entry gathering, predicate-function synthesis (doc 5.6.1). Split from MappingNormalizer (the Doors split).
  */
@@ -154,7 +157,7 @@ final class AssociationSynthesis {
                         .add(stamped);
             }
         }
-        for (com.legend.parser.element.MappingInclude inc : md.includes()) {
+        for (MappingInclude inc : md.includes()) {
             LegacyMappingDefinition inner =
                     model.findLegacyMapping(inc.mappingPath()).orElse(null);
             if (inner != null) {
@@ -199,12 +202,12 @@ final class AssociationSynthesis {
                             "association '" + am.associationName() + "' end2"));
         }
         if (!(am instanceof AssociationMapping.Relational rel)) {
-            throw new com.legend.error.NotImplementedException(
+            throw new NotImplementedException(
                     "Association mapping kind " + am.getClass().getSimpleName()
                   + " not supported; mapping=" + md.qualifiedName());
         }
         AssociationDefinition ad = model.findAssociation(am.associationName())
-                .orElseThrow(() -> new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+                .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE, 
                         "AssociationMapping references unknown association '"
                       + am.associationName() + "'; mapping=" + md.qualifiedName()));
         String classA = associationEndClass(ad.property1().targetClass(),
@@ -213,7 +216,7 @@ final class AssociationSynthesis {
                 "association '" + am.associationName() + "' end2");
 
         if (rel.propertyMappings().isEmpty()) {
-            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "AssociationMapping for '" + am.associationName()
                   + "' has no property mappings; mapping=" + md.qualifiedName());
         }
@@ -223,7 +226,7 @@ final class AssociationSynthesis {
         // same regardless (it describes the association in one place).
         AssociationPropertyMapping firstAm = rel.propertyMappings().get(0);
         if (!(firstAm.body() instanceof PropertyMapping.Join firstJoin)) {
-            throw new com.legend.error.NotImplementedException(
+            throw new NotImplementedException(
                     "AssociationMapping property body kind "
                   + firstAm.body().getClass().getSimpleName()
                   + " not supported (only Join bodies are bridged); mapping="
@@ -301,7 +304,7 @@ final class AssociationSynthesis {
                                                              LegacyMappingDefinition md,
                                                              ModelBuilder model) {
         if (join.joins().isEmpty()) {
-            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "AssociationMapping for '" + associationName
                   + "' has empty join chain; mapping=" + md.qualifiedName());
         }
@@ -310,7 +313,7 @@ final class AssociationSynthesis {
             JoinChainElement hop = join.joins().get(0);
             String hopDb = hop.databaseName() != null ? hop.databaseName() : join.database();
             DatabaseDefinition.JoinDefinition jd = model.findJoin(hopDb, hop.joinName())
-                    .orElseThrow(() -> new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+                    .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE, 
                             "AssociationMapping join '" + hop.joinName()
                           + "' not found in db '" + hopDb + "'; association='"
                           + associationName + "', mapping=" + md.qualifiedName()));
@@ -326,7 +329,7 @@ final class AssociationSynthesis {
             // or the lambda's column reads would silently mistype.
             String classBTable = MappingNormalizer.mainTableOf(md, classB);
             if (!targetTable.equals(classBTable)) {
-                throw new com.legend.error.NotImplementedException(
+                throw new NotImplementedException(
                         "AssociationMapping join '" + hop.joinName() + "' lands on table '"
                       + targetTable + "' but the target end class '" + classB
                       + "' is mapped to ~mainTable '" + classBTable + "'; an "
@@ -345,7 +348,7 @@ final class AssociationSynthesis {
         // see docs/MAPPING_LEGACY_TO_FUNCTION.md §5.6.1b). A (A,B)->Boolean
         // predicate cannot bind the intermediate row(s). This guard fires only
         // if that interception is bypassed — a compiler invariant violation.
-        throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+        throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                 "Multi-hop AssociationMapping for '" + associationName + "' ("
               + join.joins().size() + " join hops) reached the predicate "
               + "builder; it should have been handled by per-end injection. "
@@ -354,7 +357,7 @@ final class AssociationSynthesis {
 
     static String associationEndClass(TypeExpression t, String context) {
         if (t instanceof TypeExpression.NameRef nr) return nr.name();
-        throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+        throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                 context + " has non-NameRef target class type: "
               + t.getClass().getSimpleName());
     }

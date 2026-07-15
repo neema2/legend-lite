@@ -3,28 +3,29 @@ package com.legend.normalizer;
 import com.legend.compiler.ModelBuilder;
 import com.legend.error.LegendCompileException;
 import com.legend.error.ModelException;
+import com.legend.error.NotImplementedException;
+import com.legend.parser.TypeExpression;
+import com.legend.parser.element.ComparisonOp;
 import com.legend.parser.element.DatabaseDefinition;
 import com.legend.parser.element.JoinChainElement;
-import com.legend.parser.element.RelationalOperation;
-import com.legend.parser.element.ComparisonOp;
 import com.legend.parser.element.LogicalOp;
-import com.legend.parser.spec.PureCollection;
+import com.legend.parser.element.RelationalOperation;
 import com.legend.parser.spec.AppliedFunction;
-import com.legend.parser.spec.LambdaFunction;
 import com.legend.parser.spec.AppliedProperty;
 import com.legend.parser.spec.CBoolean;
 import com.legend.parser.spec.CFloat;
 import com.legend.parser.spec.CInteger;
 import com.legend.parser.spec.CString;
 import com.legend.parser.spec.EnumValue;
+import com.legend.parser.spec.LambdaFunction;
+import com.legend.parser.spec.PureCollection;
+import com.legend.parser.spec.TypeAnnotation;
 import com.legend.parser.spec.ValueSpecification;
 import com.legend.parser.spec.Variable;
-
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 /**
  * Legacy {@link RelationalOperation} trees &rarr; Pure value expressions —
  * extracted from the MappingNormalizer god class (AUDIT_2026_07 §16 seam b).
@@ -93,7 +94,7 @@ final class RelOpTranslator {
             case RelationalOperation.IsNotNull n             -> collectTablesIn(n.operand(), sink);
             case RelationalOperation.Group g                 -> collectTablesIn(g.inner(), sink);
             case RelationalOperation.ArrayLiteral a          -> a.elements().forEach(e -> collectTablesIn(e, sink));
-            case RelationalOperation.JoinNavigation ignored  -> throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+            case RelationalOperation.JoinNavigation ignored  -> throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "JoinNavigation inside expression");
         }
     }
@@ -107,7 +108,7 @@ final class RelOpTranslator {
         }
         if (base == null) base = tableScope.get(defaultTable);
         if (base == null) {
-            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "No row variable in scope for table '" + table
                   + "'; available=" + tableScope.keySet());
         }
@@ -127,12 +128,12 @@ final class RelOpTranslator {
     /** {@code cast(v, @String)} — the SQL VARCHAR coercion emission. */
     private static ValueSpecification strCast(ValueSpecification v) {
         return new AppliedFunction("cast", List.of(v,
-                new com.legend.parser.spec.TypeAnnotation.Named(
-                        new com.legend.parser.TypeExpression.NameRef("String"))));
+                new TypeAnnotation.Named(
+                        new TypeExpression.NameRef("String"))));
     }
 
-    private static com.legend.error.ModelException ambiguousTableRef(String table, String column) {
-        return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+    private static ModelException ambiguousTableRef(String table, String column) {
+        return new ModelException(LegendCompileException.Phase.NORMALIZE, 
                 "Ambiguous column reference '" + table + "." + column + "': the join "
               + "chain reaches table '" + table + "' through more than one path, so a "
               + "bare column reference cannot identify which sub-row is meant. Pin the "
@@ -156,7 +157,7 @@ final class RelOpTranslator {
                     throw ambiguousTableRef(refTable, ref.column());
                 }
                 if (path == null) {
-                    throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+                    throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                             "ColumnRef references table '" + refTable
                           + "' not in scope; available=" + tableScope.keySet());
                 }
@@ -164,7 +165,7 @@ final class RelOpTranslator {
             }
             case RelationalOperation.TargetColumnRef tref -> {
                 if (targetVarOrNull == null) {
-                    throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+                    throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                             "TargetColumnRef {target}." + tref.column()
                           + " outside a join condition context");
                 }
@@ -204,7 +205,7 @@ final class RelOpTranslator {
                                 || !(lit.value() instanceof String ws)
                                 || !(ws.equalsIgnoreCase("Monday")
                                         || ws.equalsIgnoreCase("Sunday"))) {
-                            throw new com.legend.error.NotImplementedException(
+                            throw new NotImplementedException(
                                     "dayOfWeekNumber requires 'Sunday' or"
                                   + " 'Monday' as the week start (engine assert)");
                         }
@@ -278,8 +279,8 @@ final class RelOpTranslator {
                             targetVarOrNull, rowBindOrNull, pipeline);
                     yield new AppliedFunction("splitPart", List.of(a0, a1,
                             new AppliedFunction("cast", List.of(a2,
-                                    new com.legend.parser.spec.TypeAnnotation.Named(
-                                            new com.legend.parser.TypeExpression.NameRef("Integer"))))));
+                                    new TypeAnnotation.Named(
+                                            new TypeExpression.NameRef("Integer"))))));
             }
             case RelationalOperation.FunctionCall call
                     when call.name().equals("case") && call.args().size() >= 3
@@ -345,8 +346,8 @@ final class RelOpTranslator {
                                             rowBindOrNull, pipeline),
                                     translate(call.args().get(1), tableScope, targetVarOrNull,
                                             rowBindOrNull, pipeline))),
-                            new com.legend.parser.spec.TypeAnnotation.Named(
-                                    new com.legend.parser.TypeExpression.NameRef(tr.typeName()))));
+                            new TypeAnnotation.Named(
+                                    new TypeExpression.NameRef(tr.typeName()))));
             // Dynafunction spellings with no same-named pure native:
             // isNull/isNotNull ARE isEmpty/isNotEmpty on [0..1] values;
             // group(x) is parenthesization; if's branches must be THUNKS
@@ -363,7 +364,7 @@ final class RelOpTranslator {
                                             targetVarOrNull, rowBindOrNull, pipeline),
                                     translate(call.args().get(1), tableScope,
                                             targetVarOrNull, rowBindOrNull, pipeline))),
-                            new com.legend.parser.spec.CInteger(1)));
+                            new CInteger(1)));
             case RelationalOperation.FunctionCall call
                     when call.name().equals("isNull") && call.args().size() == 1 ->
                     new AppliedFunction("isEmpty", List.of(translate(call.args().get(0),
@@ -422,8 +423,8 @@ final class RelOpTranslator {
             case RelationalOperation.Group g ->
                     translate(g.inner(), tableScope, targetVarOrNull,
                             rowBindOrNull, pipeline);
-            case RelationalOperation.TypeRef tr -> throw new com.legend.error.ModelException(
-                    com.legend.error.LegendCompileException.Phase.NORMALIZE,
+            case RelationalOperation.TypeRef tr -> throw new ModelException(
+                    LegendCompileException.Phase.NORMALIZE,
                     "'@" + tr.typeName() + "' type argument is only supported as"
                             + " the third argument of get(col, key, @Type)");
             case RelationalOperation.ArrayLiteral arr -> new PureCollection(
@@ -437,7 +438,7 @@ final class RelOpTranslator {
                 // the terminal (if any) reads from that sub-row's
                 // table scope.
                 if (rowBindOrNull == null || !pipeline.hasSlots()) {
-                    throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, 
+                    throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                             "Nested JoinNavigation in scope without pipeline; "
                           + "JoinNav inside association predicates or join "
                           + "conditions is not supported.");
@@ -464,7 +465,7 @@ final class RelOpTranslator {
         if (value instanceof Integer i) return new CInteger((long) i);
         if (value instanceof Double d)  return new CFloat(d);
         if (value instanceof Boolean b) return new CBoolean(b);
-        throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.NORMALIZE, "Unsupported literal type: "
+        throw new ModelException(LegendCompileException.Phase.NORMALIZE, "Unsupported literal type: "
                 + (value == null ? "null" : value.getClass().getName()));
     }
 

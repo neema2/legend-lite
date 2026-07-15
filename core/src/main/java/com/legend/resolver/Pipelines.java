@@ -3,17 +3,33 @@ package com.legend.resolver;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
+import com.legend.compiler.spec.typed.TypedCBoolean;
+import com.legend.compiler.spec.typed.TypedCDate;
+import com.legend.compiler.spec.typed.TypedCDecimal;
+import com.legend.compiler.spec.typed.TypedCFloat;
+import com.legend.compiler.spec.typed.TypedCInteger;
+import com.legend.compiler.spec.typed.TypedCString;
+import com.legend.compiler.spec.typed.TypedCast;
+import com.legend.compiler.spec.typed.TypedCollection;
+import com.legend.compiler.spec.typed.TypedConcatenate;
+import com.legend.compiler.spec.typed.TypedDistinct;
 import com.legend.compiler.spec.typed.TypedEnumValue;
 import com.legend.compiler.spec.typed.TypedFilter;
+import com.legend.compiler.spec.typed.TypedFuncCol;
+import com.legend.compiler.spec.typed.TypedGetAll;
+import com.legend.compiler.spec.typed.TypedIf;
 import com.legend.compiler.spec.typed.TypedJoin;
 import com.legend.compiler.spec.typed.TypedJoinSlot;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedNavigate;
+import com.legend.compiler.spec.typed.TypedProject;
 import com.legend.compiler.spec.typed.TypedPropertyAccess;
+import com.legend.compiler.spec.typed.TypedSelect;
 import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.compiler.spec.typed.TypedTypeRef;
 import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.error.NotImplementedException;
-
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -21,7 +37,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-
+import java.util.function.UnaryOperator;
+import java.util.regex.Pattern;
 /**
  * Pipeline surgery: DEMANDED {@code TypedJoinSlot}s convert to prefixed
  * LEFT {@link TypedJoin}s; un-demanded slots are STRIPPED (the join
@@ -57,21 +74,21 @@ final class Pipelines {
     }
 
     /** All navigate-step aliases in {@code pipeline} (class-typed Join PMs). */
-    static Map<String, com.legend.compiler.spec.typed.TypedNavigate> navSteps(
+    static Map<String, TypedNavigate> navSteps(
             TypedSpec pipeline) {
-        Map<String, com.legend.compiler.spec.typed.TypedNavigate> out = new LinkedHashMap<>();
+        Map<String, TypedNavigate> out = new LinkedHashMap<>();
         collectNavSteps(pipeline, out);
         return out;
     }
 
     private static void collectNavSteps(TypedSpec n,
-            Map<String, com.legend.compiler.spec.typed.TypedNavigate> out) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedNavigate nav
+            Map<String, TypedNavigate> out) {
+        if (n instanceof TypedNavigate nav
                 && nav.alias().isPresent()) {
             out.put(nav.alias().get(), nav);
         }
         for (TypedSpec c : n.children()) {
-            if (!(n instanceof com.legend.compiler.spec.typed.TypedNavigate nav)
+            if (!(n instanceof TypedNavigate nav)
                     || c == nav.source()) {   // only the chain spine
                 collectNavSteps(c, out);
             }
@@ -169,7 +186,7 @@ final class Pipelines {
                 TypedLambda cond = new TypedLambda(condLam.parameters(),
                         condLam.body().stream().map(b -> rewriteRowReads(
                                 b, leftParam, prefixes, stripped,
-                                java.util.function.UnaryOperator.identity())).toList(),
+                                UnaryOperator.identity())).toList(),
                         condLam.info());
                 Type.RelationType leftRow = (Type.RelationType) left.info().type();
                 Type.RelationType rightRow = (Type.RelationType) js.target().info().type();
@@ -184,7 +201,7 @@ final class Pipelines {
                         cond, Optional.of(prefix),
                         new ExprType(new Type.RelationType(cols), Multiplicity.Bounded.ONE));
             }
-            case com.legend.compiler.spec.typed.TypedNavigate nav
+            case TypedNavigate nav
                     when nav.alias().isPresent() -> {
                 TypedSpec left = walk(nav.source(), demanded, demandedNavs, targets,
                         prefixes, stripped, classFqn);
@@ -197,7 +214,7 @@ final class Pipelines {
                     throw new IllegalStateException(
                             "resolver bug: demanded navigate step without a target resolver");
                 }
-                if (!(nav.target() instanceof com.legend.compiler.spec.typed.TypedGetAll ga)) {
+                if (!(nav.target() instanceof TypedGetAll ga)) {
                     throw new IllegalStateException("resolver bug: navigate step '"
                             + alias + "' target is "
                             + nav.target().getClass().getSimpleName()
@@ -227,7 +244,7 @@ final class Pipelines {
                 TypedLambda cond = new TypedLambda(condLam.parameters(),
                         condLam.body().stream().map(b -> rewriteRowReads(
                                 b, leftParam, prefixes, stripped,
-                                java.util.function.UnaryOperator.identity())).toList(),
+                                UnaryOperator.identity())).toList(),
                         condLam.info());
                 Type.RelationType leftRow = (Type.RelationType) left.info().type();
                 Type.RelationType rightRow =
@@ -265,8 +282,8 @@ final class Pipelines {
             }
             // UNION pipelines: each concatenate branch materializes
             // INDEPENDENTLY (its projection's own slot reads are its demand)
-            case com.legend.compiler.spec.typed.TypedConcatenate cc ->
-                    new com.legend.compiler.spec.typed.TypedConcatenate(
+            case TypedConcatenate cc ->
+                    new TypedConcatenate(
                             walk(cc.left(), demanded, demandedNavs, targets,
                                     prefixes, stripped, classFqn),
                             walk(cc.right(), demanded, demandedNavs, targets,
@@ -275,7 +292,7 @@ final class Pipelines {
             // a PROJECT over a slotted member pipeline: the colspec lambdas
             // demand their own slot reads; materialize the source with that
             // demand and rewrite the reads to the prefixed columns
-            case com.legend.compiler.spec.typed.TypedProject pr
+            case TypedProject pr
                     when containsSlot(pr.source()) || !navSteps(pr.source()).isEmpty() -> {
                 Set<String> slotAliases = slotAliases(pr.source());
                 Set<String> ownDemand = new LinkedHashSet<>();
@@ -290,26 +307,26 @@ final class Pipelines {
                 Set<String> branchStripped = new LinkedHashSet<>();
                 TypedSpec src = walk(pr.source(), ownDemand, Set.of(), targets,
                         branchPrefixes, branchStripped, classFqn);
-                List<com.legend.compiler.spec.typed.TypedFuncCol> cols =
-                        new java.util.ArrayList<>(pr.columns().size());
+                List<TypedFuncCol> cols =
+                        new ArrayList<>(pr.columns().size());
                 for (var col : pr.columns()) {
                     String rv = col.fn().parameters().get(0);
                     List<TypedSpec> body = col.fn().body().stream()
                             .map(b -> rewriteRowReads(b, rv, branchPrefixes,
                                     branchStripped,
-                                    java.util.function.UnaryOperator.identity()))
+                                    UnaryOperator.identity()))
                             .toList();
-                    cols.add(new com.legend.compiler.spec.typed.TypedFuncCol(
+                    cols.add(new TypedFuncCol(
                             col.name(), new TypedLambda(col.fn().parameters(),
                                     body, col.fn().info())));
                 }
-                yield new com.legend.compiler.spec.typed.TypedProject(src, cols, pr.info());
+                yield new TypedProject(src, cols, pr.info());
             }
             // Mapping ~distinct above slots: the engine FORCES all-property
             // materialization under a distinct (§A.6) — every slot joins and
             // the distinct tuple is the FULL materialized row. Column list
             // rebuilt from the widened row.
-            case com.legend.compiler.spec.typed.TypedDistinct d
+            case TypedDistinct d
                     when containsSlot(d.source()) -> {
                 Set<String> prefixesBefore = new LinkedHashSet<>(prefixes.values());
                 TypedSpec src = walk(d.source(), scalarSlotAliases(d.source()),
@@ -342,7 +359,7 @@ final class Pipelines {
                             }
                         }
                     }
-                    yield new com.legend.compiler.spec.typed.TypedDistinct(src,
+                    yield new TypedDistinct(src,
                             cols, new ExprType(new Type.RelationType(outCols),
                                     Multiplicity.Bounded.ONE));
                 }
@@ -350,7 +367,7 @@ final class Pipelines {
                 // dedup exactly what the source PROJECTS — naming the row
                 // type's columns would reference ones a milestoned scan
                 // does not project.
-                yield new com.legend.compiler.spec.typed.TypedDistinct(src,
+                yield new TypedDistinct(src,
                         List.of(), new ExprType(row, Multiplicity.Bounded.ONE));
             }
             default -> {
@@ -373,22 +390,22 @@ final class Pipelines {
      */
     static TypedSpec widenDistinctForKeys(TypedSpec pipeline, Set<String> cols) {
         TypedSpec top = pipeline;
-        java.util.function.UnaryOperator<TypedSpec> rewrap =
-                java.util.function.UnaryOperator.identity();
+        UnaryOperator<TypedSpec> rewrap =
+                UnaryOperator.identity();
         if (top instanceof TypedFilter f) {
             TypedSpec inner = f.source();
             rewrap = d -> new TypedFilter(d, f.predicate(),
                     new ExprType(d.info().type(), Multiplicity.Bounded.ONE));
             top = inner;
         }
-        if (!(top instanceof com.legend.compiler.spec.typed.TypedDistinct d)) {
+        if (!(top instanceof TypedDistinct d)) {
             return pipeline;
         }
         // A COLUMN-LIST distinct (slot-carrying ~distinct, already
         // materialized): widen the tuple with the missing key columns
         // present on its source row.
         if (d.columns() != null && !d.columns().isEmpty()
-                && !(d.source() instanceof com.legend.compiler.spec.typed.TypedSelect)) {
+                && !(d.source() instanceof TypedSelect)) {
             Type.RelationType srow = (Type.RelationType) d.source().info().type();
             List<String> dcols = new ArrayList<>(d.columns());
             List<Type.Column> outCols = new ArrayList<>();
@@ -414,12 +431,12 @@ final class Pipelines {
             if (!grew) {
                 return pipeline;
             }
-            return rewrap.apply(new com.legend.compiler.spec.typed.TypedDistinct(
+            return rewrap.apply(new TypedDistinct(
                     d.source(), dcols,
                     new ExprType(new Type.RelationType(outCols),
                             Multiplicity.Bounded.ONE)));
         }
-        if (!(d.source() instanceof com.legend.compiler.spec.typed.TypedSelect sel)) {
+        if (!(d.source() instanceof TypedSelect sel)) {
             return pipeline;
         }
         Type.RelationType selRow = (Type.RelationType) sel.info().type();
@@ -449,9 +466,9 @@ final class Pipelines {
         }
         ExprType row = new ExprType(new Type.RelationType(newRowCols),
                 Multiplicity.Bounded.ONE);
-        TypedSpec ns = new com.legend.compiler.spec.typed.TypedSelect(
+        TypedSpec ns = new TypedSelect(
                 sel.source(), newCols, row);
-        return rewrap.apply(new com.legend.compiler.spec.typed.TypedDistinct(
+        return rewrap.apply(new TypedDistinct(
                 ns, d.columns() == null || d.columns().isEmpty() ? d.columns()
                         : newCols, row));
     }
@@ -476,7 +493,7 @@ final class Pipelines {
             return new TypedFilter(inner, f.predicate(),
                     new ExprType(inner.info().type(), Multiplicity.Bounded.ONE));
         }
-        if (!(pipeline instanceof com.legend.compiler.spec.typed.TypedConcatenate cat)) {
+        if (!(pipeline instanceof TypedConcatenate cat)) {
             return pipeline;
         }
         Type.RelationType row = (Type.RelationType) cat.info().type();
@@ -503,7 +520,7 @@ final class Pipelines {
         }
         TypedSpec out = widened.get(0);
         for (int i = 1; i < widened.size(); i++) {
-            out = new com.legend.compiler.spec.typed.TypedConcatenate(out,
+            out = new TypedConcatenate(out,
                     widened.get(i),
                     new ExprType(out.info().type(), Multiplicity.Bounded.ONE));
         }
@@ -511,7 +528,7 @@ final class Pipelines {
     }
 
     private static void flattenConcatenate(TypedSpec n, List<TypedSpec> out) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedConcatenate cat) {
+        if (n instanceof TypedConcatenate cat) {
             flattenConcatenate(cat.left(), out);
             flattenConcatenate(cat.right(), out);
         } else {
@@ -532,22 +549,22 @@ final class Pipelines {
      */
     private static TypedSpec widenUnionMember(TypedSpec side, int ordinal,
             List<TypedSpec> members, List<String> missing) {
-        if (!(side instanceof com.legend.compiler.spec.typed.TypedProject p)) {
-            throw new com.legend.error.NotImplementedException(
+        if (!(side instanceof TypedProject p)) {
+            throw new NotImplementedException(
                     "a navigation join over this union demands key columns "
                     + missing + ", but a union member is a "
                     + side.getClass().getSimpleName()
                     + " — only projected members widen");
         }
         Type.RelationType srcRow = (Type.RelationType) p.source().info().type();
-        List<com.legend.compiler.spec.typed.TypedFuncCol> newCols =
+        List<TypedFuncCol> newCols =
                 new ArrayList<>(p.columns());
         List<Type.Column> outCols = new ArrayList<>(
                 ((Type.RelationType) p.info().type()).columns());
         for (String c : missing) {
             Type.Column src = columnOf(srcRow, c);
             if (src == null
-                    && java.util.regex.Pattern.matches("^.*_\\d+$", c)) {
+                    && Pattern.matches("^.*_\\d+$", c)) {
                 // ROUTED (member-suffixed) keys carry full provenance: the
                 // normalizer projects them INTO the union body (lift source
                 // keys + inbound route scan). A suffixed demand reaching
@@ -559,27 +576,27 @@ final class Pipelines {
                         + " union body (normalizer inbound-route scan)");
             }
             if (src == null) {
-                throw new com.legend.error.NotImplementedException(
+                throw new NotImplementedException(
                         "a navigation join over this union demands key column '"
                         + c + "', which union member rows do not all carry;"
                         + " heterogeneous member keys are not supported yet");
             }
             String v = "u_k";
             ExprType colType = new ExprType(src.type(), src.multiplicity());
-            var read = new com.legend.compiler.spec.typed.TypedPropertyAccess(
-                    new com.legend.compiler.spec.typed.TypedVariable(v,
+            var read = new TypedPropertyAccess(
+                    new TypedVariable(v,
                             new ExprType(srcRow, Multiplicity.Bounded.ONE)),
                     src.name(), colType);
             var fnType = new Type.FunctionType(
                     List.of(new Type.Param(srcRow, Multiplicity.Bounded.ONE)),
                     new Type.Param(src.type(), src.multiplicity()));
-            newCols.add(new com.legend.compiler.spec.typed.TypedFuncCol(c,
-                    new com.legend.compiler.spec.typed.TypedLambda(List.of(v),
+            newCols.add(new TypedFuncCol(c,
+                    new TypedLambda(List.of(v),
                             List.of(read),
                             new ExprType(fnType, Multiplicity.Bounded.ONE))));
             outCols.add(new Type.Column(c, src.type(), src.multiplicity()));
         }
-        return new com.legend.compiler.spec.typed.TypedProject(p.source(), newCols,
+        return new TypedProject(p.source(), newCols,
                 new ExprType(new Type.RelationType(outCols),
                         Multiplicity.Bounded.ONE));
     }
@@ -605,7 +622,7 @@ final class Pipelines {
                     out.add(js.alias());
                 }
                 cur = js.source();
-            } else if (cur instanceof com.legend.compiler.spec.typed.TypedNavigate nv) {
+            } else if (cur instanceof TypedNavigate nv) {
                 cur = nv.source();
             } else if (cur.children().isEmpty()) {
                 cur = null;
@@ -617,8 +634,8 @@ final class Pipelines {
     }
 
     private static boolean containsClassExtent(TypedSpec n) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedGetAll
-                || n instanceof com.legend.compiler.spec.typed.TypedNavigate) {
+        if (n instanceof TypedGetAll
+                || n instanceof TypedNavigate) {
             return true;
         }
         for (TypedSpec c : n.children()) {
@@ -631,8 +648,8 @@ final class Pipelines {
 
     /** Column names read on {@code var} anywhere in {@code n}. */
     static void collectVarReads(TypedSpec n, String var, Set<String> out) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
-                && pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
+        if (n instanceof TypedPropertyAccess pa
+                && pa.source() instanceof TypedVariable v
                 && v.name().equals(var)) {
             out.add(pa.property());
         }
@@ -644,8 +661,8 @@ final class Pipelines {
     /** Slot aliases read through {@code rowVar} in {@code n} ($row.slot...). */
     private static void collectSlotReads(TypedSpec n, String rowVar,
             Set<String> slotAliases, Set<String> out) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
-                && pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
+        if (n instanceof TypedPropertyAccess pa
+                && pa.source() instanceof TypedVariable v
                 && v.name().equals(rowVar)
                 && slotAliases.contains(pa.property())) {
             out.add(pa.property());
@@ -683,7 +700,7 @@ final class Pipelines {
      */
     static TypedSpec rewriteRowReads(TypedSpec n, String rowVar,
                                      Map<String, String> prefixes, Set<String> stripped,
-                                     java.util.function.UnaryOperator<TypedSpec> varRewrite) {
+                                     UnaryOperator<TypedSpec> varRewrite) {
         if (n instanceof TypedPropertyAccess outer
                 && outer.source() instanceof TypedPropertyAccess inner
                 && inner.source() instanceof TypedVariable v
@@ -716,13 +733,13 @@ final class Pipelines {
                     c.args().stream().map(a ->
                             rewriteRowReads(a, rowVar, prefixes, stripped, varRewrite))
                             .toList(), c.info());
-            case com.legend.compiler.spec.typed.TypedCollection c ->
-                    new com.legend.compiler.spec.typed.TypedCollection(
+            case TypedCollection c ->
+                    new TypedCollection(
                             c.elements().stream().map(e ->
                                     rewriteRowReads(e, rowVar, prefixes, stripped, varRewrite))
                                     .toList(), c.info());
-            case com.legend.compiler.spec.typed.TypedIf i ->
-                    new com.legend.compiler.spec.typed.TypedIf(
+            case TypedIf i ->
+                    new TypedIf(
                             rewriteRowReads(i.condition(), rowVar, prefixes, stripped, varRewrite),
                             rewriteRowReads(i.thenBranch(), rowVar, prefixes, stripped, varRewrite),
                             i.elseBranch().map(e ->
@@ -734,21 +751,21 @@ final class Pipelines {
                             l.body().stream().map(b ->
                                     rewriteRowReads(b, rowVar, prefixes, stripped, varRewrite))
                                     .toList(), l.info());
-            case com.legend.compiler.spec.typed.TypedCString ignored -> n;
-            case com.legend.compiler.spec.typed.TypedCInteger ignored -> n;
-            case com.legend.compiler.spec.typed.TypedCFloat ignored -> n;
-            case com.legend.compiler.spec.typed.TypedCDecimal ignored -> n;
-            case com.legend.compiler.spec.typed.TypedCBoolean ignored -> n;
-            case com.legend.compiler.spec.typed.TypedCDate ignored -> n;
-            case com.legend.compiler.spec.typed.TypedEnumValue ignored -> n;
+            case TypedCString ignored -> n;
+            case TypedCInteger ignored -> n;
+            case TypedCFloat ignored -> n;
+            case TypedCDecimal ignored -> n;
+            case TypedCBoolean ignored -> n;
+            case TypedCDate ignored -> n;
+            case TypedEnumValue ignored -> n;
             // JSON/variant-source bindings are casts over variant reads:
             // to(get($row.data, 'k'), @T) — the cast rides, the reads
             // rewrite (plan §F12: substitution doesn't care).
-            case com.legend.compiler.spec.typed.TypedCast c ->
-                    new com.legend.compiler.spec.typed.TypedCast(
+            case TypedCast c ->
+                    new TypedCast(
                             rewriteRowReads(c.source(), rowVar, prefixes, stripped, varRewrite),
                             c.target(), c.info());
-            case com.legend.compiler.spec.typed.TypedTypeRef ignored -> n;
+            case TypedTypeRef ignored -> n;
             default -> throw new IllegalStateException(
                     "resolver bug: row-read rewrite hit "
                             + n.getClass().getSimpleName()
@@ -764,7 +781,7 @@ final class Pipelines {
      * {@link #rewriteRowReads}.
      */
     static TypedSpec prefixColumns(TypedSpec n, String rowVar, String colPrefix,
-                                   java.util.function.UnaryOperator<TypedSpec> varRewrite) {
+                                   UnaryOperator<TypedSpec> varRewrite) {
         if (n instanceof TypedPropertyAccess pa
                 && pa.source() instanceof TypedVariable v
                 && v.name().equals(rowVar)) {
@@ -782,13 +799,13 @@ final class Pipelines {
             case TypedNativeCall c -> new TypedNativeCall(c.callee(),
                     c.args().stream().map(a -> prefixColumns(a, rowVar, colPrefix, varRewrite))
                             .toList(), c.info());
-            case com.legend.compiler.spec.typed.TypedCollection c ->
-                    new com.legend.compiler.spec.typed.TypedCollection(
+            case TypedCollection c ->
+                    new TypedCollection(
                             c.elements().stream().map(e ->
                                     prefixColumns(e, rowVar, colPrefix, varRewrite)).toList(),
                             c.info());
-            case com.legend.compiler.spec.typed.TypedIf i ->
-                    new com.legend.compiler.spec.typed.TypedIf(
+            case TypedIf i ->
+                    new TypedIf(
                             prefixColumns(i.condition(), rowVar, colPrefix, varRewrite),
                             prefixColumns(i.thenBranch(), rowVar, colPrefix, varRewrite),
                             i.elseBranch().map(e -> prefixColumns(e, rowVar, colPrefix, varRewrite)),
@@ -802,17 +819,17 @@ final class Pipelines {
             // to(get($row.DATA, 'k'), @T) — JSON/variant-source bindings wrap
             // reads in a CAST; the substitution rides through it (the same
             // arm rewriteRowReads has — plan §F12: substitution doesn't care).
-            case com.legend.compiler.spec.typed.TypedCast c ->
-                    new com.legend.compiler.spec.typed.TypedCast(
+            case TypedCast c ->
+                    new TypedCast(
                             prefixColumns(c.source(), rowVar, colPrefix, varRewrite),
                             c.target(), c.info());
-            case com.legend.compiler.spec.typed.TypedCString ignored -> n;
-            case com.legend.compiler.spec.typed.TypedCInteger ignored -> n;
-            case com.legend.compiler.spec.typed.TypedCFloat ignored -> n;
-            case com.legend.compiler.spec.typed.TypedCDecimal ignored -> n;
-            case com.legend.compiler.spec.typed.TypedCBoolean ignored -> n;
-            case com.legend.compiler.spec.typed.TypedCDate ignored -> n;
-            case com.legend.compiler.spec.typed.TypedEnumValue ignored -> n;
+            case TypedCString ignored -> n;
+            case TypedCInteger ignored -> n;
+            case TypedCFloat ignored -> n;
+            case TypedCDecimal ignored -> n;
+            case TypedCBoolean ignored -> n;
+            case TypedCDate ignored -> n;
+            case TypedEnumValue ignored -> n;
             default -> throw new IllegalStateException(
                     "resolver bug: association-leaf rewrite hit "
                             + n.getClass().getSimpleName()

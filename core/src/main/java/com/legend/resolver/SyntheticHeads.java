@@ -3,21 +3,37 @@
 
 package com.legend.resolver;
 
+import com.legend.compiler.element.type.ExprType;
+import com.legend.compiler.element.type.Multiplicity;
+import com.legend.compiler.element.type.Type;
+import com.legend.compiler.spec.typed.TypedAggCol;
+import com.legend.compiler.spec.typed.TypedCast;
+import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedDrop;
 import com.legend.compiler.spec.typed.TypedFilter;
 import com.legend.compiler.spec.typed.TypedFrom;
+import com.legend.compiler.spec.typed.TypedFuncCol;
 import com.legend.compiler.spec.typed.TypedGroupBy;
-import com.legend.compiler.spec.typed.TypedAggCol;
+import com.legend.compiler.spec.typed.TypedIf;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedLimit;
+import com.legend.compiler.spec.typed.TypedMap;
+import com.legend.compiler.spec.typed.TypedMilestonedAccess;
+import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedProject;
+import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedSlice;
 import com.legend.compiler.spec.typed.TypedSortBy;
 import com.legend.compiler.spec.typed.TypedSpec;
-
+import com.legend.compiler.spec.typed.TypedVariable;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
+import java.util.function.UnaryOperator;
 /**
  * SYNTHETIC HEAD identities — filtered navigations lift to
  * {@code head#fN} chains (predicate parked for the join target),
@@ -108,11 +124,11 @@ final class SyntheticHeads {
 
     private TypedSpec liftFilteredHeads(TypedSpec n, boolean enabled) {
         if (enabled
-                && n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                && n instanceof TypedPropertyAccess pa
                 && pa.source() instanceof TypedFilter f
                 && f.predicate().parameters().size() == 1
                 && f.info().type()
-                        instanceof com.legend.compiler.element.type.Type.ClassType
+                        instanceof Type.ClassType
                 && isLiftableNav(f.source())
                 // the predicate must be CLOSED over its own parameter: an
                 // outer-variable read has no correlation pass on this route
@@ -129,24 +145,24 @@ final class SyntheticHeads {
             if (head instanceof com.legend.compiler.spec.typed
                     .TypedMilestonedAccess ma) {
                 synth = mintFilteredName(ma.property());
-                renamed = new com.legend.compiler.spec.typed.TypedMilestonedAccess(
+                renamed = new TypedMilestonedAccess(
                         ma.source(), synth, ma.dates(), ma.sweep(), ma.info());
             } else {
-                var hp = (com.legend.compiler.spec.typed.TypedPropertyAccess) head;
+                var hp = (TypedPropertyAccess) head;
                 synth = mintFilteredName(hp.property());
-                renamed = new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                renamed = new TypedPropertyAccess(
                         hp.source(), synth, hp.info());
             }
             preds.put(synth, f.predicate());
-            return new com.legend.compiler.spec.typed.TypedPropertyAccess(
+            return new TypedPropertyAccess(
                     renamed, pa.property(), pa.info());
         }
         return switch (n) {
-            case com.legend.compiler.spec.typed.TypedProject p ->
-                    new com.legend.compiler.spec.typed.TypedProject(
+            case TypedProject p ->
+                    new TypedProject(
                             liftFilteredHeads(p.source(), enabled),
                             p.columns().stream().map(c ->
-                                    new com.legend.compiler.spec.typed.TypedFuncCol(
+                                    new TypedFuncCol(
                                             c.name(),
                                             (TypedLambda) liftFilteredHeads(c.fn(),
                                                     enabled && !valuesLambdas
@@ -174,39 +190,39 @@ final class SyntheticHeads {
             case TypedLambda l -> new TypedLambda(l.parameters(),
                     l.body().stream().map(b -> liftFilteredHeads(b, enabled))
                             .toList(), l.info());
-            case com.legend.compiler.spec.typed.TypedNativeCall c ->
-                    new com.legend.compiler.spec.typed.TypedNativeCall(c.callee(),
+            case TypedNativeCall c ->
+                    new TypedNativeCall(c.callee(),
                             c.args().stream().map(a -> liftFilteredHeads(a, enabled))
                                     .toList(), c.info());
-            case com.legend.compiler.spec.typed.TypedPropertyAccess pa ->
-                    new com.legend.compiler.spec.typed.TypedPropertyAccess(
+            case TypedPropertyAccess pa ->
+                    new TypedPropertyAccess(
                             liftFilteredHeads(pa.source(), enabled),
                             pa.property(), pa.info());
-            case com.legend.compiler.spec.typed.TypedMilestonedAccess ma ->
-                    new com.legend.compiler.spec.typed.TypedMilestonedAccess(
+            case TypedMilestonedAccess ma ->
+                    new TypedMilestonedAccess(
                             liftFilteredHeads(ma.source(), enabled), ma.property(),
                             ma.dates(), ma.sweep(), ma.info());
             // auto-map mapper bodies are VALUE flattenings (empties drop) —
             // the TDS lift stays off inside them; unlifted shapes keep
             // their loud error
-            case com.legend.compiler.spec.typed.TypedMap m ->
-                    new com.legend.compiler.spec.typed.TypedMap(
+            case TypedMap m ->
+                    new TypedMap(
                             liftFilteredHeads(m.source(), enabled),
                             (TypedLambda) liftFilteredHeads(m.mapper(), false),
                             m.info());
-            case com.legend.compiler.spec.typed.TypedIf i ->
-                    new com.legend.compiler.spec.typed.TypedIf(
+            case TypedIf i ->
+                    new TypedIf(
                             liftFilteredHeads(i.condition(), enabled),
                             liftFilteredHeads(i.thenBranch(), enabled),
                             i.elseBranch().map(e -> liftFilteredHeads(e, enabled)),
                             i.info());
-            case com.legend.compiler.spec.typed.TypedCollection c ->
-                    new com.legend.compiler.spec.typed.TypedCollection(
+            case TypedCollection c ->
+                    new TypedCollection(
                             c.elements().stream().map(e ->
                                     liftFilteredHeads(e, enabled)).toList(),
                             c.info());
-            case com.legend.compiler.spec.typed.TypedCast c ->
-                    new com.legend.compiler.spec.typed.TypedCast(
+            case TypedCast c ->
+                    new TypedCast(
                             liftFilteredHeads(c.source(), enabled),
                             c.target(), c.info());
             default -> n;
@@ -222,17 +238,17 @@ final class SyntheticHeads {
      * predicate; the predicate joins the chain as an injected
      * object-space filter whose reads inline through the synthetic head.
      */
-    com.legend.compiler.spec.typed.TypedMap liftValueMapFilter(
-            com.legend.compiler.spec.typed.TypedMap m) {
+    TypedMap liftValueMapFilter(
+            TypedMap m) {
         TypedLambda mapper = m.mapper();
         if (mapper.body().size() != 1
                 || !(mapper.body().get(0)
-                        instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa)
+                        instanceof TypedPropertyAccess pa)
                 || !(pa.source() instanceof TypedFilter f)
                 || f.predicate().parameters().size() != 1
                 || f.predicate().body().size() != 1
                 || !(f.info().type()
-                        instanceof com.legend.compiler.element.type.Type.ClassType)
+                        instanceof Type.ClassType)
                 || !isLiftableNav(f.source())
                 || (pa.info().multiplicity()
                         instanceof com.legend.compiler.element.type
@@ -245,35 +261,35 @@ final class SyntheticHeads {
         if (f.source() instanceof com.legend.compiler.spec.typed
                 .TypedMilestonedAccess ma) {
             synth = mintFilteredName(ma.property());
-            renamed = new com.legend.compiler.spec.typed.TypedMilestonedAccess(
+            renamed = new TypedMilestonedAccess(
                     ma.source(), synth, ma.dates(), ma.sweep(), ma.info());
         } else {
-            var hp = (com.legend.compiler.spec.typed.TypedPropertyAccess) f.source();
+            var hp = (TypedPropertyAccess) f.source();
             synth = mintFilteredName(hp.property());
-            renamed = new com.legend.compiler.spec.typed.TypedPropertyAccess(
+            renamed = new TypedPropertyAccess(
                     hp.source(), synth, hp.info());
         }
         TypedLambda mapper2 = new TypedLambda(mapper.parameters(),
-                java.util.List.of(new com.legend.compiler.spec.typed
+                List.of(new com.legend.compiler.spec.typed
                         .TypedPropertyAccess(renamed, pa.property(), pa.info())),
                 mapper.info());
         TypedSpec inlined = Substitution.inlineParam(f.predicate().body().get(0),
                 f.predicate().parameters().get(0), renamed);
-        var srcParam = ((com.legend.compiler.element.type.Type.FunctionType)
+        var srcParam = ((Type.FunctionType)
                 mapper.info().type()).params().get(0);
         TypedLambda filterLam = new TypedLambda(mapper.parameters(),
-                java.util.List.of(inlined),
-                new com.legend.compiler.element.type.ExprType(
-                        new com.legend.compiler.element.type.Type.FunctionType(
-                                java.util.List.of(srcParam),
-                                new com.legend.compiler.element.type.Type.Param(
+                List.of(inlined),
+                new ExprType(
+                        new Type.FunctionType(
+                                List.of(srcParam),
+                                new Type.Param(
                                         com.legend.compiler.element.type
                                                 .Type.Primitive.BOOLEAN,
                                         com.legend.compiler.element.type
                                                 .Multiplicity.Bounded.ONE)),
-                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+                        Multiplicity.Bounded.ONE));
         valuesLambdas.add(mapper2);
-        return new com.legend.compiler.spec.typed.TypedMap(
+        return new TypedMap(
                 new TypedFilter(m.source(), filterLam, m.source().info()),
                 mapper2, m.info());
     }
@@ -282,12 +298,12 @@ final class SyntheticHeads {
      * parameters of lambdas nested WITHIN it (conservative: any other
      * variable name refuses the lift — over-refusing stays loud). */
     private static boolean predClosedOverParam(TypedLambda pred) {
-        Set<String> bound = new java.util.LinkedHashSet<>(pred.parameters());
+        Set<String> bound = new LinkedHashSet<>(pred.parameters());
         collectLambdaParamNames(pred.body(), bound);
         return pred.body().stream().allMatch(b -> readsOnly(b, bound));
     }
 
-    private static void collectLambdaParamNames(java.util.List<TypedSpec> body,
+    private static void collectLambdaParamNames(List<TypedSpec> body,
             Set<String> out) {
         for (TypedSpec b : body) {
             collectLambdaParamNames(b, out);
@@ -304,7 +320,7 @@ final class SyntheticHeads {
     }
 
     private static boolean readsOnly(TypedSpec n, Set<String> allowed) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedVariable v
+        if (n instanceof TypedVariable v
                 && !allowed.contains(v.name())) {
             return false;
         }
@@ -319,10 +335,10 @@ final class SyntheticHeads {
     /** The filter's source is a navigation hop whose receiver chain bottoms
      * at a lambda variable — the shape the lift can rename. */
     private static boolean isLiftableNav(TypedSpec n) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa) {
+        if (n instanceof TypedPropertyAccess pa) {
             return navBottomsAtVar(pa.source());
         }
-        if (n instanceof com.legend.compiler.spec.typed.TypedMilestonedAccess ma) {
+        if (n instanceof TypedMilestonedAccess ma) {
             return navBottomsAtVar(ma.source());
         }
         return false;
@@ -330,13 +346,13 @@ final class SyntheticHeads {
 
     private static boolean navBottomsAtVar(TypedSpec n) {
         return switch (n) {
-            case com.legend.compiler.spec.typed.TypedVariable ignored -> true;
-            case com.legend.compiler.spec.typed.TypedPropertyAccess pa ->
+            case TypedVariable ignored -> true;
+            case TypedPropertyAccess pa ->
                     navBottomsAtVar(pa.source());
-            case com.legend.compiler.spec.typed.TypedMilestonedAccess ma ->
+            case TypedMilestonedAccess ma ->
                     navBottomsAtVar(ma.source());
             case TypedFilter f -> navBottomsAtVar(f.source());
-            case com.legend.compiler.spec.typed.TypedNativeCall c
+            case TypedNativeCall c
                     when c.args().size() == 1 && c.callee().qualifiedName()
                             .equals("meta::pure::functions::multiplicity::toOne") ->
                     navBottomsAtVar(c.args().get(0));
@@ -353,11 +369,11 @@ final class SyntheticHeads {
     /** Apply {@code renames} (identity-keyed milestoned-access nodes →
      * date-fingerprinted synthetic names) throughout the tree. */
     TypedSpec replaceDatedNodes(TypedSpec n,
-            java.util.IdentityHashMap<TypedSpec, String> renames) {
+            IdentityHashMap<TypedSpec, String> renames) {
         String newName = renames.get(n);
         if (newName != null) {
-            var ma = (com.legend.compiler.spec.typed.TypedMilestonedAccess) n;
-            return new com.legend.compiler.spec.typed.TypedMilestonedAccess(
+            var ma = (TypedMilestonedAccess) n;
+            return new TypedMilestonedAccess(
                     replaceDatedNodes(ma.source(), renames), newName,
                     ma.dates(), ma.sweep(), ma.info());
         }
@@ -372,13 +388,13 @@ final class SyntheticHeads {
      * its loud downstream error, never silent SQL).
      */
     private static TypedSpec rebuildChildren(TypedSpec n,
-            java.util.function.UnaryOperator<TypedSpec> f) {
+            UnaryOperator<TypedSpec> f) {
         return switch (n) {
-            case com.legend.compiler.spec.typed.TypedProject p ->
-                    new com.legend.compiler.spec.typed.TypedProject(
+            case TypedProject p ->
+                    new TypedProject(
                             f.apply(p.source()),
                             p.columns().stream().map(c ->
-                                    new com.legend.compiler.spec.typed.TypedFuncCol(
+                                    new TypedFuncCol(
                                             c.name(), (TypedLambda) f.apply(c.fn())))
                                     .toList(),
                             p.info());
@@ -404,29 +420,29 @@ final class SyntheticHeads {
                     fr.mapping(), fr.runtime(), fr.info());
             case TypedLambda l -> new TypedLambda(l.parameters(),
                     l.body().stream().map(f).toList(), l.info());
-            case com.legend.compiler.spec.typed.TypedNativeCall c ->
-                    new com.legend.compiler.spec.typed.TypedNativeCall(c.callee(),
+            case TypedNativeCall c ->
+                    new TypedNativeCall(c.callee(),
                             c.args().stream().map(f).toList(), c.info());
-            case com.legend.compiler.spec.typed.TypedPropertyAccess pa ->
-                    new com.legend.compiler.spec.typed.TypedPropertyAccess(
+            case TypedPropertyAccess pa ->
+                    new TypedPropertyAccess(
                             f.apply(pa.source()), pa.property(), pa.info());
-            case com.legend.compiler.spec.typed.TypedMilestonedAccess ma ->
-                    new com.legend.compiler.spec.typed.TypedMilestonedAccess(
+            case TypedMilestonedAccess ma ->
+                    new TypedMilestonedAccess(
                             f.apply(ma.source()), ma.property(),
                             ma.dates(), ma.sweep(), ma.info());
-            case com.legend.compiler.spec.typed.TypedMap m ->
-                    new com.legend.compiler.spec.typed.TypedMap(
+            case TypedMap m ->
+                    new TypedMap(
                             f.apply(m.source()),
                             (TypedLambda) f.apply(m.mapper()), m.info());
-            case com.legend.compiler.spec.typed.TypedIf i ->
-                    new com.legend.compiler.spec.typed.TypedIf(
+            case TypedIf i ->
+                    new TypedIf(
                             f.apply(i.condition()), f.apply(i.thenBranch()),
                             i.elseBranch().map(f), i.info());
-            case com.legend.compiler.spec.typed.TypedCollection c ->
-                    new com.legend.compiler.spec.typed.TypedCollection(
+            case TypedCollection c ->
+                    new TypedCollection(
                             c.elements().stream().map(f).toList(), c.info());
-            case com.legend.compiler.spec.typed.TypedCast c ->
-                    new com.legend.compiler.spec.typed.TypedCast(
+            case TypedCast c ->
+                    new TypedCast(
                             f.apply(c.source()), c.target(), c.info());
             default -> n;
         };
@@ -435,14 +451,14 @@ final class SyntheticHeads {
     /** Lifted filtered-navigation heads: synthetic name → the user
      * predicate parked on the head ({@link #liftFilteredHeads}).
      * Append-only across nested resolutions — names are counter-unique. */
-    private final java.util.Map<String, TypedLambda> preds =
-            new java.util.LinkedHashMap<>();
+    private final Map<String, TypedLambda> preds =
+            new LinkedHashMap<>();
 
     private int count = 0;
 
     /** Column lambdas born from VALUES-position map terminals: pure
      * flattening drops empties there, so the TDS lift (whose LEFT-join
      * NULL row is the point) must NOT fire inside them. */
-    private final java.util.Set<TypedLambda> valuesLambdas =
-            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+    private final Set<TypedLambda> valuesLambdas =
+            Collections.newSetFromMap(new IdentityHashMap<>());
 }

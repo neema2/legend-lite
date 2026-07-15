@@ -4,23 +4,31 @@
 package com.legend.resolver;
 
 import com.legend.compiler.element.ModelContext;
+import com.legend.compiler.element.type.ExprType;
+import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedFilter;
 import com.legend.compiler.spec.typed.TypedFuncCol;
 import com.legend.compiler.spec.typed.TypedGetAll;
 import com.legend.compiler.spec.typed.TypedGraphTree;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedNavigate;
+import com.legend.compiler.spec.typed.TypedNewInstance;
+import com.legend.compiler.spec.typed.TypedNewInstanceCast;
+import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedSerializeGraph;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.error.MappingResolutionException;
 import com.legend.error.NotImplementedException;
-
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
+import java.util.function.BiFunction;
+import java.util.function.IntSupplier;
+import java.util.function.UnaryOperator;
 /**
  * GRAPH-terminal emission (plan H4a SNAPSHOT): the serialize envelope —
  * leaves substituted over the row, class-typed children as correlated
@@ -36,16 +44,16 @@ final class GraphEmission {
     private final TemporalFrame temporal;
     /** Mapping dispatch (context, classFqn) -> mappingFqn — the
      * resolver's runtime-aware routing. */
-    private final java.util.function.BiFunction<StoreResolver.Context,
+    private final BiFunction<StoreResolver.Context,
             String, String> dispatch;
     /** Fresh child row-var mint (shares the resolver's counter). */
-    private final java.util.function.IntSupplier freshVar;
+    private final IntSupplier freshVar;
 
     GraphEmission(ModelContext ctx, ClassSources sources,
             AssociationJoins assocMaterial, TemporalFrame temporal,
-            java.util.function.BiFunction<StoreResolver.Context, String,
+            BiFunction<StoreResolver.Context, String,
                     String> dispatch,
-            java.util.function.IntSupplier freshVar) {
+            IntSupplier freshVar) {
         this.ctx = ctx;
         this.sources = sources;
         this.assocMaterial = assocMaterial;
@@ -64,14 +72,14 @@ final class GraphEmission {
         List<TypedGraphTree> tree = new ArrayList<>();
         for (Map.Entry<String, TypedSpec> e : cs.bindings().entrySet()) {
             TypedSpec inner = e.getValue();
-            if (inner instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+            if (inner instanceof TypedNativeCall c
                     && c.args().size() == 1
                     && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
                 inner = c.args().get(0);
             }
-            if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstance
+            if (inner instanceof TypedNewInstance
                     || inner.info().type()
-                            instanceof com.legend.compiler.element.type.Type.ClassType) {
+                            instanceof Type.ClassType) {
                 continue;
             }
             tree.add(new TypedGraphTree(e.getKey(), List.of()));
@@ -98,7 +106,7 @@ final class GraphEmission {
      * validity-start milestone column (version sweep); {@code null} when
      * the property is not a generated date here. */
     TypedSpec generatedDateLeaf(ClassSource cs, String prop,
-            com.legend.compiler.element.type.Type.RelationType rowType,
+            Type.RelationType rowType,
             String rowVar) {
         if ((!prop.equals("businessDate") && !prop.equals("processingDate"))
                 || temporal.temporalStrategy(cs.classFqn()) == null) {
@@ -127,12 +135,12 @@ final class GraphEmission {
         if (colDef == null) {
             return null;
         }
-        return new com.legend.compiler.spec.typed.TypedPropertyAccess(
+        return new TypedPropertyAccess(
                 new TypedVariable(rowVar,
-                        new com.legend.compiler.element.type.ExprType(rowType,
+                        new ExprType(rowType,
                                 com.legend.compiler.element.type.Multiplicity
                                         .Bounded.ONE)),
-                col, new com.legend.compiler.element.type.ExprType(
+                col, new ExprType(
                         colDef.type(), colDef.multiplicity()));
     }
 
@@ -147,11 +155,11 @@ final class GraphEmission {
     TypedSerializeGraph buildGraphNode(ClassSource cs, TypedSpec pipeline,
             Map<String, String> slotPrefixes, Set<String> stripped, String rowVar,
             List<TypedGraphTree> tree, StoreResolver.Context context, boolean arrayWrap,
-            com.legend.compiler.element.type.ExprType info) {
-        var rowType = (com.legend.compiler.element.type.Type.RelationType)
+            ExprType info) {
+        var rowType = (Type.RelationType)
                 pipeline.info().type();
-        java.util.function.UnaryOperator<TypedSpec> toRow = v -> new TypedVariable(
-                rowVar, new com.legend.compiler.element.type.ExprType(rowType,
+        UnaryOperator<TypedSpec> toRow = v -> new TypedVariable(
+                rowVar, new ExprType(rowType,
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
         List<TypedFuncCol> leaves = new ArrayList<>();
         List<TypedSerializeGraph.Child> children = new ArrayList<>();
@@ -177,32 +185,32 @@ final class GraphEmission {
                             + "' is not mapped in mapping '" + cs.mappingFqn()
                             + "'", cs.classFqn());
                 }
-                var genFn = new com.legend.compiler.element.type.Type.FunctionType(
-                        List.of(new com.legend.compiler.element.type.Type.Param(
+                var genFn = new Type.FunctionType(
+                        List.of(new Type.Param(
                                 rowType,
                                 com.legend.compiler.element.type.Multiplicity
                                         .Bounded.ONE)),
-                        new com.legend.compiler.element.type.Type.Param(
+                        new Type.Param(
                                 gen.info().type(), gen.info().multiplicity()));
                 leaves.add(new TypedFuncCol(node.property(),
                         new TypedLambda(List.of(rowVar), List.of(gen),
-                                new com.legend.compiler.element.type.ExprType(genFn,
+                                new ExprType(genFn,
                                         com.legend.compiler.element.type
                                                 .Multiplicity.Bounded.ONE))));
                 continue;
             }
             TypedSpec inner = binding;
-            if (inner instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+            if (inner instanceof TypedNativeCall c
                     && c.args().size() == 1
                     && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
                 inner = c.args().get(0);
             }
-            if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstance) {
+            if (inner instanceof TypedNewInstance) {
                 throw new NotImplementedException("graph leaf '" + node.property()
                         + "' is an EMBEDDED class property — embedded graph"
                         + " children are not supported yet (H4b)");
             }
-            if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstanceCast) {
+            if (inner instanceof TypedNewInstanceCast) {
                 throw new NotImplementedException("graph property '" + node.property()
                         + "' is a MODEL-TO-MODEL cast binding — M2M graph"
                         + " children are not supported yet (H5c)");
@@ -218,14 +226,14 @@ final class GraphEmission {
             }
             TypedSpec body = Pipelines.rewriteRowReads(binding, cs.rowVar(),
                     slotPrefixes, stripped, toRow);
-            var fnType = new com.legend.compiler.element.type.Type.FunctionType(
-                    List.of(new com.legend.compiler.element.type.Type.Param(rowType,
+            var fnType = new Type.FunctionType(
+                    List.of(new Type.Param(rowType,
                             com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
-                    new com.legend.compiler.element.type.Type.Param(
+                    new Type.Param(
                             body.info().type(), body.info().multiplicity()));
             leaves.add(new TypedFuncCol(node.property(),
                     new TypedLambda(List.of(rowVar), List.of(body),
-                            new com.legend.compiler.element.type.ExprType(fnType,
+                            new ExprType(fnType,
                                     com.legend.compiler.element.type.Multiplicity.Bounded.ONE))));
         }
         return new TypedSerializeGraph(pipeline, rowVar, leaves, children,
@@ -235,7 +243,7 @@ final class GraphEmission {
     /** One nested hop: correlated child pipeline + the child's own envelope. */
     TypedSerializeGraph.Child graphChild(ClassSource cs, TypedGraphTree node,
             StoreResolver.Context context, String parentRowVar,
-            com.legend.compiler.element.type.Type.RelationType parentRowType) {
+            Type.RelationType parentRowType) {
         if (node.children().isEmpty()) {
             throw new NotImplementedException("graph child '" + node.property()
                     + "' of class '" + cs.classFqn() + "' has no sub-tree — a"
@@ -249,21 +257,21 @@ final class GraphEmission {
             TypedSpec b0 = cs.bindings().get(node.property());
             TypedSpec inner = b0;
             // Unwrap the M2M cast (^Target($src.assocProp)) and toOne.
-            if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstanceCast nic) {
+            if (inner instanceof TypedNewInstanceCast nic) {
                 inner = nic.source();
             }
-            if (inner instanceof com.legend.compiler.spec.typed.TypedNativeCall c1
+            if (inner instanceof TypedNativeCall c1
                     && c1.args().size() == 1
                     && c1.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
                 inner = c1.args().get(0);
             }
-            if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstanceCast nic2) {
+            if (inner instanceof TypedNewInstanceCast nic2) {
                 inner = nic2.source();
             }
-            if (inner instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+            if (inner instanceof TypedPropertyAccess pa
                     && pa.source() instanceof TypedVariable v
                     && v.name().equals(cs.rowVar())
-                    && v.info().type() instanceof com.legend.compiler.element.type.Type.ClassType srcCls
+                    && v.info().type() instanceof Type.ClassType srcCls
                     && ctx.findAssociationOf(srcCls.fqn(), pa.property()).isPresent()) {
                 return m2mAssocChild(cs, node, srcCls.fqn(), pa.property(),
                         context, parentRowVar, parentRowType);
@@ -271,14 +279,14 @@ final class GraphEmission {
             // A NAVIGATE-SLOT read ($row.<alias>, the relational
             // association injected into the source pipeline): the slot's
             // TypedNavigate carries the raw target and the join predicate.
-            if (inner instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa2
+            if (inner instanceof TypedPropertyAccess pa2
                     && pa2.source() instanceof TypedVariable v2
                     && v2.name().equals(cs.rowVar())) {
                 var navSteps = Pipelines.navSteps(cs.pipeline());
                 var nav = navSteps.get(pa2.property());
                 if (nav != null) {
                     return navSlotChild(cs, node, nav,
-                            b0 instanceof com.legend.compiler.spec.typed.TypedNewInstanceCast nic0
+                            b0 instanceof TypedNewInstanceCast nic0
                                     ? nic0.classFqn() : null,
                             context, parentRowVar, parentRowType);
                 }
@@ -305,9 +313,9 @@ final class GraphEmission {
      * λ(sourceRow, targetRow) correlates them.
      */
     TypedSerializeGraph.Child navSlotChild(ClassSource cs, TypedGraphTree node,
-            com.legend.compiler.spec.typed.TypedNavigate nav, String castClassFqn,
+            TypedNavigate nav, String castClassFqn,
             StoreResolver.Context context, String parentRowVar,
-            com.legend.compiler.element.type.Type.RelationType parentRowType) {
+            Type.RelationType parentRowType) {
         String key = (context.explicitMapping() == null ? "" : context.explicitMapping())
                 + '\u0000'
                 + (context.runtimeFqn() == null ? "" : context.runtimeFqn());
@@ -317,7 +325,7 @@ final class GraphEmission {
                         + node.property() + "' is not a property of '"
                         + cs.classFqn() + "'"));
         String childClass = castClassFqn != null ? castClassFqn
-                : prop.type() instanceof com.legend.compiler.element.type.Type.ClassType cc
+                : prop.type() instanceof Type.ClassType cc
                         ? cc.fqn() : null;
         if (childClass == null) {
             throw new IllegalStateException("resolver bug: navigate-slot graph child '"
@@ -348,7 +356,7 @@ final class GraphEmission {
         Pipelines.Materialized cMat = Pipelines.materialize(
                 child.pipeline(), Set.of(), childClass);
         return correlatedGraphChild(child, cMat.pipeline(),
-                (com.legend.compiler.element.type.Type.RelationType)
+                (Type.RelationType)
                         cMat.pipeline().info().type(),
                 nav.predicate(), toMany, node, parentRowVar, parentRowType, context);
     }
@@ -364,7 +372,7 @@ final class GraphEmission {
     TypedSerializeGraph.Child m2mAssocChild(ClassSource cs, TypedGraphTree node,
             String srcClassFqn, String assocProp, StoreResolver.Context context,
             String parentRowVar,
-            com.legend.compiler.element.type.Type.RelationType parentRowType) {
+            Type.RelationType parentRowType) {
         String key = (context.explicitMapping() == null ? "" : context.explicitMapping())
                 + '\u0000'
                 + (context.runtimeFqn() == null ? "" : context.runtimeFqn());
@@ -381,7 +389,7 @@ final class GraphEmission {
         boolean toMany = !(prop.multiplicity()
                 instanceof com.legend.compiler.element.type.Multiplicity.Bounded bm
                 && Integer.valueOf(1).equals(bm.upper()));
-        if (!(prop.type() instanceof com.legend.compiler.element.type.Type.ClassType childCls)) {
+        if (!(prop.type() instanceof Type.ClassType childCls)) {
             throw new IllegalStateException("resolver bug: M2M graph child '"
                     + node.property() + "' is not class-typed");
         }
@@ -396,7 +404,7 @@ final class GraphEmission {
         Pipelines.Materialized cMat = Pipelines.materialize(
                 child.pipeline(), Set.of(), childCls.fqn());
         return correlatedGraphChild(child, cMat.pipeline(),
-                (com.legend.compiler.element.type.Type.RelationType)
+                (Type.RelationType)
                         cMat.pipeline().info().type(),
                 aj.condition(), toMany, node, parentRowVar, parentRowType, context);
     }
@@ -409,10 +417,10 @@ final class GraphEmission {
      */
     TypedSerializeGraph.Child correlatedGraphChild(ClassSource target,
             TypedSpec targetPipeline,
-            com.legend.compiler.element.type.Type.RelationType targetRow,
+            Type.RelationType targetRow,
             TypedLambda condition, boolean toMany, TypedGraphTree node,
             String parentRowVar,
-            com.legend.compiler.element.type.Type.RelationType parentRowType,
+            Type.RelationType parentRowType,
             StoreResolver.Context context) {
         // The association condition λ(parent, target): parent reads become
         // the FREE parent row var (the lowerer's enclosing-scope channel);
@@ -421,24 +429,24 @@ final class GraphEmission {
         String pVar = cond.parameters().get(0);
         String tVar = cond.parameters().get(1);
         List<TypedSpec> corrBody = cond.body().stream().map(b ->
-                Pipelines.rewriteRowReads(b, pVar, Map.of(), java.util.Set.of(),
+                Pipelines.rewriteRowReads(b, pVar, Map.of(), Set.of(),
                         v -> new TypedVariable(parentRowVar,
-                                new com.legend.compiler.element.type.ExprType(parentRowType,
+                                new ExprType(parentRowType,
                                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE))))
                 .toList();
         TypedLambda corr = new TypedLambda(List.of(tVar), corrBody,
-                new com.legend.compiler.element.type.ExprType(
-                        new com.legend.compiler.element.type.Type.FunctionType(
-                                List.of(new com.legend.compiler.element.type.Type.Param(
+                new ExprType(
+                        new Type.FunctionType(
+                                List.of(new Type.Param(
                                         targetRow,
                                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
-                                new com.legend.compiler.element.type.Type.Param(
-                                        com.legend.compiler.element.type.Type.Primitive.BOOLEAN,
+                                new Type.Param(
+                                        Type.Primitive.BOOLEAN,
                                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
         TypedSpec childRel = new TypedFilter(targetPipeline, corr,
                 targetPipeline.info());
-        Set<String> childParams = new java.util.LinkedHashSet<>();
+        Set<String> childParams = new LinkedHashSet<>();
         for (TypedSpec b : target.bindings().values()) {
             StoreResolver.collectLambdaParams(b, childParams);
         }
@@ -447,8 +455,8 @@ final class GraphEmission {
         do {
             childVar = "_r" + freshVar.getAsInt();
         } while (childParams.contains(childVar));
-        var childInfo = new com.legend.compiler.element.type.ExprType(
-                new com.legend.compiler.element.type.Type.ClassType(target.classFqn()),
+        var childInfo = new ExprType(
+                new Type.ClassType(target.classFqn()),
                 toMany ? com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY
                         : com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE);
         TypedSerializeGraph child = buildGraphNode(target, childRel, Map.of(),

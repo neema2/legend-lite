@@ -1,18 +1,40 @@
 package com.legend.lowering;
 
 import com.legend.builtin.Pure;
+import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
+import com.legend.compiler.spec.typed.TypedCBoolean;
+import com.legend.compiler.spec.typed.TypedCDate;
+import com.legend.compiler.spec.typed.TypedCInteger;
+import com.legend.compiler.spec.typed.TypedCollection;
+import com.legend.compiler.spec.typed.TypedEnumValue;
+import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.compiler.spec.typed.TypedVariable;
+import com.legend.error.LegendCompileException;
+import com.legend.error.ModelException;
+import com.legend.error.NotImplementedException;
+import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
-
+import com.legend.sql.SqlSelect;
+import com.legend.sql.SqlSource;
+import com.legend.sql.SqlType;
+import com.legend.values.PureDateLiteral;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
-
+import java.util.function.BinaryOperator;
+import java.util.function.UnaryOperator;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 /**
  * Scalar native dispatch, keyed by the RESOLVED overload's identity &mdash; the
  * {@link Pure} catalog constant Phase G chose ({@code TypedFunction.definition()}).
@@ -29,7 +51,7 @@ final class Scalars {
     interface Rule extends BiFunction<TypedNativeCall, List<SqlExpr>, SqlExpr> {
     }
 
-    private static final Map<String, Rule> RULES = new java.util.HashMap<>();
+    private static final Map<String, Rule> RULES = new HashMap<>();
 
     private Scalars() {
     }
@@ -58,7 +80,7 @@ final class Scalars {
                     Integer p0 = partialPrecision(n.args().get(0));
                     Integer p1 = partialPrecision(n.args().get(1));
                     if (p0 != null || p1 != null) {
-                        if (java.util.Objects.equals(p0, p1)) {
+                        if (Objects.equals(p0, p1)) {
                             return new SqlExpr.Call(SqlFn.EQUAL, args);
                         }
                         Type other = (p0 != null ? n.args().get(1) : n.args().get(0))
@@ -205,7 +227,7 @@ final class Scalars {
                     }
                     return SqlExpr.Call.of(fn,
                             new SqlExpr.Cast(args.get(0),
-                                    com.legend.sql.SqlType.Scalar.BIGINT),
+                                    SqlType.Scalar.BIGINT),
                             args.get(1));
                 });
             }
@@ -313,9 +335,7 @@ final class Scalars {
 
                 // Lists / collections
 
-
                 Map.entry("median", SqlFn.LIST_MEDIAN),
-
 
                 Map.entry("toVariant", SqlFn.TO_VARIANT)).entrySet()) {
             familyIfPresent(e.getValue(), e.getKey());
@@ -404,9 +424,9 @@ final class Scalars {
                 // source's own — static text an interval can never touch.
                 // Emitted as the precision-faithful STRING (the wire's date
                 // convention, same as timeBucket).
-                if (n.args().get(0) instanceof com.legend.compiler.spec.typed.TypedCDate cd
+                if (n.args().get(0) instanceof TypedCDate cd
                         && cd.value() instanceof
-                                com.legend.values.PureDateLiteral.DateWithSubsecond sub
+                                PureDateLiteral.DateWithSubsecond sub
                         && sub.subsecond().length() > 6) {
                     return SqlExpr.Call.of(SqlFn.CONCAT,
                             SqlExpr.Call.of(SqlFn.STRFTIME, added,
@@ -416,13 +436,13 @@ final class Scalars {
                 // SQL date+interval widens to TIMESTAMP; a StrictDate input
                 // adjusted by a DAY-or-coarser unit stays a StrictDate.
                 boolean strictIn = n.args().get(0).info().type()
-                        == com.legend.compiler.element.type.Type.Primitive.STRICT_DATE;
+                        == Type.Primitive.STRICT_DATE;
                 boolean coarse = switch (enumName(n.args().get(2))) {
                     case "YEARS", "MONTHS", "WEEKS", "DAYS" -> true;
                     default -> false;
                 };
                 return strictIn && coarse
-                        ? new SqlExpr.Cast(added, com.legend.sql.SqlType.Scalar.DATE)
+                        ? new SqlExpr.Cast(added, SqlType.Scalar.DATE)
                         : added;
             });
         }
@@ -436,15 +456,15 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("timeBucket")) {
             RULES.put(f, (n, args) -> {
                 boolean strict = n.args().get(0).info().type()
-                        == com.legend.compiler.element.type.Type.Primitive.STRICT_DATE;
+                        == Type.Primitive.STRICT_DATE;
                 // real timeBucket REJECTS sub-day units on StrictDate —
                 // message verbatim (strictDate assertError family)
                 if (strict) {
                     switch (enumName(n.args().get(2))) {
                         case "HOURS", "MINUTES", "SECONDS", "MILLISECONDS",
                                 "MICROSECONDS", "NANOSECONDS" ->
-                            throw new com.legend.error.ModelException(
-                                    com.legend.error.LegendCompileException.Phase.LOWER,
+                            throw new ModelException(
+                                    LegendCompileException.Phase.LOWER,
                                     "Unsupported duration unit for StrictDate. Units"
                                             + " can only be: [YEARS, DAYS, MONTHS, WEEKS]");
                         default -> { }
@@ -454,16 +474,16 @@ final class Scalars {
                         new SqlExpr.StringLit(intervalFn(n.args().get(2))),
                         args.get(1), dateArg(n.args().get(0), args.get(0))));
                 if (strict) {
-                    return new SqlExpr.Cast(bucketed, com.legend.sql.SqlType.Scalar.DATE);
+                    return new SqlExpr.Cast(bucketed, SqlType.Scalar.DATE);
                 }
                 // The result keeps the INPUT LITERAL's print precision: a
                 // 9-digit-subsecond input buckets to a 9-digit-zero result
                 // (real pure preserves subsecond DIGIT COUNT; bucketed
                 // subseconds are always zero). Emitted as the precision-
                 // faithful STRING — the wire's date convention.
-                if (n.args().get(0) instanceof com.legend.compiler.spec.typed.TypedCDate cd
+                if (n.args().get(0) instanceof TypedCDate cd
                         && cd.value() instanceof
-                                com.legend.values.PureDateLiteral.DateWithSubsecond sub) {
+                                PureDateLiteral.DateWithSubsecond sub) {
                     return SqlExpr.Call.of(SqlFn.CONCAT,
                             SqlExpr.Call.of(SqlFn.STRFTIME, bucketed,
                                     new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S")),
@@ -531,7 +551,7 @@ final class Scalars {
                     // A LITERAL answers boolean (the PCT spelling); a COLUMN
                     // answers 1/0 — the engine's integer surface for date
                     // precision checks over stored values.
-                    return n.args().get(0) instanceof com.legend.compiler.spec.typed.TypedCDate
+                    return n.args().get(0) instanceof TypedCDate
                             ? new SqlExpr.BoolLit(has)
                             : new SqlExpr.IntLit(has ? 1 : 0);
                 });
@@ -540,15 +560,15 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("hasSubsecondWithAtLeastPrecision")) {
             RULES.put(f, (n, args) -> {
                 if (!(n.args().get(1)
-                        instanceof com.legend.compiler.spec.typed.TypedCInteger i)) {
+                        instanceof TypedCInteger i)) {
                     throw new IllegalStateException("hasSubsecondWithAtLeastPrecision"
                             + " needs a literal precision");
                 }
                 long p2 = i.value().longValue();
                 // A LITERAL answers from its WRITTEN digit count (PCT); a
                 // TIMESTAMP column is microsecond-precision.
-                if (n.args().get(0) instanceof com.legend.compiler.spec.typed.TypedCDate d
-                        && d.value() instanceof com.legend.values.PureDateLiteral.DateWithSubsecond ds) {
+                if (n.args().get(0) instanceof TypedCDate d
+                        && d.value() instanceof PureDateLiteral.DateWithSubsecond ds) {
                     return new SqlExpr.BoolLit(ds.subsecond().length() >= p2);
                 }
                 return new SqlExpr.BoolLit(datePrecision(n.args().get(0)) >= 6 && p2 <= 6);
@@ -638,7 +658,7 @@ final class Scalars {
                         new SqlExpr.Lambda(List.of("x"),
                                 SqlExpr.Call.of(SqlFn.COALESCE,
                                         new SqlExpr.Cast(new SqlExpr.Column(null, "x"),
-                                                com.legend.sql.SqlType.Scalar.VARCHAR),
+                                                SqlType.Scalar.VARCHAR),
                                         new SqlExpr.StringLit("TDSNull"))));
                 SqlExpr joined = SqlExpr.Call.of(SqlFn.COALESCE,
                         new SqlExpr.Call(SqlFn.LIST_AGG, List.of(
@@ -717,16 +737,16 @@ final class Scalars {
                     if (mx != null) {
                         // identity-preserving mixed sort: order the ids by
                         // their comparables (parallel select-list unnests)
-                        var inner = new com.legend.sql.SqlSelect(List.of(
-                                new com.legend.sql.SqlSelect.Projection(
+                        var inner = new SqlSelect(List.of(
+                                new SqlSelect.Projection(
                                         SqlExpr.Call.of(SqlFn.UNNEST, mx.idList()), "i"),
-                                new com.legend.sql.SqlSelect.Projection(
+                                new SqlSelect.Projection(
                                         SqlExpr.Call.of(SqlFn.UNNEST, mx.valList()), "v")),
                                 false, null, null, List.of(), null, null, List.of(),
                                 null, null, List.of());
-                        var src = new com.legend.sql.SqlSource.Subselect(inner, "_mx");
-                        var outer = new com.legend.sql.SqlSelect(List.of(
-                                new com.legend.sql.SqlSelect.Projection(
+                        var src = new SqlSource.Subselect(inner, "_mx");
+                        var outer = new SqlSelect(List.of(
+                                new SqlSelect.Projection(
                                         new SqlExpr.OrderedListAgg(
                                                 new SqlExpr.Column("_mx", "i"),
                                                 new SqlExpr.Column("_mx", "v")), "s")),
@@ -795,12 +815,12 @@ final class Scalars {
                 case SqlExpr.IntLit i ->
                         // a bare integral literal types INTEGER — cast keeps
                         // it a scale-0 DECIMAL (8D)
-                        new SqlExpr.Cast(i, new com.legend.sql.SqlType.Decimal(38, 0));
+                        new SqlExpr.Cast(i, new SqlType.Decimal(38, 0));
                 case SqlExpr.DecimalLit d -> d;
                 case SqlExpr.FloatLit fl ->
                         new SqlExpr.DecimalLit(java.math.BigDecimal.valueOf(fl.value()));
                 default -> new SqlExpr.Cast(args.get(0),
-                        new com.legend.sql.SqlType.Decimal(38, 18));
+                        new SqlType.Decimal(38, 18));
             });
         }
         for (String f : Pure.nativeKeysAt("divideRound")) {
@@ -850,7 +870,7 @@ final class Scalars {
                                 SqlExpr.Call.of(SqlFn.SPLIT_PART, args.get(0),
                                         new SqlExpr.StringLit("-"),
                                         new SqlExpr.IntLit(field)),
-                                com.legend.sql.SqlType.Scalar.BIGINT);
+                                SqlType.Scalar.BIGINT);
                     }
                     List<SqlExpr> withPart = new ArrayList<>();
                     withPart.add(new SqlExpr.StringLit(e.getValue()));
@@ -914,7 +934,7 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("round")) {
             RULES.put(f, (n, args) -> args.size() == 1
                     ? new SqlExpr.Cast(new SqlExpr.Call(SqlFn.ROUND, args),
-                            com.legend.sql.SqlType.Scalar.BIGINT)
+                            SqlType.Scalar.BIGINT)
                     : new SqlExpr.Call(SqlFn.ROUND, args));
         }
         // greatest/least/mode take ONE collection argument (real pure: values:X[*]);
@@ -1168,11 +1188,11 @@ final class Scalars {
                     throw new IllegalStateException("removeDuplicates comparator"
                             + " must be a 2-parameter function");
                 }
-                java.util.function.UnaryOperator<SqlExpr> key =
+                UnaryOperator<SqlExpr> key =
                         args.size() == 3 && args.get(1) instanceof SqlExpr.Lambda k
                                 && k.params().size() == 1
                         ? v -> substituteRef(k.body(), k.params().get(0), v)
-                        : java.util.function.UnaryOperator.identity();
+                        : UnaryOperator.identity();
                 // NESTED dedups reuse these accumulator names — an inner
                 // comparator's lambdas would CAPTURE the outer's refs
                 // (audit). The suffix is the count of dedup calls inside
@@ -1316,7 +1336,7 @@ final class Scalars {
         }
         for (String f : Pure.nativeKeysAt("putAll")) {
             RULES.put(f, (n, args) -> {
-                boolean mapArg = com.legend.compiler.element.type.PlatformTypes
+                boolean mapArg = PlatformTypes
                         .isMapCarrier(n.args().get(1).info().type());
                 SqlExpr other = mapArg ? args.get(1) : mapFromPairs(n, args.get(1));
                 return SqlExpr.Call.of(SqlFn.MAP_CONCAT,
@@ -1347,7 +1367,7 @@ final class Scalars {
         // runs in the database — literal AND runtime values alike).
         for (String f : Pure.nativeKeysAt("sqrt")) {
             RULES.put(f, (n, args) -> {
-                SqlExpr x = new SqlExpr.Cast(args.get(0), com.legend.sql.SqlType.Scalar.DOUBLE);
+                SqlExpr x = new SqlExpr.Cast(args.get(0), SqlType.Scalar.DOUBLE);
                 return guarded(
                         SqlExpr.Call.of(SqlFn.LESS, x, new SqlExpr.IntLit(0)),
                         cat(new SqlExpr.StringLit("Unable to compute sqrt of "), floatRepr(x)),
@@ -1358,7 +1378,7 @@ final class Scalars {
             SqlFn fn = name.equals("acos") ? SqlFn.ACOS : SqlFn.ASIN;
             for (String f : Pure.nativeKeysAt(name)) {
                 RULES.put(f, (n, args) -> {
-                    SqlExpr x = new SqlExpr.Cast(args.get(0), com.legend.sql.SqlType.Scalar.DOUBLE);
+                    SqlExpr x = new SqlExpr.Cast(args.get(0), SqlType.Scalar.DOUBLE);
                     return guarded(
                             SqlExpr.Call.of(SqlFn.GREATER,
                                     SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.IntLit(1)),
@@ -1382,9 +1402,9 @@ final class Scalars {
                 // the pad is faithful, not fabricated — but only because
                 // the literal path takes the written digits first).
                 case "ISO8601_NanoSecondPrecision" -> {
-                    if (n.args().get(0) instanceof com.legend.compiler.spec.typed.TypedCDate cd
+                    if (n.args().get(0) instanceof TypedCDate cd
                             && cd.value() instanceof
-                                    com.legend.values.PureDateLiteral.DateWithSubsecond sub
+                                    PureDateLiteral.DateWithSubsecond sub
                             && sub.subsecond().length() > 6) {
                         String nanos = (sub.subsecond() + "000000000").substring(0, 9);
                         yield SqlExpr.Call.of(SqlFn.CONCAT,
@@ -1404,7 +1424,7 @@ final class Scalars {
         // fromJson(String): the string IS the variant — a JSON cast.
         for (String f : Pure.nativeKeysAt("fromJson")) {
             RULES.put(f, (n, args) -> new SqlExpr.Cast(args.get(0),
-                    com.legend.sql.SqlType.Scalar.JSON));
+                    SqlType.Scalar.JSON));
         }
         // Collection concatenate only — the relation overload is the
         // TypedConcatenate set-op and never reaches scalar lowering. A
@@ -1561,20 +1581,20 @@ final class Scalars {
                     SqlExpr ys = n.args().get(1).info().multiplicity().isMany()
                             || args.get(1) instanceof SqlExpr.ArrayLit
                             ? args.get(1) : new SqlExpr.ArrayLit(List.of(args.get(1)));
-                    var inner = new com.legend.sql.SqlSelect(List.of(
-                            new com.legend.sql.SqlSelect.Projection(
+                    var inner = new SqlSelect(List.of(
+                            new SqlSelect.Projection(
                                     SqlExpr.Call.of(SqlFn.UNNEST, xs), "a"),
-                            new com.legend.sql.SqlSelect.Projection(
+                            new SqlSelect.Projection(
                                     SqlExpr.Call.of(SqlFn.UNNEST, ys), "b")),
                             false, null, null, List.of(), null, null, List.of(), null, null,
                             List.of());
-                    var outer = new com.legend.sql.SqlSelect(List.of(
-                            new com.legend.sql.SqlSelect.Projection(
-                                    new com.legend.sql.SqlAgg.Reducer(e.getValue(),
+                    var outer = new SqlSelect(List.of(
+                            new SqlSelect.Projection(
+                                    new SqlAgg.Reducer(e.getValue(),
                                             List.of(new SqlExpr.Column(null, "a"),
                                                     new SqlExpr.Column(null, "b")), false),
                                     null)),
-                            false, new com.legend.sql.SqlSource.Subselect(inner, "_uz"),
+                            false, new SqlSource.Subselect(inner, "_uz"),
                             null, List.of(), null, null, List.of(), null, null, List.of());
                     // MISMATCHED lengths would zip-pad with NULLs and the
                     // reducer would silently drop the unpaired tail (audit:
@@ -1669,9 +1689,9 @@ final class Scalars {
                 spread.add(args.get(0));
                 // typed elements ride along so %s can print CLASS-typed
                 // values (Pair -> '<f, s>') by their STATIC type
-                java.util.List<com.legend.compiler.spec.typed.TypedSpec> typedElems =
-                        n.args().get(1) instanceof com.legend.compiler.spec.typed.TypedCollection tc
-                                ? tc.elements() : java.util.List.of(n.args().get(1));
+                List<TypedSpec> typedElems =
+                        n.args().get(1) instanceof TypedCollection tc
+                                ? tc.elements() : List.of(n.args().get(1));
                 if (args.get(1) instanceof SqlExpr.ArrayLit arr) {
                     // A MIXED argument list arrives variant-wrapped (its LUB
                     // is Any) — printf wants the raw values back, each
@@ -1685,8 +1705,8 @@ final class Scalars {
                         // class-typed slots pre-print via the pure toString
                         // (printf's %s would show the raw struct)
                         if (et != null
-                                && (com.legend.compiler.element.type.PlatformTypes.isPairCarrier(et)
-                                        || com.legend.compiler.element.type.PlatformTypes
+                                && (PlatformTypes.isPairCarrier(et)
+                                        || PlatformTypes
                                                 .isListCarrier(et))) {
                             e = pureToString(et, e);
                         }
@@ -1706,7 +1726,7 @@ final class Scalars {
         // md5/sha natives are gone).
         for (String f : Pure.nativeKeysAt("meta::pure::functions::hash::hash")) {
             RULES.put(f, (n, args) -> {
-                if (!(n.args().get(1) instanceof com.legend.compiler.spec.typed.TypedEnumValue ev)) {
+                if (!(n.args().get(1) instanceof TypedEnumValue ev)) {
                     throw new IllegalStateException("hash(text, hashType) needs a HashType literal");
                 }
                 SqlFn digest = switch (ev.value()) {
@@ -1768,13 +1788,13 @@ final class Scalars {
                             ? new SqlExpr.StringLit(lit.value().replaceAll("[dD]$", ""))
                             : SqlExpr.Call.of(SqlFn.RTRIM, args.get(0),
                                     new SqlExpr.StringLit("dD"));
-                    return new SqlExpr.Cast(in, new com.legend.sql.SqlType.Decimal(
+                    return new SqlExpr.Cast(in, new SqlType.Decimal(
                             (int) p.value(), (int) s.value()));
                 }
                 if (args.get(0) instanceof SqlExpr.StringLit lit) {
                     String clean = lit.value().replaceAll("[dD]$", "");
                     return new SqlExpr.Cast(new SqlExpr.StringLit(clean),
-                            new com.legend.sql.SqlType.Decimal(38, literalScale(clean)));
+                            new SqlType.Decimal(38, literalScale(clean)));
                 }
                 return new SqlExpr.Cast(
                         SqlExpr.Call.of(SqlFn.RTRIM, args.get(0), new SqlExpr.StringLit("dD")),
@@ -1793,7 +1813,7 @@ final class Scalars {
                     // parseDate preserves the offset).
                     if (lit.value().matches(".*([+-]\\d{4}|[+-]\\d{2}:\\d{2}|Z)$")) {
                         return new SqlExpr.Cast(in,
-                                com.legend.sql.SqlType.Scalar.TIMESTAMPTZ);
+                                SqlType.Scalar.TIMESTAMPTZ);
                     }
                     String v = lit.value().replace('T', ' ');
                     if (v.matches("\\d{4}-\\d{2}-\\d{2} \\d{2}")) {
@@ -1842,7 +1862,7 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("convertTimeZoneFormat")) {
             RULES.put(f, (n, args) -> {
                 if (!(args.get(2) instanceof SqlExpr.StringLit fmt)) {
-                    throw new com.legend.error.NotImplementedException(
+                    throw new NotImplementedException(
                             "convertTimeZone needs a LITERAL format string");
                 }
                 SqlExpr asUtc = new SqlExpr.Call(SqlFn.TIMEZONE,
@@ -1940,7 +1960,7 @@ final class Scalars {
                 for (int i = 0; i < args.size(); i++) {
                     SqlExpr part = SqlExpr.Call.of(SqlFn.LPAD,
                             new SqlExpr.Cast(args.get(i),
-                                    com.legend.sql.SqlType.Scalar.VARCHAR),
+                                    SqlType.Scalar.VARCHAR),
                             new SqlExpr.IntLit(widths[i]), new SqlExpr.StringLit("0"));
                     out = out == null ? part
                             : SqlExpr.Call.of(SqlFn.CONCAT, SqlExpr.Call.of(SqlFn.CONCAT,
@@ -1984,7 +2004,7 @@ final class Scalars {
             // scalar subquery — membership is list containment (NULL list =
             // empty collection = FALSE), not an IN-list of one expression.
             if (n.args().get(1).info().type()
-                    instanceof com.legend.compiler.element.type.Type.RelationType) {
+                    instanceof Type.RelationType) {
                 return SqlExpr.Call.of(SqlFn.COALESCE,
                         new SqlExpr.Call(SqlFn.LIST_CONTAINS,
                                 List.of(args.get(1), needle)),
@@ -2068,7 +2088,7 @@ final class Scalars {
     }
 
     private static Iterable<String> concat(Iterable<String> a, Iterable<String> b) {
-        java.util.List<String> out = new java.util.ArrayList<>();
+        List<String> out = new ArrayList<>();
         a.forEach(out::add);
         b.forEach(out::add);
         return out;
@@ -2076,14 +2096,14 @@ final class Scalars {
 
     private static SqlExpr strptimeOf(List<SqlExpr> args, boolean toDate) {
         if (!(args.get(1) instanceof SqlExpr.StringLit fmt)) {
-            throw new com.legend.error.NotImplementedException(
+            throw new NotImplementedException(
                     "format dynafunctions need a LITERAL format string");
         }
         SqlExpr parsed = new SqlExpr.Call(SqlFn.STRPTIME,
                 List.of(args.get(0), new SqlExpr.StringLit(translateFormat(fmt.value()))));
         return toDate
                 ? new SqlExpr.Cast(parsed, PureSql.type(
-                        com.legend.compiler.element.type.Type.Primitive.STRICT_DATE))
+                        Type.Primitive.STRICT_DATE))
                 : parsed;
     }
 
@@ -2122,7 +2142,7 @@ final class Scalars {
                 if (out == null) {
                     out = new ArrayList<>(args);
                 }
-                out.set(i, new SqlExpr.Cast(lit, com.legend.sql.SqlType.Scalar.HUGEINT));
+                out.set(i, new SqlExpr.Cast(lit, SqlType.Scalar.HUGEINT));
             }
         }
         return out == null ? args : out;
@@ -2133,7 +2153,7 @@ final class Scalars {
      * beyond one. Relation columns are at most [0..1], so to-many here means
      * a collection expression (toMany(@T), literal lists, split, ...).
      */
-    private static boolean listValued(com.legend.compiler.spec.typed.TypedSpec arg) {
+    private static boolean listValued(TypedSpec arg) {
         return arg.info().multiplicity().isMany();
     }
 
@@ -2171,7 +2191,6 @@ final class Scalars {
         return -1;
     }
 
-
     /**
      * The MIXED-ELEMENT two-channel encoding — DATABASE-EXECUTED. A
      * collection whose elements carry DIFFERENT concrete kinds under the
@@ -2188,7 +2207,7 @@ final class Scalars {
      *
      * <p>Null when the shape is not per-element encodable or not mixed.
      */
-    record MixedElems(java.util.List<SqlExpr> ids, java.util.List<SqlExpr> vals) {
+    record MixedElems(List<SqlExpr> ids, List<SqlExpr> vals) {
 
         SqlExpr idList() {
             return new SqlExpr.ArrayLit(ids);
@@ -2205,9 +2224,9 @@ final class Scalars {
         }
     }
 
-    static MixedElems mixedElems(com.legend.compiler.spec.typed.TypedSpec arg,
+    static MixedElems mixedElems(TypedSpec arg,
                                  SqlExpr lowered) {
-        if (!(arg instanceof com.legend.compiler.spec.typed.TypedCollection c)
+        if (!(arg instanceof TypedCollection c)
                 || c.elements().size() < 2
                 || !(lowered instanceof SqlExpr.ArrayLit la)
                 || la.elements().size() != c.elements().size()) {
@@ -2221,9 +2240,9 @@ final class Scalars {
     }
 
     /** The n-ary form: max(2D, 1.23) — each ARG one element. */
-    static MixedElems mixedArgs(java.util.List<com.legend.compiler.spec.typed.TypedSpec> args,
-                                java.util.List<SqlExpr> lowered) {
-        java.util.Set<Type> kinds = new java.util.HashSet<>();
+    static MixedElems mixedArgs(List<TypedSpec> args,
+                                List<SqlExpr> lowered) {
+        Set<Type> kinds = new HashSet<>();
         for (var a : args) {
             kinds.add(a.info().type());
         }
@@ -2231,10 +2250,10 @@ final class Scalars {
     }
 
     private static MixedElems encodeAll(
-            java.util.List<com.legend.compiler.spec.typed.TypedSpec> elems,
-            java.util.List<SqlExpr> lowered) {
-        java.util.List<SqlExpr> ids = new java.util.ArrayList<>();
-        java.util.List<SqlExpr> vals = new java.util.ArrayList<>();
+            List<TypedSpec> elems,
+            List<SqlExpr> lowered) {
+        List<SqlExpr> ids = new ArrayList<>();
+        List<SqlExpr> vals = new ArrayList<>();
         for (int i = 0; i < elems.size(); i++) {
             if (!encodeMixed(elems.get(i), lowered.get(i), ids, vals)) {
                 return null;
@@ -2247,14 +2266,14 @@ final class Scalars {
      * One element's (identity, comparable) SQL pair, dispatched on its
      * STATIC type. All value work happens in SQL.
      */
-    private static boolean encodeMixed(com.legend.compiler.spec.typed.TypedSpec e,
+    private static boolean encodeMixed(TypedSpec e,
                                        SqlExpr x,
-                                       java.util.List<SqlExpr> ids,
-                                       java.util.List<SqlExpr> vals) {
+                                       List<SqlExpr> ids,
+                                       List<SqlExpr> vals) {
         Type t = e.info().type();
         if (t == Type.Primitive.INTEGER) {
-            ids.add(new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR));
-            vals.add(new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.DOUBLE));
+            ids.add(new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR));
+            vals.add(new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE));
             return true;
         }
         if (t == Type.Primitive.FLOAT) {
@@ -2264,15 +2283,15 @@ final class Scalars {
         }
         if (t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
             ids.add(SqlExpr.Call.of(SqlFn.CONCAT,
-                    new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR),
+                    new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR),
                     new SqlExpr.StringLit("D")));
-            vals.add(new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.DOUBLE));
+            vals.add(new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE));
             return true;
         }
         if (t == Type.Primitive.STRICT_DATE) {
             ids.add(SqlExpr.Call.of(SqlFn.STRFTIME, x,
                     new SqlExpr.StringLit("%Y-%m-%d")));
-            vals.add(new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.TIMESTAMP));
+            vals.add(new SqlExpr.Cast(x, SqlType.Scalar.TIMESTAMP));
             return true;
         }
         if (t == Type.Primitive.DATE_TIME) {
@@ -2300,7 +2319,7 @@ final class Scalars {
     }
 
     /** A date operand's chronological comparable (strptime-padded partials); non-dates pass through. */
-    private static SqlExpr dateComparableOrSelf(com.legend.compiler.spec.typed.TypedSpec e,
+    private static SqlExpr dateComparableOrSelf(TypedSpec e,
                                                 SqlExpr x) {
         Type t = e.info().type();
         if (t == Type.Primitive.DATE) {
@@ -2310,15 +2329,15 @@ final class Scalars {
             }
         }
         if (t == Type.Primitive.STRICT_DATE) {
-            return new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.TIMESTAMP);
+            return new SqlExpr.Cast(x, SqlType.Scalar.TIMESTAMP);
         }
         return x;
     }
 
     /** DateTime print format — subsecond DIGIT COUNT is a static attribute of the literal. */
-    private static String dateTimeFormatOf(com.legend.compiler.spec.typed.TypedSpec e) {
-        if (e instanceof com.legend.compiler.spec.typed.TypedCDate cd
-                && cd.value() instanceof com.legend.values.PureDateLiteral.DateWithSubsecond) {
+    private static String dateTimeFormatOf(TypedSpec e) {
+        if (e instanceof TypedCDate cd
+                && cd.value() instanceof PureDateLiteral.DateWithSubsecond) {
             return "%Y-%m-%dT%H:%M:%S.%f";
         }
         return "%Y-%m-%dT%H:%M:%S";
@@ -2329,7 +2348,7 @@ final class Scalars {
      * {@code make_timestamp(split_part(x,'-',i)...)} per the STATIC
      * precision; null when the precision is not a known partial form.
      */
-    private static SqlExpr partialComparable(com.legend.compiler.spec.typed.TypedSpec e,
+    private static SqlExpr partialComparable(TypedSpec e,
                                              SqlExpr x) {
         int prec = datePrecision(e);
         if (prec < 0 || prec > 2) {
@@ -2339,15 +2358,15 @@ final class Scalars {
         SqlExpr zero = new SqlExpr.IntLit(0);
         SqlExpr year = new SqlExpr.Cast(
                 SqlExpr.Call.of(SqlFn.SPLIT_PART, x, new SqlExpr.StringLit("-"), one),
-                com.legend.sql.SqlType.Scalar.BIGINT);
+                SqlType.Scalar.BIGINT);
         SqlExpr month = prec >= 1 ? new SqlExpr.Cast(
                 SqlExpr.Call.of(SqlFn.SPLIT_PART, x, new SqlExpr.StringLit("-"),
                         new SqlExpr.IntLit(2)),
-                com.legend.sql.SqlType.Scalar.BIGINT) : one;
+                SqlType.Scalar.BIGINT) : one;
         SqlExpr day = prec >= 2 ? new SqlExpr.Cast(
                 SqlExpr.Call.of(SqlFn.SPLIT_PART, x, new SqlExpr.StringLit("-"),
                         new SqlExpr.IntLit(3)),
-                com.legend.sql.SqlType.Scalar.BIGINT) : one;
+                SqlType.Scalar.BIGINT) : one;
         return SqlExpr.Call.of(SqlFn.MAKE_TIMESTAMP, year, month, day, zero, zero, zero);
     }
 
@@ -2371,8 +2390,8 @@ final class Scalars {
      * accumulator can BE the kept list (the seed is [first], trivially kept).
      */
     /** Dedup-call count inside a typed subtree — the capture-free name suffix. */
-    private static int countDedups(com.legend.compiler.spec.typed.TypedSpec spec) {
-        int n = spec instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+    private static int countDedups(TypedSpec spec) {
+        int n = spec instanceof TypedNativeCall c
                 && c.callee().qualifiedName()
                         .equals("meta::pure::functions::collection::removeDuplicates") ? 1 : 0;
         for (var child : spec.children()) {
@@ -2382,7 +2401,7 @@ final class Scalars {
     }
 
     private static SqlExpr keptDedup(SqlExpr list, int depth,
-            java.util.function.BinaryOperator<SqlExpr> eq) {
+            BinaryOperator<SqlExpr> eq) {
         String ra = "_ra" + depth, rx = "_rx" + depth, rp = "_rp" + depth, rw = "_rw" + depth;
         SqlExpr wrapped = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, list,
                 new SqlExpr.Lambda(List.of(rw),
@@ -2429,7 +2448,7 @@ final class Scalars {
             return floatRepr(x);
         }
         if (t instanceof Type.ClassType ac
-                && com.legend.compiler.element.type.PlatformTypes.isAny(ac)) {
+                && PlatformTypes.isAny(ac)) {
             // an ANY slot is variant-carried: root TEXT extraction strips
             // the JSON quoting ('b', not '"b"'); a variant-carried LIST
             // (a nested ^List under Any) prints pure's '[a, b]', its
@@ -2439,25 +2458,25 @@ final class Scalars {
                             SqlExpr.Call.of(SqlFn.JSON_TYPE, x),
                             new SqlExpr.StringLit("ARRAY")),
                     cat(new SqlExpr.StringLit("["),
-                            joinList(new SqlExpr.Cast(x, new com.legend.sql.SqlType.Array(
+                            joinList(new SqlExpr.Cast(x, new SqlType.Array(
                                     PureSql.type(Type.Primitive.STRING)))),
                             new SqlExpr.StringLit("]")))),
                     new SqlExpr.Cast(
                             SqlExpr.Call.of(SqlFn.VARIANT_GET, x, new SqlExpr.StringLit("$")),
                             PureSql.type(Type.Primitive.STRING)));
         }
-        if (com.legend.compiler.element.type.PlatformTypes.isListCarrier(t)) {
+        if (PlatformTypes.isListCarrier(t)) {
             // real anonymousCollections List.toString(): '[v1, v2, ...]'
             Type et = t instanceof Type.GenericType g && !g.arguments().isEmpty()
                     ? g.arguments().get(0)
-                    : new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY);
+                    : new Type.ClassType(PlatformTypes.ANY);
             SqlExpr elem = new SqlExpr.Column(null, "_ts");
             return cat(new SqlExpr.StringLit("["),
                     joinList(SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, x,
                             new SqlExpr.Lambda(List.of("_ts"), pureToString(et, elem)))),
                     new SqlExpr.StringLit("]"));
         }
-        if (com.legend.compiler.element.type.PlatformTypes.isPairCarrier(t)) {
+        if (PlatformTypes.isPairCarrier(t)) {
             Type ft = ((Type.GenericType) t).arguments().get(0);
             Type st = ((Type.GenericType) t).arguments().get(1);
             return SqlExpr.Call.of(SqlFn.CONCAT,
@@ -2473,7 +2492,7 @@ final class Scalars {
     }
 
     /** datePrecision, or -1 where the abstract Date makes it undecidable. */
-    private static int datePrecisionOrUnknown(com.legend.compiler.spec.typed.TypedSpec arg) {
+    private static int datePrecisionOrUnknown(TypedSpec arg) {
         try {
             return datePrecision(arg);
         } catch (IllegalStateException undecidable) {
@@ -2513,7 +2532,7 @@ final class Scalars {
         return switch (e) {
             case SqlExpr.DecimalLit ignored -> true;
             case SqlExpr.ArrayLit a -> a.elements().stream().anyMatch(Scalars::decimalKind);
-            case SqlExpr.Cast c -> c.target() instanceof com.legend.sql.SqlType.Decimal
+            case SqlExpr.Cast c -> c.target() instanceof SqlType.Decimal
                     || decimalKind(c.value());
             // a chain like 1.0D - 2 - 3.0 nests the decimal inside the
             // first subtraction — the detector looks through calls/cases
@@ -2526,7 +2545,7 @@ final class Scalars {
     private static SqlExpr undoubled(SqlExpr e) {
         return switch (e) {
             case SqlExpr.Cast c when c.value() instanceof SqlExpr.FloatLit f
-                    && c.target() == com.legend.sql.SqlType.Scalar.DOUBLE ->
+                    && c.target() == SqlType.Scalar.DOUBLE ->
                     new SqlExpr.DecimalLit(java.math.BigDecimal.valueOf(f.value()));
             case SqlExpr.FloatLit f ->
                     new SqlExpr.DecimalLit(java.math.BigDecimal.valueOf(f.value()));
@@ -2555,10 +2574,10 @@ final class Scalars {
     }
 
     /** Cast a map operand to the call's RESOLVED Map(K, V) SQL type. */
-    private static SqlExpr castToMapType(com.legend.compiler.spec.typed.TypedNativeCall n,
+    private static SqlExpr castToMapType(TypedNativeCall n,
                                          SqlExpr m) {
         return n.info().type() instanceof Type.GenericType g && g.arguments().size() == 2
-                ? new SqlExpr.Cast(m, new com.legend.sql.SqlType.Map(
+                ? new SqlExpr.Cast(m, new SqlType.Map(
                         PureSql.type(g.arguments().get(0)),
                         PureSql.type(g.arguments().get(1))))
                 : m;
@@ -2569,7 +2588,7 @@ final class Scalars {
      * STRUCT(first, second) list; the statically-EMPTY collection is the
      * typed empty map (CAST(MAP {{}} AS MAP(K, V)) from the resolved output).
      */
-    private static SqlExpr mapFromPairs(com.legend.compiler.spec.typed.TypedNativeCall n,
+    private static SqlExpr mapFromPairs(TypedNativeCall n,
                                         SqlExpr pairs) {
         // a SINGLE pair ([1] fits Pair[*]) wraps into the entry list
         if (pairs instanceof SqlExpr.StructLit) {
@@ -2579,7 +2598,7 @@ final class Scalars {
             Type out = n.info().type();
             if (out instanceof Type.GenericType g && g.arguments().size() == 2) {
                 return new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.MAP_EMPTY),
-                        new com.legend.sql.SqlType.Map(
+                        new SqlType.Map(
                                 PureSql.type(g.arguments().get(0)),
                                 PureSql.type(g.arguments().get(1))));
             }
@@ -2626,23 +2645,23 @@ final class Scalars {
             }
         }
         SqlExpr keyOverElem = substituteRef(keyOfX, px, new SqlExpr.Column("_cx", "x"));
-        var inner = new com.legend.sql.SqlSelect(List.of(
-                new com.legend.sql.SqlSelect.Projection(
+        var inner = new SqlSelect(List.of(
+                new SqlSelect.Projection(
                         SqlExpr.Call.of(SqlFn.UNNEST, list), "x"),
-                new com.legend.sql.SqlSelect.Projection(
+                new SqlSelect.Projection(
                         SqlExpr.Call.of(SqlFn.UNNEST, SqlExpr.Call.of(SqlFn.RANGE_FN,
                                 new SqlExpr.IntLit(1),
                                 SqlExpr.Call.of(SqlFn.PLUS,
                                         SqlExpr.Call.of(SqlFn.LIST_LENGTH, list),
                                         new SqlExpr.IntLit(1)))), "i")),
                 false, null, null, List.of(), null, null, List.of(), null, null, List.of());
-        var src = new com.legend.sql.SqlSource.Subselect(inner, "_cx");
-        var outer = new com.legend.sql.SqlSelect(List.of(
-                new com.legend.sql.SqlSelect.Projection(new SqlExpr.Column("_cx", "x"), "w")),
+        var src = new SqlSource.Subselect(inner, "_cx");
+        var outer = new SqlSelect(List.of(
+                new SqlSelect.Projection(new SqlExpr.Column("_cx", "x"), "w")),
                 false, src, null, List.of(), null, null,
-                List.of(new com.legend.sql.SqlSelect.SortKey(keyOverElem, !max,
-                                com.legend.sql.SqlSelect.SortKey.NullOrder.NULLS_LAST),
-                        com.legend.sql.SqlSelect.SortKey.asc(new SqlExpr.Column("_cx", "i"))),
+                List.of(new SqlSelect.SortKey(keyOverElem, !max,
+                                SqlSelect.SortKey.NullOrder.NULLS_LAST),
+                        SqlSelect.SortKey.asc(new SqlExpr.Column("_cx", "i"))),
                 1L, null, List.of());
         return new SqlExpr.ScalarSubquery(outer);
     }
@@ -2679,7 +2698,7 @@ final class Scalars {
             // (values are UTC) and sub-second digits truncate to DuckDB's
             // microsecond precision.
             v = v.replaceFirst("(\\+0000|Z)$", "");
-            java.util.regex.Matcher frac = java.util.regex.Pattern
+            Matcher frac = Pattern
                     .compile("\\.(\\d{7,9})$").matcher(v);
             if (frac.find()) {
                 v = v.substring(0, frac.start()) + "." + frac.group(1).substring(0, 6);
@@ -2694,13 +2713,13 @@ final class Scalars {
             String json = cell.length() >= 2 && cell.startsWith("\"") && cell.endsWith("\"")
                     ? cell.substring(1, cell.length() - 1) : cell;
             return new SqlExpr.Cast(new SqlExpr.StringLit(json),
-                    com.legend.sql.SqlType.Scalar.JSON);
+                    SqlType.Scalar.JSON);
         }
         throw new IllegalStateException(
                 "no TDS cell rendering for Pure type " + type.typeName());
     }
     /** The DuckDB interval-constructor for a DurationUnit enum literal. */
-    private static String intervalFn(com.legend.compiler.spec.typed.TypedSpec unit) {
+    private static String intervalFn(TypedSpec unit) {
         return switch (enumName(unit)) {
             case "YEARS" -> "to_years";
             case "MONTHS" -> "to_months";
@@ -2717,7 +2736,7 @@ final class Scalars {
     }
 
     /** The date_diff part name for a DurationUnit enum literal. */
-    private static String diffPart(com.legend.compiler.spec.typed.TypedSpec unit) {
+    private static String diffPart(TypedSpec unit) {
         return switch (enumName(unit)) {
             case "YEARS" -> "year";
             case "MONTHS" -> "month";
@@ -2738,13 +2757,13 @@ final class Scalars {
      * — globally string-typed for the pinned string-comparison semantics)
      * pad to the first of their period as real DATE literals.
      */
-    private static SqlExpr dateArg(com.legend.compiler.spec.typed.TypedSpec typed,
+    private static SqlExpr dateArg(TypedSpec typed,
                                    SqlExpr lowered) {
-        if (typed instanceof com.legend.compiler.spec.typed.TypedCDate d) {
-            if (d.value() instanceof com.legend.values.PureDateLiteral.Year y) {
+        if (typed instanceof TypedCDate d) {
+            if (d.value() instanceof PureDateLiteral.Year y) {
                 return new SqlExpr.DateLit(y.toEngineString() + "-01-01");
             }
-            if (d.value() instanceof com.legend.values.PureDateLiteral.YearMonth ym) {
+            if (d.value() instanceof PureDateLiteral.YearMonth ym) {
                 return new SqlExpr.DateLit(ym.toEngineString() + "-01");
             }
         }
@@ -2851,7 +2870,7 @@ final class Scalars {
                         SqlExpr.Call.of(SqlFn.PLUS, ip, new SqlExpr.IntLit(1)))),
                 SqlExpr.Call.of(SqlFn.PLUS, ip, new SqlExpr.IntLit(2)));
         return new SqlExpr.Call(SqlFn.LIST_GET, List.of(sorted,
-                new SqlExpr.Cast(pick, com.legend.sql.SqlType.Scalar.BIGINT)));
+                new SqlExpr.Cast(pick, SqlType.Scalar.BIGINT)));
     }
 
     /**
@@ -2861,8 +2880,8 @@ final class Scalars {
      * rebind the name SHADOW (no substitution inside).
      */
     /** A comparator whose body is bare eq/equal over its two parameters. */
-    private static boolean isEqualityComparator(com.legend.compiler.spec.typed.TypedSpec spec) {
-        if (!(spec instanceof com.legend.compiler.spec.typed.TypedLambda cmp)
+    private static boolean isEqualityComparator(TypedSpec spec) {
+        if (!(spec instanceof TypedLambda cmp)
                 || cmp.parameters().size() != 2 || cmp.body().size() != 1
                 || !(cmp.body().get(0) instanceof TypedNativeCall cc)
                 || cc.args().size() != 2) {
@@ -2876,7 +2895,7 @@ final class Scalars {
         // BARE parameter references only ({x,y|eq($x,$y)}) — a body like
         // {x,y|$x == 2+$y} is a CUSTOM comparator, not plain equality
         return cc.args().stream().allMatch(arg ->
-                arg instanceof com.legend.compiler.spec.typed.TypedVariable v
+                arg instanceof TypedVariable v
                         && cmp.parameters().contains(v.name()));
     }
 
@@ -2885,14 +2904,14 @@ final class Scalars {
      * ascending, {@code {x,y|$y->compare($x)}} descending; anything richer
      * has no relational sort shape (null).
      */
-    private static Boolean comparatorDirection(com.legend.compiler.spec.typed.TypedSpec spec) {
-        if (!(spec instanceof com.legend.compiler.spec.typed.TypedLambda cmp)
+    private static Boolean comparatorDirection(TypedSpec spec) {
+        if (!(spec instanceof TypedLambda cmp)
                 || cmp.parameters().size() != 2 || cmp.body().size() != 1
                 || !(cmp.body().get(0) instanceof TypedNativeCall cc)
                 || !cc.callee().qualifiedName().equals("meta::pure::functions::lang::compare")
                 || cc.args().size() != 2
-                || !(cc.args().get(0) instanceof com.legend.compiler.spec.typed.TypedVariable a)
-                || !(cc.args().get(1) instanceof com.legend.compiler.spec.typed.TypedVariable b)) {
+                || !(cc.args().get(0) instanceof TypedVariable a)
+                || !(cc.args().get(1) instanceof TypedVariable b)) {
             return null;
         }
         String p0 = cmp.parameters().get(0);
@@ -2945,19 +2964,19 @@ final class Scalars {
      * exponent form.
      */
     private static SqlExpr floatRepr(SqlExpr x) {
-        SqlExpr s = new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR);
+        SqlExpr s = new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR);
         // FRACTION-FREE values render through HUGEINT — exact plain digits
         // for the whole [1e16, 1e38) band where the DECIMAL(38,18) cast
         // fabricates garbage (audit: 1e18 printed ...042.42...); every
         // double >= 2^53 is fraction-free, so all large magnitudes take
         // this branch.
         SqlExpr intPlain = SqlExpr.Call.of(SqlFn.CONCAT,
-                new SqlExpr.Cast(new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.HUGEINT),
-                        com.legend.sql.SqlType.Scalar.VARCHAR),
+                new SqlExpr.Cast(new SqlExpr.Cast(x, SqlType.Scalar.HUGEINT),
+                        SqlType.Scalar.VARCHAR),
                 new SqlExpr.StringLit(".0"));
         SqlExpr plain = SqlExpr.Call.of(SqlFn.RTRIM,
-                new SqlExpr.Cast(new SqlExpr.Cast(x, new com.legend.sql.SqlType.Decimal(38, 18)),
-                        com.legend.sql.SqlType.Scalar.VARCHAR),
+                new SqlExpr.Cast(new SqlExpr.Cast(x, new SqlType.Decimal(38, 18)),
+                        SqlType.Scalar.VARCHAR),
                 new SqlExpr.StringLit("0"));
         SqlExpr fixed = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.ENDS_WITH, plain, new SqlExpr.StringLit(".")),
@@ -2991,7 +3010,7 @@ final class Scalars {
      * (spread = [fmt, arg1, ...]; directive order maps to argument order).
      */
     private static void rewriteFormatDirectives(String fmt, List<SqlExpr> spread,
-            List<com.legend.compiler.spec.typed.TypedSpec> typedElems) {
+            List<TypedSpec> typedElems) {
         StringBuilder out = new StringBuilder();
         int argIdx = 1;
         int i = 0;
@@ -3128,7 +3147,7 @@ final class Scalars {
     }
 
     /** Pure's default date print for a format slot, or null when not a date. */
-    private static SqlExpr datePrintOf(com.legend.compiler.spec.typed.TypedSpec typed, SqlExpr e) {
+    private static SqlExpr datePrintOf(TypedSpec typed, SqlExpr e) {
         Type t = typed.info().type();
         SqlExpr lit = dateLiteralPrint(typed, t);
         if (lit != null) {
@@ -3142,7 +3161,7 @@ final class Scalars {
     }
 
     /** %r: strings quote with \-escapes; dates carry their % literal prefix. */
-    private static SqlExpr reprOf(com.legend.compiler.spec.typed.TypedSpec typed, SqlExpr e) {
+    private static SqlExpr reprOf(TypedSpec typed, SqlExpr e) {
         if (typed != null) {
             SqlExpr dp = datePrintOf(typed, e);
             if (dp != null) {
@@ -3217,8 +3236,8 @@ final class Scalars {
      * normalized to +0000 (the parser already shifted zone-carrying
      * literals to GMT). {@code null} for non-literal args.
      */
-    private static SqlExpr dateLiteralPrint(com.legend.compiler.spec.typed.TypedSpec spec, Type t) {
-        if (!(spec instanceof com.legend.compiler.spec.typed.TypedCDate cd)) {
+    private static SqlExpr dateLiteralPrint(TypedSpec spec, Type t) {
+        if (!(spec instanceof TypedCDate cd)) {
             return null;
         }
         String s = cd.value().toEngineString();
@@ -3226,12 +3245,12 @@ final class Scalars {
     }
 
     /** Partial-date-literal precision: 1 = year, 2 = year-month; null otherwise. */
-    private static Integer partialPrecision(com.legend.compiler.spec.typed.TypedSpec t) {
-        if (t instanceof com.legend.compiler.spec.typed.TypedCDate d) {
-            if (d.value() instanceof com.legend.values.PureDateLiteral.Year) {
+    private static Integer partialPrecision(TypedSpec t) {
+        if (t instanceof TypedCDate d) {
+            if (d.value() instanceof PureDateLiteral.Year) {
                 return 1;
             }
-            if (d.value() instanceof com.legend.values.PureDateLiteral.YearMonth) {
+            if (d.value() instanceof PureDateLiteral.YearMonth) {
                 return 2;
             }
         }
@@ -3245,16 +3264,16 @@ final class Scalars {
     }
 
     /** Whether an argument's Pure multiplicity is at most one. */
-    private static boolean isToOne(com.legend.compiler.spec.typed.TypedSpec arg) {
+    private static boolean isToOne(TypedSpec arg) {
         var m = arg.info().multiplicity();
-        return m instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+        return m instanceof Multiplicity.Bounded b
                 && Integer.valueOf(1).equals(b.upper());
     }
 
     /** A literal boolean argument; LOUD otherwise (never a silent default). */
-    private static boolean boolLiteral(com.legend.compiler.spec.typed.TypedSpec arg,
+    private static boolean boolLiteral(TypedSpec arg,
             String what) {
-        if (arg instanceof com.legend.compiler.spec.typed.TypedCBoolean b) {
+        if (arg instanceof TypedCBoolean b) {
             return b.value();
         }
         throw new IllegalStateException(what + " must be a literal boolean, got "
@@ -3267,9 +3286,9 @@ final class Scalars {
      * prepended to the pattern as {@code (?ims)}; DuckDB's option-argument
      * chars have different semantics, inline flags are the portable spelling.
      */
-    private static String regexpFlags(com.legend.compiler.spec.typed.TypedSpec arg) {
-        List<com.legend.compiler.spec.typed.TypedSpec> params =
-                arg instanceof com.legend.compiler.spec.typed.TypedCollection c
+    private static String regexpFlags(TypedSpec arg) {
+        List<TypedSpec> params =
+                arg instanceof TypedCollection c
                         ? c.elements() : List.of(arg);
         StringBuilder flags = new StringBuilder();
         for (var pm : params) {
@@ -3301,7 +3320,7 @@ final class Scalars {
      * call whose OPTIONAL group/params begin at {@code tailStart} in the
      * lowered args (group defaults 0; flags default '').
      */
-    private static SqlExpr regexpAll(com.legend.compiler.spec.typed.TypedNativeCall n,
+    private static SqlExpr regexpAll(TypedNativeCall n,
                                      List<SqlExpr> args, int tailStart) {
         SqlExpr group = new SqlExpr.IntLit(0);
         String flags = "";
@@ -3349,8 +3368,8 @@ final class Scalars {
                 + "' has no capturing group " + k);
     }
 
-    private static String enumName(com.legend.compiler.spec.typed.TypedSpec arg) {
-        if (arg instanceof com.legend.compiler.spec.typed.TypedEnumValue ev) {
+    private static String enumName(TypedSpec arg) {
+        if (arg instanceof TypedEnumValue ev) {
             return ev.value();
         }
         throw new IllegalStateException("a DurationUnit argument must be an enum"
@@ -3363,15 +3382,15 @@ final class Scalars {
      * Pure type (StrictDate = day, DateTime = SQL TIMESTAMP = full); the
      * abstract Date is undecidable and refuses loudly.
      */
-    private static int datePrecision(com.legend.compiler.spec.typed.TypedSpec arg) {
-        if (arg instanceof com.legend.compiler.spec.typed.TypedCDate d) {
+    private static int datePrecision(TypedSpec arg) {
+        if (arg instanceof TypedCDate d) {
             return switch (d.value()) {
-                case com.legend.values.PureDateLiteral.Year ignored -> 0;
-                case com.legend.values.PureDateLiteral.YearMonth ignored -> 1;
-                case com.legend.values.PureDateLiteral.StrictDate ignored -> 2;
-                case com.legend.values.PureDateLiteral.DateWithHour ignored -> 3;
-                case com.legend.values.PureDateLiteral.DateWithMinute ignored -> 4;
-                case com.legend.values.PureDateLiteral.DateWithSecond ignored -> 5;
+                case PureDateLiteral.Year ignored -> 0;
+                case PureDateLiteral.YearMonth ignored -> 1;
+                case PureDateLiteral.StrictDate ignored -> 2;
+                case PureDateLiteral.DateWithHour ignored -> 3;
+                case PureDateLiteral.DateWithMinute ignored -> 4;
+                case PureDateLiteral.DateWithSecond ignored -> 5;
                 default -> 6;
             };
         }
@@ -3387,17 +3406,17 @@ final class Scalars {
                 case 4 -> 3;
                 case 5 -> 4;
                 default -> dc.args().get(5).info().type()
-                        == com.legend.compiler.element.type.Type.Primitive.FLOAT
+                        == Type.Primitive.FLOAT
                         || dc.args().get(5).info().type()
-                                == com.legend.compiler.element.type.Type.Primitive.DECIMAL
+                                == Type.Primitive.DECIMAL
                         ? 6 : 5;
             };
         }
         var t = arg.info().type();
-        if (t == com.legend.compiler.element.type.Type.Primitive.DATE_TIME) {
+        if (t == Type.Primitive.DATE_TIME) {
             return 6;
         }
-        if (t == com.legend.compiler.element.type.Type.Primitive.STRICT_DATE) {
+        if (t == Type.Primitive.STRICT_DATE) {
             return 2;
         }
         throw new IllegalStateException("a date-precision predicate over the"

@@ -4,19 +4,37 @@
 package com.legend.resolver;
 
 import com.legend.compiler.element.ModelContext;
+import com.legend.compiler.element.Temporal;
+import com.legend.compiler.element.type.ExprType;
+import com.legend.compiler.element.type.Multiplicity;
+import com.legend.compiler.element.type.Type;
+import com.legend.compiler.spec.typed.TypedCDate;
+import com.legend.compiler.spec.typed.TypedCLatestDate;
+import com.legend.compiler.spec.typed.TypedConcatenate;
+import com.legend.compiler.spec.typed.TypedDistinct;
 import com.legend.compiler.spec.typed.TypedFilter;
+import com.legend.compiler.spec.typed.TypedJoin;
+import com.legend.compiler.spec.typed.TypedJoinSlot;
 import com.legend.compiler.spec.typed.TypedLambda;
+import com.legend.compiler.spec.typed.TypedMilestonedAccess;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedProject;
+import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedSelect;
 import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.compiler.spec.typed.TypedTableReference;
+import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.error.MappingResolutionException;
 import com.legend.error.NotImplementedException;
-
+import com.legend.values.PureDateLiteral;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
 /**
  * THE per-resolution temporal machinery: the root fetch's
  * {@link TemporalContext}, the chain-keyed property-function specs, the
@@ -82,7 +100,7 @@ final class TemporalFrame {
             return pipe;
         }
         TypedSpec out = pipe;
-        for (String dim : java.util.List.of("processingtemporal",
+        for (String dim : List.of("processingtemporal",
                 "businesstemporal")) {
             if (!tableHasBlock(out, dim)) {
                 continue;
@@ -149,7 +167,7 @@ final class TemporalFrame {
      */
     TypedSpec milestonedPipeByStrategy(TypedSpec pipe, TypedSpec date,
             String strategy, String classFqn) {
-        com.legend.compiler.spec.typed.TypedTableReference root = rootTable(pipe);
+        TypedTableReference root = rootTable(pipe);
         var ms = root == null ? null
                 : ctx.findTableMilestoning(root.store(), root.table()).orElse(null);
         String fromCol;
@@ -208,58 +226,58 @@ final class TemporalFrame {
                     ? milestonedPipeByStrategy(sc, fdate, strategy, classFqn)
                     : sc);
         }
-        com.legend.compiler.element.type.Type.RelationType row = (com.legend.compiler.element.type.Type.RelationType) pipe.info().type();
+        Type.RelationType row = (Type.RelationType) pipe.info().type();
         String v = "ms_row";
-        com.legend.compiler.element.type.ExprType rowT =
-                new com.legend.compiler.element.type.ExprType(row,
-                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
-        java.util.function.Function<String, TypedSpec> col = name -> {
-            com.legend.compiler.element.type.Type.Column c = row.columns().stream()
+        ExprType rowT =
+                new ExprType(row,
+                        Multiplicity.Bounded.ONE);
+        Function<String, TypedSpec> col = name -> {
+            Type.Column c = row.columns().stream()
                     .filter(x -> x.name().equalsIgnoreCase(name)).findFirst()
                     .orElseThrow(() -> new MappingResolutionException(
                             "milestoning column '" + name + "' is not on the"
                                     + " pipeline row of '" + classFqn + "'", classFqn));
-            return new com.legend.compiler.spec.typed.TypedPropertyAccess(
-                    new com.legend.compiler.spec.typed.TypedVariable(v, rowT),
-                    c.name(), new com.legend.compiler.element.type.ExprType(
+            return new TypedPropertyAccess(
+                    new TypedVariable(v, rowT),
+                    c.name(), new ExprType(
                             c.type(), c.multiplicity()));
         };
-        com.legend.compiler.element.type.ExprType boolT =
-                new com.legend.compiler.element.type.ExprType(
-                        com.legend.compiler.element.type.Type.Primitive.BOOLEAN,
-                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+        ExprType boolT =
+                new ExprType(
+                        Type.Primitive.BOOLEAN,
+                        Multiplicity.Bounded.ONE);
         TypedSpec cond;
         if (snapCol != null) {
             // SNAPSHOT milestoning: the fetch date selects its snapshot rows.
             // A DATETIME param TRUNCATES to the date (engine golden:
             // `snapshotDate = cast(truncate(ts) as date)`).
-            if (date instanceof com.legend.compiler.spec.typed.TypedCLatestDate) {
+            if (date instanceof TypedCLatestDate) {
                 throw new MappingResolutionException("%latest over a SNAPSHOT-"
                         + "milestoned table is not supported yet", classFqn);
             }
             TypedSpec snapDate = date;
             boolean snapColIsDate = row.columns().stream()
                     .filter(x -> x.name().equalsIgnoreCase(snapCol)).findFirst()
-                    .map(x -> x.type() == com.legend.compiler.element.type.Type
+                    .map(x -> x.type() == Type
                             .Primitive.STRICT_DATE)
                     .orElse(true);
             if (snapColIsDate
-                    && date instanceof com.legend.compiler.spec.typed.TypedCDate cd
+                    && date instanceof TypedCDate cd
                     && !(cd.value()
-                            instanceof com.legend.values.PureDateLiteral.StrictDate)) {
+                            instanceof PureDateLiteral.StrictDate)) {
                 String iso = cd.value().toEngineString();
                 if (iso.length() >= 10) {
-                    snapDate = new com.legend.compiler.spec.typed.TypedCDate(
-                            com.legend.values.PureDateLiteral.parse(
+                    snapDate = new TypedCDate(
+                            PureDateLiteral.parse(
                                     iso.substring(0, 10)),
-                            new com.legend.compiler.element.type.ExprType(
-                                    com.legend.compiler.element.type.Type
+                            new ExprType(
+                                    Type
                                             .Primitive.STRICT_DATE,
                                     com.legend.compiler.element.type
                                             .Multiplicity.Bounded.ONE));
                 }
             } else if (snapColIsDate
-                    && !(date instanceof com.legend.compiler.spec.typed.TypedCDate)) {
+                    && !(date instanceof TypedCDate)) {
                 // NON-LITERAL datetime param against a DATE column: wrap in
                 // datePart (engine golden: snapshotDate = cast(truncate(ts)
                 // as date)) — a raw timestamp equality silently matches
@@ -273,9 +291,9 @@ final class TemporalFrame {
                 }
                 {
                     snapDate = new TypedNativeCall(dpFns.get(0),
-                            java.util.List.of(date),
-                            new com.legend.compiler.element.type.ExprType(
-                                    com.legend.compiler.element.type.Type
+                            List.of(date),
+                            new ExprType(
+                                    Type
                                             .Primitive.STRICT_DATE,
                                     com.legend.compiler.element.type
                                             .Multiplicity.Bounded.ONE));
@@ -283,7 +301,7 @@ final class TemporalFrame {
             }
             cond = cmpCall("meta::pure::functions::boolean::equal",
                     col.apply(snapCol), snapDate, boolT);
-        } else if (date instanceof com.legend.compiler.spec.typed.TypedCLatestDate) {
+        } else if (date instanceof TypedCLatestDate) {
             if (infinity == null) {
                 // engine: getInfinityDate ASSERTS the declaration — a
                 // defaulted constant would silently return zero rows for
@@ -293,14 +311,14 @@ final class TemporalFrame {
                         + " table '" + root.table() + "' to specify a"
                         + " milestoning 'INFINITY_DATE'", classFqn);
             }
-            com.legend.compiler.element.type.ExprType dt =
-                    new com.legend.compiler.element.type.ExprType(
-                            com.legend.compiler.element.type.Type.Primitive.DATE_TIME,
-                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+            ExprType dt =
+                    new ExprType(
+                            Type.Primitive.DATE_TIME,
+                            Multiplicity.Bounded.ONE);
             cond = cmpCall("meta::pure::functions::boolean::equal",
                     col.apply(thruCol),
-                    new com.legend.compiler.spec.typed.TypedCDate(
-                            com.legend.values.PureDateLiteral.parse(
+                    new TypedCDate(
+                            PureDateLiteral.parse(
                                     infinity.startsWith("%")
                                             ? infinity.substring(1) : infinity),
                             dt),
@@ -322,17 +340,17 @@ final class TemporalFrame {
                             col.apply(thruCol), date, boolT),
                     boolT);
         }
-        TypedLambda pred = new TypedLambda(java.util.List.of(v),
-                java.util.List.of(cond),
-                new com.legend.compiler.element.type.ExprType(
-                        new com.legend.compiler.element.type.Type.FunctionType(
-                                java.util.List.of(new com.legend.compiler.element.type.Type.Param(row,
-                                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
-                                new com.legend.compiler.element.type.Type.Param(
-                                        com.legend.compiler.element.type.Type.Primitive.BOOLEAN,
-                                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
-                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
-        return new com.legend.compiler.spec.typed.TypedFilter(pipe, pred, pipe.info());
+        TypedLambda pred = new TypedLambda(List.of(v),
+                List.of(cond),
+                new ExprType(
+                        new Type.FunctionType(
+                                List.of(new Type.Param(row,
+                                        Multiplicity.Bounded.ONE)),
+                                new Type.Param(
+                                        Type.Primitive.BOOLEAN,
+                                        Multiplicity.Bounded.ONE)),
+                        Multiplicity.Bounded.ONE));
+        return new TypedFilter(pipe, pred, pipe.info());
     }
 
     /**
@@ -371,7 +389,7 @@ final class TemporalFrame {
             return n;
         }
         return switch (n) {
-            case com.legend.compiler.spec.typed.TypedJoin j -> {
+            case TypedJoin j -> {
                 TypedSpec right = j.right();
                 String navClass = j.prefix()
                         .map(navPrefixToClass::get).orElse(null);
@@ -416,15 +434,15 @@ final class TemporalFrame {
                     filtered = stampByOwnBlocks(right, root,
                             "join target");
                 }
-                yield new com.legend.compiler.spec.typed.TypedJoin(
+                yield new TypedJoin(
                         applyJoinTemporalFilters(j.left(), cs, navPrefixToClass, navPrefixToChain, midPrefixToChain, midPrefixToDim),
                         filtered, j.kind(), j.condition(), j.prefix(), j.info());
             }
             case TypedFilter f -> new TypedFilter(
                     applyJoinTemporalFilters(f.source(), cs, navPrefixToClass, navPrefixToChain, midPrefixToChain, midPrefixToDim),
                     f.predicate(), f.info());
-            case com.legend.compiler.spec.typed.TypedDistinct d ->
-                    new com.legend.compiler.spec.typed.TypedDistinct(
+            case TypedDistinct d ->
+                    new TypedDistinct(
                             applyJoinTemporalFilters(d.source(), cs, navPrefixToClass, navPrefixToChain, midPrefixToChain, midPrefixToDim),
                             d.columns(), d.info());
             case TypedSelect sel -> new TypedSelect(
@@ -433,8 +451,8 @@ final class TemporalFrame {
             case TypedProject pr -> new TypedProject(
                     applyJoinTemporalFilters(pr.source(), cs, navPrefixToClass, navPrefixToChain, midPrefixToChain, midPrefixToDim),
                     pr.columns(), pr.info());
-            case com.legend.compiler.spec.typed.TypedConcatenate cc ->
-                    new com.legend.compiler.spec.typed.TypedConcatenate(
+            case TypedConcatenate cc ->
+                    new TypedConcatenate(
                             applyJoinTemporalFilters(cc.left(), cs, navPrefixToClass, navPrefixToChain, midPrefixToChain, midPrefixToDim),
                             applyJoinTemporalFilters(cc.right(), cs, navPrefixToClass, navPrefixToChain, midPrefixToChain, midPrefixToDim),
                             cc.info());
@@ -454,7 +472,7 @@ final class TemporalFrame {
 
     /** The pipe's root table declares a milestoning block for {@code strategy}. */
     boolean tableHasBlock(TypedSpec pipe, String strategy) {
-        com.legend.compiler.spec.typed.TypedTableReference root = rootTable(pipe);
+        TypedTableReference root = rootTable(pipe);
         var ms = root == null ? null
                 : ctx.findTableMilestoning(root.store(), root.table()).orElse(null);
         if (ms == null) {
@@ -468,10 +486,10 @@ final class TemporalFrame {
     private static boolean pipeRowHasMilestoneCols(TypedSpec pipe, String fromCol,
             String thruCol, String snapCol) {
         if (!(pipe.info().type()
-                instanceof com.legend.compiler.element.type.Type.RelationType row)) {
+                instanceof Type.RelationType row)) {
             return false;
         }
-        java.util.function.Predicate<String> has = name -> name != null
+        Predicate<String> has = name -> name != null
                 && row.columns().stream()
                         .anyMatch(c -> c.name().equalsIgnoreCase(name));
         return snapCol != null ? has.test(snapCol)
@@ -480,33 +498,33 @@ final class TemporalFrame {
 
     /** Rebuild {@code pipe} with its deepest LEFT-spine scan wrapped. */
     static TypedSpec replaceScan(TypedSpec pipe,
-            java.util.function.UnaryOperator<TypedSpec> wrap) {
+            UnaryOperator<TypedSpec> wrap) {
         return switch (pipe) {
-            case com.legend.compiler.spec.typed.TypedTableReference t -> wrap.apply(t);
+            case TypedTableReference t -> wrap.apply(t);
             case TypedFilter f -> new TypedFilter(replaceScan(f.source(), wrap),
                     f.predicate(), f.info());
             case TypedSelect sel -> new TypedSelect(replaceScan(sel.source(), wrap),
                     sel.columns(), sel.info());
-            case com.legend.compiler.spec.typed.TypedDistinct d ->
-                    new com.legend.compiler.spec.typed.TypedDistinct(
+            case TypedDistinct d ->
+                    new TypedDistinct(
                             replaceScan(d.source(), wrap), d.columns(), d.info());
             case TypedProject pr -> new TypedProject(replaceScan(pr.source(), wrap),
                     pr.columns(), pr.info());
-            case com.legend.compiler.spec.typed.TypedJoin j ->
-                    new com.legend.compiler.spec.typed.TypedJoin(
+            case TypedJoin j ->
+                    new TypedJoin(
                             replaceScan(j.left(), wrap),
                             j.right() instanceof com.legend.compiler.spec.typed
                                     .TypedTableReference rt
                                     ? wrap.apply(rt) : j.right(),
                             j.kind(), j.condition(), j.prefix(), j.info());
-            case com.legend.compiler.spec.typed.TypedJoinSlot js ->
-                    new com.legend.compiler.spec.typed.TypedJoinSlot(
+            case TypedJoinSlot js ->
+                    new TypedJoinSlot(
                             replaceScan(js.source(), wrap), js.alias(), js.target(),
                             js.condition(), js.info());
             // a UNION pipeline: the temporal filter applies to EACH member
             // (every table alias filters — engine rule, per member scan)
-            case com.legend.compiler.spec.typed.TypedConcatenate c ->
-                    new com.legend.compiler.spec.typed.TypedConcatenate(
+            case TypedConcatenate c ->
+                    new TypedConcatenate(
                             replaceScan(c.left(), wrap),
                             replaceScan(c.right(), wrap), c.info());
             default -> throw new MappingResolutionException(
@@ -543,7 +561,7 @@ final class TemporalFrame {
 
     TypedSpec rangeScanPipe(TypedSpec pipe, TypedSpec start,
             TypedSpec end, String strategy, String classFqn) {
-        com.legend.compiler.spec.typed.TypedTableReference root = rootTable(pipe);
+        TypedTableReference root = rootTable(pipe);
         var ms = root == null ? null
                 : ctx.findTableMilestoning(root.store(), root.table()).orElse(null);
         String fromCol;
@@ -572,33 +590,33 @@ final class TemporalFrame {
             throw new MappingResolutionException("bi-temporal allVersionsInRange"
                     + " of '" + classFqn + "' is not supported yet", classFqn);
         }
-        if (start instanceof com.legend.compiler.spec.typed.TypedCLatestDate
-                || end instanceof com.legend.compiler.spec.typed.TypedCLatestDate) {
+        if (start instanceof TypedCLatestDate
+                || end instanceof TypedCLatestDate) {
             // engine: '%latest not a valid parameter for allVersionsInRange'
             throw new MappingResolutionException("%latest is not a valid"
                     + " parameter for allVersionsInRange", classFqn);
         }
-        com.legend.compiler.element.type.Type.RelationType row =
-                (com.legend.compiler.element.type.Type.RelationType) pipe.info().type();
+        Type.RelationType row =
+                (Type.RelationType) pipe.info().type();
         String v = "ms_row";
-        com.legend.compiler.element.type.ExprType rowT =
-                new com.legend.compiler.element.type.ExprType(row,
-                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
-        java.util.function.Function<String, TypedSpec> col = name -> {
-            com.legend.compiler.element.type.Type.Column c = row.columns().stream()
+        ExprType rowT =
+                new ExprType(row,
+                        Multiplicity.Bounded.ONE);
+        Function<String, TypedSpec> col = name -> {
+            Type.Column c = row.columns().stream()
                     .filter(x -> x.name().equalsIgnoreCase(name)).findFirst()
                     .orElseThrow(() -> new MappingResolutionException(
                             "milestoning column '" + name + "' is not on the"
                                     + " pipeline row of '" + classFqn + "'", classFqn));
-            return new com.legend.compiler.spec.typed.TypedPropertyAccess(
-                    new com.legend.compiler.spec.typed.TypedVariable(v, rowT),
-                    c.name(), new com.legend.compiler.element.type.ExprType(
+            return new TypedPropertyAccess(
+                    new TypedVariable(v, rowT),
+                    c.name(), new ExprType(
                             c.type(), c.multiplicity()));
         };
-        com.legend.compiler.element.type.ExprType boolT =
-                new com.legend.compiler.element.type.ExprType(
-                        com.legend.compiler.element.type.Type.Primitive.BOOLEAN,
-                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+        ExprType boolT =
+                new ExprType(
+                        Type.Primitive.BOOLEAN,
+                        Multiplicity.Bounded.ONE);
         TypedSpec cond;
         if (snapCol != null) {
             cond = cmpCall("meta::pure::functions::boolean::and",
@@ -622,21 +640,21 @@ final class TemporalFrame {
                             col.apply(thruCol), start, boolT),
                     boolT);
         }
-        TypedLambda pred = new TypedLambda(java.util.List.of(v),
-                java.util.List.of(cond),
-                new com.legend.compiler.element.type.ExprType(
-                        new com.legend.compiler.element.type.Type.FunctionType(
-                                java.util.List.of(new com.legend.compiler.element
+        TypedLambda pred = new TypedLambda(List.of(v),
+                List.of(cond),
+                new ExprType(
+                        new Type.FunctionType(
+                                List.of(new com.legend.compiler.element
                                         .type.Type.Param(row,
                                         com.legend.compiler.element.type
                                                 .Multiplicity.Bounded.ONE)),
-                                new com.legend.compiler.element.type.Type.Param(
-                                        com.legend.compiler.element.type.Type
+                                new Type.Param(
+                                        Type
                                                 .Primitive.BOOLEAN,
                                         com.legend.compiler.element.type
                                                 .Multiplicity.Bounded.ONE)),
-                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
-        return new com.legend.compiler.spec.typed.TypedFilter(pipe, pred, pipe.info());
+                        Multiplicity.Bounded.ONE));
+        return new TypedFilter(pipe, pred, pipe.info());
     }
 
     /**
@@ -646,16 +664,16 @@ final class TemporalFrame {
      * — engine {@code milestoningCanSupportTemporalStrategy}.
      */
     String temporalStrategy(String classFqn) {
-        return com.legend.compiler.element.Temporal.strategyOf(ctx, classFqn);
+        return Temporal.strategyOf(ctx, classFqn);
     }
 
     /** The LEFTMOST physical table of a materialized pipeline. */
-    private static com.legend.compiler.spec.typed.TypedTableReference rootTable(TypedSpec n) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedTableReference tr) {
+    private static TypedTableReference rootTable(TypedSpec n) {
+        if (n instanceof TypedTableReference tr) {
             return tr;
         }
         for (TypedSpec c : n.children()) {
-            com.legend.compiler.spec.typed.TypedTableReference r = rootTable(c);
+            TypedTableReference r = rootTable(c);
             if (r != null) {
                 return r;
             }
@@ -664,26 +682,26 @@ final class TemporalFrame {
     }
 
     void collectTemporalSpecs(TypedLambda lambda,
-            java.util.Map<String, TemporalSpec> out) {
+            Map<String, TemporalSpec> out) {
         collectTemporalSpecs(lambda.body(), lambda.parameters().get(0), out);
     }
 
-    void collectTemporalSpecs(java.util.List<TypedSpec> body, String userVar,
-            java.util.Map<String, TemporalSpec> out) {
+    void collectTemporalSpecs(List<TypedSpec> body, String userVar,
+            Map<String, TemporalSpec> out) {
         for (TypedSpec b : body) {
             collectTemporalNodes(b, userVar, out);
         }
     }
 
     void collectTemporalNodes(TypedSpec n, String userVar,
-            java.util.Map<String, TemporalSpec> out) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedMilestonedAccess ma) {
+            Map<String, TemporalSpec> out) {
+        if (n instanceof TypedMilestonedAccess ma) {
             // specs key by the FULL CHAIN prefix (engine: one milestoning
             // context per cursor, an explicit property-function date builds
             // a NEW context for ITS hop — MIL:846-868). A 1-hop access keys
             // by the bare property (chain of one). Non-var-rooted accesses
             // (inner lambdas) stay loud.
-            java.util.List<String> maPath = Substitution.pathOf(ma, userVar);
+            List<String> maPath = Substitution.pathOf(ma, userVar);
             if (maPath == null) {
                 throw new NotImplementedException("milestoned property access '"
                         + ma.property() + "' on a NESTED navigation is not"
@@ -709,8 +727,7 @@ final class TemporalFrame {
 
     /** The temporal arguments a milestoned property function supplied for a
      * navigation head ({@code product(%d)} / sweep / range spellings). */
-    record TemporalSpec(java.util.List<TypedSpec> dates, boolean sweep) {}
-
+    record TemporalSpec(List<TypedSpec> dates, boolean sweep) {}
 
     /**
      * A temporal TARGET's pipeline filtered by its milestoning columns —
@@ -729,13 +746,13 @@ final class TemporalFrame {
             return pipe;   // propAllVersions(): the RAW extent, any dimension
         }
         if (strat.equals("bitemporal")) {
-            java.util.List<TypedSpec> dates =
+            List<TypedSpec> dates =
                     spec != null && !spec.sweep() && spec.dates().size() == 2
                             ? spec.dates()
                             : root.processing() != null
                                     && root.business() != null
                                     && temporalStrategy(parent.classFqn()) != null
-                                    ? java.util.List.of(root.processing(),
+                                    ? List.of(root.processing(),
                                             root.business())
                                     : null;
             // the engine-generated 1-DATE bitemporal property: the param is
@@ -746,10 +763,10 @@ final class TemporalFrame {
                 String parentStrat = temporalStrategy(parent.classFqn());
                 TypedSpec ownerDate = root.dateFor(parentStrat);
                 if (ownerDate != null && "businesstemporal".equals(parentStrat)) {
-                    dates = java.util.List.of(spec.dates().get(0), ownerDate);
+                    dates = List.of(spec.dates().get(0), ownerDate);
                 } else if (ownerDate != null
                         && "processingtemporal".equals(parentStrat)) {
-                    dates = java.util.List.of(ownerDate, spec.dates().get(0));
+                    dates = List.of(ownerDate, spec.dates().get(0));
                 }
             }
             if (dates == null) {
@@ -887,12 +904,12 @@ final class TemporalFrame {
      */
     TypedSpec filterMilestonedJoinTargets(TypedSpec n,
             TemporalContext c) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedJoin j) {
+        if (n instanceof TypedJoin j) {
             TypedSpec right = j.right();
-            if (right instanceof com.legend.compiler.spec.typed.TypedTableReference) {
+            if (right instanceof TypedTableReference) {
                 right = stampByOwnBlocks(right, c, "nested join target");
             }
-            return new com.legend.compiler.spec.typed.TypedJoin(
+            return new TypedJoin(
                     filterMilestonedJoinTargets(j.left(), c), right,
                     j.kind(), j.condition(), j.prefix(), j.info());
         }
@@ -901,7 +918,7 @@ final class TemporalFrame {
 
     /** Any table scan in the pipeline carrying a SNAPSHOT milestoning block. */
     boolean hasSnapshotScan(TypedSpec pipeline) {
-        if (pipeline instanceof com.legend.compiler.spec.typed.TypedTableReference tr) {
+        if (pipeline instanceof TypedTableReference tr) {
             var ms = ctx.findTableMilestoning(tr.store(), tr.table()).orElse(null);
             return ms != null
                     && ((ms.business() != null && ms.business().snapshotDate() != null)
@@ -918,9 +935,9 @@ final class TemporalFrame {
 
     /** Any join-slot target table in the pipeline carrying a milestoning block. */
     boolean hasMilestonedSlotTarget(TypedSpec pipeline) {
-        if (pipeline instanceof com.legend.compiler.spec.typed.TypedJoinSlot js
+        if (pipeline instanceof TypedJoinSlot js
                 && js.target() instanceof
-                        com.legend.compiler.spec.typed.TypedTableReference tr
+                        TypedTableReference tr
                 && ctx.findTableMilestoning(tr.store(), tr.table()).isPresent()) {
             return true;
         }
@@ -936,13 +953,13 @@ final class TemporalFrame {
      * pipe's root table, by the class's temporal dimension. */
     Map<String, String> milestoneColumnsOf(TypedSpec pipe, String classFqn) {
         String strat = temporalStrategy(classFqn);
-        com.legend.compiler.spec.typed.TypedTableReference root = rootTable(pipe);
+        TypedTableReference root = rootTable(pipe);
         var ms = root == null || strat == null ? null
                 : ctx.findTableMilestoning(root.store(), root.table()).orElse(null);
         if (ms == null) {
             return Map.of();
         }
-        Map<String, String> out = new java.util.LinkedHashMap<>();
+        Map<String, String> out = new LinkedHashMap<>();
         if (!"processingtemporal".equals(strat) && ms.business() != null) {
             var b = ms.business();
             if (b.from() != null) {
@@ -990,8 +1007,8 @@ final class TemporalFrame {
      * ({@code $this.businessDate} in a milestoned qualified property, or
      * any instance's businessDate/processingDate) IS the context date —
      * normalize to it so the literal-only filters apply. */
-    java.util.List<TypedSpec> normalizeContextDates(java.util.List<TypedSpec> dates) {
-        java.util.List<TypedSpec> out = new ArrayList<>(dates.size());
+    List<TypedSpec> normalizeContextDates(List<TypedSpec> dates) {
+        List<TypedSpec> out = new ArrayList<>(dates.size());
         for (TypedSpec d : dates) {
             out.add(normalizeContextDate(d));
         }
@@ -999,14 +1016,14 @@ final class TemporalFrame {
     }
 
     TypedSpec normalizeContextDate(TypedSpec d) {
-        if (d instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+        if (d instanceof TypedPropertyAccess pa
                 && (pa.property().equals("businessDate")
                         || pa.property().equals("processingDate"))
                 // ONLY the GENERATED property on a temporal receiver — an
                 // ordinary user property legally named businessDate must
                 // not be rewritten (audit 10)
                 && pa.source().info().type()
-                        instanceof com.legend.compiler.element.type.Type.ClassType rc
+                        instanceof Type.ClassType rc
                 && temporalStrategy(rc.fqn()) != null
                 ) {
             TypedSpec ctxD = pa.property().equals("businessDate")
@@ -1019,9 +1036,9 @@ final class TemporalFrame {
     }
 
     /** Explicit per-head property-function dates for the substitution. */
-    java.util.Map<String, java.util.List<TypedSpec>> headTemporalDates() {
-        java.util.Map<String, java.util.List<TypedSpec>> out =
-                new java.util.LinkedHashMap<>();
+    Map<String, List<TypedSpec>> headTemporalDates() {
+        Map<String, List<TypedSpec>> out =
+                new LinkedHashMap<>();
         for (var e : specs.entrySet()) {
             if (!e.getValue().dates().isEmpty()) {
                 out.put(e.getKey(), e.getValue().dates());
@@ -1031,7 +1048,7 @@ final class TemporalFrame {
     }
 
     private boolean containsJoinToMilestoned(TypedSpec n) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedJoin j
+        if (n instanceof TypedJoin j
                 && (tableHasBlock(j.right(), "businesstemporal")
                         || tableHasBlock(j.right(), "processingtemporal"))) {
             return true;
@@ -1050,7 +1067,7 @@ final class TemporalFrame {
      * silently stamp a different signature.
      */
     private TypedSpec cmpCall(String fqn, TypedSpec a, TypedSpec b,
-            com.legend.compiler.element.type.ExprType out) {
+            ExprType out) {
         var fns = ctx.findFunction(fqn).stream()
                 .filter(f -> f.parameters().size() == 2)
                 .toList();
@@ -1058,8 +1075,8 @@ final class TemporalFrame {
             throw new IllegalStateException("resolver bug: expected exactly"
                     + " one 2-arg overload of " + fqn + ", found " + fns.size());
         }
-        return new com.legend.compiler.spec.typed.TypedNativeCall(fns.get(0),
-                java.util.List.of(a, b), out);
+        return new TypedNativeCall(fns.get(0),
+                List.of(a, b), out);
     }
 
     /**
@@ -1068,15 +1085,15 @@ final class TemporalFrame {
      * Date, Number, String and Boolean overloads).
      */
     private TypedSpec dateCmpCall(String fqn, TypedSpec a, TypedSpec b,
-            com.legend.compiler.element.type.ExprType out) {
+            ExprType out) {
         var fn = ctx.findFunction(fqn).stream()
                 .filter(f -> f.parameters().size() == 2
                         && f.parameters().stream().allMatch(p ->
-                                com.legend.compiler.element.type.Type.Primitive.DATE
+                                Type.Primitive.DATE
                                         .equals(p.type())))
                 .findFirst().orElseThrow(() -> new IllegalStateException(
                         "resolver bug: no Date,Date overload of " + fqn));
-        return new com.legend.compiler.spec.typed.TypedNativeCall(fn,
-                java.util.List.of(a, b), out);
+        return new TypedNativeCall(fn,
+                List.of(a, b), out);
     }
 }

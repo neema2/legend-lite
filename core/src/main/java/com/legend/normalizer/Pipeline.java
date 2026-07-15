@@ -4,13 +4,11 @@ package com.legend.normalizer;
 
 import com.legend.parser.element.JoinChainElement;
 import com.legend.parser.spec.ValueSpecification;
-
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 /**
  * Pipeline state: accumulated AST plus aliases for hops that have
  * been emitted. Each alias corresponds to a sub-row (clean
@@ -61,13 +59,13 @@ final class Pipeline {
     /** The translator-facing view of this pipeline (seam b). */
     RelOpTranslator.PipelineView view() {
         return new RelOpTranslator.PipelineView() {
-            @Override public java.util.Set<String> ambiguousTables() {
+            @Override public Set<String> ambiguousTables() {
                 return ambiguousTables;
             }
             @Override public boolean hasSlots() {
                 return true;
             }
-            @Override public String slotFor(java.util.List<JoinChainElement> chain) {
+            @Override public String slotFor(List<JoinChainElement> chain) {
                 return JoinChainEmission.slotFor(Pipeline.this, chain);
             }
             @Override public String targetTable(String alias) {

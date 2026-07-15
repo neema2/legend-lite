@@ -1,9 +1,12 @@
 package com.legend.lowering;
 
+import com.legend.compiler.element.type.Type;
+import com.legend.sql.OutputCol;
 import com.legend.sql.SqlExpr;
+import com.legend.sql.SqlFn;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
-
+import java.util.List;
 /**
  * THE fold authority (PHASE_HIJ_LOWERING.md): the single owner of the
  * fold-vs-isolate decision. SQL's SELECT evaluates its slots in one fixed
@@ -63,7 +66,7 @@ final class Fold {
      * this — which is why {@code sort→distinct()} stays flat: whole-row dedup
      * commutes with reordering.
      */
-    static boolean distinctNarrowFolds(SqlSelect s, java.util.List<String> keptColumns) {
+    static boolean distinctNarrowFolds(SqlSelect s, List<String> keptColumns) {
         for (SqlSelect.SortKey k : s.orderBy()) {
             if (!(k.expr() instanceof SqlExpr.Column c) || !keptColumns.contains(c.name())) {
                 return false;
@@ -91,7 +94,7 @@ final class Fold {
 
     private static boolean containsUnnest(SqlExpr e) {
         return e instanceof SqlExpr.Call c
-                && (c.fn() == com.legend.sql.SqlFn.UNNEST
+                && (c.fn() == SqlFn.UNNEST
                         || c.args().stream().anyMatch(Fold::containsUnnest));
     }
 
@@ -174,7 +177,7 @@ final class Fold {
 
     private static String pivotIdentity(String column) {
         return column.length() >= 2 && column.startsWith("'") && column.endsWith("'")
-                && column.contains(com.legend.compiler.element.type.Type.RelationType.PIVOT_SEPARATOR)
+                && column.contains(Type.RelationType.PIVOT_SEPARATOR)
                 ? column.substring(1, column.length() - 1)
                 : column;
     }
@@ -242,7 +245,7 @@ final class Fold {
      * every source; an UNSTAMPED source is a construction bug and fails
      * loudly rather than silently claiming everything.
      */
-    private static boolean claims(java.util.List<com.legend.sql.OutputCol> outputs, String column) {
+    private static boolean claims(List<OutputCol> outputs, String column) {
         if (outputs.isEmpty()) {
             throw new IllegalStateException(
                     "source has no stamped output schema — cannot resolve column '"

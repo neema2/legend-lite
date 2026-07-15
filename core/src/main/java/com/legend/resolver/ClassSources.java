@@ -2,25 +2,41 @@ package com.legend.resolver;
 
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.TypedFunction;
+import com.legend.compiler.element.type.ExprType;
+import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.CompiledFunction;
 import com.legend.compiler.spec.SpecCompiler;
+import com.legend.compiler.spec.typed.TypedCBoolean;
+import com.legend.compiler.spec.typed.TypedCDate;
+import com.legend.compiler.spec.typed.TypedCDecimal;
+import com.legend.compiler.spec.typed.TypedCFloat;
+import com.legend.compiler.spec.typed.TypedCInteger;
+import com.legend.compiler.spec.typed.TypedCString;
+import com.legend.compiler.spec.typed.TypedCollection;
+import com.legend.compiler.spec.typed.TypedEnumValue;
+import com.legend.compiler.spec.typed.TypedFilter;
+import com.legend.compiler.spec.typed.TypedGetAll;
+import com.legend.compiler.spec.typed.TypedIf;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedMap;
+import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedNewInstance;
+import com.legend.compiler.spec.typed.TypedNewInstanceCast;
+import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.error.MappingResolutionException;
 import com.legend.error.NotImplementedException;
 import com.legend.parser.element.MappingDefinition;
 import com.legend.parser.element.MappingInclude;
-
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
+import java.util.function.UnaryOperator;
 /**
  * Loads and memoizes {@link ClassSource}s: (mapping, class) &rarr; compiled
  * mapping body &rarr; split at the {@code map(row|^Class(...))} terminal.
@@ -64,7 +80,7 @@ public final class ClassSources {
      * resolution to this mapping (+ includes).
      */
     public ClassSource get(String mappingFqn, String classFqn,
-            java.util.function.UnaryOperator<String> upstreamMapping,
+            UnaryOperator<String> upstreamMapping,
             String contextKey) {
         // The context key participates in memoization because an M2M
         // composition resolves its UPSTREAM through the runtime dispatch —
@@ -90,7 +106,7 @@ public final class ClassSources {
     }
 
     private ClassSource build(String mappingFqn, String classFqn,
-            java.util.function.UnaryOperator<String> upstreamMapping,
+            UnaryOperator<String> upstreamMapping,
             String contextKey) {
         MappingDefinition mapping = ctx.findMapping(mappingFqn).orElseThrow(() ->
                 new MappingResolutionException(
@@ -180,15 +196,15 @@ public final class ClassSources {
     private ClassSource composeModelToModel(String mappingFqn, String classFqn,
             MappingDefinition.ClassBinding binding, TypedSpec pipeline,
             TypedLambda mapper, TypedNewInstance ctor, Type.ClassType srcType,
-            java.util.function.UnaryOperator<String> upstreamMapping,
+            UnaryOperator<String> upstreamMapping,
             String contextKey) {
         // Ops between the extent and the constructor: instance-space
         // FILTERS compose (their predicates substitute through the
         // upstream bindings like everything else); other ops are loud.
-        List<com.legend.compiler.spec.typed.TypedFilter> filters = new java.util.ArrayList<>();
+        List<TypedFilter> filters = new ArrayList<>();
         TypedSpec cur = pipeline;
-        while (!(cur instanceof com.legend.compiler.spec.typed.TypedGetAll)) {
-            if (cur instanceof com.legend.compiler.spec.typed.TypedFilter f) {
+        while (!(cur instanceof TypedGetAll)) {
+            if (cur instanceof TypedFilter f) {
                 filters.add(f);
                 cur = f.source();
                 continue;
@@ -214,14 +230,14 @@ public final class ClassSources {
                     substituteSourceReads(b, v, inner, classFqn, mappingFqn, false)).toList();
             var fnType = new Type.FunctionType(
                     List.of(new Type.Param(inner.rowType(),
-                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                            Multiplicity.Bounded.ONE)),
                     new Type.Param(Type.Primitive.BOOLEAN,
-                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
-            composedPipeline = new com.legend.compiler.spec.typed.TypedFilter(
+                            Multiplicity.Bounded.ONE));
+            composedPipeline = new TypedFilter(
                     composedPipeline,
                     new TypedLambda(List.of(inner.rowVar()), body,
-                            new com.legend.compiler.element.type.ExprType(fnType,
-                                    com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                            new ExprType(fnType,
+                                    Multiplicity.Bounded.ONE)),
                     composedPipeline.info());
         }
         Map<String, TypedSpec> composed = new LinkedHashMap<>();
@@ -251,8 +267,8 @@ public final class ClassSources {
     private TypedSpec substituteSourceReads(TypedSpec n, String srcVar,
             ClassSource inner, String classFqn, String mappingFqn,
             boolean bindingPosition) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
-                && pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
+        if (n instanceof TypedPropertyAccess pa
+                && pa.source() instanceof TypedVariable v
                 && v.name().equals(srcVar)) {
             TypedSpec bound = inner.bindings().get(pa.property());
             if (bound == null) {
@@ -265,11 +281,11 @@ public final class ClassSources {
                 // would need a scalar join this composition cannot emit.
                 if (bindingPosition
                         && ctx.findAssociationOf(inner.classFqn(), pa.property()).isPresent()) {
-                    return new com.legend.compiler.spec.typed.TypedPropertyAccess(
-                            new com.legend.compiler.spec.typed.TypedVariable(
+                    return new TypedPropertyAccess(
+                            new TypedVariable(
                                     inner.rowVar(),
-                                    com.legend.compiler.element.type.ExprType.one(
-                                            new com.legend.compiler.element.type.Type
+                                    ExprType.one(
+                                            new Type
                                                     .ClassType(inner.classFqn()))),
                             pa.property(), pa.info());
                 }
@@ -282,38 +298,38 @@ public final class ClassSources {
             return bound;
         }
         return switch (n) {
-            case com.legend.compiler.spec.typed.TypedVariable v
+            case TypedVariable v
                     when v.name().equals(srcVar) ->
                     throw new NotImplementedException("model-to-model binding of '"
                             + classFqn + "' uses the whole source instance '$"
                             + srcVar + "' — not supported yet (H5b)");
-            case com.legend.compiler.spec.typed.TypedVariable v -> v;
+            case TypedVariable v -> v;
             // ^Target($src.prop): the M2M CAST — substitute within its
             // source; the cast survives as a CLASS-TYPED binding (read
             // sites give it graph-child / H4 stories, never silent SQL).
-            case com.legend.compiler.spec.typed.TypedNewInstanceCast nic ->
-                    new com.legend.compiler.spec.typed.TypedNewInstanceCast(
+            case TypedNewInstanceCast nic ->
+                    new TypedNewInstanceCast(
                             nic.classFqn(),
                             substituteSourceReads(nic.source(), srcVar, inner,
                                     classFqn, mappingFqn, bindingPosition),
                             nic.info());
-            case com.legend.compiler.spec.typed.TypedPropertyAccess pa ->
-                    new com.legend.compiler.spec.typed.TypedPropertyAccess(
+            case TypedPropertyAccess pa ->
+                    new TypedPropertyAccess(
                             substituteSourceReads(pa.source(), srcVar, inner,
                                     classFqn, mappingFqn, false),
                             pa.property(), pa.info());
-            case com.legend.compiler.spec.typed.TypedNativeCall c ->
-                    new com.legend.compiler.spec.typed.TypedNativeCall(c.callee(),
+            case TypedNativeCall c ->
+                    new TypedNativeCall(c.callee(),
                             c.args().stream().map(a -> substituteSourceReads(a,
                                     srcVar, inner, classFqn, mappingFqn, false)).toList(),
                             c.info());
-            case com.legend.compiler.spec.typed.TypedCollection c ->
-                    new com.legend.compiler.spec.typed.TypedCollection(
+            case TypedCollection c ->
+                    new TypedCollection(
                             c.elements().stream().map(a -> substituteSourceReads(a,
                                     srcVar, inner, classFqn, mappingFqn, false)).toList(),
                             c.info());
-            case com.legend.compiler.spec.typed.TypedIf i ->
-                    new com.legend.compiler.spec.typed.TypedIf(
+            case TypedIf i ->
+                    new TypedIf(
                             substituteSourceReads(i.condition(), srcVar, inner,
                                     classFqn, mappingFqn, false),
                             substituteSourceReads(i.thenBranch(), srcVar, inner,
@@ -341,13 +357,13 @@ public final class ClassSources {
                                 srcVar, inner, classFqn, mappingFqn, false)).toList(),
                         l.info());
             }
-            case com.legend.compiler.spec.typed.TypedCString ignored -> n;
-            case com.legend.compiler.spec.typed.TypedCInteger ignored -> n;
-            case com.legend.compiler.spec.typed.TypedCFloat ignored -> n;
-            case com.legend.compiler.spec.typed.TypedCDecimal ignored -> n;
-            case com.legend.compiler.spec.typed.TypedCBoolean ignored -> n;
-            case com.legend.compiler.spec.typed.TypedCDate ignored -> n;
-            case com.legend.compiler.spec.typed.TypedEnumValue ignored -> n;
+            case TypedCString ignored -> n;
+            case TypedCInteger ignored -> n;
+            case TypedCFloat ignored -> n;
+            case TypedCDecimal ignored -> n;
+            case TypedCBoolean ignored -> n;
+            case TypedCDate ignored -> n;
+            case TypedEnumValue ignored -> n;
             default -> throw new NotImplementedException(
                     "model-to-model binding node "
                             + n.getClass().getSimpleName()
@@ -357,7 +373,7 @@ public final class ClassSources {
 
     /** Whether any {@code $var} read occurs in {@code n}'s subtree. */
     private static boolean readsVar(TypedSpec n, String var) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedVariable v
+        if (n instanceof TypedVariable v
                 && v.name().equals(var)) {
             return true;
         }
@@ -421,7 +437,7 @@ public final class ClassSources {
             }
         }
         if (local.size() > 1) {
-            throw new com.legend.error.NotImplementedException("class '" + classFqn
+            throw new NotImplementedException("class '" + classFqn
                     + "' has " + local.size() + " set-id bindings in mapping '"
                     + mapping.qualifiedName()
                     + "'; multi-set-ID dispatch is not supported yet (H5)");

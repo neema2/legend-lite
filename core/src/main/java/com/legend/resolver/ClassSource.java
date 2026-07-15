@@ -2,10 +2,9 @@ package com.legend.resolver;
 
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedSpec;
-
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
-
 /**
  * The resolver's view of one (mapping, class) pair &mdash; the synthesized
  * mapping body split at its {@code map(row|^Class(...))} terminal:
@@ -46,6 +45,6 @@ public record ClassSource(
         Type.RelationType rowType) {
 
     public ClassSource {
-        bindings = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(bindings));
+        bindings = Collections.unmodifiableMap(new LinkedHashMap<>(bindings));
     }
 }

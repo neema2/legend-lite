@@ -1,9 +1,9 @@
 package com.legend.lowering;
 
 import com.legend.builtin.Pure;
-
+import com.legend.compiler.element.TypedFunction;
+import java.util.HashMap;
 import java.util.Map;
-
 /**
  * Aggregate-reducer dispatch: the RESOLVED overload of an agg-col's reduce
  * lambda ({@code y|$y->sum()}) &rarr; the SQL reducer name. Identity-keyed like
@@ -11,7 +11,7 @@ import java.util.Map;
  */
 final class Aggregates {
 
-    private static final Map<String, String> REDUCERS = new java.util.HashMap<>();
+    private static final Map<String, String> REDUCERS = new HashMap<>();
 
     private Aggregates() {
     }
@@ -70,11 +70,11 @@ final class Aggregates {
      * second parameter, audit L7).
      */
     /** Nullable variant of {@link #reducerFor} — for is-this-a-reducer probes. */
-    static String reducerOrNull(com.legend.compiler.element.TypedFunction callee) {
+    static String reducerOrNull(TypedFunction callee) {
         return REDUCERS.get(callee.signatureKey());
     }
 
-    static String reducerFor(com.legend.compiler.element.TypedFunction callee) {
+    static String reducerFor(TypedFunction callee) {
         String name = REDUCERS.get(callee.signatureKey());
         if (name == null) {
             throw new IllegalStateException(
